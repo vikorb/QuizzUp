@@ -1,0 +1,13 @@
+{
+  "home": {
+    "appTitle": "Quizzup Backoffice",
+    "title": "Home",
+    "description": "Welcome to the Quizzup backoffice. This page checks the API and i18n.",
+    "apiHealthLabel": "API health",
+    "loading": "Loading...",
+    "unreachable": "API unreachable",
+    "languageLabel": "Language",
+    "languageFrench": "French",
+    "languageEnglish": "English"
+  }
+}

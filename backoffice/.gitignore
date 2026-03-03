@@ -1,0 +1,82 @@
+# =========================
+# OS / Editor
+# =========================
+.DS_Store
+Thumbs.db
+
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+*.swp
+*.swo
+
+# =========================
+# Logs
+# =========================
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+# Environment / Secrets
+# =========================
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# =========================
+# Node / JS build artifacts
+# =========================
+node_modules/
+**/node_modules/
+
+dist/
+**/dist/
+
+build/
+**/build/
+
+coverage/
+**/coverage/
+
+# Vite / Vue
+.vite/
+**/.vite/
+**/vite.config.*.timestamp-*
+**/vite.config.*.cache-*
+
+# TypeScript
+*.tsbuildinfo
+
+# =========================
+# Docker / Volumes / Local data
+# =========================
+**/pgdata/
+**/.pgdata/
+docker-data/
+data/
+
+# =========================
+# Misc
+# =========================
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# =========================
+# Optional: lockfiles policy
+# (uncomment if you want to NOT commit lockfiles)
+# =========================
+# package-lock.json
+# pnpm-lock.yaml
+# yarn.lock

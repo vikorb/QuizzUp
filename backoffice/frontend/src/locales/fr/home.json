@@ -1,0 +1,13 @@
+{
+  "home": {
+    "appTitle": "Backoffice Quizzup",
+    "title": "Accueil",
+    "description": "Bienvenue sur le backoffice Quizzup. Cette page vérifie l’API et l’i18n.",
+    "apiHealthLabel": "Santé de l’API",
+    "loading": "Chargement...",
+    "unreachable": "API injoignable",
+    "languageLabel": "Langue",
+    "languageFrench": "Français",
+    "languageEnglish": "Anglais"
+  }
+}

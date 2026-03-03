@@ -1,13 +1,13 @@
-require("dotenv").config()
+require('dotenv').config()
 
 /** @type {import("knex").Knex.Config} */
 module.exports = {
-  client: "pg",
+  client: 'pg',
   connection: process.env.DATABASE_URL,
   migrations: {
-    directory: "./db/migrations"
+    directory: './db/migrations',
   },
   seeds: {
-    directory: "./db/seeds"
-  }
+    directory: './db/seeds',
+  },
 }

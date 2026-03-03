@@ -1,38 +1,40 @@
 exports.up = async function (knex) {
-  await knex.schema.createTable("companies", (t) => {
-    t.bigIncrements("id").primary()
-    t.string("name", 255).notNullable()
-    t.string("email", 255).notNullable()
+  await knex.schema.createTable('companies', (table) => {
+    table.bigIncrements('id').primary()
+    table.string('name', 255).notNullable()
+    table.string('email', 255).notNullable()
   })
 
-  await knex.schema.createTable("admins", (t) => {
-    t.bigIncrements("id").primary()
+  await knex.schema.createTable('admins', (table) => {
+    table.bigIncrements('id').primary()
 
-    t.bigInteger("company_id").notNullable()
-      .references("id")
-      .inTable("companies")
-      .onDelete("RESTRICT")
+    table
+      .bigInteger('company_id')
+      .notNullable()
+      .references('id')
+      .inTable('companies')
+      .onDelete('RESTRICT')
 
-    t.string("role", 50).notNullable()
+    table.string('role', 50).notNullable()
 
-    t.string("firstname", 255).nullable()
-    t.string("lastname", 255).nullable()
+    table.string('firstname', 255).nullable()
+    table.string('lastname', 255).nullable()
 
-    t.string("username", 255).notNullable()
-    t.string("email", 255).notNullable()
+    table.string('username', 255).notNullable()
+    table.string('email', 255).notNullable()
 
-    t.string("mdp_hash", 255).notNullable()
+    table.string('mdp_hash', 255).notNullable()
 
-    t.smallint("status").notNullable().defaultTo(1)
-    t.timestamp("created_at").notNullable().defaultTo(knex.fn.now())
-    t.timestamp("updated_at").nullable()
-    t.timestamp("deleted_at").nullable()
+    table.smallint('status').notNullable().defaultTo(1)
+    table.timestamp('created_at').notNullable().defaultTo(knex.fn.now())
+    table.timestamp('updated_at').nullable()
+    table.timestamp('deleted_at').nullable()
 
-    t.index(["company_id"])
-    t.index(["company_id", "status"])
+    table.index(['company_id'])
+    table.index(['company_id', 'status'])
 
-    t.check("status in (1,2,3)")
-    t.check(`(status = 3 AND deleted_at IS NOT NULL) OR (status <> 3 AND deleted_at IS NULL)`)
+    table.check('status in (1,2,3)')
+    table.check(`(status = 3 AND deleted_at IS NOT NULL) OR (status <> 3 AND deleted_at IS NULL)`)
   })
 
   await knex.raw(`CREATE UNIQUE INDEX companies_name_unique_ci ON companies (lower(name));`)
@@ -45,6 +47,6 @@ exports.down = async function (knex) {
   await knex.raw(`DROP INDEX IF EXISTS admins_username_unique_ci;`)
   await knex.raw(`DROP INDEX IF EXISTS companies_name_unique_ci;`)
 
-  await knex.schema.dropTableIfExists("admins")
-  await knex.schema.dropTableIfExists("companies")
+  await knex.schema.dropTableIfExists('admins')
+  await knex.schema.dropTableIfExists('companies')
 }
