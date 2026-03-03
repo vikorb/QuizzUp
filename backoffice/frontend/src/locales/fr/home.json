@@ -1,13 +1,24 @@
 {
   "home": {
-    "appTitle": "Backoffice Quizzup",
+    "appTitle": "Quizzup",
     "title": "Accueil",
-    "description": "Bienvenue sur le backoffice Quizzup. Cette page vérifie l’API et l’i18n.",
-    "apiHealthLabel": "Santé de l’API",
-    "loading": "Chargement...",
-    "unreachable": "API injoignable",
+    "description": "Plateforme futuriste pour gérer tes joueurs, thèmes, questions et lancer des parties.",
     "languageLabel": "Langue",
     "languageFrench": "Français",
     "languageEnglish": "Anglais"
+  },
+  "nav": {
+    "home": "Accueil",
+    "manage": "Gestion",
+    "players": "Joueurs",
+    "themes": "Thèmes",
+    "questionsAnswers": "Questions & réponses",
+    "play": "Parties",
+    "games": "Parties",
+    "statistics": "Statistiques"
+  },
+  "auth": {
+    "login": "Se connecter",
+    "logout": "Se déconnecter"
   }
 }
