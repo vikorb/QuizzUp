@@ -36,7 +36,6 @@ const variantClass = computed(() => `ui-btn--${props.variant}`)
 .ui-btn:hover {
   background: rgba(255, 255, 255, 0.07);
   border-color: var(--border-hover);
-  transform: translateY(-2px);
   color: var(--text-0);
 }
 

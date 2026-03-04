@@ -1,0 +1,17 @@
+{
+  "navbar": {
+    "appTitle": "QuizzUp",
+    "subtitle": "Backoffice",
+    "logout": "Déconnexion",
+    "login": "Connexion",
+    "dashboard": "Dashboard",
+    "home": "Accueil",
+    "manage": "Gestion",
+    "players": "Joueurs",
+    "themes": "Thèmes",
+    "questionsAnswers": "Questions / Réponses",
+    "live": "Live",
+    "games": "Parties",
+    "statistics": "Statistiques"
+  }
+}

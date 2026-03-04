@@ -1,16 +1,20 @@
+@import url('https://fonts.googleapis.com/css2?family=Exo+2:ital,wght@0,100..900;1,100..900&display=swap');
+
 :root {
   --bg-0: #03040b;
   --bg-card: rgba(13, 15, 30, 0.7);
-  --accent-cyan: #00f2ff;
-  --accent-purple: #8b5cf6;
-  --glow-cyan: rgba(0, 242, 255, 0.3);
-  --glow-purple: rgba(139, 92, 246, 0.3);
+  --accent-blue: #0062ff;
+  --accent-pink: #ed2efb;
+  --neon-blue: rgba(0, 98, 255, 0.85);
+  --neon-pink: rgba(237, 46, 251, 0.85);
+  --glow-blue: rgba(0, 98, 255, 0.45);
+  --glow-pink: rgba(237, 46, 251, 0.45);
   --text-0: #ffffff;
-  --text-1: rgba(255, 255, 255, 0.85);
-  --text-2: rgba(255, 255, 255, 0.55);
-  --text-3: rgba(255, 255, 255, 0.35);
+  --text-1: rgba(255, 255, 255, 0.88);
+  --text-2: rgba(255, 255, 255, 0.58);
+  --text-3: rgba(255, 255, 255, 0.36);
   --border-ui: rgba(255, 255, 255, 0.08);
-  --border-hover: rgba(0, 242, 255, 0.2);
+  --border-hover: rgba(0, 98, 255, 0.32);
   --tr: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -23,7 +27,7 @@ body {
   margin: 0;
   background: var(--bg-0);
   color: var(--text-0);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Exo 2', 'Inter', system-ui, -apple-system, sans-serif;
   overflow-x: hidden;
 }
 
@@ -34,3 +38,17 @@ body {
   border-radius: 10px; 
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--accent-purple); }
+
+.neon {
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.05) inset,
+    0 0 18px var(--glow-blue),
+    0 0 26px var(--glow-pink);
+}
+
+.neon:hover {
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.07) inset,
+    0 0 26px var(--neon-blue),
+    0 0 34px var(--neon-pink);
+}
