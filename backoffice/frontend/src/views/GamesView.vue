@@ -1,3 +1,3 @@
 <template>
-  <h2>{{ $t('nav.games') }}</h2>
+  <h2>{{ $t('navbargames') }}</h2>
 </template>

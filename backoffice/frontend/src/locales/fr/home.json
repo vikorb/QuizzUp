@@ -5,19 +5,7 @@
     "description": "Plateforme futuriste pour gérer tes joueurs, thèmes, questions et lancer des parties.",
     "languageLabel": "Langue",
     "languageFrench": "Français",
-    "languageEnglish": "Anglais"
-  },
-  "nav": {
-    "home": "Accueil",
-    "manage": "Gestion",
-    "players": "Joueurs",
-    "themes": "Thèmes",
-    "questionsAnswers": "Questions & réponses",
-    "play": "Parties",
-    "games": "Parties",
-    "statistics": "Statistiques"
-  },
-  "auth": {
+    "languageEnglish": "Anglais",
     "login": "Se connecter",
     "logout": "Se déconnecter"
   }

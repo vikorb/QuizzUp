@@ -40,14 +40,13 @@ const variantClass = computed(() => `ui-btn--${props.variant}`)
 }
 
 .ui-btn--primary {
-  background: linear-gradient(135deg, rgba(0, 242, 255, 0.1), rgba(139, 92, 246, 0.2));
-  border-color: var(--accent-purple);
+  background: linear-gradient(135deg, rgba(0, 98, 255, 0.18), rgba(237, 46, 251, 0.18));
+  border-color: rgba(255, 255, 255, 0.12);
   color: white;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 .ui-btn--primary:hover {
-  background: linear-gradient(135deg, rgba(0, 242, 255, 0.2), rgba(139, 92, 246, 0.3));
-  box-shadow: 0 0 20px var(--glow-purple);
+  background: linear-gradient(135deg, rgba(0, 98, 255, 0.26), rgba(237, 46, 251, 0.26));
+  box-shadow: 0 0 6px var(--glow-blue), 0 0 8px var(--glow-pink);
 }
 </style>

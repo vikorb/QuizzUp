@@ -2,19 +2,10 @@
   <div class="app-shell">
     <div class="bg-gradient-mesh" aria-hidden="true"></div>
 
-    <TopBar>
-      <template #auth-actions>
-        <UiButton v-if="isAuthenticated" variant="default" @click="handleLogout">
-          {{ $t('navbar.logout') }}
-        </UiButton>
-        <UiButton v-else variant="primary" @click="goLogin">
-          {{ $t('navbar.login') }}
-        </UiButton>
-      </template>
-    </TopBar>
+    <TopBar />
 
-    <div class="main-layout">
-      <SideBar />
+    <div class="main-layout" :class="{ 'main-layout--solo': !isAuthenticated }">
+      <SideBar v-if="isAuthenticated" class="sidebar" />
 
       <main class="viewport">
         <UiCard class="content-wrapper">
@@ -26,49 +17,90 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
-import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
-
-import SideBar from './navbar/SideBar.vue'
-import TopBar from './navbar/TopBar.vue'
+import { getToken,TOKEN_KEY } from '@/utils/auth'
+import SideBar from '@/views/navbar/SideBar.vue'
+import TopBar from '@/views/navbar/TopBar.vue'
 
 const router = useRouter()
 
-/* --- LOGIQUE D'AUTH --- */
-const ACCESS_TOKEN_KEY = 'access_token'
-const token = ref<string | null>(localStorage.getItem(ACCESS_TOKEN_KEY))
+const token = ref<string | null>(getToken())
 const isAuthenticated = computed(() => Boolean(token.value))
 
-function setToken(value: string | null): void {
-  token.value = value
-  if (value) localStorage.setItem(ACCESS_TOKEN_KEY, value)
-  else localStorage.removeItem(ACCESS_TOKEN_KEY)
+function syncTokenFromStorage(): void {
+  token.value = getToken()
 }
 
-const goLogin = () => router.push('/login')
-const handleLogout = () => { setToken(null); goLogin(); }
+watch(
+  () => router.currentRoute.value.fullPath,
+  () => syncTokenFromStorage()
+)
+
+function onStorage(event: StorageEvent) {
+  if (event.key === TOKEN_KEY) token.value = event.newValue
+}
+
+onMounted(() => {
+  window.addEventListener('storage', onStorage)
+  syncTokenFromStorage()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('storage', onStorage)
+})
 </script>
 
 <style scoped>
-.app-shell { min-height: 100vh; padding: 20px; position: relative; }
+.app-shell {
+  height: 100vh;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
 
 .bg-gradient-mesh {
-  position: fixed; inset: 0; z-index: -1;
-  background: 
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
     radial-gradient(circle at 10% 10%, rgba(139, 92, 246, 0.15) 0%, transparent 40%),
     radial-gradient(circle at 90% 80%, rgba(0, 242, 255, 0.1) 0%, transparent 40%);
 }
 
 .main-layout {
+  flex: 1 1 auto;
+  min-height: 0;
   display: grid;
   grid-template-columns: 260px 1fr;
   gap: 20px;
   margin-top: 20px;
+  overflow: hidden;
 }
 
-.viewport { min-width: 0; }
-.content-wrapper { min-height: calc(100vh - 160px); padding: 30px; }
+.main-layout--solo {
+  grid-template-columns: 1fr;
+}
+
+.sidebar {
+  min-height: 0;
+  overflow: auto;
+}
+
+.viewport {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.content-wrapper {
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+  padding: 30px;
+}
 </style>

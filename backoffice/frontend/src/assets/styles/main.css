@@ -2,7 +2,7 @@
 
 :root {
   --bg-0: #03040b;
-  --bg-card: rgba(13, 15, 30, 0.7);
+  --bg-card: rgba(13, 15, 30, 0.62);
   --accent-blue: #0062ff;
   --accent-pink: #ed2efb;
   --neon-blue: rgba(0, 98, 255, 0.85);
@@ -23,12 +23,19 @@
   -webkit-font-smoothing: antialiased;
 }
 
+html,
+body,
+#app {
+  height: 100%;
+}
+
 body {
   margin: 0;
   background: var(--bg-0);
   color: var(--text-0);
   font-family: 'Exo 2', 'Inter', system-ui, -apple-system, sans-serif;
   overflow-x: hidden;
+  overflow: hidden;
 }
 
 ::-webkit-scrollbar { width: 6px; }

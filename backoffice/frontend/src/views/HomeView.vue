@@ -1,76 +1,52 @@
 <template>
   <section class="home">
-    <h2 class="title">{{ $t('home.title') }}</h2>
-    <p class="desc">{{ $t('home.description') }}</p>
-
-    <div class="grid">
-      <UiCard class="card">
-        <div class="kicker">{{ $t('nav.players') }}</div>
-        <div class="value">+</div>
-      </UiCard>
-
-      <UiCard class="card">
-        <div class="kicker">{{ $t('nav.questionsAnswers') }}</div>
-        <div class="value">+</div>
-      </UiCard>
-
-      <UiCard class="card">
-        <div class="kicker">{{ $t('nav.games') }}</div>
-        <div class="value">+</div>
-      </UiCard>
-    </div>
+    <HomeGuest v-if="!isAuthenticated" @login="goLogin" />
+    <HomeAuthed v-else />
   </section>
 </template>
 
 <script setup lang="ts">
-import UiCard from '@/components/ui/UiCard.vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+
+import { getToken,TOKEN_KEY } from '@/utils/auth'
+import HomeAuthed from '@/views/home/HomeAuthed.vue'
+import HomeGuest from '@/views/home/HomeGuest.vue'
+
+const router = useRouter()
+
+const token = ref<string | null>(getToken())
+const isAuthenticated = computed(() => Boolean(token.value))
+
+function syncTokenFromStorage(): void {
+  token.value = getToken()
+}
+
+watch(
+  () => router.currentRoute.value.fullPath,
+  () => syncTokenFromStorage()
+)
+
+function onStorage(event: StorageEvent) {
+  if (event.key === TOKEN_KEY) token.value = event.newValue
+}
+
+onMounted(() => {
+  window.addEventListener('storage', onStorage)
+  syncTokenFromStorage()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('storage', onStorage)
+})
+
+function goLogin(): void {
+  router.push({ path: '/login', query: { redirect: '/' } })
+}
 </script>
 
 <style scoped>
-.title {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 850;
-  letter-spacing: 0.2px;
-}
-
-.desc {
-  margin: 10px 0 0;
-  color: var(--text-1);
-}
-
-.grid {
-  margin-top: 18px;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.card {
-  padding: 14px;
-  border-radius: 18px;
-}
-
-.kicker {
-  font-size: 12px;
-  color: var(--text-2);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.value {
-  margin-top: 10px;
-  font-size: 26px;
-  font-weight: 900;
-  background: linear-gradient(135deg, rgba(0, 225, 255, 0.9), rgba(122, 92, 255, 0.9));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-@media (max-width: 980px) {
-  .grid {
-    grid-template-columns: 1fr;
-  }
+.home {
+  display: block;
 }
 </style>

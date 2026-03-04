@@ -1,3 +1,3 @@
 <template>
-  <h2>{{ $t('nav.questions') }}</h2>
+  <h2>{{ $t('navbarquestions') }}</h2>
 </template>

@@ -1,3 +1,3 @@
 <template>
-  <h2>{{ $t('nav.themes') }}</h2>
+  <h2>{{ $t('navbarthemes') }}</h2>
 </template>
