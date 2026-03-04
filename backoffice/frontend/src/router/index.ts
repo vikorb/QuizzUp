@@ -12,12 +12,12 @@ import ThemesView from '@/views/ThemesView.vue'
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/login', component: LoginView },
     {
       path: '/',
       component: NavbarView,
       children: [
         { path: '', component: HomeView },
+        { path: '/login', component: LoginView },
         { path: 'players', component: PlayersView },
         { path: 'themes', component: ThemesView },
         { path: 'questions', component: QuestionsView },
