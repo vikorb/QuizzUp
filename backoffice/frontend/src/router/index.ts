@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
+import ClientsView from '@/views/ClientsView.vue'
 import GamesView from '@/views/GamesView.vue'
 import HomeView from '@/views/HomeView.vue'
 import LoginView from '@/views/LoginView.vue'
@@ -18,6 +19,7 @@ export const router = createRouter({
       children: [
         { path: '', component: HomeView },
         { path: '/login', component: LoginView },
+        { path: 'clients', component: ClientsView },
         { path: 'players', component: PlayersView },
         { path: 'themes', component: ThemesView },
         { path: 'questions', component: QuestionsView },

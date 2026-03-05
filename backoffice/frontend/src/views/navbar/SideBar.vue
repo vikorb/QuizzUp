@@ -13,6 +13,7 @@
 <script setup lang="ts">
 import {
   mdiAccountGroupOutline,
+  mdiBriefcaseAccountOutline,
   mdiChartTimelineVariant,
   mdiHelpCircleOutline,
   mdiHomeOutline,
@@ -36,6 +37,7 @@ const navDashboard = [
 ]
 
 const navManage = [
+  { to: '/clients', icon: mdiBriefcaseAccountOutline, iconType: 'mdi' as const, labelKey: 'navbar.clients' },
   { to: '/players', icon: mdiAccountGroupOutline, iconType: 'mdi' as const, labelKey: 'navbar.players' },
   { to: '/themes', icon: mdiPaletteOutline, iconType: 'mdi' as const, labelKey: 'navbar.themes' },
   { to: '/questions', icon: mdiHelpCircleOutline, iconType: 'mdi' as const, labelKey: 'navbar.questionsAnswers' },
