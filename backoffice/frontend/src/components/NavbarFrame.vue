@@ -60,7 +60,7 @@ defineEmits<{
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 220px 1fr;
   gap: 16px;
   margin-top: 14px;
   overflow: hidden;

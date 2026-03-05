@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 import { clearToken, getApiBase, getToken, logoutApi, onAuthChanged, TOKEN_KEY } from '@/utils/auth'
 
@@ -35,39 +35,58 @@ function init() {
 
 init()
 
+let refreshInFlight: Promise<PublicMe | null> | null = null
+
 export async function refreshMe(): Promise<PublicMe | null> {
   if (!token.value) {
     me.value = null
     return null
   }
 
+  if (refreshInFlight) return refreshInFlight
+
   const API_BASE = getApiBase()
   const headers = new Headers()
   headers.set('Authorization', `Bearer ${token.value}`)
 
-  try {
-    const res = await fetch(`${API_BASE}/me`, {
-      headers,
-      credentials: 'include',
-    })
+  refreshInFlight = (async () => {
+    try {
+      const res = await fetch(`${API_BASE}/me`, { headers, credentials: 'include' })
 
-    if (!res.ok) {
-      if (res.status === 401) {
-        clearToken()
-        sync()
+      if (!res.ok) {
+        if (res.status === 401) {
+          clearToken()
+          sync()
+        }
+        return null
       }
-      return null
+
+      const data: unknown = await res.json().catch(() => null)
+      const admin = (data as { admin?: PublicMe } | null)?.admin ?? null
+      me.value = admin
+      return admin
+    } catch {
+      return me.value
+    } finally {
+      refreshInFlight = null
     }
+  })()
 
-    const data: unknown = await res.json().catch(() => null)
-
-    const admin = (data as { admin?: PublicMe } | null)?.admin ?? null
-    me.value = admin
-    return admin
-  } catch {
-    return me.value
-  }
+  return refreshInFlight
 }
+
+watch(
+  () => token.value,
+  async (newToken, oldToken) => {
+    if (newToken && newToken !== oldToken) {
+      await refreshMe()
+    }
+    if (!newToken) {
+      me.value = null
+    }
+  },
+  { immediate: Boolean(token.value) }
+)
 
 export async function logout(): Promise<void> {
   const tokenValue = token.value
@@ -76,13 +95,5 @@ export async function logout(): Promise<void> {
   if (tokenValue) await logoutApi(tokenValue)
 }
 
-export const authState = {
-  token,
-  isAuthenticated,
-  me,
-  sync,
-  refreshMe,
-  logout,
-}
-
-export { isAuthenticated, me,token }
+export const authState = { token, isAuthenticated, me, sync, refreshMe, logout }
+export { isAuthenticated, me, token }

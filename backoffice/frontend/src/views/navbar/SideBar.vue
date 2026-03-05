@@ -23,7 +23,7 @@ import {
 import { computed } from 'vue'
 
 import NavGroup from '@/components/NavGroup.vue'
-import { isAuthenticated } from '@/state/authState'
+import { isAuthenticated, me } from '@/state/authState'
 import SidebarActions from '@/views/navbar/sidebar/SidebarActions.vue'
 
 defineProps({
@@ -31,17 +31,29 @@ defineProps({
 })
 
 const canShowNav = computed(() => isAuthenticated.value)
+console.log(me)
+const isAdmin = computed(() => me.value?.role === 'admin')
 
 const navDashboard = [
   { to: '/', icon: mdiHomeOutline, iconType: 'mdi' as const, labelKey: 'navbar.home' },
 ]
 
-const navManage = [
-  { to: '/clients', icon: mdiBriefcaseAccountOutline, iconType: 'mdi' as const, labelKey: 'navbar.clients' },
-  { to: '/players', icon: mdiAccountGroupOutline, iconType: 'mdi' as const, labelKey: 'navbar.players' },
-  { to: '/themes', icon: mdiPaletteOutline, iconType: 'mdi' as const, labelKey: 'navbar.themes' },
-  { to: '/questions', icon: mdiHelpCircleOutline, iconType: 'mdi' as const, labelKey: 'navbar.questionsAnswers' },
-]
+const navManage = computed(() => {
+  const base = [
+    { to: '/players', icon: mdiAccountGroupOutline, iconType: 'mdi' as const, labelKey: 'navbar.players' },
+    { to: '/themes', icon: mdiPaletteOutline, iconType: 'mdi' as const, labelKey: 'navbar.themes' },
+    { to: '/questions', icon: mdiHelpCircleOutline, iconType: 'mdi' as const, labelKey: 'navbar.questionsAnswers' },
+  ] as const
+
+  if (isAdmin.value) {
+    return [
+      { to: '/clients', icon: mdiBriefcaseAccountOutline, iconType: 'mdi' as const, labelKey: 'navbar.clients' },
+      ...base,
+    ]
+  }
+
+  return [...base]
+})
 
 const navPlay = [
   { to: '/games', icon: mdiPlayCircleOutline, iconType: 'mdi' as const, labelKey: 'navbar.games' },

@@ -1,4 +1,3 @@
-// src/routes/auth.ts
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'

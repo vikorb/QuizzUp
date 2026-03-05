@@ -1,4 +1,3 @@
-// src/routes/me.ts
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import db from '../db'
 
