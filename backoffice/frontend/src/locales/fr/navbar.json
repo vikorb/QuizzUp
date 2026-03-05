@@ -4,6 +4,7 @@
     "subtitle": "Backoffice",
     "logout": "Déconnexion",
     "login": "Connexion",
+    "menu": "Menu",
     "dashboard": "Dashboard",
     "home": "Accueil",
     "manage": "Gestion",
@@ -12,6 +13,18 @@
     "questionsAnswers": "Questions / Réponses",
     "live": "Live",
     "games": "Parties",
-    "statistics": "Statistiques"
+    "statistics": "Statistiques",
+    "language": "Langue",
+    "account": "Compte",
+    "lang": {
+      "fr": {
+        "name": "Français",
+        "code": "fr"
+      },
+      "en": {
+        "name": "English",
+        "code": "en"
+      }
+    }
   }
 }

@@ -1,14 +1,40 @@
 <template>
   <header class="topbar">
-    <Brand />
-    <TopActions />
+    <div class="left">
+      <UiButton
+        v-if="showBurger"
+        class="burger"
+        variant="icon"
+        type="button"
+        :aria-label="$t('navbar.menu')"
+        @click="$emit('toggle-sidebar')"
+      >
+        <MdIcon :path="mdiMenu" :size="18" />
+      </UiButton>
+
+      <Brand />
+    </div>
+
+    <TopActions v-if="!showBurger" />
   </header>
 </template>
 
 <script setup lang="ts">
-import Brand from '@/views/navbar/topbar/Brand.vue';
+import { mdiMenu } from '@mdi/js'
 
-import TopActions from './topbar/TopActions.vue';
+import MdIcon from '@/components/ui/MdIcon.vue'
+import UiButton from '@/components/ui/UiButton.vue'
+import Brand from '@/views/navbar/topbar/Brand.vue'
+import TopActions from '@/views/navbar/topbar/TopActions.vue'
+
+defineProps<{
+  showBurger?: boolean
+  sidebarOpen?: boolean
+}>()
+
+defineEmits<{
+  (e: 'toggle-sidebar'): void
+}>()
 </script>
 
 <style scoped>
@@ -22,10 +48,10 @@ import TopActions from './topbar/TopActions.vue';
   padding: 14px 18px;
   gap: 16px;
   background:
-    radial-gradient(900px 160px at 15% 0%, rgba(0, 98, 255, 0.20), transparent 62%),
-    radial-gradient(900px 160px at 85% 0%, rgba(237, 46, 251, 0.20), transparent 62%),
+    radial-gradient(900px 160px at 15% 0%, rgba(0, 98, 255, 0.2), transparent 62%),
+    radial-gradient(900px 160px at 85% 0%, rgba(237, 46, 251, 0.2), transparent 62%),
     var(--bg-card);
-  border: 1px solid rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 18px;
   backdrop-filter: blur(14px);
   box-shadow:
@@ -39,6 +65,17 @@ import TopActions from './topbar/TopActions.vue';
 .topbar > :deep(*) {
   position: relative;
   z-index: 1;
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.burger {
+  flex: 0 0 auto;
 }
 
 @media (max-width: 720px) {

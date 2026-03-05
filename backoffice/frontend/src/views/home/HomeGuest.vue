@@ -54,7 +54,7 @@ import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
 
 defineEmits<{
-  (e: 'login'): void
+  (event: 'login'): void
 }>()
 
 const featuresRef = ref<HTMLElement | null>(null)

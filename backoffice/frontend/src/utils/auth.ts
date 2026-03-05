@@ -19,14 +19,6 @@ export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY)
 }
 
-export function setToken(token: string): void {
-  localStorage.setItem(TOKEN_KEY, token)
-}
-
-export function clearToken(): void {
-  localStorage.removeItem(TOKEN_KEY)
-}
-
 export function loginReasonToI18nKey(reason: LoginFailReason): string {
   switch (reason) {
     case 'invalid_credentials':
@@ -81,4 +73,27 @@ export async function logoutApi(token: string): Promise<void> {
     headers,
     credentials: 'include',
   }).catch(() => undefined)
+}
+
+const AUTH_EVENT = 'quizzup:auth-changed'
+
+export function notifyAuthChanged(): void {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new Event(AUTH_EVENT))
+}
+
+export function onAuthChanged(cb: () => void): () => void {
+  if (typeof window === 'undefined') return () => undefined
+  window.addEventListener(AUTH_EVENT, cb)
+  return () => window.removeEventListener(AUTH_EVENT, cb)
+}
+
+export function setToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token)
+  notifyAuthChanged()
+}
+
+export function clearToken(): void {
+  localStorage.removeItem(TOKEN_KEY)
+  notifyAuthChanged()
 }

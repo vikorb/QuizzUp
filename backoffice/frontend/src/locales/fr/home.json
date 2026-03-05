@@ -6,7 +6,7 @@
     "languageLabel": "Langue",
     "languageFrench": "Français",
     "languageEnglish": "Anglais",
-    "login": "Se connecter",
-    "logout": "Se déconnecter"
+    "login": "Connexion",
+    "logout": "Déconnexion"
   }
 }
