@@ -29,24 +29,6 @@ import { RouterLink } from 'vue-router'
   border-radius: 12px;
 }
 
-.logo {
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 0 20px var(--glow-cyan);
-  overflow: hidden;
-}
-
-.logo-img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
 .app-name {
   font-weight: 800;
   font-size: 18px;

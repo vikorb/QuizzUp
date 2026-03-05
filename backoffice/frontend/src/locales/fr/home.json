@@ -7,6 +7,30 @@
     "languageFrench": "Français",
     "languageEnglish": "Anglais",
     "login": "Connexion",
-    "logout": "Déconnexion"
+    "logout": "Déconnexion",
+    "guest": {
+      "title": "Bienvenue sur Quizzup",
+      "description": "Crée, organise et anime des quiz modernes avec une interface rapide, claire et pensée pour le mobile.",
+      "ctaLogin": "Se connecter",
+      "ctaLearnMore": "En savoir plus",
+      "note": "Connecte-toi pour accéder au tableau de bord, gérer tes contenus et lancer des parties.",
+      "features": {
+        "fast": {
+          "kicker": "Rapide",
+          "title": "Configuration en quelques clics",
+          "desc": "Crée des thèmes et des questions rapidement, avec une interface fluide et des composants réutilisables."
+        },
+        "manage": {
+          "kicker": "Gestion",
+          "title": "Tout centralisé",
+          "desc": "Gère joueurs, thèmes, questions et parties depuis un seul endroit, avec une navigation simple."
+        },
+        "secure": {
+          "kicker": "Sécurisé",
+          "title": "Connexion et accès contrôlés",
+          "desc": "Authentification et permissions pour garder tes données et ton espace d'administration protégés."
+        }
+      }
+    }
   }
 }
