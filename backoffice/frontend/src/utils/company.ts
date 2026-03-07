@@ -1,4 +1,4 @@
-import type { CompaniesResponse, Company } from '@/types/Company'
+import type { CompaniesResponse, Company, CompanyTableRow } from '@/types/company'
 import { isRecord, toNumber, toString } from '@/utils'
 import { filterByQuery } from '@/utils/filter'
 
@@ -39,4 +39,12 @@ export function parseCompaniesResponse(value: unknown): CompaniesResponse | null
 
 export function filterCompanies(companies: Company[], query: string): Company[] {
   return filterByQuery(companies, query, (company) => [company.name, company.email])
+}
+
+export function isCompanyTableRow(value: Record<string, unknown>): value is CompanyTableRow {
+  return (
+    typeof value.id === 'number' &&
+    typeof value.name === 'string' &&
+    typeof value.email === 'string'
+  )
 }

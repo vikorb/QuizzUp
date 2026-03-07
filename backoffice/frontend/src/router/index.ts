@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 import { isAuthenticated, me, refreshMe } from '@/state/authState'
+import CreateClientview from '@/views/clients/CreateClientview.vue'
 import ClientsView from '@/views/ClientsView.vue'
 import GamesView from '@/views/GamesView.vue'
 import HomeView from '@/views/HomeView.vue'
@@ -18,20 +19,27 @@ export const router = createRouter({
       path: '/',
       component: NavbarView,
       children: [
-        { path: '', component: HomeView },
-        { path: '/login', component: LoginView },
+        { path: '', name: 'home', component: HomeView },
+        { path: '/login', name: 'login', component: LoginView },
 
         {
           path: 'clients',
+          name: 'clients',
           component: ClientsView,
           meta: { requiresAuth: true, requiresAdmin: true },
         },
+        {
+          path: 'clients/create',
+          name: 'clients-create',
+          component: CreateClientview,
+          meta: { requiresAuth: true, requiresAdmin: true },
+        },
 
-        { path: 'players', component: PlayersView, meta: { requiresAuth: true } },
-        { path: 'themes', component: ThemesView, meta: { requiresAuth: true } },
-        { path: 'questions', component: QuestionsView, meta: { requiresAuth: true } },
-        { path: 'games', component: GamesView, meta: { requiresAuth: true } },
-        { path: 'stats', component: StatsView, meta: { requiresAuth: true } },
+        { path: 'players', name: 'players', component: PlayersView, meta: { requiresAuth: true } },
+        { path: 'themes', name: 'themes', component: ThemesView, meta: { requiresAuth: true } },
+        { path: 'questions', name: 'questions', component: QuestionsView, meta: { requiresAuth: true } },
+        { path: 'games', name: 'games', component: GamesView, meta: { requiresAuth: true } },
+        { path: 'stats', name: 'stats', component: StatsView, meta: { requiresAuth: true } },
       ],
     },
   ],
@@ -39,8 +47,12 @@ export const router = createRouter({
 
 router.beforeEach(async (to) => {
   const isPublic = to.path === '/' || to.path === '/login'
+
   if (isPublic) {
-    if (to.path === '/login' && isAuthenticated.value) return { path: '/' }
+    if (to.path === '/login' && isAuthenticated.value) {
+      return { path: '/' }
+    }
+
     return true
   }
 

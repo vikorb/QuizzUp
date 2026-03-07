@@ -8,3 +8,5 @@ export type Company = {
 export type CompaniesResponse = {
   companies: Company[]
 }
+
+export type CompanyTableRow = Company & Record<string, unknown>

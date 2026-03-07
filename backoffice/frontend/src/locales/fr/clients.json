@@ -26,6 +26,41 @@
       "forbidden": "Accès refusé.",
       "apiUnreachable": "API injoignable.",
       "serverError": "Erreur serveur."
+    },
+    "create": {
+      "title": "Créer une entreprise",
+      "subtitle": "Ajoutez une nouvelle entreprise au backoffice.",
+      "cardTitle": "Nouvelle entreprise",
+      "fields": {
+        "name": {
+          "label": "Nom de l’entreprise",
+          "placeholder": "Ex. Quizzup Studio"
+        },
+        "email": {
+          "label": "Email de contact",
+          "placeholder": "Ex. contact@quizzup.local"
+        }
+      },
+      "actions": {
+        "cancel": "Annuler",
+        "submit": "Créer l’entreprise",
+        "submitting": "Création en cours..."
+      },
+      "hint": "Le nom et l’email doivent être uniques et valides avant la création.",
+      "success": "L’entreprise a été créée avec succès.",
+      "errors": {
+        "required": "Ce champ est requis.",
+        "invalidEmail": "Veuillez saisir une adresse email valide.",
+        "emailAlreadyExists": "Une entreprise avec cet email existe déjà."
+      },
+      "errorsApi": {
+        "missingToken": "Votre session est invalide. Veuillez vous reconnecter.",
+        "unauthorized": "Vous n’êtes pas autorisé à effectuer cette action.",
+        "forbidden": "Vous n’avez pas les droits nécessaires.",
+        "apiUnreachable": "Le serveur est actuellement inaccessible.",
+        "invalidJson": "La réponse du serveur est invalide.",
+        "serverError": "Une erreur serveur est survenue."
+      }
     }
   }
 }

@@ -70,7 +70,9 @@ import type { BaseTableColumn } from '@/components/ui/BaseTable.vue'
 import BaseTable from '@/components/ui/BaseTable.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
-import type { Company } from '@/types/company'
+import { getCompanyAccountsRoute, getEditCompanyRoute } from '@/router/clients'
+import type { Company, CompanyTableRow } from '@/types/company'
+import { isCompanyTableRow } from '@/utils/company'
 
 const props = defineProps<{
   companies: Company[]
@@ -106,25 +108,22 @@ const columns = computed<BaseTableColumn[]>(() => [
   },
 ])
 
-const tableItems = computed<Record<string, unknown>[]>(() =>
-  props.companies.map((company) => ({
-    ...company,
-    actions: '',
-  }))
-)
+const tableItems = computed<CompanyTableRow[]>(() => props.companies)
 
-function handleEditCompany(company: Record<string, unknown>): void {
-  router.push({
-    path: '/clients',
-    query: { mode: 'edit', company_id: String(company.id) },
-  })
+function handleEditCompany(item: Record<string, unknown>): void {
+  if (!isCompanyTableRow(item)) {
+    return
+  }
+
+  router.push(getEditCompanyRoute(item.id))
 }
 
-function handleViewAccounts(company: Record<string, unknown>): void {
-  router.push({
-    path: '/clients',
-    query: { company_id: String(company.id) },
-  })
+function handleViewAccounts(item: Record<string, unknown>): void {
+  if (!isCompanyTableRow(item)) {
+    return
+  }
+
+  router.push(getCompanyAccountsRoute(item.id))
 }
 </script>
 
