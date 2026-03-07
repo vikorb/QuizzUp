@@ -49,8 +49,7 @@ defineEmits<{
   gap: 16px;
   background:
     radial-gradient(900px 160px at 15% 0%, rgba(0, 98, 255, 0.2), transparent 62%),
-    radial-gradient(900px 160px at 85% 0%, rgba(237, 46, 251, 0.2), transparent 62%),
-    var(--bg-card);
+    radial-gradient(900px 160px at 85% 0%, rgba(237, 46, 251, 0.2), transparent 62%), var(--bg-card);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 18px;
   backdrop-filter: blur(14px);

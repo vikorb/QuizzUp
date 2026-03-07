@@ -23,8 +23,7 @@ const props = withDefaults(
 )
 
 const styleVars = computed(() => {
-  const mw =
-    typeof props.maxWidth === 'number' ? `${props.maxWidth}px` : props.maxWidth
+  const mw = typeof props.maxWidth === 'number' ? `${props.maxWidth}px` : props.maxWidth
 
   return {
     maxWidth: mw,

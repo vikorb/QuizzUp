@@ -13,7 +13,7 @@
 </template>
 
 <script setup lang="ts">
-import AuthButton from '@/components/AuthButton.vue';
+import AuthButton from '@/components/AuthButton.vue'
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
 import NavGroup from '@/components/NavGroup.vue'
 </script>

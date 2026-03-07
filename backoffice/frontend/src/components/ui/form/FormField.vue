@@ -1,11 +1,14 @@
 <template>
   <div class="ff" :class="{ 'ff--disabled': disabled }">
-    <label v-if="label" class="ff__label" :for="id">
-      {{ label }}
-      <span v-if="required" class="ff__req">*</span>
-    </label>
+    <LabelField :label="label" :for-id="id" :required="required" />
 
-    <div class="ff__control neon" :class="{ 'ff__control--error': !!error }">
+    <div
+      class="ff__control"
+      :class="{
+        neon,
+        'ff__control--error': !!error,
+      }"
+    >
       <slot name="left" />
 
       <component
@@ -39,6 +42,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+import LabelField from '@/components/ui/form/LabelField.vue'
+
 const props = withDefaults(
   defineProps<{
     modelValue: string
@@ -55,19 +60,21 @@ const props = withDefaults(
     hint?: string
     as?: 'input' | 'textarea'
     rows?: number
+    neon?: boolean
   }>(),
   {
     type: 'text',
     as: 'input',
     required: false,
     disabled: false,
+    neon: true,
   }
 )
 
 const emit = defineEmits<{
-  (e: 'update:modelValue', v: string): void
-  (e: 'blur'): void
-  (e: 'enter'): void
+  (event: 'update:modelValue', v: string): void
+  (event: 'blur'): void
+  (event: 'enter'): void
 }>()
 
 const uid = Math.random().toString(16).slice(2)
@@ -75,16 +82,23 @@ const id = computed(() => props.id ?? `ff_${uid}`)
 
 const hintId = computed(() => `${id.value}_hint`)
 const errorId = computed(() => `${id.value}_error`)
-const describedBy = computed(() => (props.error ? errorId.value : props.hint ? hintId.value : undefined))
+const describedBy = computed(() =>
+  props.error ? errorId.value : props.hint ? hintId.value : undefined
+)
 
 const inputAttrs = computed(() => {
   if (props.as !== 'textarea') return {}
   return { rows: props.rows ?? 3 }
 })
 
-function onInput(event: Event) {
-  const value = (event.target as HTMLInputElement | HTMLTextAreaElement).value
-  emit('update:modelValue', value)
+function onInput(event: Event): void {
+  const target = event.target
+
+  if (!(target instanceof HTMLInputElement) && !(target instanceof HTMLTextAreaElement)) {
+    return
+  }
+
+  emit('update:modelValue', target.value)
 }
 </script>
 
@@ -92,18 +106,6 @@ function onInput(event: Event) {
 .ff {
   display: grid;
   gap: 8px;
-}
-
-.ff__label {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-1);
-  letter-spacing: 0.2px;
-}
-
-.ff__req {
-  color: var(--accent-pink);
-  margin-left: 4px;
 }
 
 .ff__control {

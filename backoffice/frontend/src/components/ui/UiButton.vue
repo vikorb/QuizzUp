@@ -47,7 +47,9 @@ const variantClass = computed(() => `ui-btn--${props.variant}`)
 
 .ui-btn--primary:hover {
   background: linear-gradient(135deg, rgba(0, 98, 255, 0.26), rgba(237, 46, 251, 0.26));
-  box-shadow: 0 0 6px var(--glow-blue), 0 0 8px var(--glow-pink);
+  box-shadow:
+    0 0 6px var(--glow-blue),
+    0 0 8px var(--glow-pink);
 }
 
 .ui-btn--seg {
@@ -67,7 +69,9 @@ const variantClass = computed(() => `ui-btn--${props.variant}`)
 .ui-btn--seg.is-active {
   border-color: rgba(255, 255, 255, 0.16);
   background: linear-gradient(135deg, rgba(0, 98, 255, 0.16), rgba(237, 46, 251, 0.16));
-  box-shadow: 0 0 10px var(--glow-blue), 0 0 12px var(--glow-pink);
+  box-shadow:
+    0 0 10px var(--glow-blue),
+    0 0 12px var(--glow-pink);
   color: var(--text-0);
 }
 
@@ -81,7 +85,7 @@ const variantClass = computed(() => `ui-btn--${props.variant}`)
 }
 
 .ui-btn--danger:hover {
-  background: rgba(255, 80, 120, 0.10);
+  background: rgba(255, 80, 120, 0.1);
   border-color: rgba(255, 80, 120, 0.45);
   color: var(--text-0);
   box-shadow:

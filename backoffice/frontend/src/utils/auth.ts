@@ -7,9 +7,7 @@ export type LoginFailReason =
   | 'missing_token'
   | 'api_unreachable'
 
-export type LoginResult =
-  | { ok: true; token: string }
-  | { ok: false; reason: LoginFailReason }
+export type LoginResult = { ok: true; token: string } | { ok: false; reason: LoginFailReason }
 
 export function getApiBase(): string {
   return (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:3001'
@@ -34,7 +32,10 @@ export function loginReasonToI18nKey(reason: LoginFailReason): string {
   }
 }
 
-export async function loginApi(args: { identifier: string; password: string }): Promise<LoginResult> {
+export async function loginApi(args: {
+  identifier: string
+  password: string
+}): Promise<LoginResult> {
   const API_BASE = getApiBase()
 
   try {

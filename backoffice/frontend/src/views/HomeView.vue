@@ -9,7 +9,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { getToken,TOKEN_KEY } from '@/utils/auth'
+import { getToken, TOKEN_KEY } from '@/utils/auth'
 import HomeAuthed from '@/views/home/HomeAuthed.vue'
 import HomeGuest from '@/views/home/HomeGuest.vue'
 

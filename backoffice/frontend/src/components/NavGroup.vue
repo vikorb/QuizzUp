@@ -67,7 +67,9 @@ function onItemClick(item: NavItem) {
 </script>
 
 <style scoped>
-.nav-group { margin-bottom: 24px; }
+.nav-group {
+  margin-bottom: 24px;
+}
 
 .nav-label {
   font-size: 11px;
@@ -78,7 +80,9 @@ function onItemClick(item: NavItem) {
   padding-left: 12px;
 }
 
-.nav-body { padding: 0 6px; }
+.nav-body {
+  padding: 0 6px;
+}
 
 .nav-link {
   width: 100%;
@@ -97,7 +101,10 @@ function onItemClick(item: NavItem) {
   cursor: pointer;
 }
 
-.nav-link:hover { background: rgba(255,255,255,0.05); color: var(--text-0); }
+.nav-link:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-0);
+}
 
 .nav-link.is-active {
   background: rgba(139, 92, 246, 0.1);

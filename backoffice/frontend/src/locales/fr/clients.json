@@ -1,0 +1,31 @@
+{
+  "clients": {
+    "title": "Clients",
+    "subtitle": "Gérez les entreprises clientes et leurs comptes.",
+    "filters": {
+      "searchLabel": "Recherche",
+      "searchPlaceholder": "Rechercher par nom ou email…"
+    },
+    "actions": {
+      "addCompany": "Ajouter une compagnie"
+    },
+    "table": {
+      "title": "Entreprises",
+      "loading": "Chargement des entreprises…",
+      "empty": "Aucune entreprise trouvée.",
+      "retry": "Réessayer",
+      "hint": "La colonne « comptes » affichera un total dès que l’API renverra accountsCount.",
+      "columns": {
+        "name": "Nom",
+        "email": "Email",
+        "accounts": "Comptes",
+        "actions": "Actions"
+      }
+    },
+    "errors": {
+      "forbidden": "Accès refusé.",
+      "apiUnreachable": "API injoignable.",
+      "serverError": "Erreur serveur."
+    }
+  }
+}

@@ -7,10 +7,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed } from 'vue'
 
 import NavbarFrame from '@/components/NavbarFrame.vue'
-import { isAuthenticated } from '@/state/authState';
+import { isAuthenticated } from '@/state/authState'
 import SideBar from '@/views/navbar/SideBar.vue'
 
 const canShowSidebar = computed(() => isAuthenticated.value)

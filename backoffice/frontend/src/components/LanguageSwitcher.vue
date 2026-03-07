@@ -8,11 +8,7 @@
       @set-locale="setLocale"
     />
 
-    <LanguageSwitcherMobile
-      v-else
-      :current-locale="currentLocale"
-      @set-locale="setLocale"
-    />
+    <LanguageSwitcherMobile v-else :current-locale="currentLocale" @set-locale="setLocale" />
   </div>
 </template>
 
@@ -21,7 +17,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import LanguageSwitcherDesktop from '@/components/languageSwitcher/LanguageSwitcherDesktop.vue'
 import LanguageSwitcherMobile from '@/components/languageSwitcher/LanguageSwitcherMobile.vue'
-import { getCurrentLocale, type LocaleCode,setCurrentLocale } from '@/plugins/i18n'
+import { getCurrentLocale, type LocaleCode, setCurrentLocale } from '@/plugins/i18n'
 
 const props = withDefaults(
   defineProps<{

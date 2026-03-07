@@ -79,8 +79,9 @@ defineEmits<{
 .content-wrapper {
   height: 100%;
   min-height: 0;
-  overflow: auto;
-  padding: 22px;
+  padding: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 @media (max-width: 980px) {

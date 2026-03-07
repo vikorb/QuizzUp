@@ -43,7 +43,7 @@ export default [
         'error',
         {
           min: 2,
-          exceptions: [],
+          exceptions: ['t'],
           properties: 'never',
         },
       ],

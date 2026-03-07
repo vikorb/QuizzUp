@@ -6,6 +6,7 @@ type CompanyRow = {
   id: number
   name: string
   email: string
+  accountsCount: number
 }
 
 const paramsSchema = z.object({
@@ -20,21 +21,26 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
       const myCompanyId = Number(req.user.company_id)
       const isAdmin = req.user.role === 'admin'
 
-      if (!isAdmin) {
-        const company = await db<CompanyRow>('companies')
-          .select('id', 'name', 'email')
-          .where({ id: myCompanyId })
-          .first()
+      const baseQuery = db('companies')
+        .leftJoin('admins', function joinAdmins() {
+          this.on('admins.company_id', '=', 'companies.id').andOnNull('admins.deleted_at')
+        })
+        .groupBy('companies.id')
+        .select(
+          'companies.id',
+          'companies.name',
+          'companies.email',
+          db.raw('COUNT(admins.id)::int as "accountsCount"')
+        )
 
+      if (!isAdmin) {
+        const company = await baseQuery.where('companies.id', myCompanyId).first()
         if (!company) return { companies: [] }
-        return { companies: [company] }
+        return { companies: [company as CompanyRow] }
       }
 
-      const companies = await db<CompanyRow>('companies')
-        .select('id', 'name', 'email')
-        .orderBy('id', 'asc')
-
-      return { companies }
+      const companies = await baseQuery.orderBy('companies.id', 'asc')
+      return { companies: companies as CompanyRow[] }
     }
   )
 
@@ -53,14 +59,22 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(403).send({ error: 'forbidden' })
       }
 
-      const company = await db<CompanyRow>('companies')
-        .select('id', 'name', 'email')
-        .where({ id })
+      const company = await db('companies')
+        .leftJoin('admins', function joinAdmins() {
+          this.on('admins.company_id', '=', 'companies.id').andOnNull('admins.deleted_at')
+        })
+        .where('companies.id', id)
+        .groupBy('companies.id')
+        .select(
+          'companies.id',
+          'companies.name',
+          'companies.email',
+          db.raw('COUNT(admins.id)::int as accountsCount')
+        )
         .first()
 
       if (!company) return reply.code(404).send({ error: 'not_found' })
-
-      return { company }
+      return { company: company as CompanyRow }
     }
   )
 }
