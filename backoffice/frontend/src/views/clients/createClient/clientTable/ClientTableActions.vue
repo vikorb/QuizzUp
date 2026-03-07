@@ -1,5 +1,14 @@
 <template>
   <div class="actions">
+    <div class="actions__switch">
+      <SwitchField
+        :model-value="isActive"
+        :disabled="isBusy"
+        :label="toggleStatusLabel"
+        @change="handleToggleStatus"
+      />
+    </div>
+
     <UiButton
       class="icon"
       variant="icon"
@@ -25,18 +34,6 @@
     </UiButton>
 
     <UiButton
-      class="icon icon-toggle"
-      variant="icon"
-      type="button"
-      :disabled="isBusy"
-      :title="toggleStatusLabel"
-      :aria-label="toggleStatusLabel"
-      @click="handleToggleStatus"
-    >
-      <MdIcon :path="statusIcon" :size="18" />
-    </UiButton>
-
-    <UiButton
       class="icon icon-delete"
       variant="icon"
       type="button"
@@ -51,16 +48,11 @@
 </template>
 
 <script setup lang="ts">
-import {
-  mdiAccountDetailsOutline,
-  mdiCheckCircleOutline,
-  mdiCloseCircleOutline,
-  mdiDeleteOutline,
-  mdiPencilOutline,
-} from '@mdi/js'
+import { mdiAccountDetailsOutline, mdiDeleteOutline, mdiPencilOutline } from '@mdi/js'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import SwitchField from '@/components/ui/form/SwitchField.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import type { CompanyTableRow } from '@/types/company'
@@ -102,12 +94,8 @@ const isBusy = computed(() => busyAction.value !== null)
 
 const toggleStatusLabel = computed(() =>
   isActive.value
-    ? t('clients.table.actions.deactivate')
-    : t('clients.table.actions.reactivate')
-)
-
-const statusIcon = computed(() =>
-  isActive.value ? mdiCloseCircleOutline : mdiCheckCircleOutline
+    ? t('clients.table.actions.active')
+    : t('clients.table.actions.inactive')
 )
 
 function handleViewAccounts(): void {
@@ -126,16 +114,26 @@ function handleEditCompany(): void {
   emit('edit', company.value.id)
 }
 
-async function handleToggleStatus(): Promise<void> {
+async function handleToggleStatus(nextChecked: boolean): Promise<void> {
   if (!company.value || isBusy.value) {
     return
+  }
+
+  const nextStatus: 1 | 2 = nextChecked ? 1 : 2
+
+  if (nextStatus === 2) {
+    const confirmed = window.confirm(
+      t('clients.table.actions.deactivateConfirm', { name: company.value.name })
+    )
+
+    if (!confirmed) {
+      return
+    }
   }
 
   busyAction.value = 'toggle'
 
   try {
-    const nextStatus: 1 | 2 = company.value.status === 1 ? 2 : 1
-
     const result = await apiRequestJson<UpdateCompanyStatusResponse>({
       path: `/companies/${company.value.id}/status`,
       method: 'PATCH',
@@ -164,7 +162,10 @@ async function handleDeleteCompany(): Promise<void> {
     return
   }
 
-  const confirmed = window.confirm(t('clients.table.actions.deleteConfirm', { name: company.value.name }))
+  const confirmed = window.confirm(
+    t('clients.table.actions.deleteConfirm', { name: company.value.name })
+  )
+
   if (!confirmed) {
     return
   }
@@ -193,16 +194,14 @@ async function handleDeleteCompany(): Promise<void> {
 <style scoped>
 .actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 8px;
   white-space: nowrap;
 }
 
-.icon {
+.actions__switch {
   margin-left: 8px;
-}
-
-.icon-toggle {
-  color: #f5c451;
 }
 
 .icon-delete {

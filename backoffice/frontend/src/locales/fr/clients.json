@@ -31,8 +31,9 @@
         "viewAccounts": "Voir les comptes",
         "edit": "Modifier",
         "delete": "Supprimer",
-        "reactivate": "Réactiver",
-        "deactivate": "Désactiver"
+        "active": "Actif",
+        "inactive": "Inactif",
+        "deactivateConfirm": "Voulez-vous vraiment désactiver « {name} » ?"
       }
     },
     "errors": {
