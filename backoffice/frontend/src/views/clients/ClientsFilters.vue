@@ -14,6 +14,16 @@
         />
       </div>
 
+      <div class="filters__status">
+        <SelectField
+          id="status-filter"
+          :model-value="statusFilter"
+          :label="$t('clients.filters.statusLabel')"
+          :options="statusOptions"
+          @update:model-value="handleStatusChange"
+        />
+      </div>
+
       <div class="filters__right">
         <UiButton variant="primary" type="button" @click="handleCreateCompany">
           {{ $t('clients.actions.addCompany') }}
@@ -24,22 +34,63 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
 import BaseCard from '@/components/ui/BaseCard.vue'
 import FormField from '@/components/ui/form/FormField.vue'
+import type { SelectFieldOption } from '@/components/ui/form/SelectField.vue'
+import SelectField from '@/components/ui/form/SelectField.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { getCreateCompanyRoute } from '@/router/clients'
 
-defineProps<{ modelValue: string }>()
-defineEmits<{
+type ClientStatusFilter = 'active' | 'inactive' | 'all'
+
+const props = withDefaults(
+  defineProps<{
+    modelValue: string
+    statusFilter?: ClientStatusFilter
+  }>(),
+  {
+    statusFilter: 'active',
+  }
+)
+
+const emit = defineEmits<{
   (event: 'update:modelValue', value: string): void
+  (event: 'update:statusFilter', value: ClientStatusFilter): void
 }>()
 
 const router = useRouter()
+const { t } = useI18n()
+
+const statusOptions = computed<SelectFieldOption[]>(() => [
+  {
+    label: String(t('clients.filters.statusOptions.active')),
+    value: 'active',
+  },
+  {
+    label: String(t('clients.filters.statusOptions.inactive')),
+    value: 'inactive',
+  },
+  {
+    label: String(t('clients.filters.statusOptions.all')),
+    value: 'all',
+  },
+])
 
 function handleCreateCompany(): void {
   router.push(getCreateCompanyRoute())
+}
+
+function handleStatusChange(value: string): void {
+  if (value === 'active' || value === 'inactive' || value === 'all') {
+    emit('update:statusFilter', value)
+    return
+  }
+
+  emit('update:statusFilter', props.statusFilter)
 }
 </script>
 
@@ -56,6 +107,10 @@ function handleCreateCompany(): void {
   min-width: 0;
 }
 
+.filters__status {
+  flex: 0 0 220px;
+}
+
 .filters__right {
   flex: 0 0 auto;
 }
@@ -64,6 +119,10 @@ function handleCreateCompany(): void {
   .filters {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .filters__status {
+    flex: 1 1 auto;
   }
 
   .filters__right :deep(.ui-btn) {

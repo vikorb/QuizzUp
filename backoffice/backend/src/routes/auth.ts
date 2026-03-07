@@ -14,7 +14,6 @@ type AdminRow = {
   email: string
   mdp_hash: string
   status: number
-  deleted_at: string | null
 }
 
 type AdminSessionRow = {
@@ -67,11 +66,9 @@ const authRoutes: FastifyPluginAsync = async (app) => {
           'username',
           'email',
           'mdp_hash',
-          'status',
-          'deleted_at'
+          'status'
         )
         .where('status', 1)
-        .whereNull('deleted_at')
 
       if (isEmail) query.andWhereRaw('lower(email) = lower(?)', [identifier])
       else query.andWhereRaw('lower(username) = lower(?)', [identifier])

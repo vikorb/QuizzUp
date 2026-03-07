@@ -4,7 +4,13 @@
     "subtitle": "Gérez les entreprises clientes et leurs comptes.",
     "filters": {
       "searchLabel": "Recherche",
-      "searchPlaceholder": "Rechercher par nom ou email…"
+      "searchPlaceholder": "Rechercher par nom ou email…",
+      "statusLabel": "Statut",
+      "statusOptions": {
+        "all": "Tous",
+        "active": "Actifs",
+        "inactive": "Inactifs"
+      }
     },
     "actions": {
       "addCompany": "Ajouter une compagnie"
@@ -20,6 +26,13 @@
         "email": "Email",
         "accounts": "Comptes",
         "actions": "Actions"
+      },
+      "actions": {
+        "viewAccounts": "Voir les comptes",
+        "edit": "Modifier",
+        "delete": "Supprimer",
+        "reactivate": "Réactiver",
+        "deactivate": "Désactiver"
       }
     },
     "errors": {

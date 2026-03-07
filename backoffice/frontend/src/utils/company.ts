@@ -15,6 +15,7 @@ export function parseCompaniesResponse(value: unknown): CompaniesResponse | null
       const id = toNumber(row.id)
       const name = toString(row.name).trim()
       const email = toString(row.email).trim()
+      const status = toNumber(row.status)
 
       const accountsCount =
         typeof row.accountsCount === 'number'
@@ -27,11 +28,17 @@ export function parseCompaniesResponse(value: unknown): CompaniesResponse | null
         id: id ?? NaN,
         name,
         email,
-        accountsCount: accountsCount,
+        status: status ?? NaN,
+        accountsCount,
       }
     })
     .filter((company) => {
-      return Number.isFinite(company.id) && company.name.length > 0 && company.email.length > 0
+      return (
+        Number.isFinite(company.id) &&
+        company.name.length > 0 &&
+        company.email.length > 0 &&
+        Number.isFinite(company.status)
+      )
     })
 
   return { companies: parsedCompanies }

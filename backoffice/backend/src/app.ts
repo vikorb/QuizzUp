@@ -1,4 +1,3 @@
-// src/app.ts
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import routes from './routes'
@@ -10,12 +9,11 @@ export function buildApp() {
   app.register(cors, {
     origin: process.env.CORS_ORIGIN || true,
     credentials: true,
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   })
 
-  // auth = jwt + session inactivity
   app.register(authPlugin)
-
-  // routes
   app.register(routes)
 
   return app

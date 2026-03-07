@@ -3,6 +3,7 @@ export type Company = {
   name: string
   email: string
   accountsCount?: number
+  status: number
 }
 
 export type CompaniesResponse = {

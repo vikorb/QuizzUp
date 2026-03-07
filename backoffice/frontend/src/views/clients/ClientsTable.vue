@@ -3,16 +3,16 @@
     :title="$t('clients.table.title')"
     :neon="true"
     :no-hover="true"
-    :loading="loading"
-    :error="error"
-    :empty="companies.length === 0"
+    :loading="props.loading"
+    :error="props.error"
+    :empty="tableItems.length === 0"
     :loading-label="$t('clients.table.loading')"
     :empty-label="$t('clients.table.empty')"
     error-namespace="clients.errors"
     class="clients-table-card"
   >
     <template #actions>
-      <UiButton v-if="error" variant="default" type="button" @click="$emit('retry')">
+      <UiButton v-if="props.error" variant="default" type="button" @click="$emit('retry')">
         {{ $t('clients.table.retry') }}
       </UiButton>
     </template>
@@ -31,34 +31,30 @@
       </template>
 
       <template #cell-actions="{ item }">
-        <div class="actions">
-          <UiButton class="icon" variant="icon" type="button" @click="handleViewAccounts(item)">
-            <MdIcon :path="mdiAccountDetailsOutline" :size="18" />
-          </UiButton>
-
-          <UiButton class="icon" variant="icon" type="button" @click="handleEditCompany(item)">
-            <MdIcon :path="mdiPencilOutline" :size="18" />
-          </UiButton>
-        </div>
+        <ClientTableActions
+          :item="item"
+          @view-accounts="$emit('view-accounts', $event)"
+          @edit="$emit('edit', $event)"
+          @updated="handleCompanyUpdated"
+          @deleted="handleCompanyDeleted"
+          @error="$emit('error', $event)"
+        />
       </template>
     </BaseTable>
   </BaseCard>
 </template>
 
 <script setup lang="ts">
-import { mdiAccountDetailsOutline, mdiPencilOutline } from '@mdi/js'
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
 
 import BaseCard from '@/components/ui/BaseCard.vue'
 import type { BaseTableColumn } from '@/components/ui/BaseTable.vue'
 import BaseTable from '@/components/ui/BaseTable.vue'
-import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
-import { getCompanyAccountsRoute, getEditCompanyRoute } from '@/router/clients'
 import type { Company, CompanyTableRow } from '@/types/company'
-import { isCompanyTableRow } from '@/utils/company'
+
+import ClientTableActions from './createClient/clientTable/ClientTableActions.vue'
 
 const props = defineProps<{
   companies: Company[]
@@ -68,10 +64,22 @@ const props = defineProps<{
 
 defineEmits<{
   (event: 'retry'): void
+  (event: 'view-accounts', companyId: number): void
+  (event: 'edit', companyId: number): void
+  (event: 'error', errorCode: string): void
 }>()
 
-const router = useRouter()
 const { t } = useI18n()
+
+const localCompanies = ref<CompanyTableRow[]>([...props.companies])
+
+watch(
+  () => props.companies,
+  (nextCompanies) => {
+    localCompanies.value = [...nextCompanies]
+  },
+  { deep: true }
+)
 
 const columns = computed<BaseTableColumn[]>(() => [
   {
@@ -94,22 +102,16 @@ const columns = computed<BaseTableColumn[]>(() => [
   },
 ])
 
-const tableItems = computed<CompanyTableRow[]>(() => props.companies)
+const tableItems = computed<CompanyTableRow[]>(() => localCompanies.value)
 
-function handleEditCompany(item: Record<string, unknown>): void {
-  if (!isCompanyTableRow(item)) {
-    return
-  }
-
-  router.push(getEditCompanyRoute(item.id))
+function handleCompanyUpdated(updatedCompany: CompanyTableRow): void {
+  localCompanies.value = localCompanies.value.map((company) =>
+    company.id === updatedCompany.id ? updatedCompany : company
+  )
 }
 
-function handleViewAccounts(item: Record<string, unknown>): void {
-  if (!isCompanyTableRow(item)) {
-    return
-  }
-
-  router.push(getCompanyAccountsRoute(item.id))
+function handleCompanyDeleted(companyId: number): void {
+  localCompanies.value = localCompanies.value.filter((company) => company.id !== companyId)
 }
 </script>
 
@@ -132,15 +134,5 @@ function handleViewAccounts(item: Record<string, unknown>): void {
   display: inline-block;
   width: 100%;
   text-align: right;
-}
-
-.actions {
-  display: flex;
-  justify-content: flex-end;
-  white-space: nowrap;
-}
-
-.icon {
-  margin-left: 8px;
 }
 </style>
