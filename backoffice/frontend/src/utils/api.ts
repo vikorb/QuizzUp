@@ -1,6 +1,29 @@
 import { token } from '@/state/authState'
-import type { ApiRequestOptions, ApiResult } from '@/types/api'
+import type { ApiErrorCode, ApiRequestOptions, ApiResult } from '@/types/api'
 import { getApiBase } from '@/utils/auth'
+
+type ApiErrorPayload = {
+  error?: string
+  code?: string
+  message?: string
+}
+
+const API_ERROR_CODES: ApiErrorCode[] = [
+  'missing_token',
+  'unauthorized',
+  'forbidden',
+  'api_unreachable',
+  'invalid_json',
+  'invalid_body',
+  'email_already_exists',
+  'name_already_exists',
+  'conflict',
+  'server_error',
+]
+
+function isApiErrorCode(value: string): value is ApiErrorCode {
+  return API_ERROR_CODES.includes(value as ApiErrorCode)
+}
 
 function buildHeaders(inputHeaders?: HeadersInit, authenticated?: boolean): Headers {
   const headers = new Headers(inputHeaders)
@@ -27,6 +50,16 @@ export function getApiErrorKey(code: string, namespace = 'common.errors'): strin
       return `${namespace}.apiUnreachable`
     case 'invalid_json':
       return `${namespace}.invalidJson`
+    case 'invalid_body':
+      return `${namespace}.invalidBody`
+    case 'invalid_email':
+      return `${namespace}.invalidEmail`
+    case 'email_already_exists':
+      return `${namespace}.emailAlreadyExists`
+    case 'name_already_exists':
+      return `${namespace}.nameAlreadyExists`
+    case 'conflict':
+      return `${namespace}.conflict`
     default:
       return `${namespace}.serverError`
   }
@@ -60,6 +93,24 @@ export async function apiFetch(options: ApiRequestOptions): Promise<Response | n
   }
 }
 
+async function readErrorCode(response: Response): Promise<ApiErrorCode | null> {
+  const data = (await response.json().catch(() => null)) as ApiErrorPayload | null
+
+  if (!data) {
+    return null
+  }
+
+  if (typeof data.error === 'string' && isApiErrorCode(data.error)) {
+    return data.error
+  }
+
+  if (typeof data.code === 'string' && isApiErrorCode(data.code)) {
+    return data.code
+  }
+
+  return null
+}
+
 export async function apiRequestJson<T>(options: ApiRequestOptions): Promise<ApiResult<T>> {
   if (options.authenticated && !token.value) {
     return {
@@ -80,15 +131,45 @@ export async function apiRequestJson<T>(options: ApiRequestOptions): Promise<Api
   }
 
   if (!response.ok) {
+    const apiError = await readErrorCode(response)
+
     if (response.status === 401) {
-      return { ok: false, status: response.status, error: 'unauthorized' }
+      return {
+        ok: false,
+        status: response.status,
+        error: apiError ?? 'unauthorized',
+      }
     }
 
     if (response.status === 403) {
-      return { ok: false, status: response.status, error: 'forbidden' }
+      return {
+        ok: false,
+        status: response.status,
+        error: apiError ?? 'forbidden',
+      }
     }
 
-    return { ok: false, status: response.status, error: 'server_error' }
+    if (response.status === 409) {
+      return {
+        ok: false,
+        status: response.status,
+        error: apiError ?? 'conflict',
+      }
+    }
+
+    if (response.status === 400) {
+      return {
+        ok: false,
+        status: response.status,
+        error: apiError ?? 'invalid_body',
+      }
+    }
+
+    return {
+      ok: false,
+      status: response.status,
+      error: apiError ?? 'server_error',
+    }
   }
 
   const json = (await response.json().catch(() => null)) as T | null

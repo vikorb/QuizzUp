@@ -10,7 +10,7 @@ function slugify(name) {
     .replace(/(^-|-$)/g, '')
 }
 
-async function getCompanyId(knex, name) {
+async function getcompany_id(knex, name) {
   const row = await knex('companies')
     .select('id')
     .whereRaw('lower(name) = lower(?)', [name])
@@ -47,7 +47,7 @@ exports.seed = async function (knex) {
     for (let companyIndex = 0; companyIndex < companiesSpec.length; companyIndex++) {
       const company = companiesSpec[companyIndex]
       const slug = slugify(company.name)
-      const companyId = await getCompanyId(trx, company.name)
+      const company_id = await getcompany_id(trx, company.name)
 
       for (let index = 1; index <= company.clients; index++) {
         const username = `client_${companyIndex + 1}_${index}_${slug}`
@@ -55,7 +55,7 @@ exports.seed = async function (knex) {
 
         await trx('admins')
           .insert({
-            company_id: companyId,
+            company_id: company_id,
             role: 'client',
             firstname: 'Client',
             lastname: `${company.name} ${index}`,

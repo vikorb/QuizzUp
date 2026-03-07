@@ -11,7 +11,7 @@ exports.seed = async function (knex) {
     .merge({ email: companyEmail, name: companyName })
     .returning(['id'])
 
-  const companyId =
+  const company_id =
     insertedCompanies?.[0]?.id ??
     (await knex('companies').select('id').whereRaw('lower(name) = lower(?)', [companyName]).first())
       .id
@@ -23,7 +23,7 @@ exports.seed = async function (knex) {
 
   await knex('admins')
     .insert({
-      company_id: companyId,
+      company_id: company_id,
       role: 'admin',
       firstname: 'Quizzup',
       lastname: 'Admin',

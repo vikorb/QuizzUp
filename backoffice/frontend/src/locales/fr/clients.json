@@ -51,14 +51,21 @@
       "errors": {
         "required": "Ce champ est requis.",
         "invalidEmail": "Veuillez saisir une adresse email valide.",
-        "emailAlreadyExists": "Une entreprise avec cet email existe déjà."
+        "emailAlreadyExists": "Une entreprise avec cet email existe déjà.",
+        "nameAlreadyExists": "Une entreprise avec ce nom existe déjà.",
+        "invalidBody": "Les données envoyées sont invalides."
       },
       "errorsApi": {
-        "missingToken": "Votre session est invalide. Veuillez vous reconnecter.",
+        "missingToken": "Votre session a expiré. Veuillez vous reconnecter.",
         "unauthorized": "Vous n’êtes pas autorisé à effectuer cette action.",
-        "forbidden": "Vous n’avez pas les droits nécessaires.",
+        "forbidden": "Accès refusé.",
         "apiUnreachable": "Le serveur est actuellement inaccessible.",
         "invalidJson": "La réponse du serveur est invalide.",
+        "invalidBody": "Les données envoyées sont invalides.",
+        "invalidEmail": "L’adresse email n’est pas valide.",
+        "emailAlreadyExists": "Cette adresse email est déjà utilisée.",
+        "nameAlreadyExists": "Ce nom de société existe déjà.",
+        "conflict": "Un conflit empêche la création.",
         "serverError": "Une erreur serveur est survenue."
       }
     }

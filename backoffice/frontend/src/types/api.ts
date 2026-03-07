@@ -9,11 +9,16 @@ export type ApiRequestOptions = {
 
 export type ApiErrorCode =
   | 'missing_token'
-  | 'forbidden'
   | 'unauthorized'
-  | 'server_error'
+  | 'forbidden'
   | 'api_unreachable'
   | 'invalid_json'
+  | 'invalid_body'
+  | 'invalid_email'
+  | 'email_already_exists'
+  | 'name_already_exists'
+  | 'conflict'
+  | 'server_error'
 
 export type ApiSuccess<T> = {
   ok: true

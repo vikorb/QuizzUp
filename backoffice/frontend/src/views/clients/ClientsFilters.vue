@@ -29,7 +29,7 @@ import { useRouter } from 'vue-router'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import FormField from '@/components/ui/form/FormField.vue'
 import UiButton from '@/components/ui/UiButton.vue'
-import { getCreateCompanyRoute } from '@/router/clients';
+import { getCreateCompanyRoute } from '@/router/clients'
 
 defineProps<{ modelValue: string }>()
 defineEmits<{

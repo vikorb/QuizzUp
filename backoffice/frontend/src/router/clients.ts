@@ -8,20 +8,24 @@ export function getCreateCompanyRoute(): RouteLocationRaw {
   return { name: 'clients-create' }
 }
 
-export function getEditCompanyRoute(companyId: number | string): RouteLocationRaw {
+export function getCompanyAccountsRoute(companyId: number | string): RouteLocationRaw {
   return {
     name: 'clients',
     query: {
-      mode: 'edit',
       companyId: String(companyId),
     },
   }
 }
 
-export function getCompanyAccountsRoute(companyId: number | string): RouteLocationRaw {
+export function getClientDetailsRoute(companyId: number | string): RouteLocationRaw {
+  return getCompanyAccountsRoute(companyId)
+}
+
+export function getEditCompanyRoute(companyId: number | string): RouteLocationRaw {
   return {
     name: 'clients',
     query: {
+      mode: 'edit',
       companyId: String(companyId),
     },
   }

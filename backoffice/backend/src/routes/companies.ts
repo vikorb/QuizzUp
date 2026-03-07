@@ -20,17 +20,8 @@ const paramsSchema = z.object({
 })
 
 const createCompanySchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(2)
-    .max(120),
-  email: z
-    .string()
-    .trim()
-    .toLowerCase()
-    .email()
-    .max(255),
+  name: z.string().trim().min(2).max(120),
+  email: z.string().trim().toLowerCase().email().max(255),
 })
 
 const companiesRoutes: FastifyPluginAsync = async (app) => {
@@ -38,7 +29,7 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
     '/companies',
     { preHandler: [app.authenticate] },
     async (req: FastifyRequest, _reply: FastifyReply) => {
-      const myCompanyId = Number(req.user.company_id)
+      const mycompany_id = Number(req.user.company_id)
       const isAdmin = req.user.role === 'admin'
 
       const baseQuery = db('companies')
@@ -54,7 +45,7 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
         )
 
       if (!isAdmin) {
-        const company = await baseQuery.where('companies.id', myCompanyId).first()
+        const company = await baseQuery.where('companies.id', mycompany_id).first()
         if (!company) {
           return { companies: [] }
         }
@@ -77,10 +68,10 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const { id } = parsed.data
-      const myCompanyId = Number(req.user.company_id)
+      const mycompany_id = Number(req.user.company_id)
       const isAdmin = req.user.role === 'admin'
 
-      if (!isAdmin && id !== myCompanyId) {
+      if (!isAdmin && id !== mycompany_id) {
         return reply.code(403).send({ error: 'forbidden' })
       }
 

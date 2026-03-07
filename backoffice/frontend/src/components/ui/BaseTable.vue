@@ -3,11 +3,7 @@
     <table class="base-table">
       <thead>
         <tr>
-          <th
-            v-for="column in columns"
-            :key="column.key"
-            :class="getColumnClass(column)"
-          >
+          <th v-for="column in columns" :key="column.key" :class="getColumnClass(column)">
             {{ column.label }}
           </th>
         </tr>
@@ -15,11 +11,7 @@
 
       <tbody>
         <tr v-for="(item, rowIndex) in items" :key="getRowKey(item, rowIndex)">
-          <td
-            v-for="column in columns"
-            :key="column.key"
-            :class="getColumnClass(column)"
-          >
+          <td v-for="column in columns" :key="column.key" :class="getColumnClass(column)">
             <slot
               :name="`cell-${column.key}`"
               :item="item"

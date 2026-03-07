@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 import { isAuthenticated, me, refreshMe } from '@/state/authState'
-import CreateClientview from '@/views/clients/CreateClientview.vue'
+import CreateClientView from '@/views/clients/CreateClientview.vue'
 import ClientsView from '@/views/ClientsView.vue'
 import GamesView from '@/views/GamesView.vue'
 import HomeView from '@/views/HomeView.vue'
@@ -31,13 +31,18 @@ export const router = createRouter({
         {
           path: 'clients/create',
           name: 'clients-create',
-          component: CreateClientview,
+          component: CreateClientView,
           meta: { requiresAuth: true, requiresAdmin: true },
         },
 
         { path: 'players', name: 'players', component: PlayersView, meta: { requiresAuth: true } },
         { path: 'themes', name: 'themes', component: ThemesView, meta: { requiresAuth: true } },
-        { path: 'questions', name: 'questions', component: QuestionsView, meta: { requiresAuth: true } },
+        {
+          path: 'questions',
+          name: 'questions',
+          component: QuestionsView,
+          meta: { requiresAuth: true },
+        },
         { path: 'games', name: 'games', component: GamesView, meta: { requiresAuth: true } },
         { path: 'stats', name: 'stats', component: StatsView, meta: { requiresAuth: true } },
       ],

@@ -17,11 +17,7 @@
       </UiButton>
     </template>
 
-    <BaseTable
-      :columns="columns"
-      :items="tableItems"
-      row-key="id"
-    >
+    <BaseTable :columns="columns" :items="tableItems" row-key="id">
       <template #cell-name="{ value }">
         <span class="name">{{ value }}</span>
       </template>
@@ -36,21 +32,11 @@
 
       <template #cell-actions="{ item }">
         <div class="actions">
-          <UiButton
-            class="icon"
-            variant="icon"
-            type="button"
-            @click="handleViewAccounts(item)"
-          >
+          <UiButton class="icon" variant="icon" type="button" @click="handleViewAccounts(item)">
             <MdIcon :path="mdiAccountDetailsOutline" :size="18" />
           </UiButton>
 
-          <UiButton
-            class="icon"
-            variant="icon"
-            type="button"
-            @click="handleEditCompany(item)"
-          >
+          <UiButton class="icon" variant="icon" type="button" @click="handleEditCompany(item)">
             <MdIcon :path="mdiPencilOutline" :size="18" />
           </UiButton>
         </div>
