@@ -34,13 +34,9 @@
         "active": "Actif",
         "inactive": "Inactif",
         "deactivateConfirm": "Voulez-vous vraiment désactiver « {name} » ?",
+        "reactivateConfirm": "Voulez-vous vraiment réactiver « {name} » ?",
         "deleteConfirm": "Voulez-vous vraiment supprimer « {name} » ? Cette action est irréversible."
       }
-    },
-    "errors": {
-      "forbidden": "Accès refusé.",
-      "apiUnreachable": "API injoignable.",
-      "serverError": "Erreur serveur."
     },
     "create": {
       "title": "Créer une entreprise",

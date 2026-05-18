@@ -1,26 +1,13 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import { z } from 'zod'
 
+import {
+  COMPANY_STATUS_ACTIVE,
+  COMPANY_STATUS_DELETED,
+  COMPANY_STATUS_INACTIVE,
+} from '@quizzup/shared'
 import db from '../db'
-
-type CompanyRow = {
-  id: number
-  name: string
-  email: string
-  status: number
-  createdAt: string
-  updatedAt: string | null
-  accountsCount: number
-}
-
-type CompanyCreateBody = {
-  name: string
-  email: string
-}
-
-type CompanyStatusUpdateBody = {
-  status: 1 | 2
-}
+import { CompanyCreateBody, CompanyRow, CompanyStatusUpdateBody } from '../types/company'
 
 const paramsSchema = z.object({
   id: z.coerce.number().int().positive(),
@@ -32,7 +19,11 @@ const createCompanySchema = z.object({
 })
 
 const updateCompanyStatusSchema = z.object({
-  status: z.union([z.literal(1), z.literal(2)]),
+  status: z.union([
+    z.literal(COMPANY_STATUS_INACTIVE),
+    z.literal(COMPANY_STATUS_ACTIVE),
+    z.literal(COMPANY_STATUS_DELETED),
+  ]),
 })
 
 const companySelect = [
@@ -42,8 +33,19 @@ const companySelect = [
   'companies.status',
   'companies.created_at as createdAt',
   'companies.updated_at as updatedAt',
+  'companies.deleted_at as deletedAt',
   db.raw('COUNT(admins.id)::int as "accountsCount"'),
 ]
+
+async function getCompanyAdminsCount(companyId: number): Promise<number> {
+  const adminsCount = await db('admins')
+    .where('company_id', companyId)
+    .whereNot('status', 3)
+    .count<{ count: string }>('id as count')
+    .first()
+
+  return Number(adminsCount?.count ?? 0)
+}
 
 const companiesRoutes: FastifyPluginAsync = async (app) => {
   app.get(
@@ -61,7 +63,10 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
         .select(companySelect)
 
       if (!isAdmin) {
-        const company = await baseQuery.where('companies.id', mycompany_id).first()
+        const company = await baseQuery
+          .where('companies.id', mycompany_id)
+          .whereNot('companies.status', COMPANY_STATUS_DELETED)
+          .first()
 
         if (!company) {
           return { companies: [] }
@@ -71,8 +76,9 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const companies = await baseQuery.orderBy('companies.id', 'asc')
+
       return { companies: companies as CompanyRow[] }
-    }
+    },
   )
 
   app.get(
@@ -80,6 +86,7 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [app.authenticate] },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const parsed = paramsSchema.safeParse(req.params)
+
       if (!parsed.success) {
         return reply.code(400).send({ error: 'invalid_params' })
       }
@@ -106,7 +113,7 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
       }
 
       return { company: company as CompanyRow }
-    }
+    },
   )
 
   app.post<{ Body: CompanyCreateBody }>(
@@ -118,6 +125,7 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const parsed = createCompanySchema.safeParse(req.body)
+
       if (!parsed.success) {
         return reply.code(400).send({
           error: 'invalid_body',
@@ -147,7 +155,8 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
         .insert({
           name,
           email,
-          status: 1,
+          status: COMPANY_STATUS_ACTIVE,
+          deleted_at: null,
         })
         .returning([
           'id',
@@ -156,6 +165,7 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
           'status',
           'created_at as createdAt',
           'updated_at as updatedAt',
+          'deleted_at as deletedAt',
         ])
 
       const createdCompany = Array.isArray(inserted) ? inserted[0] : inserted
@@ -166,7 +176,7 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
           accountsCount: 0,
         } satisfies CompanyRow,
       })
-    }
+    },
   )
 
   app.patch<{ Body: CompanyStatusUpdateBody }>(
@@ -178,11 +188,13 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const parsedParams = paramsSchema.safeParse(req.params)
+
       if (!parsedParams.success) {
         return reply.code(400).send({ error: 'invalid_params' })
       }
 
       const parsedBody = updateCompanyStatusSchema.safeParse(req.body)
+
       if (!parsedBody.success) {
         return reply.code(400).send({
           error: 'invalid_body',
@@ -193,9 +205,7 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
       const { id } = parsedParams.data
       const { status } = parsedBody.data
 
-      const existingCompany = await db('companies')
-        .where('id', id)
-        .first('id', 'status')
+      const existingCompany = await db('companies').where('id', id).first('id', 'status')
 
       if (!existingCompany) {
         return reply.code(404).send({ error: 'not_found' })
@@ -206,6 +216,7 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
         .update({
           status,
           updated_at: db.fn.now(),
+          deleted_at: status === COMPANY_STATUS_DELETED ? db.fn.now() : null,
         })
         .returning([
           'id',
@@ -214,23 +225,19 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
           'status',
           'created_at as createdAt',
           'updated_at as updatedAt',
+          'deleted_at as deletedAt',
         ])
 
       const updatedCompanyBase = Array.isArray(updated) ? updated[0] : updated
-
-      const adminsCount = await db('admins')
-        .where('company_id', id)
-        .whereNot('status', 3)
-        .count<{ count: string }>('id as count')
-        .first()
+      const accountsCount = await getCompanyAdminsCount(id)
 
       return reply.code(200).send({
         company: {
           ...updatedCompanyBase,
-          accountsCount: Number(adminsCount?.count ?? 0),
+          accountsCount,
         } satisfies CompanyRow,
       })
-    }
+    },
   )
 
   app.delete(
@@ -242,39 +249,47 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const parsed = paramsSchema.safeParse(req.params)
+
       if (!parsed.success) {
         return reply.code(400).send({ error: 'invalid_params' })
       }
 
       const { id } = parsed.data
 
-      const existingCompany = await db('companies')
-        .where('id', id)
-        .first('id', 'name')
+      const existingCompany = await db('companies').where('id', id).first('id', 'status')
 
       if (!existingCompany) {
         return reply.code(404).send({ error: 'not_found' })
       }
 
-      const result = await db.transaction(async (trx) => {
-        const deletedAdmins = await trx('admins').where('company_id', id).del()
-        const deletedCompanies = await trx('companies').where('id', id).del()
+      if (existingCompany.status === COMPANY_STATUS_DELETED) {
+        return reply.code(200).send({
+          success: true,
+          deleted: {
+            companyId: id,
+            adminsCount: 0,
+            companiesCount: 0,
+          },
+        })
+      }
 
-        return {
-          deletedAdmins,
-          deletedCompanies,
-        }
-      })
+      const updatedCompanies = await db('companies')
+        .where('id', id)
+        .update({
+          status: COMPANY_STATUS_DELETED,
+          updated_at: db.fn.now(),
+          deleted_at: db.fn.now(),
+        })
 
       return reply.code(200).send({
         success: true,
         deleted: {
           companyId: id,
-          adminsCount: result.deletedAdmins,
-          companiesCount: result.deletedCompanies,
+          adminsCount: 0,
+          companiesCount: updatedCompanies,
         },
       })
-    }
+    },
   )
 }
 

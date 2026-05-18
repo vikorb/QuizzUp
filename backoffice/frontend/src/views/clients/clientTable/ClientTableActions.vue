@@ -1,8 +1,7 @@
 <template>
   <div class="actions">
     <ClientsTableActionsSwitch
-      v-if="company"
-      :company="company"
+      :company="props.item"
       :disabled="deleteBusy"
       @updated="handleCompanyUpdated"
       @error="handleActionError"
@@ -54,23 +53,13 @@ import { useI18n } from 'vue-i18n'
 
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import { deleteCompanyPermanentlyService } from '@/services/companiesService'
 import type { CompanyTableRow } from '@/types/company'
-import { apiRequestJson } from '@/utils/api'
-import { isCompanyTableRow } from '@/utils/company'
 
 import ClientsTableActionsSwitch from './ClientsTableActionsSwitch.vue'
 
-type DeleteCompanyResponse = {
-  success: boolean
-  deleted: {
-    companyId: number
-    adminsCount: number
-    companiesCount: number
-  }
-}
-
 const props = defineProps<{
-  item: Record<string, unknown>
+  item: CompanyTableRow
 }>()
 
 const emit = defineEmits<{
@@ -82,12 +71,8 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-
 const deleteBusy = ref(false)
 const switchBusy = ref(false)
-
-const company = computed(() => (isCompanyTableRow(props.item) ? props.item : null))
-
 const isBusy = computed(() => deleteBusy.value || switchBusy.value)
 
 function handleSwitchBusyChange(value: boolean): void {
@@ -103,32 +88,30 @@ function handleActionError(errorCode: string): void {
 }
 
 function handleViewAccounts(): void {
-  if (!company.value || isBusy.value) {
+  if (isBusy.value) {
     return
   }
 
-  emit('view-accounts', company.value.id)
+  emit('view-accounts', props.item.id)
 }
 
 function handleEditCompany(): void {
-  if (!company.value || isBusy.value) {
+  if (isBusy.value) {
     return
   }
 
-  emit('edit', company.value.id)
+  emit('edit', props.item.id)
 }
 
 async function handleDeleteCompany(): Promise<void> {
-  const currentCompany = company.value
-
-  if (!currentCompany || isBusy.value) {
+  if (isBusy.value) {
     return
   }
 
   const confirmed = window.confirm(
     t('clients.table.actions.deleteConfirm', {
-      name: currentCompany.name,
-    })
+      name: props.item.name,
+    }),
   )
 
   if (!confirmed) {
@@ -138,18 +121,14 @@ async function handleDeleteCompany(): Promise<void> {
   deleteBusy.value = true
 
   try {
-    const result = await apiRequestJson<DeleteCompanyResponse>({
-      path: `/companies/${currentCompany.id}/permanent`,
-      method: 'DELETE',
-      authenticated: true,
-    })
+    const result = await deleteCompanyPermanentlyService(props.item.id)
 
     if (!result.ok) {
       emit('error', result.error)
       return
     }
 
-    emit('deleted', currentCompany.id)
+    emit('deleted', props.item.id)
   } finally {
     deleteBusy.value = false
   }

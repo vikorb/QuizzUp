@@ -42,12 +42,14 @@ import BaseToolBar from '@/components/ui/BaseToolBar.vue'
 import FormField from '@/components/ui/form/FormField.vue'
 import type { SelectFieldOption } from '@/components/ui/form/SelectField.vue'
 import SelectField from '@/components/ui/form/SelectField.vue'
-import {
-  COMPANY_STATUS_ACTIVE,
-  COMPANY_STATUS_INACTIVE,
-} from '@/CONSTANTS'
 import { getCreateCompanyRoute } from '@/router/clients'
 import type { ClientStatusFilter } from '@/types/company'
+import {
+  DEFAULT_CLIENT_STATUS_FILTER,
+  getClientStatusFilterOptions,
+  hasClientToolbarActiveFilters,
+  parseClientStatusFilter,
+} from '@/utils/company/filters'
 
 const props = withDefaults(
   defineProps<{
@@ -55,7 +57,7 @@ const props = withDefaults(
     statusFilter?: ClientStatusFilter
   }>(),
   {
-    statusFilter: COMPANY_STATUS_ACTIVE,
+    statusFilter: DEFAULT_CLIENT_STATUS_FILTER,
   },
 )
 
@@ -66,24 +68,10 @@ const emit = defineEmits<{
 
 const router = useRouter()
 const { t } = useI18n()
+const statusOptions = computed<SelectFieldOption[]>(() => getClientStatusFilterOptions(t))
 
-const statusOptions = computed<SelectFieldOption[]>(() => [
-  {
-    label: String(t('clients.filters.statusOptions.active')),
-    value: COMPANY_STATUS_ACTIVE,
-  },
-  {
-    label: String(t('clients.filters.statusOptions.inactive')),
-    value: COMPANY_STATUS_INACTIVE,
-  },
-  {
-    label: String(t('clients.filters.statusOptions.all')),
-    value: 'all',
-  },
-])
-
-const hasActiveFilters = computed(
-  () => props.modelValue.trim() !== '' || props.statusFilter !== COMPANY_STATUS_ACTIVE,
+const hasActiveFilters = computed(() =>
+  hasClientToolbarActiveFilters(props.modelValue, props.statusFilter),
 )
 
 function handleCreateCompany(): void {
@@ -92,26 +80,11 @@ function handleCreateCompany(): void {
 
 function resetFilters(): void {
   emit('update:modelValue', '')
-  emit('update:statusFilter', COMPANY_STATUS_ACTIVE)
+  emit('update:statusFilter', DEFAULT_CLIENT_STATUS_FILTER)
 }
 
 function handleStatusChange(value: string): void {
-  switch (value) {
-    case String(COMPANY_STATUS_ACTIVE):
-      emit('update:statusFilter', COMPANY_STATUS_ACTIVE)
-      return
-
-    case String(COMPANY_STATUS_INACTIVE):
-      emit('update:statusFilter', COMPANY_STATUS_INACTIVE)
-      return
-
-    case 'all':
-      emit('update:statusFilter', 'all')
-      return
-
-    default:
-      emit('update:statusFilter', props.statusFilter)
-  }
+  emit('update:statusFilter', parseClientStatusFilter(value, props.statusFilter))
 }
 </script>
 

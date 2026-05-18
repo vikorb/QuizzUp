@@ -31,7 +31,6 @@ defineProps({
 })
 
 const canShowNav = computed(() => isAuthenticated.value)
-console.log(me)
 const isAdmin = computed(() => me.value?.role === 'admin')
 
 const navDashboard = [

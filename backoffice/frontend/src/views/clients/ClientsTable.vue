@@ -12,7 +12,7 @@
     class="clients-table-card"
   >
     <template #actions>
-      <UiButton v-if="props.error" variant="default" type="button" @click="$emit('retry')">
+      <UiButton v-if="props.error" variant="default" type="button" @click="emit('retry')">
         {{ $t('clients.table.retry') }}
       </UiButton>
     </template>
@@ -32,12 +32,12 @@
 
       <template #cell-actions="{ item }">
         <ClientTableActions
-          :item="item"
-          @view-accounts="$emit('view-accounts', $event)"
-          @edit="$emit('edit', $event)"
-          @updated="handleCompanyUpdated"
-          @deleted="handleCompanyDeleted"
-          @error="$emit('error', $event)"
+          :item="toCompanyTableRow(item)"
+          @view-accounts="emit('view-accounts', $event)"
+          @edit="emit('edit', $event)"
+          @updated="emit('updated', $event)"
+          @deleted="emit('deleted', $event)"
+          @error="emit('error', $event)"
         />
       </template>
     </BaseTable>
@@ -45,7 +45,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import BaseCard from '@/components/ui/BaseCard.vue'
@@ -62,24 +62,16 @@ const props = defineProps<{
   error: string | null
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   (event: 'retry'): void
   (event: 'view-accounts', companyId: number): void
   (event: 'edit', companyId: number): void
+  (event: 'updated', company: CompanyTableRow): void
+  (event: 'deleted', companyId: number): void
   (event: 'error', errorCode: string): void
 }>()
 
 const { t } = useI18n()
-
-const localCompanies = ref<CompanyTableRow[]>([...props.companies])
-
-watch(
-  () => props.companies,
-  (nextCompanies) => {
-    localCompanies.value = [...nextCompanies]
-  },
-  { deep: true }
-)
 
 const columns = computed<BaseTableColumn[]>(() => [
   {
@@ -102,16 +94,12 @@ const columns = computed<BaseTableColumn[]>(() => [
   },
 ])
 
-const tableItems = computed<CompanyTableRow[]>(() => localCompanies.value)
+const tableItems = computed<CompanyTableRow[]>(() =>
+  props.companies.map((company) => ({ ...company }) as CompanyTableRow),
+)
 
-function handleCompanyUpdated(updatedCompany: CompanyTableRow): void {
-  localCompanies.value = localCompanies.value.map((company) =>
-    company.id === updatedCompany.id ? updatedCompany : company
-  )
-}
-
-function handleCompanyDeleted(companyId: number): void {
-  localCompanies.value = localCompanies.value.filter((company) => company.id !== companyId)
+function toCompanyTableRow(item: Record<string, unknown>): CompanyTableRow {
+  return item as CompanyTableRow
 }
 </script>
 

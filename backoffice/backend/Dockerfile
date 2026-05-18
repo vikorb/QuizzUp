@@ -1,12 +1,16 @@
 FROM node:20-alpine
 
-WORKDIR /app
+WORKDIR /workspace/backend
 
-COPY package*.json ./
+COPY shared /workspace/shared
+COPY backend/package*.json ./
+
+RUN npm --prefix ../shared install
+RUN npm --prefix ../shared run build
 RUN npm install
 
-COPY . .
+COPY backend .
 
 EXPOSE 3001
 
-CMD ["npm","run","dev"]
+CMD ["npm", "run", "dev"]

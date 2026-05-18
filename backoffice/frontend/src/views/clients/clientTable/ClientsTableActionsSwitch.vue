@@ -10,17 +10,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import type { CompanyStatus } from '@quizzup/shared'
+import {
+  COMPANY_STATUS_ACTIVE,
+  COMPANY_STATUS_DELETED,
+  COMPANY_STATUS_INACTIVE,
+} from '@quizzup/shared'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import SwitchField from '@/components/ui/form/SwitchField.vue'
-import { COMPANY_STATUS_ACTIVE, COMPANY_STATUS_DELETED, COMPANY_STATUS_INACTIVE } from '@/CONSTANTS'
-import type { CompanySwitchStatus, CompanyTableRow } from '@/types/company'
-import { apiRequestJson } from '@/utils/api'
-
-type UpdateCompanyStatusResponse = {
-  company: CompanyTableRow
-}
+import { updateCompanyStatusService } from '@/services/companiesService'
+import type { CompanyTableRow } from '@/types/company'
+import { getNextCompanySwitchStatus, toCompanyStatus } from '@/utils/company/status'
+import { waitForPaint } from '@/utils/dom'
 
 const props = withDefaults(
   defineProps<{
@@ -39,12 +42,12 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-
 const isBusy = ref(false)
-
-const isActive = computed(() => props.company.status === COMPANY_STATUS_ACTIVE)
-
-const isDeleted = computed(() => props.company.status === COMPANY_STATUS_DELETED)
+const displayedStatus = ref<CompanyStatus>(
+  toCompanyStatus(props.company.status) ?? COMPANY_STATUS_INACTIVE,
+)
+const isActive = computed(() => displayedStatus.value === COMPANY_STATUS_ACTIVE)
+const isDeleted = computed(() => displayedStatus.value === COMPANY_STATUS_DELETED)
 
 const toggleStatusLabel = computed(() =>
   isActive.value
@@ -52,53 +55,79 @@ const toggleStatusLabel = computed(() =>
     : t('clients.table.actions.inactive'),
 )
 
+watch(
+  () => props.company.status,
+  (status) => {
+    if (!isBusy.value) {
+      displayedStatus.value = toCompanyStatus(status) ?? COMPANY_STATUS_INACTIVE
+    }
+  },
+)
+
 function setBusy(value: boolean): void {
   isBusy.value = value
   emit('busy-change', value)
 }
 
-async function handleToggleStatus(nextChecked: boolean): Promise<void> {
+function getConfirmMessage(): string {
+  const key = isActive.value
+    ? 'clients.table.actions.deactivateConfirm'
+    : 'clients.table.actions.reactivateConfirm'
+
+  return String(
+    t(key, {
+      name: props.company.name,
+    }),
+  )
+}
+
+function rollbackStatus(status: CompanyStatus): void {
+  displayedStatus.value = status
+}
+
+function emitUpdatedCompany(company: CompanyTableRow): void {
+  emit('updated', company)
+}
+
+async function handleToggleStatus(): Promise<void> {
   if (isBusy.value || props.disabled || isDeleted.value) {
     return
   }
 
-  const nextStatus: CompanySwitchStatus = nextChecked
-    ? COMPANY_STATUS_ACTIVE
-    : COMPANY_STATUS_INACTIVE
+  const previousStatus = displayedStatus.value
+  const nextStatus = getNextCompanySwitchStatus(isActive.value)
+  const confirmMessage = getConfirmMessage()
 
-  if (nextStatus === COMPANY_STATUS_INACTIVE) {
-    const confirmed = window.confirm(
-      t('clients.table.actions.deactivateConfirm', {
-        name: props.company.name,
-      }),
-    )
+  displayedStatus.value = nextStatus
 
-    if (!confirmed) {
-      return
-    }
+  await waitForPaint()
+
+  const confirmed = window.confirm(confirmMessage)
+
+  if (!confirmed) {
+    rollbackStatus(previousStatus)
+    return
   }
 
   setBusy(true)
 
   try {
-    const result = await apiRequestJson<UpdateCompanyStatusResponse>({
-      path: `/companies/${props.company.id}/status`,
-      method: 'PATCH',
-      authenticated: true,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        status: nextStatus,
-      }),
-    })
+    const result = await updateCompanyStatusService(props.company.id, nextStatus)
 
     if (!result.ok) {
+      rollbackStatus(previousStatus)
       emit('error', result.error)
       return
     }
 
-    emit('updated', result.data.company)
+    const updatedCompany: CompanyTableRow = {
+      ...props.company,
+      ...result.company,
+      status: nextStatus,
+    }
+
+    displayedStatus.value = nextStatus
+    emitUpdatedCompany(updatedCompany)
   } finally {
     setBusy(false)
   }

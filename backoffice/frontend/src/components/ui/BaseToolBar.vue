@@ -120,10 +120,15 @@ function toggleCollapsed(): void {
 }
 
 .toolbar__toggle {
+  flex: 1 1 auto;
+  min-width: 0;
+
   display: inline-flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 8px;
-  min-width: 0;
+
+  min-height: 42px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -137,13 +142,18 @@ function toggleCollapsed(): void {
 }
 
 .toolbar__title {
+  flex: 1 1 auto;
+  min-width: 0;
   margin: 0;
   font-size: 15px;
   font-weight: 800;
   color: currentColor;
+  text-align: left;
 }
 
 .toolbar__actions {
+  flex: 0 0 auto;
+
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -172,7 +182,13 @@ function toggleCollapsed(): void {
     flex-direction: column;
   }
 
+  .toolbar__toggle,
+  .toolbar__title {
+    width: 100%;
+  }
+
   .toolbar__actions {
+    width: 100%;
     justify-content: stretch;
   }
 

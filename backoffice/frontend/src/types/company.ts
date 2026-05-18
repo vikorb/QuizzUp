@@ -1,11 +1,24 @@
-import type { COMPANY_STATUS_ACTIVE, COMPANY_STATUS_DELETED, COMPANY_STATUS_INACTIVE } from "@/CONSTANTS"
+import type {
+  COMPANY_STATUS_ACTIVE,
+  COMPANY_STATUS_INACTIVE} from '@quizzup/shared';
+import {
+  type CompanyStatus as SharedCompanyStatus,
+} from '@quizzup/shared'
+
+export type CompanyStatus = SharedCompanyStatus
+
+export type CompanySwitchStatus =
+  | typeof COMPANY_STATUS_INACTIVE
+  | typeof COMPANY_STATUS_ACTIVE
+
+export type ClientStatusFilter = CompanySwitchStatus | 'all'
 
 export type Company = {
   id: number
   name: string
   email: string
   accountsCount?: number
-  status: number
+  status: CompanyStatus
 }
 
 export type CompaniesResponse = {
@@ -30,6 +43,7 @@ export type CreateCompanyResponse = {
     name: string
     email: string
     accountsCount: number
+    status: CompanyStatus
   }
 }
 
@@ -38,9 +52,8 @@ export type CreateCompanyErrorCode =
   | 'name_already_exists'
   | 'invalid_body'
   | 'unknown_error'
-  
 
-  export type CreateCompanyResult =
+export type CreateCompanyResult =
   | {
       ok: true
       company: {
@@ -48,6 +61,7 @@ export type CreateCompanyErrorCode =
         name: string
         email: string
         accountsCount: number
+        status: CompanyStatus
       }
     }
   | {
@@ -57,13 +71,47 @@ export type CreateCompanyErrorCode =
       apiError?: string
     }
 
-export type CompanyStatus =
-  | typeof COMPANY_STATUS_INACTIVE
-  | typeof COMPANY_STATUS_ACTIVE
-  | typeof COMPANY_STATUS_DELETED
+export type LoadCompaniesResult =
+  | {
+      ok: true
+      companies: Company[]
+    }
+  | {
+      ok: false
+      error: string
+    }
 
-export type CompanySwitchStatus =
-  | typeof COMPANY_STATUS_INACTIVE
-  | typeof COMPANY_STATUS_ACTIVE
+export type DeleteCompanyResult =
+  | {
+      ok: true
+      data: DeleteCompanyResponse
+    }
+  | {
+      ok: false
+      error: string
+    }
 
-export type ClientStatusFilter = CompanySwitchStatus | 'all'
+export type UpdateCompanyStatusResult =
+  | {
+      ok: true
+      company: UpdateCompanyStatusResponse['company']
+    }
+  | {
+      ok: false
+      error: string
+    }
+
+export type TranslateFn = (key: string) => string
+
+export type DeleteCompanyResponse = {
+  success: boolean
+  deleted: {
+    companyId: number
+    adminsCount: number
+    companiesCount: number
+  }
+}
+
+export type UpdateCompanyStatusResponse = {
+  company: CompanyTableRow
+}

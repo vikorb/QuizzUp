@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc -b && vite build",
-    "type-check": "vue-tsc -b",
-    "preview": "vite preview"
+    "build": "run-p type-check \"build-only {@}\" --",
+    "build-only": "vite build --",
+    "type-check": "vue-tsc --build",
+    "preview": "vite preview",
+    "knip": "knip",
+    "check:lines": "node check-lines.mjs"
   },
   "dependencies": {
     "@mdi/js": "^7.4.47",
@@ -16,9 +19,12 @@
     "vue-router": "^5.0.3"
   },
   "devDependencies": {
+    "@quizzup/shared": "file:../shared",
     "@types/node": "^24.10.1",
     "@vitejs/plugin-vue": "^6.0.2",
     "@vue/tsconfig": "^0.8.1",
+    "knip": "^5.70.0",
+    "npm-run-all2": "^8.0.4",
     "typescript": "~5.9.3",
     "vite": "^7.3.1",
     "vue-tsc": "^3.1.5"
