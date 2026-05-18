@@ -37,19 +37,27 @@ defineEmits<{
 }>()
 </script>
 
-<style scoped>
-.topbar {
+<style scoped>.topbar {
   position: sticky;
   top: 12px;
   z-index: 50;
+
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 72px;
+  height: 72px;
+
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 14px 18px;
   gap: 16px;
+
   background:
     radial-gradient(900px 160px at 15% 0%, rgba(0, 98, 255, 0.2), transparent 62%),
-    radial-gradient(900px 160px at 85% 0%, rgba(237, 46, 251, 0.2), transparent 62%), var(--bg-card);
+    radial-gradient(900px 160px at 85% 0%, rgba(237, 46, 251, 0.2), transparent 62%),
+    var(--bg-card);
+
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 18px;
   backdrop-filter: blur(14px);
@@ -58,6 +66,7 @@ defineEmits<{
     0 0 14px rgba(0, 98, 255, 0.16),
     0 0 18px rgba(237, 46, 251, 0.14),
     0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+
   overflow: hidden;
 }
 
@@ -71,16 +80,39 @@ defineEmits<{
   align-items: center;
   gap: 12px;
   min-width: 0;
+  flex: 1 1 auto;
 }
 
 .burger {
   flex: 0 0 auto;
 }
 
+.topbar :deep(.top-actions) {
+  flex: 0 0 auto;
+}
+
+.topbar :deep(.brand) {
+  min-width: 0;
+}
+
+.topbar :deep(.brand-text) {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.topbar :deep(.app-title),
+.topbar :deep(.app-subtitle) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (max-width: 720px) {
   .topbar {
     top: 8px;
-    padding: 12px 12px;
+    min-height: 64px;
+    height: 64px;
+    padding: 12px;
     border-radius: 16px;
   }
 }

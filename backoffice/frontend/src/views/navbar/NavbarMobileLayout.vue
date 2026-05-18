@@ -24,7 +24,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 
 import NavbarFrame from '@/components/NavbarFrame.vue'
@@ -47,20 +47,29 @@ const sidebarOpen = computed({
   set: (value: boolean) => emit('update:sidebarOpen', value),
 })
 
-function openSidebar() {
+function openSidebar(): void {
   sidebarOpen.value = true
 }
 
-function closeSidebar() {
+function closeSidebar(): void {
   sidebarOpen.value = false
 }
 
-function toggleSidebar() {
+function toggleSidebar(): void {
   sidebarOpen.value ? closeSidebar() : openSidebar()
 }
 
-router.afterEach(() => closeSidebar())
-if (!isAuthenticated.value) closeSidebar()
+const removeRouterHook = router.afterEach(() => {
+  closeSidebar()
+})
+
+if (!isAuthenticated.value) {
+  closeSidebar()
+}
+
+onBeforeUnmount(() => {
+  removeRouterHook()
+})
 </script>
 <style scoped>
 .drawer {

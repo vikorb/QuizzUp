@@ -80,8 +80,9 @@ defineEmits<{
   height: 100%;
   min-height: 0;
   padding: 0;
-  overflow-y: auto;
+  overflow-y: scroll;
   overflow-x: hidden;
+  scrollbar-gutter: stable;
 }
 
 @media (max-width: 980px) {

@@ -21,7 +21,7 @@
 <script setup lang="ts">
 import SectionCard from '@/components/ui/section/SectionCard.vue'
 import SectionHeader from '@/components/ui/section/SectionHeader.vue'
-import LoginForm from '@/views/login/LoginForm.vue'
+import LoginForm from '@/views/login/LoginForm.vue';
 </script>
 
 <style scoped>

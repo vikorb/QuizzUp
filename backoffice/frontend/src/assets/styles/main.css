@@ -29,6 +29,10 @@ body,
   height: 100%;
 }
 
+html {
+  scrollbar-gutter: stable;
+}
+
 body {
   margin: 0;
   background: var(--bg-0);
@@ -39,7 +43,6 @@ body {
     system-ui,
     -apple-system,
     sans-serif;
-  overflow-x: hidden;
   overflow: hidden;
 }
 

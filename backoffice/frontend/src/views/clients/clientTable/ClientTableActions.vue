@@ -1,13 +1,13 @@
 <template>
   <div class="actions">
-    <div class="actions__switch">
-      <SwitchField
-        :model-value="isActive"
-        :disabled="isBusy"
-        :label="toggleStatusLabel"
-        @change="handleToggleStatus"
-      />
-    </div>
+    <ClientsTableActionsSwitch
+      v-if="company"
+      :company="company"
+      :disabled="deleteBusy"
+      @updated="handleCompanyUpdated"
+      @error="handleActionError"
+      @busy-change="handleSwitchBusyChange"
+    />
 
     <UiButton
       class="icon"
@@ -52,16 +52,13 @@ import { mdiAccountDetailsOutline, mdiDeleteOutline, mdiPencilOutline } from '@m
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import SwitchField from '@/components/ui/form/SwitchField.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import type { CompanyTableRow } from '@/types/company'
 import { apiRequestJson } from '@/utils/api'
 import { isCompanyTableRow } from '@/utils/company'
 
-type UpdateCompanyStatusResponse = {
-  company: CompanyTableRow
-}
+import ClientsTableActionsSwitch from './ClientsTableActionsSwitch.vue'
 
 type DeleteCompanyResponse = {
   success: boolean
@@ -86,17 +83,24 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-const busyAction = ref<'toggle' | 'delete' | null>(null)
+const deleteBusy = ref(false)
+const switchBusy = ref(false)
 
 const company = computed(() => (isCompanyTableRow(props.item) ? props.item : null))
-const isActive = computed(() => company.value?.status === 1)
-const isBusy = computed(() => busyAction.value !== null)
 
-const toggleStatusLabel = computed(() =>
-  isActive.value
-    ? t('clients.table.actions.active')
-    : t('clients.table.actions.inactive')
-)
+const isBusy = computed(() => deleteBusy.value || switchBusy.value)
+
+function handleSwitchBusyChange(value: boolean): void {
+  switchBusy.value = value
+}
+
+function handleCompanyUpdated(updatedCompany: CompanyTableRow): void {
+  emit('updated', updatedCompany)
+}
+
+function handleActionError(errorCode: string): void {
+  emit('error', errorCode)
+}
 
 function handleViewAccounts(): void {
   if (!company.value || isBusy.value) {
@@ -114,67 +118,28 @@ function handleEditCompany(): void {
   emit('edit', company.value.id)
 }
 
-async function handleToggleStatus(nextChecked: boolean): Promise<void> {
-  if (!company.value || isBusy.value) {
-    return
-  }
-
-  const nextStatus: 1 | 2 = nextChecked ? 1 : 2
-
-  if (nextStatus === 2) {
-    const confirmed = window.confirm(
-      t('clients.table.actions.deactivateConfirm', { name: company.value.name })
-    )
-
-    if (!confirmed) {
-      return
-    }
-  }
-
-  busyAction.value = 'toggle'
-
-  try {
-    const result = await apiRequestJson<UpdateCompanyStatusResponse>({
-      path: `/companies/${company.value.id}/status`,
-      method: 'PATCH',
-      authenticated: true,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        status: nextStatus,
-      }),
-    })
-
-    if (!result.ok) {
-      emit('error', result.error)
-      return
-    }
-
-    emit('updated', result.data.company)
-  } finally {
-    busyAction.value = null
-  }
-}
-
 async function handleDeleteCompany(): Promise<void> {
-  if (!company.value || isBusy.value) {
+  const currentCompany = company.value
+
+  if (!currentCompany || isBusy.value) {
     return
   }
 
   const confirmed = window.confirm(
-    t('clients.table.actions.deleteConfirm', { name: company.value.name })
+    t('clients.table.actions.deleteConfirm', {
+      name: currentCompany.name,
+    })
   )
 
   if (!confirmed) {
     return
   }
 
-  busyAction.value = 'delete'
+  deleteBusy.value = true
 
   try {
     const result = await apiRequestJson<DeleteCompanyResponse>({
-      path: `/companies/${company.value.id}/permanent`,
+      path: `/companies/${currentCompany.id}/permanent`,
       method: 'DELETE',
       authenticated: true,
     })
@@ -184,9 +149,9 @@ async function handleDeleteCompany(): Promise<void> {
       return
     }
 
-    emit('deleted', company.value.id)
+    emit('deleted', currentCompany.id)
   } finally {
-    busyAction.value = null
+    deleteBusy.value = false
   }
 }
 </script>
@@ -198,10 +163,6 @@ async function handleDeleteCompany(): Promise<void> {
   justify-content: flex-end;
   gap: 8px;
   white-space: nowrap;
-}
-
-.actions__switch {
-  margin-left: 8px;
 }
 
 .icon-delete {

@@ -1,3 +1,5 @@
+import type { COMPANY_STATUS_ACTIVE, COMPANY_STATUS_DELETED, COMPANY_STATUS_INACTIVE } from "@/CONSTANTS"
+
 export type Company = {
   id: number
   name: string
@@ -54,3 +56,14 @@ export type CreateCompanyErrorCode =
       errorCode: CreateCompanyErrorCode
       apiError?: string
     }
+
+export type CompanyStatus =
+  | typeof COMPANY_STATUS_INACTIVE
+  | typeof COMPANY_STATUS_ACTIVE
+  | typeof COMPANY_STATUS_DELETED
+
+export type CompanySwitchStatus =
+  | typeof COMPANY_STATUS_INACTIVE
+  | typeof COMPANY_STATUS_ACTIVE
+
+export type ClientStatusFilter = CompanySwitchStatus | 'all'

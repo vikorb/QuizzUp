@@ -97,10 +97,23 @@ function handleChange(event: Event): void {
   position: relative;
 }
 
+.select-field__control::after {
+  content: '';
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--text-2);
+  border-bottom: 2px solid var(--text-2);
+  transform: translateY(-65%) rotate(45deg);
+  pointer-events: none;
+}
+
 .select-field__input {
   width: 100%;
   min-height: 46px;
-  padding: 0 14px;
+  padding: 0 42px 0 14px;
   border-radius: 14px;
   border: 1px solid var(--border-ui);
   background: rgba(255, 255, 255, 0.03);
@@ -108,6 +121,10 @@ function handleChange(event: Event): void {
   font: inherit;
   outline: none;
   transition: var(--tr);
+
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
 }
 
 .select-field__input:hover,

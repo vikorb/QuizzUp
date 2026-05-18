@@ -9,25 +9,27 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import NavbarDesktopLayout from '@/views/navbar/NavbarDesktopLayout.vue'
 import NavbarMobileLayout from '@/views/navbar/NavbarMobileLayout.vue'
 
+const NAVBAR_MOBILE_BREAKPOINT = 980
+
 const isMobileNav = ref(false)
 const isSidebarOpen = ref(false)
+
 const useMobileLayout = computed(() => isMobileNav.value)
 
-let mql: MediaQueryList | null = null
-let onMqlChange: ((event: MediaQueryListEvent) => void) | null = null
+function updateNavbarLayout(): void {
+  isMobileNav.value = window.innerWidth <= NAVBAR_MOBILE_BREAKPOINT
+
+  if (!isMobileNav.value) {
+    isSidebarOpen.value = false
+  }
+}
 
 onMounted(() => {
-  mql = window.matchMedia('(max-width: 980px)')
-  isMobileNav.value = mql.matches
-
-  onMqlChange = (event: MediaQueryListEvent) => {
-    isMobileNav.value = event.matches
-  }
-
-  mql.addEventListener('change', onMqlChange)
+  updateNavbarLayout()
+  window.addEventListener('resize', updateNavbarLayout)
 })
 
 onBeforeUnmount(() => {
-  if (mql && onMqlChange) mql.removeEventListener('change', onMqlChange)
+  window.removeEventListener('resize', updateNavbarLayout)
 })
 </script>

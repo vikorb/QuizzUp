@@ -33,7 +33,8 @@
         "delete": "Supprimer",
         "active": "Actif",
         "inactive": "Inactif",
-        "deactivateConfirm": "Voulez-vous vraiment désactiver « {name} » ?"
+        "deactivateConfirm": "Voulez-vous vraiment désactiver « {name} » ?",
+        "deleteConfirm": "Voulez-vous vraiment supprimer « {name} » ? Cette action est irréversible."
       }
     },
     "errors": {
@@ -52,7 +53,7 @@
         },
         "email": {
           "label": "Email de contact",
-          "placeholder": "Ex. contact@quizzup.local"
+          "placeholder": "Ex. contact{'@'}quizzup.local"
         }
       },
       "actions": {

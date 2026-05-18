@@ -63,12 +63,10 @@ import { isBlank } from '@/utils/validation'
 const { t } = useI18n()
 const router = useRouter()
 const route = useRoute()
-
 const identifier = ref('admin@quizzup.local')
 const password = ref('ChangeMe123!')
 const showPassword = ref(false)
 const loading = ref(false)
-
 const formError = ref<string | null>(null)
 const fieldErrors = reactive<{ identifier?: string; password?: string }>({})
 

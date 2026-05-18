@@ -1,6 +1,6 @@
 <template>
   <SectionLayout :title="$t('clients.title')" :subtitle="$t('clients.subtitle')">
-    <ClientsFilters
+    <ClientToolBar
       v-model="searchQuery"
       v-model:status-filter="statusFilter"
     />
@@ -18,16 +18,19 @@
 import { computed, onMounted, ref } from 'vue'
 
 import SectionLayout from '@/components/SectionLayout.vue'
-import type { Company } from '@/types/company'
+import {
+  COMPANY_STATUS_ACTIVE,
+  COMPANY_STATUS_DELETED,
+  COMPANY_STATUS_INACTIVE,
+} from '@/CONSTANTS'
+import type { ClientStatusFilter, Company } from '@/types/company'
 import { apiRequestJson } from '@/utils/api'
 import { filterCompanies, parseCompaniesResponse } from '@/utils/company'
-import ClientsFilters from '@/views/clients/ClientsFilters.vue'
 import ClientsTable from '@/views/clients/ClientsTable.vue'
-
-type ClientStatusFilter = 'active' | 'inactive' | 'all'
+import ClientToolBar from '@/views/clients/ClientToolBar.vue'
 
 const searchQuery = ref('')
-const statusFilter = ref<ClientStatusFilter>('active')
+const statusFilter = ref<ClientStatusFilter>(COMPANY_STATUS_ACTIVE)
 const companies = ref<Company[]>([])
 const isLoading = ref(false)
 const errorCode = ref<string | null>(null)
@@ -35,17 +38,15 @@ const errorCode = ref<string | null>(null)
 const filteredCompanies = computed(() => {
   const searchedCompanies = filterCompanies(companies.value, searchQuery.value)
 
-  console.log('searchedCompanies', searchedCompanies)
+  switch (statusFilter.value) {
+    case COMPANY_STATUS_ACTIVE:
+    case COMPANY_STATUS_INACTIVE:
+      return searchedCompanies.filter((company) => company.status === statusFilter.value)
 
-  if (statusFilter.value === 'all') {
-    return searchedCompanies
+    case 'all':
+    default:
+      return searchedCompanies.filter((company) => company.status !== COMPANY_STATUS_DELETED)
   }
-
-  if (statusFilter.value === 'inactive') {
-    return searchedCompanies.filter((company) => company.status === 2)
-  }
-
-  return searchedCompanies.filter((company) => company.status === 1)
 })
 
 async function loadCompanies(): Promise<void> {

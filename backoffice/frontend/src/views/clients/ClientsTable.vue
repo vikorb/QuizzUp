@@ -54,7 +54,7 @@ import BaseTable from '@/components/ui/BaseTable.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import type { Company, CompanyTableRow } from '@/types/company'
 
-import ClientTableActions from './createClient/clientTable/ClientTableActions.vue'
+import ClientTableActions from './clientTable/ClientTableActions.vue'
 
 const props = defineProps<{
   companies: Company[]
