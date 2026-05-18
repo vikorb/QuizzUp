@@ -15,6 +15,8 @@
       :companies="filteredCompanies"
       :loading="isLoading"
       :error="loadErrorCode"
+      @view-accounts="handleViewAccounts"
+      @edit="handleEditCompany"
       @updated="handleCompanyUpdated"
       @deleted="handleCompanyDeleted"
       @error="handleTableError"
@@ -27,9 +29,11 @@
 import { COMPANY_STATUS_ACTIVE } from '@quizzup/shared'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 
 import SectionLayout from '@/components/SectionLayout.vue'
 import BaseBanner from '@/components/ui/BaseBanner.vue'
+import { getCompanyAccountsRoute, getEditCompanyRoute } from '@/router/clients'
 import { loadCompaniesService } from '@/services/companiesService'
 import type { ActionBanner } from '@/types/banner'
 import type { ClientStatusFilter, Company, CompanyTableRow } from '@/types/company'
@@ -41,6 +45,7 @@ import ClientsTable from '@/views/clients/ClientsTable.vue'
 import ClientToolBar from '@/views/clients/ClientToolBar.vue'
 
 const { t } = useI18n()
+const router = useRouter()
 const searchQuery = ref('')
 const statusFilter = ref<ClientStatusFilter>(COMPANY_STATUS_ACTIVE)
 const companies = ref<Company[]>([])
@@ -58,6 +63,14 @@ const filteredCompanies = computed(() => {
 
 function clearActionBanner(): void {
   actionBanner.value = null
+}
+
+function handleViewAccounts(companyId: number): void {
+  router.push(getCompanyAccountsRoute(companyId))
+}
+
+function handleEditCompany(companyId: number): void {
+  router.push(getEditCompanyRoute(companyId))
 }
 
 function handleCompanyUpdated(updatedCompany: CompanyTableRow): void {

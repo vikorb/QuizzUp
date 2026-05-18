@@ -47,46 +47,45 @@ import FormActions from '@/components/ui/form/FormActions.vue'
 import FormField from '@/components/ui/form/FormField.vue'
 import FormResult from '@/components/ui/form/FormResult.vue'
 import { getClientDetailsRoute, getClientsRoute } from '@/router/clients'
-import { apiRequestJson, getApiErrorKey } from '@/utils/api'
-import { isBlank } from '@/utils/validation'
-
-type CreateCompanyResponse = {
-  company: {
-    id: number
-    name: string
-    email: string
-    accountsCount: number
-  }
-}
+import { createCompany } from '@/services/companiesService'
+import type { CreateCompanyFieldErrors } from '@/types/company'
+import {
+  buildCreateCompanyPayload,
+  createCompanyFieldErrors,
+  getCreateCompanyApiFieldError,
+  getCreateCompanyApiFormError,
+  hasCreateCompanyFormErrors,
+  validateCreateCompanyForm,
+} from '@/utils/company/create'
 
 const { t } = useI18n()
 const router = useRouter()
+
 const name = ref('')
 const email = ref('')
 const loading = ref(false)
 const formError = ref<string | null>(null)
 const formSuccess = ref<string | null>(null)
-const fieldErrors = reactive<{ name?: string; email?: string }>({})
+const fieldErrors = reactive<CreateCompanyFieldErrors>(createCompanyFieldErrors())
 
 function resetMessages(): void {
   formError.value = null
   formSuccess.value = null
-  fieldErrors.name = undefined
-  fieldErrors.email = undefined
+  Object.assign(fieldErrors, createCompanyFieldErrors())
 }
 
 function validateForm(): boolean {
-  if (isBlank(name.value)) {
-    fieldErrors.name = t('clients.create.errors.required')
-  }
+  const errors = validateCreateCompanyForm(
+    {
+      name: name.value,
+      email: email.value,
+    },
+    t,
+  )
 
-  if (isBlank(email.value)) {
-    fieldErrors.email = t('clients.create.errors.required')
-  } else if (!email.value.includes('@')) {
-    fieldErrors.email = t('clients.create.errors.invalidEmail')
-  }
+  Object.assign(fieldErrors, errors)
 
-  return !fieldErrors.name && !fieldErrors.email
+  return !hasCreateCompanyFormErrors(errors)
 }
 
 async function onSubmit(): Promise<void> {
@@ -101,36 +100,22 @@ async function onSubmit(): Promise<void> {
   loading.value = true
 
   try {
-    const result = await apiRequestJson<CreateCompanyResponse>({
-      path: '/companies',
-      method: 'POST',
-      authenticated: true,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        name: name.value.trim(),
-        email: email.value.trim().toLowerCase(),
+    const result = await createCompany(
+      buildCreateCompanyPayload({
+        name: name.value,
+        email: email.value,
       }),
-    })
+    )
 
     if (!result.ok) {
-      if (result.error === 'invalid_email') {
-        fieldErrors.email = t('clients.create.errors.invalidEmail')
+      const apiFieldError = getCreateCompanyApiFieldError(result.error, t)
+
+      if (apiFieldError) {
+        fieldErrors[apiFieldError.field] = apiFieldError.message
         return
       }
 
-      if (result.error === 'email_already_exists') {
-        fieldErrors.email = t('clients.create.errorsApi.emailAlreadyExists')
-        return
-      }
-
-      if (result.error === 'name_already_exists') {
-        fieldErrors.name = t('clients.create.errorsApi.nameAlreadyExists')
-        return
-      }
-
-      formError.value = t(getApiErrorKey(result.error, 'clients.create.errorsApi'))
+      formError.value = getCreateCompanyApiFormError(result.error, t)
       return
     }
 

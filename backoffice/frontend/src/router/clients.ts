@@ -8,25 +8,46 @@ export function getCreateCompanyRoute(): RouteLocationRaw {
   return { name: 'clients-create' }
 }
 
-export function getCompanyAccountsRoute(companyId: number | string): RouteLocationRaw {
+export function getClientDetailsRoute(companyId: number | string): RouteLocationRaw {
   return {
-    name: 'clients',
-    query: {
-      companyId: String(companyId),
+    name: 'client-details',
+    params: {
+      id: String(companyId),
     },
   }
 }
 
-export function getClientDetailsRoute(companyId: number | string): RouteLocationRaw {
-  return getCompanyAccountsRoute(companyId)
+export function getCompanyAccountsRoute(companyId: number | string): RouteLocationRaw {
+  return {
+    name: 'client-details',
+    params: {
+      id: String(companyId),
+    },
+    hash: '#accounts',
+  }
 }
 
 export function getEditCompanyRoute(companyId: number | string): RouteLocationRaw {
   return {
-    name: 'clients',
-    query: {
-      mode: 'edit',
-      companyId: String(companyId),
+    name: 'client-details',
+    params: {
+      id: String(companyId),
     },
+    hash: '#company-info',
+  }
+}
+
+export function getCreateCompanyAccountRoute(companyId: number | string): RouteLocationRaw {
+  return {
+    path: `/clients/${companyId}/accounts/create`,
+  }
+}
+
+export function getEditCompanyAccountRoute(
+  companyId: number | string,
+  accountId: number | string,
+): RouteLocationRaw {
+  return {
+    path: `/clients/${companyId}/accounts/${accountId}/edit`,
   }
 }

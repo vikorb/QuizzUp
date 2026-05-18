@@ -1,0 +1,52 @@
+{
+  "accounts": {
+    "actions": {
+      "addAccount": "Ajouter un compte"
+    },
+    "filters": {
+      "searchLabel": "Rechercher",
+      "searchPlaceholder": "Nom, identifiant, email, rôle...",
+      "statusLabel": "Statut",
+      "status": {
+        "active": "Actifs",
+        "inactive": "Inactifs",
+        "deleted": "Supprimés",
+        "all": "Tous"
+      }
+    },
+    "status": {
+      "active": "Actif",
+      "inactive": "Inactif",
+      "deleted": "Supprimé",
+      "unknown": "Inconnu"
+    },
+    "table": {
+      "title": "Comptes associés",
+      "loading": "Chargement des comptes...",
+      "empty": "Aucun compte trouvé.",
+      "retry": "Réessayer",
+      "columns": {
+        "name": "Nom",
+        "username": "Identifiant",
+        "email": "Email",
+        "role": "Rôle",
+        "status": "Statut",
+        "actions": "Actions"
+      },
+      "actions": {
+        "edit": "Modifier le compte",
+        "delete": "Supprimer le compte",
+        "enable": "Activer le compte",
+        "disable": "Désactiver le compte",
+        "deleteConfirm": "Supprimer le compte {name} ?"
+      }
+    },
+    "errors": {
+      "forbidden": "Vous n’avez pas les droits nécessaires.",
+      "notFound": "Compte introuvable.",
+      "invalidParams": "Paramètres invalides.",
+      "invalidBody": "Les informations envoyées sont invalides.",
+      "default": "Une erreur est survenue."
+    }
+  }
+}

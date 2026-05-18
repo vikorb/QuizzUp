@@ -115,3 +115,38 @@ export type DeleteCompanyResponse = {
 export type UpdateCompanyStatusResponse = {
   company: CompanyTableRow
 }
+
+export type CreateCompanyFormValues = {
+  name: string
+  email: string
+}
+
+export type CreateCompanyApiFieldError = {
+  field: keyof CreateCompanyFieldErrors
+  message: string
+}
+
+export type UpdateCompanyPayload = {
+  name?: string
+  email?: string
+  status?: CompanyStatus
+}
+
+export type UpdateCompanyResponse = {
+  company: Company
+}
+
+export type CompanyDetailsResponse = {
+  company: Company
+}
+
+export type EditCompanyFormValues = {
+  name: string
+  email: string
+  status: CompanyStatus
+}
+
+export type EditCompanyFieldErrors = {
+  name?: string
+  email?: string
+}

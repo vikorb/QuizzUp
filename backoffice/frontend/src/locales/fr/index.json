@@ -19,5 +19,11 @@
     "companyDeactivated": "L’entreprise {name} a bien été désactivée.",
     "companyUpdated": "L’entreprise {name} a bien été mise à jour.",
     "companyDeleted": "L’entreprise {name} a bien été supprimée."
+  },
+  "banners": {
+    "accountActivated": "Le compte {name} a été activé.",
+    "accountDisabled": "Le compte {name} a été désactivé.",
+    "accountDeleted": "Le compte {name} a été supprimé.",
+    "accountUpdated": "Le compte {name} a été mis à jour."
   }
 }

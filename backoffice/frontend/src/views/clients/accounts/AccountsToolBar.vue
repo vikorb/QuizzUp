@@ -3,19 +3,19 @@
     :reset-label="$t('resetFilters')"
     :reset-icon="mdiRefresh"
     :reset-disabled="!hasActiveFilters"
-    :primary-label="$t('clients.actions.addCompany')"
+    :primary-label="$t('accounts.actions.addAccount')"
     :primary-icon="mdiPlus"
     :show-primary="true"
     @reset="resetFilters"
-    @primary="handleCreateCompany"
+    @primary="handleCreateAccount"
   >
-    <div class="clients-toolbar__filters">
+    <div class="accounts-toolbar__filters">
       <FormField
-        id="q"
+        id="account-q"
         class="search-field"
         :model-value="modelValue"
-        :label="$t('clients.filters.searchLabel')"
-        :placeholder="$t('clients.filters.searchPlaceholder')"
+        :label="$t('accounts.filters.searchLabel')"
+        :placeholder="$t('accounts.filters.searchPlaceholder')"
         inputmode="search"
         autocomplete="off"
         :neon="false"
@@ -23,9 +23,9 @@
       />
 
       <SelectField
-        id="status-filter"
-        :model-value="statusFilter"
-        :label="$t('clients.filters.statusLabel')"
+        id="account-status-filter"
+        :model-value="String(statusFilter)"
+        :label="$t('accounts.filters.statusLabel')"
         :options="statusOptions"
         @update:model-value="handleStatusChange"
       />
@@ -37,88 +37,87 @@
 import { mdiPlus, mdiRefresh } from '@mdi/js'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
 
 import BaseToolBar from '@/components/ui/BaseToolBar.vue'
 import FormField from '@/components/ui/form/FormField.vue'
 import type { SelectFieldOption } from '@/components/ui/form/SelectField.vue'
 import SelectField from '@/components/ui/form/SelectField.vue'
-import { getCreateCompanyRoute } from '@/router/clients'
-import type { ClientStatusFilter } from '@/types/company'
+import type { AccountStatusFilter } from '@/types/account'
 import {
-  DEFAULT_CLIENT_STATUS_FILTER,
-  getClientStatusFilterOptions,
-  hasClientToolbarActiveFilters,
-  parseClientStatusFilter,
-} from '@/utils/company/filters'
+  DEFAULT_ACCOUNT_STATUS_FILTER,
+  getAccountStatusFilterOptions,
+  hasAccountToolbarActiveFilters,
+  parseAccountStatusFilter,
+} from '@/utils/account/filters'
 
 const props = withDefaults(
   defineProps<{
     modelValue: string
-    statusFilter?: ClientStatusFilter
+    statusFilter?: AccountStatusFilter
   }>(),
   {
-    statusFilter: DEFAULT_CLIENT_STATUS_FILTER,
+    statusFilter: DEFAULT_ACCOUNT_STATUS_FILTER,
   },
 )
 
 const emit = defineEmits<{
   (event: 'update:modelValue', value: string): void
-  (event: 'update:statusFilter', value: ClientStatusFilter): void
+  (event: 'update:statusFilter', value: AccountStatusFilter): void
+  (event: 'create'): void
 }>()
 
-const router = useRouter()
 const { t } = useI18n()
-const statusOptions = computed<SelectFieldOption[]>(() => getClientStatusFilterOptions(t))
+
+const statusOptions = computed<SelectFieldOption[]>(() => getAccountStatusFilterOptions(t))
 
 const hasActiveFilters = computed(() =>
-  hasClientToolbarActiveFilters(props.modelValue, props.statusFilter),
+  hasAccountToolbarActiveFilters(props.modelValue, props.statusFilter),
 )
-
-function handleCreateCompany(): void {
-  router.push(getCreateCompanyRoute())
-}
 
 function resetFilters(): void {
   emit('update:modelValue', '')
-  emit('update:statusFilter', DEFAULT_CLIENT_STATUS_FILTER)
+  emit('update:statusFilter', DEFAULT_ACCOUNT_STATUS_FILTER)
 }
 
 function handleStatusChange(value: string): void {
-  emit('update:statusFilter', parseClientStatusFilter(value, props.statusFilter))
+  emit('update:statusFilter', parseAccountStatusFilter(value, props.statusFilter))
+}
+
+function handleCreateAccount(): void {
+  emit('create')
 }
 </script>
 
 <style scoped>
-.clients-toolbar__filters {
+.accounts-toolbar__filters {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 220px;
   align-items: end;
   gap: 12px;
 }
 
-.clients-toolbar__filters :deep(select),
-.clients-toolbar__filters :deep(.select-field__trigger) {
+.accounts-toolbar__filters :deep(select),
+.accounts-toolbar__filters :deep(.select-field__trigger) {
   box-sizing: border-box;
   height: 46px;
   min-height: 46px;
 }
 
-.clients-toolbar__filters :deep(.search-field input) {
+.accounts-toolbar__filters :deep(.search-field input) {
   box-sizing: border-box;
   height: 24px;
   min-height: 24px;
   padding: 0 12px;
 }
 
-.clients-toolbar__filters :deep(.search-field .form-field__control),
-.clients-toolbar__filters :deep(.search-field .form-field__input) {
+.accounts-toolbar__filters :deep(.search-field .form-field__control),
+.accounts-toolbar__filters :deep(.search-field .form-field__input) {
   height: 24px;
   min-height: 24px;
 }
 
 @media (max-width: 980px) {
-  .clients-toolbar__filters {
+  .accounts-toolbar__filters {
     grid-template-columns: 1fr;
   }
 }

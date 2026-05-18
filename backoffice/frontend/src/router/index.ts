@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 import { isAuthenticated, me, refreshMe } from '@/state/authState'
+import ClientDetailsView from '@/views/clients/ClientDetailsView.vue'
 import CreateClientView from '@/views/clients/CreateClientView.vue'
 import ClientsView from '@/views/ClientsView.vue'
 import GamesView from '@/views/GamesView.vue'
@@ -19,9 +20,16 @@ export const router = createRouter({
       path: '/',
       component: NavbarView,
       children: [
-        { path: '', name: 'home', component: HomeView },
-        { path: '/login', name: 'login', component: LoginView },
-
+        {
+          path: '',
+          name: 'home',
+          component: HomeView,
+        },
+        {
+          path: 'login',
+          name: 'login',
+          component: LoginView,
+        },
         {
           path: 'clients',
           name: 'clients',
@@ -34,35 +42,64 @@ export const router = createRouter({
           component: CreateClientView,
           meta: { requiresAuth: true, requiresAdmin: true },
         },
+        {
+          path: 'clients/:id',
+          name: 'client-details',
+          component: ClientDetailsView,
+          meta: { requiresAuth: true, requiresAdmin: true },
+        },
 
-        { path: 'players', name: 'players', component: PlayersView, meta: { requiresAuth: true } },
-        { path: 'themes', name: 'themes', component: ThemesView, meta: { requiresAuth: true } },
+        {
+          path: 'players',
+          name: 'players',
+          component: PlayersView,
+          meta: { requiresAuth: true },
+        },
+        {
+          path: 'themes',
+          name: 'themes',
+          component: ThemesView,
+          meta: { requiresAuth: true },
+        },
         {
           path: 'questions',
           name: 'questions',
           component: QuestionsView,
           meta: { requiresAuth: true },
         },
-        { path: 'games', name: 'games', component: GamesView, meta: { requiresAuth: true } },
-        { path: 'stats', name: 'stats', component: StatsView, meta: { requiresAuth: true } },
+        {
+          path: 'games',
+          name: 'games',
+          component: GamesView,
+          meta: { requiresAuth: true },
+        },
+        {
+          path: 'stats',
+          name: 'stats',
+          component: StatsView,
+          meta: { requiresAuth: true },
+        },
       ],
     },
   ],
 })
 
 router.beforeEach(async (to) => {
-  const isPublic = to.path === '/' || to.path === '/login'
+  const isPublic = to.name === 'home' || to.name === 'login'
 
   if (isPublic) {
-    if (to.path === '/login' && isAuthenticated.value) {
-      return { path: '/' }
+    if (to.name === 'login' && isAuthenticated.value) {
+      return { name: 'home' }
     }
 
     return true
   }
 
   if (!isAuthenticated.value) {
-    return { path: '/login', query: { redirect: to.fullPath } }
+    return {
+      name: 'login',
+      query: { redirect: to.fullPath },
+    }
   }
 
   if (!me.value) {
@@ -70,11 +107,14 @@ router.beforeEach(async (to) => {
   }
 
   if (!isAuthenticated.value) {
-    return { path: '/login', query: { redirect: to.fullPath } }
+    return {
+      name: 'login',
+      query: { redirect: to.fullPath },
+    }
   }
 
   if (to.meta.requiresAdmin && me.value?.role !== 'admin') {
-    return { path: '/' }
+    return { name: 'home' }
   }
 
   return true

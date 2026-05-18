@@ -79,6 +79,58 @@
         "conflict": "Un conflit empêche la création.",
         "serverError": "Une erreur serveur est survenue."
       }
+    },
+    "details": {
+      "title": "Détail du client",
+      "subtitle": "Consulte et modifie les informations de la compagnie, puis gère les comptes associés.",
+      "card": {
+        "title": "Informations de la compagnie"
+      },
+      "actions": {
+        "back": "Retour",
+        "reset": "Réinitialiser",
+        "save": "Enregistrer",
+        "saving": "Enregistrement..."
+      },
+      "form": {
+        "fields": {
+          "name": {
+            "label": "Nom de la compagnie",
+            "placeholder": "Ex : QuizzUp"
+          },
+          "email": {
+            "label": "Email de contact",
+            "placeholder": "contact{'@'}entreprise.com"
+          },
+          "status": {
+            "label": "Statut de la compagnie",
+            "activeHelp": "La compagnie est active et peut utiliser la plateforme.",
+            "inactiveHelp": "La compagnie est désactivée temporairement.",
+            "deletedHelp": "La compagnie est supprimée et ne peut plus être réactivée depuis cet écran."
+          }
+        },
+        "success": {
+          "updated": "La compagnie a bien été mise à jour."
+        },
+        "errors": {
+          "required": "Ce champ est obligatoire.",
+          "invalidEmail": "L’adresse email est invalide."
+        },
+        "errorsApi": {
+          "emailAlreadyExists": "Cette adresse email est déjà utilisée par une autre compagnie.",
+          "nameAlreadyExists": "Ce nom de compagnie est déjà utilisé.",
+          "forbidden": "Vous n’avez pas les droits nécessaires.",
+          "notFound": "Compagnie introuvable.",
+          "invalidBody": "Les informations envoyées sont invalides.",
+          "default": "Une erreur est survenue pendant la mise à jour."
+        }
+      },
+      "errors": {
+        "forbidden": "Vous n’avez pas les droits nécessaires.",
+        "notFound": "Compagnie introuvable.",
+        "invalidParams": "Identifiant de compagnie invalide.",
+        "default": "Impossible de charger la compagnie."
+      }
     }
   }
 }

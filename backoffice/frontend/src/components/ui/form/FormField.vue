@@ -115,7 +115,7 @@ function onInput(event: Event): void {
   border: 1px solid var(--border-ui);
   background: rgba(255, 255, 255, 0.03);
   border-radius: 14px;
-  padding: 0 12px;
+  padding: 10px 12px;
   transition: var(--tr);
 }
 
