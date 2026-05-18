@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 import { isAuthenticated, me, refreshMe } from '@/state/authState'
-import CreateClientView from '@/views/clients/CreateClientview.vue'
+import CreateClientView from '@/views/clients/CreateClientView.vue'
 import ClientsView from '@/views/ClientsView.vue'
 import GamesView from '@/views/GamesView.vue'
 import HomeView from '@/views/HomeView.vue'
