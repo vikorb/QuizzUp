@@ -4,26 +4,26 @@
   "closeLabel": "Masquer le message",
   "errors": {
     "title": "Une erreur est survenue",
-    "apiUnreachable": "API injoignable.",
-    "serverError": "Erreur serveur.",
+    "api_unreachable": "API injoignable.",
+    "server_error": "Erreur serveur.",
     "invalid_body": "La demande envoyée est invalide. Vérifiez les informations puis réessayez.",
+    "invalid_params": "Paramètres invalides.",
     "unknown_error": "Une erreur inconnue est survenue. Réessayez dans quelques instants.",
     "unauthorized": "Vous devez être connecté pour effectuer cette action.",
     "forbidden": "Vous n'avez pas les droits nécessaires pour effectuer cette action.",
     "not_found": "L’élément demandé est introuvable.",
-    "network_error": "Impossible de contacter le serveur. Vérifiez votre connexion."
+    "network_error": "Impossible de contacter le serveur. Vérifiez votre connexion.",
+    "default": "Une erreur est survenue."
   },
   "success": {
     "title": "Action confirmée",
     "companyActivated": "L’entreprise {name} a bien été activée.",
     "companyDeactivated": "L’entreprise {name} a bien été désactivée.",
     "companyUpdated": "L’entreprise {name} a bien été mise à jour.",
-    "companyDeleted": "L’entreprise {name} a bien été supprimée."
-  },
-  "banners": {
-    "accountActivated": "Le compte {name} a été activé.",
-    "accountDisabled": "Le compte {name} a été désactivé.",
-    "accountDeleted": "Le compte {name} a été supprimé.",
-    "accountUpdated": "Le compte {name} a été mis à jour."
+    "companyDeleted": "L’entreprise {name} a bien été supprimée.",
+    "accountActivated": "Le compte {name} a bien été activé.",
+    "accountDisabled": "Le compte {name} a bien été désactivé.",
+    "accountDeleted": "Le compte {name} a bien été supprimé.",
+    "accountUpdated": "Le compte {name} a bien été mis à jour."
   }
 }

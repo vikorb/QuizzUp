@@ -33,5 +33,12 @@ export function getBannerMessage(banner: ActionBanner | null, t: TranslateFn): s
   const key = `${namespace}.${banner.code}`
   const translated = String(t(key, banner.params ?? {}))
 
-  return translated === key ? banner.code : translated
+  if (translated !== key) {
+    return translated
+  }
+
+  const defaultKey = `${namespace}.default`
+  const defaultTranslated = String(t(defaultKey, banner.params ?? {}))
+
+  return defaultTranslated !== defaultKey ? defaultTranslated : banner.code
 }

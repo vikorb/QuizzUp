@@ -38,10 +38,16 @@
         "delete": "Supprimer le compte",
         "enable": "Activer le compte",
         "disable": "Désactiver le compte",
-        "deleteConfirm": "Supprimer le compte {name} ?"
+        "deleteConfirm": "Supprimer le compte {name} ?",
+        "enableConfirm": "Voulez-vous vraiment activer le compte de {name} ?",
+        "disableConfirm": "Voulez-vous vraiment désactiver le compte de {name} ?",
+        "active": "Actif",
+        "inactive": "Inactif",
+        "deleted": "Supprimé"
       }
     },
     "errors": {
+      "serverError": "Erreur serveur lors du chargement des comptes.",
       "forbidden": "Vous n’avez pas les droits nécessaires.",
       "notFound": "Compte introuvable.",
       "invalidParams": "Paramètres invalides.",

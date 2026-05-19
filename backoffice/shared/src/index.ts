@@ -10,9 +10,9 @@ export const COMPANY_STATUS = {
 
 export type CompanyStatus = (typeof COMPANY_STATUS)[keyof typeof COMPANY_STATUS]
 
+export const ADMIN_STATUS_INACTIVE = 0 as const
 export const ADMIN_STATUS_ACTIVE = 1 as const
-export const ADMIN_STATUS_INACTIVE = 2 as const
-export const ADMIN_STATUS_DELETED = 3 as const
+export const ADMIN_STATUS_DELETED = 2 as const
 
 export const ADMIN_STATUS = {
   ACTIVE: ADMIN_STATUS_ACTIVE,

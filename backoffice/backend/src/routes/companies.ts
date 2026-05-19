@@ -231,6 +231,7 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
 
       const accounts = await db('admins')
         .where('company_id', id)
+        .whereNot('status', ADMIN_STATUS_DELETED)
         .select(adminSelect)
         .orderBy('id', 'asc')
 
