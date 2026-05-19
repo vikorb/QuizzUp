@@ -1,0 +1,2321 @@
+openapi: 3.0.3
+
+info:
+  title: QuizzUp Backoffice API
+  version: 1.0.0
+  description: |
+    Documentation API du backoffice QuizzUp.
+
+    Chaque route contient un champ `x-availability` :
+    - `disponible` : route implémentée côté API
+    - `non_disponible` : route prévue mais pas encore implémentée
+
+servers:
+  - url: http://localhost:3001
+    description: API locale
+
+tags:
+  - name: Health
+    description: Vérification de disponibilité de l'API
+  - name: Auth
+    description: Authentification administrateur
+  - name: Me
+    description: Informations de l'utilisateur connecté
+  - name: Companies
+    description: Gestion des compagnies
+  - name: Accounts
+    description: Gestion des comptes administrateurs rattachés aux compagnies
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: "[DISPONIBLE] Vérifier l'état de l'API"
+      description: |
+        Statut : **Disponible**
+
+        Permet de vérifier que l'API répond correctement.
+      operationId: getHealth
+      x-availability: disponible
+      security: []
+      responses:
+        "200":
+          description: API disponible
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /login:
+    post:
+      tags:
+        - Auth
+      summary: "[DISPONIBLE] Connexion administrateur"
+      description: |
+        Statut : **Disponible**
+
+        Permet à un administrateur de se connecter avec son email ou son nom d'utilisateur.
+      operationId: login
+      x-availability: disponible
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+            examples:
+              loginWithEmail:
+                summary: Connexion avec email
+                value:
+                  identifier: admin@quizzup.fr
+                  password: password123
+              loginWithUsername:
+                summary: Connexion avec username
+                value:
+                  identifier: admin
+                  password: password123
+      responses:
+        "200":
+          description: Connexion réussie
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "400":
+          description: Corps de requête invalide
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "401":
+          description: Identifiants invalides
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /logout:
+    post:
+      tags:
+        - Auth
+      summary: "[DISPONIBLE] Déconnexion administrateur"
+      description: |
+        Statut : **Disponible**
+
+        Révoque la session courante de l'administrateur connecté.
+      operationId: logout
+      x-availability: disponible
+      responses:
+        "200":
+          description: Déconnexion réussie
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "401":
+          description: Token manquant ou invalide
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /me:
+    get:
+      tags:
+        - Me
+      summary: "[DISPONIBLE] Récupérer l'utilisateur connecté"
+      description: |
+        Statut : **Disponible**
+
+        Retourne les informations de l'administrateur connecté à partir du token JWT.
+      operationId: getMe
+      x-availability: disponible
+      responses:
+        "200":
+          description: Utilisateur connecté récupéré
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  admin:
+                    $ref: "#/components/schemas/MeAdmin"
+        "401":
+          description: Token manquant ou invalide
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Administrateur introuvable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /companies:
+    get:
+      tags:
+        - Companies
+      summary: "[DISPONIBLE] Lister les compagnies"
+      description: |
+        Statut : **Disponible**
+
+        Liste les compagnies.
+
+        Règles :
+        - un admin global peut voir toutes les compagnies ;
+        - un compte non admin ne voit que sa propre compagnie si elle n'est pas supprimée.
+      operationId: listCompanies
+      x-availability: disponible
+      responses:
+        "200":
+          description: Liste des compagnies
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  companies:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Company"
+        "401":
+          description: Token manquant ou invalide
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      tags:
+        - Companies
+      summary: "[DISPONIBLE] Créer une compagnie"
+      description: |
+        Statut : **Disponible**
+
+        Crée une nouvelle compagnie.
+
+        Accès : réservé au rôle `admin`.
+      operationId: createCompany
+      x-availability: disponible
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCompanyRequest"
+      responses:
+        "201":
+          description: Compagnie créée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  company:
+                    $ref: "#/components/schemas/Company"
+        "400":
+          description: Corps de requête invalide
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "403":
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Email ou nom déjà utilisé
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /companies/{id}:
+    get:
+      tags:
+        - Companies
+      summary: "[DISPONIBLE] Récupérer une compagnie"
+      description: |
+        Statut : **Disponible**
+
+        Récupère une compagnie par son identifiant.
+
+        Règles :
+        - un admin global peut accéder à toutes les compagnies ;
+        - un compte non admin ne peut accéder qu'à sa propre compagnie.
+      operationId: getCompanyById
+      x-availability: disponible
+      parameters:
+        - $ref: "#/components/parameters/CompanyId"
+      responses:
+        "200":
+          description: Compagnie récupérée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  company:
+                    $ref: "#/components/schemas/Company"
+        "400":
+          description: Paramètres invalides
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Compagnie introuvable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    patch:
+      tags:
+        - Companies
+      summary: "[DISPONIBLE] Modifier une compagnie"
+      description: |
+        Statut : **Disponible**
+
+        Modifie une compagnie.
+
+        Accès : réservé au rôle `admin`.
+      operationId: updateCompany
+      x-availability: disponible
+      parameters:
+        - $ref: "#/components/parameters/CompanyId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCompanyRequest"
+      responses:
+        "200":
+          description: Compagnie modifiée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  company:
+                    $ref: "#/components/schemas/Company"
+        "400":
+          description: Paramètres ou corps de requête invalides
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "403":
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Compagnie introuvable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Email ou nom déjà utilisé
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /companies/{id}/status:
+    patch:
+      tags:
+        - Companies
+      summary: "[DISPONIBLE] Modifier le statut d'une compagnie"
+      description: |
+        Statut : **Disponible**
+
+        Met à jour uniquement le statut d'une compagnie.
+
+        Statuts :
+        - `0` : inactive
+        - `1` : active
+        - `2` : supprimée
+
+        Si le statut passe à `2`, `deletedAt` est renseigné.
+      operationId: updateCompanyStatus
+      x-availability: disponible
+      parameters:
+        - $ref: "#/components/parameters/CompanyId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStatusRequest"
+      responses:
+        "200":
+          description: Statut de la compagnie modifié
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  company:
+                    $ref: "#/components/schemas/Company"
+        "400":
+          description: Paramètres ou corps de requête invalides
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "403":
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Compagnie introuvable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /companies/{id}/permanent:
+    delete:
+      tags:
+        - Companies
+      summary: "[DISPONIBLE] Supprimer une compagnie"
+      description: |
+        Statut : **Disponible**
+
+        Supprime une compagnie de manière logique.
+
+        Important :
+        malgré le nom de route `/permanent`, l'API actuelle ne supprime pas physiquement la ligne.
+        Elle passe la compagnie au statut `2` et renseigne `deletedAt`.
+
+        Accès : réservé au rôle `admin`.
+      operationId: deleteCompany
+      x-availability: disponible
+      parameters:
+        - $ref: "#/components/parameters/CompanyId"
+      responses:
+        "200":
+          description: Compagnie supprimée logiquement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteCompanyResponse"
+        "400":
+          description: Paramètres invalides
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Compagnie introuvable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /companies/{id}/admins:
+    get:
+      tags:
+        - Accounts
+      summary: "[DISPONIBLE] Lister les comptes d'une compagnie"
+      description: |
+        Statut : **Disponible**
+
+        Liste les comptes administrateurs rattachés à une compagnie.
+
+        Règles :
+        - un admin global peut accéder à toutes les compagnies ;
+        - un compte non admin peut accéder aux comptes de sa propre compagnie.
+      operationId: listCompanyAccounts
+      x-availability: disponible
+      parameters:
+        - $ref: "#/components/parameters/CompanyId"
+      responses:
+        "200":
+          description: Liste des comptes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accounts:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Account"
+        "400":
+          description: Paramètres invalides
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Compagnie introuvable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /companies/{companyId}/admins:
+    post:
+      tags:
+        - Accounts
+      summary: "[DISPONIBLE] Créer un compte"
+      description: |
+        Statut : **Disponible**
+
+        Crée un compte administrateur dans une compagnie.
+
+        Accès : réservé au rôle `admin`.
+      operationId: createCompanyAccount
+      x-availability: disponible
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAccountRequest"
+      responses:
+        "201":
+          description: Compte créé
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  account:
+                    $ref: "#/components/schemas/Account"
+        "400":
+          description: Paramètres ou corps de requête invalides
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "403":
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Compagnie introuvable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Email ou username déjà utilisé
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /companies/{companyId}/admins/{adminId}:
+    get:
+      tags:
+        - Accounts
+      summary: "[DISPONIBLE] Récupérer un compte"
+      description: |
+        Statut : **Disponible**
+
+        Récupère un compte administrateur par son identifiant.
+
+        Accès : réservé au rôle `admin`.
+      operationId: getCompanyAccountById
+      x-availability: disponible
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdParam"
+        - $ref: "#/components/parameters/AdminId"
+      responses:
+        "200":
+          description: Compte récupéré
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  account:
+                    $ref: "#/components/schemas/Account"
+        "400":
+          description: Paramètres invalides
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Compagnie ou compte introuvable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    patch:
+      tags:
+        - Accounts
+      summary: "[DISPONIBLE] Modifier un compte"
+      description: |
+        Statut : **Disponible**
+
+        Modifie les informations d'un compte administrateur.
+
+        Accès : réservé au rôle `admin`.
+      operationId: updateCompanyAccount
+      x-availability: disponible
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdParam"
+        - $ref: "#/components/parameters/AdminId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAccountRequest"
+      responses:
+        "200":
+          description: Compte modifié
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  account:
+                    $ref: "#/components/schemas/Account"
+        "400":
+          description: Paramètres ou corps de requête invalides
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "403":
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Compagnie ou compte introuvable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Email ou username déjà utilisé
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags:
+        - Accounts
+      summary: "[DISPONIBLE] Supprimer un compte"
+      description: |
+        Statut : **Disponible**
+
+        Supprime un compte de manière logique.
+
+        L'API passe le compte au statut `2` et renseigne `deletedAt`.
+
+        Accès : réservé au rôle `admin`.
+      operationId: deleteCompanyAccount
+      x-availability: disponible
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdParam"
+        - $ref: "#/components/parameters/AdminId"
+      responses:
+        "200":
+          description: Compte supprimé logiquement
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  account:
+                    $ref: "#/components/schemas/Account"
+        "400":
+          description: Paramètres invalides
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Compagnie ou compte introuvable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /companies/{companyId}/admins/{adminId}/status:
+    patch:
+      tags:
+        - Accounts
+      summary: "[DISPONIBLE] Modifier le statut d'un compte"
+      description: |
+        Statut : **Disponible**
+
+        Met à jour uniquement le statut d'un compte administrateur.
+
+        Statuts :
+        - `0` : inactif
+        - `1` : actif
+        - `2` : supprimé
+
+        Si le statut passe à `2`, `deletedAt` est renseigné.
+
+        Accès : réservé au rôle `admin`.
+      operationId: updateCompanyAccountStatus
+      x-availability: disponible
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdParam"
+        - $ref: "#/components/parameters/AdminId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStatusRequest"
+      responses:
+        "200":
+          description: Statut du compte modifié
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  account:
+                    $ref: "#/components/schemas/Account"
+        "400":
+          description: Paramètres ou corps de requête invalides
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "403":
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Compagnie ou compte introuvable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    /dashboard/stats:
+    get:
+      tags:
+        - Dashboard
+      summary: "[NON DISPONIBLE] Récupérer les statistiques du dashboard"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour afficher les indicateurs principaux du backoffice :
+        - nombre de compagnies
+        - nombre de comptes
+        - nombre de joueurs
+        - nombre de parties
+        - activité récente
+      operationId: getDashboardStats
+      x-availability: non_disponible
+      x-us: "US Dashboard / statistiques"
+      responses:
+        "200":
+          description: Statistiques du dashboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+  /players:
+    get:
+      tags:
+        - Players
+      summary: "[NON DISPONIBLE] Lister les joueurs"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour la gestion des joueurs/utilisateurs finaux.
+      operationId: listPlayers
+      x-availability: non_disponible
+      x-us: "US Gestion des joueurs"
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Recherche par pseudo, email ou nom
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/Status"
+      responses:
+        "200":
+          description: Liste des joueurs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  players:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Player"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+    post:
+      tags:
+        - Players
+      summary: "[NON DISPONIBLE] Créer un joueur"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour créer manuellement un joueur depuis le backoffice.
+      operationId: createPlayer
+      x-availability: non_disponible
+      x-us: "US Gestion des joueurs"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePlayerRequest"
+      responses:
+        "201":
+          description: Joueur créé
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  player:
+                    $ref: "#/components/schemas/Player"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+  /players/{playerId}:
+    get:
+      tags:
+        - Players
+      summary: "[NON DISPONIBLE] Récupérer un joueur"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour consulter le détail d'un joueur.
+      operationId: getPlayerById
+      x-availability: non_disponible
+      x-us: "US Gestion des joueurs"
+      parameters:
+        - $ref: "#/components/parameters/PlayerId"
+      responses:
+        "200":
+          description: Joueur récupéré
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  player:
+                    $ref: "#/components/schemas/Player"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+    patch:
+      tags:
+        - Players
+      summary: "[NON DISPONIBLE] Modifier un joueur"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour modifier les informations d'un joueur.
+      operationId: updatePlayer
+      x-availability: non_disponible
+      x-us: "US Gestion des joueurs"
+      parameters:
+        - $ref: "#/components/parameters/PlayerId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePlayerRequest"
+      responses:
+        "200":
+          description: Joueur modifié
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  player:
+                    $ref: "#/components/schemas/Player"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+    delete:
+      tags:
+        - Players
+      summary: "[NON DISPONIBLE] Supprimer un joueur"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour supprimer logiquement un joueur.
+      operationId: deletePlayer
+      x-availability: non_disponible
+      x-us: "US Gestion des joueurs"
+      parameters:
+        - $ref: "#/components/parameters/PlayerId"
+      responses:
+        "200":
+          description: Joueur supprimé logiquement
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  player:
+                    $ref: "#/components/schemas/Player"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+  /players/{playerId}/status:
+    patch:
+      tags:
+        - Players
+      summary: "[NON DISPONIBLE] Modifier le statut d'un joueur"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour activer, désactiver ou supprimer logiquement un joueur.
+      operationId: updatePlayerStatus
+      x-availability: non_disponible
+      x-us: "US Gestion des joueurs"
+      parameters:
+        - $ref: "#/components/parameters/PlayerId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStatusRequest"
+      responses:
+        "200":
+          description: Statut du joueur modifié
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  player:
+                    $ref: "#/components/schemas/Player"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+  /themes:
+    get:
+      tags:
+        - Themes
+      summary: "[NON DISPONIBLE] Lister les thèmes"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour la gestion des thèmes de quiz.
+      operationId: listThemes
+      x-availability: non_disponible
+      x-us: "US Gestion des thèmes"
+      responses:
+        "200":
+          description: Liste des thèmes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  themes:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Theme"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+    post:
+      tags:
+        - Themes
+      summary: "[NON DISPONIBLE] Créer un thème"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour créer un thème de quiz.
+      operationId: createTheme
+      x-availability: non_disponible
+      x-us: "US Gestion des thèmes"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateThemeRequest"
+      responses:
+        "201":
+          description: Thème créé
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  theme:
+                    $ref: "#/components/schemas/Theme"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+  /themes/{themeId}:
+    get:
+      tags:
+        - Themes
+      summary: "[NON DISPONIBLE] Récupérer un thème"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour récupérer le détail d'un thème.
+      operationId: getThemeById
+      x-availability: non_disponible
+      x-us: "US Gestion des thèmes"
+      parameters:
+        - $ref: "#/components/parameters/ThemeId"
+      responses:
+        "200":
+          description: Thème récupéré
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  theme:
+                    $ref: "#/components/schemas/Theme"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+    patch:
+      tags:
+        - Themes
+      summary: "[NON DISPONIBLE] Modifier un thème"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour modifier un thème.
+      operationId: updateTheme
+      x-availability: non_disponible
+      x-us: "US Gestion des thèmes"
+      parameters:
+        - $ref: "#/components/parameters/ThemeId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateThemeRequest"
+      responses:
+        "200":
+          description: Thème modifié
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  theme:
+                    $ref: "#/components/schemas/Theme"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+    delete:
+      tags:
+        - Themes
+      summary: "[NON DISPONIBLE] Supprimer un thème"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour supprimer logiquement un thème.
+      operationId: deleteTheme
+      x-availability: non_disponible
+      x-us: "US Gestion des thèmes"
+      parameters:
+        - $ref: "#/components/parameters/ThemeId"
+      responses:
+        "200":
+          description: Thème supprimé logiquement
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  theme:
+                    $ref: "#/components/schemas/Theme"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+  /questions:
+    get:
+      tags:
+        - Questions
+      summary: "[NON DISPONIBLE] Lister les questions"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour la gestion des questions de quiz.
+      operationId: listQuestions
+      x-availability: non_disponible
+      x-us: "US Gestion des questions"
+      parameters:
+        - name: themeId
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: Filtrer les questions par thème
+      responses:
+        "200":
+          description: Liste des questions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  questions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Question"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+    post:
+      tags:
+        - Questions
+      summary: "[NON DISPONIBLE] Créer une question"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour créer une question et ses réponses.
+      operationId: createQuestion
+      x-availability: non_disponible
+      x-us: "US Gestion des questions"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateQuestionRequest"
+      responses:
+        "201":
+          description: Question créée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  question:
+                    $ref: "#/components/schemas/Question"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+  /questions/{questionId}:
+    get:
+      tags:
+        - Questions
+      summary: "[NON DISPONIBLE] Récupérer une question"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour récupérer le détail d'une question.
+      operationId: getQuestionById
+      x-availability: non_disponible
+      x-us: "US Gestion des questions"
+      parameters:
+        - $ref: "#/components/parameters/QuestionId"
+      responses:
+        "200":
+          description: Question récupérée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  question:
+                    $ref: "#/components/schemas/Question"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+    patch:
+      tags:
+        - Questions
+      summary: "[NON DISPONIBLE] Modifier une question"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour modifier une question et ses réponses.
+      operationId: updateQuestion
+      x-availability: non_disponible
+      x-us: "US Gestion des questions"
+      parameters:
+        - $ref: "#/components/parameters/QuestionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateQuestionRequest"
+      responses:
+        "200":
+          description: Question modifiée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  question:
+                    $ref: "#/components/schemas/Question"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+    delete:
+      tags:
+        - Questions
+      summary: "[NON DISPONIBLE] Supprimer une question"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour supprimer logiquement une question.
+      operationId: deleteQuestion
+      x-availability: non_disponible
+      x-us: "US Gestion des questions"
+      parameters:
+        - $ref: "#/components/parameters/QuestionId"
+      responses:
+        "200":
+          description: Question supprimée logiquement
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  question:
+                    $ref: "#/components/schemas/Question"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+  /games:
+    get:
+      tags:
+        - Games
+      summary: "[NON DISPONIBLE] Lister les parties"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour consulter les parties de quiz.
+      operationId: listGames
+      x-availability: non_disponible
+      x-us: "US Gestion des parties"
+      responses:
+        "200":
+          description: Liste des parties
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  games:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Game"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+    post:
+      tags:
+        - Games
+      summary: "[NON DISPONIBLE] Créer une partie"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour créer une partie ou une session de quiz.
+      operationId: createGame
+      x-availability: non_disponible
+      x-us: "US Gestion des parties"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGameRequest"
+      responses:
+        "201":
+          description: Partie créée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  game:
+                    $ref: "#/components/schemas/Game"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+  /games/{gameId}:
+    get:
+      tags:
+        - Games
+      summary: "[NON DISPONIBLE] Récupérer une partie"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour consulter le détail d'une partie.
+      operationId: getGameById
+      x-availability: non_disponible
+      x-us: "US Gestion des parties"
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      responses:
+        "200":
+          description: Partie récupérée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  game:
+                    $ref: "#/components/schemas/Game"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+    patch:
+      tags:
+        - Games
+      summary: "[NON DISPONIBLE] Modifier une partie"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour modifier une partie.
+      operationId: updateGame
+      x-availability: non_disponible
+      x-us: "US Gestion des parties"
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateGameRequest"
+      responses:
+        "200":
+          description: Partie modifiée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  game:
+                    $ref: "#/components/schemas/Game"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+    delete:
+      tags:
+        - Games
+      summary: "[NON DISPONIBLE] Supprimer une partie"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour supprimer logiquement une partie.
+      operationId: deleteGame
+      x-availability: non_disponible
+      x-us: "US Gestion des parties"
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      responses:
+        "200":
+          description: Partie supprimée logiquement
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  game:
+                    $ref: "#/components/schemas/Game"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+  /maps:
+    get:
+      tags:
+        - Maps
+      summary: "[NON DISPONIBLE] Lister les maps"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour la gestion des cartes/maps.
+      operationId: listMaps
+      x-availability: non_disponible
+      x-us: "US Gestion des maps"
+      responses:
+        "200":
+          description: Liste des maps
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  maps:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Map"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+    post:
+      tags:
+        - Maps
+      summary: "[NON DISPONIBLE] Créer une map"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour créer une map.
+
+        Les fichiers/images doivent être stockés dans l'object storage.
+        La base stocke uniquement les URLs ou object keys.
+      operationId: createMap
+      x-availability: non_disponible
+      x-us: "US Gestion des maps"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMapRequest"
+      responses:
+        "201":
+          description: Map créée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  map:
+                    $ref: "#/components/schemas/Map"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+  /maps/{mapId}:
+    get:
+      tags:
+        - Maps
+      summary: "[NON DISPONIBLE] Récupérer une map"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour consulter le détail d'une map.
+      operationId: getMapById
+      x-availability: non_disponible
+      x-us: "US Gestion des maps"
+      parameters:
+        - $ref: "#/components/parameters/MapId"
+      responses:
+        "200":
+          description: Map récupérée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  map:
+                    $ref: "#/components/schemas/Map"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+    patch:
+      tags:
+        - Maps
+      summary: "[NON DISPONIBLE] Modifier une map"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour modifier une map.
+      operationId: updateMap
+      x-availability: non_disponible
+      x-us: "US Gestion des maps"
+      parameters:
+        - $ref: "#/components/parameters/MapId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMapRequest"
+      responses:
+        "200":
+          description: Map modifiée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  map:
+                    $ref: "#/components/schemas/Map"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+    delete:
+      tags:
+        - Maps
+      summary: "[NON DISPONIBLE] Supprimer une map"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour supprimer logiquement une map.
+      operationId: deleteMap
+      x-availability: non_disponible
+      x-us: "US Gestion des maps"
+      parameters:
+        - $ref: "#/components/parameters/MapId"
+      responses:
+        "200":
+          description: Map supprimée logiquement
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  map:
+                    $ref: "#/components/schemas/Map"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+  /maps/{mapId}/versions:
+    get:
+      tags:
+        - Maps
+      summary: "[NON DISPONIBLE] Lister les versions d'une map"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour consulter l'historique des versions d'une map.
+      operationId: listMapVersions
+      x-availability: non_disponible
+      x-us: "US Versioning des maps"
+      parameters:
+        - $ref: "#/components/parameters/MapId"
+      responses:
+        "200":
+          description: Liste des versions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  versions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/MapVersion"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+    post:
+      tags:
+        - Maps
+      summary: "[NON DISPONIBLE] Créer une version de map"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour créer une nouvelle version de map avec un système de diff JSON.
+
+        Champs prévus :
+        - parentVersionId
+        - diffAdded
+        - diffRemoved
+        - diffModified
+        - snapshotUrl
+      operationId: createMapVersion
+      x-availability: non_disponible
+      x-us: "US Versioning des maps"
+      parameters:
+        - $ref: "#/components/parameters/MapId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMapVersionRequest"
+      responses:
+        "201":
+          description: Version créée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version:
+                    $ref: "#/components/schemas/MapVersion"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+  /shop/items:
+    get:
+      tags:
+        - Shop
+      summary: "[NON DISPONIBLE] Lister les éléments de la boutique"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour la boutique.
+      operationId: listShopItems
+      x-availability: non_disponible
+      x-us: "US Boutique"
+      responses:
+        "200":
+          description: Liste des éléments de boutique
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ShopItem"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+    post:
+      tags:
+        - Shop
+      summary: "[NON DISPONIBLE] Créer un élément de boutique"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour créer un élément achetable ou déblocable.
+      operationId: createShopItem
+      x-availability: non_disponible
+      x-us: "US Boutique"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateShopItemRequest"
+      responses:
+        "201":
+          description: Élément créé
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  item:
+                    $ref: "#/components/schemas/ShopItem"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+  /shop/items/{itemId}:
+    get:
+      tags:
+        - Shop
+      summary: "[NON DISPONIBLE] Récupérer un élément de boutique"
+      description: |
+        Statut : **Non disponible**
+      operationId: getShopItemById
+      x-availability: non_disponible
+      x-us: "US Boutique"
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      responses:
+        "200":
+          description: Élément récupéré
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  item:
+                    $ref: "#/components/schemas/ShopItem"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+    patch:
+      tags:
+        - Shop
+      summary: "[NON DISPONIBLE] Modifier un élément de boutique"
+      description: |
+        Statut : **Non disponible**
+      operationId: updateShopItem
+      x-availability: non_disponible
+      x-us: "US Boutique"
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateShopItemRequest"
+      responses:
+        "200":
+          description: Élément modifié
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  item:
+                    $ref: "#/components/schemas/ShopItem"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+    delete:
+      tags:
+        - Shop
+      summary: "[NON DISPONIBLE] Supprimer un élément de boutique"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour supprimer logiquement un élément de boutique.
+      operationId: deleteShopItem
+      x-availability: non_disponible
+      x-us: "US Boutique"
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      responses:
+        "200":
+          description: Élément supprimé logiquement
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  item:
+                    $ref: "#/components/schemas/ShopItem"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+  /assets/upload-url:
+    post:
+      tags:
+        - Assets
+      summary: "[NON DISPONIBLE] Générer une URL d'upload"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour générer une URL d'upload vers l'object storage.
+
+        La base de données ne stocke pas les fichiers directement.
+        Elle stocke uniquement les URLs ou object keys.
+      operationId: createAssetUploadUrl
+      x-availability: non_disponible
+      x-us: "US Stockage fichiers / object storage"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUploadUrlRequest"
+      responses:
+        "201":
+          description: URL d'upload générée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadUrlResponse"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+  /stats/overview:
+    get:
+      tags:
+        - Stats
+      summary: "[NON DISPONIBLE] Récupérer les statistiques globales"
+      description: |
+        Statut : **Non disponible**
+
+        Route prévue pour la page statistiques.
+      operationId: getStatsOverview
+      x-availability: non_disponible
+      x-us: "US Statistiques"
+      responses:
+        "200":
+          description: Statistiques globales
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatsOverview"
+        "501":
+          description: Route prévue mais pas encore implémentée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotImplementedResponse"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    CompanyId:
+      name: id
+      in: path
+      required: true
+      description: Identifiant de la compagnie
+      schema:
+        type: integer
+        example: 1
+
+    CompanyIdParam:
+      name: companyId
+      in: path
+      required: true
+      description: Identifiant de la compagnie
+      schema:
+        type: integer
+        example: 1
+
+    AdminId:
+      name: adminId
+      in: path
+      required: true
+      description: Identifiant du compte administrateur
+      schema:
+        type: integer
+        example: 1
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+
+    OkResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: true
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: not_found
+
+    ValidationError:
+      type: object
+      description: Erreur de validation retournée par Zod ou par l'API
+      additionalProperties: true
+
+    Status:
+      type: integer
+      enum:
+        - 0
+        - 1
+        - 2
+      description: |
+        Statut :
+        - `0` : inactif
+        - `1` : actif
+        - `2` : supprimé
+
+    LoginRequest:
+      type: object
+      required:
+        - identifier
+        - password
+      properties:
+        identifier:
+          type: string
+          description: Email ou nom d'utilisateur
+          example: admin@quizzup.fr
+        password:
+          type: string
+          format: password
+          example: password123
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: Token JWT
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        admin:
+          $ref: "#/components/schemas/AuthAdmin"
+
+    AuthAdmin:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        company_id:
+          type: integer
+          example: 1
+        role:
+          type: string
+          example: admin
+        firstname:
+          type: string
+          example: Enzo
+        lastname:
+          type: string
+          example: Drissi
+        username:
+          type: string
+          example: enzod
+        email:
+          type: string
+          format: email
+          example: enzo@quizzup.fr
+
+    MeAdmin:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        company_id:
+          type: integer
+          example: 1
+        role:
+          type: string
+          example: admin
+        firstname:
+          type: string
+          nullable: true
+          example: Enzo
+        lastname:
+          type: string
+          nullable: true
+          example: Drissi
+        username:
+          type: string
+          example: enzod
+        email:
+          type: string
+          format: email
+          example: enzo@quizzup.fr
+        status:
+          $ref: "#/components/schemas/Status"
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-05-19T10:00:00.000Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-05-19T10:00:00.000Z"
+
+    Company:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: QuizzUp
+        email:
+          type: string
+          format: email
+          example: contact@quizzup.fr
+        status:
+          $ref: "#/components/schemas/Status"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-05-19T10:00:00.000Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2026-05-19T10:00:00.000Z"
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+        accountsCount:
+          type: integer
+          example: 3
+
+    CreateCompanyRequest:
+      type: object
+      required:
+        - name
+        - email
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 120
+          example: QuizzUp
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          example: contact@quizzup.fr
+
+    UpdateCompanyRequest:
+      type: object
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 120
+          example: QuizzUp
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          example: contact@quizzup.fr
+        status:
+          $ref: "#/components/schemas/Status"
+
+    UpdateStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          $ref: "#/components/schemas/Status"
+
+    DeleteCompanyResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        deleted:
+          type: object
+          properties:
+            companyId:
+              type: integer
+              example: 1
+            adminsCount:
+              type: integer
+              example: 0
+            companiesCount:
+              type: integer
+              example: 1
+
+    Account:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        companyId:
+          type: integer
+          example: 1
+        role:
+          type: string
+          example: admin
+        firstname:
+          type: string
+          nullable: true
+          example: Enzo
+        lastname:
+          type: string
+          nullable: true
+          example: Drissi
+        username:
+          type: string
+          example: enzod
+        email:
+          type: string
+          format: email
+          example: enzo@quizzup.fr
+        status:
+          $ref: "#/components/schemas/Status"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-05-19T10:00:00.000Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2026-05-19T10:00:00.000Z"
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+
+    CreateAccountRequest:
+      type: object
+      required:
+        - role
+        - username
+        - email
+        - password
+      properties:
+        role:
+          type: string
+          minLength: 2
+          maxLength: 50
+          example: staff
+        firstname:
+          type: string
+          nullable: true
+          maxLength: 255
+          example: Enzo
+        lastname:
+          type: string
+          nullable: true
+          maxLength: 255
+          example: Drissi
+        username:
+          type: string
+          minLength: 3
+          maxLength: 255
+          example: enzod
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          example: enzo@quizzup.fr
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 100
+          example: password123
+
+    UpdateAccountRequest:
+      type: object
+      minProperties: 1
+      properties:
+        role:
+          type: string
+          minLength: 2
+          maxLength: 50
+          example: staff
+        firstname:
+          type: string
+          nullable: true
+          maxLength: 255
+          example: Enzo
+        lastname:
+          type: string
+          nullable: true
+          maxLength: 255
+          example: Drissi
+        username:
+          type: string
+          minLength: 3
+          maxLength: 255
+          example: enzod
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          example: enzo@quizzup.fr
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 100
+          example: newPassword123
+        status:
+          $ref: "#/components/schemas/Status"

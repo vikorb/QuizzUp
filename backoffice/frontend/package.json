@@ -10,7 +10,10 @@
     "type-check": "vue-tsc --build",
     "preview": "vite preview",
     "knip": "knip",
-    "check:lines": "node check-lines.mjs"
+    "check:lines": "node check-lines.mjs",
+    "test:unit": "vitest --config vitest.config.ts",
+    "test:unit:watch": "vitest --config vitest.config.ts --watch",
+    "test:coverage": "vitest --config vitest.config.ts --coverage"
   },
   "dependencies": {
     "@mdi/js": "^7.4.47",
@@ -22,11 +25,15 @@
     "@quizzup/shared": "file:../shared",
     "@types/node": "^24.10.1",
     "@vitejs/plugin-vue": "^6.0.2",
+    "@vitest/coverage-v8": "^4.1.6",
+    "@vue/test-utils": "^2.4.10",
     "@vue/tsconfig": "^0.8.1",
+    "jsdom": "^29.1.1",
     "knip": "^5.70.0",
     "npm-run-all2": "^8.0.4",
     "typescript": "~5.9.3",
     "vite": "^7.3.1",
+    "vitest": "^4.1.6",
     "vue-tsc": "^3.1.5"
   }
 }
