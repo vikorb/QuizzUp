@@ -182,17 +182,17 @@ function getStatusLabel(value: unknown): string {
   font-weight: 800;
 }
 
+.status--0 {
+  color: #ffd36e;
+  background: rgba(255, 190, 70, 0.12);
+}
+
 .status--1 {
   color: #7dffb2;
   background: rgba(45, 255, 137, 0.12);
 }
 
 .status--2 {
-  color: #ffd36e;
-  background: rgba(255, 190, 70, 0.12);
-}
-
-.status--3 {
   color: #ff8a8a;
   background: rgba(255, 107, 107, 0.12);
 }

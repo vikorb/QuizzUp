@@ -1,5 +1,6 @@
 import type {
   COMPANY_STATUS_ACTIVE,
+  COMPANY_STATUS_DELETED,
   COMPANY_STATUS_INACTIVE} from '@quizzup/shared';
 import {
   type CompanyStatus as SharedCompanyStatus,
@@ -10,6 +11,7 @@ export type CompanyStatus = SharedCompanyStatus
 export type CompanySwitchStatus =
   | typeof COMPANY_STATUS_INACTIVE
   | typeof COMPANY_STATUS_ACTIVE
+  | typeof COMPANY_STATUS_DELETED
 
 export type ClientStatusFilter = CompanySwitchStatus | 'all'
 

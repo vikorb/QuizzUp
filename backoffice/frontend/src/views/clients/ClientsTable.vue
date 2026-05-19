@@ -30,6 +30,12 @@
         <span class="num">{{ value ?? '—' }}</span>
       </template>
 
+      <template #cell-status="{ value }">
+        <span class="status" :class="`status--${value}`">
+          {{ getStatusLabel(value) }}
+        </span>
+      </template>
+
       <template #cell-actions="{ item }">
         <ClientTableActions
           :item="toCompanyTableRow(item)"
@@ -45,6 +51,11 @@
 </template>
 
 <script setup lang="ts">
+import {
+  COMPANY_STATUS_ACTIVE,
+  COMPANY_STATUS_DELETED,
+  COMPANY_STATUS_INACTIVE,
+} from '@quizzup/shared'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -53,6 +64,7 @@ import type { BaseTableColumn } from '@/components/ui/BaseTable.vue'
 import BaseTable from '@/components/ui/BaseTable.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import type { Company, CompanyTableRow } from '@/types/company'
+import { toCompanyStatus } from '@/utils/company/status'
 
 import ClientTableActions from './clientTable/ClientTableActions.vue'
 
@@ -85,7 +97,11 @@ const columns = computed<BaseTableColumn[]>(() => [
   {
     key: 'accountsCount',
     label: String(t('clients.table.columns.accounts')),
-    align: 'right',
+    align: 'center',
+  },
+  {
+    key: 'status',
+    label: String(t('clients.table.columns.status')),
   },
   {
     key: 'actions',
@@ -100,6 +116,24 @@ const tableItems = computed<CompanyTableRow[]>(() =>
 
 function toCompanyTableRow(item: Record<string, unknown>): CompanyTableRow {
   return item as CompanyTableRow
+}
+
+function getStatusLabel(value: unknown): string {
+  const status = toCompanyStatus(value)
+
+  if (status === COMPANY_STATUS_ACTIVE) {
+    return t('clients.status.active')
+  }
+
+  if (status === COMPANY_STATUS_INACTIVE) {
+    return t('clients.status.inactive')
+  }
+
+  if (status === COMPANY_STATUS_DELETED) {
+    return t('clients.status.deleted')
+  }
+
+  return t('clients.status.unknown')
 }
 </script>
 
@@ -122,5 +156,30 @@ function toCompanyTableRow(item: Record<string, unknown>): CompanyTableRow {
   display: inline-block;
   width: 100%;
   text-align: right;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.status--0 {
+  color: #ffd36e;
+  background: rgba(255, 190, 70, 0.12);
+}
+
+.status--1 {
+  color: #7dffb2;
+  background: rgba(45, 255, 137, 0.12);
+}
+
+.status--2 {
+  color: #ff8a8a;
+  background: rgba(255, 107, 107, 0.12);
 }
 </style>

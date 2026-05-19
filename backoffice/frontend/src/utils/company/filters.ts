@@ -18,11 +18,12 @@ export function filterCompaniesByStatus(
   switch (statusFilter) {
     case COMPANY_STATUS_ACTIVE:
     case COMPANY_STATUS_INACTIVE:
+    case COMPANY_STATUS_DELETED:
       return companies.filter((company) => company.status === statusFilter)
 
     case 'all':
     default:
-      return companies.filter((company) => company.status !== COMPANY_STATUS_DELETED)
+      return companies
   }
 }
 
@@ -37,6 +38,10 @@ export function getClientStatusFilterOptions(t: TranslateFn) {
     {
       label: String(t('clients.filters.statusOptions.inactive')),
       value: COMPANY_STATUS_INACTIVE,
+    },
+    {
+      label: String(t('clients.filters.statusOptions.deleted')),
+      value: COMPANY_STATUS_DELETED,
     },
     {
       label: String(t('clients.filters.statusOptions.all')),
@@ -55,6 +60,9 @@ export function parseClientStatusFilter(
 
     case String(COMPANY_STATUS_INACTIVE):
       return COMPANY_STATUS_INACTIVE
+
+    case String(COMPANY_STATUS_DELETED):
+      return COMPANY_STATUS_DELETED
 
     case 'all':
       return 'all'
