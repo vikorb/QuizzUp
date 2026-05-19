@@ -33,11 +33,6 @@ pnpm-debug.log*
 !.env.example
 !.env.*.example
 
-# =========================
-# Node / JS build artifacts
-# =========================
-node_modules/
-**/node_modules/
 
 dist/
 **/dist/
