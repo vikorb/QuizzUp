@@ -16,7 +16,7 @@
       :disabled="isBusy || isDeleted"
       :title="$t('accounts.table.actions.edit')"
       :aria-label="$t('accounts.table.actions.edit')"
-      @click="handleEditAccount"
+      @click="handleEditAccount(props.item.id)"
     >
       <MdIcon :path="mdiPencilOutline" :size="18" />
     </UiButton>
@@ -39,9 +39,11 @@
 import { mdiDeleteOutline, mdiPencilOutline } from '@mdi/js'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import { getEditCompanyAccountRoute } from '@/router/clients'
 import { deleteAccountService } from '@/services/accountsService'
 import type { Account, AccountTableRow } from '@/types/account'
 import { isAccountDeleted } from '@/utils/account/status'
@@ -61,7 +63,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-
+const router = useRouter()
 const deleteBusy = ref(false)
 const switchBusy = ref(false)
 
@@ -80,12 +82,8 @@ function handleActionError(errorCode: string): void {
   emit('error', errorCode)
 }
 
-function handleEditAccount(): void {
-  if (isBusy.value || isDeleted.value) {
-    return
-  }
-
-  emit('edit', props.item.id)
+function handleEditAccount(accountId: number): void {
+  router.push(getEditCompanyAccountRoute(props.companyId, accountId))
 }
 
 async function handleDeleteAccount(): Promise<void> {

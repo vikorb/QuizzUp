@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import { z } from 'zod'
+import bcrypt from 'bcryptjs'
 
 import {
   ADMIN_STATUS_ACTIVE,
@@ -63,6 +64,51 @@ const updateAdminStatusSchema = z.object({
     z.literal(ADMIN_STATUS_DELETED),
   ]),
 })
+
+const createAdminSchema = z.object({
+  role: z.string().trim().min(2).max(50),
+  firstname: z.string().trim().max(255).nullable().optional(),
+  lastname: z.string().trim().max(255).nullable().optional(),
+  username: z.string().trim().min(3).max(255),
+  email: z.string().trim().toLowerCase().email().max(255),
+  password: z.string().min(8).max(100),
+})
+
+const updateAdminSchema = z
+  .object({
+    role: z.string().trim().min(2).max(50).optional(),
+    firstname: z.string().trim().max(255).nullable().optional(),
+    lastname: z.string().trim().max(255).nullable().optional(),
+    username: z.string().trim().min(3).max(255).optional(),
+    email: z.string().trim().toLowerCase().email().max(255).optional(),
+    password: z.string().min(8).max(100).optional(),
+    status: z
+      .union([
+        z.literal(ADMIN_STATUS_INACTIVE),
+        z.literal(ADMIN_STATUS_ACTIVE),
+        z.literal(ADMIN_STATUS_DELETED),
+      ])
+      .optional(),
+  })
+  .refine(
+    (body) =>
+      body.role !== undefined ||
+      body.firstname !== undefined ||
+      body.lastname !== undefined ||
+      body.username !== undefined ||
+      body.email !== undefined ||
+      body.password !== undefined ||
+      body.status !== undefined,
+    {
+      message: 'empty_body',
+    },
+  )
+
+function normalizeNullableString(value: string | null | undefined): string | null {
+  const normalized = value?.trim()
+
+  return normalized ? normalized : null
+}
 
 const companySelect = [
   'companies.id',
@@ -608,6 +654,229 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
           adminsCount: 0,
           companiesCount: updatedCompanies,
         },
+      })
+    },
+  )
+
+  app.get(
+    '/companies/:companyId/admins/:adminId',
+    { preHandler: [app.authenticate] },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      if (req.user.role !== 'admin') {
+        return reply.code(403).send({ error: 'forbidden' })
+      }
+
+      const parsedParams = adminParamsSchema.safeParse(req.params)
+
+      if (!parsedParams.success) {
+        return reply.code(400).send({ error: 'invalid_params' })
+      }
+
+      const { companyId, adminId } = parsedParams.data
+
+      const existingCompany = await findCompanyById(companyId)
+
+      if (!existingCompany) {
+        return reply.code(404).send({ error: 'not_found' })
+      }
+
+      const account = await getAdminRow(companyId, adminId)
+
+      if (!account) {
+        return reply.code(404).send({ error: 'not_found' })
+      }
+
+      return reply.code(200).send({
+        account,
+      })
+    },
+  )
+
+  app.post(
+    '/companies/:companyId/admins',
+    { preHandler: [app.authenticate] },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      if (req.user.role !== 'admin') {
+        return reply.code(403).send({ error: 'forbidden' })
+      }
+
+      const parsedParams = z
+        .object({
+          companyId: z.coerce.number().int().positive(),
+        })
+        .safeParse(req.params)
+
+      if (!parsedParams.success) {
+        return reply.code(400).send({ error: 'invalid_params' })
+      }
+
+      const parsedBody = createAdminSchema.safeParse(req.body)
+
+      if (!parsedBody.success) {
+        return reply.code(400).send({
+          error: 'invalid_body',
+          details: parsedBody.error.flatten(),
+        })
+      }
+
+      const { companyId } = parsedParams.data
+      const { role, firstname, lastname, username, email, password } = parsedBody.data
+
+      const existingCompany = await findCompanyById(companyId)
+
+      if (!existingCompany) {
+        return reply.code(404).send({ error: 'not_found' })
+      }
+
+      const existingAdminByEmail = await db('admins')
+        .whereRaw('LOWER(email) = ?', [email])
+        .whereNot('status', ADMIN_STATUS_DELETED)
+        .first('id')
+
+      if (existingAdminByEmail) {
+        return reply.code(409).send({ error: 'email_already_exists' })
+      }
+
+      const existingAdminByUsername = await db('admins')
+        .whereRaw('LOWER(username) = ?', [username.toLowerCase()])
+        .whereNot('status', ADMIN_STATUS_DELETED)
+        .first('id')
+
+      if (existingAdminByUsername) {
+        return reply.code(409).send({ error: 'username_already_exists' })
+      }
+
+      const passwordHash = await bcrypt.hash(password, 12)
+
+      const inserted = await db('admins')
+        .insert({
+          company_id: companyId,
+          role,
+          firstname: normalizeNullableString(firstname),
+          lastname: normalizeNullableString(lastname),
+          username,
+          email,
+          mdp_hash: passwordHash,
+          status: ADMIN_STATUS_ACTIVE,
+          deleted_at: null,
+        })
+        .returning('id')
+
+      const insertedAdmin = Array.isArray(inserted) ? inserted[0] : inserted
+      const adminId = Number(typeof insertedAdmin === 'object' ? insertedAdmin.id : insertedAdmin)
+
+      const account = await getAdminRow(companyId, adminId)
+
+      return reply.code(201).send({
+        account,
+      })
+    },
+  )
+
+  app.patch(
+    '/companies/:companyId/admins/:adminId',
+    { preHandler: [app.authenticate] },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      if (req.user.role !== 'admin') {
+        return reply.code(403).send({ error: 'forbidden' })
+      }
+
+      const parsedParams = adminParamsSchema.safeParse(req.params)
+
+      if (!parsedParams.success) {
+        return reply.code(400).send({ error: 'invalid_params' })
+      }
+
+      const parsedBody = updateAdminSchema.safeParse(req.body)
+
+      if (!parsedBody.success) {
+        return reply.code(400).send({
+          error: 'invalid_body',
+          details: parsedBody.error.flatten(),
+        })
+      }
+
+      const { companyId, adminId } = parsedParams.data
+      const { role, firstname, lastname, username, email, password, status } = parsedBody.data
+
+      const existingCompany = await findCompanyById(companyId)
+
+      if (!existingCompany) {
+        return reply.code(404).send({ error: 'not_found' })
+      }
+
+      const existingAdmin = await findAdminInCompany(companyId, adminId)
+
+      if (!existingAdmin) {
+        return reply.code(404).send({ error: 'not_found' })
+      }
+
+      if (email) {
+        const existingAdminByEmail = await db('admins')
+          .whereRaw('LOWER(email) = ?', [email])
+          .whereNot('id', adminId)
+          .whereNot('status', ADMIN_STATUS_DELETED)
+          .first('id')
+
+        if (existingAdminByEmail) {
+          return reply.code(409).send({ error: 'email_already_exists' })
+        }
+      }
+
+      if (username) {
+        const existingAdminByUsername = await db('admins')
+          .whereRaw('LOWER(username) = ?', [username.toLowerCase()])
+          .whereNot('id', adminId)
+          .whereNot('status', ADMIN_STATUS_DELETED)
+          .first('id')
+
+        if (existingAdminByUsername) {
+          return reply.code(409).send({ error: 'username_already_exists' })
+        }
+      }
+
+      const updatePayload: Record<string, unknown> = {
+        updated_at: db.fn.now(),
+      }
+
+      if (role !== undefined) {
+        updatePayload.role = role
+      }
+
+      if (firstname !== undefined) {
+        updatePayload.firstname = normalizeNullableString(firstname)
+      }
+
+      if (lastname !== undefined) {
+        updatePayload.lastname = normalizeNullableString(lastname)
+      }
+
+      if (username !== undefined) {
+        updatePayload.username = username
+      }
+
+      if (email !== undefined) {
+        updatePayload.email = email
+      }
+
+      if (password !== undefined) {
+        updatePayload.mdp_hash = await bcrypt.hash(password, 12)
+      }
+
+      if (status !== undefined) {
+        updatePayload.status = status
+        updatePayload.deleted_at = status === ADMIN_STATUS_DELETED ? db.fn.now() : null
+      }
+
+      await db('admins')
+        .where('company_id', companyId)
+        .where('id', adminId)
+        .update(updatePayload)
+
+      const account = await getAdminRow(companyId, adminId)
+
+      return reply.code(200).send({
+        account,
       })
     },
   )

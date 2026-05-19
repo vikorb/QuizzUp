@@ -127,6 +127,7 @@ import BaseCard from '@/components/ui/BaseCard.vue'
 import FormField from '@/components/ui/form/FormField.vue'
 import FormResult from '@/components/ui/form/FormResult.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import { getCreateCompanyAccountRoute, getEditCompanyAccountRoute } from '@/router/clients'
 import { loadCompanyAccountsService } from '@/services/accountsService'
 import { loadCompanyDetailsService, updateCompanyService } from '@/services/companiesService'
 import type { Account, AccountStatusFilter } from '@/types/account'
@@ -365,11 +366,11 @@ function handleTableError(error: string): void {
 }
 
 function handleCreateAccount(): void {
-  router.push(`/clients/${companyId}/accounts/create`)
+  router.push(getCreateCompanyAccountRoute(companyId))
 }
 
 function handleEditAccount(accountId: number): void {
-  router.push(`/clients/${companyId}/accounts/${accountId}/edit`)
+  router.push(getEditCompanyAccountRoute(companyId, accountId))
 }
 
 function goBack(): void {

@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 import { isAuthenticated, me, refreshMe } from '@/state/authState'
+import CreateAccountView from '@/views/clients/accounts/CreateAccountView.vue'
 import ClientDetailsView from '@/views/clients/ClientDetailsView.vue'
 import CreateClientView from '@/views/clients/CreateClientView.vue'
 import ClientsView from '@/views/ClientsView.vue'
@@ -40,6 +41,18 @@ export const router = createRouter({
           path: 'clients/create',
           name: 'clients-create',
           component: CreateClientView,
+          meta: { requiresAuth: true, requiresAdmin: true },
+        },
+        {
+          path: 'clients/:companyId/accounts/create',
+          name: 'company-account-create',
+          component: CreateAccountView,
+          meta: { requiresAuth: true, requiresAdmin: true },
+        },
+        {
+          path: 'clients/:companyId/accounts/:accountId/edit',
+          name: 'company-account-edit',
+          component: CreateAccountView,
           meta: { requiresAuth: true, requiresAdmin: true },
         },
         {

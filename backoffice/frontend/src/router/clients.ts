@@ -39,7 +39,10 @@ export function getEditCompanyRoute(companyId: number | string): RouteLocationRa
 
 export function getCreateCompanyAccountRoute(companyId: number | string): RouteLocationRaw {
   return {
-    path: `/clients/${companyId}/accounts/create`,
+    name: 'company-account-create',
+    params: {
+      companyId: String(companyId),
+    },
   }
 }
 
@@ -48,6 +51,10 @@ export function getEditCompanyAccountRoute(
   accountId: number | string,
 ): RouteLocationRaw {
   return {
-    path: `/clients/${companyId}/accounts/${accountId}/edit`,
+    name: 'company-account-edit',
+    params: {
+      companyId: String(companyId),
+      accountId: String(accountId),
+    },
   }
 }

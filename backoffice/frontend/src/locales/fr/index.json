@@ -21,9 +21,10 @@
     "companyDeactivated": "L’entreprise {name} a bien été désactivée.",
     "companyUpdated": "L’entreprise {name} a bien été mise à jour.",
     "companyDeleted": "L’entreprise {name} a bien été supprimée.",
+    "accountCreated": "Le compte {name} a bien été créé.",
+    "accountUpdated": "Le compte {name} a bien été mis à jour.",
     "accountActivated": "Le compte {name} a bien été activé.",
     "accountDisabled": "Le compte {name} a bien été désactivé.",
-    "accountDeleted": "Le compte {name} a bien été supprimé.",
-    "accountUpdated": "Le compte {name} a bien été mis à jour."
+    "accountDeleted": "Le compte {name} a bien été supprimé."
   }
 }

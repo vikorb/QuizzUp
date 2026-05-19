@@ -20,6 +20,75 @@
       "deleted": "Supprimé",
       "unknown": "Inconnu"
     },
+    "create": {
+      "title": "Créer un compte",
+      "subtitle": "Ajoute un nouveau compte associé à cette entreprise.",
+      "cardTitle": "Informations du compte"
+    },
+    "edit": {
+      "title": "Modifier un compte",
+      "subtitle": "Modifie les informations du compte sélectionné.",
+      "cardTitle": "Modification du compte"
+    },
+    "form": {
+      "fields": {
+        "firstname": {
+          "label": "Prénom",
+          "placeholder": "Ex : Enzo"
+        },
+        "lastname": {
+          "label": "Nom",
+          "placeholder": "Ex : Drissi"
+        },
+        "username": {
+          "label": "Identifiant",
+          "placeholder": "Ex : enzo.drissi"
+        },
+        "email": {
+          "label": "Email",
+          "placeholder": "Ex : enzo{'@'}quizzup.local"
+        },
+        "role": {
+          "label": "Rôle",
+          "placeholder": "Ex : client, staff, admin..."
+        },
+        "password": {
+          "label": "Mot de passe",
+          "editLabel": "Nouveau mot de passe",
+          "placeholder": "Minimum 8 caractères",
+          "editPlaceholder": "Laisser vide pour ne pas modifier"
+        }
+      },
+      "actions": {
+        "cancel": "Annuler",
+        "create": "Créer le compte",
+        "update": "Mettre à jour le compte",
+        "submitting": "Enregistrement..."
+      },
+      "hints": {
+        "create": "Le compte sera créé actif par défaut.",
+        "edit": "Laisse le mot de passe vide si tu ne souhaites pas le modifier."
+      },
+      "validation": {
+        "roleRequired": "Le rôle est obligatoire.",
+        "usernameRequired": "L’identifiant doit contenir au moins 3 caractères.",
+        "emailInvalid": "L’email est invalide.",
+        "passwordRequired": "Le mot de passe doit contenir au moins 8 caractères.",
+        "passwordMin": "Le nouveau mot de passe doit contenir au moins 8 caractères."
+      },
+      "errors": {
+        "emailAlreadyExists": "Cet email est déjà utilisé.",
+        "usernameAlreadyExists": "Cet identifiant est déjà utilisé.",
+        "email_already_exists": "Cet email est déjà utilisé.",
+        "username_already_exists": "Cet identifiant est déjà utilisé.",
+        "invalid_body": "Les informations envoyées sont invalides.",
+        "invalid_params": "Paramètres invalides.",
+        "forbidden": "Vous n’avez pas les droits nécessaires.",
+        "not_found": "Compte introuvable.",
+        "server_error": "Erreur serveur.",
+        "default": "Une erreur est survenue."
+      }
+    },
     "table": {
       "title": "Comptes associés",
       "loading": "Chargement des comptes...",
@@ -47,10 +116,14 @@
       }
     },
     "errors": {
+      "server_error": "Erreur serveur lors du chargement des comptes.",
       "serverError": "Erreur serveur lors du chargement des comptes.",
       "forbidden": "Vous n’avez pas les droits nécessaires.",
+      "not_found": "Compte introuvable.",
       "notFound": "Compte introuvable.",
+      "invalid_params": "Paramètres invalides.",
       "invalidParams": "Paramètres invalides.",
+      "invalid_body": "Les informations envoyées sont invalides.",
       "invalidBody": "Les informations envoyées sont invalides.",
       "default": "Une erreur est survenue."
     }

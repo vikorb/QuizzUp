@@ -33,3 +33,45 @@ export type AccountStatusUpdatePayload = {
 export type AccountStatusUpdateResponse = {
   account: Account
 }
+
+export type CreateAccountPayload = {
+  role: string
+  firstname: string | null
+  lastname: string | null
+  username: string
+  email: string
+  password: string
+}
+
+export type UpdateAccountPayload = {
+  role?: string
+  firstname?: string | null
+  lastname?: string | null
+  username?: string
+  email?: string
+  password?: string
+  status?: AdminStatus
+}
+
+export type AccountResponse = {
+  account: Account
+}
+
+export type AccountFormValues = {
+  role: string
+  firstname: string
+  lastname: string
+  username: string
+  email: string
+  password: string
+  status: AdminStatus
+}
+
+export type AccountFieldErrors = {
+  role?: string
+  firstname?: string
+  lastname?: string
+  username?: string
+  email?: string
+  password?: string
+}
