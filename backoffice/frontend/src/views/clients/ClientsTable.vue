@@ -66,7 +66,7 @@ import UiButton from '@/components/ui/UiButton.vue'
 import type { Company, CompanyTableRow } from '@/types/company'
 import { toCompanyStatus } from '@/utils/company/status'
 
-import ClientTableActions from './clientTable/ClientTableActions.vue'
+import ClientTableActions from './table/ClientTableActions.vue'
 
 const props = defineProps<{
   companies: Company[]
