@@ -1,21 +1,10 @@
 require('dotenv').config()
 const bcrypt = require('bcryptjs')
 
+const ADMIN_ROLE_SUPERADMIN = 'superadmin'
+const ADMIN_STATUS_ACTIVE = 1
+
 exports.seed = async function (knex) {
-  const companyName = 'Quizzup'
-  const companyEmail = process.env.QUIZZUP_COMPANY_EMAIL || 'billing@quizzup.local'
-
-  const insertedCompanies = await knex('companies')
-    .insert({ name: companyName, email: companyEmail })
-    .onConflict(knex.raw('((lower(name)))'))
-    .merge({ email: companyEmail, name: companyName })
-    .returning(['id'])
-
-  const company_id =
-    insertedCompanies?.[0]?.id ??
-    (await knex('companies').select('id').whereRaw('lower(name) = lower(?)', [companyName]).first())
-      .id
-
   const email = process.env.ADMIN_SEED_EMAIL || 'admin@quizzup.local'
   const username = process.env.ADMIN_SEED_USERNAME || 'admin'
   const password = process.env.ADMIN_SEED_PASSWORD || 'ChangeMe123!'
@@ -23,15 +12,24 @@ exports.seed = async function (knex) {
 
   await knex('admins')
     .insert({
-      company_id: company_id,
-      role: 'admin',
+      company_id: null,
+      role: ADMIN_ROLE_SUPERADMIN,
       firstname: 'Quizzup',
-      lastname: 'Admin',
+      lastname: 'Superadmin',
       username,
       email,
       mdp_hash,
-      status: 1,
+      status: ADMIN_STATUS_ACTIVE,
     })
     .onConflict(knex.raw('((lower(email)))'))
-    .ignore()
+    .merge({
+      company_id: null,
+      role: ADMIN_ROLE_SUPERADMIN,
+      firstname: 'Quizzup',
+      lastname: 'Superadmin',
+      username,
+      mdp_hash,
+      status: ADMIN_STATUS_ACTIVE,
+      updated_at: knex.fn.now(),
+    })
 }

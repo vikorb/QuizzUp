@@ -21,3 +21,15 @@ export const ADMIN_STATUS = {
 } as const
 
 export type AdminStatus = (typeof ADMIN_STATUS)[keyof typeof ADMIN_STATUS]
+
+export const ADMIN_ROLE_SUPERADMIN = 'superadmin' as const
+export const ADMIN_ROLE_ADMIN = 'admin' as const
+export const ADMIN_ROLE_USER = 'user' as const
+
+export const ADMIN_ROLE = {
+  SUPERADMIN: ADMIN_ROLE_SUPERADMIN,
+  ADMIN: ADMIN_ROLE_ADMIN,
+  USER: ADMIN_ROLE_USER,
+} as const
+
+export type AdminRole = (typeof ADMIN_ROLE)[keyof typeof ADMIN_ROLE]

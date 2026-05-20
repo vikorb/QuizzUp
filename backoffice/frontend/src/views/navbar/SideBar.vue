@@ -20,6 +20,7 @@ import {
   mdiPaletteOutline,
   mdiPlayCircleOutline,
 } from '@mdi/js'
+import { ADMIN_ROLE_SUPERADMIN } from '@quizzup/shared'
 import { computed } from 'vue'
 
 import NavGroup from '@/components/NavGroup.vue'
@@ -31,7 +32,12 @@ defineProps({
 })
 
 const canShowNav = computed(() => isAuthenticated.value)
-const isAdmin = computed(() => me.value?.role === 'admin')
+
+const isSuperadmin = computed(() => me.value?.role === ADMIN_ROLE_SUPERADMIN)
+
+const currentCompanyId = computed(() => {
+  return me.value?.companyId ?? me.value?.companyId ?? null
+})
 
 const navDashboard = [
   { to: '/', icon: mdiHomeOutline, iconType: 'mdi' as const, labelKey: 'navbar.home' },
@@ -45,7 +51,12 @@ const navManage = computed(() => {
       iconType: 'mdi' as const,
       labelKey: 'navbar.players',
     },
-    { to: '/themes', icon: mdiPaletteOutline, iconType: 'mdi' as const, labelKey: 'navbar.themes' },
+    {
+      to: '/themes',
+      icon: mdiPaletteOutline,
+      iconType: 'mdi' as const,
+      labelKey: 'navbar.themes',
+    },
     {
       to: '/questions',
       icon: mdiHelpCircleOutline,
@@ -54,13 +65,25 @@ const navManage = computed(() => {
     },
   ] as const
 
-  if (isAdmin.value) {
+  if (isSuperadmin.value) {
     return [
       {
         to: '/clients',
         icon: mdiBriefcaseAccountOutline,
         iconType: 'mdi' as const,
         labelKey: 'navbar.clients',
+      },
+      ...base,
+    ]
+  }
+
+  if (currentCompanyId.value) {
+    return [
+      {
+        to: `/clients/${currentCompanyId.value}`,
+        icon: mdiBriefcaseAccountOutline,
+        iconType: 'mdi' as const,
+        labelKey: 'navbar.myCompany',
       },
       ...base,
     ]

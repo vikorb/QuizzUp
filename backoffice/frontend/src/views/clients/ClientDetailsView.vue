@@ -16,74 +16,29 @@
         </UiButton>
       </template>
 
-      <form v-if="company" class="company-form" @submit.prevent="saveCompany">
-        <div class="company-form__grid">
-          <FormField
-            v-model="form.name"
-            :label="$t('clients.details.form.fields.name.label')"
-            name="name"
-            autocomplete="organization"
-            :placeholder="$t('clients.details.form.fields.name.placeholder')"
-            :disabled="companySaving"
-            :error="fieldErrors.name"
-            required
-          />
-
-          <FormField
-            v-model="form.email"
-            :label="$t('clients.details.form.fields.email.label')"
-            name="email"
-            type="email"
-            autocomplete="email"
-            :placeholder="$t('clients.details.form.fields.email.placeholder')"
-            :disabled="companySaving"
-            :error="fieldErrors.email"
-            required
-          />
-        </div>
-
-        <div class="company-status">
-          <div>
-            <p class="company-status__title">
-              {{ $t('clients.details.form.fields.status.label') }}
-            </p>
-            <p class="company-status__subtitle">
-              {{ statusHelp }}
-            </p>
-          </div>
-
-          <button
-            class="company-status__switch"
-            :class="{ 'company-status__switch--active': isCompanyActive }"
-            type="button"
-            role="switch"
-            :aria-checked="isCompanyActive"
-            :disabled="companySaving || isCompanyDeleted"
-            @click="toggleCompanyStatus"
-          >
-            <span class="company-status__thumb" />
-          </button>
-        </div>
-
-        <FormResult :error="formError" :success="formSuccess" />
-
-        <div class="company-form__actions">
-          <UiButton variant="default" type="button" :disabled="companySaving" @click="resetCompanyForm">
-            {{ $t('clients.details.actions.reset') }}
-          </UiButton>
-
-          <UiButton variant="primary" type="submit" :disabled="companySaving || !hasCompanyChanges">
-            {{
-              companySaving
-                ? $t('clients.details.actions.saving')
-                : $t('clients.details.actions.save')
-            }}
-          </UiButton>
-        </div>
-      </form>
+      <ClientDetailForm
+        v-if="company"
+        :name="form.name"
+        :email="form.email"
+        :status="form.status"
+        :original-status="company.status"
+        :field-errors="fieldErrors"
+        :company-saving="companySaving"
+        :is-company-readonly="isCompanyReadonly"
+        :can-manage-company="canManageCompany"
+        :can-show-status-switch="canShowStatusSwitch"
+        :has-company-changes="hasCompanyChanges"
+        :form-error="formError"
+        :form-success="formSuccess"
+        @update:name="form.name = $event"
+        @update:email="form.email = $event"
+        @toggle-status="toggleCompanyStatus"
+        @reset="resetCompanyForm"
+        @submit="saveCompany"
+      />
     </BaseCard>
 
-    <div id="accounts" class="accounts-section">
+    <div v-if="canShowAccountsSection" id="accounts" class="accounts-section">
       <AccountsToolBar
         v-model="searchQuery"
         v-model:status-filter="statusFilter"
@@ -112,32 +67,39 @@
 </template>
 
 <script setup lang="ts">
-import {
-  COMPANY_STATUS_ACTIVE,
-  COMPANY_STATUS_DELETED,
-  COMPANY_STATUS_INACTIVE,
-} from '@quizzup/shared'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
 import SectionLayout from '@/components/SectionLayout.vue'
 import BaseBanner from '@/components/ui/BaseBanner.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
-import FormField from '@/components/ui/form/FormField.vue'
-import FormResult from '@/components/ui/form/FormResult.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { getCreateCompanyAccountRoute, getEditCompanyAccountRoute } from '@/router/clients'
 import { loadCompanyAccountsService } from '@/services/accountsService'
 import { loadCompanyDetailsService, updateCompanyService } from '@/services/companiesService'
+import { me } from '@/state/authState'
 import type { Account, AccountStatusFilter } from '@/types/account'
 import type { ActionBanner } from '@/types/banner'
-import type { Company, EditCompanyFieldErrors, EditCompanyFormValues } from '@/types/company'
+import type { Company, EditCompanyFieldErrors } from '@/types/company'
+import { createAccountDeletedBanner, createAccountUpdatedBanner } from '@/utils/account/detailsBanner'
 import { filterAccounts, filterAccountsByStatus } from '@/utils/account/filters'
 import { DEFAULT_ACCOUNT_STATUS_FILTER } from '@/utils/account/filters'
-import { findAccountById, updateAccountInList } from '@/utils/account/list'
-import { getAccountUpdateSuccessCode, toAccountStatus } from '@/utils/account/status'
-import { createErrorBanner, createSuccessBanner, getBannerMessage, getBannerVariant } from '@/utils/banner'
+import { updateAccountInList } from '@/utils/account/list'
+import { createErrorBanner, getBannerMessage, getBannerVariant } from '@/utils/banner'
+import {
+  createCompanyDetailsForm,
+  getCompanyDetailsFormValues,
+  hasCompanyDetailsChanges,
+} from '@/utils/company/details/form'
+import {
+  canManageCompanyDetails,
+  canShowCompanyAccountsSection,
+  canShowCompanyStatusSwitch,
+  isCompanyDetailsReadonly,
+  isSuperadminRole,
+} from '@/utils/company/details/permissions'
+import { getNextCompanyStatus } from '@/utils/company/details/status'
 import {
   buildUpdateCompanyPayload,
   createEditCompanyFieldErrors,
@@ -146,9 +108,11 @@ import {
   hasEditCompanyFormErrors,
   validateEditCompanyForm,
 } from '@/utils/company/edit'
+import { clearTimer, scheduleTimer, type TimerHandle } from '@/utils/timer'
 
 import AccountsTable from './accounts/AccountsTable.vue'
 import AccountsToolBar from './accounts/AccountsToolBar.vue'
+import ClientDetailForm from './clientDetails/ClientDetailForm.vue'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -169,75 +133,74 @@ const accountsErrorCode = ref<string | null>(null)
 const formError = ref<string | null>(null)
 const formSuccess = ref<string | null>(null)
 
-const fieldErrors = reactive<EditCompanyFieldErrors>(createEditCompanyFieldErrors())
+const formSuccessTimer = ref<TimerHandle | null>(null)
+const actionBannerTimer = ref<TimerHandle | null>(null)
 
-const form = reactive<EditCompanyFormValues>({
-  name: '',
-  email: '',
-  status: COMPANY_STATUS_ACTIVE,
-})
+const fieldErrors = reactive<EditCompanyFieldErrors>(createEditCompanyFieldErrors())
+const form = reactive(createCompanyDetailsForm())
 
 const searchQuery = ref('')
 const statusFilter = ref<AccountStatusFilter>(DEFAULT_ACCOUNT_STATUS_FILTER)
 const actionBanner = ref<ActionBanner | null>(null)
 
+const currentRole = computed(() => me.value?.role ?? null)
+
+const isSuperadmin = computed(() => isSuperadminRole(currentRole.value))
+const canManageCompany = computed(() => canManageCompanyDetails(currentRole.value))
+const canShowStatusSwitch = computed(() => canShowCompanyStatusSwitch(currentRole.value))
+const canShowAccountsSection = computed(() => canShowCompanyAccountsSection(currentRole.value))
+const isCompanyReadonly = computed(() => isCompanyDetailsReadonly(currentRole.value))
+
 const actionBannerVariant = computed(() => getBannerVariant(actionBanner.value))
 const actionBannerMessage = computed(() => getBannerMessage(actionBanner.value, t))
 
 const filteredAccounts = computed(() => {
+  if (!canShowAccountsSection.value) {
+    return []
+  }
+
   const searchedAccounts = filterAccounts(accounts.value, searchQuery.value)
 
   return filterAccountsByStatus(searchedAccounts, statusFilter.value)
 })
 
-const isCompanyActive = computed(() => form.status === COMPANY_STATUS_ACTIVE)
-const isCompanyDeleted = computed(() => form.status === COMPANY_STATUS_DELETED)
+const hasCompanyChanges = computed(() =>
+  hasCompanyDetailsChanges(form, company.value, canManageCompany.value),
+)
 
-const hasCompanyChanges = computed(() => {
-  if (!company.value) {
-    return false
-  }
+function dismissFormSuccessLater(): void {
+  formSuccessTimer.value = scheduleTimer(formSuccessTimer.value, () => {
+    formSuccess.value = null
+    formSuccessTimer.value = null
+  })
+}
 
-  return (
-    form.name.trim() !== company.value.name ||
-    form.email.trim().toLowerCase() !== company.value.email.toLowerCase() ||
-    form.status !== company.value.status
-  )
-})
-
-const statusHelp = computed(() => {
-  if (isCompanyDeleted.value) {
-    return t('clients.details.form.fields.status.deletedHelp')
-  }
-
-  return isCompanyActive.value
-    ? t('clients.details.form.fields.status.activeHelp')
-    : t('clients.details.form.fields.status.inactiveHelp')
-})
+function dismissActionBannerLater(): void {
+  formSuccessTimer.value = scheduleTimer(formSuccessTimer.value, () => {
+    formSuccess.value = null
+    formSuccessTimer.value = null
+  })
+}
 
 function clearActionBanner(): void {
+  formSuccessTimer.value = clearTimer(actionBannerTimer.value)
   actionBanner.value = null
 }
 
 function resetFormMessages(): void {
+  formSuccessTimer.value = clearTimer(formSuccessTimer.value)
   formError.value = null
   formSuccess.value = null
   Object.assign(fieldErrors, createEditCompanyFieldErrors())
 }
 
-function syncCompanyForm(nextCompany: Company): void {
-  form.name = nextCompany.name
-  form.email = nextCompany.email
-  form.status = nextCompany.status
-}
-
 function resetCompanyForm(): void {
-  if (!company.value) {
+  if (!company.value || !canManageCompany.value) {
     return
   }
 
   resetFormMessages()
-  syncCompanyForm(company.value)
+  Object.assign(form, getCompanyDetailsFormValues(company.value))
 }
 
 function validateCompanyForm(): boolean {
@@ -249,15 +212,17 @@ function validateCompanyForm(): boolean {
 }
 
 function toggleCompanyStatus(): void {
-  if (isCompanyDeleted.value) {
+  if (!canShowStatusSwitch.value) {
     return
   }
 
-  form.status = isCompanyActive.value ? COMPANY_STATUS_INACTIVE : COMPANY_STATUS_ACTIVE
+  formSuccessTimer.value = clearTimer(formSuccessTimer.value)
+  formSuccess.value = null
+  form.status = getNextCompanyStatus(form.status)
 }
 
 async function saveCompany(): Promise<void> {
-  if (companySaving.value || !hasCompanyChanges.value) {
+  if (!canManageCompany.value || companySaving.value || !hasCompanyChanges.value) {
     return
   }
 
@@ -285,8 +250,9 @@ async function saveCompany(): Promise<void> {
     }
 
     company.value = result.data.company
-    syncCompanyForm(result.data.company)
+    Object.assign(form, getCompanyDetailsFormValues(result.data.company))
     formSuccess.value = t('clients.details.form.success.updated')
+    dismissFormSuccessLater()
   } finally {
     companySaving.value = false
   }
@@ -306,19 +272,31 @@ async function loadCompany(): Promise<void> {
     }
 
     company.value = result.data.company
-    syncCompanyForm(result.data.company)
+    Object.assign(form, getCompanyDetailsFormValues(result.data.company))
   } finally {
     companyLoading.value = false
   }
 }
 
 async function loadAccounts(): Promise<void> {
+  if (!canShowAccountsSection.value) {
+    accounts.value = []
+    accountsErrorCode.value = null
+    return
+  }
+
   accountsErrorCode.value = null
   clearActionBanner()
   accountsLoading.value = true
 
   try {
     const result = await loadCompanyAccountsService(companyId)
+
+    if (!canShowAccountsSection.value) {
+      accounts.value = []
+      accountsErrorCode.value = null
+      return
+    }
 
     if (!result.ok) {
       accountsErrorCode.value = result.error
@@ -333,49 +311,83 @@ async function loadAccounts(): Promise<void> {
 }
 
 function handleAccountUpdated(updatedAccount: Account): void {
+  if (!canShowAccountsSection.value) {
+    return
+  }
+
   clearActionBanner()
-
-  const currentAccount = findAccountById(accounts.value, updatedAccount.id)
-  const updatedStatus = toAccountStatus(updatedAccount.status)
-
+  actionBanner.value = createAccountUpdatedBanner(accounts.value, updatedAccount)
   accounts.value = updateAccountInList(accounts.value, updatedAccount)
-
-  const accountName =
-    [updatedAccount.firstname, updatedAccount.lastname].filter(Boolean).join(' ').trim() ||
-    updatedAccount.username ||
-    currentAccount?.username ||
-    `#${updatedAccount.id}`
-
-  actionBanner.value = createSuccessBanner(getAccountUpdateSuccessCode(updatedStatus), {
-    name: accountName,
-  })
+  dismissActionBannerLater()
 }
 
 function handleAccountDeleted(accountId: number): void {
+  if (!canShowAccountsSection.value) {
+    return
+  }
+
   clearActionBanner()
-
-  const deletedAccount = findAccountById(accounts.value, accountId)
-
-  actionBanner.value = createSuccessBanner('accountDeleted', {
-    name: deletedAccount?.username ?? `#${accountId}`,
-  })
+  actionBanner.value = createAccountDeletedBanner(accounts.value, accountId)
+  dismissActionBannerLater()
 }
 
 function handleTableError(error: string): void {
+  if (!canShowAccountsSection.value) {
+    return
+  }
+
+  formSuccessTimer.value = clearTimer(actionBannerTimer.value)
   actionBanner.value = createErrorBanner(error)
 }
 
 function handleCreateAccount(): void {
+  if (!canShowAccountsSection.value) {
+    return
+  }
+
   router.push(getCreateCompanyAccountRoute(companyId))
 }
 
 function handleEditAccount(accountId: number): void {
+  if (!canShowAccountsSection.value) {
+    return
+  }
+
   router.push(getEditCompanyAccountRoute(companyId, accountId))
 }
 
 function goBack(): void {
-  router.push('/clients')
+  if (isSuperadmin.value) {
+    router.push('/clients')
+    return
+  }
+
+  router.push('/')
 }
+
+watch(
+  canShowAccountsSection,
+  (canShowAccounts) => {
+    if (!Number.isFinite(companyId)) {
+      return
+    }
+
+    if (!canShowAccounts) {
+      accounts.value = []
+      accountsErrorCode.value = null
+      clearActionBanner()
+      return
+    }
+
+    loadAccounts()
+  },
+  { immediate: true },
+)
+
+onBeforeUnmount(() => {
+  formSuccessTimer.value = clearTimer(formSuccessTimer.value)
+  formSuccessTimer.value = clearTimer(actionBannerTimer.value)
+})
 
 onMounted(() => {
   if (!Number.isFinite(companyId)) {
@@ -384,116 +396,16 @@ onMounted(() => {
   }
 
   loadCompany()
-  loadAccounts()
 })
 </script>
 
 <style scoped>
 .company-details-card {
   margin-bottom: 18px;
-}
-
-.company-form {
-  display: grid;
-  gap: 16px;
-}
-
-.company-form__grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.company-status {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.company-status__title {
-  margin: 0;
-  color: var(--text-0);
-  font-weight: 800;
-}
-
-.company-status__subtitle {
-  margin: 4px 0 0;
-  color: var(--text-2);
-  font-size: 13px;
-}
-
-.company-status__switch {
-  position: relative;
-  flex: 0 0 auto;
-  width: 48px;
-  height: 28px;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  cursor: pointer;
-  transition:
-    background 0.2s ease,
-    border-color 0.2s ease,
-    opacity 0.2s ease;
-}
-
-.company-status__switch:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-.company-status__switch--active {
-  border-color: rgba(45, 255, 137, 0.45);
-  background: rgba(45, 255, 137, 0.22);
-}
-
-.company-status__thumb {
-  position: absolute;
-  top: 4px;
-  left: 4px;
-  width: 18px;
-  height: 18px;
-  border-radius: 999px;
-  background: var(--text-0);
-  transition: transform 0.2s ease;
-}
-
-.company-status__switch--active .company-status__thumb {
-  transform: translateX(20px);
-}
-
-.company-form__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
+  scroll-margin-top: 90px;
 }
 
 .accounts-section {
   scroll-margin-top: 90px;
-}
-
-.company-details-card {
-  scroll-margin-top: 90px;
-}
-
-@media (max-width: 760px) {
-  .company-form__grid {
-    grid-template-columns: 1fr;
-  }
-
-  .company-status {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .company-form__actions {
-    flex-direction: column-reverse;
-  }
 }
 </style>

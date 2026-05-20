@@ -115,8 +115,10 @@
           "status": {
             "label": "Statut de la compagnie",
             "activeHelp": "La compagnie est active et peut utiliser la plateforme.",
-            "inactiveHelp": "La compagnie est désactivée temporairement.",
-            "deletedHelp": "La compagnie est supprimée et ne peut plus être réactivée depuis cet écran."
+            "inactiveHelp": "La compagnie est désactivée.",
+            "deletedHelp": "La compagnie est supprimée et ne peut plus être réactivée depuis cet écran.",
+            "pendingActiveHelp": "Le statut passera en actif après avoir cliqué sur Enregistrer.",
+            "pendingInactiveHelp": "Le statut passera en inactif après avoir cliqué sur Enregistrer."
           }
         },
         "success": {

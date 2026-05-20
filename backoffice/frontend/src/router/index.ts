@@ -1,4 +1,6 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { ADMIN_ROLE_ADMIN, ADMIN_ROLE_SUPERADMIN } from '@quizzup/shared'
+import { createRouter } from 'vue-router'
+import { createWebHistory } from 'vue-router'
 
 import { isAuthenticated, me, refreshMe } from '@/state/authState'
 import CreateAccountView from '@/views/clients/accounts/CreateAccountView.vue'
@@ -13,6 +15,47 @@ import PlayersView from '@/views/PlayersView.vue'
 import QuestionsView from '@/views/QuestionsView.vue'
 import StatsView from '@/views/StatsView.vue'
 import ThemesView from '@/views/ThemesView.vue'
+
+const getCurrentCompanyId = () => {
+  return me.value?.companyId ?? me.value?.companyId ?? null
+}
+
+const getRouteCompanyId = (params: Record<string, unknown>) => {
+  const rawCompanyId = params.companyId ?? params.id
+
+  if (Array.isArray(rawCompanyId)) {
+    return Number(rawCompanyId[0])
+  }
+
+  return Number(rawCompanyId)
+}
+
+const isSuperadmin = () => {
+  return me.value?.role === ADMIN_ROLE_SUPERADMIN
+}
+
+const isCompanyAdmin = () => {
+  return me.value?.role === ADMIN_ROLE_ADMIN
+}
+
+const canAccessCompany = (params: Record<string, unknown>) => {
+  if (isSuperadmin()) {
+    return true
+  }
+
+  const routeCompanyId = getRouteCompanyId(params)
+  const currentCompanyId = Number(getCurrentCompanyId())
+
+  return Number.isFinite(routeCompanyId) && Number.isFinite(currentCompanyId) && routeCompanyId === currentCompanyId
+}
+
+const canManageCompany = (params: Record<string, unknown>) => {
+  if (isSuperadmin()) {
+    return true
+  }
+
+  return isCompanyAdmin() && canAccessCompany(params)
+}
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -35,33 +78,32 @@ export const router = createRouter({
           path: 'clients',
           name: 'clients',
           component: ClientsView,
-          meta: { requiresAuth: true, requiresAdmin: true },
+          meta: { requiresAuth: true, requiresSuperadmin: true },
         },
         {
           path: 'clients/create',
           name: 'clients-create',
           component: CreateClientView,
-          meta: { requiresAuth: true, requiresAdmin: true },
+          meta: { requiresAuth: true, requiresSuperadmin: true },
         },
         {
           path: 'clients/:companyId/accounts/create',
           name: 'company-account-create',
           component: CreateAccountView,
-          meta: { requiresAuth: true, requiresAdmin: true },
+          meta: { requiresAuth: true, requiresCompanyAdminAccess: true },
         },
         {
           path: 'clients/:companyId/accounts/:accountId/edit',
           name: 'company-account-edit',
           component: CreateAccountView,
-          meta: { requiresAuth: true, requiresAdmin: true },
+          meta: { requiresAuth: true, requiresCompanyAdminAccess: true },
         },
         {
           path: 'clients/:id',
           name: 'client-details',
           component: ClientDetailsView,
-          meta: { requiresAuth: true, requiresAdmin: true },
+          meta: { requiresAuth: true, requiresCompanyAccess: true },
         },
-
         {
           path: 'players',
           name: 'players',
@@ -126,7 +168,15 @@ router.beforeEach(async (to) => {
     }
   }
 
-  if (to.meta.requiresAdmin && me.value?.role !== 'admin') {
+  if (to.meta.requiresSuperadmin && !isSuperadmin()) {
+    return { name: 'home' }
+  }
+
+  if (to.meta.requiresCompanyAccess && !canAccessCompany(to.params)) {
+    return { name: 'home' }
+  }
+
+  if (to.meta.requiresCompanyAdminAccess && !canManageCompany(to.params)) {
     return { name: 'home' }
   }
 
