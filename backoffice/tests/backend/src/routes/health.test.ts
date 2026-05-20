@@ -1,19 +1,27 @@
+import './_helpers/registerRouteMocks'
+
 import { describe, expect, it } from 'vitest'
-import { buildApp } from '../../../../backend/src/app'
 
-describe('GET /health', () => {
-  it('should return API status', async () => {
-    const app = buildApp()
+import healthRoute from '../../../../backend/src/routes/health'
 
-    try {
-      const response = await app.inject({
-        method: 'GET',
-        url: '/health',
-      })
+import {
+  createRouteApp,
+  parseJson,
+} from './_helpers/testApp'
 
-      expect(response.statusCode).toBe(200)
-    } finally {
-      await app.close()
-    }
+import { resetRouteMocksBeforeEach } from './_helpers/resetRouteMocks'
+
+resetRouteMocksBeforeEach()
+
+describe('routes/health.ts', () => {
+  it('returns a simple public healthcheck without authentication', async () => {
+    const app = await createRouteApp(healthRoute)
+
+    const response = await app.inject({ method: 'GET', url: '/health' })
+
+    expect(response.statusCode).toBe(200)
+    expect(parseJson(response)).toEqual({ status: 'ok' })
+
+    await app.close()
   })
 })

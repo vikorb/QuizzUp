@@ -1,11 +1,12 @@
 import { defineConfig } from 'vitest/config'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 export default defineConfig({
   resolve: {
     alias: {
       '@backend': path.resolve(process.cwd(), 'backend/src'),
-      '@shared': path.resolve(process.cwd(), 'shared/src'),
+      '@quizzup/shared': fileURLToPath(new URL('./shared/src/index.ts', import.meta.url)),
     },
   },
   test: {
