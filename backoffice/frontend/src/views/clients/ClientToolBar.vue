@@ -41,10 +41,10 @@ import { useRouter } from 'vue-router'
 
 import BaseToolBar from '@/components/ui/BaseToolBar.vue'
 import FormField from '@/components/ui/form/FormField.vue'
-import type { SelectFieldOption } from '@/components/ui/form/SelectField.vue'
 import SelectField from '@/components/ui/form/SelectField.vue'
 import { getCreateCompanyRoute } from '@/router/clients'
 import type { ClientStatusFilter } from '@/types/company'
+import type { SelectFieldOption } from '@/types/form'
 import {
   DEFAULT_CLIENT_STATUS_FILTER,
   getClientStatusFilterOptions,

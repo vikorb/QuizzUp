@@ -40,9 +40,9 @@ import { useI18n } from 'vue-i18n'
 
 import BaseToolBar from '@/components/ui/BaseToolBar.vue'
 import FormField from '@/components/ui/form/FormField.vue'
-import type { SelectFieldOption } from '@/components/ui/form/SelectField.vue'
 import SelectField from '@/components/ui/form/SelectField.vue'
 import type { AccountStatusFilter } from '@/types/account'
+import type { SelectFieldOption } from '@/types/form'
 import {
   DEFAULT_ACCOUNT_STATUS_FILTER,
   getAccountStatusFilterOptions,

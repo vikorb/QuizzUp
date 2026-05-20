@@ -1,7 +1,7 @@
 <template>
-  <SectionLayout :title="pageTitle" :subtitle="pageSubtitle">
+  <SectionLayout :title="pageTexts.pageTitle" :subtitle="pageTexts.pageSubtitle">
     <BaseCard
-      :title="cardTitle"
+      :title="pageTexts.cardTitle"
       :neon="true"
       :no-hover="true"
       :loading="loadingAccount"
@@ -17,11 +17,11 @@
 
       <CreateAccountForm
         v-if="canRenderForm"
-        :mode="mode"
-        :company-id="companyId"
+        :mode="pageContext.mode"
+        :company-id="pageContext.companyId"
         :account="account"
         :loading-account="loadingAccount"
-        :profile-mode="isProfileRoute"
+        :profile-mode="pageContext.isProfileRoute"
       />
     </BaseCard>
   </SectionLayout>
@@ -35,10 +35,16 @@ import { useRoute, useRouter } from 'vue-router'
 import SectionLayout from '@/components/SectionLayout.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import UiButton from '@/components/ui/UiButton.vue'
-import { getCompanyAccountsRoute } from '@/router/clients'
 import { loadCompanyAccountService } from '@/services/accountsService'
 import { me } from '@/state/authState'
 import type { Account } from '@/types/account'
+import {
+  canRenderAccountForm,
+  getAccountFormBackRoute,
+  getAccountFormPageContext,
+  getAccountFormPageTexts,
+  getAccountFormParamsError,
+} from '@/utils/account/form'
 
 import CreateAccountForm from './createAccount/CreateAccountForm.vue'
 
@@ -46,81 +52,33 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 
-const isProfileRoute = computed(() => route.name === 'profile')
-
-const companyId = computed(() => {
-  if (isProfileRoute.value) {
-    return Number(me.value?.companyId)
-  }
-
-  return Number(route.params.companyId)
-})
-
-const accountId = computed(() => {
-  if (isProfileRoute.value) {
-    return Number(me.value?.id)
-  }
-
-  return Number(route.params.accountId)
-})
-
-const mode = computed<'create' | 'edit'>(() => {
-  if (isProfileRoute.value) {
-    return 'edit'
-  }
-
-  return route.name === 'company-account-edit' ? 'edit' : 'create'
-})
-
 const account = ref<Account | null>(null)
 const loadingAccount = ref(false)
 const accountError = ref<string | null>(null)
 
-const isEditMode = computed(() => mode.value === 'edit')
+const pageContext = computed(() => getAccountFormPageContext(route, me.value))
 
-const pageTitle = computed(() => {
-  if (isProfileRoute.value) {
-    return t('accounts.profile.title')
-  }
+const pageTexts = computed(() => getAccountFormPageTexts(pageContext.value, t))
 
-  return isEditMode.value ? t('accounts.edit.title') : t('accounts.create.title')
-})
-
-const pageSubtitle = computed(() => {
-  if (isProfileRoute.value) {
-    return t('accounts.profile.subtitle')
-  }
-
-  return isEditMode.value ? t('accounts.edit.subtitle') : t('accounts.create.subtitle')
-})
-
-const cardTitle = computed(() => {
-  if (isProfileRoute.value) {
-    return t('accounts.profile.cardTitle')
-  }
-
-  return isEditMode.value ? t('accounts.edit.cardTitle') : t('accounts.create.cardTitle')
-})
-
-const canRenderForm = computed(() => {
-  if (!Number.isFinite(companyId.value)) {
-    return false
-  }
-
-  if (mode.value === 'create') {
-    return true
-  }
-
-  return Boolean(account.value) && !loadingAccount.value && !accountError.value
-})
+const canRenderForm = computed(() =>
+  canRenderAccountForm(
+    pageContext.value,
+    account.value,
+    loadingAccount.value,
+    accountError.value,
+  ),
+)
 
 async function loadAccount(): Promise<void> {
-  if (mode.value !== 'edit') {
+  const paramsError = getAccountFormParamsError(pageContext.value)
+
+  if (paramsError) {
+    accountError.value = paramsError
+    account.value = null
     return
   }
 
-  if (!Number.isFinite(companyId.value) || !Number.isFinite(accountId.value)) {
-    accountError.value = 'invalid_params'
+  if (pageContext.value.mode !== 'edit') {
     return
   }
 
@@ -128,7 +86,10 @@ async function loadAccount(): Promise<void> {
   accountError.value = null
 
   try {
-    const result = await loadCompanyAccountService(companyId.value, accountId.value)
+    const result = await loadCompanyAccountService(
+      pageContext.value.companyId,
+      pageContext.value.accountId,
+    )
 
     if (!result.ok) {
       accountError.value = result.error
@@ -143,20 +104,10 @@ async function loadAccount(): Promise<void> {
 }
 
 function goBack(): void {
-  if (isProfileRoute.value) {
-    router.push({ name: 'home' })
-    return
-  }
-
-  router.push(getCompanyAccountsRoute(companyId.value))
+  router.push(getAccountFormBackRoute(pageContext.value))
 }
 
 onMounted(() => {
-  if (!Number.isFinite(companyId.value)) {
-    accountError.value = 'invalid_params'
-    return
-  }
-
   loadAccount()
 })
 </script>

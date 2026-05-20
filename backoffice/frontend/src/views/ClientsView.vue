@@ -78,9 +78,7 @@ function handleCompanyUpdated(updatedCompany: CompanyTableRow): void {
 
   const currentCompany = findCompanyById(companies.value, Number(updatedCompany.id))
   const updatedStatus = toCompanyStatus(updatedCompany.status)
-
   companies.value = updateCompanyInList(companies.value, updatedCompany)
-
   const companyName = String(updatedCompany.name || currentCompany?.name || '')
   const successCode = getCompanyUpdateSuccessCode(updatedStatus)
 

@@ -75,3 +75,24 @@ export type AccountFieldErrors = {
   email?: string
   password?: string
 }
+
+export type AccountFormMode = 'create' | 'edit'
+
+export type AccountFormUserContext = {
+  id?: unknown
+  companyId?: unknown
+} | null
+
+export type AccountFormPageContext = {
+  isProfileRoute: boolean
+  companyId: number
+  accountId: number
+  mode: AccountFormMode
+  isEditMode: boolean
+}
+
+export type AccountFormPageTexts = {
+  pageTitle: string
+  pageSubtitle: string
+  cardTitle: string
+}

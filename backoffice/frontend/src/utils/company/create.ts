@@ -1,3 +1,4 @@
+import type { TranslateFn } from '@/types'
 import type {
   CreateCompanyApiFieldError,
   CreateCompanyFieldErrors,
@@ -6,8 +7,6 @@ import type {
 } from '@/types/company'
 import { getApiErrorKey } from '@/utils/api'
 import { isBlank } from '@/utils/validation'
-
-type Translate = (key: string) => string
 
 export function createCompanyFieldErrors(): CreateCompanyFieldErrors {
   return {
@@ -18,7 +17,7 @@ export function createCompanyFieldErrors(): CreateCompanyFieldErrors {
 
 export function validateCreateCompanyForm(
   values: CreateCompanyFormValues,
-  t: Translate,
+  t: TranslateFn,
 ): CreateCompanyFieldErrors {
   const errors = createCompanyFieldErrors()
 
@@ -48,7 +47,7 @@ export function buildCreateCompanyPayload(values: CreateCompanyFormValues): Crea
 
 export function getCreateCompanyApiFieldError(
   error: string,
-  t: Translate,
+  t: TranslateFn,
 ): CreateCompanyApiFieldError | null {
   if (error === 'invalid_email') {
     return {
@@ -74,6 +73,6 @@ export function getCreateCompanyApiFieldError(
   return null
 }
 
-export function getCreateCompanyApiFormError(error: string, t: Translate): string {
+export function getCreateCompanyApiFormError(error: string, t: TranslateFn): string {
   return t(getApiErrorKey(error, 'clients.create.errorsApi'))
 }

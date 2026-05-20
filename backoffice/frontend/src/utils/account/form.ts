@@ -5,15 +5,21 @@ import {
   ADMIN_STATUS_ACTIVE,
   type AdminRole,
 } from '@quizzup/shared'
+import type { RouteLocationNormalizedLoaded, RouteLocationRaw, RouteRecordName } from 'vue-router'
 
+import { getCompanyAccountsRoute } from '@/router/clients'
+import type { TranslateFn } from '@/types'
 import type {
   Account,
   AccountFieldErrors,
+  AccountFormMode,
+  AccountFormPageContext,
+  AccountFormPageTexts,
+  AccountFormUserContext,
   AccountFormValues,
   CreateAccountPayload,
   UpdateAccountPayload,
 } from '@/types/account'
-import type { TranslateFn } from '@/types/company'
 
 const ADMIN_ROLE_VALUES: AdminRole[] = [
   ADMIN_ROLE_SUPERADMIN,
@@ -165,4 +171,119 @@ export function getAccountApiFormError(errorCode: string, t: TranslateFn): strin
   const translated = t(key)
 
   return translated === key ? t('accounts.form.errors.default') : translated
+}
+
+function getSingleRouteParam(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value[0]
+  }
+
+  return value
+}
+
+function toRouteNumber(value: unknown): number {
+  return Number(getSingleRouteParam(value))
+}
+
+export function isAccountProfileRoute(routeName: RouteRecordName | null | undefined): boolean {
+  return routeName === 'profile'
+}
+
+export function getAccountFormMode(
+  routeName: RouteRecordName | null | undefined,
+  isProfileRoute: boolean,
+): AccountFormMode {
+  if (isProfileRoute) {
+    return 'edit'
+  }
+
+  return routeName === 'company-account-edit' ? 'edit' : 'create'
+}
+
+export function getAccountFormPageContext(
+  route: RouteLocationNormalizedLoaded,
+  currentUser: AccountFormUserContext,
+): AccountFormPageContext {
+  const isProfileRoute = isAccountProfileRoute(route.name)
+  const mode = getAccountFormMode(route.name, isProfileRoute)
+
+  const companyId = isProfileRoute
+    ? toRouteNumber(currentUser?.companyId)
+    : toRouteNumber(route.params.companyId)
+
+  const accountId = isProfileRoute
+    ? toRouteNumber(currentUser?.id)
+    : toRouteNumber(route.params.accountId)
+
+  return {
+    isProfileRoute,
+    companyId,
+    accountId,
+    mode,
+    isEditMode: mode === 'edit',
+  }
+}
+
+export function getAccountFormPageTexts(
+  context: AccountFormPageContext,
+  t: TranslateFn,
+): AccountFormPageTexts {
+  if (context.isProfileRoute) {
+    return {
+      pageTitle: t('accounts.profile.title'),
+      pageSubtitle: t('accounts.profile.subtitle'),
+      cardTitle: t('accounts.profile.cardTitle'),
+    }
+  }
+
+  if (context.isEditMode) {
+    return {
+      pageTitle: t('accounts.edit.title'),
+      pageSubtitle: t('accounts.edit.subtitle'),
+      cardTitle: t('accounts.edit.cardTitle'),
+    }
+  }
+
+  return {
+    pageTitle: t('accounts.create.title'),
+    pageSubtitle: t('accounts.create.subtitle'),
+    cardTitle: t('accounts.create.cardTitle'),
+  }
+}
+
+export function getAccountFormParamsError(context: AccountFormPageContext): string | null {
+  if (!Number.isFinite(context.companyId)) {
+    return 'invalid_params'
+  }
+
+  if (context.isEditMode && !Number.isFinite(context.accountId)) {
+    return 'invalid_params'
+  }
+
+  return null
+}
+
+export function canRenderAccountForm(
+  context: AccountFormPageContext,
+  account: Account | null,
+  loadingAccount: boolean,
+  accountError: string | null,
+): boolean {
+  if (!Number.isFinite(context.companyId)) {
+    return false
+  }
+
+  if (context.mode === 'create') {
+    return true
+  }
+
+  return Boolean(account) && !loadingAccount && !accountError
+}
+
+export function getAccountFormBackRoute(context: AccountFormPageContext): RouteLocationRaw {
+  if (context.isProfileRoute) {
+    return { name: 'home' }
+  }
+
+  return getCompanyAccountsRoute(context.companyId)
 }

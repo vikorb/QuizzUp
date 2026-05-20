@@ -1,6 +1,5 @@
+import type { TranslateFn } from '@/types'
 import type { ActionBanner, BannerVariant } from '@/types/banner'
-
-type TranslateFn = (key: string, params?: Record<string, string | number>) => string
 
 export function createErrorBanner(code: string): ActionBanner {
   return {
@@ -31,14 +30,14 @@ export function getBannerMessage(banner: ActionBanner | null, t: TranslateFn): s
 
   const namespace = banner.variant === 'success' ? 'success' : 'errors'
   const key = `${namespace}.${banner.code}`
-  const translated = String(t(key, banner.params ?? {}))
+  const translated = t(key)
 
   if (translated !== key) {
     return translated
   }
 
   const defaultKey = `${namespace}.default`
-  const defaultTranslated = String(t(defaultKey, banner.params ?? {}))
+  const defaultTranslated = t(defaultKey)
 
   return defaultTranslated !== defaultKey ? defaultTranslated : banner.code
 }

@@ -1,4 +1,4 @@
-export type TimerHandle = ReturnType<typeof setTimeout>
+import type { TimerHandle } from "@/types/timer"
 
 export function clearTimer(timer: TimerHandle | null): null {
   if (timer) {

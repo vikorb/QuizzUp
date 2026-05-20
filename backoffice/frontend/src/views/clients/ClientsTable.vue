@@ -51,20 +51,14 @@
 </template>
 
 <script setup lang="ts">
-import {
-  COMPANY_STATUS_ACTIVE,
-  COMPANY_STATUS_DELETED,
-  COMPANY_STATUS_INACTIVE,
-} from '@quizzup/shared'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import BaseCard from '@/components/ui/BaseCard.vue'
-import type { BaseTableColumn } from '@/components/ui/BaseTable.vue'
 import BaseTable from '@/components/ui/BaseTable.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import type { Company, CompanyTableRow } from '@/types/company'
-import { toCompanyStatus } from '@/utils/company/status'
+import { getClientStatusLabel, getClientTableColumns, toCompanyTableRow } from '@/utils/company/table'
 
 import ClientTableActions from './table/ClientTableActions.vue'
 
@@ -85,55 +79,14 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-const columns = computed<BaseTableColumn[]>(() => [
-  {
-    key: 'name',
-    label: String(t('clients.table.columns.name')),
-  },
-  {
-    key: 'email',
-    label: String(t('clients.table.columns.email')),
-  },
-  {
-    key: 'accountsCount',
-    label: String(t('clients.table.columns.accounts')),
-    align: 'center',
-  },
-  {
-    key: 'status',
-    label: String(t('clients.table.columns.status')),
-  },
-  {
-    key: 'actions',
-    label: String(t('clients.table.columns.actions')),
-    align: 'right',
-  },
-])
+const columns = computed(() => getClientTableColumns(t))
 
 const tableItems = computed<CompanyTableRow[]>(() =>
   props.companies.map((company) => ({ ...company }) as CompanyTableRow),
 )
 
-function toCompanyTableRow(item: Record<string, unknown>): CompanyTableRow {
-  return item as CompanyTableRow
-}
-
 function getStatusLabel(value: unknown): string {
-  const status = toCompanyStatus(value)
-
-  if (status === COMPANY_STATUS_ACTIVE) {
-    return t('clients.status.active')
-  }
-
-  if (status === COMPANY_STATUS_INACTIVE) {
-    return t('clients.status.inactive')
-  }
-
-  if (status === COMPANY_STATUS_DELETED) {
-    return t('clients.status.deleted')
-  }
-
-  return t('clients.status.unknown')
+  return getClientStatusLabel(value, t)
 }
 </script>
 

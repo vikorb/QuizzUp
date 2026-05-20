@@ -6,6 +6,8 @@ import {
   type CompanyStatus as SharedCompanyStatus,
 } from '@quizzup/shared'
 
+import type { createCompanyDetailsForm } from '@/utils/company/details/form';
+
 export type CompanyStatus = SharedCompanyStatus
 
 export type CompanySwitchStatus =
@@ -103,8 +105,6 @@ export type UpdateCompanyStatusResult =
       error: string
     }
 
-export type TranslateFn = (key: string) => string
-
 export type DeleteCompanyResponse = {
   success: boolean
   deleted: {
@@ -152,3 +152,23 @@ export type EditCompanyFieldErrors = {
   name?: string
   email?: string
 }
+
+export type ClientDetailFormValues = ReturnType<typeof createCompanyDetailsForm>
+
+export type ClientDetailPermissions = {
+  canManageCompany: boolean
+  canShowStatusSwitch: boolean
+  isCompanyReadonly: boolean
+}
+
+export type ClientDetailSaveResult =
+  | {
+      ok: true
+      company: Company
+      successMessage: string
+    }
+  | {
+      ok: false
+      fieldErrors: EditCompanyFieldErrors
+      formError: string | null
+    }

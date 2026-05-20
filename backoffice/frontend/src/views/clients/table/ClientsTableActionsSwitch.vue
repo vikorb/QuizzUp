@@ -1,16 +1,12 @@
 <template>
-  <button
-    class="switch"
-    :class="{ 'switch--active': isActive }"
-    type="button"
-    role="switch"
-    :aria-checked="isActive"
-    :disabled="disabled || busy || isDeleted"
-    :title="switchTitle"
-    @click="toggleStatus"
-  >
-    <span class="switch__thumb" />
-  </button>
+  <div class="client-switch">
+    <SwitchField
+      :model-value="isActive"
+      :disabled="isSwitchDisabled"
+      :label="switchTitle"
+      @change="toggleStatus"
+    />
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -23,6 +19,7 @@ import {
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import SwitchField from '@/components/ui/form/SwitchField.vue'
 import { updateCompanyStatusService } from '@/services/companiesService'
 import type { CompanyTableRow } from '@/types/company'
 import { toCompanyStatus } from '@/utils/company/status'
@@ -44,7 +41,6 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-
 const busy = ref(false)
 
 const currentStatus = computed<CompanyStatus>(
@@ -53,6 +49,7 @@ const currentStatus = computed<CompanyStatus>(
 
 const isActive = computed(() => currentStatus.value === COMPANY_STATUS_ACTIVE)
 const isDeleted = computed(() => currentStatus.value === COMPANY_STATUS_DELETED)
+const isSwitchDisabled = computed(() => props.disabled || busy.value || isDeleted.value)
 
 const switchTitle = computed(() =>
   isActive.value ? t('clients.table.actions.disable') : t('clients.table.actions.enable'),
@@ -64,7 +61,7 @@ function setBusy(value: boolean): void {
 }
 
 async function toggleStatus(): Promise<void> {
-  if (props.disabled || busy.value || isDeleted.value) {
+  if (isSwitchDisabled.value) {
     return
   }
 
@@ -108,43 +105,9 @@ async function toggleStatus(): Promise<void> {
 </script>
 
 <style scoped>
-.switch {
-  position: relative;
-  width: 38px;
-  height: 22px;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  cursor: pointer;
-  transition:
-    background 0.2s ease,
-    border-color 0.2s ease,
-    opacity 0.2s ease;
-}
-
-.switch:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-.switch--active {
-  border-color: rgba(45, 255, 137, 0.45);
-  background: rgba(45, 255, 137, 0.22);
-}
-
-.switch__thumb {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 14px;
-  height: 14px;
-  border-radius: 999px;
-  background: var(--text-0);
-  transition: transform 0.2s ease;
-}
-
-.switch--active .switch__thumb {
-  transform: translateX(16px);
+.client-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 </style>

@@ -60,7 +60,6 @@ import {
 
 const { t } = useI18n()
 const router = useRouter()
-
 const name = ref('')
 const email = ref('')
 const loading = ref(false)

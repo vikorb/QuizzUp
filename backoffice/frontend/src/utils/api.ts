@@ -1,12 +1,6 @@
 import { token } from '@/state/authState'
-import type { ApiErrorCode, ApiRequestOptions, ApiResult } from '@/types/api'
+import type { ApiErrorCode, ApiErrorPayload, ApiRequestOptions, ApiResult } from '@/types/api'
 import { getApiBase } from '@/utils/auth'
-
-type ApiErrorPayload = {
-  error?: string
-  code?: string
-  message?: string
-}
 
 const API_ERROR_CODES: ApiErrorCode[] = [
   'missing_token',

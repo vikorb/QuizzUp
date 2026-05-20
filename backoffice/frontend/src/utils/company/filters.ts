@@ -4,7 +4,8 @@ import {
   COMPANY_STATUS_INACTIVE,
 } from '@quizzup/shared'
 
-import type { ClientStatusFilter, Company, TranslateFn } from '@/types/company'
+import type { TranslateFn } from '@/types'
+import type { ClientStatusFilter, Company } from '@/types/company'
 import { filterByQuery } from '@/utils/filter'
 
 export function filterCompanies(companies: Company[], query: string): Company[] {

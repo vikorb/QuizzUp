@@ -4,14 +4,13 @@ import {
   ADMIN_STATUS_INACTIVE,
 } from '@quizzup/shared'
 
-import type { SelectFieldOption } from '@/components/ui/form/SelectField.vue'
+import type { TranslateFn } from '@/types'
 import type { Account, AccountStatusFilter } from '@/types/account'
-
-type Translate = (key: string) => string
+import type { SelectFieldOption } from '@/types/form'
 
 export const DEFAULT_ACCOUNT_STATUS_FILTER: AccountStatusFilter = ADMIN_STATUS_ACTIVE
 
-export function getAccountStatusFilterOptions(t: Translate): SelectFieldOption[] {
+export function getAccountStatusFilterOptions(t: TranslateFn): SelectFieldOption[] {
   return [
     {
       value: String(ADMIN_STATUS_ACTIVE),

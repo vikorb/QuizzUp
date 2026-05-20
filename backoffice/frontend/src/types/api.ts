@@ -33,3 +33,9 @@ export type ApiFailure = {
 }
 
 export type ApiResult<T> = ApiSuccess<T> | ApiFailure
+
+export type ApiErrorPayload = {
+  error?: string
+  code?: string
+  message?: string
+}

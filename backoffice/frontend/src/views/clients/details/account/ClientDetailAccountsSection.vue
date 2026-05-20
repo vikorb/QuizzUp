@@ -36,11 +36,12 @@ import { getCreateCompanyAccountRoute, getEditCompanyAccountRoute } from '@/rout
 import { loadCompanyAccountsService } from '@/services/accountsService'
 import type { Account, AccountStatusFilter } from '@/types/account'
 import type { ActionBanner } from '@/types/banner'
+import type { TimerHandle } from '@/types/timer'
 import { createAccountDeletedBanner, createAccountUpdatedBanner } from '@/utils/account/detailsBanner'
 import { DEFAULT_ACCOUNT_STATUS_FILTER, filterAccounts, filterAccountsByStatus } from '@/utils/account/filters'
 import { updateAccountInList } from '@/utils/account/list'
 import { createErrorBanner, getBannerMessage, getBannerVariant } from '@/utils/banner'
-import { clearTimer, scheduleTimer, type TimerHandle } from '@/utils/timer'
+import { clearTimer, scheduleTimer } from '@/utils/timer'
 
 import AccountsTable from '../../accounts/AccountsTable.vue'
 import AccountsToolBar from '../../accounts/AccountsToolBar.vue'
@@ -52,17 +53,13 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const router = useRouter()
-
 const accounts = ref<Account[]>([])
 const accountsLoading = ref(false)
 const accountsErrorCode = ref<string | null>(null)
-
 const searchQuery = ref('')
 const statusFilter = ref<AccountStatusFilter>(DEFAULT_ACCOUNT_STATUS_FILTER)
-
 const actionBanner = ref<ActionBanner | null>(null)
 const actionBannerTimer = ref<TimerHandle | null>(null)
-
 const actionBannerVariant = computed(() => getBannerVariant(actionBanner.value))
 const actionBannerMessage = computed(() => getBannerMessage(actionBanner.value, t))
 

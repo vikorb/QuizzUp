@@ -42,12 +42,7 @@
 
 <script setup lang="ts">
 import LabelField from '@/components/ui/form/LabelField.vue'
-
-export type SelectFieldOption = {
-  label: string
-  value: string | number
-  disabled?: boolean
-}
+import type { SelectFieldOption } from '@/types/form';
 
 withDefaults(
   defineProps<{
