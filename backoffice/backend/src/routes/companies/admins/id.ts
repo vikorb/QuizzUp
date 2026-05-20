@@ -1,7 +1,13 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import bcrypt from 'bcryptjs'
 
-import { ADMIN_STATUS_DELETED } from '@quizzup/shared'
+import {
+  ADMIN_ROLE_ADMIN,
+  ADMIN_ROLE_SUPERADMIN,
+  ADMIN_ROLE_USER,
+  ADMIN_STATUS_DELETED,
+  type AdminRole,
+} from '@quizzup/shared'
 import db from '../../../db'
 import { API_ACTION, API_RESOURCE } from '../../../security/permissions'
 import { requireApiPermission } from '../../../security/requireApiPermission'
@@ -18,6 +24,35 @@ import {
   getAdminRow,
   normalizeNullableString,
 } from '../_shared'
+
+type AuthenticatedAdmin = {
+  id?: number
+  adminId?: number
+  role?: AdminRole
+  companyId?: number
+}
+
+function getAuthenticatedAdmin(req: FastifyRequest): AuthenticatedAdmin {
+  return req.user as AuthenticatedAdmin
+}
+
+function canAssignRole(req: FastifyRequest, role: AdminRole): boolean {
+  const currentAdmin = getAuthenticatedAdmin(req)
+
+  if (currentAdmin.role === ADMIN_ROLE_SUPERADMIN) {
+    return (
+      role === ADMIN_ROLE_SUPERADMIN ||
+      role === ADMIN_ROLE_ADMIN ||
+      role === ADMIN_ROLE_USER
+    )
+  }
+
+  if (currentAdmin.role === ADMIN_ROLE_ADMIN) {
+    return role === ADMIN_ROLE_ADMIN || role === ADMIN_ROLE_USER
+  }
+
+  return false
+}
 
 const companyAdminIdRoutes: FastifyPluginAsync = async (app) => {
   app.get(
@@ -108,6 +143,10 @@ const companyAdminIdRoutes: FastifyPluginAsync = async (app) => {
 
       if (!existingAdmin) {
         return reply.code(404).send({ error: 'not_found' })
+      }
+
+      if (role !== undefined && !canAssignRole(req, role)) {
+        return reply.code(403).send({ error: 'forbidden_role' })
       }
 
       if (

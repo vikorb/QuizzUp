@@ -50,7 +50,12 @@
         },
         "role": {
           "label": "Rôle",
-          "placeholder": "Ex : client, staff, admin..."
+          "placeholder": "Sélectionner un rôle",
+          "options": {
+            "superadmin": "Super administrateur",
+            "admin": "Administrateur",
+            "user": "Utilisateur"
+          }
         },
         "password": {
           "label": "Mot de passe",
@@ -114,6 +119,11 @@
         "inactive": "Inactif",
         "deleted": "Supprimé"
       }
+    },
+    "profile": {
+      "title": "Mon profil",
+      "subtitle": "Consulte et modifie les informations de ton compte.",
+      "cardTitle": "Informations du compte"
     },
     "errors": {
       "server_error": "Erreur serveur lors du chargement des comptes.",

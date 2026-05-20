@@ -1,7 +1,25 @@
-import { ADMIN_STATUS_ACTIVE } from '@quizzup/shared'
+import {
+  ADMIN_ROLE_ADMIN,
+  ADMIN_ROLE_SUPERADMIN,
+  ADMIN_ROLE_USER,
+  ADMIN_STATUS_ACTIVE,
+  type AdminRole,
+} from '@quizzup/shared'
 
-import type { Account, AccountFieldErrors, AccountFormValues, CreateAccountPayload, UpdateAccountPayload } from '@/types/account'
+import type {
+  Account,
+  AccountFieldErrors,
+  AccountFormValues,
+  CreateAccountPayload,
+  UpdateAccountPayload,
+} from '@/types/account'
 import type { TranslateFn } from '@/types/company'
+
+const ADMIN_ROLE_VALUES: AdminRole[] = [
+  ADMIN_ROLE_SUPERADMIN,
+  ADMIN_ROLE_ADMIN,
+  ADMIN_ROLE_USER,
+]
 
 export function createAccountFieldErrors(): AccountFieldErrors {
   return {}
@@ -9,7 +27,7 @@ export function createAccountFieldErrors(): AccountFieldErrors {
 
 export function createDefaultAccountFormValues(): AccountFormValues {
   return {
-    role: 'client',
+    role: ADMIN_ROLE_USER,
     firstname: '',
     lastname: '',
     username: '',
@@ -21,7 +39,7 @@ export function createDefaultAccountFormValues(): AccountFormValues {
 
 export function getAccountFormValues(account: Account): AccountFormValues {
   return {
-    role: account.role,
+    role: isAdminRole(account.role) ? account.role : ADMIN_ROLE_USER,
     firstname: account.firstname ?? '',
     lastname: account.lastname ?? '',
     username: account.username,
@@ -39,10 +57,11 @@ export function validateAccountForm(
   form: AccountFormValues,
   t: TranslateFn,
   mode: 'create' | 'edit',
+  canManageRole = true,
 ): AccountFieldErrors {
   const errors = createAccountFieldErrors()
 
-  if (form.role.trim().length < 2) {
+  if (canManageRole && !isAdminRole(form.role)) {
     errors.role = t('accounts.form.validation.roleRequired')
   }
 
@@ -65,15 +84,30 @@ export function validateAccountForm(
   return errors
 }
 
+function isAdminRole(value: string): value is AdminRole {
+  return ADMIN_ROLE_VALUES.includes(value as AdminRole)
+}
+
 function normalizeNullableText(value: string): string | null {
   const normalized = value.trim()
 
   return normalized ? normalized : null
 }
 
-export function buildCreateAccountPayload(form: AccountFormValues): CreateAccountPayload {
+function getPayloadRole(form: AccountFormValues, canManageRole: boolean): AdminRole {
+  if (!canManageRole) {
+    return ADMIN_ROLE_USER
+  }
+
+  return isAdminRole(form.role) ? form.role : ADMIN_ROLE_USER
+}
+
+export function buildCreateAccountPayload(
+  form: AccountFormValues,
+  canManageRole = true,
+): CreateAccountPayload {
   return {
-    role: form.role.trim(),
+    role: getPayloadRole(form, canManageRole),
     firstname: normalizeNullableText(form.firstname),
     lastname: normalizeNullableText(form.lastname),
     username: form.username.trim(),
@@ -82,14 +116,20 @@ export function buildCreateAccountPayload(form: AccountFormValues): CreateAccoun
   }
 }
 
-export function buildUpdateAccountPayload(form: AccountFormValues): UpdateAccountPayload {
+export function buildUpdateAccountPayload(
+  form: AccountFormValues,
+  canManageRole = true,
+): UpdateAccountPayload {
   const payload: UpdateAccountPayload = {
-    role: form.role.trim(),
     firstname: normalizeNullableText(form.firstname),
     lastname: normalizeNullableText(form.lastname),
     username: form.username.trim(),
     email: form.email.trim().toLowerCase(),
     status: form.status,
+  }
+
+  if (canManageRole && isAdminRole(form.role)) {
+    payload.role = form.role
   }
 
   if (form.password.trim() !== '') {

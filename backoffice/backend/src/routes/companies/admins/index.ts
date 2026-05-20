@@ -1,7 +1,14 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import bcrypt from 'bcryptjs'
 
-import { ADMIN_STATUS_ACTIVE, ADMIN_STATUS_DELETED } from '@quizzup/shared'
+import {
+  ADMIN_ROLE_ADMIN,
+  ADMIN_ROLE_SUPERADMIN,
+  ADMIN_ROLE_USER,
+  ADMIN_STATUS_ACTIVE,
+  ADMIN_STATUS_DELETED,
+  type AdminRole,
+} from '@quizzup/shared'
 import db from '../../../db'
 import { API_ACTION, API_RESOURCE } from '../../../security/permissions'
 import { requireApiPermission } from '../../../security/requireApiPermission'
@@ -18,6 +25,33 @@ import {
   getAdminRow,
   normalizeNullableString,
 } from '../_shared'
+
+type AuthenticatedAdmin = {
+  id?: number
+  adminId?: number
+  role?: AdminRole
+  companyId?: number
+}
+
+const ASSIGNABLE_ROLES_BY_ROLE: Record<AdminRole, AdminRole[]> = {
+  [ADMIN_ROLE_SUPERADMIN]: [ADMIN_ROLE_SUPERADMIN, ADMIN_ROLE_ADMIN, ADMIN_ROLE_USER],
+  [ADMIN_ROLE_ADMIN]: [ADMIN_ROLE_ADMIN, ADMIN_ROLE_USER],
+  [ADMIN_ROLE_USER]: [],
+}
+
+function getAuthenticatedAdmin(req: FastifyRequest): AuthenticatedAdmin {
+  return req.user as AuthenticatedAdmin
+}
+
+function canAssignRole(req: FastifyRequest, role: AdminRole): boolean {
+  const currentAdmin = getAuthenticatedAdmin(req)
+
+  if (!currentAdmin.role) {
+    return false
+  }
+
+  return ASSIGNABLE_ROLES_BY_ROLE[currentAdmin.role]?.includes(role) === true
+}
 
 const companyAdminsRoutes: FastifyPluginAsync = async (app) => {
   app.get(
@@ -95,9 +129,14 @@ const companyAdminsRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const { companyId } = parsedParams.data
-      const { role, firstname, lastname, username, email, password } = parsedBody.data
+      const { firstname, lastname, username, email, password } = parsedBody.data
+      const requestedRole = parsedBody.data.role ?? ADMIN_ROLE_USER
 
-      if (!canCreateCompanyAccountContext(req, companyId, role)) {
+      if (!canAssignRole(req, requestedRole)) {
+        return reply.code(403).send({ error: 'forbidden_role' })
+      }
+
+      if (!canCreateCompanyAccountContext(req, companyId, requestedRole)) {
         return reply.code(403).send({ error: 'forbidden' })
       }
 
@@ -130,7 +169,7 @@ const companyAdminsRoutes: FastifyPluginAsync = async (app) => {
       const inserted = await db('admins')
         .insert({
           company_id: companyId,
-          role,
+          role: requestedRole,
           firstname: normalizeNullableString(firstname),
           lastname: normalizeNullableString(lastname),
           username,

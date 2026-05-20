@@ -75,6 +75,12 @@ export const router = createRouter({
           component: LoginView,
         },
         {
+          path: 'profil',
+          name: 'profile',
+          component: CreateAccountView,
+          meta: { requiresAuth: true },
+        },
+        {
           path: 'clients',
           name: 'clients',
           component: ClientsView,
