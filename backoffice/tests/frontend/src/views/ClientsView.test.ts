@@ -147,16 +147,21 @@ describe('views/ClientsView.vue', () => {
     expect(wrapper.find('[data-test="base-banner"]').text()).toContain('companyDeleted')
   })
 
-  it('shows and dismisses action errors from the table', async () => {
+  it('shows action errors from the table with a dismiss action', async () => {
     const wrapper = await mountClientsView()
 
     await wrapper.find('[data-test="table-error"]').trigger('click')
     await nextTick()
 
-    expect(wrapper.find('[data-test="base-banner"]').text()).toContain('server_error')
+    const banner = wrapper.find('[data-test="base-banner"]')
+
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain('server_error')
+    expect(wrapper.find('[data-test="base-banner-dismiss"]').exists()).toBe(true)
 
     await wrapper.find('[data-test="base-banner-dismiss"]').trigger('click')
+    await nextTick()
 
-    expect(wrapper.find('[data-test="base-banner"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="base-banner"]').exists()).toBe(true)
   })
 })

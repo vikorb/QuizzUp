@@ -71,7 +71,7 @@ import type { Account, AccountTableRow } from '@/types/account'
 import { toAccountTableRow } from '@/utils/account/list'
 import { toAccountStatus } from '@/utils/account/status'
 
-import AccountTableActions from './accountTable/AccountTableActions.vue'
+import AccountTableActions from './table/AccountTableActions.vue'
 
 const props = defineProps<{
   companyId: number

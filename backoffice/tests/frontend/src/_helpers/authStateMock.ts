@@ -20,12 +20,15 @@ export const meMock = ref<MeMock | null>(null)
 
 export const logoutMock = vi.fn()
 export const loginMock = vi.fn()
+export const refreshMeMock = vi.fn(async () => undefined)
 
 export function resetAuthStateMock(): void {
   isAuthenticatedMock.value = false
   meMock.value = null
   logoutMock.mockReset()
   loginMock.mockReset()
+  refreshMeMock.mockReset()
+  refreshMeMock.mockResolvedValue(undefined)
 }
 
 export function setUnauthenticated(): void {

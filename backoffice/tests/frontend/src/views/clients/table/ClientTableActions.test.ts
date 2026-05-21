@@ -121,6 +121,7 @@ describe('views/clients/table/ClientTableActions.vue', () => {
 
   it('emits service errors and forwards switch updates', async () => {
     mockDeleteCompanyFailure('server_error')
+    window.confirm = vi.fn(() => true)
 
     const wrapper = mountWithFrontendMocks(ClientTableActions, {
       props: {

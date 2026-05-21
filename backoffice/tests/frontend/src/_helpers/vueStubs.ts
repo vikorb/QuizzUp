@@ -10,20 +10,13 @@ type NavItem = {
 }
 
 type TableColumn = {
-  key?: string
-  name?: string
-  field?: string
-  label?: string
-}
-
-const routerLinkExportName = 'RouterLink'
-
-function columnKey(column: TableColumn): string {
-  return String(column.key ?? column.name ?? column.field ?? '')
+  key: string
+  label: string
+  align?: string
 }
 
 export const frontendStubs = {
-  [routerLinkExportName]: defineComponent({
+  routerLink: defineComponent({
     name: 'RouterLink',
     props: {
       to: {
@@ -70,37 +63,45 @@ export const frontendStubs = {
   }),
 
   baseBanner: defineComponent({
-    name: 'BaseBanner',
-    props: {
-      variant: String,
-      message: String,
+  name: 'BaseBanner',
+  props: {
+    message: String,
+    type: String,
+    dismissible: {
+      type: Boolean,
+      default: true,
     },
-    emits: ['dismiss'],
-    setup(props, { emit }) {
-      return () =>
-        props.message
-          ? h(
-              'div',
-              {
-                'data-test': 'base-banner',
-                'data-variant': props.variant,
-              },
-              [
-                h('span', props.message),
-                h(
-                  'button',
-                  {
-                    type: 'button',
-                    'data-test': 'base-banner-dismiss',
-                    onClick: () => emit('dismiss'),
+  },
+  emits: ['dismiss', 'close'],
+  setup(props, { emit, slots }) {
+    return () =>
+      h(
+        'div',
+        {
+          'data-test': 'base-banner',
+          'data-type': props.type,
+        },
+        [
+          props.message,
+          slots.default?.(),
+          props.dismissible
+            ? h(
+                'button',
+                {
+                  type: 'button',
+                  'data-test': 'base-banner-dismiss',
+                  onClick: () => {
+                    emit('dismiss')
+                    emit('close')
                   },
-                  'dismiss',
-                ),
-              ],
-            )
-          : null
-    },
-  }),
+                },
+                'dismiss',
+              )
+            : null,
+        ],
+      )
+  },
+}),
 
   baseCard: defineComponent({
     name: 'BaseCard',
@@ -111,7 +112,6 @@ export const frontendStubs = {
       empty: Boolean,
       loadingLabel: String,
       emptyLabel: String,
-      errorNamespace: String,
     },
     setup(props, { slots, attrs }) {
       return () =>
@@ -122,9 +122,8 @@ export const frontendStubs = {
             'data-test': 'base-card',
             'data-title': props.title,
             'data-loading': String(props.loading),
-            'data-error': props.error,
+            'data-error': props.error ?? '',
             'data-empty': String(props.empty),
-            'data-error-namespace': props.errorNamespace,
           },
           [
             h('h2', { 'data-test': 'base-card-title' }, props.title),
@@ -149,59 +148,76 @@ export const frontendStubs = {
         type: Array,
         default: () => [],
       },
-      rowKey: String,
+      rowKey: {
+        type: String,
+        default: 'id',
+      },
     },
     setup(props, { slots }) {
       return () =>
-        h(
-          'table',
-          {
-            'data-test': 'base-table',
-            'data-row-key': props.rowKey,
-          },
-          [
+        h('table', { 'data-test': 'base-table' }, [
+          h('thead', [
             h(
-              'tbody',
-              (props.items as Record<string, unknown>[]).map((item) =>
+              'tr',
+              (props.columns as TableColumn[]).map((column) =>
                 h(
-                  'tr',
+                  'th',
                   {
-                    'data-test': 'base-table-row',
-                    'data-row-id': String(item.id),
+                    'data-test': 'base-table-header',
+                    'data-column': column.key,
                   },
-                  (props.columns as TableColumn[]).map((column) => {
-                    const key = columnKey(column)
-                    const slot = slots[`cell-${key}`]
-
-                    return h(
-                      'td',
-                      {
-                        'data-test': `base-table-cell-${key}`,
-                      },
-                      slot ? slot({ value: item[key], item }) : String(item[key] ?? ''),
-                    )
-                  }),
+                  column.label,
                 ),
               ),
             ),
-          ],
-        )
+          ]),
+          h(
+            'tbody',
+            (props.items as Record<string, unknown>[]).map((item) =>
+              h(
+                'tr',
+                {
+                  key: String(item[props.rowKey]),
+                  'data-test': 'base-table-row',
+                  'data-row-key': String(item[props.rowKey]),
+                },
+                (props.columns as TableColumn[]).map((column) => {
+                  const slotName = `cell-${column.key}`
+                  const slot = slots[slotName]
+
+                  return h(
+                    'td',
+                    {
+                      'data-test': `base-table-cell-${column.key}`,
+                    },
+                    slot
+                      ? slot({
+                          item,
+                          value: item[column.key],
+                        })
+                      : String(item[column.key] ?? ''),
+                  )
+                }),
+              ),
+            ),
+          ),
+        ])
     },
   }),
 
   baseToolBar: defineComponent({
     name: 'BaseToolBar',
     props: {
-      resetLabel: String,
       resetDisabled: Boolean,
       primaryLabel: String,
+      resetLabel: String,
       showPrimary: Boolean,
     },
     emits: ['reset', 'primary'],
     setup(props, { emit, slots }) {
       return () =>
         h('section', { 'data-test': 'base-toolbar' }, [
-          h('div', { 'data-test': 'base-toolbar-content' }, slots.default?.()),
+          slots.default?.(),
           h(
             'button',
             {
@@ -255,6 +271,7 @@ export const frontendStubs = {
             {
               type: 'submit',
               disabled: props.disabled,
+              class: 'submit',
               'data-test': 'form-actions-submit',
             },
             props.loading ? props.submittingLabel : props.submitLabel,
@@ -267,7 +284,7 @@ export const frontendStubs = {
     name: 'FormField',
     props: {
       modelValue: {
-        type: [String, Number],
+        type: String,
         default: '',
       },
       label: String,
@@ -288,13 +305,12 @@ export const frontendStubs = {
         default: false,
       },
     },
-    emits: ['update:modelValue', 'update:model-value', 'enter'],
-    setup(props, { emit, slots, attrs }) {
+    emits: ['update:modelValue', 'enter'],
+    setup(props, { emit, slots }) {
       return () =>
         h(
           'label',
           {
-            ...attrs,
             'data-test': 'form-field',
             'data-name': props.name,
           },
@@ -310,9 +326,7 @@ export const frontendStubs = {
               required: props.required,
               'aria-invalid': props.error ? 'true' : 'false',
               onInput: (event: Event) => {
-                const value = (event.target as HTMLInputElement).value
-                emit('update:modelValue', value)
-                emit('update:model-value', value)
+                emit('update:modelValue', (event.target as HTMLInputElement).value)
               },
               onKeydown: (event: KeyboardEvent) => {
                 if (event.key === 'Enter') {
@@ -523,33 +537,28 @@ export const frontendStubs = {
   selectField: defineComponent({
     name: 'SelectField',
     props: {
-      modelValue: {
-        type: [String, Number],
-        default: '',
-      },
+      modelValue: String,
       label: String,
       options: {
         type: Array,
         default: () => [],
       },
     },
-    emits: ['update:modelValue', 'update:model-value'],
+    emits: ['update:modelValue'],
     setup(props, { emit }) {
       return () =>
         h('label', { 'data-test': 'select-field' }, [
-          h('span', { 'data-test': 'select-field-label' }, props.label),
+          h('span', props.label),
           h(
             'select',
             {
               value: props.modelValue,
               onChange: (event: Event) => {
-                const value = (event.target as HTMLSelectElement).value
-                emit('update:modelValue', value)
-                emit('update:model-value', value)
+                emit('update:modelValue', (event.target as HTMLSelectElement).value)
               },
             },
-            (props.options as Array<{ label: string; value: string | number }>).map((option) =>
-              h('option', { value: option.value }, option.label),
+            (props.options as Array<{ value: string | number; label: string }>).map((option) =>
+              h('option', { value: String(option.value) }, option.label),
             ),
           ),
         ])
@@ -562,7 +571,6 @@ export const frontendStubs = {
       modelValue: Boolean,
       disabled: Boolean,
       label: String,
-      size: String,
     },
     emits: ['change'],
     setup(props, { emit }) {
@@ -571,12 +579,11 @@ export const frontendStubs = {
           'button',
           {
             type: 'button',
-            disabled: props.disabled,
             role: 'switch',
+            disabled: props.disabled,
             'aria-checked': String(props.modelValue),
             'aria-label': props.label,
             'data-test': 'switch-field',
-            'data-size': props.size,
             onClick: () => emit('change', !props.modelValue),
           },
           props.label,

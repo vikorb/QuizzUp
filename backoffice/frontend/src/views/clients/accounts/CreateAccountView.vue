@@ -30,7 +30,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute, useRouter } from 'vue-router'
+import { type RouteLocationNormalizedLoaded,useRoute, useRouter } from 'vue-router'
 
 import SectionLayout from '@/components/SectionLayout.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
@@ -46,7 +46,7 @@ import {
   getAccountFormParamsError,
 } from '@/utils/account/form'
 
-import CreateAccountForm from './createAccount/CreateAccountForm.vue'
+import CreateAccountForm from './create/CreateAccountForm.vue'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -56,7 +56,59 @@ const account = ref<Account | null>(null)
 const loadingAccount = ref(false)
 const accountError = ref<string | null>(null)
 
-const pageContext = computed(() => getAccountFormPageContext(route, me.value))
+function parseRouteNumberParam(value: unknown): number | null {
+  const rawValue = Array.isArray(value) ? value[0] : value
+
+  if (typeof rawValue !== 'string' && typeof rawValue !== 'number') {
+    return null
+  }
+
+  const parsedValue = Number(rawValue)
+
+  if (!Number.isInteger(parsedValue) || parsedValue <= 0) {
+    return null
+  }
+
+  return parsedValue
+}
+
+function getRouteCompanyId(currentRoute: RouteLocationNormalizedLoaded): number | null {
+  return (
+    parseRouteNumberParam(currentRoute.params.companyId) ??
+    parseRouteNumberParam(currentRoute.params.id)
+  )
+}
+
+function getRouteAccountId(currentRoute: RouteLocationNormalizedLoaded): number | null {
+  return (
+    parseRouteNumberParam(currentRoute.params.accountId) ??
+    parseRouteNumberParam(currentRoute.params.adminId)
+  )
+}
+
+const rawPageContext = computed(() => getAccountFormPageContext(route, me.value))
+
+const pageContext = computed(() => {
+  const context = rawPageContext.value
+
+  const routeCompanyId = getRouteCompanyId(route)
+  const routeAccountId = getRouteAccountId(route)
+
+  const contextCompanyId = parseRouteNumberParam(context.companyId)
+  const contextAccountId = parseRouteNumberParam(context.accountId)
+
+  const companyId = routeCompanyId ?? contextCompanyId ?? context.companyId
+  const accountId = routeAccountId ?? contextAccountId ?? context.accountId
+
+  const hasAccountId = routeAccountId !== null || contextAccountId !== null
+
+  return {
+    ...context,
+    companyId,
+    accountId,
+    mode: context.isProfileRoute ? context.mode : hasAccountId ? 'edit' : 'create',
+  }
+})
 
 const pageTexts = computed(() => getAccountFormPageTexts(pageContext.value, t))
 
@@ -108,7 +160,7 @@ function goBack(): void {
 }
 
 onMounted(() => {
-  loadAccount()
+  void loadAccount()
 })
 </script>
 

@@ -1,5 +1,6 @@
 import { beforeEach } from 'vitest'
 
+import { resetAccountsServiceMock } from './accountsServiceMock'
 import { resetAuthApiMock } from './authApiMock'
 import { resetAuthStateMock } from './authStateMock'
 import { resetCompaniesServiceMock } from './companiesServiceMock'
@@ -10,9 +11,9 @@ export function resetFrontendMocksBeforeEach(): void {
   beforeEach(() => {
     resetAuthStateMock()
     resetAuthApiMock()
+    resetAccountsServiceMock()
     resetCompaniesServiceMock()
     resetRouterMock()
     resetRouterUtilsMock()
-    window.confirm = () => true
   })
 }
