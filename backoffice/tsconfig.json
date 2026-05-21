@@ -1,38 +1,8 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "resolveJsonModule": true,
-    "types": ["node", "vitest/globals"],
-    "paths": {
-      "@backend/*": ["./backend/src/*"],
-      "@quizzup/shared": ["./shared/src/index.ts"],
-      "@quizzup/shared/*": ["./shared/src/*"],
-      "@/*": ["./frontend/src/*"],
-      "@shared/*": ["./shared/src/*"],
-      "@frontend-tests/*": ["./tests/frontend/src/*"]
-    }
-  },
-  "include": [
-    "backend/src/**/*.ts",
-    "frontend/src/**/*.ts",
-    "frontend/src/**/*.vue",
-    "shared/src/**/*.ts",
-    "tests/backend/**/*.ts",
-    "tests/frontend/**/*.ts",
-    "vitest.backend.config.ts",
-    "vitest.frontend.config.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "backend/node_modules",
-    "frontend/node_modules",
-    "shared/node_modules",
-    "dist",
-    "coverage"
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.frontend.json" },
+    { "path": "./tsconfig.backend.json" },
+    { "path": "./tsconfig.tests.json" }
   ]
 }

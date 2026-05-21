@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "paths": {
+      "@backend/*": ["./backend/src/*"],
+      "@quizzup/shared": ["./shared/src/index.ts"],
+      "@quizzup/shared/*": ["./shared/src/*"],
+      "@/*": ["./frontend/src/*"],
+      "@shared/*": ["./shared/src/*"],
+      "@frontend-tests/*": ["./tests/frontend/src/*"]
+    }
+  }
+}

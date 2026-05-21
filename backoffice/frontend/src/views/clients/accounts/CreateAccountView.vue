@@ -46,7 +46,7 @@ import {
   getAccountFormParamsError,
 } from '@/utils/account/form'
 
-import CreateAccountForm from './create/CreateAccountForm.vue'
+import CreateAccountForm from './creation/CreateAccountForm.vue'
 
 const { t } = useI18n()
 const route = useRoute()

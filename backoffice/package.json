@@ -18,7 +18,11 @@
     "test:frontend:watch": "vitest --config vitest.frontend.config.ts --watch",
     "test:coverage": "npm run test:coverage:backend && npm run test:coverage:frontend",
     "test:coverage:backend": "vitest --run --coverage --config vitest.backend.config.ts",
-    "test:coverage:frontend": "vitest --run --coverage --config vitest.frontend.config.ts"
+    "test:coverage:frontend": "vitest --run --coverage --config vitest.frontend.config.ts",
+    "type-check:frontend": "vue-tsc -p tsconfig.frontend.json --noEmit",
+    "type-check:backend": "tsc -p tsconfig.backend.json --noEmit",
+    "type-check:tests": "tsc -p tsconfig.tests.json --noEmit",
+    "type-check": "npm run type-check:frontend && npm run type-check:backend && npm run type-check:tests"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.4.2",
@@ -47,7 +51,8 @@
     "vite": "^8.0.13",
     "vitest": "^4.1.6",
     "vue-eslint-parser": "^10.4.0",
-    "vue-router": "^5.0.3"
+    "vue-router": "^5.0.3",
+    "vue-tsc": "^3.3.1"
   },
   "directories": {
     "doc": "docs",

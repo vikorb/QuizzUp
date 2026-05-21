@@ -1,0 +1,121 @@
+{
+  "questions": {
+    "title": "Questions / réponses",
+    "subtitle": "Gérez le contenu des questions disponibles pour les quiz.",
+    "create": {
+      "title": "Créer une question",
+      "subtitle": "Ajoutez une nouvelle question/réponse.",
+      "cardTitle": "Nouvelle question"
+    },
+    "edit": {
+      "title": "Modifier une question",
+      "subtitle": "Corrigez ou améliorez une question existante.",
+      "cardTitle": "Modification de la question"
+    },
+    "filters": {
+      "title": "Filtres",
+      "search": "Recherche",
+      "theme": "Thème",
+      "status": "Statut",
+      "typeMedia": "Média",
+      "scope": "Origine",
+      "allThemes": "Tous les thèmes",
+      "allStatuses": "Tous les statuts",
+      "allTypes": "Tous les types",
+      "allScopes": "Toutes les origines",
+      "searchPlaceholder": "Rechercher une question, un thème, un statut..."
+
+    },
+    "table": {
+      "title": "Liste des questions / réponses",
+      "loading": "Chargement des questions...",
+      "empty": "Aucune question trouvée.",
+      "retry": "Réessayer",
+      "create": "Créer une question",
+      "unknownTheme": "Thème inconnu",
+      "columns": {
+        "question": "Question",
+        "theme": "Thème",
+        "scope": "Origine",
+        "typeMedia": "Média",
+        "status": "Statut",
+        "actions": "Actions"
+      }
+    },
+    "form": {
+      "theme": "Thème",
+      "selectTheme": "Sélectionner un thème",
+      "question": "Question",
+      "questionPlaceholder": "Saisissez la question",
+      "typeMedia": "Type de média",
+      "mediaUrl": "URL du média",
+      "mediaUrlPlaceholder": "Saisissez l'URL du média",
+      "answers": "Réponses",
+      "addAnswer": "Ajouter une réponse",
+      "answerLabel": "Réponse {index}",
+      "answerPlaceholder": "Saisissez la réponse {index}",
+      "correctAnswer": "Bonne réponse",
+      "create": "Créer la question",
+      "save": "Enregistrer",
+      "removeAnswer": "Supprimer la réponse",
+      "cancel": "Annuler",
+      "saving": "Enregistrement en cours...",
+      "errors": {
+        "themeRequired": "Le thème est obligatoire.",
+        "questionRequired": "La question est obligatoire.",
+        "answersMinRequired": "Au moins deux réponses sont nécessaires.",
+        "answerRequired": "Toutes les réponses doivent être renseignées.",
+        "oneCorrectRequired": "Une seule bonne réponse doit être sélectionnée."
+      }
+    },
+    "scope": {
+      "global": "Admin",
+      "company": "Établissement"
+    },
+    "media": {
+      "none": "Aucun",
+      "image": "Image",
+      "audio": "Audio",
+      "video": "Vidéo"
+    },
+    "status": {
+      "active": "Actif",
+      "inactive": "Inactif",
+      "deleted": "Supprimé",
+      "draft": "Brouillon"
+    },
+    "actions": {
+      "edit": "Modifier",
+      "delete": "Supprimer",
+      "readonly": "Non modifiable",
+      "enable": "Activer",
+      "disable": "Désactiver",
+      "enableConfirm": "Voulez-vous activer la question « {question} » ?",
+      "disableConfirm": "Voulez-vous désactiver la question « {question} » ?",
+      "deleteConfirm": "Voulez-vous supprimer définitivement la question « {question} » ?"
+    },
+    "success": {
+      "create": "Question créée avec succès.",
+      "update": "Question mise à jour avec succès.",
+      "delete": "Question supprimée avec succès.",
+      "enable": "Question activée avec succès.",
+      "disable": "Question désactivée avec succès.",
+      "questionUpdated": "La question « {question} » a été mise à jour.",
+      "questionDeleted": "La question « {question} » a été supprimée."
+    },
+    "errors": {
+      "questionForbidden": "Vous ne pouvez pas modifier cette question.",
+      "questionNotFound": "Question introuvable.",
+      "themeNotFound": "Thème introuvable.",
+      "themeForbidden": "Vous ne pouvez pas accéder à ce thème.",
+      "answerIdInvalid": "Identifiant de réponse invalide.",
+      "answerNotFound": "Réponse introuvable.",
+      "answerResponseRequired": "La réponse est obligatoire.",
+      "questionCorrectAnswerDeleteForbidden": "Impossible de supprimer la bonne réponse sans en définir une autre.",
+      "questionAnswersMinRequired": "Une question doit contenir au moins deux réponses.",
+      "deleteFailed": "Impossible de supprimer la question.",
+      "saveFailed": "Impossible d’enregistrer la question.",
+      "serverError": "Une erreur serveur est survenue."
+    }
+  }
+}

@@ -1,5 +1,4 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
-import bcrypt from 'bcryptjs'
 
 import { ADMIN_STATUS_DELETED, COMPANY_STATUS_ACTIVE } from '@quizzup/shared'
 import db from '../db'

@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["vite/client"],
+    "noEmit": true,
+    "composite": true
+  },
+  "include": [
+    "frontend/src/**/*.ts",
+    "frontend/src/**/*.vue",
+    "frontend/src/**/*.d.ts",
+    "shared/src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "backend",
+    "tests",
+    "dist",
+    "coverage"
+  ]
+}

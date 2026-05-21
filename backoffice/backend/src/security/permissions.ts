@@ -7,6 +7,9 @@ import {
 export const API_RESOURCE = {
   COMPANY: 'company',
   COMPANY_ACCOUNT: 'companyAccount',
+  THEME: 'theme',
+  QUESTION: 'question',
+  ANSWER: 'answer',
 } as const
 
 export const API_ACTION = {
@@ -29,6 +32,34 @@ export type ApiRole =
 
 type PermissionKey = `${ApiResource}:${ApiAction}`
 
+const contentReadPermissions: PermissionKey[] = [
+  'theme:list',
+  'theme:read',
+  'theme:create',
+
+  'question:list',
+  'question:read',
+  'question:create',
+
+  'answer:list',
+  'answer:read',
+  'answer:create',
+]
+
+const contentWritePermissions: PermissionKey[] = [
+  'theme:update',
+  'theme:updateStatus',
+  'theme:delete',
+
+  'question:update',
+  'question:updateStatus',
+  'question:delete',
+
+  'answer:update',
+  'answer:updateStatus',
+  'answer:delete',
+]
+
 const permissionsByRole: Record<ApiRole, PermissionKey[]> = {
   [ADMIN_ROLE_SUPERADMIN]: [
     'company:list',
@@ -45,6 +76,9 @@ const permissionsByRole: Record<ApiRole, PermissionKey[]> = {
     'companyAccount:update',
     'companyAccount:updateStatus',
     'companyAccount:delete',
+
+    ...contentReadPermissions,
+    ...contentWritePermissions,
   ],
 
   [ADMIN_ROLE_ADMIN]: [
@@ -57,12 +91,18 @@ const permissionsByRole: Record<ApiRole, PermissionKey[]> = {
     'companyAccount:update',
     'companyAccount:updateStatus',
     'companyAccount:delete',
+
+    ...contentReadPermissions,
+    ...contentWritePermissions,
   ],
 
   [ADMIN_ROLE_USER]: [
     'company:read',
+
     'companyAccount:read',
     'companyAccount:update',
+
+    ...contentReadPermissions,
   ],
 }
 
