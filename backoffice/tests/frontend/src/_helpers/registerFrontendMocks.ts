@@ -28,3 +28,15 @@ vi.mock('@/utils/router', async () => {
     getRedirect: routerUtils.getRedirectMock,
   }
 })
+
+vi.mock('@/services/companiesService', async () => {
+  const companiesService = await import('./companiesServiceMock')
+
+  return {
+    createCompany: companiesService.createCompanyMock,
+    deleteCompanyPermanentlyService: companiesService.deleteCompanyPermanentlyServiceMock,
+    loadCompaniesService: companiesService.loadCompaniesServiceMock,
+    loadCompanyDetailsService: companiesService.loadCompanyDetailsServiceMock,
+    updateCompanyStatusService: companiesService.updateCompanyStatusServiceMock,
+  }
+})

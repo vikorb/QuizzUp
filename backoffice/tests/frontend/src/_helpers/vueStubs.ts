@@ -9,7 +9,18 @@ type NavItem = {
   labelKey: string
 }
 
+type TableColumn = {
+  key?: string
+  name?: string
+  field?: string
+  label?: string
+}
+
 const routerLinkExportName = 'RouterLink'
+
+function columnKey(column: TableColumn): string {
+  return String(column.key ?? column.name ?? column.field ?? '')
+}
 
 export const frontendStubs = {
   [routerLinkExportName]: defineComponent({
@@ -58,11 +69,205 @@ export const frontendStubs = {
     },
   }),
 
+  baseBanner: defineComponent({
+    name: 'BaseBanner',
+    props: {
+      variant: String,
+      message: String,
+    },
+    emits: ['dismiss'],
+    setup(props, { emit }) {
+      return () =>
+        props.message
+          ? h(
+              'div',
+              {
+                'data-test': 'base-banner',
+                'data-variant': props.variant,
+              },
+              [
+                h('span', props.message),
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    'data-test': 'base-banner-dismiss',
+                    onClick: () => emit('dismiss'),
+                  },
+                  'dismiss',
+                ),
+              ],
+            )
+          : null
+    },
+  }),
+
+  baseCard: defineComponent({
+    name: 'BaseCard',
+    props: {
+      title: String,
+      loading: Boolean,
+      error: String,
+      empty: Boolean,
+      loadingLabel: String,
+      emptyLabel: String,
+      errorNamespace: String,
+    },
+    setup(props, { slots, attrs }) {
+      return () =>
+        h(
+          'section',
+          {
+            ...attrs,
+            'data-test': 'base-card',
+            'data-title': props.title,
+            'data-loading': String(props.loading),
+            'data-error': props.error,
+            'data-empty': String(props.empty),
+            'data-error-namespace': props.errorNamespace,
+          },
+          [
+            h('h2', { 'data-test': 'base-card-title' }, props.title),
+            props.loading ? h('p', { 'data-test': 'base-card-loading' }, props.loadingLabel) : null,
+            props.error ? h('p', { 'data-test': 'base-card-error' }, props.error) : null,
+            props.empty ? h('p', { 'data-test': 'base-card-empty' }, props.emptyLabel) : null,
+            slots.actions ? h('div', { 'data-test': 'base-card-actions' }, slots.actions()) : null,
+            h('div', { 'data-test': 'base-card-content' }, slots.default?.()),
+          ],
+        )
+    },
+  }),
+
+  baseTable: defineComponent({
+    name: 'BaseTable',
+    props: {
+      columns: {
+        type: Array,
+        default: () => [],
+      },
+      items: {
+        type: Array,
+        default: () => [],
+      },
+      rowKey: String,
+    },
+    setup(props, { slots }) {
+      return () =>
+        h(
+          'table',
+          {
+            'data-test': 'base-table',
+            'data-row-key': props.rowKey,
+          },
+          [
+            h(
+              'tbody',
+              (props.items as Record<string, unknown>[]).map((item) =>
+                h(
+                  'tr',
+                  {
+                    'data-test': 'base-table-row',
+                    'data-row-id': String(item.id),
+                  },
+                  (props.columns as TableColumn[]).map((column) => {
+                    const key = columnKey(column)
+                    const slot = slots[`cell-${key}`]
+
+                    return h(
+                      'td',
+                      {
+                        'data-test': `base-table-cell-${key}`,
+                      },
+                      slot ? slot({ value: item[key], item }) : String(item[key] ?? ''),
+                    )
+                  }),
+                ),
+              ),
+            ),
+          ],
+        )
+    },
+  }),
+
+  baseToolBar: defineComponent({
+    name: 'BaseToolBar',
+    props: {
+      resetLabel: String,
+      resetDisabled: Boolean,
+      primaryLabel: String,
+      showPrimary: Boolean,
+    },
+    emits: ['reset', 'primary'],
+    setup(props, { emit, slots }) {
+      return () =>
+        h('section', { 'data-test': 'base-toolbar' }, [
+          h('div', { 'data-test': 'base-toolbar-content' }, slots.default?.()),
+          h(
+            'button',
+            {
+              type: 'button',
+              disabled: props.resetDisabled,
+              'data-test': 'base-toolbar-reset',
+              onClick: () => emit('reset'),
+            },
+            props.resetLabel,
+          ),
+          props.showPrimary
+            ? h(
+                'button',
+                {
+                  type: 'button',
+                  'data-test': 'base-toolbar-primary',
+                  onClick: () => emit('primary'),
+                },
+                props.primaryLabel,
+              )
+            : null,
+        ])
+    },
+  }),
+
+  formActions: defineComponent({
+    name: 'FormActions',
+    props: {
+      cancelLabel: String,
+      submitLabel: String,
+      submittingLabel: String,
+      loading: Boolean,
+      disabled: Boolean,
+    },
+    emits: ['cancel'],
+    setup(props, { emit }) {
+      return () =>
+        h('div', { 'data-test': 'form-actions' }, [
+          h(
+            'button',
+            {
+              type: 'button',
+              disabled: props.disabled,
+              'data-test': 'form-actions-cancel',
+              onClick: () => emit('cancel'),
+            },
+            props.cancelLabel,
+          ),
+          h(
+            'button',
+            {
+              type: 'submit',
+              disabled: props.disabled,
+              'data-test': 'form-actions-submit',
+            },
+            props.loading ? props.submittingLabel : props.submitLabel,
+          ),
+        ])
+    },
+  }),
+
   formField: defineComponent({
     name: 'FormField',
     props: {
       modelValue: {
-        type: String,
+        type: [String, Number],
         default: '',
       },
       label: String,
@@ -83,12 +288,13 @@ export const frontendStubs = {
         default: false,
       },
     },
-    emits: ['update:modelValue', 'enter'],
-    setup(props, { emit, slots }) {
+    emits: ['update:modelValue', 'update:model-value', 'enter'],
+    setup(props, { emit, slots, attrs }) {
       return () =>
         h(
           'label',
           {
+            ...attrs,
             'data-test': 'form-field',
             'data-name': props.name,
           },
@@ -104,7 +310,9 @@ export const frontendStubs = {
               required: props.required,
               'aria-invalid': props.error ? 'true' : 'false',
               onInput: (event: Event) => {
-                emit('update:modelValue', (event.target as HTMLInputElement).value)
+                const value = (event.target as HTMLInputElement).value
+                emit('update:modelValue', value)
+                emit('update:model-value', value)
               },
               onKeydown: (event: KeyboardEvent) => {
                 if (event.key === 'Enter') {
@@ -116,6 +324,21 @@ export const frontendStubs = {
             props.error ? h('p', { 'data-test': 'form-field-error' }, props.error) : null,
           ],
         )
+    },
+  }),
+
+  formResult: defineComponent({
+    name: 'FormResult',
+    props: {
+      error: String,
+      success: String,
+    },
+    setup(props) {
+      return () =>
+        h('div', { 'data-test': 'form-result' }, [
+          props.error ? h('p', { 'data-test': 'form-result-error' }, props.error) : null,
+          props.success ? h('p', { 'data-test': 'form-result-success' }, props.success) : null,
+        ])
     },
   }),
 
@@ -278,6 +501,86 @@ export const frontendStubs = {
           h('h1', { 'data-test': 'section-header-title' }, props.title),
           h('p', { 'data-test': 'section-header-subtitle' }, props.subtitle),
         ])
+    },
+  }),
+
+  sectionLayout: defineComponent({
+    name: 'SectionLayout',
+    props: {
+      title: String,
+      subtitle: String,
+    },
+    setup(props, { slots }) {
+      return () =>
+        h('main', { 'data-test': 'section-layout' }, [
+          h('h1', { 'data-test': 'section-layout-title' }, props.title),
+          h('p', { 'data-test': 'section-layout-subtitle' }, props.subtitle),
+          slots.default?.(),
+        ])
+    },
+  }),
+
+  selectField: defineComponent({
+    name: 'SelectField',
+    props: {
+      modelValue: {
+        type: [String, Number],
+        default: '',
+      },
+      label: String,
+      options: {
+        type: Array,
+        default: () => [],
+      },
+    },
+    emits: ['update:modelValue', 'update:model-value'],
+    setup(props, { emit }) {
+      return () =>
+        h('label', { 'data-test': 'select-field' }, [
+          h('span', { 'data-test': 'select-field-label' }, props.label),
+          h(
+            'select',
+            {
+              value: props.modelValue,
+              onChange: (event: Event) => {
+                const value = (event.target as HTMLSelectElement).value
+                emit('update:modelValue', value)
+                emit('update:model-value', value)
+              },
+            },
+            (props.options as Array<{ label: string; value: string | number }>).map((option) =>
+              h('option', { value: option.value }, option.label),
+            ),
+          ),
+        ])
+    },
+  }),
+
+  switchField: defineComponent({
+    name: 'SwitchField',
+    props: {
+      modelValue: Boolean,
+      disabled: Boolean,
+      label: String,
+      size: String,
+    },
+    emits: ['change'],
+    setup(props, { emit }) {
+      return () =>
+        h(
+          'button',
+          {
+            type: 'button',
+            disabled: props.disabled,
+            role: 'switch',
+            'aria-checked': String(props.modelValue),
+            'aria-label': props.label,
+            'data-test': 'switch-field',
+            'data-size': props.size,
+            onClick: () => emit('change', !props.modelValue),
+          },
+          props.label,
+        )
     },
   }),
 
