@@ -11,14 +11,21 @@
     "paths": {
       "@backend/*": ["./backend/src/*"],
       "@quizzup/shared": ["./shared/src/index.ts"],
-      "@quizzup/shared/*": ["./shared/src/*"]
+      "@quizzup/shared/*": ["./shared/src/*"],
+      "@/*": ["./frontend/src/*"],
+      "@shared/*": ["./shared/src/*"],
+      "@frontend-tests/*": ["./tests/frontend/src/*"]
     }
   },
   "include": [
     "backend/src/**/*.ts",
+    "frontend/src/**/*.ts",
+    "frontend/src/**/*.vue",
     "shared/src/**/*.ts",
     "tests/backend/**/*.ts",
-    "vitest.backend.config.ts"
+    "tests/frontend/**/*.ts",
+    "vitest.backend.config.ts",
+    "vitest.frontend.config.ts"
   ],
   "exclude": [
     "node_modules",
