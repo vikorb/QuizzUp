@@ -54,7 +54,11 @@ export async function createRouteApp(plugin: unknown) {
 
   app.decorate('jwt', {
     sign: jwtSignMock,
-  })
+    verify: vi.fn(),
+    decode: vi.fn(),
+    lookupToken: vi.fn(),
+    options: {},
+  } as never)
 
   app.decorate('authenticate', async (req: FastifyRequest, reply: FastifyReply) => {
     const rawUser = req.headers['x-test-user']

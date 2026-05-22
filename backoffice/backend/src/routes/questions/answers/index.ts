@@ -97,13 +97,13 @@ const questionAnswersRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(403).send({ error: 'forbidden' })
       }
 
-      const response = req.body.response?.trim()
+      const response = req.body!.response?.trim()
 
       if (!response) {
         return reply.code(400).send({ error: 'answer_response_required' })
       }
 
-      const isCorrect = req.body.isCorrect ?? false
+      const isCorrect = req.body!.isCorrect ?? false
 
       const answer = await db.transaction(async (trx) => {
         if (isCorrect) {

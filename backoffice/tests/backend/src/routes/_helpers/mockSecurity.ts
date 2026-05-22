@@ -133,7 +133,7 @@ export const companiesPolicyMock = {
         isSuperadminImpl(req) ||
         (isAdminImpl(req) &&
           sameCompany(req, companyId) &&
-          [ADMIN_ROLE_ADMIN, ADMIN_ROLE_USER].includes(requestedRole))
+          requestedRole === ADMIN_ROLE_ADMIN || requestedRole === ADMIN_ROLE_USER)
 
       return securityState.context.canCreateCompanyAccount ?? allowedByRole
     },

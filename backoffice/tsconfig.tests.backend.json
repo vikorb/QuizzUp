@@ -6,16 +6,14 @@
     "composite": true
   },
   "include": [
-    "tests/**/*.ts",
-    "frontend/src/**/*.ts",
-    "frontend/src/**/*.vue",
     "backend/src/**/*.ts",
+    "tests/backend/**/*.ts",
     "shared/src/**/*.ts",
-    "vitest.backend.config.ts",
-    "vitest.frontend.config.ts"
+    "vitest.backend.config.ts"
   ],
   "exclude": [
     "node_modules",
+    "frontend",
     "dist",
     "coverage"
   ]

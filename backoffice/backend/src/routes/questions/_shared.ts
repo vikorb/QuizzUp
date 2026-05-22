@@ -39,18 +39,6 @@ export type QuestionBody = {
   answers?: unknown
 }
 
-export type QuestionStatusBody = {
-  status?: QuestionStatus
-}
-
-export type QuestionQuery = {
-  search?: string
-  themeId?: string
-  status?: string
-  typeMedia?: string
-  scope?: string
-}
-
 export type QuestionParams = {
   questionId: string
 }
@@ -61,6 +49,18 @@ export type QuestionAccessRow = {
   company_id: number | null
   scope: ThemeScope
   status: QuestionStatus
+}
+
+export type QuestionStatusBody = {
+  status?: QuestionStatus
+}
+
+export type QuestionQuery = {
+  search?: string
+  themeId?: string
+  status?: string
+  typeMedia?: string
+  scope?: string
 }
 
 type AuthPayload = {
@@ -84,6 +84,20 @@ type NormalizedAnswer = {
 type QuestionThemeLink = {
   question_id: number | string
   theme_id: number | string
+}
+
+export type AnswerBody = {
+  response?: string
+  isCorrect?: boolean
+}
+
+export type AnswerStatusBody = {
+  status?: AnswerStatus
+}
+
+export type AnswerParams = {
+  questionId: string
+  answerId: string
 }
 
 export const questionSelect = [
@@ -111,6 +125,32 @@ export const answerSelect = [
   'answers.updated_at as updatedAt',
   'answers.deleted_at as deletedAt',
 ]
+
+const VALID_ANSWER_STATUSES: readonly AnswerStatus[] = [
+  ANSWER_STATUS_ACTIVE,
+  ANSWER_STATUS_DRAFT,
+  ANSWER_STATUS_DELETED,
+]
+
+export function isValidAnswerStatus(value: unknown): value is AnswerStatus {
+  return typeof value === 'number' && VALID_ANSWER_STATUSES.includes(value as AnswerStatus)
+}
+
+export function buildQuestionStatusPatch(status: QuestionStatus) {
+  return {
+    status,
+    updated_at: db.fn.now(),
+    deleted_at: status === QUESTION_STATUS_DELETED ? db.fn.now() : null,
+  }
+}
+
+export function buildAnswerStatusPatch(status: AnswerStatus) {
+  return {
+    status,
+    updated_at: db.fn.now(),
+    deleted_at: status === ANSWER_STATUS_DELETED ? db.fn.now() : null,
+  }
+}
 
 export function getCurrentAdminId(req: FastifyRequest): number | null {
   const authReq = req as AuthenticatedRequest
@@ -220,14 +260,6 @@ export async function getQuestionAccessRow(
     .first()
 
   return question ? (question as QuestionAccessRow) : null
-}
-
-export function buildQuestionStatusPatch(status: QuestionStatus) {
-  return {
-    status,
-    updated_at: db.fn.now(),
-    deleted_at: status === QUESTION_STATUS_DELETED ? db.fn.now() : null,
-  }
 }
 
 export function normalizeAnswers(answers: unknown): NormalizedAnswer[] {

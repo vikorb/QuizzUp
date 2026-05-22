@@ -24,7 +24,7 @@ import { type DOMWrapper,flushPromises } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import { nextTick } from 'vue'
 
-import CreateAccountForm from '@/views/clients/accounts/create/CreateAccountForm.vue'
+import CreateAccountForm from '@/views/clients/accounts/creation/CreateAccountForm.vue'
 
 resetFrontendMocksBeforeEach()
 

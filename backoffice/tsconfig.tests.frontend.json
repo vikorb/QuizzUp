@@ -1,0 +1,23 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node", "vitest/globals", "vite/client"],
+    "noEmit": true,
+    "composite": true
+  },
+  "include": [
+    "frontend/src/**/*.ts",
+    "frontend/src/**/*.vue",
+    "frontend/src/**/*.d.ts",
+    "tests/frontend/**/*.ts",
+    "tests/frontend/**/*.d.ts",
+    "shared/src/**/*.ts",
+    "vitest.frontend.config.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "backend",
+    "dist",
+    "coverage"
+  ]
+}

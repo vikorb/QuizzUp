@@ -21,8 +21,9 @@
     "test:coverage:frontend": "vitest --run --coverage --config vitest.frontend.config.ts",
     "type-check:frontend": "vue-tsc -p tsconfig.frontend.json --noEmit",
     "type-check:backend": "tsc -p tsconfig.backend.json --noEmit",
-    "type-check:tests": "tsc -p tsconfig.tests.json --noEmit",
-    "type-check": "npm run type-check:frontend && npm run type-check:backend && npm run type-check:tests"
+    "type-check:tests:frontend": "vue-tsc -p tsconfig.tests.frontend.json --noEmit",
+    "type-check:tests:backend": "tsc -p tsconfig.tests.backend.json --noEmit",
+    "type-check": "npm run type-check:frontend && npm run type-check:backend && npm run type-check:tests:frontend && npm run type-check:tests:backend"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.4.2",
