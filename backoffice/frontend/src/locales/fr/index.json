@@ -25,6 +25,7 @@
     "accountUpdated": "Le compte {name} a bien été mis à jour.",
     "accountActivated": "Le compte {name} a bien été activé.",
     "accountDisabled": "Le compte {name} a bien été désactivé.",
-    "accountDeleted": "Le compte {name} a bien été supprimé."
+    "accountDeleted": "Le compte {name} a bien été supprimé.",
+    "questionAttached": "La question \"{question}\" a été ajoutée au thème."
   }
 }

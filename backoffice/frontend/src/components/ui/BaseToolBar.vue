@@ -1,6 +1,10 @@
 <template>
-  <BaseCard :neon="false" :no-hover="true">
-    <div class="toolbar" :class="{ 'toolbar--collapsed': isCollapsed }">
+  <BaseCard class="toolbar-card" :neon="false" :no-hover="true">
+    <div
+      class="toolbar"
+      :class="{ 'toolbar--collapsed': isCollapsed }"
+      :style="toolbarStyle"
+    >
       <div class="toolbar__header">
         <button
           v-if="collapsible"
@@ -11,11 +15,11 @@
           @click="toggleCollapsed"
         >
           <MdIcon :path="toggleIcon" :size="20" />
-          <span class="toolbar__title">{{ $t('filters') }}</span>
+          <span class="toolbar__title">{{ title }}</span>
         </button>
 
         <h3 v-else class="toolbar__title">
-          {{ $t('filters') }}
+          {{ title }}
         </h3>
 
         <div class="toolbar__actions">
@@ -55,6 +59,7 @@
 
 <script setup lang="ts">
 import { mdiChevronDown, mdiChevronUp } from '@mdi/js'
+import type { CSSProperties } from 'vue'
 import { computed, ref } from 'vue'
 
 import BaseCard from '@/components/ui/BaseCard.vue'
@@ -73,6 +78,8 @@ const props = withDefaults(
     primaryLabel?: string
     primaryIcon?: string
     showPrimary?: boolean
+    filterMinWidth?: string
+    filterGap?: string
   }>(),
   {
     title: 'Filtres',
@@ -85,6 +92,8 @@ const props = withDefaults(
     primaryLabel: '',
     primaryIcon: undefined,
     showPrimary: false,
+    filterMinWidth: '170px',
+    filterGap: '12px',
   },
 )
 
@@ -94,6 +103,14 @@ defineEmits<{
 }>()
 
 const isCollapsed = ref(props.defaultCollapsed)
+
+const toolbarStyle = computed(
+  () =>
+    ({
+      '--toolbar-filter-min-width': props.filterMinWidth,
+      '--toolbar-filter-gap': props.filterGap,
+    }) as CSSProperties,
+)
 
 const toggleIcon = computed(() => (isCollapsed.value ? mdiChevronDown : mdiChevronUp))
 
@@ -107,16 +124,29 @@ function toggleCollapsed(): void {
 </script>
 
 <style scoped>
+.toolbar-card {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  overflow: visible;
+  z-index: 1;
+}
+
 .toolbar {
   display: grid;
+  width: 100%;
+  min-width: 0;
   gap: 18px;
+  overflow: visible;
 }
 
 .toolbar__header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+  min-width: 0;
+  overflow: visible;
 }
 
 .toolbar__toggle {
@@ -149,6 +179,9 @@ function toggleCollapsed(): void {
   font-weight: 800;
   color: currentColor;
   text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .toolbar__actions {
@@ -159,6 +192,7 @@ function toggleCollapsed(): void {
   justify-content: flex-end;
   gap: 10px;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .toolbar__button-content {
@@ -169,14 +203,63 @@ function toggleCollapsed(): void {
 }
 
 .toolbar__filters {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(100%, var(--toolbar-filter-min-width)), 1fr)
+  );
+  align-items: end;
+  gap: var(--toolbar-filter-gap);
+  width: 100%;
   min-width: 0;
+  overflow: visible;
+}
+
+.toolbar__filters :deep(*) {
+  min-width: 0;
+}
+
+.toolbar__filters :deep(.form-field),
+.toolbar__filters :deep(.select-field),
+.toolbar__filters :deep(.ui-btn) {
+  width: 100%;
+  max-width: 100%;
+}
+
+.toolbar__filters :deep(select),
+.toolbar__filters :deep(input),
+.toolbar__filters :deep(textarea),
+.toolbar__filters :deep(.select-field__trigger) {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+}
+
+.toolbar__filters :deep(.select-field__menu),
+.toolbar__filters :deep(.select-field__options),
+.toolbar__filters :deep(.dropdown),
+.toolbar__filters :deep([role='listbox']) {
+  z-index: 20;
+}
+
+.toolbar__filters :deep(select),
+.toolbar__filters :deep(.select-field__trigger),
+.toolbar__filters :deep(.form-field__control),
+.toolbar__filters :deep(.form-field__input) {
+  min-height: 46px;
 }
 
 .toolbar :deep(.ui-btn) {
   min-height: 42px;
 }
 
-@media (max-width: 700px) {
+@media (max-width: 1100px) {
+  .toolbar__filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
   .toolbar__header {
     align-items: stretch;
     flex-direction: column;
@@ -194,6 +277,12 @@ function toggleCollapsed(): void {
 
   .toolbar__actions :deep(.ui-btn) {
     flex: 1;
+  }
+}
+
+@media (max-width: 700px) {
+  .toolbar__filters {
+    grid-template-columns: 1fr;
   }
 }
 </style>

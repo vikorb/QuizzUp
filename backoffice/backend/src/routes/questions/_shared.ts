@@ -23,17 +23,19 @@ import {
 import db from '../../db'
 import { getCurrentCompanyId, isSuperadmin } from '../../security/companiesPolicy'
 import { getCurrentAdminId, isUserRole } from '../themes/_shared'
+import { Knex } from 'knex'
 
 export type QuestionScope = ThemeScope
 
 export type QuestionBody = {
-  themeId?: number
   question?: string
+  themeId?: number | string | null
+  themeIds?: Array<number | string>
+  scope?: ThemeScope
+  companyId?: number | null
   typeMedia?: QuestionMediaType
   mediaUrl?: string | null
-  scope?: QuestionScope
-  companyId?: number | null
-  answers?: AnswerBody[]
+  answers?: unknown[]
 }
 
 export type QuestionStatusBody = {
@@ -77,7 +79,6 @@ export const questionSelect = [
   'questions.id',
   'questions.admin_id as adminId',
   'questions.company_id as companyId',
-  'questions.theme_id as themeId',
   'themes.name as themeName',
   'themes.mode as themeMode',
   'themes.scope as themeScope',
@@ -192,7 +193,6 @@ export async function getQuestionAccessRow(questionId: number): Promise<Question
 export async function getQuestionWithAnswers(questionId: number) {
   const question = await db('questions')
     .select(questionSelect)
-    .leftJoin('themes', 'themes.id', 'questions.theme_id')
     .where('questions.id', questionId)
     .first()
 
@@ -203,11 +203,15 @@ export async function getQuestionWithAnswers(questionId: number) {
   const answers = await db('answers')
     .select(answerSelect)
     .where({ question_id: questionId })
-    .whereNot('status', ANSWER_STATUS_DELETED)
     .orderBy('id', 'asc')
+
+  const themes = await getThemesForQuestion(questionId)
 
   return {
     ...question,
+    themeId: themes[0]?.id ?? null,
+    themeIds: themes.map((theme) => Number(theme.id)),
+    themes,
     answers,
   }
 }
@@ -299,3 +303,67 @@ export function buildAnswerStatusPatch(status: AnswerStatus) {
 }
 
 export const DEFAULT_QUESTION_MEDIA_TYPE = QUESTION_MEDIA_TYPE_NONE
+
+export function parseQuestionThemeIds(body: QuestionBody): number[] {
+  const rawThemeIds =
+    Array.isArray(body.themeIds) && body.themeIds.length > 0
+      ? body.themeIds
+      : body.themeId !== undefined && body.themeId !== null
+        ? [body.themeId]
+        : []
+
+  return [
+    ...new Set(
+      rawThemeIds
+        .map((themeId) => parsePositiveId(themeId))
+        .filter((themeId): themeId is number => themeId !== null),
+    ),
+  ]
+}
+
+export async function ensureThemesAreUsable(
+  themeIds: number[],
+  req: FastifyRequest,
+  scope: ThemeScope,
+  companyId: number | null,
+): Promise<string | null> {
+  if (themeIds.length === 0) {
+    return 'question_theme_required'
+  }
+
+  for (const themeId of themeIds) {
+    const themeError = await ensureThemeIsUsable(themeId, req, scope, companyId)
+
+    if (themeError) {
+      return themeError
+    }
+  }
+
+  return null
+}
+
+export async function syncQuestionThemes(
+  trx: Knex.Transaction,
+  questionId: number,
+  themeIds: number[],
+): Promise<void> {
+  await trx('question_themes').where({ question_id: questionId }).delete()
+
+  await trx('question_themes')
+    .insert(
+      themeIds.map((themeId) => ({
+        question_id: questionId,
+        theme_id: themeId,
+      })),
+    )
+    .onConflict(['question_id', 'theme_id'])
+    .ignore()
+}
+
+export async function getThemesForQuestion(questionId: number) {
+  return db('themes')
+    .select(themeSelect)
+    .join('question_themes', 'question_themes.theme_id', 'themes.id')
+    .where('question_themes.question_id', questionId)
+    .orderBy('themes.id', 'asc')
+}

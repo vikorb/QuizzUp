@@ -1,3 +1,5 @@
+const SUPERADMIN_COMPANY_ID = 9
+
 /**
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
@@ -5,17 +7,21 @@
 exports.seed = async function(knex) {
   const [admin] = await knex('admins')
     .select('id')
-    .whereIn('role', ['superadmin', 'admin'])
+    .where('role', 'superadmin')
+    .where('company_id', SUPERADMIN_COMPANY_ID)
     .whereNot('status', 2)
     .orderBy('id', 'asc')
     .limit(1)
 
   if (!admin) {
-    throw new Error('Impossible de créer la seed quiz : aucun admin actif trouvé.')
+    throw new Error(
+      `Impossible de créer la seed quiz : aucun superadmin actif trouvé pour la compagnie ${SUPERADMIN_COMPANY_ID}.`,
+    )
   }
 
   const companies = await knex('companies')
     .select('id')
+    .whereNot('id', SUPERADMIN_COMPANY_ID)
     .whereNot('status', 2)
     .orderBy('id', 'asc')
     .limit(3)
@@ -1253,7 +1259,9 @@ exports.seed = async function(knex) {
   const themes = [...globalThemes, ...companyThemes]
 
   await knex.transaction(async (trx) => {
-    await trx.raw('TRUNCATE TABLE answers, questions, themes RESTART IDENTITY CASCADE')
+    await trx.raw(
+      'TRUNCATE TABLE answers, question_themes, questions, themes RESTART IDENTITY CASCADE',
+    )
 
     for (const themeSeed of themes) {
       const scope = themeSeed.scope ?? 'global'
@@ -1275,7 +1283,6 @@ exports.seed = async function(knex) {
           .insert({
             admin_id: admin.id,
             company_id: companyId,
-            theme_id: theme.id,
             scope,
             question: questionSeed.question,
             type_media: questionSeed.typeMedia ?? 'none',
@@ -1283,6 +1290,14 @@ exports.seed = async function(knex) {
             status: questionSeed.status ?? 1,
           })
           .returning(['id'])
+
+        await trx('question_themes')
+          .insert({
+            question_id: question.id,
+            theme_id: theme.id,
+          })
+          .onConflict(['question_id', 'theme_id'])
+          .ignore()
 
         await trx('answers').insert(
           questionSeed.answers.map((answer) => ({

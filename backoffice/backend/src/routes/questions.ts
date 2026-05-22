@@ -13,6 +13,7 @@ import { getCurrentCompanyId, isSuperadmin } from '../security/companiesPolicy'
 import {
   DEFAULT_QUESTION_MEDIA_TYPE,
   ensureThemeIsUsable,
+  ensureThemesAreUsable,
   getCreateAnswerStatus,
   getCreateQuestionStatus,
   getCurrentAdminId,
@@ -25,6 +26,7 @@ import {
   normalizeAnswers,
   parseOptionalNumber,
   parsePositiveId,
+  parseQuestionThemeIds,
   questionSelect,
   validateAnswers,
   type QuestionBody,
@@ -63,7 +65,6 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
 
       const questionsQuery = db('questions')
         .select(questionSelect)
-        .leftJoin('themes', 'themes.id', 'questions.theme_id')
 
       if (!isSuperadmin(req)) {
         questionsQuery.where(function filterVisibleQuestions(this: Knex.QueryBuilder) {
@@ -87,7 +88,12 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
       const themeId = parseOptionalNumber(query.themeId)
 
       if (themeId !== null) {
-        questionsQuery.where('questions.theme_id', themeId)
+        questionsQuery.whereExists(function filterByTheme() {
+          this.select(db.raw('1'))
+            .from('question_themes')
+            .whereRaw('question_themes.question_id = questions.id')
+            .where('question_themes.theme_id', themeId)
+        })
       }
 
       const status = parseOptionalNumber(query.status)
@@ -134,7 +140,7 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const questionText = req.body.question?.trim()
-      const themeId = parsePositiveId(req.body.themeId)
+      const themeIds = parseQuestionThemeIds(req.body)
       const typeMedia = req.body.typeMedia ?? DEFAULT_QUESTION_MEDIA_TYPE
       const mediaUrl = req.body.mediaUrl ?? null
       const answers = normalizeAnswers(req.body.answers)
@@ -143,7 +149,7 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(400).send({ error: 'question_required' })
       }
 
-      if (themeId === null) {
+      if (themeIds.length === 0) {
         return reply.code(400).send({ error: 'question_theme_required' })
       }
 
@@ -165,7 +171,7 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(400).send({ error: 'question_company_required' })
       }
 
-      const themeError = await ensureThemeIsUsable(themeId, req, scope, companyId)
+      const themeError = await ensureThemesAreUsable(themeIds, req, scope, companyId)
 
       if (themeError) {
         return reply.code(themeError === 'question_theme_forbidden' ? 403 : 400).send({
@@ -181,7 +187,6 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
           .insert({
             admin_id: adminId,
             company_id: companyId,
-            theme_id: themeId,
             scope,
             question: questionText,
             type_media: typeMedia,
@@ -190,6 +195,13 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
             deleted_at: null,
           })
           .returning('*')
+
+        await trx('question_themes').insert(
+          themeIds.map((themeId) => ({
+            question_id: question.id,
+            theme_id: themeId,
+          })),
+        )
 
         await trx('answers').insert(
           answers.map((answer) => ({

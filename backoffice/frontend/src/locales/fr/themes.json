@@ -1,0 +1,137 @@
+{
+  "themes": {
+    "title": "Thèmes",
+    "subtitle": "Gestion des thèmes disponibles pour les questions",
+    "table": {
+      "title": "Liste des thèmes",
+      "create": "Créer un thème",
+      "loading": "Chargement des thèmes...",
+      "empty": "Aucun thème trouvé",
+      "retry": "Réessayer",
+      "columns": {
+        "name": "Nom",
+        "mode": "Mode",
+        "scope": "Portée",
+        "status": "Statut",
+        "actions": "Actions"
+      }
+    },
+    "questions": {
+      "title": "Questions du thème",
+      "subtitle": "Associer, consulter et gérer les questions liées à ce thème",
+      "addTitle": "Ajouter une question au thème",
+      "addDescription": "Recherchez une question existante pour la rattacher à ce thème, ou créez-en une nouvelle directement.",
+      "createQuestion": "Créer une question",
+      "searchLabel": "Rechercher une question",
+      "searchPlaceholder": "Ex : capitale, cinéma, musique...",
+      "add": "Ajouter",
+      "fromAnotherTheme": "Déjà liée à un autre thème",
+      "noAvailableQuestion": "Aucune question disponible pour cette recherche.",
+      "linkedTitle": "Questions liées",
+      "linkedCount": "question(s) liée(s)",
+      "noLinkedQuestion": "Aucune question n'est encore liée à ce thème.",
+      "openQuestion": "Voir le détail de la question",
+      "table": {
+        "question": "Question",
+        "media": "Média",
+        "status": "Statut",
+        "actions": "Actions"
+      },
+      "errors": {
+        "serverError": "Impossible de charger les questions.",
+        "forbidden": "Vous n'avez pas les droits nécessaires.",
+        "apiUnreachable": "Impossible de joindre l'API.",
+        "invalidJson": "La réponse de l'API est invalide."
+      }
+    },
+    "filters": {
+      "search": "Recherche",
+      "searchPlaceholder": "Rechercher un thème...",
+      "status": "Statut",
+      "mode": "Mode",
+      "scope": "Portée",
+      "allStatuses": "Tous les statuts",
+      "allModes": "Tous les modes",
+      "allScopes": "Toutes les portées"
+    },
+    "status": {
+      "active": "Actif",
+      "inactive": "Inactif",
+      "deleted": "Supprimé",
+      "draft": "Brouillon"
+    },
+    "mode": {
+      "classic": "Classique",
+      "image": "Image",
+      "audio": "Audio",
+      "mixed": "Mixte"
+    },
+    "scope": {
+      "global": "Global",
+      "company": "Entreprise"
+    },
+    "actions": {
+      "edit": "Modifier",
+      "readonly": "Voir en lecture seule",
+      "delete": "Supprimer",
+      "enable": "Activer",
+      "disable": "Désactiver",
+      "deleteConfirm": "Supprimer le thème \"{theme}\" ?",
+      "enableConfirm": "Activer le thème \"{theme}\" ?",
+      "disableConfirm": "Désactiver le thème \"{theme}\" ?"
+    },
+    "create": {
+      "title": "Créer un thème",
+      "subtitle": "Créer un nouveau thème de questions",
+      "cardTitle": "Informations du thème"
+    },
+    "edit": {
+      "title": "Détail du thème",
+      "subtitle": "Consulter ou modifier un thème",
+      "cardTitle": "Informations du thème"
+    },
+    "detail": {
+      "actions": {
+        "back": "Retour"
+      }
+    },
+    "form": {
+      "name": "Nom",
+      "namePlaceholder": "Ex : Culture générale",
+      "mode": "Mode",
+      "scope": "Portée",
+      "companyId": "ID entreprise",
+      "companyIdPlaceholder": "Ex : 1",
+      "create": "Créer",
+      "save": "Enregistrer",
+      "saving": "Enregistrement...",
+      "cancel": "Annuler",
+      "back": "Retour",
+      "readonly": "Vous pouvez consulter ce thème, mais vous ne pouvez pas le modifier.",
+      "success": {
+        "created": "Thème créé avec succès.",
+        "updated": "Thème mis à jour avec succès."
+      },
+      "errors": {
+        "nameRequired": "Le nom du thème est obligatoire.",
+        "modeRequired": "Le mode est obligatoire.",
+        "companyIdInvalid": "L'ID entreprise doit être un nombre valide."
+      }
+    },
+    "errors": {
+      "serverError": "Une erreur serveur est survenue.",
+      "saveFailed": "Impossible d'enregistrer le thème.",
+      "deleteFailed": "Impossible de supprimer le thème.",
+      "updateStatusFailed": "Impossible de modifier le statut du thème.",
+      "invalidParams": "Paramètres invalides.",
+      "missingToken": "Vous devez être connecté pour accéder à cette ressource.",
+      "unauthorized": "Votre session a expiré. Veuillez vous reconnecter.",
+      "forbidden": "Vous n'avez pas les droits nécessaires pour effectuer cette action.",
+      "apiUnreachable": "Impossible de joindre l'API.",
+      "invalidJson": "La réponse de l'API est invalide.",
+      "invalidBody": "Les données envoyées sont invalides.",
+      "conflict": "Un conflit empêche cette action.",
+      "nameAlreadyExists": "Ce nom existe déjà."
+    }
+  }
+}

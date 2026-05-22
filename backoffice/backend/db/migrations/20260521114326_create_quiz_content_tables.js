@@ -30,7 +30,7 @@ exports.up = async function(knex) {
 
   await knex.raw(`
     ALTER TABLE themes
-    ADD CONSTRAINT themes_status_check CHECK (status IN (0, 1, 2)),
+    ADD CONSTRAINT themes_status_check CHECK (status IN (0, 1, 2, 3)),
     ADD CONSTRAINT themes_mode_check CHECK (mode IN ('classic', 'image', 'audio', 'mixed')),
     ADD CONSTRAINT themes_scope_check CHECK (scope IN ('global', 'company')),
     ADD CONSTRAINT themes_scope_company_check CHECK (
@@ -75,7 +75,7 @@ exports.up = async function(knex) {
 
   await knex.raw(`
     ALTER TABLE questions
-    ADD CONSTRAINT questions_status_check CHECK (status IN (0, 1, 2)),
+    ADD CONSTRAINT questions_status_check CHECK (status IN (0, 1, 2, 3)),
     ADD CONSTRAINT questions_type_media_check CHECK (type_media IN ('none', 'image', 'audio', 'video')),
     ADD CONSTRAINT questions_scope_check CHECK (scope IN ('global', 'company')),
     ADD CONSTRAINT questions_scope_company_check CHECK (

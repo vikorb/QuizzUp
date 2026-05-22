@@ -61,6 +61,7 @@
 import { mdiPlus, mdiRefresh } from '@mdi/js'
 import {
   QUESTION_STATUS_ACTIVE,
+  QUESTION_STATUS_DELETED,
   QUESTION_STATUS_DRAFT,
   QUESTION_STATUS_INACTIVE,
   THEME_SCOPE_COMPANY,
@@ -84,12 +85,14 @@ const props = withDefaults(
     statusFilter?: string
     typeMediaFilter?: string
     scopeFilter?: string
+    canShowDeletedStatus?: boolean
   }>(),
   {
     themeFilter: '',
     statusFilter: '',
     typeMediaFilter: '',
     scopeFilter: '',
+    canShowDeletedStatus: false,
   },
 )
 
@@ -124,24 +127,35 @@ const themeOptions = computed<SelectFieldOption[]>(() => [
   })),
 ])
 
-const statusOptions = computed<SelectFieldOption[]>(() => [
-  {
-    label: t('questions.filters.allStatuses'),
-    value: '',
-  },
-  {
-    label: t('questions.status.active'),
-    value: String(QUESTION_STATUS_ACTIVE),
-  },
-  {
-    label: t('questions.status.inactive'),
-    value: String(QUESTION_STATUS_INACTIVE),
-  },
-  {
-    label: t('questions.status.draft'),
-    value: String(QUESTION_STATUS_DRAFT),
-  },
-])
+const statusOptions = computed<SelectFieldOption[]>(() => {
+  const options: SelectFieldOption[] = [
+    {
+      label: t('questions.filters.allStatuses'),
+      value: '',
+    },
+    {
+      label: t('questions.status.active'),
+      value: String(QUESTION_STATUS_ACTIVE),
+    },
+    {
+      label: t('questions.status.inactive'),
+      value: String(QUESTION_STATUS_INACTIVE),
+    },
+    {
+      label: t('questions.status.draft'),
+      value: String(QUESTION_STATUS_DRAFT),
+    },
+  ]
+
+  if (props.canShowDeletedStatus) {
+    options.push({
+      label: t('questions.status.deleted'),
+      value: String(QUESTION_STATUS_DELETED),
+    })
+  }
+
+  return options
+})
 
 const typeMediaOptions = computed<SelectFieldOption[]>(() => [
   {
@@ -197,9 +211,15 @@ function handleCreateQuestion(): void {
 <style scoped>
 .questions-toolbar__filters {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 190px 170px 170px 170px;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(var(--toolbar-filter-min-width), 1fr)
+  );
   align-items: end;
-  gap: 12px;
+  gap: var(--toolbar-filter-gap);
+  width: 100%;
+  min-width: 0;
+  overflow: visible;
 }
 
 .questions-toolbar__filters :deep(select),

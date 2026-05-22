@@ -7,6 +7,7 @@
       v-model:type-media-filter="typeMediaFilter"
       v-model:scope-filter="scopeFilter"
       :themes="themes"
+      :can-show-deleted-status="isSuperAdmin"
     />
 
     <BaseBanner
@@ -30,6 +31,7 @@
 
 <script setup lang="ts">
 import {
+  ADMIN_ROLE_SUPERADMIN,
   QUESTION_STATUS_ACTIVE,
   QUESTION_STATUS_DELETED,
   QUESTION_STATUS_DRAFT,
@@ -45,6 +47,7 @@ import {
   listQuestionsService,
   listThemesService,
 } from '@/services/questionsService'
+import { authState } from '@/state/authState'
 import type { ActionBanner } from '@/types/banner'
 import type { Question, Theme } from '@/types/question'
 import {
@@ -74,6 +77,9 @@ const themeFilter = ref('')
 const statusFilter = ref('')
 const typeMediaFilter = ref('')
 const scopeFilter = ref('')
+const isSuperAdmin = computed(
+  () => authState.me.value?.role === ADMIN_ROLE_SUPERADMIN,
+)
 
 const filteredQuestions = computed(() => {
   return questions.value.filter((question) => {

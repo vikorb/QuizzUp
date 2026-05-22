@@ -15,6 +15,7 @@ import PlayersView from '@/views/PlayersView.vue'
 import CreateQuestionView from '@/views/questions/CreateQuestionView.vue'
 import QuestionsView from '@/views/QuestionsView.vue'
 import StatsView from '@/views/StatsView.vue'
+import ThemeDetailView from '@/views/themes/ThemeDetailView.vue'
 import ThemesView from '@/views/ThemesView.vue'
 
 const getCurrentCompanyId = () => {
@@ -118,10 +119,19 @@ export const router = createRouter({
           meta: { requiresAuth: true },
         },
         {
-          path: 'themes',
+          path: '/themes',
           name: 'themes',
           component: ThemesView,
-          meta: { requiresAuth: true },
+        },
+        {
+          path: '/themes/create',
+          name: 'themes-create',
+          component: ThemeDetailView,
+        },
+        {
+          path: '/themes/:themeId',
+          name: 'themes-edit',
+          component: ThemeDetailView,
         },
         {
           path: '/questions',

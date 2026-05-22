@@ -1,5 +1,6 @@
 import type { QuestionStatus } from '@quizzup/shared'
 
+import type { ApiResult } from '@/types/api'
 import type {
   Answer,
   Question,
@@ -340,4 +341,21 @@ export async function updateQuestionStatusService(
     ok: true,
     question: result.data.question,
   }
+}
+
+export async function attachQuestionToThemeService(
+  questionId: number,
+  themeId: number,
+): Promise<ApiResult<QuestionResponse>> {
+  return apiRequestJson<QuestionResponse>({
+    path: `/questions/${questionId}`,
+    method: 'PATCH',
+    authenticated: true,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      themeId,
+    }),
+  })
 }

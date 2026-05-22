@@ -43,7 +43,9 @@ const questionIdStatusRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(400).send({ error: 'question_id_invalid' })
       }
 
-      if (!isValidQuestionStatus(req.body.status)) {
+      const nextStatus = req.body.status
+
+      if (!isValidQuestionStatus(nextStatus)) {
         return reply.code(400).send({ error: 'question_status_invalid' })
       }
 
@@ -60,9 +62,9 @@ const questionIdStatusRoutes: FastifyPluginAsync = async (app) => {
       await db.transaction(async (trx) => {
         await trx('questions')
           .where({ id: questionId })
-          .update(buildQuestionStatusPatch(req.body.status))
+          .update(buildQuestionStatusPatch(nextStatus))
 
-        if (req.body.status === QUESTION_STATUS_DELETED) {
+        if (nextStatus === QUESTION_STATUS_DELETED) {
           await trx('answers')
             .where({ question_id: questionId })
             .update({
