@@ -14,6 +14,7 @@
         :question="question"
         :themes="themes"
         :mode="mode"
+        :initial-theme-ids="initialThemeIds"
         @saved="goBack"
         @cancel="goBack"
         @error="error = $event"
@@ -54,6 +55,24 @@ const questionId = computed(() => {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 })
 
+const initialThemeIds = computed(() => {
+  const rawThemeIds = route.query.themeIds
+  const rawThemeId = route.query.themeId
+  const values = [
+    ...toQueryValues(rawThemeIds),
+    ...toQueryValues(rawThemeId),
+  ]
+
+  return [
+    ...new Set(
+      values
+        .flatMap((value) => value.split(','))
+        .map((value) => Number(value))
+        .filter((value) => Number.isInteger(value) && value > 0),
+    ),
+  ]
+})
+
 const mode = computed(() => (questionId.value === null ? 'create' : 'edit'))
 
 const title = computed(() =>
@@ -67,6 +86,14 @@ const subtitle = computed(() =>
 const cardTitle = computed(() =>
   mode.value === 'edit' ? t('questions.edit.cardTitle') : t('questions.create.cardTitle'),
 )
+
+function toQueryValues(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === 'string')
+  }
+
+  return typeof value === 'string' ? [value] : []
+}
 
 async function loadPage(): Promise<void> {
   loading.value = true

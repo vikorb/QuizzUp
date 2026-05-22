@@ -12,7 +12,7 @@ import { requireApiPermission } from '../security/requireApiPermission'
 import { getCurrentCompanyId, isSuperadmin } from '../security/companiesPolicy'
 import {
   DEFAULT_QUESTION_MEDIA_TYPE,
-  ensureThemeIsUsable,
+  attachThemesToQuestions,
   ensureThemesAreUsable,
   getCreateAnswerStatus,
   getCreateQuestionStatus,
@@ -25,18 +25,17 @@ import {
   isValidQuestionStatus,
   normalizeAnswers,
   parseOptionalNumber,
-  parsePositiveId,
   parseQuestionThemeIds,
   questionSelect,
   validateAnswers,
   type QuestionBody,
   type QuestionQuery,
 } from './questions/_shared'
-import questionIdRoutes from './questions/id'
-import questionIdStatusRoutes from './questions/idStatus'
 import questionAnswersRoutes from './questions/answers'
 import questionAnswerIdRoutes from './questions/answers/id'
 import questionAnswerIdStatusRoutes from './questions/answers/idStatus'
+import questionIdRoutes from './questions/id'
+import questionIdStatusRoutes from './questions/idStatus'
 
 const questionsRoutes: FastifyPluginAsync = async (app) => {
   app.register(questionIdRoutes)
@@ -63,8 +62,7 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
       const currentCompanyId = getCurrentCompanyId(req)
       const query = req.query
 
-      const questionsQuery = db('questions')
-        .select(questionSelect)
+      const questionsQuery = db('questions').select(questionSelect)
 
       if (!isSuperadmin(req)) {
         questionsQuery.where(function filterVisibleQuestions(this: Knex.QueryBuilder) {
@@ -88,7 +86,7 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
       const themeId = parseOptionalNumber(query.themeId)
 
       if (themeId !== null) {
-        questionsQuery.whereExists(function filterByTheme() {
+        questionsQuery.whereExists(function filterByTheme(this: Knex.QueryBuilder) {
           this.select(db.raw('1'))
             .from('question_themes')
             .whereRaw('question_themes.question_id = questions.id')
@@ -112,7 +110,8 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
         questionsQuery.where('questions.scope', query.scope)
       }
 
-      const questions = await questionsQuery.orderBy('questions.id', 'asc')
+      const questionsWithoutThemes = await questionsQuery.orderBy('questions.id', 'asc')
+      const questions = await attachThemesToQuestions(questionsWithoutThemes)
 
       return { questions }
     },
@@ -196,12 +195,15 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
           })
           .returning('*')
 
-        await trx('question_themes').insert(
-          themeIds.map((themeId) => ({
-            question_id: question.id,
-            theme_id: themeId,
-          })),
-        )
+        await trx('question_themes')
+          .insert(
+            themeIds.map((themeId) => ({
+              question_id: question.id,
+              theme_id: themeId,
+            })),
+          )
+          .onConflict(['question_id', 'theme_id'])
+          .ignore()
 
         await trx('answers').insert(
           answers.map((answer) => ({
@@ -209,7 +211,7 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
             question_id: question.id,
             response: answer.response,
             is_correct: answer.isCorrect,
-            status: answerStatus,
+            status: answer.status ?? answerStatus,
             deleted_at: null,
           })),
         )

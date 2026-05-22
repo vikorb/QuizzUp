@@ -24,7 +24,6 @@
       "allTypes": "Tous les types",
       "allScopes": "Toutes les origines",
       "searchPlaceholder": "Rechercher une question, un thème, un statut..."
-
     },
     "table": {
       "title": "Liste des questions / réponses",
@@ -33,9 +32,11 @@
       "retry": "Réessayer",
       "create": "Créer une question",
       "unknownTheme": "Thème inconnu",
+      "noTheme": "Aucun thème",
       "columns": {
         "question": "Question",
         "theme": "Thème",
+        "themes": "Thèmes",
         "scope": "Origine",
         "typeMedia": "Média",
         "status": "Statut",
@@ -44,7 +45,16 @@
     },
     "form": {
       "theme": "Thème",
+      "themes": "Thèmes",
+      "themesHint": "Une question peut maintenant appartenir à plusieurs thèmes. Sélectionnez un ou plusieurs thèmes visibles pour votre rôle.",
+      "selectedThemes": "thème(s) sélectionné(s)",
       "selectTheme": "Sélectionner un thème",
+      "searchThemes": "Rechercher un thème",
+      "searchThemesPlaceholder": "Ex : culture, cinéma, sport...",
+      "noSelectedTheme": "Aucun thème sélectionné pour le moment.",
+      "noThemeResult": "Aucun thème disponible pour cette recherche.",
+      "addTheme": "Ajouter",
+      "removeTheme": "Retirer ce thème",
       "question": "Question",
       "questionPlaceholder": "Saisissez la question",
       "typeMedia": "Type de média",
@@ -61,12 +71,18 @@
       "cancel": "Annuler",
       "saving": "Enregistrement en cours...",
       "errors": {
-        "themeRequired": "Le thème est obligatoire.",
+        "themeRequired": "Au moins un thème est obligatoire.",
         "questionRequired": "La question est obligatoire.",
         "answersMinRequired": "Au moins deux réponses sont nécessaires.",
         "answerRequired": "Toutes les réponses doivent être renseignées.",
         "oneCorrectRequired": "Une seule bonne réponse doit être sélectionnée."
       }
+    },
+    "themeModes": {
+      "classic": "Classique",
+      "image": "Image",
+      "audio": "Audio",
+      "mixed": "Mixte"
     },
     "scope": {
       "global": "Admin",

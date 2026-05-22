@@ -1,13 +1,13 @@
 <template>
   <form class="question-form" @submit.prevent="submitForm">
-    <SelectField
-      id="question-theme"
-      v-model="form.themeId"
-      :label="$t('questions.form.theme')"
-      :placeholder="$t('questions.form.selectTheme')"
-      :options="themeOptions"
+    <ThemeMultiSelect
+      v-model="form.themeIds"
+      :themes="themes"
+      :label="$t('questions.form.themes')"
+      :hint="$t('questions.form.themesHint')"
+      :placeholder="$t('questions.form.searchThemesPlaceholder')"
       :disabled="saving"
-      :error="getErrorLabel(errors.themeId)"
+      :error="getErrorLabel(errors.themeIds)"
       required
     />
 
@@ -137,11 +137,19 @@ import type {
   Theme,
 } from '@/types/question'
 
-const props = defineProps<{
-  question: Question | null
-  themes: Theme[]
-  mode: 'create' | 'edit'
-}>()
+import ThemeMultiSelect from './ThemeMultiSelect.vue'
+
+const props = withDefaults(
+  defineProps<{
+    question: Question | null
+    themes: Theme[]
+    mode: 'create' | 'edit'
+    initialThemeIds?: number[]
+  }>(),
+  {
+    initialThemeIds: () => [],
+  },
+)
 
 const emit = defineEmits<{
   (event: 'saved', question: Question): void
@@ -152,7 +160,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const form = reactive({
-  themeId: '',
+  themeIds: [] as number[],
   question: '',
   typeMedia: QUESTION_MEDIA_TYPE_NONE as QuestionMediaType,
   mediaUrl: '',
@@ -163,7 +171,7 @@ const form = reactive({
 })
 
 const errors = reactive({
-  themeId: '',
+  themeIds: '',
   question: '',
   answers: '',
 })
@@ -174,13 +182,6 @@ const formSuccess = ref<string | null>(null)
 
 const submitLabel = computed(() =>
   props.mode === 'edit' ? t('questions.form.save') : t('questions.form.create'),
-)
-
-const themeOptions = computed<SelectFieldOption[]>(() =>
-  props.themes.map((theme) => ({
-    label: theme.name,
-    value: String(theme.id),
-  })),
 )
 
 const typeMediaOptions = computed<SelectFieldOption[]>(() => [
@@ -203,12 +204,12 @@ const typeMediaOptions = computed<SelectFieldOption[]>(() => [
 ])
 
 watch(
-  () => props.question,
-  (question) => {
+  [() => props.question, () => props.initialThemeIds, () => props.themes],
+  ([question]) => {
     resetMessages()
 
     if (!question) {
-      form.themeId = ''
+      form.themeIds = normalizeThemeIds(props.initialThemeIds)
       form.question = ''
       form.typeMedia = QUESTION_MEDIA_TYPE_NONE
       form.mediaUrl = ''
@@ -216,11 +217,10 @@ watch(
         { response: '', isCorrect: true },
         { response: '', isCorrect: false },
       ]
-
       return
     }
 
-    form.themeId = String(question.themeId)
+    form.themeIds = getQuestionThemeIds(question)
     form.question = question.question
     form.typeMedia = question.typeMedia
     form.mediaUrl = question.mediaUrl ?? ''
@@ -237,8 +237,33 @@ watch(
   { immediate: true },
 )
 
+function normalizeThemeIds(themeIds: number[]): number[] {
+  const visibleThemeIds = new Set(props.themes.map((theme) => Number(theme.id)))
+
+  return [
+    ...new Set(
+      themeIds
+        .map(Number)
+        .filter((themeId) => Number.isInteger(themeId) && themeId > 0)
+        .filter((themeId) => visibleThemeIds.size === 0 || visibleThemeIds.has(themeId)),
+    ),
+  ]
+}
+
+function getQuestionThemeIds(question: Question): number[] {
+  if (Array.isArray(question.themeIds) && question.themeIds.length > 0) {
+    return normalizeThemeIds(question.themeIds)
+  }
+
+  if (Array.isArray(question.themes) && question.themes.length > 0) {
+    return normalizeThemeIds(question.themes.map((theme) => theme.id))
+  }
+
+  return question.themeId ? normalizeThemeIds([question.themeId]) : []
+}
+
 function resetErrors(): void {
-  errors.themeId = ''
+  errors.themeIds = ''
   errors.question = ''
   errors.answers = ''
 }
@@ -264,8 +289,8 @@ function getAnswerError(answer: Answer): string | undefined {
 function validateForm(): boolean {
   resetErrors()
 
-  if (!form.themeId) {
-    errors.themeId = 'questions.form.errors.themeRequired'
+  if (form.themeIds.length === 0) {
+    errors.themeIds = 'questions.form.errors.themeRequired'
   }
 
   if (!form.question.trim()) {
@@ -284,7 +309,7 @@ function validateForm(): boolean {
     errors.answers = 'questions.form.errors.oneCorrectRequired'
   }
 
-  return !errors.themeId && !errors.question && !errors.answers
+  return !errors.themeIds && !errors.question && !errors.answers
 }
 
 function addAnswer(): void {
@@ -311,7 +336,7 @@ function setCorrectAnswer(index: number): void {
 
 function buildPayload(): QuestionPayload {
   return {
-    themeId: Number(form.themeId),
+    themeIds: form.themeIds,
     question: form.question.trim(),
     typeMedia: form.typeMedia,
     mediaUrl:
@@ -346,8 +371,8 @@ async function submitForm(): Promise<void> {
 
     formSuccess.value =
       props.mode === 'edit'
-        ? t('questions.form.success.updated')
-        : t('questions.form.success.created')
+        ? t('questions.success.update')
+        : t('questions.success.create')
 
     emit('saved', savedQuestion)
   } catch {
@@ -426,6 +451,16 @@ async function submitForm(): Promise<void> {
 }
 
 @media (max-width: 820px) {
+  .theme-picker__header,
+  .question-form__answers-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .theme-picker__search {
+    max-width: none;
+  }
+
   .question-form__grid,
   .question-form__answer-row {
     grid-template-columns: 1fr;

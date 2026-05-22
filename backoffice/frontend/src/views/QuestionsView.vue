@@ -18,6 +18,7 @@
 
     <QuestionsTable
       :questions="filteredQuestions"
+      :themes="themes"
       :loading="loading"
       :error="error"
       @retry="loadPage"
@@ -97,6 +98,24 @@ function clearActionBanner(): void {
   actionBanner.value = null
 }
 
+function getQuestionThemeIds(question: Question): number[] {
+  if (Array.isArray(question.themeIds) && question.themeIds.length > 0) {
+    return question.themeIds.map(Number).filter(Number.isFinite)
+  }
+
+  return question.themeId !== null && question.themeId !== undefined
+    ? [Number(question.themeId)]
+    : []
+}
+
+function getQuestionThemeLabels(question: Question): string[] {
+  if (Array.isArray(question.themes) && question.themes.length > 0) {
+    return question.themes.map((theme) => theme.name)
+  }
+
+  return question.themeName ? [question.themeName] : []
+}
+
 function matchesSearch(question: Question): boolean {
   const search = searchQuery.value.trim().toLowerCase()
 
@@ -106,7 +125,7 @@ function matchesSearch(question: Question): boolean {
 
   return [
     question.question,
-    question.themeName,
+    ...getQuestionThemeLabels(question),
     question.typeMedia,
     question.scope,
     getQuestionStatusLabel(question.status),
@@ -120,7 +139,9 @@ function matchesTheme(question: Question): boolean {
     return true
   }
 
-  return String(question.themeId) === themeFilter.value
+  return getQuestionThemeIds(question).some(
+    (themeId) => String(themeId) === themeFilter.value,
+  )
 }
 
 function matchesStatus(question: Question): boolean {

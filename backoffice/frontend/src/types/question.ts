@@ -28,10 +28,12 @@ export interface Question {
   id: number
   adminId: number
   companyId: number | null
-  themeId: number
-  themeName: string | null
-  themeMode: ThemeMode | null
-  themeScope: QuestionScope | null
+  themeId: number | null
+  themeIds?: number[]
+  themes?: Theme[]
+  themeName?: string | null
+  themeMode?: ThemeMode | null
+  themeScope?: QuestionScope | null
   scope: QuestionScope
   question: string
   typeMedia: QuestionMediaType
@@ -53,7 +55,7 @@ export interface QuestionFilters {
 }
 
 export interface QuestionPayload {
-  themeId: number
+  themeIds: number[]
   question: string
   typeMedia: QuestionMediaType
   mediaUrl: string | null

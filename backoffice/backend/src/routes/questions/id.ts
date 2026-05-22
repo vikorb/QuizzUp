@@ -8,19 +8,20 @@ import db from '../../db'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
 import { requireApiPermission } from '../../security/requireApiPermission'
 import {
-  answerSelect,
   buildQuestionStatusPatch,
   canEditQuestion,
   canReadQuestion,
-  ensureThemeIsUsable,
+  ensureThemesAreUsable,
   getAnswerStatusFromQuestionStatus,
   getCurrentAdminId,
   getQuestionAccessRow,
   getQuestionWithAnswers,
+  getThemesForQuestion,
   isValidQuestionMediaType,
   normalizeAnswers,
   parsePositiveId,
-  questionSelect,
+  parseQuestionThemeIds,
+  syncQuestionThemes,
   validateAnswers,
   type QuestionBody,
   type QuestionParams,
@@ -61,6 +62,43 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
       const question = await getQuestionWithAnswers(questionId)
 
       return { question }
+    },
+  )
+
+  app.get<{ Params: QuestionParams }>(
+    '/questions/:questionId/themes',
+    { preHandler: [app.authenticate] },
+    async (req: FastifyRequest<{ Params: QuestionParams }>, reply: FastifyReply) => {
+      const hasPermission = requireApiPermission(
+        req,
+        reply,
+        API_RESOURCE.QUESTION,
+        API_ACTION.READ,
+      )
+
+      if (!hasPermission) {
+        return
+      }
+
+      const questionId = parsePositiveId(req.params.questionId)
+
+      if (questionId === null) {
+        return reply.code(400).send({ error: 'question_id_invalid' })
+      }
+
+      const accessQuestion = await getQuestionAccessRow(questionId)
+
+      if (!accessQuestion) {
+        return reply.code(404).send({ error: 'question_not_found' })
+      }
+
+      if (!canReadQuestion(accessQuestion, req)) {
+        return reply.code(403).send({ error: 'forbidden' })
+      }
+
+      const themes = await getThemesForQuestion(questionId)
+
+      return { themes }
     },
   )
 
@@ -107,6 +145,8 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
         updated_at: db.fn.now(),
       }
 
+      let nextThemeIds: number[] | null = null
+
       if (req.body.question !== undefined) {
         const questionText = req.body.question.trim()
 
@@ -117,15 +157,11 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
         patch.question = questionText
       }
 
-      if (req.body.themeId !== undefined) {
-        const themeId = parsePositiveId(req.body.themeId)
+      if (req.body.themeId !== undefined || req.body.themeIds !== undefined) {
+        nextThemeIds = parseQuestionThemeIds(req.body)
 
-        if (themeId === null) {
-          return reply.code(400).send({ error: 'question_theme_required' })
-        }
-
-        const themeError = await ensureThemeIsUsable(
-          themeId,
+        const themeError = await ensureThemesAreUsable(
+          nextThemeIds,
           req,
           accessQuestion.scope,
           accessQuestion.company_id,
@@ -136,8 +172,6 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
             error: themeError,
           })
         }
-
-        patch.theme_id = themeId
       }
 
       if (req.body.typeMedia !== undefined) {
@@ -165,6 +199,10 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
         await db.transaction(async (trx) => {
           await trx('questions').where({ id: questionId }).update(patch)
 
+          if (nextThemeIds !== null) {
+            await syncQuestionThemes(trx, questionId, nextThemeIds)
+          }
+
           await trx('answers')
             .where({ question_id: questionId })
             .update({
@@ -179,13 +217,19 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
               question_id: questionId,
               response: answer.response,
               is_correct: answer.isCorrect,
-              status: answerStatus,
+              status: answer.status ?? answerStatus,
               deleted_at: null,
             })),
           )
         })
       } else {
-        await db('questions').where({ id: questionId }).update(patch)
+        await db.transaction(async (trx) => {
+          await trx('questions').where({ id: questionId }).update(patch)
+
+          if (nextThemeIds !== null) {
+            await syncQuestionThemes(trx, questionId, nextThemeIds)
+          }
+        })
       }
 
       const question = await getQuestionWithAnswers(questionId)
@@ -239,25 +283,9 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
           })
       })
 
-      const question = await db('questions')
-        .select(questionSelect)
-        .leftJoin('themes', 'themes.id', 'questions.theme_id')
-        .where('questions.id', questionId)
-        .first()
+      const question = await getQuestionWithAnswers(questionId)
 
-      const answers = await db('answers')
-        .select(answerSelect)
-        .where({ question_id: questionId })
-        .orderBy('id', 'asc')
-
-      return {
-        question: question
-          ? {
-              ...question,
-              answers,
-            }
-          : null,
-      }
+      return { question }
     },
   )
 }

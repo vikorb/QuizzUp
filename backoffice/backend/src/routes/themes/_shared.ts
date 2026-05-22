@@ -60,16 +60,16 @@ type AuthenticatedRequest = FastifyRequest & {
 }
 
 export const themeSelect = [
-  'id',
-  'admin_id as adminId',
-  'company_id as companyId',
-  'scope',
-  'name',
-  'mode',
-  'status',
-  'created_at as createdAt',
-  'updated_at as updatedAt',
-  'deleted_at as deletedAt',
+  'themes.id',
+  'themes.admin_id as adminId',
+  'themes.company_id as companyId',
+  'themes.scope',
+  'themes.name',
+  'themes.mode',
+  'themes.status',
+  'themes.created_at as createdAt',
+  'themes.updated_at as updatedAt',
+  'themes.deleted_at as deletedAt',
 ]
 
 export function getCurrentAdminId(req: FastifyRequest): number | null {

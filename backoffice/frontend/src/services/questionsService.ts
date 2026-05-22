@@ -43,6 +43,7 @@ export type UpdateAnswerPayload = {
 }
 
 export type UpdateQuestionPayload = {
+  themeIds?: number[]
   themeId?: number
   question?: string
   typeMedia?: QuestionMediaType
@@ -82,7 +83,9 @@ function buildQuery(filters?: Partial<QuestionFilters>): string {
 function buildQuestionBody(payload: QuestionPayload | UpdateQuestionPayload): Record<string, unknown> {
   const body: Record<string, unknown> = {}
 
-  if (payload.themeId !== undefined) {
+  if ('themeIds' in payload && payload.themeIds !== undefined) {
+    body.themeIds = payload.themeIds
+  } else if ('themeId' in payload && payload.themeId !== undefined) {
     body.themeId = payload.themeId
   }
 
@@ -233,6 +236,20 @@ export async function deleteQuestionService(questionId: number): Promise<Questio
   return result.data.question
 }
 
+export async function listQuestionThemesService(questionId: number): Promise<Theme[]> {
+  const result = await apiRequestJson<ThemeListResponse>({
+    path: `/questions/${questionId}/themes`,
+    method: 'GET',
+    authenticated: true,
+  })
+
+  if (!result.ok) {
+    throw new Error(result.error)
+  }
+
+  return result.data.themes
+}
+
 export async function listQuestionAnswersService(questionId: number): Promise<Answer[]> {
   const result = await apiRequestJson<AnswerListResponse>({
     path: `/questions/${questionId}/answers`,
@@ -348,14 +365,19 @@ export async function attachQuestionToThemeService(
   themeId: number,
 ): Promise<ApiResult<QuestionResponse>> {
   return apiRequestJson<QuestionResponse>({
-    path: `/questions/${questionId}`,
-    method: 'PATCH',
+    path: `/themes/${themeId}/questions/${questionId}`,
+    method: 'POST',
     authenticated: true,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      themeId,
-    }),
+  })
+}
+
+export async function detachQuestionFromThemeService(
+  questionId: number,
+  themeId: number,
+): Promise<ApiResult<QuestionResponse>> {
+  return apiRequestJson<QuestionResponse>({
+    path: `/themes/${themeId}/questions/${questionId}`,
+    method: 'DELETE',
+    authenticated: true,
   })
 }

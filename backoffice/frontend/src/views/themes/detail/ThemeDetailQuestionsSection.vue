@@ -64,7 +64,7 @@
               </span>
 
               <span
-                v-if="String(question.themeId) !== String(themeId)"
+                v-if="getQuestionThemeIds(question).length > 0"
                 class="pill pill--warning"
               >
                 {{ $t('themes.questions.fromAnotherTheme') }}
@@ -249,8 +249,20 @@ const availableQuestions = computed(() => {
     .slice(0, 8)
 })
 
+function getQuestionThemeIds(question: Question): number[] {
+  if (Array.isArray(question.themeIds) && question.themeIds.length > 0) {
+    return question.themeIds.map(Number).filter(Number.isFinite)
+  }
+
+  return question.themeId !== null && question.themeId !== undefined
+    ? [Number(question.themeId)]
+    : []
+}
+
 function isLinkedToCurrentTheme(question: Question): boolean {
-  return String(question.themeId) === String(props.themeId)
+  return getQuestionThemeIds(question).some(
+    (themeId) => String(themeId) === String(props.themeId),
+  )
 }
 
 function clearActionBanner(): void {
