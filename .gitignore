@@ -1,0 +1,9 @@
+# Dependencies
+node_modules/
+
+# Claude Code — réglages personnels (ne pas committer)
+.claude/settings.local.json
+
+# OS
+.DS_Store
+Thumbs.db

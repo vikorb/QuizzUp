@@ -1,0 +1,5 @@
+if [ -d backoffice/node_modules ]; then
+  cd backoffice && npx --no -- lint-staged
+else
+  echo "husky(pre-commit): backoffice/node_modules absent -> lint-staged ignore. Lance 'npm install' dans backoffice/ pour activer le lint pre-commit."
+fi
