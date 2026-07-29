@@ -52,8 +52,8 @@ defineEmits<{
   inset: 0;
   z-index: -1;
   background:
-    radial-gradient(circle at 10% 10%, rgba(139, 92, 246, 0.15) 0%, transparent 40%),
-    radial-gradient(circle at 90% 80%, rgba(0, 242, 255, 0.1) 0%, transparent 40%);
+    radial-gradient(circle at 10% 10%, var(--glow-pink) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, var(--glow-cyan) 0%, transparent 40%);
 }
 
 .main-layout {

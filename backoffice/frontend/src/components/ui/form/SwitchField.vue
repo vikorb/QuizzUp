@@ -24,7 +24,7 @@ const props = withDefaults(
   {
     label: '',
     disabled: false,
-  },
+  }
 )
 
 const emit = defineEmits<{
@@ -57,7 +57,7 @@ function handleClick(): void {
   padding: 0;
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--surface-3);
   cursor: pointer;
   transition:
     background 0.2s ease,
@@ -71,8 +71,8 @@ function handleClick(): void {
 }
 
 .switch-field--active {
-  border-color: rgba(45, 255, 137, 0.45);
-  background: rgba(45, 255, 137, 0.22);
+  border-color: var(--ok);
+  background: var(--ok-bg);
 }
 
 .switch-field__thumb {

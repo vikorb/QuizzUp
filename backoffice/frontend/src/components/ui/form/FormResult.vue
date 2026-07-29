@@ -21,16 +21,16 @@ defineProps<{
   padding: 10px 12px;
   border-radius: 12px;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--text-1);
 }
 
 .form-result--error {
-  border: 1px solid rgba(237, 46, 251, 0.35);
-  background: rgba(237, 46, 251, 0.08);
+  border: 1px solid var(--danger);
+  background: var(--danger-bg);
 }
 
 .form-result--success {
-  border: 1px solid rgba(0, 242, 255, 0.28);
-  background: rgba(0, 242, 255, 0.08);
+  border: 1px solid var(--ok);
+  background: var(--ok-bg);
 }
 </style>

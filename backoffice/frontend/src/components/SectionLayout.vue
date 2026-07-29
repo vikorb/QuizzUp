@@ -66,16 +66,16 @@ defineProps<{
     transparent 100%
   );
   background:
-    radial-gradient(900px 160px at 20% 0%, rgba(0, 98, 255, 0.14), transparent 72%),
-    radial-gradient(900px 160px at 80% 0%, rgba(237, 46, 251, 0.12), transparent 72%),
+    radial-gradient(900px 160px at 20% 0%, var(--glow-blue), transparent 72%),
+    radial-gradient(900px 160px at 80% 0%, var(--glow-pink), transparent 72%),
     linear-gradient(
       to bottom,
-      rgba(0, 0, 0, 0.74) 0%,
-      rgba(0, 0, 0, 0.62) 55%,
-      rgba(0, 0, 0, 0.4) 82%,
-      rgba(0, 0, 0, 0) 100%
+      var(--overlay) 0%,
+      var(--shadow-2) 55%,
+      var(--shadow-1) 82%,
+      transparent 100%
     );
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--border-ui);
 }
 
 .header-inner {
@@ -90,7 +90,7 @@ defineProps<{
   font-weight: 900;
   color: var(--text-0);
   letter-spacing: -0.5px;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+  text-shadow: 0 2px 10px var(--shadow-1);
 }
 
 .content-body {

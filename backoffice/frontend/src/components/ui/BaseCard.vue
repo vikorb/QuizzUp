@@ -79,7 +79,7 @@ withDefaults(
   flex-direction: column;
   border-radius: 18px;
   border: 1px solid var(--border-ui);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--surface-1);
   padding: 14px;
 }
 
@@ -116,6 +116,6 @@ withDefaults(
 }
 
 .state--error {
-  color: rgba(255, 180, 200, 0.92);
+  color: var(--danger);
 }
 </style>

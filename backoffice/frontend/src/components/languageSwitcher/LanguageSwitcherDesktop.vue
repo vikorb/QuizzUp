@@ -39,7 +39,7 @@ function handleChange(event: Event): void {
 
 .ui-select {
   appearance: none;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--surface-2);
   border: 1px solid var(--border-ui);
   color: var(--text-0);
   padding: 6px 30px 6px 12px;
@@ -51,7 +51,7 @@ function handleChange(event: Event): void {
 
 .ui-select:hover {
   border-color: var(--border-hover);
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--surface-3);
 }
 
 .select-arrow {

@@ -23,7 +23,7 @@ const variantClass = computed(() => `ui-btn--${props.variant}`)
   justify-content: center;
   gap: 8px;
   border: 1px solid var(--border-ui);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--surface-1);
   color: var(--text-1);
   border-radius: 12px;
   padding: 10px 18px;
@@ -34,22 +34,24 @@ const variantClass = computed(() => `ui-btn--${props.variant}`)
 }
 
 .ui-btn:hover {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--surface-2);
   border-color: var(--border-hover);
   color: var(--text-0);
 }
 
+/* Primaire : violet mat translucide (foncé) + halo doux, jamais vif. */
 .ui-btn--primary {
-  background: linear-gradient(135deg, rgba(0, 98, 255, 0.18), rgba(237, 46, 251, 0.18));
-  border-color: rgba(255, 255, 255, 0.12);
-  color: white;
+  background: linear-gradient(135deg, var(--glow-blue), var(--glow-pink)), var(--bg-card-hi);
+  border-color: var(--border-2);
+  color: var(--text-0);
+  box-shadow: 0 0 0 1px var(--surface-1) inset;
 }
 
 .ui-btn--primary:hover {
-  background: linear-gradient(135deg, rgba(0, 98, 255, 0.26), rgba(237, 46, 251, 0.26));
+  border-color: var(--border-hover);
   box-shadow:
-    0 0 6px var(--glow-blue),
-    0 0 8px var(--glow-pink);
+    0 0 0 1px var(--surface-2) inset,
+    0 0 16px var(--glow-soft);
 }
 
 .ui-btn--seg {
@@ -58,40 +60,37 @@ const variantClass = computed(() => `ui-btn--${props.variant}`)
   gap: 10px;
   border-radius: 14px;
   padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--surface-0);
   color: var(--text-1);
 }
 
 .ui-btn--seg:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--surface-2);
 }
 
 .ui-btn--seg.is-active {
-  border-color: rgba(255, 255, 255, 0.16);
-  background: linear-gradient(135deg, rgba(0, 98, 255, 0.16), rgba(237, 46, 251, 0.16));
-  box-shadow:
-    0 0 10px var(--glow-blue),
-    0 0 12px var(--glow-pink);
+  border-color: var(--border-2);
+  background: linear-gradient(135deg, var(--glow-blue), var(--glow-pink)), var(--bg-card-hi);
+  box-shadow: 0 0 12px var(--glow-soft);
   color: var(--text-0);
 }
 
 .ui-btn--danger {
-  background: rgba(255, 255, 255, 0.03);
-  border-color: rgba(255, 80, 120, 0.28);
+  background: var(--surface-1);
+  border-color: var(--danger);
   color: var(--text-0);
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.03) inset,
-    0 0 14px rgba(255, 80, 120, 0.16);
+    0 0 0 1px var(--surface-1) inset,
+    0 0 14px var(--danger-bg);
 }
 
 .ui-btn--danger:hover {
-  background: rgba(255, 80, 120, 0.1);
-  border-color: rgba(255, 80, 120, 0.45);
+  background: var(--danger-bg);
+  border-color: var(--danger);
   color: var(--text-0);
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
-    0 0 18px rgba(255, 80, 120, 0.22),
-    0 0 26px rgba(255, 0, 90, 0.14);
+    0 0 0 1px var(--surface-2) inset,
+    0 0 18px var(--danger-bg);
 }
 
 .ui-btn--icon {
@@ -101,12 +100,12 @@ const variantClass = computed(() => `ui-btn--${props.variant}`)
   border-radius: 12px;
   justify-content: center;
   gap: 0;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--surface-2);
   color: var(--text-1);
 }
 
 .ui-btn--icon:hover {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--surface-3);
   border-color: var(--border-hover);
   color: var(--text-0);
 }

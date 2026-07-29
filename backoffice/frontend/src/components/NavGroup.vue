@@ -102,12 +102,12 @@ function onItemClick(item: NavItem) {
 }
 
 .nav-link:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--surface-2);
   color: var(--text-0);
 }
 
 .nav-link.is-active {
-  background: rgba(139, 92, 246, 0.1);
+  background: var(--glow-soft);
   color: var(--accent-cyan);
 }
 

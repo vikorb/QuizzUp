@@ -63,6 +63,6 @@ defineEmits<{
 }
 
 .seg-btn.is-active .seg-name {
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-0);
 }
 </style>

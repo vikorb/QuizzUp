@@ -42,7 +42,7 @@
 
 <script setup lang="ts">
 import LabelField from '@/components/ui/form/LabelField.vue'
-import type { SelectFieldOption } from '@/types/form';
+import type { SelectFieldOption } from '@/types/form'
 
 withDefaults(
   defineProps<{
@@ -111,7 +111,7 @@ function handleChange(event: Event): void {
   padding: 0 42px 0 14px;
   border-radius: 14px;
   border: 1px solid var(--border-ui);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-field);
   color: var(--text-0);
   font: inherit;
   outline: none;
@@ -125,7 +125,7 @@ function handleChange(event: Event): void {
 .select-field__input:hover,
 .select-field__input:focus {
   border-color: var(--border-hover);
-  box-shadow: 0 0 0 3px rgba(0, 242, 255, 0.08);
+  box-shadow: 0 0 0 3px var(--glow-soft);
 }
 
 .select-field__input:disabled {
@@ -134,8 +134,8 @@ function handleChange(event: Event): void {
 }
 
 .select-field__input--error {
-  border-color: rgba(255, 107, 107, 0.8);
-  box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.08);
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-bg);
 }
 
 .select-field__hint {
@@ -147,6 +147,6 @@ function handleChange(event: Event): void {
 .select-field__error {
   margin: 0;
   font-size: 12px;
-  color: #ff6b6b;
+  color: var(--danger);
 }
 </style>

@@ -39,7 +39,7 @@ const styleVars = computed(() => {
   border-radius: 18px;
   backdrop-filter: blur(10px);
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+    0 0 0 1px var(--surface-2) inset,
     0 0 18px var(--glow-blue),
     0 0 26px var(--glow-pink);
   overflow: hidden;
