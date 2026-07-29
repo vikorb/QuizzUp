@@ -83,6 +83,19 @@ Objectif qualité explicite du projet : **beaucoup de tests unitaires / fonction
 
 ## 5. Stack & commandes
 
+**Installation locale (obligatoire avant de lancer les tests)** — les tests importent
+`backend/src` et `frontend/src`, donc il faut les deps des **4** packages + le build de `shared`,
+sinon erreurs `Cannot find package 'zod'` / `Tsconfig not found` :
+
+```bash
+npm install                                    # racine (husky), depuis la racine du repo
+cd backoffice
+npm install                                    # workspace backoffice (lint/test/type-check)
+npm --prefix shared install && npm --prefix shared run build
+npm --prefix backend install
+npm --prefix frontend install
+```
+
 **Qualité — depuis `backoffice/`** (orchestre back + front, à lancer avant chaque PR) :
 
 ```bash
