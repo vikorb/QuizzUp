@@ -1,5 +1,16 @@
 import { vi } from 'vitest'
 
+// plugins/i18n lit localStorage au chargement du module (i18n.ts). Sous Node 25, le
+// localStorage global expérimental masque celui de jsdom et casse à l'import (getItem non
+// appelable). On mocke le plugin : seul LanguageSwitcher (navbar) l'importe statiquement,
+// les autres composants passent par le mock vue-i18n de la config vitest.
+vi.mock('@/plugins/i18n', () => ({
+  getCurrentLocale: () => 'fr',
+  setCurrentLocale: () => {},
+  createAppI18n: () => ({ install: () => {} }),
+  i18n: { global: { locale: { value: 'fr' } } },
+}))
+
 vi.mock('@/state/authState', async () => {
   const authState = await import('./authStateMock')
 
