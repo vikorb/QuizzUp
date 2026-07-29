@@ -13,6 +13,7 @@
 import {
   THEME_STATUS_ACTIVE,
   THEME_STATUS_DELETED,
+  THEME_STATUS_DRAFT,
   THEME_STATUS_INACTIVE,
   type ThemeStatus,
 } from '@quizzup/shared'
@@ -32,7 +33,7 @@ const props = withDefaults(
   }>(),
   {
     disabled: false,
-  },
+  }
 )
 
 const emit = defineEmits<{
@@ -48,23 +49,22 @@ const currentStatus = computed<ThemeStatus>(() => toThemeStatus(props.theme.stat
 const isActive = computed(() => currentStatus.value === THEME_STATUS_ACTIVE)
 const isDeleted = computed(() => currentStatus.value === THEME_STATUS_DELETED)
 
-const canChangeStatus = computed(() =>
-  canUpdateThemeStatus(props.theme, props.currentRole),
-)
+const canChangeStatus = computed(() => canUpdateThemeStatus(props.theme, props.currentRole))
 
 const isSwitchDisabled = computed(
-  () => props.disabled || busy.value || isDeleted.value || !canChangeStatus.value,
+  () => props.disabled || busy.value || isDeleted.value || !canChangeStatus.value
 )
 
 const switchTitle = computed(() =>
-  isActive.value ? t('themes.actions.disable') : t('themes.actions.enable'),
+  isActive.value ? t('themes.actions.disable') : t('themes.actions.enable')
 )
 
 function toThemeStatus(status: unknown): ThemeStatus {
   if (
     status === THEME_STATUS_ACTIVE ||
     status === THEME_STATUS_INACTIVE ||
-    status === THEME_STATUS_DELETED
+    status === THEME_STATUS_DELETED ||
+    status === THEME_STATUS_DRAFT
   ) {
     return status
   }
@@ -91,7 +91,7 @@ async function toggleStatus(): Promise<void> {
   const confirmed = window.confirm(
     t(confirmKey, {
       theme: props.theme.name,
-    }),
+    })
   )
 
   if (!confirmed) {

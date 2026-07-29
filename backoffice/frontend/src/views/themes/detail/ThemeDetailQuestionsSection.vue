@@ -20,12 +20,7 @@
           </p>
         </div>
 
-        <UiButton
-          variant="primary"
-          type="button"
-          :disabled="!canEdit"
-          @click="goToCreateQuestion"
-        >
+        <UiButton variant="primary" type="button" :disabled="!canEdit" @click="goToCreateQuestion">
           <MdIcon :path="mdiPlus" :size="18" />
           {{ $t('themes.questions.createQuestion') }}
         </UiButton>
@@ -44,11 +39,7 @@
       </div>
 
       <div v-if="canEdit && searchQuery.trim()" class="questions-manager__results">
-        <div
-          v-for="question in availableQuestions"
-          :key="question.id"
-          class="question-result"
-        >
+        <div v-for="question in availableQuestions" :key="question.id" class="question-result">
           <div class="question-result__content">
             <span class="question-result__title">
               {{ question.question }}
@@ -63,10 +54,7 @@
                 {{ getStatusLabel(question.status) }}
               </span>
 
-              <span
-                v-if="getQuestionThemeIds(question).length > 0"
-                class="pill pill--warning"
-              >
+              <span v-if="getQuestionThemeIds(question).length > 0" class="pill pill--warning">
                 {{ $t('themes.questions.fromAnotherTheme') }}
               </span>
             </div>
@@ -122,11 +110,7 @@
             <tbody>
               <tr v-for="question in linkedQuestions" :key="question.id">
                 <td>
-                  <button
-                    class="question-link"
-                    type="button"
-                    @click="goToQuestion(question.id)"
-                  >
+                  <button class="question-link" type="button" @click="goToQuestion(question.id)">
                     {{ question.question }}
                   </button>
                 </td>
@@ -161,6 +145,18 @@
                     >
                       <MdIcon :path="mdiOpenInNew" :size="18" />
                     </UiButton>
+
+                    <UiButton
+                      class="question-remove"
+                      variant="icon"
+                      type="button"
+                      :disabled="!canEdit || busyQuestionId === question.id"
+                      :title="$t('themes.questions.remove')"
+                      :aria-label="$t('themes.questions.remove')"
+                      @click="detachQuestion(question)"
+                    >
+                      <MdIcon :path="mdiLinkOff" :size="18" />
+                    </UiButton>
                   </div>
                 </td>
               </tr>
@@ -177,7 +173,7 @@
 </template>
 
 <script setup lang="ts">
-import { mdiOpenInNew, mdiPlus } from '@mdi/js'
+import { mdiLinkOff, mdiOpenInNew, mdiPlus } from '@mdi/js'
 import {
   QUESTION_MEDIA_TYPE_AUDIO,
   QUESTION_MEDIA_TYPE_IMAGE,
@@ -199,6 +195,7 @@ import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import {
   attachQuestionToThemeService,
+  detachQuestionFromThemeService,
   listQuestionsService,
 } from '@/services/questionsService'
 import type { ActionBanner } from '@/types/banner'
@@ -232,7 +229,7 @@ const actionBannerMessage = computed(() => getBannerMessage(actionBanner.value, 
 const linkedQuestions = computed(() =>
   questions.value
     .filter((question) => isLinkedToCurrentTheme(question))
-    .filter((question) => question.status !== QUESTION_STATUS_DELETED),
+    .filter((question) => question.status !== QUESTION_STATUS_DELETED)
 )
 
 const availableQuestions = computed(() => {
@@ -260,9 +257,7 @@ function getQuestionThemeIds(question: Question): number[] {
 }
 
 function isLinkedToCurrentTheme(question: Question): boolean {
-  return getQuestionThemeIds(question).some(
-    (themeId) => String(themeId) === String(props.themeId),
-  )
+  return getQuestionThemeIds(question).some((themeId) => String(themeId) === String(props.themeId))
 }
 
 function clearActionBanner(): void {
@@ -321,9 +316,56 @@ async function attachQuestion(question: Question): Promise<void> {
   }
 }
 
+async function detachQuestion(question: Question): Promise<void> {
+  if (!props.canEdit || busyQuestionId.value !== null) {
+    return
+  }
+
+  const confirmed = window.confirm(
+    t('themes.questions.removeConfirm', {
+      question: question.question,
+    })
+  )
+
+  if (!confirmed) {
+    return
+  }
+
+  busyQuestionId.value = question.id
+  clearActionBanner()
+
+  try {
+    const result = await detachQuestionFromThemeService(question.id, props.themeId)
+
+    if (!result.ok) {
+      actionBanner.value = createErrorBanner(result.error)
+      return
+    }
+
+    const updatedQuestion = result.data.question
+
+    if (!updatedQuestion) {
+      actionBanner.value = createErrorBanner('serverError')
+      return
+    }
+
+    // La question détachée conserve ses autres thèmes : on la met à jour en place
+    // pour qu'elle sorte de la liste liée (et du compteur) sans rechargement.
+    handleQuestionUpdated(updatedQuestion)
+
+    actionBanner.value = createSuccessBanner('questionDetached', {
+      question: updatedQuestion.question,
+    })
+  } catch {
+    actionBanner.value = createErrorBanner('serverError')
+  } finally {
+    busyQuestionId.value = null
+  }
+}
+
 function handleQuestionUpdated(updatedQuestion: Question): void {
   const exists = questions.value.some(
-    (question) => String(question.id) === String(updatedQuestion.id),
+    (question) => String(question.id) === String(updatedQuestion.id)
   )
 
   if (!exists) {
@@ -332,7 +374,7 @@ function handleQuestionUpdated(updatedQuestion: Question): void {
   }
 
   questions.value = questions.value.map((question) =>
-    String(question.id) === String(updatedQuestion.id) ? updatedQuestion : question,
+    String(question.id) === String(updatedQuestion.id) ? updatedQuestion : question
   )
 }
 
@@ -414,7 +456,7 @@ watch(
   () => props.themeId,
   () => {
     void loadQuestions()
-  },
+  }
 )
 
 onMounted(loadQuestions)
@@ -552,6 +594,10 @@ onMounted(loadQuestions)
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.question-remove {
+  color: #ff6b6b;
 }
 
 .question-link {

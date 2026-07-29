@@ -15,6 +15,7 @@ import {
   isValidThemeScope,
   isValidThemeStatus,
   parseOptionalNumber,
+  themeListSelect,
   themeSelect,
   type ThemeBody,
   type ThemeQuery,
@@ -30,12 +31,7 @@ const themesRoutes: FastifyPluginAsync = async (app) => {
     '/themes',
     { preHandler: [app.authenticate] },
     async (req: FastifyRequest<{ Querystring: ThemeQuery }>, reply: FastifyReply) => {
-      const hasPermission = requireApiPermission(
-        req,
-        reply,
-        API_RESOURCE.THEME,
-        API_ACTION.LIST,
-      )
+      const hasPermission = requireApiPermission(req, reply, API_RESOURCE.THEME, API_ACTION.LIST)
 
       if (!hasPermission) {
         return
@@ -44,7 +40,7 @@ const themesRoutes: FastifyPluginAsync = async (app) => {
       const currentCompanyId = getCurrentCompanyId(req)
       const query = req.query
 
-      const themesQuery = db('themes').select(themeSelect)
+      const themesQuery = db('themes').select(themeListSelect)
 
       if (!isSuperadmin(req)) {
         themesQuery.where(function filterVisibleThemes(this: Knex.QueryBuilder) {
@@ -81,19 +77,14 @@ const themesRoutes: FastifyPluginAsync = async (app) => {
       const themes = await themesQuery.orderBy('id', 'asc')
 
       return { themes }
-    },
+    }
   )
 
   app.post<{ Body: ThemeBody }>(
     '/themes',
     { preHandler: [app.authenticate] },
     async (req: FastifyRequest<{ Body: ThemeBody }>, reply: FastifyReply) => {
-      const hasPermission = requireApiPermission(
-        req,
-        reply,
-        API_RESOURCE.THEME,
-        API_ACTION.CREATE,
-      )
+      const hasPermission = requireApiPermission(req, reply, API_RESOURCE.THEME, API_ACTION.CREATE)
 
       if (!hasPermission) {
         return
@@ -137,7 +128,7 @@ const themesRoutes: FastifyPluginAsync = async (app) => {
         .returning(themeSelect)
 
       return reply.code(201).send({ theme })
-    },
+    }
   )
 }
 

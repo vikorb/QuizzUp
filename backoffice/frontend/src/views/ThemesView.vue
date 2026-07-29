@@ -15,7 +15,7 @@
     />
 
     <ThemesTable
-      :themes="filteredThemes"
+      :themes="themes"
       :loading="loading"
       :error="error"
       @retry="loadPage"
@@ -28,14 +28,8 @@
 </template>
 
 <script setup lang="ts">
-import {
-  ADMIN_ROLE_SUPERADMIN,
-  THEME_STATUS_ACTIVE,
-  THEME_STATUS_DELETED,
-  THEME_STATUS_DRAFT,
-  THEME_STATUS_INACTIVE,
-} from '@quizzup/shared'
-import { computed, onMounted, ref } from 'vue'
+import { ADMIN_ROLE_SUPERADMIN } from '@quizzup/shared'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
@@ -44,7 +38,7 @@ import BaseBanner from '@/components/ui/BaseBanner.vue'
 import { listThemesService } from '@/services/themesService'
 import { authState } from '@/state/authState'
 import type { ActionBanner } from '@/types/banner'
-import type { Theme } from '@/types/theme'
+import type { Theme, ThemeFilters } from '@/types/theme'
 import {
   createErrorBanner,
   createSuccessBanner,
@@ -68,83 +62,22 @@ const statusFilter = ref('')
 const modeFilter = ref('')
 const scopeFilter = ref('')
 
-const isSuperAdmin = computed(
-  () => authState.me.value?.role === ADMIN_ROLE_SUPERADMIN,
-)
+const isSuperAdmin = computed(() => authState.me.value?.role === ADMIN_ROLE_SUPERADMIN)
 
 const actionBannerVariant = computed(() => getBannerVariant(actionBanner.value))
 const actionBannerMessage = computed(() => getBannerMessage(actionBanner.value, t))
 
-const filteredThemes = computed(() => {
-  return themes.value.filter((theme) => {
-    return (
-      matchesSearch(theme) &&
-      matchesStatus(theme) &&
-      matchesMode(theme) &&
-      matchesScope(theme)
-    )
-  })
-})
+// Le filtrage est délégué au serveur (statut « Supprimé » inclus) : on transmet
+// les filtres via la query-string plutôt que de dupliquer la logique côté client.
+const filters = computed<ThemeFilters>(() => ({
+  search: searchQuery.value.trim() || undefined,
+  status: statusFilter.value || undefined,
+  mode: modeFilter.value || undefined,
+  scope: scopeFilter.value || undefined,
+}))
 
 function clearActionBanner(): void {
   actionBanner.value = null
-}
-
-function matchesSearch(theme: Theme): boolean {
-  const search = searchQuery.value.trim().toLowerCase()
-
-  if (!search) {
-    return true
-  }
-
-  return [
-    theme.name,
-    theme.mode,
-    theme.scope,
-    getThemeStatusSearchLabel(theme.status),
-  ]
-    .filter(Boolean)
-    .some((value) => String(value).toLowerCase().includes(search))
-}
-
-function matchesStatus(theme: Theme): boolean {
-  if (!statusFilter.value) {
-    return theme.status !== THEME_STATUS_DELETED
-  }
-
-  return String(theme.status) === statusFilter.value
-}
-
-function matchesMode(theme: Theme): boolean {
-  if (!modeFilter.value) {
-    return true
-  }
-
-  return theme.mode === modeFilter.value
-}
-
-function matchesScope(theme: Theme): boolean {
-  if (!scopeFilter.value) {
-    return true
-  }
-
-  return theme.scope === scopeFilter.value
-}
-
-function getThemeStatusSearchLabel(status: number): string {
-  if (status === THEME_STATUS_ACTIVE) {
-    return 'active'
-  }
-
-  if (status === THEME_STATUS_INACTIVE) {
-    return 'inactive'
-  }
-
-  if (status === THEME_STATUS_DRAFT) {
-    return 'draft'
-  }
-
-  return 'deleted'
 }
 
 function getThemeName(theme: Theme): string {
@@ -157,10 +90,11 @@ async function loadPage(): Promise<void> {
   clearActionBanner()
 
   try {
-    const result = await listThemesService()
+    const result = await listThemesService(filters.value)
 
     if (!result.ok) {
       error.value = result.error
+      themes.value = []
       return
     }
 
@@ -185,9 +119,7 @@ function goToDetail(themeId: number): void {
 function handleThemeUpdated(updatedTheme: Theme): void {
   clearActionBanner()
 
-  themes.value = themes.value.map((theme) =>
-    theme.id === updatedTheme.id ? updatedTheme : theme,
-  )
+  themes.value = themes.value.map((theme) => (theme.id === updatedTheme.id ? updatedTheme : theme))
 
   actionBanner.value = createSuccessBanner('themeUpdated', {
     theme: getThemeName(updatedTheme),
@@ -209,6 +141,10 @@ function handleDeleted(themeId: number): void {
 function handleActionError(errorCode: string): void {
   actionBanner.value = createErrorBanner(errorCode)
 }
+
+watch(filters, () => {
+  void loadPage()
+})
 
 onMounted(loadPage)
 </script>

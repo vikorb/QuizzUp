@@ -9,23 +9,12 @@ import {
 import type { Theme } from '@/types/theme'
 
 export function canCreateTheme(role: string | null | undefined): boolean {
-  return (
-    role === ADMIN_ROLE_SUPERADMIN ||
-    role === ADMIN_ROLE_ADMIN ||
-    role === ADMIN_ROLE_USER
-  )
+  return role === ADMIN_ROLE_SUPERADMIN || role === ADMIN_ROLE_ADMIN || role === ADMIN_ROLE_USER
 }
 
-export function canUpdateTheme(
-  theme: Theme,
-  role: string | null | undefined,
-): boolean {
+export function canUpdateTheme(theme: Theme, role: string | null | undefined): boolean {
   if (theme.status === THEME_STATUS_DELETED) {
     return false
-  }
-
-  if (theme.canEdit !== undefined) {
-    return theme.canEdit
   }
 
   if (role === ADMIN_ROLE_SUPERADMIN) {
@@ -39,16 +28,10 @@ export function canUpdateTheme(
   return false
 }
 
-export function canDeleteTheme(
-  theme: Theme,
-  role: string | null | undefined,
-): boolean {
+export function canDeleteTheme(theme: Theme, role: string | null | undefined): boolean {
   return canUpdateTheme(theme, role)
 }
 
-export function canUpdateThemeStatus(
-  theme: Theme,
-  role: string | null | undefined,
-): boolean {
+export function canUpdateThemeStatus(theme: Theme, role: string | null | undefined): boolean {
   return canUpdateTheme(theme, role)
 }

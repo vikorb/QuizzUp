@@ -13,6 +13,7 @@
         "mode": "Mode",
         "scope": "Portée",
         "status": "Statut",
+        "questions": "Questions",
         "actions": "Actions"
       }
     },
@@ -31,6 +32,8 @@
       "linkedCount": "question(s) liée(s)",
       "noLinkedQuestion": "Aucune question n'est encore liée à ce thème.",
       "openQuestion": "Voir le détail de la question",
+      "remove": "Retirer du thème",
+      "removeConfirm": "Retirer la question « {question} » de ce thème ?",
       "table": {
         "question": "Question",
         "media": "Média",

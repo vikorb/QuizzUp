@@ -1,8 +1,4 @@
-import type {
-  ThemeMode,
-  ThemeScope,
-  ThemeStatus,
-} from '@quizzup/shared'
+import type { ThemeMode, ThemeScope, ThemeStatus } from '@quizzup/shared'
 
 export type Theme = {
   id: number
@@ -12,10 +8,10 @@ export type Theme = {
   name: string
   mode: ThemeMode
   status: ThemeStatus
+  questionsCount?: number
   createdAt?: string
   updatedAt?: string | null
   deletedAt?: string | null
-  canEdit?: boolean
 }
 
 export type ThemePayload = {
