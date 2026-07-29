@@ -1,3 +1,4 @@
+import { setConfirmResult } from '@frontend-tests/_helpers/confirmMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { updateThemeStatusServiceMock } from '@frontend-tests/_helpers/themesServiceMock'
@@ -64,7 +65,7 @@ describe('views/themes/table/ThemesTableActionsSwitch.vue', () => {
   })
 
   it('reflects an active company theme as checked and toggles it off', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    setConfirmResult(true)
 
     const wrapper = mountWithFrontendMocks(ThemesTableActionsSwitch, {
       props: {
@@ -84,7 +85,7 @@ describe('views/themes/table/ThemesTableActionsSwitch.vue', () => {
   })
 
   it('keeps a draft theme interactive and activates it on toggle (draft not coerced to inactive)', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    setConfirmResult(true)
 
     const wrapper = mountWithFrontendMocks(ThemesTableActionsSwitch, {
       props: {
@@ -105,7 +106,7 @@ describe('views/themes/table/ThemesTableActionsSwitch.vue', () => {
   })
 
   it('does not call the service when the confirmation is dismissed', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    setConfirmResult(false)
 
     const wrapper = mountWithFrontendMocks(ThemesTableActionsSwitch, {
       props: {

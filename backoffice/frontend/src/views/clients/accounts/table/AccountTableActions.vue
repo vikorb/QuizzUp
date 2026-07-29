@@ -43,6 +43,7 @@ import { useRouter } from 'vue-router'
 
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import { useConfirm } from '@/composables/useConfirm'
 import { getEditCompanyAccountRoute } from '@/router/clients'
 import { deleteAccountService } from '@/services/accountsService'
 import type { Account, AccountTableRow } from '@/types/account'
@@ -63,6 +64,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { confirm } = useConfirm()
 const router = useRouter()
 const deleteBusy = ref(false)
 const switchBusy = ref(false)
@@ -91,11 +93,15 @@ async function handleDeleteAccount(): Promise<void> {
     return
   }
 
-  const confirmed = window.confirm(
-    t('accounts.table.actions.deleteConfirm', {
+  const confirmed = await confirm({
+    title: t('accounts.table.actions.delete'),
+    message: t('accounts.table.actions.deleteConfirm', {
       name: props.item.displayName,
-    })
-  )
+    }),
+    confirmLabel: t('accounts.table.actions.delete'),
+    cancelLabel: t('confirm.cancel'),
+    variant: 'danger',
+  })
 
   if (!confirmed) {
     return

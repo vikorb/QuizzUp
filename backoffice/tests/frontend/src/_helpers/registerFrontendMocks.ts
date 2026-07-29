@@ -11,6 +11,14 @@ vi.mock('@/plugins/i18n', () => ({
   i18n: { global: { locale: { value: 'fr' } } },
 }))
 
+vi.mock('@/composables/useConfirm', async () => {
+  const confirm = await import('./confirmMock')
+
+  return {
+    useConfirm: confirm.useConfirmMock,
+  }
+})
+
 vi.mock('@/state/authState', async () => {
   const authState = await import('./authStateMock')
 

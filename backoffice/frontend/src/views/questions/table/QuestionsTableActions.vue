@@ -43,6 +43,7 @@ import { useI18n } from 'vue-i18n'
 
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import { useConfirm } from '@/composables/useConfirm'
 import { deleteQuestionService } from '@/services/questionsService'
 import type { Question } from '@/types/question'
 import { canDeleteQuestion, canUpdateQuestion } from '@/utils/question/permissions'
@@ -62,6 +63,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { confirm } = useConfirm()
 const deleteBusy = ref(false)
 const switchBusy = ref(false)
 
@@ -95,11 +97,15 @@ async function handleDeleteQuestion(): Promise<void> {
     return
   }
 
-  const confirmed = window.confirm(
-    t('questions.actions.deleteConfirm', {
+  const confirmed = await confirm({
+    title: t('questions.actions.delete'),
+    message: t('questions.actions.deleteConfirm', {
       question: props.item.question,
-    })
-  )
+    }),
+    confirmLabel: t('questions.actions.delete'),
+    cancelLabel: t('confirm.cancel'),
+    variant: 'danger',
+  })
 
   if (!confirmed) {
     return

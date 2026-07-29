@@ -3,6 +3,7 @@ import {
   mockUpdateCompanyStatusSuccess,
   updateCompanyStatusServiceMock,
 } from '@frontend-tests/_helpers/companiesServiceMock'
+import { setConfirmResult } from '@frontend-tests/_helpers/confirmMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import {
@@ -11,7 +12,7 @@ import {
   COMPANY_STATUS_INACTIVE,
 } from '@quizzup/shared'
 import { flushPromises } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import ClientsTableActionsSwitch from '@/views/clients/table/ClientsTableActionsSwitch.vue'
 
@@ -27,7 +28,7 @@ const activeCompany = {
 
 describe('views/clients/table/ClientsTableActionsSwitch.vue', () => {
   it('does nothing when the confirmation is cancelled', async () => {
-    window.confirm = vi.fn(() => false)
+    setConfirmResult(false)
 
     const wrapper = mountWithFrontendMocks(ClientsTableActionsSwitch, {
       props: {
@@ -61,7 +62,7 @@ describe('views/clients/table/ClientsTableActionsSwitch.vue', () => {
   })
 
   it('updates an active company to inactive and emits busy changes', async () => {
-    window.confirm = vi.fn(() => true)
+    setConfirmResult(true)
 
     mockUpdateCompanyStatusSuccess({
       name: 'Acme Corp',
@@ -88,7 +89,7 @@ describe('views/clients/table/ClientsTableActionsSwitch.vue', () => {
   })
 
   it('emits an error when the service fails', async () => {
-    window.confirm = vi.fn(() => true)
+    setConfirmResult(true)
 
     mockUpdateCompanyStatusFailure('server_error')
 

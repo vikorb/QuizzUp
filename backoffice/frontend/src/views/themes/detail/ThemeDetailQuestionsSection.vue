@@ -193,6 +193,7 @@ import BaseCard from '@/components/ui/BaseCard.vue'
 import FormField from '@/components/ui/form/FormField.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import { useConfirm } from '@/composables/useConfirm'
 import {
   attachQuestionToThemeService,
   detachQuestionFromThemeService,
@@ -214,6 +215,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+const { confirm } = useConfirm()
 const router = useRouter()
 
 const questions = ref<Question[]>([])
@@ -321,11 +323,15 @@ async function detachQuestion(question: Question): Promise<void> {
     return
   }
 
-  const confirmed = window.confirm(
-    t('themes.questions.removeConfirm', {
+  const confirmed = await confirm({
+    title: t('themes.questions.remove'),
+    message: t('themes.questions.removeConfirm', {
       question: question.question,
-    })
-  )
+    }),
+    confirmLabel: t('themes.questions.remove'),
+    cancelLabel: t('confirm.cancel'),
+    variant: 'danger',
+  })
 
   if (!confirmed) {
     return

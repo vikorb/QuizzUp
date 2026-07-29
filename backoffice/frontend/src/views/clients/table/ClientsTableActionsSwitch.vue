@@ -20,6 +20,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import SwitchField from '@/components/ui/form/SwitchField.vue'
+import { useConfirm } from '@/composables/useConfirm'
 import { updateCompanyStatusService } from '@/services/companiesService'
 import type { CompanyTableRow } from '@/types/company'
 import { toCompanyStatus } from '@/utils/company/status'
@@ -31,7 +32,7 @@ const props = withDefaults(
   }>(),
   {
     disabled: false,
-  },
+  }
 )
 
 const emit = defineEmits<{
@@ -41,10 +42,11 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { confirm } = useConfirm()
 const busy = ref(false)
 
 const currentStatus = computed<CompanyStatus>(
-  () => toCompanyStatus(props.company.status) ?? COMPANY_STATUS_INACTIVE,
+  () => toCompanyStatus(props.company.status) ?? COMPANY_STATUS_INACTIVE
 )
 
 const isActive = computed(() => currentStatus.value === COMPANY_STATUS_ACTIVE)
@@ -52,7 +54,7 @@ const isDeleted = computed(() => currentStatus.value === COMPANY_STATUS_DELETED)
 const isSwitchDisabled = computed(() => props.disabled || busy.value || isDeleted.value)
 
 const switchTitle = computed(() =>
-  isActive.value ? t('clients.table.actions.disable') : t('clients.table.actions.enable'),
+  isActive.value ? t('clients.table.actions.disable') : t('clients.table.actions.enable')
 )
 
 function setBusy(value: boolean): void {
@@ -71,11 +73,16 @@ async function toggleStatus(): Promise<void> {
     ? 'clients.table.actions.disableConfirm'
     : 'clients.table.actions.enableConfirm'
 
-  const confirmed = window.confirm(
-    t(confirmKey, {
+  const confirmed = await confirm({
+    title: isActive.value ? t('clients.table.actions.disable') : t('clients.table.actions.enable'),
+    message: t(confirmKey, {
       name: props.company.name,
     }),
-  )
+    confirmLabel: isActive.value
+      ? t('clients.table.actions.disable')
+      : t('clients.table.actions.enable'),
+    cancelLabel: t('confirm.cancel'),
+  })
 
   if (!confirmed) {
     return

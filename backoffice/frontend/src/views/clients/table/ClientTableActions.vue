@@ -53,6 +53,7 @@ import { useI18n } from 'vue-i18n'
 
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import { useConfirm } from '@/composables/useConfirm'
 import { deleteCompanyPermanentlyService } from '@/services/companiesService'
 import type { CompanyTableRow } from '@/types/company'
 
@@ -71,6 +72,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { confirm } = useConfirm()
 const deleteBusy = ref(false)
 const switchBusy = ref(false)
 const isBusy = computed(() => deleteBusy.value || switchBusy.value)
@@ -108,11 +110,15 @@ async function handleDeleteCompany(): Promise<void> {
     return
   }
 
-  const confirmed = window.confirm(
-    t('clients.table.actions.deleteConfirm', {
+  const confirmed = await confirm({
+    title: t('clients.table.actions.delete'),
+    message: t('clients.table.actions.deleteConfirm', {
       name: props.item.name,
-    })
-  )
+    }),
+    confirmLabel: t('clients.table.actions.delete'),
+    cancelLabel: t('confirm.cancel'),
+    variant: 'danger',
+  })
 
   if (!confirmed) {
     return

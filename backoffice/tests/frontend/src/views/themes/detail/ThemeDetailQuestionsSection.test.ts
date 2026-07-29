@@ -1,3 +1,4 @@
+import { setConfirmResult } from '@frontend-tests/_helpers/confirmMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import {
   attachQuestionToThemeServiceMock,
@@ -8,7 +9,7 @@ import {
 } from '@frontend-tests/_helpers/questionsServiceMock'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { flushPromises } from '@vue/test-utils'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { nextTick } from 'vue'
 
 import ThemeDetailQuestionsSection from '@/views/themes/detail/ThemeDetailQuestionsSection.vue'
@@ -21,10 +22,6 @@ beforeEach(() => {
     createQuestionMock({ id: 102, question: 'Linked two', themeId: 1, themeIds: [1] }),
     createQuestionMock({ id: 200, question: 'Capitale de la France', themeId: 2, themeIds: [2] }),
   ])
-})
-
-afterEach(() => {
-  vi.restoreAllMocks()
 })
 
 async function mountSection(canEdit = true) {
@@ -55,7 +52,7 @@ describe('views/themes/detail/ThemeDetailQuestionsSection.vue', () => {
   })
 
   it('attaches a searched question and flags questions already linked elsewhere', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    setConfirmResult(true)
 
     const wrapper = await mountSection()
 
@@ -76,7 +73,7 @@ describe('views/themes/detail/ThemeDetailQuestionsSection.vue', () => {
   })
 
   it('detaches a linked question, updates the list and the count, and shows a banner', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    setConfirmResult(true)
 
     const wrapper = await mountSection()
 
@@ -94,7 +91,7 @@ describe('views/themes/detail/ThemeDetailQuestionsSection.vue', () => {
   })
 
   it('surfaces the last-link invariant error and keeps the question linked', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    setConfirmResult(true)
     mockDetachQuestionFailure('question_theme_last_link')
 
     const wrapper = await mountSection()
@@ -109,7 +106,7 @@ describe('views/themes/detail/ThemeDetailQuestionsSection.vue', () => {
   })
 
   it('skips detaching when the confirmation is dismissed', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    setConfirmResult(false)
 
     const wrapper = await mountSection()
 
