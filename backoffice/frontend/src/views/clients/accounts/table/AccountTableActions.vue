@@ -10,7 +10,7 @@
     />
 
     <UiButton
-      class="icon"
+      class="icon icon-edit"
       variant="icon"
       type="button"
       :disabled="isBusy || isDeleted"
@@ -94,7 +94,7 @@ async function handleDeleteAccount(): Promise<void> {
   const confirmed = window.confirm(
     t('accounts.table.actions.deleteConfirm', {
       name: props.item.displayName,
-    }),
+    })
   )
 
   if (!confirmed) {
@@ -128,7 +128,12 @@ async function handleDeleteAccount(): Promise<void> {
   white-space: nowrap;
 }
 
+/* Icônes d'action codées couleur : éditer = bleu doux, supprimer = danger. */
+.icon-edit {
+  color: var(--edit);
+}
+
 .icon-delete {
-  color: #ff6b6b;
+  color: var(--danger);
 }
 </style>

@@ -55,11 +55,7 @@
 </template>
 
 <script setup lang="ts">
-import {
-  ADMIN_STATUS_ACTIVE,
-  ADMIN_STATUS_DELETED,
-  ADMIN_STATUS_INACTIVE,
-} from '@quizzup/shared'
+import { ADMIN_STATUS_ACTIVE, ADMIN_STATUS_DELETED, ADMIN_STATUS_INACTIVE } from '@quizzup/shared'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -167,7 +163,7 @@ function getStatusLabel(value: unknown): string {
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--text-1);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--surface-2);
   font-size: 12px;
   font-weight: 700;
 }
@@ -182,18 +178,19 @@ function getStatusLabel(value: unknown): string {
   font-weight: 800;
 }
 
+/* Pills de statut : inactif = éteint, actif = teal, supprimé = danger. */
 .status--0 {
-  color: #ffd36e;
-  background: rgba(255, 190, 70, 0.12);
+  color: var(--text-2);
+  background: var(--surface-3);
 }
 
 .status--1 {
-  color: #7dffb2;
-  background: rgba(45, 255, 137, 0.12);
+  color: var(--ok);
+  background: var(--ok-bg);
 }
 
 .status--2 {
-  color: #ff8a8a;
-  background: rgba(255, 107, 107, 0.12);
+  color: var(--danger);
+  background: var(--danger-bg);
 }
 </style>

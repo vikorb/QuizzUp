@@ -333,12 +333,10 @@ function getStatusClass(status: unknown): string {
   max-width: 100%;
   min-height: 28px;
   padding: 4px 9px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-2);
   border-radius: 999px;
   color: var(--text-1);
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)),
-    rgba(12, 18, 34, 0.75);
+  background: linear-gradient(135deg, var(--surface-3), var(--surface-1)), var(--bg-card);
   font-size: 12px;
   font-weight: 900;
   text-decoration: none;
@@ -349,7 +347,7 @@ function getStatusClass(status: unknown): string {
 }
 
 .theme-chip:hover {
-  border-color: rgba(120, 170, 255, 0.45);
+  border-color: var(--border-hover);
   color: var(--primary);
   transform: translateY(-1px);
 }
@@ -365,7 +363,7 @@ function getStatusClass(status: unknown): string {
   padding: 2px 6px;
   border-radius: 999px;
   color: var(--text-2);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--surface-3);
   font-size: 10px;
   font-weight: 900;
   text-transform: uppercase;
@@ -388,39 +386,41 @@ function getStatusClass(status: unknown): string {
   font-weight: 800;
 }
 
+/* Chips de portée : Global = bleu, Établissement = violet. */
 .scope--global {
-  color: #91c7ff;
-  background: rgba(80, 160, 255, 0.12);
+  color: var(--edit);
+  background: var(--edit-bg);
 }
 
 .scope--company {
-  color: #d6a6ff;
-  background: rgba(190, 100, 255, 0.12);
+  color: var(--accent-pink);
+  background: var(--glow-soft);
 }
 
+/* Pills de statut : actif = teal, brouillon = ambre, inactif = éteint. */
 .status--inactive {
-  color: #ffd36e;
-  background: rgba(255, 190, 70, 0.12);
+  color: var(--text-2);
+  background: var(--surface-3);
 }
 
 .status--active {
-  color: #7dffb2;
-  background: rgba(45, 255, 137, 0.12);
+  color: var(--ok);
+  background: var(--ok-bg);
 }
 
 .status--deleted {
-  color: #ff8a8a;
-  background: rgba(255, 107, 107, 0.12);
+  color: var(--danger);
+  background: var(--danger-bg);
 }
 
 .status--draft {
-  color: #a7b8ff;
-  background: rgba(120, 145, 255, 0.12);
+  color: var(--warn);
+  background: var(--warn-bg);
 }
 
 .status--unknown {
-  color: var(--text-1);
-  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-2);
+  background: var(--surface-3);
 }
 
 .theme-more {
@@ -429,13 +429,11 @@ function getStatusClass(status: unknown): string {
   justify-content: center;
   min-height: 28px;
   padding: 4px 11px;
-  border: 1px solid rgba(120, 170, 255, 0.28);
+  border: 1px solid var(--border-2);
   border-radius: 999px;
   color: var(--primary);
-  background:
-    linear-gradient(135deg, rgba(120, 170, 255, 0.16), rgba(120, 170, 255, 0.05)),
-    rgba(12, 18, 34, 0.9);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  background: linear-gradient(135deg, var(--glow-blue), var(--glow-soft)), var(--bg-card-hi);
+  box-shadow: 0 6px 18px var(--shadow-1);
   font-size: 11px;
   font-weight: 900;
   white-space: nowrap;
@@ -448,16 +446,14 @@ function getStatusClass(status: unknown): string {
 }
 
 .theme-more:hover {
-  border-color: rgba(120, 170, 255, 0.55);
-  background:
-    linear-gradient(135deg, rgba(120, 170, 255, 0.24), rgba(120, 170, 255, 0.08)),
-    rgba(12, 18, 34, 0.95);
+  border-color: var(--border-hover);
+  background: linear-gradient(135deg, var(--glow-blue), var(--glow-pink)), var(--bg-card-hi);
   color: var(--text-0);
   transform: translateY(-1px);
 }
 
 .theme-more:focus-visible {
-  outline: 2px solid rgba(120, 170, 255, 0.55);
+  outline: 2px solid var(--border-hover);
   outline-offset: 2px;
 }
 </style>

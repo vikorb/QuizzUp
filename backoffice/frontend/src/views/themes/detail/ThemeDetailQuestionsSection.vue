@@ -510,11 +510,9 @@ onMounted(loadQuestions)
   justify-content: space-between;
   gap: 14px;
   padding: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-2);
   border-radius: 16px;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
-    rgba(10, 14, 28, 0.72);
+  background: linear-gradient(135deg, var(--surface-2), var(--surface-0)), var(--bg-card);
 }
 
 .question-result__content {
@@ -541,7 +539,7 @@ onMounted(loadQuestions)
 .linked-questions__empty {
   margin: 0;
   padding: 18px;
-  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border: 1px dashed var(--border-2);
   border-radius: 16px;
   color: var(--text-2);
   text-align: center;
@@ -554,7 +552,7 @@ onMounted(loadQuestions)
 
 .linked-questions__table-wrapper {
   overflow-x: auto;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-2);
   border-radius: 18px;
 }
 
@@ -567,7 +565,7 @@ onMounted(loadQuestions)
 .linked-questions__table th,
 .linked-questions__table td {
   padding: 14px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom: 1px solid var(--border-ui);
   text-align: left;
   vertical-align: middle;
 }
@@ -597,7 +595,7 @@ onMounted(loadQuestions)
 }
 
 .question-remove {
-  color: #ff6b6b;
+  color: var(--danger);
 }
 
 .question-link {
@@ -624,34 +622,35 @@ onMounted(loadQuestions)
   padding: 3px 9px;
   border-radius: 999px;
   color: var(--text-2);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--surface-3);
   font-size: 12px;
   font-weight: 800;
 }
 
+/* Pills de statut : actif = teal, brouillon = ambre, inactif = éteint. */
 .pill--active {
-  color: #7dffb2;
-  background: rgba(45, 255, 137, 0.12);
+  color: var(--ok);
+  background: var(--ok-bg);
 }
 
 .pill--inactive {
-  color: #ffd36e;
-  background: rgba(255, 190, 70, 0.12);
+  color: var(--text-2);
+  background: var(--surface-3);
 }
 
 .pill--draft {
-  color: #a7b8ff;
-  background: rgba(120, 145, 255, 0.12);
+  color: var(--warn);
+  background: var(--warn-bg);
 }
 
 .pill--deleted {
-  color: #ff8a8a;
-  background: rgba(255, 107, 107, 0.12);
+  color: var(--danger);
+  background: var(--danger-bg);
 }
 
 .pill--warning {
-  color: #ffd36e;
-  background: rgba(255, 190, 70, 0.12);
+  color: var(--warn);
+  background: var(--warn-bg);
 }
 
 @media (max-width: 720px) {

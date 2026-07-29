@@ -11,6 +11,7 @@
 
     <UiButton
       class="icon"
+      :class="{ 'icon-edit': canEdit }"
       variant="icon"
       type="button"
       :disabled="isBusy"
@@ -126,7 +127,12 @@ async function handleDeleteQuestion(): Promise<void> {
   white-space: nowrap;
 }
 
+/* Icônes d'action codées couleur : éditer = bleu doux, supprimer = danger. */
+.icon-edit {
+  color: var(--edit);
+}
+
 .icon-delete {
-  color: #ff6b6b;
+  color: var(--danger);
 }
 </style>

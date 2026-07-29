@@ -58,7 +58,11 @@ import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseTable from '@/components/ui/BaseTable.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import type { Company, CompanyTableRow } from '@/types/company'
-import { getClientStatusLabel, getClientTableColumns, toCompanyTableRow } from '@/utils/company/table'
+import {
+  getClientStatusLabel,
+  getClientTableColumns,
+  toCompanyTableRow,
+} from '@/utils/company/table'
 
 import ClientTableActions from './table/ClientTableActions.vue'
 
@@ -82,7 +86,7 @@ const { t } = useI18n()
 const columns = computed(() => getClientTableColumns(t))
 
 const tableItems = computed<CompanyTableRow[]>(() =>
-  props.companies.map((company) => ({ ...company }) as CompanyTableRow),
+  props.companies.map((company) => ({ ...company }) as CompanyTableRow)
 )
 
 function getStatusLabel(value: unknown): string {
@@ -121,18 +125,19 @@ function getStatusLabel(value: unknown): string {
   font-weight: 800;
 }
 
+/* Pills de statut : inactif = éteint, actif = teal, supprimé = danger. */
 .status--0 {
-  color: #ffd36e;
-  background: rgba(255, 190, 70, 0.12);
+  color: var(--text-2);
+  background: var(--surface-3);
 }
 
 .status--1 {
-  color: #7dffb2;
-  background: rgba(45, 255, 137, 0.12);
+  color: var(--ok);
+  background: var(--ok-bg);
 }
 
 .status--2 {
-  color: #ff8a8a;
-  background: rgba(255, 107, 107, 0.12);
+  color: var(--danger);
+  background: var(--danger-bg);
 }
 </style>

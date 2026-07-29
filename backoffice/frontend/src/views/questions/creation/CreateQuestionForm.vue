@@ -424,7 +424,7 @@ async function submitForm(): Promise<void> {
 
 .question-form__error {
   margin: 0;
-  color: #ff8a8a;
+  color: var(--danger);
   font-size: 13px;
   font-weight: 800;
 }

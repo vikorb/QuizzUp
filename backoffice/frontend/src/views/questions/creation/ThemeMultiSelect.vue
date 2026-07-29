@@ -149,7 +149,7 @@ const props = withDefaults(
     error: '',
     disabled: false,
     required: false,
-  },
+  }
 )
 
 const emit = defineEmits<{
@@ -172,7 +172,7 @@ const selectedIdSet = computed(() => new Set(props.modelValue.map(Number)))
 const selectedThemes = computed(() =>
   props.modelValue
     .map((themeId) => props.themes.find((theme) => Number(theme.id) === Number(themeId)))
-    .filter((theme): theme is Theme => Boolean(theme)),
+    .filter((theme): theme is Theme => Boolean(theme))
 )
 
 const availableThemes = computed(() => {
@@ -185,8 +185,9 @@ const availableThemes = computed(() => {
         return true
       }
 
-      return [theme.name, theme.mode, theme.scope]
-        .some((value) => String(value).toLowerCase().includes(search))
+      return [theme.name, theme.mode, theme.scope].some((value) =>
+        String(value).toLowerCase().includes(search)
+      )
     })
     .slice(0, 10)
 })
@@ -203,7 +204,7 @@ watch(
   () => searchQuery.value,
   () => {
     highlightedIndex.value = 0
-  },
+  }
 )
 
 watch(
@@ -212,16 +213,12 @@ watch(
     if (highlightedIndex.value >= length) {
       highlightedIndex.value = Math.max(length - 1, 0)
     }
-  },
+  }
 )
 
 function normalizeThemeIds(themeIds: number[]): number[] {
   return [
-    ...new Set(
-      themeIds
-        .map(Number)
-        .filter((themeId) => Number.isInteger(themeId) && themeId > 0),
-    ),
+    ...new Set(themeIds.map(Number).filter((themeId) => Number.isInteger(themeId) && themeId > 0)),
   ]
 }
 
@@ -276,8 +273,8 @@ function removeTheme(themeId: number): void {
   emit(
     'update:modelValue',
     normalizeThemeIds(
-      props.modelValue.filter((selectedThemeId) => Number(selectedThemeId) !== Number(themeId)),
-    ),
+      props.modelValue.filter((selectedThemeId) => Number(selectedThemeId) !== Number(themeId))
+    )
   )
 }
 
@@ -315,9 +312,7 @@ function highlightPrevious(): void {
   }
 
   highlightedIndex.value =
-    highlightedIndex.value === 0
-      ? availableThemes.value.length - 1
-      : highlightedIndex.value - 1
+    highlightedIndex.value === 0 ? availableThemes.value.length - 1 : highlightedIndex.value - 1
 }
 
 function removeLastThemeWhenSearchIsEmpty(): void {
@@ -368,25 +363,24 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 10px;
   padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-2);
   border-radius: 22px;
   background:
-    radial-gradient(circle at top left, rgba(86, 140, 255, 0.16), transparent 34%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.065), rgba(255, 255, 255, 0.025)),
-    rgba(8, 12, 24, 0.72);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    radial-gradient(circle at top left, var(--glow-blue), transparent 34%),
+    linear-gradient(135deg, var(--surface-2), var(--surface-0)), var(--bg-card);
+  box-shadow: inset 0 1px 0 var(--surface-3);
 }
 
 .theme-multiselect--open {
-  border-color: rgba(120, 170, 255, 0.42);
+  border-color: var(--border-hover);
   box-shadow:
-    0 0 0 1px rgba(120, 170, 255, 0.12),
-    0 18px 50px rgba(0, 0, 0, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    0 0 0 1px var(--glow-soft),
+    0 18px 50px var(--shadow-1),
+    inset 0 1px 0 var(--surface-3);
 }
 
 .theme-multiselect--error {
-  border-color: rgba(255, 107, 107, 0.44);
+  border-color: var(--danger);
 }
 
 .theme-multiselect--disabled {
@@ -410,7 +404,7 @@ onBeforeUnmount(() => {
 }
 
 .theme-multiselect__required {
-  color: #ff8a8a;
+  color: var(--danger);
 }
 
 .theme-multiselect__hint {
@@ -427,7 +421,7 @@ onBeforeUnmount(() => {
   padding: 4px 10px;
   border-radius: 999px;
   color: var(--text-1);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--surface-3);
   font-size: 12px;
   font-weight: 900;
   white-space: nowrap;
@@ -439,9 +433,9 @@ onBeforeUnmount(() => {
   gap: 8px;
   min-height: 54px;
   padding: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-2);
   border-radius: 18px;
-  background: rgba(0, 0, 0, 0.18);
+  background: var(--surface-inset);
   cursor: text;
   transition:
     border-color 0.16s ease,
@@ -449,8 +443,8 @@ onBeforeUnmount(() => {
 }
 
 .theme-multiselect__control:focus-within {
-  border-color: rgba(120, 170, 255, 0.5);
-  background: rgba(0, 0, 0, 0.24);
+  border-color: var(--border-hover);
+  background: var(--surface-inset);
 }
 
 .theme-multiselect__chips {
@@ -475,7 +469,7 @@ onBeforeUnmount(() => {
 }
 
 .theme-multiselect__input::placeholder {
-  color: var(--text-3, rgba(255, 255, 255, 0.42));
+  color: var(--text-3);
 }
 
 .theme-multiselect__toggle {
@@ -484,18 +478,18 @@ onBeforeUnmount(() => {
   width: 34px;
   height: 34px;
   align-self: start;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-2);
   border-radius: 12px;
   color: var(--text-1);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--surface-2);
   cursor: pointer;
   font-size: 18px;
   font-weight: 900;
 }
 
 .theme-multiselect__toggle:hover:not(:disabled) {
-  border-color: rgba(120, 170, 255, 0.42);
-  background: rgba(255, 255, 255, 0.09);
+  border-color: var(--border-hover);
+  background: var(--surface-3);
 }
 
 .theme-chip {
@@ -505,12 +499,10 @@ onBeforeUnmount(() => {
   max-width: 100%;
   min-height: 34px;
   padding: 4px 6px 4px 11px;
-  border: 1px solid rgba(120, 170, 255, 0.24);
+  border: 1px solid var(--border-2);
   border-radius: 999px;
   color: var(--text-1);
-  background:
-    linear-gradient(135deg, rgba(80, 140, 255, 0.18), rgba(180, 100, 255, 0.1)),
-    rgba(255, 255, 255, 0.055);
+  background: linear-gradient(135deg, var(--glow-blue), var(--glow-soft)), var(--surface-2);
   cursor: pointer;
   font: inherit;
   transition:
@@ -520,10 +512,8 @@ onBeforeUnmount(() => {
 }
 
 .theme-chip:hover:not(:disabled) {
-  border-color: rgba(120, 170, 255, 0.48);
-  background:
-    linear-gradient(135deg, rgba(80, 140, 255, 0.24), rgba(180, 100, 255, 0.14)),
-    rgba(255, 255, 255, 0.075);
+  border-color: var(--border-hover);
+  background: linear-gradient(135deg, var(--glow-blue), var(--glow-pink)), var(--surface-2);
   transform: translateY(-1px);
 }
 
@@ -557,7 +547,7 @@ onBeforeUnmount(() => {
   height: 20px;
   border-radius: 999px;
   color: var(--text-0);
-  background: rgba(255, 255, 255, 0.11);
+  background: var(--surface-3);
   font-size: 15px;
   line-height: 1;
 }
@@ -573,14 +563,12 @@ onBeforeUnmount(() => {
   max-height: 330px;
   padding: 10px;
   overflow-y: auto;
-  border: 1px solid rgba(120, 170, 255, 0.2);
+  border: 1px solid var(--border-2);
   border-radius: 18px;
-  background:
-    linear-gradient(135deg, rgba(22, 30, 56, 0.98), rgba(13, 18, 34, 0.98)),
-    rgba(10, 14, 28, 0.98);
+  background: linear-gradient(135deg, var(--bg-card-hi), var(--bg-card)), var(--bg-elevated);
   box-shadow:
-    0 24px 70px rgba(0, 0, 0, 0.42),
-    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    0 24px 70px var(--shadow-2),
+    inset 0 1px 0 var(--surface-2);
   backdrop-filter: blur(16px);
 }
 
@@ -622,8 +610,8 @@ onBeforeUnmount(() => {
 
 .theme-option:hover,
 .theme-option--highlighted {
-  border-color: rgba(120, 170, 255, 0.28);
-  background: rgba(255, 255, 255, 0.07);
+  border-color: var(--border-2);
+  background: var(--surface-2);
   transform: translateY(-1px);
 }
 
@@ -635,8 +623,8 @@ onBeforeUnmount(() => {
   border-radius: 14px;
   color: var(--text-0);
   background:
-    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.26), transparent 32%),
-    linear-gradient(135deg, rgba(80, 140, 255, 0.34), rgba(180, 100, 255, 0.22));
+    radial-gradient(circle at 30% 20%, var(--surface-3), transparent 32%),
+    linear-gradient(135deg, var(--glow-blue), var(--glow-pink)), var(--bg-card-hi);
   font-size: 12px;
   font-weight: 950;
 }
@@ -678,14 +666,14 @@ onBeforeUnmount(() => {
 
 .theme-multiselect__empty {
   padding: 14px;
-  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border: 1px dashed var(--border-2);
   border-radius: 14px;
   color: var(--text-2);
   text-align: center;
 }
 
 .theme-multiselect__error {
-  color: #ff8a8a;
+  color: var(--danger);
 }
 
 .theme-multiselect-fade-enter-active,
