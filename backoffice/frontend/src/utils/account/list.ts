@@ -12,10 +12,13 @@ export function removeAccountFromList(accounts: Account[], accountId: number): A
   return accounts.filter((account) => account.id !== accountId)
 }
 
-export function getAccountDisplayName(account: Account): string {
-  const fullname = [account.firstname, account.lastname].filter(Boolean).join(' ').trim()
-
-  return fullname || account.username
+export function getAccountDisplayName(account: Account, fallbackAccount?: Account | null): string {
+  return (
+    [account.firstname, account.lastname].filter(Boolean).join(' ').trim() ||
+    account.username ||
+    fallbackAccount?.username ||
+    `#${account.id}`
+  )
 }
 
 export function toAccountTableRow(account: Account): AccountTableRow {

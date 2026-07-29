@@ -1,12 +1,9 @@
-import {
-  ADMIN_STATUS_ACTIVE,
-  ADMIN_STATUS_DELETED,
-  ADMIN_STATUS_INACTIVE,
-} from '@quizzup/shared'
+import { ADMIN_STATUS_ACTIVE, ADMIN_STATUS_DELETED, ADMIN_STATUS_INACTIVE } from '@quizzup/shared'
 
 import type { TranslateFn } from '@/types'
 import type { Account, AccountStatusFilter } from '@/types/account'
 import type { SelectFieldOption } from '@/types/form'
+import { filterByQuery } from '@/utils/filter'
 
 export const DEFAULT_ACCOUNT_STATUS_FILTER: AccountStatusFilter = ADMIN_STATUS_ACTIVE
 
@@ -33,7 +30,7 @@ export function getAccountStatusFilterOptions(t: TranslateFn): SelectFieldOption
 
 export function parseAccountStatusFilter(
   value: string,
-  fallback: AccountStatusFilter,
+  fallback: AccountStatusFilter
 ): AccountStatusFilter {
   if (value === 'all') {
     return 'all'
@@ -54,37 +51,22 @@ export function parseAccountStatusFilter(
 
 export function hasAccountToolbarActiveFilters(
   searchQuery: string,
-  statusFilter: AccountStatusFilter,
+  statusFilter: AccountStatusFilter
 ): boolean {
   return searchQuery.trim().length > 0 || statusFilter !== DEFAULT_ACCOUNT_STATUS_FILTER
 }
 
 export function filterAccounts(accounts: Account[], searchQuery: string): Account[] {
-  const normalizedQuery = searchQuery.trim().toLowerCase()
-
-  if (!normalizedQuery) {
-    return accounts
-  }
-
-  return accounts.filter((account) => {
-    const searchable = [
-      account.firstname,
-      account.lastname,
-      account.username,
-      account.email,
-      account.role,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
-
-    return searchable.includes(normalizedQuery)
-  })
+  return filterByQuery(accounts, searchQuery, (account) =>
+    [account.firstname, account.lastname, account.username, account.email, account.role].filter(
+      (value): value is string => Boolean(value)
+    )
+  )
 }
 
 export function filterAccountsByStatus(
   accounts: Account[],
-  statusFilter: AccountStatusFilter,
+  statusFilter: AccountStatusFilter
 ): Account[] {
   if (statusFilter === 'all') {
     return accounts
