@@ -2,7 +2,6 @@ import type { FastifyRequest } from 'fastify'
 import type { Knex } from 'knex'
 
 import {
-  ADMIN_ROLE_USER,
   ANSWER_STATUS_ACTIVE,
   ANSWER_STATUS_DELETED,
   ANSWER_STATUS_DRAFT,
@@ -15,20 +14,34 @@ import {
   THEME_SCOPE_COMPANY,
   THEME_SCOPE_GLOBAL,
   THEME_STATUS_DELETED,
-  type AdminRole,
   type AnswerStatus,
   type QuestionMediaType,
   type QuestionStatus,
   type ThemeScope,
 } from '@quizzup/shared'
 import db from '../../db'
-import { getCurrentCompanyId, isSuperadmin } from '../../security/companiesPolicy'
+import {
+  getCurrentAdminId,
+  getCurrentAdminRole,
+  isUserRole,
+  parseOptionalNumber,
+  parsePositiveId,
+} from '../_shared/adminContext'
+import {
+  canEditScoped,
+  canEditScopedForScope,
+  canReadScoped,
+  getScope,
+  getScopedCompanyId,
+} from '../_shared/scope'
 import {
   canReadTheme,
   getThemeAccessRow,
   themeSelect,
   type ThemeAccessRow,
 } from '../themes/_shared'
+
+export { getCurrentAdminId, getCurrentAdminRole, isUserRole, parseOptionalNumber, parsePositiveId }
 
 export const DEFAULT_QUESTION_MEDIA_TYPE = QUESTION_MEDIA_TYPE_NONE
 
@@ -66,18 +79,6 @@ export type QuestionQuery = {
   status?: string
   typeMedia?: string
   scope?: string
-}
-
-type AuthPayload = {
-  id?: number | string
-  adminId?: number | string
-  sub?: number | string
-  role?: AdminRole | string
-}
-
-type AuthenticatedRequest = FastifyRequest & {
-  user?: AuthPayload
-  admin?: AuthPayload
 }
 
 type NormalizedAnswer = {
@@ -158,46 +159,6 @@ export function buildAnswerStatusPatch(status: AnswerStatus) {
   }
 }
 
-export function getCurrentAdminId(req: FastifyRequest): number | null {
-  const authReq = req as AuthenticatedRequest
-  const value =
-    authReq.user?.adminId ??
-    authReq.user?.id ??
-    authReq.user?.sub ??
-    authReq.admin?.adminId ??
-    authReq.admin?.id
-
-  const parsed = Number(value)
-
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
-}
-
-export function getCurrentAdminRole(req: FastifyRequest): string | null {
-  const authReq = req as AuthenticatedRequest
-
-  return authReq.user?.role ?? authReq.admin?.role ?? null
-}
-
-export function isUserRole(req: FastifyRequest): boolean {
-  return getCurrentAdminRole(req) === ADMIN_ROLE_USER
-}
-
-export function parsePositiveId(value: unknown): number | null {
-  const parsed = Number(value)
-
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
-}
-
-export function parseOptionalNumber(value: unknown): number | null {
-  if (value === undefined || value === null || value === '') {
-    return null
-  }
-
-  const parsed = Number(value)
-
-  return Number.isInteger(parsed) ? parsed : null
-}
-
 export function isValidQuestionScope(value: unknown): value is ThemeScope {
   return value === THEME_SCOPE_GLOBAL || value === THEME_SCOPE_COMPANY
 }
@@ -223,7 +184,7 @@ export function getAnswerStatusFromQuestionStatus(status: QuestionStatus): Answe
 }
 
 export function getQuestionScope(req: FastifyRequest, requestedScope?: ThemeScope): ThemeScope {
-  return isSuperadmin(req) ? (requestedScope ?? THEME_SCOPE_GLOBAL) : THEME_SCOPE_COMPANY
+  return getScope(req, requestedScope)
 }
 
 export function getQuestionCompanyId(
@@ -231,21 +192,11 @@ export function getQuestionCompanyId(
   scope: ThemeScope,
   requestedCompanyId?: number | null
 ): number | null {
-  if (scope === THEME_SCOPE_GLOBAL) {
-    return null
-  }
-
-  return isSuperadmin(req) ? (requestedCompanyId ?? null) : getCurrentCompanyId(req)
+  return getScopedCompanyId(req, scope, requestedCompanyId)
 }
 
 export function canReadQuestion(question: QuestionAccessRow, req: FastifyRequest): boolean {
-  const currentCompanyId = getCurrentCompanyId(req)
-
-  return (
-    isSuperadmin(req) ||
-    question.scope === THEME_SCOPE_GLOBAL ||
-    (question.scope === THEME_SCOPE_COMPANY && question.company_id === currentCompanyId)
-  )
+  return canReadScoped(question, req)
 }
 
 export function canEditQuestionForScope(
@@ -253,13 +204,11 @@ export function canEditQuestionForScope(
   scope: ThemeScope,
   companyId: number | null
 ): boolean {
-  const currentCompanyId = getCurrentCompanyId(req)
-
-  return isSuperadmin(req) || (scope === THEME_SCOPE_COMPANY && companyId === currentCompanyId)
+  return canEditScopedForScope(req, scope, companyId)
 }
 
 export function canEditQuestion(question: QuestionAccessRow, req: FastifyRequest): boolean {
-  return canEditQuestionForScope(req, question.scope, question.company_id)
+  return canEditScoped(question, req)
 }
 
 export async function getQuestionAccessRow(questionId: number): Promise<QuestionAccessRow | null> {

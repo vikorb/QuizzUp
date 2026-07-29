@@ -52,11 +52,11 @@ import type { CreateCompanyFieldErrors } from '@/types/company'
 import {
   buildCreateCompanyPayload,
   createCompanyFieldErrors,
-  getCreateCompanyApiFieldError,
-  getCreateCompanyApiFormError,
-  hasCreateCompanyFormErrors,
-  validateCreateCompanyForm,
-} from '@/utils/company/create'
+  getCompanyApiFieldError,
+  getCompanyApiFormError,
+  hasCompanyFormErrors,
+  validateCompanyForm,
+} from '@/utils/company/form'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -74,17 +74,18 @@ function resetMessages(): void {
 }
 
 function validateForm(): boolean {
-  const errors = validateCreateCompanyForm(
+  const errors = validateCompanyForm(
     {
       name: name.value,
       email: email.value,
     },
     t,
+    'create'
   )
 
   Object.assign(fieldErrors, errors)
 
-  return !hasCreateCompanyFormErrors(errors)
+  return !hasCompanyFormErrors(errors)
 }
 
 async function onSubmit(): Promise<void> {
@@ -103,18 +104,18 @@ async function onSubmit(): Promise<void> {
       buildCreateCompanyPayload({
         name: name.value,
         email: email.value,
-      }),
+      })
     )
 
     if (!result.ok) {
-      const apiFieldError = getCreateCompanyApiFieldError(result.error, t)
+      const apiFieldError = getCompanyApiFieldError(result.error, t, 'create')
 
       if (apiFieldError) {
         fieldErrors[apiFieldError.field] = apiFieldError.message
         return
       }
 
-      formError.value = getCreateCompanyApiFormError(result.error, t)
+      formError.value = getCompanyApiFormError(result.error, t, 'create')
       return
     }
 

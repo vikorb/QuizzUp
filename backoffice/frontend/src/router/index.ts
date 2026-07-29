@@ -1,8 +1,8 @@
-import { ADMIN_ROLE_ADMIN, ADMIN_ROLE_SUPERADMIN } from '@quizzup/shared'
 import { createRouter } from 'vue-router'
 import { createWebHistory } from 'vue-router'
 
 import { isAuthenticated, me, refreshMe } from '@/state/authState'
+import { isCompanyAdminRole, isSuperadminRole } from '@/utils/company/details/permissions'
 import CreateAccountView from '@/views/clients/accounts/CreateAccountView.vue'
 import ClientDetailsView from '@/views/clients/ClientDetailsView.vue'
 import CreateClientView from '@/views/clients/CreateClientView.vue'
@@ -19,7 +19,7 @@ import ThemeDetailView from '@/views/themes/ThemeDetailView.vue'
 import ThemesView from '@/views/ThemesView.vue'
 
 const getCurrentCompanyId = () => {
-  return me.value?.companyId ?? me.value?.companyId ?? null
+  return me.value?.companyId ?? null
 }
 
 const getRouteCompanyId = (params: Record<string, unknown>) => {
@@ -33,11 +33,11 @@ const getRouteCompanyId = (params: Record<string, unknown>) => {
 }
 
 const isSuperadmin = () => {
-  return me.value?.role === ADMIN_ROLE_SUPERADMIN
+  return isSuperadminRole(me.value?.role)
 }
 
 const isCompanyAdmin = () => {
-  return me.value?.role === ADMIN_ROLE_ADMIN
+  return isCompanyAdminRole(me.value?.role)
 }
 
 const canAccessCompany = (params: Record<string, unknown>) => {
@@ -48,7 +48,11 @@ const canAccessCompany = (params: Record<string, unknown>) => {
   const routeCompanyId = getRouteCompanyId(params)
   const currentCompanyId = Number(getCurrentCompanyId())
 
-  return Number.isFinite(routeCompanyId) && Number.isFinite(currentCompanyId) && routeCompanyId === currentCompanyId
+  return (
+    Number.isFinite(routeCompanyId) &&
+    Number.isFinite(currentCompanyId) &&
+    routeCompanyId === currentCompanyId
+  )
 }
 
 const canManageCompany = (params: Record<string, unknown>) => {

@@ -1,9 +1,21 @@
 import type { AdminRole } from '@quizzup/shared'
-import { ADMIN_ROLE_ADMIN, ADMIN_ROLE_SUPERADMIN, ADMIN_ROLE_USER, COMPANY_STATUS_ACTIVE } from '@quizzup/shared'
+import {
+  ADMIN_ROLE_ADMIN,
+  ADMIN_ROLE_SUPERADMIN,
+  ADMIN_ROLE_USER,
+  COMPANY_STATUS_ACTIVE,
+} from '@quizzup/shared'
 import type { ComposerTranslation } from 'vue-i18n'
 
 import { updateCompanyService } from '@/services/companiesService'
-import type { ClientDetailFormValues, ClientDetailPermissions, ClientDetailSaveResult, Company, EditCompanyFieldErrors, EditCompanyFormValues } from '@/types/company'
+import type {
+  ClientDetailFormValues,
+  ClientDetailPermissions,
+  ClientDetailSaveResult,
+  Company,
+  EditCompanyFieldErrors,
+  EditCompanyFormValues,
+} from '@/types/company'
 import {
   canManageCompanyDetails,
   canShowCompanyStatusSwitch,
@@ -12,12 +24,12 @@ import {
 import { getNextCompanyStatus } from '@/utils/company/details/status'
 import {
   buildUpdateCompanyPayload,
-  createEditCompanyFieldErrors,
-  getEditCompanyApiFieldError,
-  getEditCompanyApiFormError,
-  hasEditCompanyFormErrors,
-  validateEditCompanyForm,
-} from '@/utils/company/edit'
+  createCompanyFieldErrors,
+  getCompanyApiFieldError,
+  getCompanyApiFormError,
+  hasCompanyFormErrors,
+  validateCompanyForm,
+} from '@/utils/company/form'
 
 export function createCompanyDetailsForm(): EditCompanyFormValues {
   return {
@@ -38,7 +50,7 @@ export function getCompanyDetailsFormValues(company: Company): EditCompanyFormVa
 export function hasCompanyDetailsChanges(
   form: EditCompanyFormValues,
   company: Company | null,
-  canManageCompany: boolean,
+  canManageCompany: boolean
 ): boolean {
   if (!company || !canManageCompany) {
     return false
@@ -52,11 +64,7 @@ export function hasCompanyDetailsChanges(
 }
 
 function toAdminRole(role: unknown): AdminRole | null {
-  if (
-    role === ADMIN_ROLE_SUPERADMIN ||
-    role === ADMIN_ROLE_ADMIN ||
-    role === ADMIN_ROLE_USER
-  ) {
+  if (role === ADMIN_ROLE_SUPERADMIN || role === ADMIN_ROLE_ADMIN || role === ADMIN_ROLE_USER) {
     return role
   }
 
@@ -68,7 +76,7 @@ export function createClientDetailFormValues(): ClientDetailFormValues {
 }
 
 export function createClientDetailFieldErrors(): EditCompanyFieldErrors {
-  return createEditCompanyFieldErrors()
+  return createCompanyFieldErrors()
 }
 
 export function getClientDetailFormValues(company: Company): ClientDetailFormValues {
@@ -88,7 +96,7 @@ export function getClientDetailPermissions(role: unknown): ClientDetailPermissio
 export function hasClientDetailCompanyChanges(
   form: ClientDetailFormValues,
   company: Company,
-  canManageCompany: boolean,
+  canManageCompany: boolean
 ): boolean {
   return hasCompanyDetailsChanges(form, company, canManageCompany)
 }
@@ -100,11 +108,11 @@ export function getClientDetailNextStatus(status: ClientDetailFormValues['status
 export async function saveClientDetailCompany(
   companyId: number,
   form: ClientDetailFormValues,
-  t: ComposerTranslation,
+  t: ComposerTranslation
 ): Promise<ClientDetailSaveResult> {
-  const fieldErrors = validateEditCompanyForm(form, t)
+  const fieldErrors = validateCompanyForm(form, t, 'edit')
 
-  if (hasEditCompanyFormErrors(fieldErrors)) {
+  if (hasCompanyFormErrors(fieldErrors)) {
     return {
       ok: false,
       fieldErrors,
@@ -115,7 +123,7 @@ export async function saveClientDetailCompany(
   const result = await updateCompanyService(companyId, buildUpdateCompanyPayload(form))
 
   if (!result.ok) {
-    const apiFieldError = getEditCompanyApiFieldError(result.error, t)
+    const apiFieldError = getCompanyApiFieldError(result.error, t, 'edit')
     const apiFieldErrors = createClientDetailFieldErrors()
 
     if (apiFieldError) {
@@ -131,7 +139,7 @@ export async function saveClientDetailCompany(
     return {
       ok: false,
       fieldErrors: apiFieldErrors,
-      formError: getEditCompanyApiFormError(result.error, t),
+      formError: getCompanyApiFormError(result.error, t, 'edit'),
     }
   }
 

@@ -1,19 +1,15 @@
 import type { FastifyRequest } from 'fastify'
 
-import {
-  ADMIN_ROLE_ADMIN,
-  ADMIN_ROLE_SUPERADMIN,
-  ADMIN_ROLE_USER,
-} from '@quizzup/shared'
+import { ADMIN_ROLE_ADMIN, ADMIN_ROLE_SUPERADMIN, ADMIN_ROLE_USER } from '@quizzup/shared'
+
+import { getCurrentAdminId } from '../routes/_shared/adminContext'
+
+export { getCurrentAdminId }
 
 export type AdminAccessRow = {
   id: number
   role: string
   status: number
-}
-
-export function getCurrentAdminId(req: FastifyRequest): number {
-  return Number(req.user.sub)
 }
 
 export function getCurrentCompanyId(req: FastifyRequest): number {
@@ -47,7 +43,7 @@ export function isTargetUser(targetAdmin: AdminAccessRow): boolean {
 export function canAdminManageCompanyAccount(
   req: FastifyRequest,
   companyId: number,
-  targetAdmin: AdminAccessRow,
+  targetAdmin: AdminAccessRow
 ): boolean {
   if (!isAdmin(req)) {
     return false
@@ -85,7 +81,7 @@ export function canListCompanyAccountsContext(req: FastifyRequest, companyId: nu
 export function canCreateCompanyAccountContext(
   req: FastifyRequest,
   companyId: number,
-  targetRole: string,
+  targetRole: string
 ): boolean {
   if (isSuperadmin(req)) return true
 
@@ -99,7 +95,7 @@ export function canCreateCompanyAccountContext(
 export function canReadCompanyAccountContext(
   req: FastifyRequest,
   companyId: number,
-  adminId: number,
+  adminId: number
 ): boolean {
   if (isSuperadmin(req)) return true
 
@@ -113,7 +109,7 @@ export function canUpdateCompanyAccountContext(
   companyId: number,
   adminId: number,
   targetAdmin: AdminAccessRow,
-  body: { role?: string; status?: number },
+  body: { role?: string; status?: number }
 ): boolean {
   if (isSuperadmin(req)) return true
 
@@ -136,7 +132,7 @@ export function canUpdateCompanyAccountContext(
 export function canUpdateCompanyAccountStatusContext(
   req: FastifyRequest,
   companyId: number,
-  targetAdmin: AdminAccessRow,
+  targetAdmin: AdminAccessRow
 ): boolean {
   if (isSuperadmin(req)) return true
 
@@ -146,7 +142,7 @@ export function canUpdateCompanyAccountStatusContext(
 export function canDeleteCompanyAccountContext(
   req: FastifyRequest,
   companyId: number,
-  targetAdmin: AdminAccessRow,
+  targetAdmin: AdminAccessRow
 ): boolean {
   if (isSuperadmin(req)) return true
 
