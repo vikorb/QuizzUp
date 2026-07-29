@@ -98,6 +98,7 @@ const columns = computed<BaseTableColumn[]>(() => [
   {
     key: 'email',
     label: String(t('accounts.table.columns.email')),
+    align: 'center',
   },
   {
     key: 'role',

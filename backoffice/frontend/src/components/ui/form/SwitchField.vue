@@ -82,12 +82,19 @@ function handleClick(): void {
   width: var(--switch-thumb-size);
   height: var(--switch-thumb-size);
   border-radius: 999px;
-  background: var(--text-0);
+  /* Centre coloré : rouge quand inactif, vert quand actif (pas de néon autour). */
+  background: var(--danger);
+  box-shadow: 0 0 6px var(--danger-bg);
   transform: translateY(-50%);
-  transition: transform 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .switch-field--active .switch-field__thumb {
+  background: var(--ok);
+  box-shadow: 0 0 6px var(--ok-bg);
   transform: translate(
     calc(var(--switch-width) - var(--switch-thumb-size) - (var(--switch-gap) * 2)),
     -50%

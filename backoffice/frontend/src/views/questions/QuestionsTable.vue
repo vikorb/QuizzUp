@@ -126,7 +126,7 @@ const columns = computed(() => [
   { key: 'scope', label: t('questions.table.columns.scope') },
   { key: 'typeMedia', label: t('questions.table.columns.typeMedia') },
   { key: 'status', label: t('questions.table.columns.status') },
-  { key: 'actions', label: t('questions.table.columns.actions') },
+  { key: 'actions', label: t('questions.table.columns.actions'), align: 'right' as const },
 ])
 
 const tableItems = computed<QuestionTableRow[]>(() =>

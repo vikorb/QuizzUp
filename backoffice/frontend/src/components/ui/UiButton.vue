@@ -75,22 +75,19 @@ const variantClass = computed(() => `ui-btn--${props.variant}`)
   color: var(--text-0);
 }
 
+/* Danger : rouge plein au centre (fond rouge doux), pas de néon autour. */
 .ui-btn--danger {
-  background: var(--surface-1);
+  background: var(--danger-bg);
   border-color: var(--danger);
-  color: var(--text-0);
-  box-shadow:
-    0 0 0 1px var(--surface-1) inset,
-    0 0 14px var(--danger-bg);
+  color: var(--danger);
+  box-shadow: none;
 }
 
 .ui-btn--danger:hover {
-  background: var(--danger-bg);
+  background: var(--danger);
   border-color: var(--danger);
-  color: var(--text-0);
-  box-shadow:
-    0 0 0 1px var(--surface-2) inset,
-    0 0 18px var(--danger-bg);
+  color: #fff;
+  box-shadow: none;
 }
 
 .ui-btn--icon {

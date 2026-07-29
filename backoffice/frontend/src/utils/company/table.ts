@@ -1,4 +1,8 @@
-import { COMPANY_STATUS_ACTIVE, COMPANY_STATUS_DELETED, COMPANY_STATUS_INACTIVE } from '@quizzup/shared'
+import {
+  COMPANY_STATUS_ACTIVE,
+  COMPANY_STATUS_DELETED,
+  COMPANY_STATUS_INACTIVE,
+} from '@quizzup/shared'
 
 import type { BaseTableColumn } from '@/components/ui/BaseTable.vue'
 import type { TranslateFn } from '@/types'
@@ -27,6 +31,7 @@ export function getClientTableColumns(t: TranslateFn): BaseTableColumn[] {
     {
       key: 'email',
       label: t('clients.table.columns.email'),
+      align: 'center',
     },
     {
       key: 'accountsCount',

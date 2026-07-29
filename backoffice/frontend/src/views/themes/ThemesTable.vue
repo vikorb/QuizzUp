@@ -102,8 +102,8 @@ const columns = computed(() => [
   { key: 'mode', label: t('themes.table.columns.mode') },
   { key: 'scope', label: t('themes.table.columns.scope') },
   { key: 'status', label: t('themes.table.columns.status') },
-  { key: 'questionsCount', label: t('themes.table.columns.questions') },
-  { key: 'actions', label: t('themes.table.columns.actions') },
+  { key: 'questionsCount', label: t('themes.table.columns.questions'), align: 'center' as const },
+  { key: 'actions', label: t('themes.table.columns.actions'), align: 'right' as const },
 ])
 
 const tableItems = computed<ThemeTableRow[]>(() => props.themes.map((theme) => ({ ...theme })))
@@ -180,10 +180,10 @@ function getStatusClass(status: unknown): string {
 .theme-name {
   padding: 0;
   border: 0;
-  color: var(--primary);
+  color: var(--text-0);
   background: transparent;
   font: inherit;
-  font-weight: 900;
+  font-weight: 700;
   cursor: pointer;
 }
 
