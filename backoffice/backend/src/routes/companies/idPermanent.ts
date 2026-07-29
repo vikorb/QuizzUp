@@ -6,7 +6,7 @@ import { API_ACTION, API_RESOURCE } from '../../security/permissions'
 import { requireApiPermission } from '../../security/requireApiPermission'
 
 import { paramsSchema } from './_schemas'
-import { findCompanyById } from './_shared'
+import { findCompanyById, revokeCompanyAdminsSessions } from './_shared'
 
 const companiesIdPermanentRoutes: FastifyPluginAsync = async (app) => {
   app.delete(
@@ -17,7 +17,7 @@ const companiesIdPermanentRoutes: FastifyPluginAsync = async (app) => {
         req,
         reply,
         API_RESOURCE.COMPANY,
-        API_ACTION.PERMANENT_DELETE,
+        API_ACTION.PERMANENT_DELETE
       )
 
       if (!hasPermission) {
@@ -49,13 +49,15 @@ const companiesIdPermanentRoutes: FastifyPluginAsync = async (app) => {
         })
       }
 
-      const updatedCompanies = await db('companies')
-        .where('id', id)
-        .update({
-          status: COMPANY_STATUS_DELETED,
-          updated_at: db.fn.now(),
-          deleted_at: db.fn.now(),
-        })
+      const updatedCompanies = await db('companies').where('id', id).update({
+        status: COMPANY_STATUS_DELETED,
+        updated_at: db.fn.now(),
+        deleted_at: db.fn.now(),
+      })
+
+      // Sécurité (S2) : la compagnie disparaît -> tous ses comptes perdent
+      // l'accès, on révoque leurs sessions actives.
+      await revokeCompanyAdminsSessions(id)
 
       return reply.code(200).send({
         success: true,
@@ -65,7 +67,7 @@ const companiesIdPermanentRoutes: FastifyPluginAsync = async (app) => {
           companiesCount: updatedCompanies,
         },
       })
-    },
+    }
   )
 }
 

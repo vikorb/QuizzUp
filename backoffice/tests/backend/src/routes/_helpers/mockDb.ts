@@ -458,6 +458,24 @@ class QueryBuilder {
     return this
   }
 
+  public whereNull(column: string): this {
+    const normalizedColumn = normalizeColumn(column)
+    this.filters.push(
+      (row) => row[normalizedColumn] === null || row[normalizedColumn] === undefined
+    )
+
+    return this
+  }
+
+  public whereNotNull(column: string): this {
+    const normalizedColumn = normalizeColumn(column)
+    this.filters.push(
+      (row) => row[normalizedColumn] !== null && row[normalizedColumn] !== undefined
+    )
+
+    return this
+  }
+
   public leftJoin(): this {
     return this
   }

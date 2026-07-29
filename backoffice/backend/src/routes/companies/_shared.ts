@@ -51,7 +51,7 @@ export async function findCompanyById(companyId: number) {
 
 export async function findAdminInCompany(
   companyId: number,
-  adminId: number,
+  adminId: number
 ): Promise<AdminAccessRow | null> {
   const admin = await db('admins')
     .where('company_id', companyId)
@@ -68,4 +68,38 @@ export async function getAdminRow(companyId: number, adminId: number): Promise<A
     .first(adminSelect)
 
   return admin ? (admin as AdminRow) : null
+}
+
+/**
+ * Révoque toutes les sessions actives d'un admin.
+ *
+ * Sécurité : appelé quand un compte passe inactif/supprimé afin qu'il perde
+ * l'accès immédiatement, sans attendre l'expiration par inactivité glissante
+ * (jusqu'à 7 j via le JWT).
+ */
+export async function revokeAdminSessions(adminId: number): Promise<number> {
+  return db('admin_sessions')
+    .where('admin_id', adminId)
+    .whereNull('revoked_at')
+    .update({ revoked_at: db.fn.now() })
+}
+
+/**
+ * Révoque toutes les sessions actives des admins d'une compagnie.
+ *
+ * Sécurité : appelé lors de la suppression d'une compagnie, pour couper
+ * l'accès de tous ses comptes.
+ */
+export async function revokeCompanyAdminsSessions(companyId: number): Promise<number> {
+  const admins = await db('admins').where('company_id', companyId).select('id')
+  const adminIds = admins.map((admin) => Number(admin.id))
+
+  if (adminIds.length === 0) {
+    return 0
+  }
+
+  return db('admin_sessions')
+    .whereIn('admin_id', adminIds)
+    .whereNull('revoked_at')
+    .update({ revoked_at: db.fn.now() })
 }
