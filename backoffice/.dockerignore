@@ -1,0 +1,20 @@
+# IMPORTANT : ne jamais copier les node_modules de l'hôte dans l'image.
+# Sur Windows, les shims .bin (ex: tsc) sont incompatibles avec le conteneur Linux
+# et cassent le build (`../typescript/bin/tsc: not found`). npm install se fait dans l'image.
+**/node_modules
+
+# Artefacts de build
+**/dist
+**/coverage
+**/.vite
+
+# Env & secrets (les variables sont injectées par docker-compose)
+**/.env
+**/.env.*
+!**/.env.example
+
+# Divers
+.git
+.gitignore
+**/.DS_Store
+**/*.log

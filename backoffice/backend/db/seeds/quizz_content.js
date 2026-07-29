@@ -1,27 +1,24 @@
-const SUPERADMIN_COMPANY_ID = 9
-
 /**
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.seed = async function(knex) {
+exports.seed = async function (knex) {
   const [admin] = await knex('admins')
-    .select('id')
+    .select('id', 'company_id')
     .where('role', 'superadmin')
-    .where('company_id', SUPERADMIN_COMPANY_ID)
     .whereNot('status', 2)
     .orderBy('id', 'asc')
     .limit(1)
 
   if (!admin) {
-    throw new Error(
-      `Impossible de créer la seed quiz : aucun superadmin actif trouvé pour la compagnie ${SUPERADMIN_COMPANY_ID}.`,
-    )
+    throw new Error('Impossible de créer la seed quiz : aucun superadmin actif trouvé.')
   }
+
+  const superadminCompanyId = admin.company_id
 
   const companies = await knex('companies')
     .select('id')
-    .whereNot('id', SUPERADMIN_COMPANY_ID)
+    .whereNot('id', superadminCompanyId)
     .whereNot('status', 2)
     .orderBy('id', 'asc')
     .limit(3)
@@ -404,7 +401,8 @@ exports.seed = async function(knex) {
       mode: 'classic',
       questions: [
         {
-          question: 'Combien de joueurs une équipe de football aligne-t-elle sur le terrain au début du match ?',
+          question:
+            'Combien de joueurs une équipe de football aligne-t-elle sur le terrain au début du match ?',
           answers: [
             { response: '9', isCorrect: false },
             { response: '10', isCorrect: false },
@@ -884,7 +882,8 @@ exports.seed = async function(knex) {
           ],
         },
         {
-          question: 'Quel monument parisien a été construit pour l’exposition universelle de 1889 ?',
+          question:
+            'Quel monument parisien a été construit pour l’exposition universelle de 1889 ?',
           answers: [
             { response: 'La tour Eiffel', isCorrect: true },
             { response: 'Le Louvre', isCorrect: false },
@@ -977,7 +976,8 @@ exports.seed = async function(knex) {
           ],
         },
         {
-          question: 'Quelle console portable de Nintendo est sortie en Europe dans les années 2000 avec deux écrans ?',
+          question:
+            'Quelle console portable de Nintendo est sortie en Europe dans les années 2000 avec deux écrans ?',
           answers: [
             { response: 'Nintendo DS', isCorrect: true },
             { response: 'Game Boy Color', isCorrect: false },
@@ -1004,7 +1004,8 @@ exports.seed = async function(knex) {
           ],
         },
         {
-          question: 'Quel jeu musical avec guitare en plastique devient très populaire dans les années 2000 ?',
+          question:
+            'Quel jeu musical avec guitare en plastique devient très populaire dans les années 2000 ?',
           answers: [
             { response: 'Guitar Hero', isCorrect: true },
             { response: 'FIFA Street', isCorrect: false },
@@ -1260,7 +1261,7 @@ exports.seed = async function(knex) {
 
   await knex.transaction(async (trx) => {
     await trx.raw(
-      'TRUNCATE TABLE answers, question_themes, questions, themes RESTART IDENTITY CASCADE',
+      'TRUNCATE TABLE answers, question_themes, questions, themes RESTART IDENTITY CASCADE'
     )
 
     for (const themeSeed of themes) {
@@ -1306,7 +1307,7 @@ exports.seed = async function(knex) {
             response: answer.response,
             is_correct: answer.isCorrect,
             status: answer.status ?? 1,
-          })),
+          }))
         )
       }
     }
