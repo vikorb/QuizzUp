@@ -1,11 +1,7 @@
 import '../../_helpers/registerRouteMocks'
 import { describe, expect, it } from 'vitest'
 
-import {
-  ADMIN_STATUS_ACTIVE,
-  ADMIN_STATUS_DELETED,
-  ADMIN_STATUS_INACTIVE,
-} from '@quizzup/shared'
+import { ADMIN_STATUS_ACTIVE, ADMIN_STATUS_DELETED, ADMIN_STATUS_INACTIVE } from '@quizzup/shared'
 import { resetRouteMocksBeforeEach } from '../../_helpers/resetRouteMocks'
 import { authHeaders, createRouteApp, parseJson, superadminUser } from '../../_helpers/testApp'
 import companyAdminIdStatusRoutes from '@backend/routes/companies/admins/idStatus'
@@ -129,6 +125,90 @@ describe('routes/companies/admins/idStatus.ts', () => {
       status: ADMIN_STATUS_ACTIVE,
       deleted_at: null,
     })
+
+    await app.close()
+  })
+
+  it('revokes the account active sessions when it becomes inactive (S2)', async () => {
+    dbState.admin_sessions.push({
+      id: 'sid-target-active',
+      admin_id: 2,
+      created_at: MOCK_NOW,
+      last_seen_at: MOCK_NOW,
+      revoked_at: null,
+    })
+
+    const app = await createRouteApp(companyAdminIdStatusRoutes)
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/companies/1/admins/2/status',
+      headers: authHeaders(superadminUser),
+      payload: {
+        status: ADMIN_STATUS_INACTIVE,
+      },
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(
+      dbState.admin_sessions.find((session) => session.id === 'sid-target-active')?.revoked_at
+    ).toBe(MOCK_NOW)
+
+    await app.close()
+  })
+
+  it('revokes the account active sessions when it is deleted (S2)', async () => {
+    dbState.admin_sessions.push({
+      id: 'sid-target-active',
+      admin_id: 2,
+      created_at: MOCK_NOW,
+      last_seen_at: MOCK_NOW,
+      revoked_at: null,
+    })
+
+    const app = await createRouteApp(companyAdminIdStatusRoutes)
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/companies/1/admins/2/status',
+      headers: authHeaders(superadminUser),
+      payload: {
+        status: ADMIN_STATUS_DELETED,
+      },
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(
+      dbState.admin_sessions.find((session) => session.id === 'sid-target-active')?.revoked_at
+    ).toBe(MOCK_NOW)
+
+    await app.close()
+  })
+
+  it('does not revoke sessions when the account is re-activated (S2)', async () => {
+    dbState.admin_sessions.push({
+      id: 'sid-target-active',
+      admin_id: 2,
+      created_at: MOCK_NOW,
+      last_seen_at: MOCK_NOW,
+      revoked_at: null,
+    })
+
+    const app = await createRouteApp(companyAdminIdStatusRoutes)
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/companies/1/admins/2/status',
+      headers: authHeaders(superadminUser),
+      payload: {
+        status: ADMIN_STATUS_ACTIVE,
+      },
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(
+      dbState.admin_sessions.find((session) => session.id === 'sid-target-active')?.revoked_at
+    ).toBeNull()
 
     await app.close()
   })
