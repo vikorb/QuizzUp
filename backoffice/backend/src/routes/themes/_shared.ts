@@ -2,6 +2,7 @@ import type { FastifyRequest } from 'fastify'
 
 import {
   ADMIN_ROLE_USER,
+  QUESTION_STATUS_DELETED,
   THEME_MODES,
   THEME_SCOPE_COMPANY,
   THEME_SCOPE_GLOBAL,
@@ -72,6 +73,24 @@ export const themeSelect = [
   'themes.deleted_at as deletedAt',
 ]
 
+/**
+ * Sélection enrichie pour le listing : ajoute le nombre de questions liées via
+ * une sous-requête corrélée sur `question_themes`.
+ *
+ * On garde une sélection dédiée (plutôt que d'étendre `themeSelect`) car ce
+ * dernier alimente aussi les `RETURNING` des mutations et `getThemesForQuestion`
+ * (module questions), où ce compteur n'a pas lieu d'être.
+ */
+export const themeListSelect = [
+  ...themeSelect,
+  db.raw(
+    '(SELECT COUNT(*) FROM question_themes ' +
+      'INNER JOIN questions ON questions.id = question_themes.question_id ' +
+      'WHERE question_themes.theme_id = themes.id AND questions.status <> ?)::int as "questionsCount"',
+    [QUESTION_STATUS_DELETED]
+  ),
+]
+
 export function getCurrentAdminId(req: FastifyRequest): number | null {
   const authReq = req as AuthenticatedRequest
   const value =
@@ -129,19 +148,19 @@ export function getCreateThemeStatus(req: FastifyRequest): ThemeStatus {
 }
 
 export function getThemeScope(req: FastifyRequest, requestedScope?: ThemeScope): ThemeScope {
-  return isSuperadmin(req) ? requestedScope ?? THEME_SCOPE_GLOBAL : THEME_SCOPE_COMPANY
+  return isSuperadmin(req) ? (requestedScope ?? THEME_SCOPE_GLOBAL) : THEME_SCOPE_COMPANY
 }
 
 export function getThemeCompanyId(
   req: FastifyRequest,
   scope: ThemeScope,
-  requestedCompanyId?: number | null,
+  requestedCompanyId?: number | null
 ): number | null {
   if (scope === THEME_SCOPE_GLOBAL) {
     return null
   }
 
-  return isSuperadmin(req) ? requestedCompanyId ?? null : getCurrentCompanyId(req)
+  return isSuperadmin(req) ? (requestedCompanyId ?? null) : getCurrentCompanyId(req)
 }
 
 export function canReadTheme(theme: ThemeAccessRow, req: FastifyRequest): boolean {

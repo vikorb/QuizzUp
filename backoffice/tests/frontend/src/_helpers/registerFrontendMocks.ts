@@ -15,6 +15,7 @@ vi.mock('@/state/authState', async () => {
   const authState = await import('./authStateMock')
 
   return {
+    authState: authState.authStateMock,
     isAuthenticated: authState.isAuthenticatedMock,
     me: authState.meMock,
     login: authState.loginMock,
@@ -63,5 +64,39 @@ vi.mock('@/services/companiesService', async () => {
     createCompany: companiesService.createCompanyMock,
     updateCompanyStatusService: companiesService.updateCompanyStatusServiceMock,
     deleteCompanyPermanentlyService: companiesService.deleteCompanyPermanentlyServiceMock,
+  }
+})
+
+vi.mock('@/services/themesService', async () => {
+  const themesService = await import('./themesServiceMock')
+
+  return {
+    listThemesService: themesService.listThemesServiceMock,
+    loadThemeService: themesService.loadThemeServiceMock,
+    createThemeService: themesService.createThemeServiceMock,
+    updateThemeService: themesService.updateThemeServiceMock,
+    updateThemeStatusService: themesService.updateThemeStatusServiceMock,
+    deleteThemeService: themesService.deleteThemeServiceMock,
+  }
+})
+
+vi.mock('@/services/questionsService', async () => {
+  const questionsService = await import('./questionsServiceMock')
+
+  return {
+    listThemesService: questionsService.listThemesServiceMock,
+    listQuestionsService: questionsService.listQuestionsServiceMock,
+    loadQuestionService: questionsService.loadQuestionServiceMock,
+    createQuestionService: questionsService.createQuestionServiceMock,
+    updateQuestionService: questionsService.updateQuestionServiceMock,
+    deleteQuestionService: questionsService.deleteQuestionServiceMock,
+    listQuestionThemesService: questionsService.listQuestionThemesServiceMock,
+    listQuestionAnswersService: questionsService.listQuestionAnswersServiceMock,
+    createQuestionAnswerService: questionsService.createQuestionAnswerServiceMock,
+    updateQuestionAnswerService: questionsService.updateQuestionAnswerServiceMock,
+    deleteQuestionAnswerService: questionsService.deleteQuestionAnswerServiceMock,
+    updateQuestionStatusService: questionsService.updateQuestionStatusServiceMock,
+    attachQuestionToThemeService: questionsService.attachQuestionToThemeServiceMock,
+    detachQuestionFromThemeService: questionsService.detachQuestionFromThemeServiceMock,
   }
 })

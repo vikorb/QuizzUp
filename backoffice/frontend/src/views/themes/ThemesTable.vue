@@ -40,6 +40,10 @@
         </span>
       </template>
 
+      <template #cell-questionsCount="{ value }">
+        <span class="questions-count">{{ getQuestionsCount(value) }}</span>
+      </template>
+
       <template #cell-actions="{ item }">
         <ThemesTableActions
           :item="toTheme(item)"
@@ -98,15 +102,20 @@ const columns = computed(() => [
   { key: 'mode', label: t('themes.table.columns.mode') },
   { key: 'scope', label: t('themes.table.columns.scope') },
   { key: 'status', label: t('themes.table.columns.status') },
+  { key: 'questionsCount', label: t('themes.table.columns.questions') },
   { key: 'actions', label: t('themes.table.columns.actions') },
 ])
 
-const tableItems = computed<ThemeTableRow[]>(() =>
-  props.themes.map((theme) => ({ ...theme })),
-)
+const tableItems = computed<ThemeTableRow[]>(() => props.themes.map((theme) => ({ ...theme })))
 
 function toTheme(item: Record<string, unknown>): ThemeTableRow {
   return item as ThemeTableRow
+}
+
+function getQuestionsCount(value: unknown): number {
+  const count = Number(value)
+
+  return Number.isFinite(count) ? count : 0
 }
 
 function getScopeLabel(scope: unknown): string {
@@ -180,6 +189,14 @@ function getStatusClass(status: unknown): string {
 
 .theme-name:hover {
   text-decoration: underline;
+}
+
+.questions-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  font-weight: 800;
 }
 
 .scope,
