@@ -86,7 +86,7 @@ onBeforeUnmount(() => {
 .drawer__backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(3, 4, 11, 0.62);
+  background: var(--overlay);
   backdrop-filter: blur(6px);
   opacity: 0;
   transition: var(--tr);
@@ -102,10 +102,10 @@ onBeforeUnmount(() => {
   left: 0;
   height: 100%;
   width: min(320px, 86vw);
-  background: rgba(13, 15, 30, 0.82);
+  background: var(--bg-card-hi);
   border-right: 1px solid var(--border-ui);
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+    0 0 0 1px var(--surface-2) inset,
     0 0 18px var(--glow-blue),
     0 0 26px var(--glow-pink);
   transform: translateX(-102%);
@@ -132,7 +132,7 @@ onBeforeUnmount(() => {
 }
 
 .drawer__close:hover {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--surface-3);
   border-color: var(--border-hover);
   color: var(--text-0);
 }

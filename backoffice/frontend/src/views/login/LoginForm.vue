@@ -113,9 +113,9 @@ async function onSubmit() {
   margin: 0;
   padding: 10px 12px;
   border-radius: 12px;
-  border: 1px solid rgba(237, 46, 251, 0.35);
-  background: rgba(237, 46, 251, 0.08);
-  color: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--danger);
+  background: var(--danger-bg);
+  color: var(--text-1);
   font-size: 13px;
 }
 

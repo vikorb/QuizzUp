@@ -37,7 +37,8 @@ defineEmits<{
 }>()
 </script>
 
-<style scoped>.topbar {
+<style scoped>
+.topbar {
   position: sticky;
   top: 12px;
   z-index: 50;
@@ -54,18 +55,17 @@ defineEmits<{
   gap: 16px;
 
   background:
-    radial-gradient(900px 160px at 15% 0%, rgba(0, 98, 255, 0.2), transparent 62%),
-    radial-gradient(900px 160px at 85% 0%, rgba(237, 46, 251, 0.2), transparent 62%),
-    var(--bg-card);
+    radial-gradient(900px 160px at 15% 0%, var(--glow-blue), transparent 62%),
+    radial-gradient(900px 160px at 85% 0%, var(--glow-pink), transparent 62%), var(--bg-card);
 
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-2);
   border-radius: 18px;
   backdrop-filter: blur(14px);
   box-shadow:
-    0 12px 34px rgba(0, 0, 0, 0.32),
-    0 0 14px rgba(0, 98, 255, 0.16),
-    0 0 18px rgba(237, 46, 251, 0.14),
-    0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+    0 12px 34px var(--shadow-2),
+    0 0 14px var(--glow-blue),
+    0 0 18px var(--glow-pink),
+    0 0 0 1px var(--surface-1) inset;
 
   overflow: hidden;
 }
