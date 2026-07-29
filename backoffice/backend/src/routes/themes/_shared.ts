@@ -1,23 +1,28 @@
 import type { FastifyRequest } from 'fastify'
 
 import {
-  ADMIN_ROLE_USER,
   QUESTION_STATUS_DELETED,
   THEME_MODES,
-  THEME_SCOPE_COMPANY,
-  THEME_SCOPE_GLOBAL,
   THEME_SCOPES,
   THEME_STATUS_ACTIVE,
   THEME_STATUS_DELETED,
   THEME_STATUS_DRAFT,
   THEME_STATUSES,
-  type AdminRole,
   type ThemeMode,
   type ThemeScope,
   type ThemeStatus,
 } from '@quizzup/shared'
 import db from '../../db'
-import { getCurrentCompanyId, isSuperadmin } from '../../security/companiesPolicy'
+import {
+  getCurrentAdminId,
+  getCurrentAdminRole,
+  isUserRole,
+  parseOptionalNumber,
+  parsePositiveId,
+} from '../_shared/adminContext'
+import { canEditScoped, canReadScoped, getScope, getScopedCompanyId } from '../_shared/scope'
+
+export { getCurrentAdminId, getCurrentAdminRole, isUserRole, parseOptionalNumber, parsePositiveId }
 
 export type ThemeBody = {
   name?: string
@@ -46,18 +51,6 @@ export type ThemeAccessRow = {
   scope: ThemeScope
   company_id: number | null
   status: ThemeStatus
-}
-
-type AuthPayload = {
-  id?: number | string
-  adminId?: number | string
-  sub?: number | string
-  role?: AdminRole | string
-}
-
-type AuthenticatedRequest = FastifyRequest & {
-  user?: AuthPayload
-  admin?: AuthPayload
 }
 
 export const themeSelect = [
@@ -91,46 +84,6 @@ export const themeListSelect = [
   ),
 ]
 
-export function getCurrentAdminId(req: FastifyRequest): number | null {
-  const authReq = req as AuthenticatedRequest
-  const value =
-    authReq.user?.adminId ??
-    authReq.user?.id ??
-    authReq.user?.sub ??
-    authReq.admin?.adminId ??
-    authReq.admin?.id
-
-  const parsed = Number(value)
-
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
-}
-
-export function getCurrentAdminRole(req: FastifyRequest): string | null {
-  const authReq = req as AuthenticatedRequest
-
-  return authReq.user?.role ?? authReq.admin?.role ?? null
-}
-
-export function isUserRole(req: FastifyRequest): boolean {
-  return getCurrentAdminRole(req) === ADMIN_ROLE_USER
-}
-
-export function parsePositiveId(value: unknown): number | null {
-  const parsed = Number(value)
-
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
-}
-
-export function parseOptionalNumber(value: unknown): number | null {
-  if (value === undefined || value === null || value === '') {
-    return null
-  }
-
-  const parsed = Number(value)
-
-  return Number.isInteger(parsed) ? parsed : null
-}
-
 export function isValidThemeMode(value: unknown): value is ThemeMode {
   return typeof value === 'string' && THEME_MODES.includes(value as ThemeMode)
 }
@@ -148,7 +101,7 @@ export function getCreateThemeStatus(req: FastifyRequest): ThemeStatus {
 }
 
 export function getThemeScope(req: FastifyRequest, requestedScope?: ThemeScope): ThemeScope {
-  return isSuperadmin(req) ? (requestedScope ?? THEME_SCOPE_GLOBAL) : THEME_SCOPE_COMPANY
+  return getScope(req, requestedScope)
 }
 
 export function getThemeCompanyId(
@@ -156,30 +109,15 @@ export function getThemeCompanyId(
   scope: ThemeScope,
   requestedCompanyId?: number | null
 ): number | null {
-  if (scope === THEME_SCOPE_GLOBAL) {
-    return null
-  }
-
-  return isSuperadmin(req) ? (requestedCompanyId ?? null) : getCurrentCompanyId(req)
+  return getScopedCompanyId(req, scope, requestedCompanyId)
 }
 
 export function canReadTheme(theme: ThemeAccessRow, req: FastifyRequest): boolean {
-  const currentCompanyId = getCurrentCompanyId(req)
-
-  return (
-    isSuperadmin(req) ||
-    theme.scope === THEME_SCOPE_GLOBAL ||
-    (theme.scope === THEME_SCOPE_COMPANY && theme.company_id === currentCompanyId)
-  )
+  return canReadScoped(theme, req)
 }
 
 export function canEditTheme(theme: ThemeAccessRow, req: FastifyRequest): boolean {
-  const currentCompanyId = getCurrentCompanyId(req)
-
-  return (
-    isSuperadmin(req) ||
-    (theme.scope === THEME_SCOPE_COMPANY && theme.company_id === currentCompanyId)
-  )
+  return canEditScoped(theme, req)
 }
 
 export async function getThemeAccessRow(themeId: number): Promise<ThemeAccessRow | null> {
