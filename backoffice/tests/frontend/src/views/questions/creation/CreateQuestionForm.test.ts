@@ -1,4 +1,8 @@
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
+import {
+  createQuestionServiceMock,
+  updateQuestionServiceMock,
+} from '@frontend-tests/_helpers/questionsServiceMock'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { QUESTION_STATUS_ACTIVE, THEME_SCOPE_GLOBAL } from '@quizzup/shared'
 import { type DOMWrapper, flushPromises } from '@vue/test-utils'
@@ -8,22 +12,10 @@ import { nextTick } from 'vue'
 import type { Question, Theme } from '@/types/question'
 import CreateQuestionForm from '@/views/questions/creation/CreateQuestionForm.vue'
 
-const { createQuestionServiceMock, updateQuestionServiceMock } = vi.hoisted(() => ({
-  createQuestionServiceMock: vi.fn(),
-  updateQuestionServiceMock: vi.fn(),
-}))
-
-vi.mock('@/services/questionsService', () => ({
-  createQuestionService: createQuestionServiceMock,
-  updateQuestionService: updateQuestionServiceMock,
-}))
-
 resetFrontendMocksBeforeEach()
 
 afterEach(() => {
   vi.restoreAllMocks()
-  createQuestionServiceMock.mockReset()
-  updateQuestionServiceMock.mockReset()
 })
 
 const themes: Theme[] = [

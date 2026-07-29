@@ -1,10 +1,6 @@
+import './registerDbMock'
+
 import { vi } from 'vitest'
-
-vi.mock('../../../../../backend/src/db', async () => {
-  const { db } = await import('./mockDb')
-
-  return { default: db }
-})
 
 vi.mock('../../../../../backend/src/security/requireApiPermission', async () => {
   const { requireApiPermissionMock } = await import('./mockSecurity')

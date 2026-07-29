@@ -42,6 +42,12 @@ vi.mock('@/utils/router', async () => {
   }
 })
 
+vi.mock('@/utils/company/details/form', async () => {
+  const companyDetailForm = await import('./companyDetailFormMock')
+
+  return companyDetailForm.companyDetailFormModuleMock
+})
+
 vi.mock('@/services/accountsService', async () => {
   const accountsService = await import('./accountsServiceMock')
 
