@@ -84,8 +84,11 @@ export const createQuestionServiceMock = vi.fn(async (): Promise<QuestionMock> =
   createQuestionMock()
 )
 
-export const updateQuestionServiceMock = vi.fn(async (questionId: number): Promise<QuestionMock> =>
-  createQuestionMock({ id: questionId })
+// Signature alignée sur le service réel updateQuestionService(questionId, payload) pour que
+// les tests puissent inspecter le payload envoyé (mock.calls[0]).
+export const updateQuestionServiceMock = vi.fn(
+  async (questionId: number, _payload: unknown): Promise<QuestionMock> =>
+    createQuestionMock({ id: questionId })
 )
 
 export const deleteQuestionServiceMock = vi.fn(async (): Promise<QuestionMock | null> => null)

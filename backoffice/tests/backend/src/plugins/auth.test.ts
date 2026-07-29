@@ -1,10 +1,4 @@
-import { vi } from 'vitest'
-
-vi.mock('../../../../backend/src/db', async () => {
-  const { db } = await import('../routes/_helpers/mockDb')
-
-  return { default: db }
-})
+import '../routes/_helpers/registerDbMock'
 
 import fastify, {
   type FastifyInstance,

@@ -1,4 +1,5 @@
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
+import { updateQuestionStatusServiceMock } from '@frontend-tests/_helpers/questionsServiceMock'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import {
   ADMIN_ROLE_ADMIN,
@@ -13,19 +14,10 @@ import { nextTick } from 'vue'
 import type { Question } from '@/types/question'
 import QuestionsTableActionsSwitch from '@/views/questions/table/QuestionsTableActionsSwitch.vue'
 
-const { updateQuestionStatusServiceMock } = vi.hoisted(() => ({
-  updateQuestionStatusServiceMock: vi.fn(),
-}))
-
-vi.mock('@/services/questionsService', () => ({
-  updateQuestionStatusService: updateQuestionStatusServiceMock,
-}))
-
 resetFrontendMocksBeforeEach()
 
 afterEach(() => {
   vi.restoreAllMocks()
-  updateQuestionStatusServiceMock.mockReset()
 })
 
 function makeQuestion(overrides: Partial<Question> = {}): Question {

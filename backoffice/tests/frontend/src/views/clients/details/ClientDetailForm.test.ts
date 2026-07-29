@@ -1,46 +1,11 @@
 import { setAuthenticatedAdmin, setAuthenticatedUser } from '@frontend-tests/_helpers/authStateMock'
+import { saveClientDetailCompanyMock } from '@frontend-tests/_helpers/companyDetailFormMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
-import {
-  COMPANY_STATUS_ACTIVE,
-  COMPANY_STATUS_INACTIVE,
-} from '@quizzup/shared'
+import { COMPANY_STATUS_ACTIVE, COMPANY_STATUS_INACTIVE } from '@quizzup/shared'
 import type { DOMWrapper } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { nextTick } from 'vue'
-
-const detailFormMock = vi.hoisted(() => ({
-  saveClientDetailCompany: vi.fn(),
-}))
-
-vi.mock('@/utils/company/details/form', () => ({
-  createClientDetailFieldErrors: () => ({
-    name: null,
-    email: null,
-  }),
-  createClientDetailFormValues: () => ({
-    name: '',
-    email: '',
-    status: 1,
-  }),
-  getClientDetailFormValues: (company: { name: string; email: string; status: number }) => ({
-    name: company.name,
-    email: company.email,
-    status: company.status,
-  }),
-  getClientDetailNextStatus: (status: number) => (status === 1 ? 0 : 1),
-  getClientDetailPermissions: (role: string | null) => ({
-    canManageCompany: role === 'admin' || role === 'superadmin',
-    canShowStatusSwitch: role === 'admin' || role === 'superadmin',
-    isCompanyReadonly: role !== 'admin' && role !== 'superadmin',
-  }),
-  hasClientDetailCompanyChanges: (
-    form: { name: string; email: string; status: number },
-    company: { name: string; email: string; status: number },
-    canManageCompany: boolean,
-  ) => canManageCompany && (form.name !== company.name || form.email !== company.email || form.status !== company.status),
-  saveClientDetailCompany: detailFormMock.saveClientDetailCompany,
-}))
 
 import ClientDetailForm from '@/views/clients/details/ClientDetailForm.vue'
 
@@ -54,7 +19,10 @@ const company = {
   accountsCount: 3,
 }
 
-function findInput(wrapper: ReturnType<typeof mountWithFrontendMocks>, name: string): DOMWrapper<HTMLInputElement> {
+function findInput(
+  wrapper: ReturnType<typeof mountWithFrontendMocks>,
+  name: string
+): DOMWrapper<HTMLInputElement> {
   return wrapper.find(`input[name="${name}"]`) as DOMWrapper<HTMLInputElement>
 }
 
@@ -98,7 +66,7 @@ describe('views/clients/details/ClientDetailForm.vue', () => {
   it('emits updated company and success message after a successful save', async () => {
     setAuthenticatedAdmin()
 
-    detailFormMock.saveClientDetailCompany.mockResolvedValue({
+    saveClientDetailCompanyMock.mockResolvedValue({
       ok: true,
       company: {
         ...company,
@@ -118,21 +86,21 @@ describe('views/clients/details/ClientDetailForm.vue', () => {
     await nextTick()
     await nextTick()
 
-    expect(detailFormMock.saveClientDetailCompany).toHaveBeenCalledWith(
+    expect(saveClientDetailCompanyMock).toHaveBeenCalledWith(
       1,
       expect.objectContaining({ name: 'Updated' }),
-      expect.any(Function),
+      expect.any(Function)
     )
     expect(wrapper.emitted('updated')?.[0]?.[0]).toMatchObject({ name: 'Updated' })
     expect(wrapper.find('[data-test="form-result-success"]').text()).toBe(
-      'clients.details.success.updated',
+      'clients.details.success.updated'
     )
   })
 
   it('renders field and form errors when save fails', async () => {
     setAuthenticatedAdmin()
 
-    detailFormMock.saveClientDetailCompany.mockResolvedValue({
+    saveClientDetailCompanyMock.mockResolvedValue({
       ok: false,
       fieldErrors: {
         name: 'name error',
