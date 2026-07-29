@@ -39,7 +39,7 @@ export interface Question {
   typeMedia: QuestionMediaType
   mediaUrl: string | null
   status: number
-  canEdit: boolean
+  canEdit?: boolean
   answers?: Answer[]
   createdAt?: string
   updatedAt?: string | null

@@ -1,9 +1,6 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 
-import {
-  ANSWER_STATUS_DELETED,
-  QUESTION_STATUS_DELETED,
-} from '@quizzup/shared'
+import { ANSWER_STATUS_DELETED, QUESTION_STATUS_DELETED } from '@quizzup/shared'
 import db from '../../db'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
 import { requireApiPermission } from '../../security/requireApiPermission'
@@ -24,13 +21,13 @@ const questionIdStatusRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [app.authenticate] },
     async (
       req: FastifyRequest<{ Params: QuestionParams; Body: QuestionStatusBody }>,
-      reply: FastifyReply,
+      reply: FastifyReply
     ) => {
       const hasPermission = requireApiPermission(
         req,
         reply,
         API_RESOURCE.QUESTION,
-        API_ACTION.UPDATE_STATUS,
+        API_ACTION.UPDATE_STATUS
       )
 
       if (!hasPermission) {
@@ -65,20 +62,18 @@ const questionIdStatusRoutes: FastifyPluginAsync = async (app) => {
           .update(buildQuestionStatusPatch(nextStatus))
 
         if (nextStatus === QUESTION_STATUS_DELETED) {
-          await trx('answers')
-            .where({ question_id: questionId })
-            .update({
-              status: ANSWER_STATUS_DELETED,
-              updated_at: trx.fn.now(),
-              deleted_at: trx.fn.now(),
-            })
+          await trx('answers').where({ question_id: questionId }).update({
+            status: ANSWER_STATUS_DELETED,
+            updated_at: trx.fn.now(),
+            deleted_at: trx.fn.now(),
+          })
         }
       })
 
-      const question = await getQuestionWithAnswers(questionId)
+      const question = await getQuestionWithAnswers(questionId, req)
 
       return { question }
-    },
+    }
   )
 }
 

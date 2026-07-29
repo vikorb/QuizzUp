@@ -23,7 +23,12 @@ import {
 } from '@quizzup/shared'
 import db from '../../db'
 import { getCurrentCompanyId, isSuperadmin } from '../../security/companiesPolicy'
-import { canReadTheme, getThemeAccessRow, themeSelect, type ThemeAccessRow } from '../themes/_shared'
+import {
+  canReadTheme,
+  getThemeAccessRow,
+  themeSelect,
+  type ThemeAccessRow,
+} from '../themes/_shared'
 
 export const DEFAULT_QUESTION_MEDIA_TYPE = QUESTION_MEDIA_TYPE_NONE
 
@@ -76,6 +81,7 @@ type AuthenticatedRequest = FastifyRequest & {
 }
 
 type NormalizedAnswer = {
+  id?: number
   response: string
   isCorrect: boolean
   status?: AnswerStatus
@@ -217,19 +223,19 @@ export function getAnswerStatusFromQuestionStatus(status: QuestionStatus): Answe
 }
 
 export function getQuestionScope(req: FastifyRequest, requestedScope?: ThemeScope): ThemeScope {
-  return isSuperadmin(req) ? requestedScope ?? THEME_SCOPE_GLOBAL : THEME_SCOPE_COMPANY
+  return isSuperadmin(req) ? (requestedScope ?? THEME_SCOPE_GLOBAL) : THEME_SCOPE_COMPANY
 }
 
 export function getQuestionCompanyId(
   req: FastifyRequest,
   scope: ThemeScope,
-  requestedCompanyId?: number | null,
+  requestedCompanyId?: number | null
 ): number | null {
   if (scope === THEME_SCOPE_GLOBAL) {
     return null
   }
 
-  return isSuperadmin(req) ? requestedCompanyId ?? null : getCurrentCompanyId(req)
+  return isSuperadmin(req) ? (requestedCompanyId ?? null) : getCurrentCompanyId(req)
 }
 
 export function canReadQuestion(question: QuestionAccessRow, req: FastifyRequest): boolean {
@@ -242,18 +248,21 @@ export function canReadQuestion(question: QuestionAccessRow, req: FastifyRequest
   )
 }
 
-export function canEditQuestion(question: QuestionAccessRow, req: FastifyRequest): boolean {
+export function canEditQuestionForScope(
+  req: FastifyRequest,
+  scope: ThemeScope,
+  companyId: number | null
+): boolean {
   const currentCompanyId = getCurrentCompanyId(req)
 
-  return (
-    isSuperadmin(req) ||
-    (question.scope === THEME_SCOPE_COMPANY && question.company_id === currentCompanyId)
-  )
+  return isSuperadmin(req) || (scope === THEME_SCOPE_COMPANY && companyId === currentCompanyId)
 }
 
-export async function getQuestionAccessRow(
-  questionId: number,
-): Promise<QuestionAccessRow | null> {
+export function canEditQuestion(question: QuestionAccessRow, req: FastifyRequest): boolean {
+  return canEditQuestionForScope(req, question.scope, question.company_id)
+}
+
+export async function getQuestionAccessRow(questionId: number): Promise<QuestionAccessRow | null> {
   const question = await db('questions')
     .select('id', 'admin_id', 'company_id', 'scope', 'status')
     .where({ id: questionId })
@@ -269,13 +278,21 @@ export function normalizeAnswers(answers: unknown): NormalizedAnswer[] {
 
   return answers.map((answer) => {
     const rawAnswer = answer as Record<string, unknown>
+    const id = parsePositiveId(rawAnswer.id)
 
     return {
+      id: id ?? undefined,
       response: typeof rawAnswer.response === 'string' ? rawAnswer.response.trim() : '',
       isCorrect: Boolean(rawAnswer.isCorrect ?? rawAnswer.is_correct),
       status: rawAnswer.status as AnswerStatus | undefined,
     }
   })
+}
+
+export function hasInvalidAnswerStatus(answers: NormalizedAnswer[]): boolean {
+  return answers.some(
+    (answer) => answer.status !== undefined && !isValidAnswerStatus(answer.status)
+  )
 }
 
 export function validateAnswers(answers: NormalizedAnswer[]): string | null {
@@ -308,7 +325,7 @@ export function parseQuestionThemeIds(body: QuestionBody): number[] {
     ...new Set(
       rawThemeIds
         .map((themeId) => parsePositiveId(themeId))
-        .filter((themeId): themeId is number => themeId !== null),
+        .filter((themeId): themeId is number => themeId !== null)
     ),
   ]
 }
@@ -316,7 +333,7 @@ export function parseQuestionThemeIds(body: QuestionBody): number[] {
 function isThemeCompatibleWithQuestion(
   theme: ThemeAccessRow,
   scope: ThemeScope,
-  companyId: number | null,
+  companyId: number | null
 ): boolean {
   if (theme.scope === THEME_SCOPE_GLOBAL) {
     return scope === THEME_SCOPE_GLOBAL
@@ -333,7 +350,7 @@ export async function ensureThemeIsUsable(
   themeId: number,
   req: FastifyRequest,
   scope: ThemeScope,
-  companyId: number | null,
+  companyId: number | null
 ): Promise<string | null> {
   const theme = await getThemeAccessRow(themeId)
 
@@ -356,7 +373,7 @@ export async function ensureThemesAreUsable(
   themeIds: number[],
   req: FastifyRequest,
   scope: ThemeScope,
-  companyId: number | null,
+  companyId: number | null
 ): Promise<string | null> {
   if (themeIds.length === 0) {
     return 'question_theme_required'
@@ -376,7 +393,7 @@ export async function ensureThemesAreUsable(
 export async function syncQuestionThemes(
   trx: Knex.Transaction,
   questionId: number,
-  themeIds: number[],
+  themeIds: number[]
 ): Promise<void> {
   await trx('question_themes').where({ question_id: questionId }).delete()
 
@@ -385,7 +402,7 @@ export async function syncQuestionThemes(
       themeIds.map((themeId) => ({
         question_id: questionId,
         theme_id: themeId,
-      })),
+      }))
     )
     .onConflict(['question_id', 'theme_id'])
     .ignore()
@@ -400,19 +417,22 @@ export async function getThemesForQuestion(questionId: number) {
     .orderBy('themes.id', 'asc')
 }
 
-export async function attachThemesToQuestions<T extends { id: number | string }>(
+export async function attachThemesToQuestions<
+  T extends { id: number | string; scope: ThemeScope; companyId: number | null },
+>(
   questions: T[],
-): Promise<Array<T & { themeId: number | null; themeIds: number[] }>> {
+  req?: FastifyRequest
+): Promise<Array<T & { themeId: number | null; themeIds: number[]; canEdit?: boolean }>> {
   if (questions.length === 0) {
     return []
   }
 
   const questionIds = questions.map((question) => Number(question.id))
 
-  const links = await db('question_themes')
+  const links = (await db('question_themes')
     .select('question_id', 'theme_id')
     .whereIn('question_id', questionIds)
-    .orderBy('theme_id', 'asc') as QuestionThemeLink[]
+    .orderBy('theme_id', 'asc')) as QuestionThemeLink[]
 
   const themeIdsByQuestionId = links.reduce<Record<string, number[]>>((acc, link) => {
     const questionId = String(link.question_id)
@@ -430,11 +450,12 @@ export async function attachThemesToQuestions<T extends { id: number | string }>
       ...question,
       themeId: themeIds[0] ?? null,
       themeIds,
+      ...(req ? { canEdit: canEditQuestionForScope(req, question.scope, question.companyId) } : {}),
     }
   })
 }
 
-export async function getQuestionWithAnswers(questionId: number) {
+export async function getQuestionWithAnswers(questionId: number, req?: FastifyRequest) {
   const question = await db('questions')
     .select(questionSelect)
     .where('questions.id', questionId)
@@ -447,6 +468,7 @@ export async function getQuestionWithAnswers(questionId: number) {
   const answers = await db('answers')
     .select(answerSelect)
     .where({ question_id: questionId })
+    .whereNot('status', ANSWER_STATUS_DELETED)
     .orderBy('id', 'asc')
 
   const themes = await getThemesForQuestion(questionId)
@@ -457,5 +479,14 @@ export async function getQuestionWithAnswers(questionId: number) {
     themeIds: themes.map((theme) => Number(theme.id)),
     themes,
     answers,
+    ...(req
+      ? {
+          canEdit: canEditQuestionForScope(
+            req,
+            question.scope as ThemeScope,
+            (question.companyId ?? null) as number | null
+          ),
+        }
+      : {}),
   }
 }

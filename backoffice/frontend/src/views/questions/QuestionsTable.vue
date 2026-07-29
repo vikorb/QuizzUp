@@ -68,6 +68,7 @@
       <template #cell-actions="{ item }">
         <QuestionsTableActions
           :item="toQuestionTableRow(item)"
+          :current-role="currentRole"
           @edit="emit('edit', $event)"
           @updated="emit('updated', $event)"
           @deleted="emit('deleted', $event)"
@@ -93,6 +94,7 @@ import { type RouteLocationRaw, RouterLink } from 'vue-router'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseTable from '@/components/ui/BaseTable.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import { authState } from '@/state/authState'
 import type { Question, Theme } from '@/types/question'
 
 import QuestionsTableActions from './table/QuestionsTableActions.vue'
@@ -116,6 +118,8 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
+const currentRole = computed(() => authState.me.value?.role ?? null)
+
 const columns = computed(() => [
   { key: 'question', label: t('questions.table.columns.question') },
   { key: 'themes', label: t('questions.table.columns.themes') },
@@ -126,7 +130,7 @@ const columns = computed(() => [
 ])
 
 const tableItems = computed<QuestionTableRow[]>(() =>
-  props.questions.map((question) => ({ ...question })),
+  props.questions.map((question) => ({ ...question }))
 )
 
 const THEME_VISIBLE_LIMIT = 3
@@ -199,10 +203,7 @@ function getQuestionThemes(item: Record<string, unknown>): Theme[] {
   }
 
   const rawThemeIds =
-    question.themeIds ??
-    question.theme_ids ??
-    question.themeId ??
-    question.theme_id
+    question.themeIds ?? question.theme_ids ?? question.themeId ?? question.theme_id
 
   const themeIds = toThemeIds(rawThemeIds)
 

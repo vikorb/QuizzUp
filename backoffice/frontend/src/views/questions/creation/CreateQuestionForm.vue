@@ -43,12 +43,7 @@
       <div class="question-form__answers-header">
         <h3>{{ $t('questions.form.answers') }}</h3>
 
-        <UiButton
-          type="button"
-          variant="default"
-          :disabled="saving"
-          @click="addAnswer"
-        >
+        <UiButton type="button" variant="default" :disabled="saving" @click="addAnswer">
           {{ $t('questions.form.addAnswer') }}
         </UiButton>
       </div>
@@ -57,11 +52,7 @@
         {{ $t(errors.answers) }}
       </p>
 
-      <div
-        v-for="(answer, index) in form.answers"
-        :key="index"
-        class="question-form__answer-row"
-      >
+      <div v-for="(answer, index) in form.answers" :key="index" class="question-form__answer-row">
         <FormField
           v-model="answer.response"
           class="question-form__answer-field"
@@ -124,18 +115,9 @@ import FormField from '@/components/ui/form/FormField.vue'
 import FormResult from '@/components/ui/form/FormResult.vue'
 import SelectField from '@/components/ui/form/SelectField.vue'
 import UiButton from '@/components/ui/UiButton.vue'
-import {
-  createQuestionService,
-  updateQuestionService,
-} from '@/services/questionsService'
+import { createQuestionService, updateQuestionService } from '@/services/questionsService'
 import type { SelectFieldOption } from '@/types/form'
-import type {
-  Answer,
-  Question,
-  QuestionMediaType,
-  QuestionPayload,
-  Theme,
-} from '@/types/question'
+import type { Answer, Question, QuestionMediaType, QuestionPayload, Theme } from '@/types/question'
 
 import ThemeMultiSelect from './ThemeMultiSelect.vue'
 
@@ -148,7 +130,7 @@ const props = withDefaults(
   }>(),
   {
     initialThemeIds: () => [],
-  },
+  }
 )
 
 const emit = defineEmits<{
@@ -181,7 +163,7 @@ const formError = ref<string | null>(null)
 const formSuccess = ref<string | null>(null)
 
 const submitLabel = computed(() =>
-  props.mode === 'edit' ? t('questions.form.save') : t('questions.form.create'),
+  props.mode === 'edit' ? t('questions.form.save') : t('questions.form.create')
 )
 
 const typeMediaOptions = computed<SelectFieldOption[]>(() => [
@@ -226,6 +208,7 @@ watch(
     form.mediaUrl = question.mediaUrl ?? ''
     form.answers = question.answers?.length
       ? question.answers.map((answer) => ({
+          id: answer.id,
           response: answer.response,
           isCorrect: answer.isCorrect,
         }))
@@ -234,7 +217,7 @@ watch(
           { response: '', isCorrect: false },
         ]
   },
-  { immediate: true },
+  { immediate: true }
 )
 
 function normalizeThemeIds(themeIds: number[]): number[] {
@@ -245,7 +228,7 @@ function normalizeThemeIds(themeIds: number[]): number[] {
       themeIds
         .map(Number)
         .filter((themeId) => Number.isInteger(themeId) && themeId > 0)
-        .filter((themeId) => visibleThemeIds.size === 0 || visibleThemeIds.has(themeId)),
+        .filter((themeId) => visibleThemeIds.size === 0 || visibleThemeIds.has(themeId))
     ),
   ]
 }
@@ -339,11 +322,9 @@ function buildPayload(): QuestionPayload {
     themeIds: form.themeIds,
     question: form.question.trim(),
     typeMedia: form.typeMedia,
-    mediaUrl:
-      form.typeMedia === QUESTION_MEDIA_TYPE_NONE
-        ? null
-        : form.mediaUrl.trim() || null,
+    mediaUrl: form.typeMedia === QUESTION_MEDIA_TYPE_NONE ? null : form.mediaUrl.trim() || null,
     answers: form.answers.map((answer) => ({
+      id: answer.id,
       response: answer.response.trim(),
       isCorrect: answer.isCorrect,
     })),
@@ -370,9 +351,7 @@ async function submitForm(): Promise<void> {
         : await createQuestionService(buildPayload())
 
     formSuccess.value =
-      props.mode === 'edit'
-        ? t('questions.success.update')
-        : t('questions.success.create')
+      props.mode === 'edit' ? t('questions.success.update') : t('questions.success.create')
 
     emit('saved', savedQuestion)
   } catch {

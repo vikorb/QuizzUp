@@ -28,12 +28,27 @@ type DbState = {
   companies: Row[]
   admins: Row[]
   admin_sessions: Row[]
+  themes: Row[]
+  questions: Row[]
+  answers: Row[]
+  question_themes: Row[]
 }
+
+type TableName = keyof DbState
+
+const QUALIFIED_KEY = '__qualified'
+
+// Tables sans colonne `id` auto-incrémentée.
+const TABLES_WITHOUT_ID = new Set<TableName>(['admin_sessions', 'question_themes'])
 
 export const dbState: DbState = {
   companies: [],
   admins: [],
   admin_sessions: [],
+  themes: [],
+  questions: [],
+  answers: [],
+  question_themes: [],
 }
 
 const DEFAULT_COMPANIES: Row[] = [
@@ -106,6 +121,10 @@ export function resetDb(seed?: Partial<DbState>): void {
   dbState.companies = structuredClone(seed?.companies ?? DEFAULT_COMPANIES)
   dbState.admins = structuredClone(seed?.admins ?? DEFAULT_ADMINS)
   dbState.admin_sessions = structuredClone(seed?.admin_sessions ?? [])
+  dbState.themes = structuredClone(seed?.themes ?? [])
+  dbState.questions = structuredClone(seed?.questions ?? [])
+  dbState.answers = structuredClone(seed?.answers ?? [])
+  dbState.question_themes = structuredClone(seed?.question_themes ?? [])
   db.fn.now.mockClear()
   db.raw.mockClear()
 }
@@ -129,11 +148,37 @@ function normalizeAlias(column: string): string {
   return normalizeColumn(column)
 }
 
-function getTableRows(table: keyof DbState): Row[] {
+// Nom pleinement qualifié (`table.colonne`) sans alias ni guillemets.
+function qualifiedBase(column: string): string {
+  const withoutAlias = column.split(/\s+as\s+/i)[0] ?? column
+
+  return withoutAlias.replaceAll('"', '').trim()
+}
+
+// Lecture d'une valeur de colonne en tenant compte des jointures : les lignes
+// jointes portent une map `__qualified` indexée par `table.colonne`.
+function getRowValue(row: Row, column: string): unknown {
+  const base = qualifiedBase(column)
+  const qualified = row[QUALIFIED_KEY] as Record<string, unknown> | undefined
+
+  if (qualified && base.includes('.') && base in qualified) {
+    return qualified[base]
+  }
+
+  return row[normalizeColumn(base)]
+}
+
+function likeToNeedle(pattern: unknown): string {
+  return String(pattern ?? '')
+    .replaceAll('%', '')
+    .toLowerCase()
+}
+
+function getTableRows(table: TableName): Row[] {
   return dbState[table]
 }
 
-function nextNumericId(table: keyof DbState): number {
+function nextNumericId(table: TableName): number {
   const rows = getTableRows(table)
   const ids = rows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id))
 
@@ -162,10 +207,154 @@ type SortConfig = {
   direction: 'asc' | 'desc'
 }
 
-class QueryBuilder {
-  private readonly table: keyof DbState
+type JoinConfig = {
+  table: TableName
+  leftColumn: string
+  rightColumn: string
+}
 
-  private readonly filters: Array<(row: Row) => boolean> = []
+type Predicate = (row: Row) => boolean
+type ClauseColumn = string | Row | ((this: ConditionGroup) => void)
+
+// Groupe de conditions imbriqué (utilisé par `where(function () { ... })`) qui
+// combine ses clauses de gauche à droite selon leur connecteur (and / or).
+class ConditionGroup {
+  private readonly clauses: Array<{ combinator: 'and' | 'or'; predicate: Predicate }> = []
+
+  public where(column: ClauseColumn, value?: unknown): this {
+    return this.add('and', column, value)
+  }
+
+  public orWhere(column: ClauseColumn, value?: unknown): this {
+    return this.add('or', column, value)
+  }
+
+  public whereNot(column: string, value: unknown): this {
+    this.clauses.push({
+      combinator: 'and',
+      predicate: (row) => getRowValue(row, column) !== value,
+    })
+
+    return this
+  }
+
+  public evaluate(row: Row): boolean {
+    if (this.clauses.length === 0) {
+      return true
+    }
+
+    let result = this.clauses[0]!.predicate(row)
+
+    for (let index = 1; index < this.clauses.length; index += 1) {
+      const clause = this.clauses[index]!
+
+      result =
+        clause.combinator === 'or'
+          ? result || clause.predicate(row)
+          : result && clause.predicate(row)
+    }
+
+    return result
+  }
+
+  private add(combinator: 'and' | 'or', column: ClauseColumn, value: unknown): this {
+    this.clauses.push({ combinator, predicate: toPredicate(column, value) })
+
+    return this
+  }
+}
+
+function toPredicate(column: ClauseColumn, value: unknown): Predicate {
+  if (typeof column === 'function') {
+    const group = new ConditionGroup()
+    column.call(group)
+
+    return (row) => group.evaluate(row)
+  }
+
+  if (typeof column === 'object') {
+    const entries = Object.entries(column)
+
+    return (row) => entries.every(([col, expected]) => getRowValue(row, col) === expected)
+  }
+
+  return (row) => getRowValue(row, column) === value
+}
+
+// Sous-requête minimaliste pour `whereExists` (corrélée via `whereRaw`).
+class ExistsBuilder {
+  public table: TableName | null = null
+
+  private readonly correlations: Array<[string, string]> = []
+
+  private readonly equalities: Array<[string, unknown]> = []
+
+  public select(): this {
+    return this
+  }
+
+  public from(table: string): this {
+    this.table = table as TableName
+
+    return this
+  }
+
+  public whereRaw(sql: string): this {
+    const match = String(sql).match(/([\w.]+)\s*=\s*([\w.]+)/)
+
+    if (match?.[1] && match[2]) {
+      this.correlations.push([match[1], match[2]])
+    }
+
+    return this
+  }
+
+  public where(column: string, value: unknown): this {
+    this.equalities.push([column, value])
+
+    return this
+  }
+
+  public andWhere(column: string, value: unknown): this {
+    return this.where(column, value)
+  }
+
+  public matches(outerRow: Row): boolean {
+    if (!this.table) {
+      return false
+    }
+
+    return getTableRows(this.table).some((innerRow) => {
+      const correlationsOk = this.correlations.every(([left, right]) => {
+        return this.resolve(left, innerRow, outerRow) === this.resolve(right, innerRow, outerRow)
+      })
+
+      const equalitiesOk = this.equalities.every(([column, value]) => {
+        return innerRow[normalizeColumn(column)] === value
+      })
+
+      return correlationsOk && equalitiesOk
+    })
+  }
+
+  private resolve(column: string, innerRow: Row, outerRow: Row): unknown {
+    const base = qualifiedBase(column)
+    const [table] = base.split('.')
+
+    if (table === this.table) {
+      return innerRow[normalizeColumn(base)]
+    }
+
+    return getRowValue(outerRow, base)
+  }
+}
+
+class QueryBuilder {
+  private readonly table: TableName
+
+  private readonly filters: Predicate[] = []
+
+  private readonly joins: JoinConfig[] = []
 
   private selectedColumns: SelectColumn[] | Record<string, string> | null = null
 
@@ -177,12 +366,16 @@ class QueryBuilder {
 
   private updatePayload: Row | null = null
 
+  private conflictColumns: string[] | null = null
+
+  private ignoreConflicts = false
+
   private executed = false
 
   private operationResult: unknown
 
   public constructor(table: string) {
-    this.table = table as keyof DbState
+    this.table = table as TableName
   }
 
   public select(...columns: unknown[]): this {
@@ -199,17 +392,40 @@ class QueryBuilder {
     return Promise.resolve(this.executeSelect()[0])
   }
 
-  public where(columnOrObject: string | Row, value?: unknown): this {
-    if (typeof columnOrObject === 'object') {
-      Object.entries(columnOrObject).forEach(([column, expected]) => {
-        this.filters.push((row) => row[normalizeColumn(column)] === expected)
-      })
+  public where(columnOrObject: ClauseColumn, value?: unknown): this {
+    this.filters.push(toPredicate(columnOrObject, value))
 
-      return this
-    }
+    return this
+  }
 
-    const column = normalizeColumn(columnOrObject)
-    this.filters.push((row) => row[column] === value)
+  public orWhere(columnOrObject: ClauseColumn, value?: unknown): this {
+    this.filters.push(toPredicate(columnOrObject, value))
+
+    return this
+  }
+
+  public whereIn(column: string, values: unknown[]): this {
+    const expected = new Set(values)
+    this.filters.push((row) => expected.has(getRowValue(row, column)))
+
+    return this
+  }
+
+  public whereILike(column: string, pattern: unknown): this {
+    const needle = likeToNeedle(pattern)
+    this.filters.push((row) =>
+      String(getRowValue(row, column) ?? '')
+        .toLowerCase()
+        .includes(needle)
+    )
+
+    return this
+  }
+
+  public whereExists(builder: (this: ExistsBuilder) => void): this {
+    const existsBuilder = new ExistsBuilder()
+    builder.call(existsBuilder)
+    this.filters.push((row) => existsBuilder.matches(row))
 
     return this
   }
@@ -231,8 +447,13 @@ class QueryBuilder {
   }
 
   public whereNot(column: string, value: unknown): this {
-    const normalizedColumn = normalizeColumn(column)
-    this.filters.push((row) => row[normalizedColumn] !== value)
+    this.filters.push((row) => getRowValue(row, column) !== value)
+
+    return this
+  }
+
+  public join(table: string, leftColumn: string, rightColumn: string): this {
+    this.joins.push({ table: table as TableName, leftColumn, rightColumn })
 
     return this
   }
@@ -255,14 +476,6 @@ class QueryBuilder {
     return this
   }
 
-  public whereIn(column: string, values: unknown[]): this {
-    const normalizedColumn = normalizeColumn(column)
-    const expected = new Set(values)
-    this.filters.push((row) => expected.has(row[normalizedColumn]))
-
-    return this
-  }
-
   public leftJoin(): this {
     return this
   }
@@ -273,7 +486,7 @@ class QueryBuilder {
 
   public orderBy(column: string, direction: 'asc' | 'desc' = 'asc'): this {
     this.sortConfig = {
-      column: normalizeColumn(column),
+      column,
       direction,
     }
 
@@ -296,6 +509,33 @@ class QueryBuilder {
     this.updatePayload = payload
 
     return this
+  }
+
+  public onConflict(columns: string[]): this {
+    this.conflictColumns = columns
+
+    return this
+  }
+
+  public ignore(): this {
+    this.ignoreConflicts = true
+
+    return this
+  }
+
+  public delete(): Promise<number> {
+    const rows = this.filteredRows()
+    const tableRows = getTableRows(this.table)
+
+    rows.forEach((row) => {
+      const index = tableRows.indexOf(row)
+
+      if (index !== -1) {
+        tableRows.splice(index, 1)
+      }
+    })
+
+    return Promise.resolve(rows.length)
   }
 
   public returning(columns: unknown): Promise<Row[]> {
@@ -341,25 +581,38 @@ class QueryBuilder {
 
   private executeInsert(): Row[] {
     const rows = Array.isArray(this.insertPayload) ? this.insertPayload : [this.insertPayload]
-    const insertedRows = rows
+    const insertedRows: Row[] = []
+
+    rows
       .filter((row): row is Row => Boolean(row))
-      .map((payload) => {
+      .forEach((payload) => {
+        if (this.ignoreConflicts && this.conflictColumns && this.conflicts(payload, insertedRows)) {
+          return
+        }
+
         const row: Row = {
           ...payload,
           created_at: payload.created_at ?? MOCK_NOW,
           updated_at: payload.updated_at ?? MOCK_NOW,
         }
 
-        if (row.id === undefined && this.table !== 'admin_sessions') {
+        if (row.id === undefined && !TABLES_WITHOUT_ID.has(this.table)) {
           row.id = nextNumericId(this.table)
         }
 
         getTableRows(this.table).push(row)
-
-        return row
+        insertedRows.push(row)
       })
 
     return insertedRows
+  }
+
+  private conflicts(payload: Row, pending: Row[]): boolean {
+    const columns = this.conflictColumns ?? []
+    const matches = (row: Row): boolean =>
+      columns.every((column) => row[column] === payload[column])
+
+    return getTableRows(this.table).some(matches) || pending.some(matches)
   }
 
   private executeUpdate(): number {
@@ -390,9 +643,74 @@ class QueryBuilder {
   }
 
   private filteredRows(): Row[] {
-    return getTableRows(this.table).filter((row) => {
+    return this.baseRows().filter((row) => {
       return this.filters.every((filter) => filter(row))
     })
+  }
+
+  // Construit l'ensemble des lignes de base, en appliquant les jointures internes
+  // et en conservant les colonnes qualifiées (`table.colonne`).
+  private baseRows(): Row[] {
+    if (this.joins.length === 0) {
+      return getTableRows(this.table)
+    }
+
+    let combined = getTableRows(this.table).map((row) => this.toQualifiedRow(this.table, row))
+
+    for (const join of this.joins) {
+      const next: Row[] = []
+
+      for (const current of combined) {
+        for (const joinRow of getTableRows(join.table)) {
+          const leftValue = this.resolveJoinValue(current, join.table, joinRow, join.leftColumn)
+          const rightValue = this.resolveJoinValue(current, join.table, joinRow, join.rightColumn)
+
+          if (leftValue === rightValue) {
+            next.push(this.mergeQualified(current, join.table, joinRow))
+          }
+        }
+      }
+
+      combined = next
+    }
+
+    return combined
+  }
+
+  private toQualifiedRow(table: TableName, row: Row): Row {
+    const qualified: Record<string, unknown> = {}
+
+    Object.entries(row).forEach(([key, value]) => {
+      qualified[`${table}.${key}`] = value
+    })
+
+    return { ...row, [QUALIFIED_KEY]: qualified }
+  }
+
+  private mergeQualified(current: Row, joinTable: TableName, joinRow: Row): Row {
+    const qualified = { ...(current[QUALIFIED_KEY] as Record<string, unknown>) }
+
+    Object.entries(joinRow).forEach(([key, value]) => {
+      qualified[`${joinTable}.${key}`] = value
+    })
+
+    return { ...current, [QUALIFIED_KEY]: qualified }
+  }
+
+  private resolveJoinValue(
+    current: Row,
+    joinTable: TableName,
+    joinRow: Row,
+    column: string
+  ): unknown {
+    const base = qualifiedBase(column)
+    const [table] = base.split('.')
+
+    if (table === joinTable) {
+      return joinRow[normalizeColumn(base)]
+    }
+
+    return getRowValue(current, base)
   }
 
   private sortRows(rows: Row[]): Row[] {
@@ -404,8 +722,8 @@ class QueryBuilder {
     const multiplier = direction === 'desc' ? -1 : 1
 
     return [...rows].sort((a, b) => {
-      const aValue = a[column] as string | number
-      const bValue = b[column] as string | number
+      const aValue = getRowValue(a, column) as string | number
+      const bValue = getRowValue(b, column) as string | number
 
       if (aValue === bValue) {
         return 0
@@ -432,17 +750,19 @@ class QueryBuilder {
   }
 
   private mapSelectedRow(row: Row): Row {
-    const cloned = cloneRow(row)
+    if (Array.isArray(this.selectedColumns) && this.selectedColumns.includes('*')) {
+      return this.addComputedFields(this.stripQualified(row))
+    }
 
     if (!this.selectedColumns) {
-      return this.addComputedFields(cloned)
+      return this.addComputedFields(this.stripQualified(row))
     }
 
     if (!Array.isArray(this.selectedColumns)) {
       return Object.fromEntries(
         Object.entries(this.selectedColumns).map(([alias, column]) => [
           alias,
-          row[normalizeColumn(column)],
+          getRowValue(row, column),
         ])
       )
     }
@@ -454,10 +774,17 @@ class QueryBuilder {
         return
       }
 
-      mapped[normalizeAlias(column)] = row[normalizeColumn(column)]
+      mapped[normalizeAlias(column)] = getRowValue(row, column)
     })
 
     return this.addComputedFields(mapped, row)
+  }
+
+  private stripQualified(row: Row): Row {
+    const cloned = cloneRow(row)
+    delete cloned[QUALIFIED_KEY]
+
+    return cloned
   }
 
   private addComputedFields(mapped: Row, sourceRow = mapped): Row {
@@ -481,6 +808,7 @@ type MockDb = {
     now: ReturnType<typeof vi.fn>
   }
   raw: ReturnType<typeof vi.fn>
+  transaction: <T>(callback: (trx: MockDb) => Promise<T> | T) => Promise<T>
 }
 
 export const db = Object.assign((table: string) => new QueryBuilder(table), {
@@ -492,4 +820,7 @@ export const db = Object.assign((table: string) => new QueryBuilder(table), {
     sql,
     bindings,
   })),
+  transaction: async <T>(callback: (trx: MockDb) => Promise<T> | T): Promise<T> => {
+    return callback(db)
+  },
 }) as MockDb
