@@ -1,9 +1,6 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 
-import {
-  ANSWER_STATUS_DELETED,
-  QUESTION_STATUS_DELETED,
-} from '@quizzup/shared'
+import { ANSWER_STATUS_DELETED, QUESTION_STATUS_DELETED } from '@quizzup/shared'
 import db from '../../db'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
 import { requireApiPermission } from '../../security/requireApiPermission'
@@ -17,6 +14,7 @@ import {
   getQuestionAccessRow,
   getQuestionWithAnswers,
   getThemesForQuestion,
+  hasInvalidAnswerStatus,
   isValidQuestionMediaType,
   normalizeAnswers,
   parsePositiveId,
@@ -32,12 +30,7 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
     '/questions/:questionId',
     { preHandler: [app.authenticate] },
     async (req: FastifyRequest<{ Params: QuestionParams }>, reply: FastifyReply) => {
-      const hasPermission = requireApiPermission(
-        req,
-        reply,
-        API_RESOURCE.QUESTION,
-        API_ACTION.READ,
-      )
+      const hasPermission = requireApiPermission(req, reply, API_RESOURCE.QUESTION, API_ACTION.READ)
 
       if (!hasPermission) {
         return
@@ -59,22 +52,17 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(403).send({ error: 'forbidden' })
       }
 
-      const question = await getQuestionWithAnswers(questionId)
+      const question = await getQuestionWithAnswers(questionId, req)
 
       return { question }
-    },
+    }
   )
 
   app.get<{ Params: QuestionParams }>(
     '/questions/:questionId/themes',
     { preHandler: [app.authenticate] },
     async (req: FastifyRequest<{ Params: QuestionParams }>, reply: FastifyReply) => {
-      const hasPermission = requireApiPermission(
-        req,
-        reply,
-        API_RESOURCE.QUESTION,
-        API_ACTION.READ,
-      )
+      const hasPermission = requireApiPermission(req, reply, API_RESOURCE.QUESTION, API_ACTION.READ)
 
       if (!hasPermission) {
         return
@@ -99,7 +87,7 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
       const themes = await getThemesForQuestion(questionId)
 
       return { themes }
-    },
+    }
   )
 
   app.patch<{ Params: QuestionParams; Body: QuestionBody }>(
@@ -107,13 +95,13 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [app.authenticate] },
     async (
       req: FastifyRequest<{ Params: QuestionParams; Body: QuestionBody }>,
-      reply: FastifyReply,
+      reply: FastifyReply
     ) => {
       const hasPermission = requireApiPermission(
         req,
         reply,
         API_RESOURCE.QUESTION,
-        API_ACTION.UPDATE,
+        API_ACTION.UPDATE
       )
 
       if (!hasPermission) {
@@ -164,7 +152,7 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
           nextThemeIds,
           req,
           accessQuestion.scope,
-          accessQuestion.company_id,
+          accessQuestion.company_id
         )
 
         if (themeError) {
@@ -194,6 +182,10 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
           return reply.code(400).send({ error: answersError })
         }
 
+        if (hasInvalidAnswerStatus(answers)) {
+          return reply.code(400).send({ error: 'question_answer_status_invalid' })
+        }
+
         const answerStatus = getAnswerStatusFromQuestionStatus(accessQuestion.status)
 
         await db.transaction(async (trx) => {
@@ -203,24 +195,52 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
             await syncQuestionThemes(trx, questionId, nextThemeIds)
           }
 
-          await trx('answers')
+          const existingAnswers = await trx('answers')
             .where({ question_id: questionId })
-            .update({
+            .whereNot('status', ANSWER_STATUS_DELETED)
+
+          const existingIds = new Set(existingAnswers.map((answer) => Number(answer.id)))
+          const keptIds = new Set<number>()
+
+          // Diff : on conserve les réponses existantes par id, on met à jour celles
+          // modifiées, on insère les nouvelles et on soft-delete uniquement les retirées.
+          for (const answer of answers) {
+            const existingId =
+              answer.id !== undefined && existingIds.has(answer.id) ? answer.id : null
+
+            if (existingId !== null) {
+              keptIds.add(existingId)
+
+              await trx('answers').where({ id: existingId, question_id: questionId }).update({
+                response: answer.response,
+                is_correct: answer.isCorrect,
+                status: answerStatus,
+                updated_at: trx.fn.now(),
+                deleted_at: null,
+              })
+            } else {
+              await trx('answers').insert({
+                admin_id: adminId,
+                question_id: questionId,
+                response: answer.response,
+                is_correct: answer.isCorrect,
+                status: answerStatus,
+                deleted_at: null,
+              })
+            }
+          }
+
+          for (const existingAnswer of existingAnswers) {
+            if (keptIds.has(Number(existingAnswer.id))) {
+              continue
+            }
+
+            await trx('answers').where({ id: existingAnswer.id, question_id: questionId }).update({
               status: ANSWER_STATUS_DELETED,
               updated_at: trx.fn.now(),
               deleted_at: trx.fn.now(),
             })
-
-          await trx('answers').insert(
-            answers.map((answer) => ({
-              admin_id: adminId,
-              question_id: questionId,
-              response: answer.response,
-              is_correct: answer.isCorrect,
-              status: answer.status ?? answerStatus,
-              deleted_at: null,
-            })),
-          )
+          }
         })
       } else {
         await db.transaction(async (trx) => {
@@ -232,10 +252,10 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
         })
       }
 
-      const question = await getQuestionWithAnswers(questionId)
+      const question = await getQuestionWithAnswers(questionId, req)
 
       return { question }
-    },
+    }
   )
 
   app.delete<{ Params: QuestionParams }>(
@@ -246,7 +266,7 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
         req,
         reply,
         API_RESOURCE.QUESTION,
-        API_ACTION.DELETE,
+        API_ACTION.DELETE
       )
 
       if (!hasPermission) {
@@ -274,19 +294,17 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
           .where({ id: questionId })
           .update(buildQuestionStatusPatch(QUESTION_STATUS_DELETED))
 
-        await trx('answers')
-          .where({ question_id: questionId })
-          .update({
-            status: ANSWER_STATUS_DELETED,
-            updated_at: trx.fn.now(),
-            deleted_at: trx.fn.now(),
-          })
+        await trx('answers').where({ question_id: questionId }).update({
+          status: ANSWER_STATUS_DELETED,
+          updated_at: trx.fn.now(),
+          deleted_at: trx.fn.now(),
+        })
       })
 
-      const question = await getQuestionWithAnswers(questionId)
+      const question = await getQuestionWithAnswers(questionId, req)
 
       return { question }
-    },
+    }
   )
 }
 

@@ -22,15 +22,18 @@ import { useI18n } from 'vue-i18n'
 import SwitchField from '@/components/ui/form/SwitchField.vue'
 import { updateQuestionStatusService } from '@/services/questionsService'
 import type { Question } from '@/types/question'
+import { canUpdateQuestionStatus } from '@/utils/question/permissions'
 
 const props = withDefaults(
   defineProps<{
     question: Question
+    currentRole?: string | null
     disabled?: boolean
   }>(),
   {
+    currentRole: null,
     disabled: false,
-  },
+  }
 )
 
 const emit = defineEmits<{
@@ -45,14 +48,14 @@ const busy = ref(false)
 const currentStatus = computed<QuestionStatus>(() => toQuestionStatus(props.question.status))
 const isActive = computed(() => currentStatus.value === QUESTION_STATUS_ACTIVE)
 const isDeleted = computed(() => currentStatus.value === QUESTION_STATUS_DELETED)
-const canEdit = computed(() => props.question.canEdit !== false)
+const canChangeStatus = computed(() => canUpdateQuestionStatus(props.question, props.currentRole))
 
 const isSwitchDisabled = computed(
-  () => props.disabled || busy.value || isDeleted.value || !canEdit.value,
+  () => props.disabled || busy.value || isDeleted.value || !canChangeStatus.value
 )
 
 const switchTitle = computed(() =>
-  isActive.value ? t('questions.actions.disable') : t('questions.actions.enable'),
+  isActive.value ? t('questions.actions.disable') : t('questions.actions.enable')
 )
 
 function toQuestionStatus(status: unknown): QuestionStatus {
@@ -86,7 +89,7 @@ async function toggleStatus(): Promise<void> {
   const confirmed = window.confirm(
     t(confirmKey, {
       question: props.question.question,
-    }),
+    })
   )
 
   if (!confirmed) {

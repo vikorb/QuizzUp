@@ -1,11 +1,7 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import type { Knex } from 'knex'
 
-import {
-  QUESTION_STATUS_DELETED,
-  THEME_SCOPE_COMPANY,
-  THEME_SCOPE_GLOBAL,
-} from '@quizzup/shared'
+import { QUESTION_STATUS_DELETED, THEME_SCOPE_COMPANY, THEME_SCOPE_GLOBAL } from '@quizzup/shared'
 import db from '../db'
 import { API_ACTION, API_RESOURCE } from '../security/permissions'
 import { requireApiPermission } from '../security/requireApiPermission'
@@ -20,6 +16,7 @@ import {
   getQuestionCompanyId,
   getQuestionScope,
   getQuestionWithAnswers,
+  hasInvalidAnswerStatus,
   isValidQuestionMediaType,
   isValidQuestionScope,
   isValidQuestionStatus,
@@ -48,12 +45,7 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
     '/questions',
     { preHandler: [app.authenticate] },
     async (req: FastifyRequest<{ Querystring: QuestionQuery }>, reply: FastifyReply) => {
-      const hasPermission = requireApiPermission(
-        req,
-        reply,
-        API_RESOURCE.QUESTION,
-        API_ACTION.LIST,
-      )
+      const hasPermission = requireApiPermission(req, reply, API_RESOURCE.QUESTION, API_ACTION.LIST)
 
       if (!hasPermission) {
         return
@@ -72,7 +64,7 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
             this.orWhere(function filterCompanyQuestions(this: Knex.QueryBuilder) {
               this.where('questions.scope', THEME_SCOPE_COMPANY).where(
                 'questions.company_id',
-                currentCompanyId,
+                currentCompanyId
               )
             })
           }
@@ -111,10 +103,10 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const questionsWithoutThemes = await questionsQuery.orderBy('questions.id', 'asc')
-      const questions = await attachThemesToQuestions(questionsWithoutThemes)
+      const questions = await attachThemesToQuestions(questionsWithoutThemes, req)
 
       return { questions }
-    },
+    }
   )
 
   app.post<{ Body: QuestionBody }>(
@@ -125,7 +117,7 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
         req,
         reply,
         API_RESOURCE.QUESTION,
-        API_ACTION.CREATE,
+        API_ACTION.CREATE
       )
 
       if (!hasPermission) {
@@ -160,6 +152,10 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
 
       if (answersError) {
         return reply.code(400).send({ error: answersError })
+      }
+
+      if (hasInvalidAnswerStatus(answers)) {
+        return reply.code(400).send({ error: 'question_answer_status_invalid' })
       }
 
       const requestedScope = isValidQuestionScope(req.body.scope) ? req.body.scope : undefined
@@ -200,7 +196,7 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
             themeIds.map((themeId) => ({
               question_id: question.id,
               theme_id: themeId,
-            })),
+            }))
           )
           .onConflict(['question_id', 'theme_id'])
           .ignore()
@@ -211,22 +207,22 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
             question_id: question.id,
             response: answer.response,
             is_correct: answer.isCorrect,
-            status: answer.status ?? answerStatus,
+            status: answerStatus,
             deleted_at: null,
-          })),
+          }))
         )
 
         return question
       })
 
-      const question = await getQuestionWithAnswers(Number(createdQuestion.id))
+      const question = await getQuestionWithAnswers(Number(createdQuestion.id), req)
 
       if (!question) {
         return reply.code(500).send({ error: 'question_create_failed' })
       }
 
       return reply.code(201).send({ question })
-    },
+    }
   )
 }
 

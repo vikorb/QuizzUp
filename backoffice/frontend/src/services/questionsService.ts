@@ -80,7 +80,9 @@ function buildQuery(filters?: Partial<QuestionFilters>): string {
   return query ? `?${query}` : ''
 }
 
-function buildQuestionBody(payload: QuestionPayload | UpdateQuestionPayload): Record<string, unknown> {
+function buildQuestionBody(
+  payload: QuestionPayload | UpdateQuestionPayload
+): Record<string, unknown> {
   const body: Record<string, unknown> = {}
 
   if ('themeIds' in payload && payload.themeIds !== undefined) {
@@ -106,16 +108,28 @@ function buildQuestionBody(payload: QuestionPayload | UpdateQuestionPayload): Re
   }
 
   if (payload.answers !== undefined) {
-    body.answers = payload.answers.map((answer) => ({
-      response: answer.response,
-      isCorrect: answer.isCorrect,
-    }))
+    body.answers = payload.answers.map((answer) => {
+      const mappedAnswer: Record<string, unknown> = {
+        response: answer.response,
+        isCorrect: answer.isCorrect,
+      }
+
+      // On transmet l'id des réponses existantes pour que le backend fasse un diff
+      // (conserver/mettre à jour/supprimer) au lieu de tout recréer.
+      if (answer.id !== undefined) {
+        mappedAnswer.id = answer.id
+      }
+
+      return mappedAnswer
+    })
   }
 
   return body
 }
 
-function buildAnswerBody(payload: CreateAnswerPayload | UpdateAnswerPayload): Record<string, unknown> {
+function buildAnswerBody(
+  payload: CreateAnswerPayload | UpdateAnswerPayload
+): Record<string, unknown> {
   const body: Record<string, unknown> = {}
 
   if (payload.response !== undefined) {
@@ -143,7 +157,9 @@ export async function listThemesService(): Promise<Theme[]> {
   return result.data.themes
 }
 
-export async function listQuestionsService(filters?: Partial<QuestionFilters>): Promise<Question[]> {
+export async function listQuestionsService(
+  filters?: Partial<QuestionFilters>
+): Promise<Question[]> {
   const result = await apiRequestJson<QuestionListResponse>({
     path: `/questions${buildQuery(filters)}`,
     method: 'GET',
@@ -199,7 +215,7 @@ export async function createQuestionService(payload: QuestionPayload): Promise<Q
 
 export async function updateQuestionService(
   questionId: number,
-  payload: UpdateQuestionPayload,
+  payload: UpdateQuestionPayload
 ): Promise<Question> {
   const result = await apiRequestJson<QuestionResponse>({
     path: `/questions/${questionId}`,
@@ -266,7 +282,7 @@ export async function listQuestionAnswersService(questionId: number): Promise<An
 
 export async function createQuestionAnswerService(
   questionId: number,
-  payload: CreateAnswerPayload,
+  payload: CreateAnswerPayload
 ): Promise<Answer> {
   const result = await apiRequestJson<AnswerResponse>({
     path: `/questions/${questionId}/answers`,
@@ -288,7 +304,7 @@ export async function createQuestionAnswerService(
 export async function updateQuestionAnswerService(
   questionId: number,
   answerId: number,
-  payload: UpdateAnswerPayload,
+  payload: UpdateAnswerPayload
 ): Promise<Answer> {
   const result = await apiRequestJson<AnswerResponse>({
     path: `/questions/${questionId}/answers/${answerId}`,
@@ -309,7 +325,7 @@ export async function updateQuestionAnswerService(
 
 export async function deleteQuestionAnswerService(
   questionId: number,
-  answerId: number,
+  answerId: number
 ): Promise<Answer> {
   const result = await apiRequestJson<AnswerResponse>({
     path: `/questions/${questionId}/answers/${answerId}`,
@@ -326,7 +342,7 @@ export async function deleteQuestionAnswerService(
 
 export async function updateQuestionStatusService(
   questionId: number,
-  status: QuestionStatus,
+  status: QuestionStatus
 ): Promise<UpdateQuestionStatusResult> {
   const result = await apiRequestJson<QuestionResponse>({
     path: `/questions/${questionId}/status`,
@@ -362,7 +378,7 @@ export async function updateQuestionStatusService(
 
 export async function attachQuestionToThemeService(
   questionId: number,
-  themeId: number,
+  themeId: number
 ): Promise<ApiResult<QuestionResponse>> {
   return apiRequestJson<QuestionResponse>({
     path: `/themes/${themeId}/questions/${questionId}`,
@@ -373,7 +389,7 @@ export async function attachQuestionToThemeService(
 
 export async function detachQuestionFromThemeService(
   questionId: number,
-  themeId: number,
+  themeId: number
 ): Promise<ApiResult<QuestionResponse>> {
   return apiRequestJson<QuestionResponse>({
     path: `/themes/${themeId}/questions/${questionId}`,

@@ -2,6 +2,7 @@
   <div class="actions">
     <QuestionsTableActionsSwitch
       :question="props.item"
+      :current-role="currentRole"
       :disabled="deleteBusy"
       @updated="handleQuestionUpdated"
       @error="handleActionError"
@@ -12,19 +13,19 @@
       class="icon"
       variant="icon"
       type="button"
-      :disabled="isBusy || !canEdit"
+      :disabled="isBusy"
       :title="canEdit ? $t('questions.actions.edit') : $t('questions.actions.readonly')"
       :aria-label="canEdit ? $t('questions.actions.edit') : $t('questions.actions.readonly')"
       @click="handleEditQuestion"
     >
-      <MdIcon :path="mdiPencilOutline" :size="18" />
+      <MdIcon :path="openIcon" :size="18" />
     </UiButton>
 
     <UiButton
       class="icon icon-delete"
       variant="icon"
       type="button"
-      :disabled="isBusy || !canEdit"
+      :disabled="isBusy || !canDelete"
       :title="$t('questions.actions.delete')"
       :aria-label="$t('questions.actions.delete')"
       @click="handleDeleteQuestion"
@@ -35,8 +36,7 @@
 </template>
 
 <script setup lang="ts">
-import { mdiDeleteOutline, mdiPencilOutline } from '@mdi/js'
-import { QUESTION_STATUS_DELETED } from '@quizzup/shared'
+import { mdiDeleteOutline, mdiEyeOutline, mdiPencilOutline } from '@mdi/js'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -44,11 +44,13 @@ import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { deleteQuestionService } from '@/services/questionsService'
 import type { Question } from '@/types/question'
+import { canDeleteQuestion, canUpdateQuestion } from '@/utils/question/permissions'
 
 import QuestionsTableActionsSwitch from './QuestionsTableActionsSwitch.vue'
 
 const props = defineProps<{
   item: Question
+  currentRole: string | null
 }>()
 
 const emit = defineEmits<{
@@ -63,8 +65,9 @@ const deleteBusy = ref(false)
 const switchBusy = ref(false)
 
 const isBusy = computed(() => deleteBusy.value || switchBusy.value)
-const isDeleted = computed(() => props.item.status === QUESTION_STATUS_DELETED)
-const canEdit = computed(() => props.item.canEdit !== false && !isDeleted.value)
+const canEdit = computed(() => canUpdateQuestion(props.item, props.currentRole))
+const canDelete = computed(() => canDeleteQuestion(props.item, props.currentRole))
+const openIcon = computed(() => (canEdit.value ? mdiPencilOutline : mdiEyeOutline))
 
 function handleSwitchBusyChange(value: boolean): void {
   switchBusy.value = value
@@ -79,7 +82,7 @@ function handleActionError(errorCode: string): void {
 }
 
 function handleEditQuestion(): void {
-  if (isBusy.value || !canEdit.value) {
+  if (isBusy.value) {
     return
   }
 
@@ -87,14 +90,14 @@ function handleEditQuestion(): void {
 }
 
 async function handleDeleteQuestion(): Promise<void> {
-  if (isBusy.value || !canEdit.value) {
+  if (isBusy.value || !canDelete.value) {
     return
   }
 
   const confirmed = window.confirm(
     t('questions.actions.deleteConfirm', {
       question: props.item.question,
-    }),
+    })
   )
 
   if (!confirmed) {
