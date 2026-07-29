@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify'
 
-import { ADMIN_STATUS_DELETED } from '@quizzup/shared'
+import { ADMIN_STATUS_ACTIVE, ADMIN_STATUS_DELETED } from '@quizzup/shared'
 import db from '../../../db'
 import { API_ACTION, API_RESOURCE } from '../../../security/permissions'
 import { requireApiPermission } from '../../../security/requireApiPermission'
@@ -8,7 +8,7 @@ import { canUpdateCompanyAccountStatusContext } from '../../../security/companie
 import type { AdminStatusUpdateBody } from '../../../types/admin'
 
 import { adminParamsSchema, updateAdminStatusSchema } from '../_schemas'
-import { findAdminInCompany, findCompanyById, getAdminRow } from '../_shared'
+import { findAdminInCompany, findCompanyById, getAdminRow, revokeAdminSessions } from '../_shared'
 
 const companyAdminIdStatusRoutes: FastifyPluginAsync = async (app) => {
   app.patch<{ Body: AdminStatusUpdateBody }>(
@@ -19,7 +19,7 @@ const companyAdminIdStatusRoutes: FastifyPluginAsync = async (app) => {
         req,
         reply,
         API_RESOURCE.COMPANY_ACCOUNT,
-        API_ACTION.UPDATE_STATUS,
+        API_ACTION.UPDATE_STATUS
       )
 
       if (!hasPermission) {
@@ -69,12 +69,18 @@ const companyAdminIdStatusRoutes: FastifyPluginAsync = async (app) => {
           deleted_at: status === ADMIN_STATUS_DELETED ? db.fn.now() : null,
         })
 
+      // Sécurité (S2) : un compte qui devient inactif/supprimé doit perdre
+      // l'accès immédiatement -> on révoque ses sessions.
+      if (status !== ADMIN_STATUS_ACTIVE) {
+        await revokeAdminSessions(adminId)
+      }
+
       const account = await getAdminRow(companyId, adminId)
 
       return reply.code(200).send({
         account,
       })
-    },
+    }
   )
 }
 
