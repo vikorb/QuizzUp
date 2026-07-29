@@ -24,7 +24,7 @@
 
       <SelectField
         id="status-filter"
-        :model-value="statusFilter"
+        :model-value="String(statusFilter)"
         :label="$t('clients.filters.statusLabel')"
         :options="statusOptions"
         @update:model-value="handleStatusChange"
@@ -59,7 +59,7 @@ const props = withDefaults(
   }>(),
   {
     statusFilter: DEFAULT_CLIENT_STATUS_FILTER,
-  },
+  }
 )
 
 const emit = defineEmits<{
@@ -72,7 +72,7 @@ const { t } = useI18n()
 const statusOptions = computed<SelectFieldOption[]>(() => getClientStatusFilterOptions(t))
 
 const hasActiveFilters = computed(() =>
-  hasClientToolbarActiveFilters(props.modelValue, props.statusFilter),
+  hasClientToolbarActiveFilters(props.modelValue, props.statusFilter)
 )
 
 function handleCreateCompany(): void {
