@@ -10,6 +10,7 @@ import {
   ADMIN_STATUS_INACTIVE,
   COMPANY_STATUS_ACTIVE,
   COMPANY_STATUS_INACTIVE,
+  QUESTION_STATUS_DELETED,
 } from '@quizzup/shared'
 
 export const MOCK_NOW = '2026-05-20T12:00:00.000Z'
@@ -188,6 +189,18 @@ function nextNumericId(table: TableName): number {
 function computeAccountsCount(companyId: number): number {
   return dbState.admins.filter((admin) => {
     return admin.company_id === companyId && admin.status !== ADMIN_STATUS_DELETED
+  }).length
+}
+
+function computeThemeQuestionsCount(themeId: number): number {
+  return dbState.question_themes.filter((link) => {
+    if (Number(link.theme_id) !== themeId) {
+      return false
+    }
+
+    const question = dbState.questions.find((row) => Number(row.id) === Number(link.question_id))
+
+    return question ? question.status !== QUESTION_STATUS_DELETED : false
   }).length
 }
 
@@ -796,6 +809,16 @@ class QueryBuilder {
 
     if (this.table === 'companies' && hasAccountsCountSelection) {
       mapped.accountsCount = computeAccountsCount(Number(sourceRow.id))
+    }
+
+    const hasThemeQuestionsCountSelection =
+      Array.isArray(this.selectedColumns) &&
+      this.selectedColumns.some((column) => {
+        return typeof column !== 'string' && String(column.sql).includes('question_themes')
+      })
+
+    if (this.table === 'themes' && hasThemeQuestionsCountSelection) {
+      mapped.questionsCount = computeThemeQuestionsCount(Number(sourceRow.id))
     }
 
     return mapped
