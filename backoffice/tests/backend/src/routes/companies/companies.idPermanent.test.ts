@@ -107,4 +107,53 @@ describe('routes/companies/idPermanent.ts', () => {
 
     await app.close()
   })
+
+  it('revokes the active sessions of the company admins on deletion (S2)', async () => {
+    // Admins 1 and 2 belong to company 1, admin 3 belongs to company 2.
+    dbState.admin_sessions.push(
+      {
+        id: 'sid-company1-a',
+        admin_id: 1,
+        created_at: MOCK_NOW,
+        last_seen_at: MOCK_NOW,
+        revoked_at: null,
+      },
+      {
+        id: 'sid-company1-b',
+        admin_id: 2,
+        created_at: MOCK_NOW,
+        last_seen_at: MOCK_NOW,
+        revoked_at: null,
+      },
+      {
+        id: 'sid-company2',
+        admin_id: 3,
+        created_at: MOCK_NOW,
+        last_seen_at: MOCK_NOW,
+        revoked_at: null,
+      }
+    )
+
+    const app = await createRouteApp(companiesIdPermanentRoutes)
+
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/companies/1/permanent',
+      headers: authHeaders(superadminUser),
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(
+      dbState.admin_sessions.find((session) => session.id === 'sid-company1-a')?.revoked_at
+    ).toBe(MOCK_NOW)
+    expect(
+      dbState.admin_sessions.find((session) => session.id === 'sid-company1-b')?.revoked_at
+    ).toBe(MOCK_NOW)
+    // Sessions from other companies remain valid.
+    expect(
+      dbState.admin_sessions.find((session) => session.id === 'sid-company2')?.revoked_at
+    ).toBeNull()
+
+    await app.close()
+  })
 })

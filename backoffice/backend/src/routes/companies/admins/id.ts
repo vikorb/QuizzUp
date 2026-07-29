@@ -5,6 +5,7 @@ import {
   ADMIN_ROLE_ADMIN,
   ADMIN_ROLE_SUPERADMIN,
   ADMIN_ROLE_USER,
+  ADMIN_STATUS_ACTIVE,
   ADMIN_STATUS_DELETED,
   type AdminRole,
 } from '@quizzup/shared'
@@ -23,6 +24,7 @@ import {
   findCompanyById,
   getAdminRow,
   normalizeNullableString,
+  revokeAdminSessions,
 } from '../_shared'
 
 type AuthenticatedAdmin = {
@@ -40,11 +42,7 @@ function canAssignRole(req: FastifyRequest, role: AdminRole): boolean {
   const currentAdmin = getAuthenticatedAdmin(req)
 
   if (currentAdmin.role === ADMIN_ROLE_SUPERADMIN) {
-    return (
-      role === ADMIN_ROLE_SUPERADMIN ||
-      role === ADMIN_ROLE_ADMIN ||
-      role === ADMIN_ROLE_USER
-    )
+    return role === ADMIN_ROLE_SUPERADMIN || role === ADMIN_ROLE_ADMIN || role === ADMIN_ROLE_USER
   }
 
   if (currentAdmin.role === ADMIN_ROLE_ADMIN) {
@@ -63,7 +61,7 @@ const companyAdminIdRoutes: FastifyPluginAsync = async (app) => {
         req,
         reply,
         API_RESOURCE.COMPANY_ACCOUNT,
-        API_ACTION.READ,
+        API_ACTION.READ
       )
 
       if (!hasPermission) {
@@ -97,7 +95,7 @@ const companyAdminIdRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(200).send({
         account,
       })
-    },
+    }
   )
 
   app.patch(
@@ -108,7 +106,7 @@ const companyAdminIdRoutes: FastifyPluginAsync = async (app) => {
         req,
         reply,
         API_RESOURCE.COMPANY_ACCOUNT,
-        API_ACTION.UPDATE,
+        API_ACTION.UPDATE
       )
 
       if (!hasPermission) {
@@ -215,17 +213,20 @@ const companyAdminIdRoutes: FastifyPluginAsync = async (app) => {
         updatePayload.deleted_at = status === ADMIN_STATUS_DELETED ? db.fn.now() : null
       }
 
-      await db('admins')
-        .where('company_id', companyId)
-        .where('id', adminId)
-        .update(updatePayload)
+      await db('admins').where('company_id', companyId).where('id', adminId).update(updatePayload)
+
+      // Sécurité (S2) : si cette mise à jour désactive/supprime le compte,
+      // on révoque ses sessions pour couper l'accès sans délai.
+      if (status !== undefined && status !== ADMIN_STATUS_ACTIVE) {
+        await revokeAdminSessions(adminId)
+      }
 
       const account = await getAdminRow(companyId, adminId)
 
       return reply.code(200).send({
         account,
       })
-    },
+    }
   )
 
   app.delete(
@@ -236,7 +237,7 @@ const companyAdminIdRoutes: FastifyPluginAsync = async (app) => {
         req,
         reply,
         API_RESOURCE.COMPANY_ACCOUNT,
-        API_ACTION.DELETE,
+        API_ACTION.DELETE
       )
 
       if (!hasPermission) {
@@ -267,21 +268,22 @@ const companyAdminIdRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(403).send({ error: 'forbidden' })
       }
 
-      await db('admins')
-        .where('company_id', companyId)
-        .where('id', adminId)
-        .update({
-          status: ADMIN_STATUS_DELETED,
-          updated_at: db.fn.now(),
-          deleted_at: db.fn.now(),
-        })
+      await db('admins').where('company_id', companyId).where('id', adminId).update({
+        status: ADMIN_STATUS_DELETED,
+        updated_at: db.fn.now(),
+        deleted_at: db.fn.now(),
+      })
+
+      // Sécurité (S2) : suppression logique -> le compte perd l'accès
+      // immédiatement, on révoque ses sessions.
+      await revokeAdminSessions(adminId)
 
       const account = await getAdminRow(companyId, adminId)
 
       return reply.code(200).send({
         account,
       })
-    },
+    }
   )
 }
 

@@ -237,6 +237,32 @@ class QueryBuilder {
     return this
   }
 
+  public whereNull(column: string): this {
+    const normalizedColumn = normalizeColumn(column)
+    this.filters.push(
+      (row) => row[normalizedColumn] === null || row[normalizedColumn] === undefined
+    )
+
+    return this
+  }
+
+  public whereNotNull(column: string): this {
+    const normalizedColumn = normalizeColumn(column)
+    this.filters.push(
+      (row) => row[normalizedColumn] !== null && row[normalizedColumn] !== undefined
+    )
+
+    return this
+  }
+
+  public whereIn(column: string, values: unknown[]): this {
+    const normalizedColumn = normalizeColumn(column)
+    const expected = new Set(values)
+    this.filters.push((row) => expected.has(row[normalizedColumn]))
+
+    return this
+  }
+
   public leftJoin(): this {
     return this
   }
@@ -280,7 +306,7 @@ class QueryBuilder {
 
   public then<TResult1 = unknown, TResult2 = never>(
     onfulfilled?: ((value: unknown) => TResult1 | PromiseLike<TResult1>) | null,
-    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
   ): Promise<TResult1 | TResult2> {
     return Promise.resolve(this.execute()).then(onfulfilled, onrejected)
   }
@@ -394,7 +420,11 @@ class QueryBuilder {
       return columns[0] as SelectColumn[]
     }
 
-    if (columns.length === 1 && typeof columns[0] === 'object' && !('__raw' in (columns[0] as Row))) {
+    if (
+      columns.length === 1 &&
+      typeof columns[0] === 'object' &&
+      !('__raw' in (columns[0] as Row))
+    ) {
       return columns[0] as Record<string, string>
     }
 
@@ -413,7 +443,7 @@ class QueryBuilder {
         Object.entries(this.selectedColumns).map(([alias, column]) => [
           alias,
           row[normalizeColumn(column)],
-        ]),
+        ])
       )
     }
 
@@ -453,16 +483,13 @@ type MockDb = {
   raw: ReturnType<typeof vi.fn>
 }
 
-export const db = Object.assign(
-  (table: string) => new QueryBuilder(table),
-  {
-    fn: {
-      now: vi.fn(() => MOCK_NOW),
-    },
-    raw: vi.fn((sql: string, bindings: unknown[] = []) => ({
-      __raw: true,
-      sql,
-      bindings,
-    })),
+export const db = Object.assign((table: string) => new QueryBuilder(table), {
+  fn: {
+    now: vi.fn(() => MOCK_NOW),
   },
-) as MockDb
+  raw: vi.fn((sql: string, bindings: unknown[] = []) => ({
+    __raw: true,
+    sql,
+    bindings,
+  })),
+}) as MockDb

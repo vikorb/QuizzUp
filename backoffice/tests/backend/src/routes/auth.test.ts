@@ -6,10 +6,7 @@ import { ADMIN_ROLE_SUPERADMIN } from '@quizzup/shared'
 
 import authRoutes from '../../../../backend/src/routes/auth'
 
-import {
-  dbState,
-  MOCK_NOW,
-} from './_helpers/mockDb'
+import { dbState, MOCK_NOW } from './_helpers/mockDb'
 
 import {
   authHeaders,
@@ -76,6 +73,26 @@ describe('routes/auth.ts', () => {
     await app.close()
   })
 
+  it('refuses to log in an admin whose status is not active and creates no session', async () => {
+    // Admin "bob" is seeded with an inactive status.
+    const app = await createRouteApp(authRoutes)
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/login',
+      payload: {
+        identifier: 'bob',
+        password: 'bob-password',
+      },
+    })
+
+    expect(response.statusCode).toBe(401)
+    expect(parseJson(response)).toEqual({ error: 'invalid_credentials' })
+    expect(dbState.admin_sessions).toHaveLength(0)
+
+    await app.close()
+  })
+
   it('logs in active admins, creates a DB session and never exposes the password hash', async () => {
     const app = await createRouteApp(authRoutes)
 
@@ -112,7 +129,7 @@ describe('routes/auth.ts', () => {
         role: ADMIN_ROLE_SUPERADMIN,
         sid: expect.any(String),
       }),
-      { expiresIn: '7d' },
+      { expiresIn: '7d' }
     )
 
     await app.close()
