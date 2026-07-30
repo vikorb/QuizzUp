@@ -2,6 +2,11 @@
   "clients": {
     "title": "Clients",
     "subtitle": "Gérez les entreprises clientes et leurs comptes.",
+    "stats": {
+      "total": "Clients",
+      "active": "Actifs",
+      "accounts": "Comptes"
+    },
     "filters": {
       "searchLabel": "Recherche",
       "searchPlaceholder": "Rechercher par nom ou email…",

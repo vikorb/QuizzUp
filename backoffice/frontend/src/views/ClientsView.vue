@@ -1,9 +1,8 @@
 <template>
   <SectionLayout :title="$t('clients.title')" :subtitle="$t('clients.subtitle')">
-    <ClientToolBar
-      v-model="searchQuery"
-      v-model:status-filter="statusFilter"
-    />
+    <StatBar :stats="stats" />
+
+    <ClientToolBar v-model="searchQuery" v-model:status-filter="statusFilter" />
 
     <BaseBanner
       :variant="actionBannerVariant"
@@ -33,11 +32,17 @@ import { useRouter } from 'vue-router'
 
 import SectionLayout from '@/components/SectionLayout.vue'
 import BaseBanner from '@/components/ui/BaseBanner.vue'
+import StatBar, { type Stat } from '@/components/ui/StatBar.vue'
 import { getCompanyAccountsRoute, getEditCompanyRoute } from '@/router/clients'
 import { loadCompaniesService } from '@/services/companiesService'
 import type { ActionBanner } from '@/types/banner'
 import type { ClientStatusFilter, Company, CompanyTableRow } from '@/types/company'
-import { createErrorBanner, createSuccessBanner, getBannerMessage, getBannerVariant } from '@/utils/banner'
+import {
+  createErrorBanner,
+  createSuccessBanner,
+  getBannerMessage,
+  getBannerVariant,
+} from '@/utils/banner'
 import { filterCompanies, filterCompaniesByStatus } from '@/utils/company/filters'
 import { findCompanyById, removeCompanyFromList, updateCompanyInList } from '@/utils/company/list'
 import { getCompanyUpdateSuccessCode, toCompanyStatus } from '@/utils/company/status'
@@ -60,6 +65,23 @@ const filteredCompanies = computed(() => {
 
   return filterCompaniesByStatus(searchedCompanies, statusFilter.value)
 })
+
+const stats = computed<Stat[]>(() => [
+  { label: t('clients.stats.total'), value: companies.value.length },
+  {
+    label: t('clients.stats.active'),
+    value: companies.value.filter((company) => company.status === COMPANY_STATUS_ACTIVE).length,
+    tone: 'ok',
+  },
+  {
+    label: t('clients.stats.accounts'),
+    value: companies.value.reduce(
+      (sum, company) => sum + Number((company as Record<string, unknown>).accountsCount ?? 0),
+      0
+    ),
+    tone: 'accent',
+  },
+])
 
 function clearActionBanner(): void {
   actionBanner.value = null

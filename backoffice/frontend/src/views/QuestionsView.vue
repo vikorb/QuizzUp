@@ -1,5 +1,7 @@
 <template>
   <SectionLayout :title="$t('questions.title')" :subtitle="$t('questions.subtitle')">
+    <StatBar :stats="stats" />
+
     <QuestionsToolBar
       v-model="searchQuery"
       v-model:theme-filter="themeFilter"
@@ -44,10 +46,8 @@ import { useRouter } from 'vue-router'
 
 import SectionLayout from '@/components/SectionLayout.vue'
 import BaseBanner from '@/components/ui/BaseBanner.vue'
-import {
-  listQuestionsService,
-  listThemesService,
-} from '@/services/questionsService'
+import StatBar, { type Stat } from '@/components/ui/StatBar.vue'
+import { listQuestionsService, listThemesService } from '@/services/questionsService'
 import { authState } from '@/state/authState'
 import type { ActionBanner } from '@/types/banner'
 import type { Question, Theme } from '@/types/question'
@@ -73,14 +73,26 @@ const actionBanner = ref<ActionBanner | null>(null)
 const actionBannerVariant = computed(() => getBannerVariant(actionBanner.value))
 const actionBannerMessage = computed(() => getBannerMessage(actionBanner.value, t))
 
+const stats = computed<Stat[]>(() => [
+  { label: t('questions.stats.total'), value: questions.value.length },
+  {
+    label: t('questions.stats.active'),
+    value: questions.value.filter((question) => question.status === QUESTION_STATUS_ACTIVE).length,
+    tone: 'ok',
+  },
+  {
+    label: t('questions.stats.drafts'),
+    value: questions.value.filter((question) => question.status === QUESTION_STATUS_DRAFT).length,
+    tone: 'warn',
+  },
+])
+
 const searchQuery = ref('')
 const themeFilter = ref('')
 const statusFilter = ref('')
 const typeMediaFilter = ref('')
 const scopeFilter = ref('')
-const isSuperAdmin = computed(
-  () => authState.me.value?.role === ADMIN_ROLE_SUPERADMIN,
-)
+const isSuperAdmin = computed(() => authState.me.value?.role === ADMIN_ROLE_SUPERADMIN)
 
 const filteredQuestions = computed(() => {
   return questions.value.filter((question) => {
@@ -139,9 +151,7 @@ function matchesTheme(question: Question): boolean {
     return true
   }
 
-  return getQuestionThemeIds(question).some(
-    (themeId) => String(themeId) === themeFilter.value,
-  )
+  return getQuestionThemeIds(question).some((themeId) => String(themeId) === themeFilter.value)
 }
 
 function matchesStatus(question: Question): boolean {
@@ -224,7 +234,7 @@ function handleQuestionUpdated(updatedQuestion: Question): void {
   clearActionBanner()
 
   questions.value = questions.value.map((question) =>
-    question.id === updatedQuestion.id ? updatedQuestion : question,
+    question.id === updatedQuestion.id ? updatedQuestion : question
   )
 
   actionBanner.value = createSuccessBanner('questionUpdated', {

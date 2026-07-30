@@ -2,6 +2,12 @@
   "themes": {
     "title": "Thèmes",
     "subtitle": "Gestion des thèmes disponibles pour les questions",
+    "stats": {
+      "total": "Thèmes",
+      "active": "Actifs",
+      "drafts": "Brouillons",
+      "questions": "Questions"
+    },
     "table": {
       "title": "Liste des thèmes",
       "create": "Créer un thème",

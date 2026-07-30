@@ -2,6 +2,11 @@
   "questions": {
     "title": "Questions / réponses",
     "subtitle": "Gérez le contenu des questions disponibles pour les quiz.",
+    "stats": {
+      "total": "Questions",
+      "active": "Actives",
+      "drafts": "Brouillons"
+    },
     "create": {
       "title": "Créer une question",
       "subtitle": "Ajoutez une nouvelle question/réponse.",
