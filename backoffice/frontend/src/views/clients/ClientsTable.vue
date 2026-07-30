@@ -31,9 +31,7 @@
       </template>
 
       <template #cell-status="{ value }">
-        <span class="status" :class="`status--${value}`">
-          {{ getStatusLabel(value) }}
-        </span>
+        <StatusPill :tone="getStatusTone(value)" :label="getStatusLabel(value)" />
       </template>
 
       <template #cell-actions="{ item }">
@@ -51,11 +49,13 @@
 </template>
 
 <script setup lang="ts">
+import { COMPANY_STATUS_ACTIVE, COMPANY_STATUS_DELETED } from '@quizzup/shared'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseTable from '@/components/ui/BaseTable.vue'
+import StatusPill from '@/components/ui/StatusPill.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import type { Company, CompanyTableRow } from '@/types/company'
 import {
@@ -92,6 +92,18 @@ const tableItems = computed<CompanyTableRow[]>(() =>
 function getStatusLabel(value: unknown): string {
   return getClientStatusLabel(value, t)
 }
+
+function getStatusTone(value: unknown): 'ok' | 'danger' | 'muted' {
+  if (value === COMPANY_STATUS_ACTIVE) {
+    return 'ok'
+  }
+
+  if (value === COMPANY_STATUS_DELETED) {
+    return 'danger'
+  }
+
+  return 'muted'
+}
 </script>
 
 <style scoped>
@@ -110,34 +122,7 @@ function getStatusLabel(value: unknown): string {
 }
 
 .num {
-  display: inline-block;
-  width: 100%;
-  text-align: right;
-}
-
-.status {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  padding: 3px 9px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-/* Pills de statut : inactif = éteint, actif = teal, supprimé = danger. */
-.status--0 {
-  color: var(--text-2);
-  background: var(--surface-3);
-}
-
-.status--1 {
-  color: var(--ok);
-  background: var(--ok-bg);
-}
-
-.status--2 {
-  color: var(--danger);
-  background: var(--danger-bg);
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
 }
 </style>

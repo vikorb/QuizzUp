@@ -29,15 +29,11 @@
       </template>
 
       <template #cell-scope="{ value }">
-        <span class="scope" :class="getScopeClass(value)">
-          {{ getScopeLabel(value) }}
-        </span>
+        <ScopeChip :tone="getScopeTone(value)" :label="getScopeLabel(value)" />
       </template>
 
       <template #cell-status="{ value }">
-        <span class="status" :class="getStatusClass(value)">
-          {{ getStatusLabel(value) }}
-        </span>
+        <StatusPill :tone="getStatusTone(value)" :label="getStatusLabel(value)" />
       </template>
 
       <template #cell-questionsCount="{ value }">
@@ -71,6 +67,8 @@ import { useI18n } from 'vue-i18n'
 
 import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseTable from '@/components/ui/BaseTable.vue'
+import ScopeChip from '@/components/ui/ScopeChip.vue'
+import StatusPill from '@/components/ui/StatusPill.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { authState } from '@/state/authState'
 import type { Theme } from '@/types/theme'
@@ -122,8 +120,8 @@ function getScopeLabel(scope: unknown): string {
   return scope === THEME_SCOPE_GLOBAL ? t('themes.scope.global') : t('themes.scope.company')
 }
 
-function getScopeClass(scope: unknown): string {
-  return scope === THEME_SCOPE_GLOBAL ? 'scope--global' : 'scope--company'
+function getScopeTone(scope: unknown): 'blue' | 'violet' {
+  return scope === THEME_SCOPE_GLOBAL ? 'blue' : 'violet'
 }
 
 function getModeLabel(mode: unknown): string {
@@ -150,24 +148,20 @@ function getStatusLabel(status: unknown): string {
   return t('themes.status.deleted')
 }
 
-function getStatusClass(status: unknown): string {
+function getStatusTone(status: unknown): 'ok' | 'warn' | 'danger' | 'muted' {
   if (status === THEME_STATUS_ACTIVE) {
-    return 'status--active'
-  }
-
-  if (status === THEME_STATUS_INACTIVE) {
-    return 'status--inactive'
+    return 'ok'
   }
 
   if (status === THEME_STATUS_DRAFT) {
-    return 'status--draft'
+    return 'warn'
   }
 
   if (status === THEME_STATUS_DELETED) {
-    return 'status--deleted'
+    return 'danger'
   }
 
-  return 'status--unknown'
+  return 'muted'
 }
 </script>
 
@@ -199,51 +193,7 @@ function getStatusClass(status: unknown): string {
   font-weight: 800;
 }
 
-.scope,
-.status {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  padding: 3px 9px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-/* Chips de portée : Global = bleu, Établissement = violet. */
-.scope--global {
-  color: var(--edit);
-  background: var(--edit-bg);
-}
-
-.scope--company {
-  color: var(--accent-pink);
-  background: var(--glow-soft);
-}
-
-/* Pills de statut : actif = teal, brouillon = ambre, inactif = éteint. */
-.status--inactive {
-  color: var(--text-2);
-  background: var(--surface-3);
-}
-
-.status--active {
-  color: var(--ok);
-  background: var(--ok-bg);
-}
-
-.status--deleted {
-  color: var(--danger);
-  background: var(--danger-bg);
-}
-
-.status--draft {
-  color: var(--warn);
-  background: var(--warn-bg);
-}
-
-.status--unknown {
-  color: var(--text-2);
-  background: var(--surface-3);
+.questions-count {
+  color: var(--text-1);
 }
 </style>

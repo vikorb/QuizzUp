@@ -35,9 +35,7 @@
       </template>
 
       <template #cell-status="{ value }">
-        <span class="status" :class="`status--${value}`">
-          {{ getStatusLabel(value) }}
-        </span>
+        <StatusPill :tone="getStatusTone(value)" :label="getStatusLabel(value)" />
       </template>
 
       <template #cell-actions="{ item }">
@@ -62,6 +60,7 @@ import { useI18n } from 'vue-i18n'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import type { BaseTableColumn } from '@/components/ui/BaseTable.vue'
 import BaseTable from '@/components/ui/BaseTable.vue'
+import StatusPill from '@/components/ui/StatusPill.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import type { Account, AccountTableRow } from '@/types/account'
 import { toAccountTableRow } from '@/utils/account/list'
@@ -138,6 +137,20 @@ function getStatusLabel(value: unknown): string {
 
   return t('accounts.status.unknown')
 }
+
+function getStatusTone(value: unknown): 'ok' | 'danger' | 'muted' {
+  const status = toAccountStatus(value)
+
+  if (status === ADMIN_STATUS_ACTIVE) {
+    return 'ok'
+  }
+
+  if (status === ADMIN_STATUS_DELETED) {
+    return 'danger'
+  }
+
+  return 'muted'
+}
 </script>
 
 <style scoped>
@@ -167,31 +180,5 @@ function getStatusLabel(value: unknown): string {
   background: var(--surface-2);
   font-size: 12px;
   font-weight: 700;
-}
-
-.status {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  padding: 3px 9px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-/* Pills de statut : inactif = éteint, actif = teal, supprimé = danger. */
-.status--0 {
-  color: var(--text-2);
-  background: var(--surface-3);
-}
-
-.status--1 {
-  color: var(--ok);
-  background: var(--ok-bg);
-}
-
-.status--2 {
-  color: var(--danger);
-  background: var(--danger-bg);
 }
 </style>
