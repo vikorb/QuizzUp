@@ -1,10 +1,6 @@
 <template>
   <BaseCard class="toolbar-card" :neon="false" :no-hover="true">
-    <div
-      class="toolbar"
-      :class="{ 'toolbar--collapsed': isCollapsed }"
-      :style="toolbarStyle"
-    >
+    <div class="toolbar" :class="{ 'toolbar--collapsed': isCollapsed }" :style="toolbarStyle">
       <div class="toolbar__header">
         <button
           v-if="collapsible"
@@ -36,18 +32,28 @@
             </span>
           </UiButton>
 
-          <UiButton
-            v-if="showPrimary"
-            variant="primary"
-            type="button"
-            @click="$emit('primary')"
-          >
+          <UiButton v-if="showPrimary" variant="primary" type="button" @click="$emit('primary')">
             <span class="toolbar__button-content">
               <MdIcon v-if="primaryIcon" :path="primaryIcon" :size="18" />
               <span>{{ primaryLabel }}</span>
             </span>
           </UiButton>
         </div>
+      </div>
+
+      <div v-if="isCollapsed && activeFilters.length > 0" class="toolbar__chips">
+        <span v-for="filter in activeFilters" :key="filter.key" class="toolbar__chip">
+          <span class="toolbar__chip-text">{{ filter.label }}</span>
+          <button
+            v-if="filter.onRemove"
+            class="toolbar__chip-remove"
+            type="button"
+            :aria-label="`${removeLabel} ${filter.label}`"
+            @click="filter.onRemove"
+          >
+            <MdIcon :path="mdiClose" :size="12" />
+          </button>
+        </span>
       </div>
 
       <div v-if="!isCollapsed" class="toolbar__filters">
@@ -58,13 +64,19 @@
 </template>
 
 <script setup lang="ts">
-import { mdiChevronDown, mdiChevronUp } from '@mdi/js'
+import { mdiChevronDown, mdiChevronUp, mdiClose } from '@mdi/js'
 import type { CSSProperties } from 'vue'
 import { computed, ref } from 'vue'
 
 import BaseCard from '@/components/ui/BaseCard.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+
+export type ActiveFilter = {
+  key: string
+  label: string
+  onRemove?: () => void
+}
 
 const props = withDefaults(
   defineProps<{
@@ -80,6 +92,8 @@ const props = withDefaults(
     showPrimary?: boolean
     filterMinWidth?: string
     filterGap?: string
+    activeFilters?: ActiveFilter[]
+    removeLabel?: string
   }>(),
   {
     title: 'Filtres',
@@ -94,7 +108,9 @@ const props = withDefaults(
     showPrimary: false,
     filterMinWidth: '170px',
     filterGap: '12px',
-  },
+    activeFilters: () => [],
+    removeLabel: 'Retirer',
+  }
 )
 
 defineEmits<{
@@ -109,13 +125,13 @@ const toolbarStyle = computed(
     ({
       '--toolbar-filter-min-width': props.filterMinWidth,
       '--toolbar-filter-gap': props.filterGap,
-    }) as CSSProperties,
+    }) as CSSProperties
 )
 
 const toggleIcon = computed(() => (isCollapsed.value ? mdiChevronDown : mdiChevronUp))
 
 const toggleLabel = computed(() =>
-  isCollapsed.value ? 'Afficher les filtres' : 'Masquer les filtres',
+  isCollapsed.value ? 'Afficher les filtres' : 'Masquer les filtres'
 )
 
 function toggleCollapsed(): void {
@@ -202,12 +218,47 @@ function toggleCollapsed(): void {
   gap: 8px;
 }
 
+/* Balises des filtres actifs (état replié). */
+.toolbar__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.toolbar__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border-2);
+  background: var(--glow-soft);
+  color: var(--text-1);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.toolbar__chip-remove {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text-3);
+  cursor: pointer;
+  transition: var(--tr);
+}
+
+.toolbar__chip-remove:hover {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
 .toolbar__filters {
   display: grid;
-  grid-template-columns: repeat(
-    auto-fit,
-    minmax(min(100%, var(--toolbar-filter-min-width)), 1fr)
-  );
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--toolbar-filter-min-width)), 1fr));
   align-items: end;
   gap: var(--toolbar-filter-gap);
   width: 100%;

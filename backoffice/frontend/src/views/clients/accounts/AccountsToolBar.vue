@@ -3,6 +3,7 @@
     :reset-label="$t('resetFilters')"
     :reset-icon="mdiRefresh"
     :reset-disabled="!hasActiveFilters"
+    :active-filters="activeFilters"
     :primary-label="$t('accounts.actions.addAccount')"
     :primary-icon="mdiPlus"
     :show-primary="true"
@@ -38,7 +39,7 @@ import { mdiPlus, mdiRefresh } from '@mdi/js'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import BaseToolBar from '@/components/ui/BaseToolBar.vue'
+import BaseToolBar, { type ActiveFilter } from '@/components/ui/BaseToolBar.vue'
 import FormField from '@/components/ui/form/FormField.vue'
 import SelectField from '@/components/ui/form/SelectField.vue'
 import type { AccountStatusFilter } from '@/types/account'
@@ -57,7 +58,7 @@ const props = withDefaults(
   }>(),
   {
     statusFilter: DEFAULT_ACCOUNT_STATUS_FILTER,
-  },
+  }
 )
 
 const emit = defineEmits<{
@@ -71,8 +72,32 @@ const { t } = useI18n()
 const statusOptions = computed<SelectFieldOption[]>(() => getAccountStatusFilterOptions(t))
 
 const hasActiveFilters = computed(() =>
-  hasAccountToolbarActiveFilters(props.modelValue, props.statusFilter),
+  hasAccountToolbarActiveFilters(props.modelValue, props.statusFilter)
 )
+
+const activeFilters = computed<ActiveFilter[]>(() => {
+  const chips: ActiveFilter[] = []
+  const search = props.modelValue.trim()
+
+  if (search !== '') {
+    chips.push({
+      key: 'search',
+      label: `${t('accounts.filters.searchLabel')} : ${search}`,
+      onRemove: () => emit('update:modelValue', ''),
+    })
+  }
+
+  if (props.statusFilter !== DEFAULT_ACCOUNT_STATUS_FILTER) {
+    const status = statusOptions.value.find((option) => option.value === String(props.statusFilter))
+    chips.push({
+      key: 'status',
+      label: status ? status.label : String(props.statusFilter),
+      onRemove: () => emit('update:statusFilter', DEFAULT_ACCOUNT_STATUS_FILTER),
+    })
+  }
+
+  return chips
+})
 
 function resetFilters(): void {
   emit('update:modelValue', '')

@@ -3,6 +3,7 @@
     :reset-label="$t('resetFilters')"
     :reset-icon="mdiRefresh"
     :reset-disabled="!hasActiveFilters"
+    :active-filters="activeFilters"
     :primary-label="$t('themes.table.create')"
     :primary-icon="mdiPlus"
     :show-primary="true"
@@ -67,7 +68,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
-import BaseToolBar from '@/components/ui/BaseToolBar.vue'
+import BaseToolBar, { type ActiveFilter } from '@/components/ui/BaseToolBar.vue'
 import FormField from '@/components/ui/form/FormField.vue'
 import SelectField from '@/components/ui/form/SelectField.vue'
 import type { SelectFieldOption } from '@/types/form'
@@ -85,7 +86,7 @@ const props = withDefaults(
     modeFilter: '',
     scopeFilter: '',
     canShowDeletedStatus: false,
-  },
+  }
 )
 
 const emit = defineEmits<{
@@ -103,7 +104,7 @@ const hasActiveFilters = computed(
     props.modelValue.trim() !== '' ||
     props.statusFilter !== '' ||
     props.modeFilter !== '' ||
-    props.scopeFilter !== '',
+    props.scopeFilter !== ''
 )
 
 const statusOptions = computed<SelectFieldOption[]>(() => {
@@ -173,6 +174,54 @@ const scopeOptions = computed<SelectFieldOption[]>(() => [
     value: THEME_SCOPE_COMPANY,
   },
 ])
+
+const activeFilters = computed<ActiveFilter[]>(() => {
+  const chips: ActiveFilter[] = []
+  const search = props.modelValue.trim()
+
+  if (search !== '') {
+    chips.push({
+      key: 'search',
+      label: `${t('themes.filters.search')} : ${search}`,
+      onRemove: () => emit('update:modelValue', ''),
+    })
+  }
+
+  const status = statusOptions.value.find(
+    (option) => option.value !== '' && option.value === props.statusFilter
+  )
+  if (status) {
+    chips.push({
+      key: 'status',
+      label: status.label,
+      onRemove: () => emit('update:statusFilter', ''),
+    })
+  }
+
+  const mode = modeOptions.value.find(
+    (option) => option.value !== '' && option.value === props.modeFilter
+  )
+  if (mode) {
+    chips.push({
+      key: 'mode',
+      label: mode.label,
+      onRemove: () => emit('update:modeFilter', ''),
+    })
+  }
+
+  const scope = scopeOptions.value.find(
+    (option) => option.value !== '' && option.value === props.scopeFilter
+  )
+  if (scope) {
+    chips.push({
+      key: 'scope',
+      label: scope.label,
+      onRemove: () => emit('update:scopeFilter', ''),
+    })
+  }
+
+  return chips
+})
 
 function resetFilters(): void {
   emit('update:modelValue', '')
