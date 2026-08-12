@@ -3,6 +3,7 @@
     <div class="bg-gradient-mesh" aria-hidden="true"></div>
 
     <TopBar
+      v-if="showTopBar"
       :show-burger="showBurger"
       :sidebar-open="sidebarOpen"
       @toggle-sidebar="$emit('toggle-sidebar')"
@@ -26,10 +27,12 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+
 import UiCard from '@/components/ui/UiCard.vue'
 import TopBar from '@/views/navbar/TopBar.vue'
 
-defineProps<{
+const props = defineProps<{
   withSidebar: boolean
   showBurger?: boolean
   sidebarOpen?: boolean
@@ -39,6 +42,11 @@ defineProps<{
 defineEmits<{
   (event: 'toggle-sidebar'): void
 }>()
+
+// La barre du haut ne sert que là où le menu latéral est absent : pages invitées
+// (desktop non connecté) et mobile (burger). Sur desktop connecté, tout est
+// consolidé dans le menu de gauche (marque en haut, compte en bas).
+const showTopBar = computed(() => Boolean(props.showBurger) || !props.withSidebar)
 </script>
 
 <style scoped>

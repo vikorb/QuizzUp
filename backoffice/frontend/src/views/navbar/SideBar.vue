@@ -3,16 +3,24 @@
     class="sidebar"
     :class="{ 'sidebar--actions-only': !canShowNav, 'sidebar--rail': collapsed }"
   >
-    <button
-      v-if="canShowNav && !showActions"
-      class="sidebar__collapse"
-      type="button"
-      :aria-label="collapsed ? $t('navbar.expandMenu') : $t('navbar.collapseMenu')"
-      :title="collapsed ? $t('navbar.expandMenu') : $t('navbar.collapseMenu')"
-      @click="$emit('toggle-collapsed')"
-    >
-      <MdIcon :path="mdiChevronLeft" :size="18" />
-    </button>
+    <div v-if="!showActions" class="sidebar__brand">
+      <RouterLink to="/" class="sidebar__logo" aria-label="Accueil">
+        <img src="@/assets/img/logo.png" alt="" class="sidebar__logo-img" />
+      </RouterLink>
+
+      <span v-if="!collapsed" class="sidebar__brand-name">{{ $t('navbar.appTitle') }}</span>
+
+      <button
+        v-if="canShowNav"
+        class="sidebar__collapse"
+        type="button"
+        :aria-label="collapsed ? $t('navbar.expandMenu') : $t('navbar.collapseMenu')"
+        :title="collapsed ? $t('navbar.expandMenu') : $t('navbar.collapseMenu')"
+        @click="$emit('toggle-collapsed')"
+      >
+        <MdIcon :path="mdiChevronLeft" :size="18" />
+      </button>
+    </div>
 
     <div v-if="canShowNav" class="sidebar__main">
       <NavGroup :label="$t('navbar.dashboard')" :items="navDashboard" :rail="collapsed" />
@@ -20,7 +28,7 @@
       <NavGroup :label="$t('navbar.live')" :items="navPlay" :rail="collapsed" />
     </div>
 
-    <SidebarActions v-if="showActions" class="sidebar__actions" />
+    <SidebarActions v-if="(showActions || canShowNav) && !collapsed" class="sidebar__actions" />
   </nav>
 </template>
 
@@ -37,6 +45,7 @@ import {
 } from '@mdi/js'
 import { ADMIN_ROLE_SUPERADMIN } from '@quizzup/shared'
 import { computed } from 'vue'
+import { RouterLink } from 'vue-router'
 
 import NavGroup from '@/components/NavGroup.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
@@ -127,27 +136,58 @@ const navPlay = [
 <style scoped>
 .sidebar {
   width: 100%;
-  margin-top: 10px;
   height: 100%;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  padding-top: 4px;
+}
+
+/* ---- Marque (logo + nom + repli) ---- */
+.sidebar__brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 2px 6px 14px;
+  flex: 0 0 auto;
+}
+
+.sidebar__logo {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+}
+.sidebar__logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.sidebar__brand-name {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .sidebar__collapse {
-  align-self: flex-end;
+  margin-left: auto;
+  flex: 0 0 auto;
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
-  margin: 0 2px 6px;
-  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
   border: 1px solid var(--border-ui);
-  border-radius: 10px;
+  border-radius: 9px;
   background: var(--surface-1);
   color: var(--text-2);
   cursor: pointer;
-  transition: var(--tr);
+  transition:
+    color var(--tr),
+    border-color var(--tr);
 }
 .sidebar__collapse:hover {
   color: var(--text-0);
@@ -169,7 +209,7 @@ const navPlay = [
 }
 
 .sidebar--actions-only {
-  margin-top: 0;
+  padding-top: 0;
 }
 
 .sidebar--actions-only .sidebar__actions {
@@ -178,10 +218,14 @@ const navPlay = [
   min-height: 0;
 }
 
-/* ---- Rail (icônes seules) ---- */
+/* ---- Rail (icônes seules, tablette portrait) ---- */
+.sidebar--rail .sidebar__brand {
+  flex-direction: column;
+  gap: 12px;
+  padding: 2px 0 12px;
+}
 .sidebar--rail .sidebar__collapse {
-  align-self: center;
-  margin: 0 auto 8px;
+  margin: 0;
 }
 .sidebar--rail .sidebar__collapse :deep(svg) {
   transform: rotate(180deg);

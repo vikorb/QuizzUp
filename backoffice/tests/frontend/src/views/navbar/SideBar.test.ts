@@ -116,4 +116,30 @@ describe('views/navbar/SideBar.vue', () => {
 
     expect(wrapper.find('.sidebar').classes()).toContain('sidebar--rail')
   })
+
+  it('shows the brand and account actions on desktop', () => {
+    setAuthenticatedSuperadmin()
+
+    const wrapper = mountWithFrontendMocks(SideBar)
+
+    expect(wrapper.find('.sidebar__brand').exists()).toBe(true)
+    expect(wrapper.find('.sidebar__actions').exists()).toBe(true)
+  })
+
+  it('hides the brand inside the mobile drawer (drawer has its own header)', () => {
+    setAuthenticatedSuperadmin()
+
+    const wrapper = mountWithFrontendMocks(SideBar, { props: { showActions: true } })
+
+    expect(wrapper.find('.sidebar__brand').exists()).toBe(false)
+    expect(wrapper.find('.sidebar__actions').exists()).toBe(true)
+  })
+
+  it('hides the account actions in rail mode', () => {
+    setAuthenticatedSuperadmin()
+
+    const wrapper = mountWithFrontendMocks(SideBar, { props: { collapsed: true } })
+
+    expect(wrapper.find('.sidebar__actions').exists()).toBe(false)
+  })
 })
