@@ -88,12 +88,13 @@ const activeFilters = computed<ActiveFilter[]>(() => {
     })
   }
 
-  if (props.statusFilter !== DEFAULT_CLIENT_STATUS_FILTER) {
+  // « Tous » = pas de filtre → pas de balise. Tout autre statut contraint la vue → balise.
+  if (props.statusFilter !== 'all') {
     const status = statusOptions.value.find((option) => option.value === props.statusFilter)
     chips.push({
       key: 'status',
       label: status ? status.label : String(props.statusFilter),
-      onRemove: () => emit('update:statusFilter', DEFAULT_CLIENT_STATUS_FILTER),
+      onRemove: () => emit('update:statusFilter', 'all'),
     })
   }
 
