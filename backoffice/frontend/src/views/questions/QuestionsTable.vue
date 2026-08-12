@@ -50,9 +50,7 @@
       </template>
 
       <template #cell-scope="{ value }">
-        <span class="scope" :class="getScopeClass(value)">
-          {{ getScopeLabel(value) }}
-        </span>
+        <ScopeChip :tone="getScopeTone(value)" :label="getScopeLabel(value)" />
       </template>
 
       <template #cell-typeMedia="{ value }">
@@ -60,9 +58,7 @@
       </template>
 
       <template #cell-status="{ value }">
-        <span class="status" :class="getStatusClass(value)">
-          {{ getStatusLabel(value) }}
-        </span>
+        <StatusPill :tone="getStatusTone(value)" :label="getStatusLabel(value)" />
       </template>
 
       <template #cell-actions="{ item }">
@@ -93,6 +89,8 @@ import { type RouteLocationRaw, RouterLink } from 'vue-router'
 
 import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseTable from '@/components/ui/BaseTable.vue'
+import ScopeChip from '@/components/ui/ScopeChip.vue'
+import StatusPill from '@/components/ui/StatusPill.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { authState } from '@/state/authState'
 import type { Question, Theme } from '@/types/question'
@@ -126,7 +124,7 @@ const columns = computed(() => [
   { key: 'scope', label: t('questions.table.columns.scope') },
   { key: 'typeMedia', label: t('questions.table.columns.typeMedia') },
   { key: 'status', label: t('questions.table.columns.status') },
-  { key: 'actions', label: t('questions.table.columns.actions') },
+  { key: 'actions', label: t('questions.table.columns.actions'), align: 'right' as const },
 ])
 
 const tableItems = computed<QuestionTableRow[]>(() =>
@@ -259,8 +257,8 @@ function getScopeLabel(scope: unknown): string {
   return scope === THEME_SCOPE_GLOBAL ? t('questions.scope.global') : t('questions.scope.company')
 }
 
-function getScopeClass(scope: unknown): string {
-  return scope === THEME_SCOPE_GLOBAL ? 'scope--global' : 'scope--company'
+function getScopeTone(scope: unknown): 'blue' | 'violet' {
+  return scope === THEME_SCOPE_GLOBAL ? 'blue' : 'violet'
 }
 
 function getMediaLabel(typeMedia: unknown): string {
@@ -287,24 +285,20 @@ function getStatusLabel(status: unknown): string {
   return t('questions.status.deleted')
 }
 
-function getStatusClass(status: unknown): string {
+function getStatusTone(status: unknown): 'ok' | 'warn' | 'danger' | 'muted' {
   if (status === QUESTION_STATUS_ACTIVE) {
-    return 'status--active'
-  }
-
-  if (status === QUESTION_STATUS_INACTIVE) {
-    return 'status--inactive'
+    return 'ok'
   }
 
   if (status === QUESTION_STATUS_DRAFT) {
-    return 'status--draft'
+    return 'warn'
   }
 
   if (status === QUESTION_STATUS_DELETED) {
-    return 'status--deleted'
+    return 'danger'
   }
 
-  return 'status--unknown'
+  return 'muted'
 }
 </script>
 
@@ -333,12 +327,10 @@ function getStatusClass(status: unknown): string {
   max-width: 100%;
   min-height: 28px;
   padding: 4px 9px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-2);
   border-radius: 999px;
   color: var(--text-1);
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)),
-    rgba(12, 18, 34, 0.75);
+  background: linear-gradient(135deg, var(--surface-3), var(--surface-1)), var(--bg-card);
   font-size: 12px;
   font-weight: 900;
   text-decoration: none;
@@ -349,7 +341,7 @@ function getStatusClass(status: unknown): string {
 }
 
 .theme-chip:hover {
-  border-color: rgba(120, 170, 255, 0.45);
+  border-color: var(--border-hover);
   color: var(--primary);
   transform: translateY(-1px);
 }
@@ -365,7 +357,7 @@ function getStatusClass(status: unknown): string {
   padding: 2px 6px;
   border-radius: 999px;
   color: var(--text-2);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--surface-3);
   font-size: 10px;
   font-weight: 900;
   text-transform: uppercase;
@@ -377,65 +369,17 @@ function getStatusClass(status: unknown): string {
   font-weight: 700;
 }
 
-.scope,
-.status {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  padding: 3px 9px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.scope--global {
-  color: #91c7ff;
-  background: rgba(80, 160, 255, 0.12);
-}
-
-.scope--company {
-  color: #d6a6ff;
-  background: rgba(190, 100, 255, 0.12);
-}
-
-.status--inactive {
-  color: #ffd36e;
-  background: rgba(255, 190, 70, 0.12);
-}
-
-.status--active {
-  color: #7dffb2;
-  background: rgba(45, 255, 137, 0.12);
-}
-
-.status--deleted {
-  color: #ff8a8a;
-  background: rgba(255, 107, 107, 0.12);
-}
-
-.status--draft {
-  color: #a7b8ff;
-  background: rgba(120, 145, 255, 0.12);
-}
-
-.status--unknown {
-  color: var(--text-1);
-  background: rgba(255, 255, 255, 0.08);
-}
-
 .theme-more {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: 28px;
   padding: 4px 11px;
-  border: 1px solid rgba(120, 170, 255, 0.28);
+  border: 1px solid var(--border-2);
   border-radius: 999px;
   color: var(--primary);
-  background:
-    linear-gradient(135deg, rgba(120, 170, 255, 0.16), rgba(120, 170, 255, 0.05)),
-    rgba(12, 18, 34, 0.9);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  background: linear-gradient(135deg, var(--glow-blue), var(--glow-soft)), var(--bg-card-hi);
+  box-shadow: 0 6px 18px var(--shadow-1);
   font-size: 11px;
   font-weight: 900;
   white-space: nowrap;
@@ -448,16 +392,14 @@ function getStatusClass(status: unknown): string {
 }
 
 .theme-more:hover {
-  border-color: rgba(120, 170, 255, 0.55);
-  background:
-    linear-gradient(135deg, rgba(120, 170, 255, 0.24), rgba(120, 170, 255, 0.08)),
-    rgba(12, 18, 34, 0.95);
+  border-color: var(--border-hover);
+  background: linear-gradient(135deg, var(--glow-blue), var(--glow-pink)), var(--bg-card-hi);
   color: var(--text-0);
   transform: translateY(-1px);
 }
 
 .theme-more:focus-visible {
-  outline: 2px solid rgba(120, 170, 255, 0.55);
+  outline: 2px solid var(--border-hover);
   outline-offset: 2px;
 }
 </style>

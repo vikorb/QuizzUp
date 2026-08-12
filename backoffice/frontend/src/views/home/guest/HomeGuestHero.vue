@@ -54,9 +54,9 @@ defineEmits<{
   padding: 18px;
   border-radius: 18px;
   border: 1px solid var(--border-ui);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--surface-1);
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+    0 0 0 1px var(--surface-2) inset,
     0 0 18px var(--glow-blue),
     0 0 26px var(--glow-pink);
   overflow: hidden;
@@ -91,7 +91,7 @@ defineEmits<{
   height: 180px;
   right: -40px;
   top: -30px;
-  background: radial-gradient(circle at 30% 30%, rgba(0, 98, 255, 0.5), transparent 60%);
+  background: radial-gradient(circle at 30% 30%, var(--glow-blue), transparent 60%);
 }
 
 .orb--b {
@@ -99,7 +99,7 @@ defineEmits<{
   height: 220px;
   right: -80px;
   bottom: -70px;
-  background: radial-gradient(circle at 40% 40%, rgba(237, 46, 251, 0.35), transparent 60%);
+  background: radial-gradient(circle at 40% 40%, var(--glow-pink), transparent 60%);
 }
 
 .orb--c {
@@ -107,7 +107,7 @@ defineEmits<{
   height: 140px;
   left: 10px;
   bottom: -30px;
-  background: radial-gradient(circle at 40% 40%, rgba(0, 98, 255, 0.22), transparent 60%);
+  background: radial-gradient(circle at 40% 40%, var(--glow-blue), transparent 60%);
 }
 
 @media (max-width: 980px) {

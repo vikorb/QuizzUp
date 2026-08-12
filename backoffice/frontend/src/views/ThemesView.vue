@@ -1,5 +1,7 @@
 <template>
   <SectionLayout :title="$t('themes.title')" :subtitle="$t('themes.subtitle')">
+    <StatBar :stats="stats" />
+
     <ThemesToolbar
       v-model="searchQuery"
       v-model:status-filter="statusFilter"
@@ -28,13 +30,14 @@
 </template>
 
 <script setup lang="ts">
-import { ADMIN_ROLE_SUPERADMIN } from '@quizzup/shared'
+import { ADMIN_ROLE_SUPERADMIN, THEME_STATUS_ACTIVE, THEME_STATUS_DRAFT } from '@quizzup/shared'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
 import SectionLayout from '@/components/SectionLayout.vue'
 import BaseBanner from '@/components/ui/BaseBanner.vue'
+import StatBar, { type Stat } from '@/components/ui/StatBar.vue'
 import { listThemesService } from '@/services/themesService'
 import { authState } from '@/state/authState'
 import type { ActionBanner } from '@/types/banner'
@@ -63,6 +66,25 @@ const modeFilter = ref('')
 const scopeFilter = ref('')
 
 const isSuperAdmin = computed(() => authState.me.value?.role === ADMIN_ROLE_SUPERADMIN)
+
+const ratioOf = (part: number, total: number): number => (total > 0 ? (part / total) * 100 : 0)
+
+const stats = computed<Stat[]>(() => {
+  const total = themes.value.length
+  const active = themes.value.filter((theme) => theme.status === THEME_STATUS_ACTIVE).length
+  const drafts = themes.value.filter((theme) => theme.status === THEME_STATUS_DRAFT).length
+  const questions = themes.value.reduce(
+    (sum, theme) => sum + Number((theme as Record<string, unknown>).questionsCount ?? 0),
+    0
+  )
+
+  return [
+    { label: t('themes.stats.total'), value: total },
+    { label: t('themes.stats.active'), value: active, tone: 'ok', ratio: ratioOf(active, total) },
+    { label: t('themes.stats.drafts'), value: drafts, tone: 'warn', ratio: ratioOf(drafts, total) },
+    { label: t('themes.stats.questions'), value: questions, tone: 'accent' },
+  ]
+})
 
 const actionBannerVariant = computed(() => getBannerVariant(actionBanner.value))
 const actionBannerMessage = computed(() => getBannerMessage(actionBanner.value, t))

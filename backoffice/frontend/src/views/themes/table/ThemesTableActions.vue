@@ -11,6 +11,7 @@
 
     <UiButton
       class="icon"
+      :class="{ 'icon-edit': canEdit }"
       variant="icon"
       type="button"
       :disabled="isBusy"
@@ -42,6 +43,7 @@ import { useI18n } from 'vue-i18n'
 
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import { useConfirm } from '@/composables/useConfirm'
 import { deleteThemeService } from '@/services/themesService'
 import type { Theme } from '@/types/theme'
 import { canDeleteTheme, canUpdateTheme } from '@/utils/theme/permissions'
@@ -61,6 +63,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { confirm } = useConfirm()
 
 const deleteBusy = ref(false)
 const switchBusy = ref(false)
@@ -95,11 +98,15 @@ async function handleDeleteTheme(): Promise<void> {
     return
   }
 
-  const confirmed = window.confirm(
-    t('themes.actions.deleteConfirm', {
+  const confirmed = await confirm({
+    title: t('themes.actions.delete'),
+    message: t('themes.actions.deleteConfirm', {
       theme: props.item.name,
     }),
-  )
+    confirmLabel: t('themes.actions.delete'),
+    cancelLabel: t('confirm.cancel'),
+    variant: 'danger',
+  })
 
   if (!confirmed) {
     return
@@ -127,7 +134,12 @@ async function handleDeleteTheme(): Promise<void> {
   white-space: nowrap;
 }
 
+/* Icônes d'action codées couleur : éditer = bleu doux, supprimer = danger. */
+.icon-edit {
+  color: var(--edit);
+}
+
 .icon-delete {
-  color: #ff6b6b;
+  color: var(--danger);
 }
 </style>

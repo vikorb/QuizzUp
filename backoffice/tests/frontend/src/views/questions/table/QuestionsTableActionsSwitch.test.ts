@@ -1,3 +1,4 @@
+import { setConfirmResult } from '@frontend-tests/_helpers/confirmMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { updateQuestionStatusServiceMock } from '@frontend-tests/_helpers/questionsServiceMock'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
@@ -8,17 +9,13 @@ import {
   THEME_SCOPE_GLOBAL,
 } from '@quizzup/shared'
 import { flushPromises } from '@vue/test-utils'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { nextTick } from 'vue'
 
 import type { Question } from '@/types/question'
 import QuestionsTableActionsSwitch from '@/views/questions/table/QuestionsTableActionsSwitch.vue'
 
 resetFrontendMocksBeforeEach()
-
-afterEach(() => {
-  vi.restoreAllMocks()
-})
 
 function makeQuestion(overrides: Partial<Question> = {}): Question {
   return {
@@ -76,7 +73,7 @@ describe('views/questions/table/QuestionsTableActionsSwitch.vue', () => {
   })
 
   it('toggles the status and emits the updated question', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    setConfirmResult(true)
     updateQuestionStatusServiceMock.mockResolvedValue({
       ok: true,
       question: makeQuestion({ id: 5, status: QUESTION_STATUS_ACTIVE }),

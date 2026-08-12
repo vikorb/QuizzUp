@@ -1,7 +1,17 @@
 {
   "resetFilters": "Réinitialiser",
+  "requiredLegend": "champ obligatoire",
   "filters": "Filtres",
   "closeLabel": "Masquer le message",
+  "confirm": {
+    "title": "Confirmation",
+    "confirm": "Confirmer",
+    "cancel": "Annuler"
+  },
+  "activeFilters": {
+    "label": "Filtres actifs",
+    "remove": "Retirer le filtre {label}"
+  },
   "errors": {
     "title": "Une erreur est survenue",
     "api_unreachable": "API injoignable.",

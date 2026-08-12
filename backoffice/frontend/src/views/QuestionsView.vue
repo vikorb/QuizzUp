@@ -1,5 +1,7 @@
 <template>
   <SectionLayout :title="$t('questions.title')" :subtitle="$t('questions.subtitle')">
+    <StatBar :stats="stats" />
+
     <QuestionsToolBar
       v-model="searchQuery"
       v-model:theme-filter="themeFilter"
@@ -44,10 +46,8 @@ import { useRouter } from 'vue-router'
 
 import SectionLayout from '@/components/SectionLayout.vue'
 import BaseBanner from '@/components/ui/BaseBanner.vue'
-import {
-  listQuestionsService,
-  listThemesService,
-} from '@/services/questionsService'
+import StatBar, { type Stat } from '@/components/ui/StatBar.vue'
+import { listQuestionsService, listThemesService } from '@/services/questionsService'
 import { authState } from '@/state/authState'
 import type { ActionBanner } from '@/types/banner'
 import type { Question, Theme } from '@/types/question'
@@ -73,14 +73,40 @@ const actionBanner = ref<ActionBanner | null>(null)
 const actionBannerVariant = computed(() => getBannerVariant(actionBanner.value))
 const actionBannerMessage = computed(() => getBannerMessage(actionBanner.value, t))
 
+const ratioOf = (part: number, total: number): number => (total > 0 ? (part / total) * 100 : 0)
+
+const stats = computed<Stat[]>(() => {
+  const total = questions.value.length
+  const active = questions.value.filter(
+    (question) => question.status === QUESTION_STATUS_ACTIVE
+  ).length
+  const drafts = questions.value.filter(
+    (question) => question.status === QUESTION_STATUS_DRAFT
+  ).length
+
+  return [
+    { label: t('questions.stats.total'), value: total },
+    {
+      label: t('questions.stats.active'),
+      value: active,
+      tone: 'ok',
+      ratio: ratioOf(active, total),
+    },
+    {
+      label: t('questions.stats.drafts'),
+      value: drafts,
+      tone: 'warn',
+      ratio: ratioOf(drafts, total),
+    },
+  ]
+})
+
 const searchQuery = ref('')
 const themeFilter = ref('')
 const statusFilter = ref('')
 const typeMediaFilter = ref('')
 const scopeFilter = ref('')
-const isSuperAdmin = computed(
-  () => authState.me.value?.role === ADMIN_ROLE_SUPERADMIN,
-)
+const isSuperAdmin = computed(() => authState.me.value?.role === ADMIN_ROLE_SUPERADMIN)
 
 const filteredQuestions = computed(() => {
   return questions.value.filter((question) => {
@@ -139,9 +165,7 @@ function matchesTheme(question: Question): boolean {
     return true
   }
 
-  return getQuestionThemeIds(question).some(
-    (themeId) => String(themeId) === themeFilter.value,
-  )
+  return getQuestionThemeIds(question).some((themeId) => String(themeId) === themeFilter.value)
 }
 
 function matchesStatus(question: Question): boolean {
@@ -224,7 +248,7 @@ function handleQuestionUpdated(updatedQuestion: Question): void {
   clearActionBanner()
 
   questions.value = questions.value.map((question) =>
-    question.id === updatedQuestion.id ? updatedQuestion : question,
+    question.id === updatedQuestion.id ? updatedQuestion : question
   )
 
   actionBanner.value = createSuccessBanner('questionUpdated', {

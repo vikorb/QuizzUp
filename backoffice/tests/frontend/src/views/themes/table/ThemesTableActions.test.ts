@@ -1,3 +1,4 @@
+import { confirmMock, setConfirmResult } from '@frontend-tests/_helpers/confirmMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { deleteThemeServiceMock } from '@frontend-tests/_helpers/themesServiceMock'
@@ -100,7 +101,7 @@ describe('views/themes/table/ThemesTableActions.vue', () => {
   })
 
   it('confirms and soft-deletes an editable theme', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    setConfirmResult(true)
 
     const wrapper = mountWithFrontendMocks(ThemesTableActions, {
       props: { item: makeTheme({ id: 7 }), currentRole: ADMIN_ROLE_ADMIN },
@@ -110,12 +111,13 @@ describe('views/themes/table/ThemesTableActions.vue', () => {
     await flushPromises()
     await nextTick()
 
+    expect(confirmMock).toHaveBeenCalledWith(expect.objectContaining({ variant: 'danger' }))
     expect(deleteThemeServiceMock).toHaveBeenCalledWith(7)
     expect(wrapper.emitted('deleted')).toEqual([[7]])
   })
 
   it('does not delete when the confirmation is dismissed', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    setConfirmResult(false)
 
     const wrapper = mountWithFrontendMocks(ThemesTableActions, {
       props: { item: makeTheme({ id: 7 }), currentRole: ADMIN_ROLE_ADMIN },

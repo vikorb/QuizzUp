@@ -35,9 +35,7 @@
       </template>
 
       <template #cell-status="{ value }">
-        <span class="status" :class="`status--${value}`">
-          {{ getStatusLabel(value) }}
-        </span>
+        <StatusPill :tone="getStatusTone(value)" :label="getStatusLabel(value)" />
       </template>
 
       <template #cell-actions="{ item }">
@@ -55,17 +53,14 @@
 </template>
 
 <script setup lang="ts">
-import {
-  ADMIN_STATUS_ACTIVE,
-  ADMIN_STATUS_DELETED,
-  ADMIN_STATUS_INACTIVE,
-} from '@quizzup/shared'
+import { ADMIN_STATUS_ACTIVE, ADMIN_STATUS_DELETED, ADMIN_STATUS_INACTIVE } from '@quizzup/shared'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import BaseCard from '@/components/ui/BaseCard.vue'
 import type { BaseTableColumn } from '@/components/ui/BaseTable.vue'
 import BaseTable from '@/components/ui/BaseTable.vue'
+import StatusPill from '@/components/ui/StatusPill.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import type { Account, AccountTableRow } from '@/types/account'
 import { toAccountTableRow } from '@/utils/account/list'
@@ -102,6 +97,7 @@ const columns = computed<BaseTableColumn[]>(() => [
   {
     key: 'email',
     label: String(t('accounts.table.columns.email')),
+    align: 'center',
   },
   {
     key: 'role',
@@ -141,6 +137,20 @@ function getStatusLabel(value: unknown): string {
 
   return t('accounts.status.unknown')
 }
+
+function getStatusTone(value: unknown): 'ok' | 'danger' | 'muted' {
+  const status = toAccountStatus(value)
+
+  if (status === ADMIN_STATUS_ACTIVE) {
+    return 'ok'
+  }
+
+  if (status === ADMIN_STATUS_DELETED) {
+    return 'danger'
+  }
+
+  return 'muted'
+}
 </script>
 
 <style scoped>
@@ -167,33 +177,8 @@ function getStatusLabel(value: unknown): string {
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--text-1);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--surface-2);
   font-size: 12px;
   font-weight: 700;
-}
-
-.status {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  padding: 3px 9px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.status--0 {
-  color: #ffd36e;
-  background: rgba(255, 190, 70, 0.12);
-}
-
-.status--1 {
-  color: #7dffb2;
-  background: rgba(45, 255, 137, 0.12);
-}
-
-.status--2 {
-  color: #ff8a8a;
-  background: rgba(255, 107, 107, 0.12);
 }
 </style>

@@ -5,6 +5,8 @@
     "logout": "Déconnexion",
     "login": "Connexion",
     "menu": "Menu",
+    "collapseMenu": "Réduire le menu",
+    "expandMenu": "Déplier le menu",
     "dashboard": "Dashboard",
     "home": "Accueil",
     "manage": "Gestion",

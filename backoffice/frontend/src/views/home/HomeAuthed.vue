@@ -62,7 +62,7 @@ import UiCard from '@/components/ui/UiCard.vue'
   margin-top: 10px;
   font-size: 26px;
   font-weight: 900;
-  background: linear-gradient(135deg, rgba(0, 225, 255, 0.9), rgba(122, 92, 255, 0.9));
+  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;

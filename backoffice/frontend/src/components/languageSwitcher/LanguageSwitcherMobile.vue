@@ -1,68 +1,46 @@
 <template>
-  <div class="seg-wrapper" role="tablist" aria-label="Language">
-    <UiButton
-      class="seg-btn"
-      :class="{ 'is-active': currentLocale === 'fr' }"
-      variant="seg"
-      type="button"
-      role="tab"
-      :aria-selected="currentLocale === 'fr'"
-      @click="$emit('set-locale', 'fr')"
-    >
-      <span class="seg-code">{{ $t('navbar.lang.fr.code') }}</span>
-      <span class="seg-name">{{ $t('navbar.lang.fr.name') }}</span>
-    </UiButton>
-
-    <UiButton
-      class="seg-btn"
-      :class="{ 'is-active': currentLocale === 'en' }"
-      variant="seg"
-      type="button"
-      role="tab"
-      :aria-selected="currentLocale === 'en'"
-      @click="$emit('set-locale', 'en')"
-    >
-      <span class="seg-code">{{ $t('navbar.lang.en.code') }}</span>
-      <span class="seg-name">{{ $t('navbar.lang.en.name') }}</span>
-    </UiButton>
-  </div>
+  <SelectField
+    class="lang-select"
+    :model-value="currentLocale"
+    :options="localeOptions"
+    :aria-label="$t('navbar.language')"
+    @update:model-value="onChange"
+  />
 </template>
 
 <script setup lang="ts">
-import UiButton from '@/components/ui/UiButton.vue'
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+import SelectField from '@/components/ui/form/SelectField.vue'
 import type { LocaleCode } from '@/plugins/i18n'
+import type { SelectFieldOption } from '@/types/form'
 
 defineProps<{
   currentLocale: LocaleCode
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'set-locale', value: LocaleCode): void
 }>()
+
+const { t } = useI18n()
+
+// Une liste déroulante (et non des boutons) : prête à accueillir beaucoup de langues.
+const localeOptions = computed<SelectFieldOption[]>(() => [
+  { value: 'fr', label: t('navbar.lang.fr.name') },
+  { value: 'en', label: t('navbar.lang.en.name') },
+])
+
+function onChange(value: string): void {
+  if (value === 'fr' || value === 'en') {
+    emit('set-locale', value satisfies LocaleCode)
+  }
+}
 </script>
 
 <style scoped>
-.seg-wrapper {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.seg-btn {
+.lang-select {
   width: 100%;
-}
-
-.seg-code {
-  font-weight: 900;
-  letter-spacing: 0.06em;
-}
-
-.seg-name {
-  font-size: 12px;
-  color: var(--text-2);
-}
-
-.seg-btn.is-active .seg-name {
-  color: rgba(255, 255, 255, 0.9);
 }
 </style>

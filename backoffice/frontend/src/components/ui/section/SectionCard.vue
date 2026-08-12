@@ -34,14 +34,13 @@ const styleVars = computed(() => {
 <style scoped>
 .scard {
   width: min(var(--scard-max, 480px), 100%);
-  background: var(--bg-card);
+  background: linear-gradient(180deg, var(--bg-card-hi), var(--bg-card));
   border: 1px solid var(--border-ui);
   border-radius: 18px;
-  backdrop-filter: blur(10px);
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
-    0 0 18px var(--glow-blue),
-    0 0 26px var(--glow-pink);
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 20px 44px -28px rgba(0, 0, 0, 0.85),
+    0 0 28px -10px var(--glow-pink);
   overflow: hidden;
 }
 

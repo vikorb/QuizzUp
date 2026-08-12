@@ -73,7 +73,7 @@ function getColumnClass(column: BaseTableColumn): (string | undefined)[] {
   overflow-x: hidden;
   border-radius: 14px;
   border: 1px solid var(--border-ui);
-  background: rgba(0, 0, 0, 0.16);
+  background: var(--surface-inset);
 }
 
 .base-table {
@@ -85,15 +85,14 @@ function getColumnClass(column: BaseTableColumn): (string | undefined)[] {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: rgba(20, 20, 20, 0.95);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border-2);
 }
 
 .base-table th,
 .base-table td {
   padding: 12px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--border-ui);
   text-align: left;
   font-size: 13px;
 }
@@ -104,11 +103,21 @@ function getColumnClass(column: BaseTableColumn): (string | undefined)[] {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-size: 11px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--surface-0);
+}
+
+/* Survol de ligne : fond violet léger + liseré néon à gauche. */
+.base-table tbody tr {
+  box-shadow: inset 3px 0 0 transparent;
+  transition: var(--tr);
+}
+
+.base-table tbody tr:hover {
+  box-shadow: inset 3px 0 0 var(--accent-purple);
 }
 
 .base-table tbody tr:hover td {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--row-hover);
 }
 
 .base-table th.base-table__cell--right,

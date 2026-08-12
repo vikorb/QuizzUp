@@ -3,6 +3,7 @@
     :reset-label="$t('resetFilters')"
     :reset-icon="mdiRefresh"
     :reset-disabled="!hasActiveFilters"
+    :active-filters="activeFilters"
     :primary-label="$t('questions.table.create')"
     :primary-icon="mdiPlus"
     :show-primary="true"
@@ -71,7 +72,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
-import BaseToolBar from '@/components/ui/BaseToolBar.vue'
+import BaseToolBar, { type ActiveFilter } from '@/components/ui/BaseToolBar.vue'
 import FormField from '@/components/ui/form/FormField.vue'
 import SelectField from '@/components/ui/form/SelectField.vue'
 import type { SelectFieldOption } from '@/types/form'
@@ -93,7 +94,7 @@ const props = withDefaults(
     typeMediaFilter: '',
     scopeFilter: '',
     canShowDeletedStatus: false,
-  },
+  }
 )
 
 const emit = defineEmits<{
@@ -113,7 +114,7 @@ const hasActiveFilters = computed(
     props.themeFilter !== '' ||
     props.statusFilter !== '' ||
     props.typeMediaFilter !== '' ||
-    props.scopeFilter !== '',
+    props.scopeFilter !== ''
 )
 
 const themeOptions = computed<SelectFieldOption[]>(() => [
@@ -195,6 +196,65 @@ const scopeOptions = computed<SelectFieldOption[]>(() => [
   },
 ])
 
+const activeFilters = computed<ActiveFilter[]>(() => {
+  const chips: ActiveFilter[] = []
+  const search = props.modelValue.trim()
+
+  if (search !== '') {
+    chips.push({
+      key: 'search',
+      label: `${t('questions.filters.search')} : ${search}`,
+      onRemove: () => emit('update:modelValue', ''),
+    })
+  }
+
+  const theme = themeOptions.value.find(
+    (option) => option.value !== '' && option.value === props.themeFilter
+  )
+  if (theme) {
+    chips.push({
+      key: 'theme',
+      label: theme.label,
+      onRemove: () => emit('update:themeFilter', ''),
+    })
+  }
+
+  const status = statusOptions.value.find(
+    (option) => option.value !== '' && option.value === props.statusFilter
+  )
+  if (status) {
+    chips.push({
+      key: 'status',
+      label: status.label,
+      onRemove: () => emit('update:statusFilter', ''),
+    })
+  }
+
+  const typeMedia = typeMediaOptions.value.find(
+    (option) => option.value !== '' && option.value === props.typeMediaFilter
+  )
+  if (typeMedia) {
+    chips.push({
+      key: 'typeMedia',
+      label: typeMedia.label,
+      onRemove: () => emit('update:typeMediaFilter', ''),
+    })
+  }
+
+  const scope = scopeOptions.value.find(
+    (option) => option.value !== '' && option.value === props.scopeFilter
+  )
+  if (scope) {
+    chips.push({
+      key: 'scope',
+      label: scope.label,
+      onRemove: () => emit('update:scopeFilter', ''),
+    })
+  }
+
+  return chips
+})
+
 function resetFilters(): void {
   emit('update:modelValue', '')
   emit('update:themeFilter', '')
@@ -211,10 +271,7 @@ function handleCreateQuestion(): void {
 <style scoped>
 .questions-toolbar__filters {
   display: grid;
-  grid-template-columns: repeat(
-    auto-fit,
-    minmax(var(--toolbar-filter-min-width), 1fr)
-  );
+  grid-template-columns: repeat(auto-fit, minmax(var(--toolbar-filter-min-width), 1fr));
   align-items: end;
   gap: var(--toolbar-filter-gap);
   width: 100%;

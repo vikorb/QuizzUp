@@ -24,7 +24,7 @@ const props = withDefaults(
   {
     label: '',
     disabled: false,
-  },
+  }
 )
 
 const emit = defineEmits<{
@@ -46,22 +46,21 @@ function handleClick(): void {
 
 <style scoped>
 .switch-field {
-  --switch-width: 38px;
-  --switch-height: 22px;
-  --switch-thumb-size: 14px;
+  --switch-width: 42px;
+  --switch-height: 24px;
+  --switch-thumb-size: 18px;
   --switch-gap: 3px;
 
   position: relative;
   width: var(--switch-width);
   height: var(--switch-height);
   padding: 0;
-  border: 1px solid var(--border);
+  border: 0;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.08);
   cursor: pointer;
   transition:
     background 0.2s ease,
-    border-color 0.2s ease,
     opacity 0.2s ease;
 }
 
@@ -71,8 +70,7 @@ function handleClick(): void {
 }
 
 .switch-field--active {
-  border-color: rgba(45, 255, 137, 0.45);
-  background: rgba(45, 255, 137, 0.22);
+  background: rgba(87, 224, 176, 0.2);
 }
 
 .switch-field__thumb {
@@ -81,13 +79,20 @@ function handleClick(): void {
   left: var(--switch-gap);
   width: var(--switch-thumb-size);
   height: var(--switch-thumb-size);
-  border-radius: 999px;
-  background: var(--text-0);
+  border-radius: 50%;
+  /* Centre coloré : rouge (inactif) → vert (actif), avec lueur verte à l'activation. */
+  background: var(--danger);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   transform: translateY(-50%);
-  transition: transform 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .switch-field--active .switch-field__thumb {
+  background: var(--ok);
+  box-shadow: 0 0 8px var(--ok);
   transform: translate(
     calc(var(--switch-width) - var(--switch-thumb-size) - (var(--switch-gap) * 2)),
     -50%

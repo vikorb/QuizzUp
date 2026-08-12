@@ -1,9 +1,6 @@
 <template>
   <form class="theme-form" @submit.prevent="submitForm">
-    <BaseBanner
-      v-if="isReadonly"
-      :message="$t('themes.form.readonly')"
-    />
+    <BaseBanner v-if="isReadonly" :message="$t('themes.form.readonly')" />
 
     <div class="theme-form__grid">
       <FormField
@@ -48,6 +45,16 @@
       />
     </div>
 
+    <FormStatusToggle
+      v-if="mode === 'edit' && canEdit"
+      :active="isThemeActive"
+      :label="$t('themes.form.status.label')"
+      :help="statusHelp"
+      :disabled="saving || isThemeDeleted"
+      :pending="isStatusPending"
+      @toggle="toggleStatus"
+    />
+
     <FormResult :error="formError" :success="formSuccess" />
 
     <FormActions
@@ -77,8 +84,13 @@ import {
   THEME_MODE_MIXED,
   THEME_SCOPE_COMPANY,
   THEME_SCOPE_GLOBAL,
+  THEME_STATUS_ACTIVE,
+  THEME_STATUS_DELETED,
+  THEME_STATUS_DRAFT,
+  THEME_STATUS_INACTIVE,
   type ThemeMode,
   type ThemeScope,
+  type ThemeStatus,
 } from '@quizzup/shared'
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -87,11 +99,13 @@ import BaseBanner from '@/components/ui/BaseBanner.vue'
 import FormActions from '@/components/ui/form/FormActions.vue'
 import FormField from '@/components/ui/form/FormField.vue'
 import FormResult from '@/components/ui/form/FormResult.vue'
+import FormStatusToggle from '@/components/ui/form/FormStatusToggle.vue'
 import SelectField from '@/components/ui/form/SelectField.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import {
   createThemeService,
   updateThemeService,
+  updateThemeStatusService,
 } from '@/services/themesService'
 import { authState } from '@/state/authState'
 import type { SelectFieldOption } from '@/types/form'
@@ -117,6 +131,7 @@ const form = reactive({
   mode: THEME_MODE_CLASSIC as ThemeMode,
   scope: THEME_SCOPE_GLOBAL as ThemeScope,
   companyId: '',
+  status: THEME_STATUS_ACTIVE as ThemeStatus,
 })
 
 const errors = reactive({
@@ -134,8 +149,41 @@ const isSuperAdmin = computed(() => currentRole.value === ADMIN_ROLE_SUPERADMIN)
 const isReadonly = computed(() => props.mode === 'edit' && !props.canEdit)
 const canSubmit = computed(() => props.mode === 'create' || props.canEdit)
 
+const isThemeActive = computed(() => form.status === THEME_STATUS_ACTIVE)
+const isThemeDeleted = computed(() => form.status === THEME_STATUS_DELETED)
+const isStatusPending = computed(() => Boolean(props.theme) && form.status !== props.theme?.status)
+
+const statusHelp = computed(() => {
+  if (isStatusPending.value) {
+    return isThemeActive.value
+      ? t('themes.form.status.pendingActiveHelp')
+      : t('themes.form.status.pendingInactiveHelp')
+  }
+
+  return isThemeActive.value
+    ? t('themes.form.status.activeHelp')
+    : t('themes.form.status.inactiveHelp')
+})
+
+function toThemeStatus(status: unknown): ThemeStatus {
+  if (
+    status === THEME_STATUS_ACTIVE ||
+    status === THEME_STATUS_INACTIVE ||
+    status === THEME_STATUS_DELETED ||
+    status === THEME_STATUS_DRAFT
+  ) {
+    return status
+  }
+
+  return THEME_STATUS_INACTIVE
+}
+
+function toggleStatus(): void {
+  form.status = isThemeActive.value ? THEME_STATUS_INACTIVE : THEME_STATUS_ACTIVE
+}
+
 const submitLabel = computed(() =>
-  props.mode === 'edit' ? t('themes.form.save') : t('themes.form.create'),
+  props.mode === 'edit' ? t('themes.form.save') : t('themes.form.create')
 )
 
 const modeOptions = computed<SelectFieldOption[]>(() => [
@@ -178,6 +226,7 @@ watch(
       form.mode = THEME_MODE_CLASSIC
       form.scope = isSuperAdmin.value ? THEME_SCOPE_GLOBAL : THEME_SCOPE_COMPANY
       form.companyId = ''
+      form.status = THEME_STATUS_ACTIVE
 
       return
     }
@@ -186,8 +235,9 @@ watch(
     form.mode = theme.mode
     form.scope = theme.scope
     form.companyId = theme.companyId ? String(theme.companyId) : ''
+    form.status = toThemeStatus(theme.status)
   },
-  { immediate: true },
+  { immediate: true }
 )
 
 function resetErrors(): void {
@@ -271,12 +321,26 @@ async function submitForm(): Promise<void> {
       return
     }
 
-    formSuccess.value =
-      props.mode === 'edit'
-        ? t('themes.form.success.updated')
-        : t('themes.form.success.created')
+    let savedTheme = result.data.theme
 
-    emit('saved', result.data.theme)
+    // Le statut passe par son endpoint dédié : on l'enregistre après le reste,
+    // seulement s'il a changé.
+    if (props.mode === 'edit' && props.theme && form.status !== props.theme.status) {
+      const statusResult = await updateThemeStatusService(props.theme.id, form.status)
+
+      if (!statusResult.ok) {
+        formError.value = t(getApiErrorKey(statusResult.error, 'themes.errors'))
+        emit('error', statusResult.error)
+        return
+      }
+
+      savedTheme = statusResult.theme
+    }
+
+    formSuccess.value =
+      props.mode === 'edit' ? t('themes.form.success.updated') : t('themes.form.success.created')
+
+    emit('saved', savedTheme)
   } catch {
     formError.value = t('themes.errors.saveFailed')
     emit('error', 'saveFailed')

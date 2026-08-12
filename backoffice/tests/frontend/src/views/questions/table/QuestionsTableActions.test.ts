@@ -1,3 +1,4 @@
+import { confirmMock, setConfirmResult } from '@frontend-tests/_helpers/confirmMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { deleteQuestionServiceMock } from '@frontend-tests/_helpers/questionsServiceMock'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
@@ -8,17 +9,13 @@ import {
   THEME_SCOPE_GLOBAL,
 } from '@quizzup/shared'
 import { flushPromises } from '@vue/test-utils'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { nextTick } from 'vue'
 
 import type { Question } from '@/types/question'
 import QuestionsTableActions from '@/views/questions/table/QuestionsTableActions.vue'
 
 resetFrontendMocksBeforeEach()
-
-afterEach(() => {
-  vi.restoreAllMocks()
-})
 
 function makeQuestion(overrides: Partial<Question> = {}): Question {
   return {
@@ -103,7 +100,7 @@ describe('views/questions/table/QuestionsTableActions.vue', () => {
   })
 
   it('confirms and soft-deletes the question when editable', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    setConfirmResult(true)
     deleteQuestionServiceMock.mockResolvedValue(null)
 
     const wrapper = mountWithFrontendMocks(QuestionsTableActions, {
@@ -117,6 +114,7 @@ describe('views/questions/table/QuestionsTableActions.vue', () => {
     await flushPromises()
     await nextTick()
 
+    expect(confirmMock).toHaveBeenCalledWith(expect.objectContaining({ variant: 'danger' }))
     expect(deleteQuestionServiceMock).toHaveBeenCalledWith(7)
     expect(wrapper.emitted('deleted')).toEqual([[7]])
   })

@@ -9,7 +9,8 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import NavbarDesktopLayout from '@/views/navbar/NavbarDesktopLayout.vue'
 import NavbarMobileLayout from '@/views/navbar/NavbarMobileLayout.vue'
 
-const NAVBAR_MOBILE_BREAKPOINT = 980
+// < 768px (téléphone) → menu en tiroir ; ≥ 768px → menu latéral (complet ou rail).
+const NAVBAR_MOBILE_BREAKPOINT = 767
 
 const isMobileNav = ref(false)
 const isSidebarOpen = ref(false)

@@ -3,6 +3,7 @@
     :reset-label="$t('resetFilters')"
     :reset-icon="mdiRefresh"
     :reset-disabled="!hasActiveFilters"
+    :active-filters="activeFilters"
     :primary-label="$t('clients.actions.addCompany')"
     :primary-icon="mdiPlus"
     :show-primary="true"
@@ -39,7 +40,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
-import BaseToolBar from '@/components/ui/BaseToolBar.vue'
+import BaseToolBar, { type ActiveFilter } from '@/components/ui/BaseToolBar.vue'
 import FormField from '@/components/ui/form/FormField.vue'
 import SelectField from '@/components/ui/form/SelectField.vue'
 import { getCreateCompanyRoute } from '@/router/clients'
@@ -74,6 +75,31 @@ const statusOptions = computed<SelectFieldOption[]>(() => getClientStatusFilterO
 const hasActiveFilters = computed(() =>
   hasClientToolbarActiveFilters(props.modelValue, props.statusFilter)
 )
+
+const activeFilters = computed<ActiveFilter[]>(() => {
+  const chips: ActiveFilter[] = []
+  const search = props.modelValue.trim()
+
+  if (search !== '') {
+    chips.push({
+      key: 'search',
+      label: `${t('clients.filters.searchLabel')} : ${search}`,
+      onRemove: () => emit('update:modelValue', ''),
+    })
+  }
+
+  // « Tous » = pas de filtre → pas de balise. Tout autre statut contraint la vue → balise.
+  if (props.statusFilter !== 'all') {
+    const status = statusOptions.value.find((option) => option.value === props.statusFilter)
+    chips.push({
+      key: 'status',
+      label: status ? status.label : String(props.statusFilter),
+      onRemove: () => emit('update:statusFilter', 'all'),
+    })
+  }
+
+  return chips
+})
 
 function handleCreateCompany(): void {
   router.push(getCreateCompanyRoute())

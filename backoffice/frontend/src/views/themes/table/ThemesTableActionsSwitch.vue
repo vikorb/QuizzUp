@@ -21,6 +21,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import SwitchField from '@/components/ui/form/SwitchField.vue'
+import { useConfirm } from '@/composables/useConfirm'
 import { updateThemeStatusService } from '@/services/themesService'
 import type { Theme } from '@/types/theme'
 import { canUpdateThemeStatus } from '@/utils/theme/permissions'
@@ -43,6 +44,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { confirm } = useConfirm()
 const busy = ref(false)
 
 const currentStatus = computed<ThemeStatus>(() => toThemeStatus(props.theme.status))
@@ -88,11 +90,14 @@ async function toggleStatus(): Promise<void> {
     ? 'themes.actions.disableConfirm'
     : 'themes.actions.enableConfirm'
 
-  const confirmed = window.confirm(
-    t(confirmKey, {
+  const confirmed = await confirm({
+    title: isActive.value ? t('themes.actions.disable') : t('themes.actions.enable'),
+    message: t(confirmKey, {
       theme: props.theme.name,
-    })
-  )
+    }),
+    confirmLabel: isActive.value ? t('themes.actions.disable') : t('themes.actions.enable'),
+    cancelLabel: t('confirm.cancel'),
+  })
 
   if (!confirmed) {
     return

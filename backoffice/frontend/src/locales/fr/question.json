@@ -2,6 +2,11 @@
   "questions": {
     "title": "Questions / réponses",
     "subtitle": "Gérez le contenu des questions disponibles pour les quiz.",
+    "stats": {
+      "total": "Questions",
+      "active": "Actives",
+      "drafts": "Brouillons"
+    },
     "create": {
       "title": "Créer une question",
       "subtitle": "Ajoutez une nouvelle question/réponse.",
@@ -44,6 +49,13 @@
       }
     },
     "form": {
+      "status": {
+        "label": "Statut de la question",
+        "activeHelp": "La question est active : elle peut être tirée en partie.",
+        "inactiveHelp": "La question est inactive : mise de côté.",
+        "pendingActiveHelp": "La question passera active après l’enregistrement.",
+        "pendingInactiveHelp": "La question passera inactive après l’enregistrement."
+      },
       "theme": "Thème",
       "themes": "Thèmes",
       "themesHint": "Une question peut maintenant appartenir à plusieurs thèmes. Sélectionnez un ou plusieurs thèmes visibles pour votre rôle.",
@@ -55,12 +67,14 @@
       "noThemeResult": "Aucun thème disponible pour cette recherche.",
       "addTheme": "Ajouter",
       "removeTheme": "Retirer ce thème",
+      "openTheme": "Voir le thème",
       "question": "Question",
       "questionPlaceholder": "Saisissez la question",
       "typeMedia": "Type de média",
       "mediaUrl": "URL du média",
       "mediaUrlPlaceholder": "Saisissez l'URL du média",
       "answers": "Réponses",
+      "answersRules": "Entre 2 et 4 réponses, avec au moins une bonne réponse.",
       "addAnswer": "Ajouter une réponse",
       "answerLabel": "Réponse {index}",
       "answerPlaceholder": "Saisissez la réponse {index}",
@@ -75,7 +89,7 @@
         "questionRequired": "La question est obligatoire.",
         "answersMinRequired": "Au moins deux réponses sont nécessaires.",
         "answerRequired": "Toutes les réponses doivent être renseignées.",
-        "oneCorrectRequired": "Une seule bonne réponse doit être sélectionnée."
+        "oneCorrectRequired": "Au moins une bonne réponse doit être sélectionnée."
       }
     },
     "themeModes": {

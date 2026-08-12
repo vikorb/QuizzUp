@@ -21,7 +21,7 @@ describe('views/clients/details/ClientDetailSwitch.vue', () => {
     })
 
     expect(wrapper.find('[data-test="switch-field"]').attributes('aria-checked')).toBe('true')
-    expect(wrapper.find('.company-status__subtitle--pending').exists()).toBe(false)
+    expect(wrapper.find('.company-status--pending').exists()).toBe(false)
 
     await wrapper.find('[data-test="switch-field"]').trigger('click')
 
@@ -36,7 +36,7 @@ describe('views/clients/details/ClientDetailSwitch.vue', () => {
       },
     })
 
-    expect(wrapper.find('.company-status__subtitle--pending').exists()).toBe(true)
+    expect(wrapper.find('.company-status--pending').exists()).toBe(true)
     expect(wrapper.find('[data-test="switch-field"]').attributes('aria-checked')).toBe('false')
   })
 

@@ -3,10 +3,12 @@ import {
   mockDeleteCompanyFailure,
   mockDeleteCompanySuccess,
 } from '@frontend-tests/_helpers/companiesServiceMock'
+import { setConfirmResult } from '@frontend-tests/_helpers/confirmMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { COMPANY_STATUS_ACTIVE } from '@quizzup/shared'
-import { describe, expect, it, vi } from 'vitest'
+import { flushPromises } from '@vue/test-utils'
+import { describe, expect, it } from 'vitest'
 import { defineComponent, h } from 'vue'
 
 import ClientTableActions from '@/views/clients/table/ClientTableActions.vue'
@@ -27,8 +29,16 @@ const switchStub = defineComponent({
   setup(_props, { emit }) {
     return () =>
       h('div', { 'data-test': 'switch-stub' }, [
-        h('button', { type: 'button', 'data-test': 'switch-busy', onClick: () => emit('busy-change', true) }),
-        h('button', { type: 'button', 'data-test': 'switch-ready', onClick: () => emit('busy-change', false) }),
+        h('button', {
+          type: 'button',
+          'data-test': 'switch-busy',
+          onClick: () => emit('busy-change', true),
+        }),
+        h('button', {
+          type: 'button',
+          'data-test': 'switch-ready',
+          onClick: () => emit('busy-change', false),
+        }),
         h('button', {
           type: 'button',
           'data-test': 'switch-updated',
@@ -80,7 +90,7 @@ describe('views/clients/table/ClientTableActions.vue', () => {
 
   it('soft-deletes a company after confirmation', async () => {
     mockDeleteCompanySuccess()
-    window.confirm = vi.fn(() => true)
+    setConfirmResult(true)
 
     const wrapper = mountWithFrontendMocks(ClientTableActions, {
       props: {
@@ -94,13 +104,14 @@ describe('views/clients/table/ClientTableActions.vue', () => {
     })
 
     await wrapper.findAll('[data-test="ui-button"]')[2].trigger('click')
+    await flushPromises()
 
     expect(deleteCompanyPermanentlyServiceMock).toHaveBeenCalledWith(1)
     expect(wrapper.emitted('deleted')).toEqual([[1]])
   })
 
   it('does not delete when confirmation is cancelled', async () => {
-    window.confirm = vi.fn(() => false)
+    setConfirmResult(false)
 
     const wrapper = mountWithFrontendMocks(ClientTableActions, {
       props: {
@@ -114,6 +125,7 @@ describe('views/clients/table/ClientTableActions.vue', () => {
     })
 
     await wrapper.findAll('[data-test="ui-button"]')[2].trigger('click')
+    await flushPromises()
 
     expect(deleteCompanyPermanentlyServiceMock).not.toHaveBeenCalled()
     expect(wrapper.emitted('deleted')).toBeUndefined()
@@ -121,7 +133,7 @@ describe('views/clients/table/ClientTableActions.vue', () => {
 
   it('emits service errors and forwards switch updates', async () => {
     mockDeleteCompanyFailure('server_error')
-    window.confirm = vi.fn(() => true)
+    setConfirmResult(true)
 
     const wrapper = mountWithFrontendMocks(ClientTableActions, {
       props: {
@@ -136,6 +148,7 @@ describe('views/clients/table/ClientTableActions.vue', () => {
 
     await wrapper.find('[data-test="switch-updated"]').trigger('click')
     await wrapper.findAll('[data-test="ui-button"]')[2].trigger('click')
+    await flushPromises()
 
     expect(wrapper.emitted('updated')?.[0]?.[0]).toMatchObject({ name: 'Updated' })
     expect(wrapper.emitted('error')).toEqual([['server_error']])

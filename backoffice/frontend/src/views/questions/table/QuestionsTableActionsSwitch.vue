@@ -20,6 +20,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import SwitchField from '@/components/ui/form/SwitchField.vue'
+import { useConfirm } from '@/composables/useConfirm'
 import { updateQuestionStatusService } from '@/services/questionsService'
 import type { Question } from '@/types/question'
 import { canUpdateQuestionStatus } from '@/utils/question/permissions'
@@ -43,6 +44,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { confirm } = useConfirm()
 const busy = ref(false)
 
 const currentStatus = computed<QuestionStatus>(() => toQuestionStatus(props.question.status))
@@ -86,11 +88,14 @@ async function toggleStatus(): Promise<void> {
     ? 'questions.actions.disableConfirm'
     : 'questions.actions.enableConfirm'
 
-  const confirmed = window.confirm(
-    t(confirmKey, {
+  const confirmed = await confirm({
+    title: isActive.value ? t('questions.actions.disable') : t('questions.actions.enable'),
+    message: t(confirmKey, {
       question: props.question.question,
-    })
-  )
+    }),
+    confirmLabel: isActive.value ? t('questions.actions.disable') : t('questions.actions.enable'),
+    cancelLabel: t('confirm.cancel'),
+  })
 
   if (!confirmed) {
     return

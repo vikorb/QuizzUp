@@ -31,9 +31,7 @@
       </template>
 
       <template #cell-status="{ value }">
-        <span class="status" :class="`status--${value}`">
-          {{ getStatusLabel(value) }}
-        </span>
+        <StatusPill :tone="getStatusTone(value)" :label="getStatusLabel(value)" />
       </template>
 
       <template #cell-actions="{ item }">
@@ -51,14 +49,21 @@
 </template>
 
 <script setup lang="ts">
+import { COMPANY_STATUS_ACTIVE, COMPANY_STATUS_DELETED } from '@quizzup/shared'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseTable from '@/components/ui/BaseTable.vue'
+import StatusPill from '@/components/ui/StatusPill.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import type { Company, CompanyTableRow } from '@/types/company'
-import { getClientStatusLabel, getClientTableColumns, toCompanyTableRow } from '@/utils/company/table'
+import { toCompanyStatus } from '@/utils/company/status'
+import {
+  getClientStatusLabel,
+  getClientTableColumns,
+  toCompanyTableRow,
+} from '@/utils/company/table'
 
 import ClientTableActions from './table/ClientTableActions.vue'
 
@@ -82,11 +87,25 @@ const { t } = useI18n()
 const columns = computed(() => getClientTableColumns(t))
 
 const tableItems = computed<CompanyTableRow[]>(() =>
-  props.companies.map((company) => ({ ...company }) as CompanyTableRow),
+  props.companies.map((company) => ({ ...company }) as CompanyTableRow)
 )
 
 function getStatusLabel(value: unknown): string {
   return getClientStatusLabel(value, t)
+}
+
+function getStatusTone(value: unknown): 'ok' | 'danger' | 'muted' {
+  const status = toCompanyStatus(value)
+
+  if (status === COMPANY_STATUS_ACTIVE) {
+    return 'ok'
+  }
+
+  if (status === COMPANY_STATUS_DELETED) {
+    return 'danger'
+  }
+
+  return 'muted'
 }
 </script>
 
@@ -106,33 +125,7 @@ function getStatusLabel(value: unknown): string {
 }
 
 .num {
-  display: inline-block;
-  width: 100%;
-  text-align: right;
-}
-
-.status {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  padding: 3px 9px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.status--0 {
-  color: #ffd36e;
-  background: rgba(255, 190, 70, 0.12);
-}
-
-.status--1 {
-  color: #7dffb2;
-  background: rgba(45, 255, 137, 0.12);
-}
-
-.status--2 {
-  color: #ff8a8a;
-  background: rgba(255, 107, 107, 0.12);
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
 }
 </style>

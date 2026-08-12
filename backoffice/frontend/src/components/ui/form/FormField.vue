@@ -67,7 +67,7 @@ const props = withDefaults(
     as: 'input',
     required: false,
     disabled: false,
-    neon: true,
+    neon: false,
   }
 )
 
@@ -112,19 +112,21 @@ function onInput(event: Event): void {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-height: 42px;
   border: 1px solid var(--border-ui);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-field);
   border-radius: 14px;
-  padding: 10px 12px;
+  padding: 7px 12px;
   transition: var(--tr);
 }
 
 .ff__control:focus-within {
   border-color: var(--border-hover);
+  box-shadow: 0 0 0 3px var(--glow-soft);
 }
 
 .ff__control--error {
-  border-color: rgba(237, 46, 251, 0.55);
+  border-color: var(--danger);
 }
 
 .ff__input {
@@ -152,7 +154,7 @@ function onInput(event: Event): void {
 .ff__error {
   margin: 0;
   font-size: 12px;
-  color: rgba(237, 46, 251, 0.95);
+  color: var(--danger);
 }
 
 .ff--disabled .ff__control {

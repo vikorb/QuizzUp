@@ -9,8 +9,7 @@
   border-radius: 20px;
   border: 1px solid var(--border-ui);
   background: var(--bg-card);
-  backdrop-filter: blur(20px);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 20px 40px var(--shadow-2);
   overflow: hidden;
   transition: var(--tr);
 }

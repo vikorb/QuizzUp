@@ -52,7 +52,7 @@ const props = withDefaults(
     dismissible: true,
     autoDismiss: true,
     durationMs: 4000,
-  },
+  }
 )
 
 const emit = defineEmits<{
@@ -104,7 +104,7 @@ watch(
   () => {
     scheduleDismiss()
   },
-  { immediate: true },
+  { immediate: true }
 )
 
 onBeforeUnmount(() => {
@@ -124,36 +124,36 @@ onBeforeUnmount(() => {
   border-radius: 16px;
   background:
     linear-gradient(135deg, var(--base-banner-gradient-start), var(--base-banner-gradient-end)),
-    rgba(13, 15, 30, 0.62);
+    var(--bg-card);
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.03) inset,
+    0 0 0 1px var(--surface-1) inset,
     0 0 18px var(--base-banner-shadow);
 }
 
 .base-banner--error {
-  --base-banner-border: rgba(255, 107, 107, 0.28);
-  --base-banner-title: #ff8a8a;
-  --base-banner-gradient-start: rgba(255, 107, 107, 0.12);
-  --base-banner-gradient-end: rgba(255, 107, 107, 0.06);
-  --base-banner-shadow: rgba(255, 107, 107, 0.08);
-  --base-banner-close-border: rgba(255, 107, 107, 0.22);
-  --base-banner-close-bg: rgba(255, 107, 107, 0.08);
-  --base-banner-close-color: #ffb0b0;
-  --base-banner-close-border-hover: rgba(255, 107, 107, 0.45);
-  --base-banner-close-bg-hover: rgba(255, 107, 107, 0.16);
+  --base-banner-border: var(--danger);
+  --base-banner-title: var(--danger);
+  --base-banner-gradient-start: var(--danger-bg);
+  --base-banner-gradient-end: var(--danger-bg);
+  --base-banner-shadow: var(--danger-bg);
+  --base-banner-close-border: var(--danger);
+  --base-banner-close-bg: var(--danger-bg);
+  --base-banner-close-color: var(--danger);
+  --base-banner-close-border-hover: var(--danger);
+  --base-banner-close-bg-hover: var(--danger-bg);
 }
 
 .base-banner--success {
-  --base-banner-border: rgba(70, 230, 160, 0.3);
-  --base-banner-title: #70f0b8;
-  --base-banner-gradient-start: rgba(70, 230, 160, 0.13);
-  --base-banner-gradient-end: rgba(70, 230, 160, 0.06);
-  --base-banner-shadow: rgba(70, 230, 160, 0.1);
-  --base-banner-close-border: rgba(70, 230, 160, 0.24);
-  --base-banner-close-bg: rgba(70, 230, 160, 0.08);
-  --base-banner-close-color: #a8ffd6;
-  --base-banner-close-border-hover: rgba(70, 230, 160, 0.48);
-  --base-banner-close-bg-hover: rgba(70, 230, 160, 0.16);
+  --base-banner-border: var(--ok);
+  --base-banner-title: var(--ok);
+  --base-banner-gradient-start: var(--ok-bg);
+  --base-banner-gradient-end: var(--ok-bg);
+  --base-banner-shadow: var(--ok-bg);
+  --base-banner-close-border: var(--ok);
+  --base-banner-close-bg: var(--ok-bg);
+  --base-banner-close-color: var(--ok);
+  --base-banner-close-border-hover: var(--ok);
+  --base-banner-close-bg-hover: var(--ok-bg);
 }
 
 .base-banner__content {
@@ -169,7 +169,7 @@ onBeforeUnmount(() => {
 .base-banner__message {
   margin: 4px 0 0;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.82);
+  color: var(--text-1);
 }
 
 .base-banner__close {
@@ -189,7 +189,7 @@ onBeforeUnmount(() => {
 .base-banner__close:hover {
   border-color: var(--base-banner-close-border-hover);
   background: var(--base-banner-close-bg-hover);
-  color: #ffffff;
+  color: var(--text-0);
 }
 
 .base-banner-fade-enter-active {

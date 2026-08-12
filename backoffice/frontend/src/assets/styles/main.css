@@ -1,21 +1,67 @@
 @import url('https://fonts.googleapis.com/css2?family=Exo+2:ital,wght@0,100..900;1,100..900&display=swap');
 
 :root {
-  --bg-0: #03040b;
-  --bg-card: rgba(13, 15, 30, 0.62);
-  --accent-blue: #0062ff;
-  --accent-pink: #ed2efb;
-  --neon-blue: rgba(0, 98, 255, 0.85);
-  --neon-pink: rgba(237, 46, 251, 0.85);
-  --glow-blue: rgba(0, 98, 255, 0.45);
-  --glow-pink: rgba(237, 46, 251, 0.45);
-  --text-0: #ffffff;
-  --text-1: rgba(255, 255, 255, 0.88);
-  --text-2: rgba(255, 255, 255, 0.58);
-  --text-3: rgba(255, 255, 255, 0.36);
-  --border-ui: rgba(255, 255, 255, 0.08);
-  --border-hover: rgba(0, 98, 255, 0.32);
-  --tr: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  /* ---- Fonds (spatial, mat, foncé) ---- */
+  --bg-0: #05060d;
+  --bg-1: #080a15;
+  --bg-card: rgba(19, 21, 40, 0.72);
+  --bg-card-hi: rgba(26, 28, 52, 0.82);
+  --bg-field: rgba(255, 255, 255, 0.028);
+
+  /* ---- Accents bleu-violet (mats) ---- */
+  --accent-blue: #4a63d8;
+  --accent-purple: #7458e6; /* violet principal */
+  --accent-pink: #8b74ff; /* violet clair (accent haut) */
+  --accent-cyan: #57e0b0; /* teal (logo / statut actif) */
+  --primary: #7458e6;
+
+  /* ---- Néons / lueurs (violet) ---- */
+  --neon-blue: rgba(74, 99, 216, 0.85);
+  --neon-pink: rgba(116, 88, 230, 0.85);
+  --glow-blue: rgba(74, 99, 216, 0.32);
+  --glow-pink: rgba(116, 88, 230, 0.3);
+  --glow-cyan: rgba(87, 224, 176, 0.3);
+  --glow-soft: rgba(116, 88, 230, 0.14);
+
+  /* ---- Texte (blanc froid) ---- */
+  --text-0: #edecf8;
+  --text-1: rgba(237, 236, 248, 0.82);
+  --text-2: rgba(237, 236, 248, 0.52);
+  --text-3: rgba(237, 236, 248, 0.32);
+
+  /* ---- Bordures ---- */
+  --border-ui: rgba(126, 118, 200, 0.14);
+  --border: rgba(126, 118, 200, 0.14); /* alias, était indéfini */
+  --border-2: rgba(126, 118, 200, 0.24);
+  --border-hover: rgba(139, 116, 255, 0.5);
+
+  /* ---- Sémantique (un poil peps, texte = couleur du statut) ---- */
+  --ok: #57e0b0;
+  --ok-bg: rgba(87, 224, 176, 0.12);
+  --warn: #f0bd66;
+  --warn-bg: rgba(240, 189, 102, 0.12);
+  --edit: #93a6f2;
+  --edit-bg: rgba(147, 166, 242, 0.12);
+  --danger: #ec86a1;
+  --danger-bg: rgba(236, 134, 161, 0.12);
+
+  /* ---- Neutres utilitaires (surfaces « verre », ombres, survol) ---- */
+  /* Aliases neutres pour éviter les couleurs en dur dans les composants. */
+  --surface-0: rgba(255, 255, 255, 0.02);
+  --surface-1: rgba(255, 255, 255, 0.035);
+  --surface-2: rgba(255, 255, 255, 0.06);
+  --surface-3: rgba(255, 255, 255, 0.09);
+  --surface-inset: rgba(0, 0, 0, 0.16);
+  --shadow-1: rgba(0, 0, 0, 0.22);
+  --shadow-2: rgba(0, 0, 0, 0.42);
+  --overlay: rgba(0, 0, 0, 0.66);
+  --row-hover: rgba(116, 88, 230, 0.08); /* survol de ligne (tables) */
+  --bg-elevated: rgba(10, 12, 24, 0.98); /* menus / dropdowns opaques */
+
+  --radius: 13px;
+  --side-w: 232px; /* menu latéral complet */
+  --rail-w: 78px; /* menu en rail d'icônes (tablette portrait) */
+  --tr: all 0.16s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 * {
@@ -31,6 +77,8 @@ body,
 
 html {
   scrollbar-gutter: stable;
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgba(124, 118, 194, 0.22) transparent; /* Firefox */
 }
 
 body {
@@ -46,51 +94,51 @@ body {
   overflow: hidden;
 }
 
+/* Scrollbar harmonisée avec le thème (violet) */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--border-ui);
+  background: rgba(124, 118, 194, 0.22);
   border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--accent-purple);
+  background-clip: padding-box;
 }
 
+/* Lueur néon sélective (à réserver à quelques encadrés) */
 .neon {
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
-    0 0 18px var(--glow-blue),
-    0 0 26px var(--glow-pink);
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 0 16px var(--glow-blue),
+    0 0 22px var(--glow-pink);
 }
-
 .neon:hover {
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.07) inset,
-    0 0 26px var(--neon-blue),
-    0 0 34px var(--neon-pink);
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+    0 0 22px var(--neon-blue),
+    0 0 30px var(--neon-pink);
 }
-
 .neon.neon--no-hover:hover {
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
-    0 0 18px var(--glow-blue),
-    0 0 26px var(--glow-pink);
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 0 16px var(--glow-blue),
+    0 0 22px var(--glow-pink);
 }
 
 .logo {
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
-  border-radius: 10px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 20px var(--glow-cyan);
-  overflow: hidden;
 }
 
 .logo-img {

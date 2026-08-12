@@ -13,6 +13,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import SwitchField from '@/components/ui/form/SwitchField.vue'
+import { useConfirm } from '@/composables/useConfirm'
 import { updateAccountStatusService } from '@/services/accountsService'
 import type { Account, AccountTableRow } from '@/types/account'
 import { isAccountActive, isAccountDeleted } from '@/utils/account/status'
@@ -30,6 +31,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { confirm } = useConfirm()
 const busy = ref(false)
 const isActive = computed(() => isAccountActive(props.account.status))
 const isDeleted = computed(() => isAccountDeleted(props.account.status))
@@ -45,7 +47,7 @@ const accountName = computed(() => {
 })
 
 const switchTitle = computed(() =>
-  isActive.value ? t('accounts.table.actions.disable') : t('accounts.table.actions.enable'),
+  isActive.value ? t('accounts.table.actions.disable') : t('accounts.table.actions.enable')
 )
 
 function setBusy(value: boolean): void {
@@ -64,11 +66,18 @@ async function toggleStatus(): Promise<void> {
     ? 'accounts.table.actions.disableConfirm'
     : 'accounts.table.actions.enableConfirm'
 
-  const confirmed = window.confirm(
-    t(confirmKey, {
+  const confirmed = await confirm({
+    title: isActive.value
+      ? t('accounts.table.actions.disable')
+      : t('accounts.table.actions.enable'),
+    message: t(confirmKey, {
       name: accountName.value,
     }),
-  )
+    confirmLabel: isActive.value
+      ? t('accounts.table.actions.disable')
+      : t('accounts.table.actions.enable'),
+    cancelLabel: t('confirm.cancel'),
+  })
 
   if (!confirmed) {
     return

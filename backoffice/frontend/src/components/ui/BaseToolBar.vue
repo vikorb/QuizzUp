@@ -1,26 +1,36 @@
 <template>
   <BaseCard class="toolbar-card" :neon="false" :no-hover="true">
-    <div
-      class="toolbar"
-      :class="{ 'toolbar--collapsed': isCollapsed }"
-      :style="toolbarStyle"
-    >
+    <div class="toolbar" :class="{ 'toolbar--collapsed': isCollapsed }" :style="toolbarStyle">
       <div class="toolbar__header">
-        <button
-          v-if="collapsible"
+        <div
           class="toolbar__toggle"
-          type="button"
-          :aria-expanded="!isCollapsed"
-          :aria-label="toggleLabel"
-          @click="toggleCollapsed"
+          :class="{ 'toolbar__toggle--clickable': collapsible }"
+          :role="collapsible ? 'button' : undefined"
+          :tabindex="collapsible ? 0 : undefined"
+          :aria-expanded="collapsible ? !isCollapsed : undefined"
+          :aria-label="collapsible ? toggleLabel : undefined"
+          @click="collapsible && toggleCollapsed()"
+          @keydown.enter.prevent="collapsible && toggleCollapsed()"
+          @keydown.space.prevent="collapsible && toggleCollapsed()"
         >
-          <MdIcon :path="toggleIcon" :size="20" />
+          <MdIcon v-if="collapsible" class="toolbar__chevron" :path="toggleIcon" :size="20" />
           <span class="toolbar__title">{{ title }}</span>
-        </button>
 
-        <h3 v-else class="toolbar__title">
-          {{ title }}
-        </h3>
+          <div v-if="activeFilters.length > 0" class="toolbar__chips">
+            <span v-for="filter in activeFilters" :key="filter.key" class="toolbar__chip">
+              <span class="toolbar__chip-text">{{ filter.label }}</span>
+              <button
+                v-if="filter.onRemove"
+                class="toolbar__chip-remove"
+                type="button"
+                :aria-label="`${removeLabel} ${filter.label}`"
+                @click.stop="filter.onRemove"
+              >
+                <MdIcon :path="mdiClose" :size="12" />
+              </button>
+            </span>
+          </div>
+        </div>
 
         <div class="toolbar__actions">
           <UiButton
@@ -36,12 +46,7 @@
             </span>
           </UiButton>
 
-          <UiButton
-            v-if="showPrimary"
-            variant="primary"
-            type="button"
-            @click="$emit('primary')"
-          >
+          <UiButton v-if="showPrimary" variant="primary" type="button" @click="$emit('primary')">
             <span class="toolbar__button-content">
               <MdIcon v-if="primaryIcon" :path="primaryIcon" :size="18" />
               <span>{{ primaryLabel }}</span>
@@ -58,13 +63,19 @@
 </template>
 
 <script setup lang="ts">
-import { mdiChevronDown, mdiChevronUp } from '@mdi/js'
+import { mdiChevronDown, mdiChevronUp, mdiClose } from '@mdi/js'
 import type { CSSProperties } from 'vue'
 import { computed, ref } from 'vue'
 
 import BaseCard from '@/components/ui/BaseCard.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+
+export type ActiveFilter = {
+  key: string
+  label: string
+  onRemove?: () => void
+}
 
 const props = withDefaults(
   defineProps<{
@@ -80,6 +91,8 @@ const props = withDefaults(
     showPrimary?: boolean
     filterMinWidth?: string
     filterGap?: string
+    activeFilters?: ActiveFilter[]
+    removeLabel?: string
   }>(),
   {
     title: 'Filtres',
@@ -94,7 +107,9 @@ const props = withDefaults(
     showPrimary: false,
     filterMinWidth: '170px',
     filterGap: '12px',
-  },
+    activeFilters: () => [],
+    removeLabel: 'Retirer',
+  }
 )
 
 defineEmits<{
@@ -109,13 +124,13 @@ const toolbarStyle = computed(
     ({
       '--toolbar-filter-min-width': props.filterMinWidth,
       '--toolbar-filter-gap': props.filterGap,
-    }) as CSSProperties,
+    }) as CSSProperties
 )
 
 const toggleIcon = computed(() => (isCollapsed.value ? mdiChevronDown : mdiChevronUp))
 
 const toggleLabel = computed(() =>
-  isCollapsed.value ? 'Afficher les filtres' : 'Masquer les filtres',
+  isCollapsed.value ? 'Afficher les filtres' : 'Masquer les filtres'
 )
 
 function toggleCollapsed(): void {
@@ -129,22 +144,29 @@ function toggleCollapsed(): void {
   width: 100%;
   min-width: 0;
   overflow: visible;
-  z-index: 1;
+  /* Au-dessus de la table (dont l'en-tête sticky) pour que les menus de select
+     ouverts passent par-dessus tout. */
+  z-index: 50;
+}
+
+/* Barre de filtres plus compacte : ce ne sont que des filtres. */
+.toolbar-card.toolbar-card {
+  padding: 11px 14px;
 }
 
 .toolbar {
   display: grid;
   width: 100%;
   min-width: 0;
-  gap: 18px;
+  gap: 14px;
   overflow: visible;
 }
 
 .toolbar__header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 16px;
   min-width: 0;
   overflow: visible;
 }
@@ -156,23 +178,31 @@ function toggleCollapsed(): void {
   display: inline-flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 8px;
+  gap: 10px;
 
-  min-height: 42px;
+  min-height: 34px;
   padding: 0;
   border: 0;
   background: transparent;
   color: var(--text-0);
   font: inherit;
+}
+
+.toolbar__toggle--clickable {
   cursor: pointer;
 }
 
-.toolbar__toggle:hover {
+.toolbar__toggle--clickable:hover .toolbar__title,
+.toolbar__toggle--clickable:hover .toolbar__chevron {
   color: var(--primary);
 }
 
+.toolbar__chevron {
+  flex: 0 0 auto;
+}
+
 .toolbar__title {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   margin: 0;
   font-size: 15px;
@@ -186,6 +216,7 @@ function toggleCollapsed(): void {
 
 .toolbar__actions {
   flex: 0 0 auto;
+  margin-left: auto;
 
   display: flex;
   align-items: center;
@@ -202,12 +233,68 @@ function toggleCollapsed(): void {
   gap: 8px;
 }
 
+/* Balises des filtres actifs : à droite du titre, panneau déplié ou non. */
+.toolbar__chips {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.toolbar__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 7px 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-2);
+  background: var(--glow-soft);
+  color: var(--text-1);
+  font-size: 12px;
+  font-weight: 600;
+  animation: toolbar-chip-in 0.22s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@keyframes toolbar-chip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.toolbar__chip-remove {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  line-height: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text-3);
+  cursor: pointer;
+  transition: var(--tr);
+}
+
+.toolbar__chip-remove:hover {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.toolbar__chip-remove :deep(svg) {
+  display: block;
+}
+
 .toolbar__filters {
   display: grid;
-  grid-template-columns: repeat(
-    auto-fit,
-    minmax(min(100%, var(--toolbar-filter-min-width)), 1fr)
-  );
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--toolbar-filter-min-width)), 1fr));
   align-items: end;
   gap: var(--toolbar-filter-gap);
   width: 100%;
@@ -246,11 +333,11 @@ function toggleCollapsed(): void {
 .toolbar__filters :deep(.select-field__trigger),
 .toolbar__filters :deep(.form-field__control),
 .toolbar__filters :deep(.form-field__input) {
-  min-height: 46px;
+  min-height: 42px;
 }
 
 .toolbar :deep(.ui-btn) {
-  min-height: 42px;
+  min-height: 38px;
 }
 
 @media (max-width: 1100px) {

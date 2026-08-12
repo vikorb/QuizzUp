@@ -21,6 +21,16 @@
       required
     />
 
+    <FormStatusToggle
+      v-if="mode === 'edit'"
+      :active="isQuestionActive"
+      :label="$t('questions.form.status.label')"
+      :help="statusHelp"
+      :disabled="saving || isQuestionDeleted"
+      :pending="isStatusPending"
+      @toggle="toggleStatus"
+    />
+
     <div class="question-form__grid">
       <SelectField
         id="question-type-media"
@@ -41,9 +51,17 @@
 
     <section class="question-form__answers">
       <div class="question-form__answers-header">
-        <h3>{{ $t('questions.form.answers') }}</h3>
+        <div class="question-form__answers-title">
+          <h3>{{ $t('questions.form.answers') }}</h3>
+          <Tooltip :text="$t('questions.form.answersRules')" />
+        </div>
 
-        <UiButton type="button" variant="default" :disabled="saving" @click="addAnswer">
+        <UiButton
+          type="button"
+          variant="default"
+          :disabled="saving || form.answers.length >= 4"
+          @click="addAnswer"
+        >
           {{ $t('questions.form.addAnswer') }}
         </UiButton>
       </div>
@@ -64,16 +82,15 @@
           required
         />
 
-        <label class="question-form__correct">
-          <input
-            type="radio"
-            name="correct-answer"
-            :checked="answer.isCorrect"
-            :disabled="saving"
-            @change="setCorrectAnswer(index)"
+        <div class="question-form__correct">
+          <SwitchField
+            :model-value="answer.isCorrect"
+            :disabled="saving || (answer.isCorrect && correctCount <= 1)"
+            :label="$t('questions.form.correctAnswer')"
+            @change="toggleCorrect(index)"
           />
           <span>{{ $t('questions.form.correctAnswer') }}</span>
-        </label>
+        </div>
 
         <UiButton
           type="button"
@@ -82,7 +99,7 @@
           :title="$t('questions.form.removeAnswer')"
           @click="removeAnswer(index)"
         >
-          🗑️
+          <MdIcon :path="mdiTrashCanOutline" :size="18" />
         </UiButton>
       </div>
     </section>
@@ -101,11 +118,17 @@
 </template>
 
 <script setup lang="ts">
+import { mdiTrashCanOutline } from '@mdi/js'
 import {
   QUESTION_MEDIA_TYPE_AUDIO,
   QUESTION_MEDIA_TYPE_IMAGE,
   QUESTION_MEDIA_TYPE_NONE,
   QUESTION_MEDIA_TYPE_VIDEO,
+  QUESTION_STATUS_ACTIVE,
+  QUESTION_STATUS_DELETED,
+  QUESTION_STATUS_DRAFT,
+  QUESTION_STATUS_INACTIVE,
+  type QuestionStatus,
 } from '@quizzup/shared'
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -113,7 +136,11 @@ import { useI18n } from 'vue-i18n'
 import FormActions from '@/components/ui/form/FormActions.vue'
 import FormField from '@/components/ui/form/FormField.vue'
 import FormResult from '@/components/ui/form/FormResult.vue'
+import FormStatusToggle from '@/components/ui/form/FormStatusToggle.vue'
 import SelectField from '@/components/ui/form/SelectField.vue'
+import SwitchField from '@/components/ui/form/SwitchField.vue'
+import MdIcon from '@/components/ui/MdIcon.vue'
+import Tooltip from '@/components/ui/Tooltip.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { createQuestionService, updateQuestionService } from '@/services/questionsService'
 import type { SelectFieldOption } from '@/types/form'
@@ -146,6 +173,7 @@ const form = reactive({
   question: '',
   typeMedia: QUESTION_MEDIA_TYPE_NONE as QuestionMediaType,
   mediaUrl: '',
+  status: QUESTION_STATUS_ACTIVE as QuestionStatus,
   answers: [
     { response: '', isCorrect: true },
     { response: '', isCorrect: false },
@@ -165,6 +193,43 @@ const formSuccess = ref<string | null>(null)
 const submitLabel = computed(() =>
   props.mode === 'edit' ? t('questions.form.save') : t('questions.form.create')
 )
+
+const correctCount = computed(() => form.answers.filter((answer) => answer.isCorrect).length)
+
+const isQuestionActive = computed(() => form.status === QUESTION_STATUS_ACTIVE)
+const isQuestionDeleted = computed(() => form.status === QUESTION_STATUS_DELETED)
+const isStatusPending = computed(
+  () => Boolean(props.question) && form.status !== props.question?.status
+)
+
+function toQuestionStatus(status: unknown): QuestionStatus {
+  if (
+    status === QUESTION_STATUS_ACTIVE ||
+    status === QUESTION_STATUS_INACTIVE ||
+    status === QUESTION_STATUS_DELETED ||
+    status === QUESTION_STATUS_DRAFT
+  ) {
+    return status
+  }
+
+  return QUESTION_STATUS_INACTIVE
+}
+
+function toggleStatus(): void {
+  form.status = isQuestionActive.value ? QUESTION_STATUS_INACTIVE : QUESTION_STATUS_ACTIVE
+}
+
+const statusHelp = computed(() => {
+  if (isStatusPending.value) {
+    return isQuestionActive.value
+      ? t('questions.form.status.pendingActiveHelp')
+      : t('questions.form.status.pendingInactiveHelp')
+  }
+
+  return isQuestionActive.value
+    ? t('questions.form.status.activeHelp')
+    : t('questions.form.status.inactiveHelp')
+})
 
 const typeMediaOptions = computed<SelectFieldOption[]>(() => [
   {
@@ -195,6 +260,7 @@ watch(
       form.question = ''
       form.typeMedia = QUESTION_MEDIA_TYPE_NONE
       form.mediaUrl = ''
+      form.status = QUESTION_STATUS_ACTIVE
       form.answers = [
         { response: '', isCorrect: true },
         { response: '', isCorrect: false },
@@ -206,6 +272,7 @@ watch(
     form.question = question.question
     form.typeMedia = question.typeMedia
     form.mediaUrl = question.mediaUrl ?? ''
+    form.status = toQuestionStatus(question.status)
     form.answers = question.answers?.length
       ? question.answers.map((answer) => ({
           id: answer.id,
@@ -288,7 +355,7 @@ function validateForm(): boolean {
     errors.answers = 'questions.form.errors.answerRequired'
   }
 
-  if (form.answers.filter((answer) => answer.isCorrect).length !== 1) {
+  if (form.answers.filter((answer) => answer.isCorrect).length < 1) {
     errors.answers = 'questions.form.errors.oneCorrectRequired'
   }
 
@@ -310,15 +377,16 @@ function removeAnswer(index: number): void {
   }
 }
 
-function setCorrectAnswer(index: number): void {
-  form.answers = form.answers.map((answer, answerIndex) => ({
-    ...answer,
-    isCorrect: answerIndex === index,
-  }))
+function toggleCorrect(index: number): void {
+  const answer = form.answers[index]
+
+  if (answer) {
+    answer.isCorrect = !answer.isCorrect
+  }
 }
 
 function buildPayload(): QuestionPayload {
-  return {
+  const payload: QuestionPayload = {
     themeIds: form.themeIds,
     question: form.question.trim(),
     typeMedia: form.typeMedia,
@@ -329,6 +397,12 @@ function buildPayload(): QuestionPayload {
       isCorrect: answer.isCorrect,
     })),
   }
+
+  if (props.mode === 'edit') {
+    payload.status = form.status
+  }
+
+  return payload
 }
 
 async function submitForm(): Promise<void> {
@@ -387,6 +461,12 @@ async function submitForm(): Promise<void> {
   gap: 16px;
 }
 
+.question-form__answers-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .question-form__answers-header h3 {
   margin: 0;
   color: var(--text-0);
@@ -424,7 +504,7 @@ async function submitForm(): Promise<void> {
 
 .question-form__error {
   margin: 0;
-  color: #ff8a8a;
+  color: var(--danger);
   font-size: 13px;
   font-weight: 800;
 }

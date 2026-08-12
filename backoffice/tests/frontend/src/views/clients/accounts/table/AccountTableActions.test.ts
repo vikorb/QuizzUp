@@ -4,20 +4,18 @@ import {
   mockDeleteAccountFailure,
   mockDeleteAccountSuccess,
 } from '@frontend-tests/_helpers/accountsServiceMock'
+import { confirmMock, setConfirmResult } from '@frontend-tests/_helpers/confirmMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { pushMock } from '@frontend-tests/_helpers/routerMock'
 import { ADMIN_STATUS_DELETED } from '@quizzup/shared'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { flushPromises } from '@vue/test-utils'
+import { describe, expect, it } from 'vitest'
 import { nextTick } from 'vue'
 
 import AccountTableActions from '@/views/clients/accounts/table/AccountTableActions.vue'
 
 resetFrontendMocksBeforeEach()
-
-afterEach(() => {
-  vi.restoreAllMocks()
-})
 
 function actionButtons(wrapper: ReturnType<typeof mountWithFrontendMocks>) {
   return wrapper.findAll('[data-test="ui-button"]')
@@ -46,7 +44,7 @@ describe('views/clients/accounts/table/AccountTableActions.vue', () => {
   })
 
   it('confirms and soft-deletes an account', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    setConfirmResult(true)
     mockDeleteAccountSuccess()
 
     const wrapper = mountWithFrontendMocks(AccountTableActions, {
@@ -65,10 +63,15 @@ describe('views/clients/accounts/table/AccountTableActions.vue', () => {
     })
 
     await actionButtons(wrapper)[1].trigger('click')
-    await nextTick()
+    await flushPromises()
     await nextTick()
 
-    expect(window.confirm).toHaveBeenCalledWith('accounts.table.actions.deleteConfirm')
+    expect(confirmMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'accounts.table.actions.deleteConfirm',
+        variant: 'danger',
+      })
+    )
     expect(deleteAccountServiceMock).toHaveBeenCalledWith(1, 1)
     expect(wrapper.emitted('updated')?.[0]?.[0]).toMatchObject({
       status: ADMIN_STATUS_DELETED,
@@ -77,7 +80,7 @@ describe('views/clients/accounts/table/AccountTableActions.vue', () => {
   })
 
   it('does not call delete API when confirmation is cancelled', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    setConfirmResult(false)
 
     const wrapper = mountWithFrontendMocks(AccountTableActions, {
       props: {
@@ -95,13 +98,14 @@ describe('views/clients/accounts/table/AccountTableActions.vue', () => {
     })
 
     await actionButtons(wrapper)[1].trigger('click')
+    await flushPromises()
 
     expect(deleteAccountServiceMock).not.toHaveBeenCalled()
     expect(wrapper.emitted('deleted')).toBeUndefined()
   })
 
   it('emits error when deletion fails', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    setConfirmResult(true)
     mockDeleteAccountFailure('server_error')
 
     const wrapper = mountWithFrontendMocks(AccountTableActions, {
@@ -120,7 +124,7 @@ describe('views/clients/accounts/table/AccountTableActions.vue', () => {
     })
 
     await actionButtons(wrapper)[1].trigger('click')
-    await nextTick()
+    await flushPromises()
     await nextTick()
 
     expect(wrapper.emitted('error')).toEqual([['server_error']])

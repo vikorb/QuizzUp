@@ -29,15 +29,11 @@
       </template>
 
       <template #cell-scope="{ value }">
-        <span class="scope" :class="getScopeClass(value)">
-          {{ getScopeLabel(value) }}
-        </span>
+        <ScopeChip :tone="getScopeTone(value)" :label="getScopeLabel(value)" />
       </template>
 
       <template #cell-status="{ value }">
-        <span class="status" :class="getStatusClass(value)">
-          {{ getStatusLabel(value) }}
-        </span>
+        <StatusPill :tone="getStatusTone(value)" :label="getStatusLabel(value)" />
       </template>
 
       <template #cell-questionsCount="{ value }">
@@ -71,6 +67,8 @@ import { useI18n } from 'vue-i18n'
 
 import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseTable from '@/components/ui/BaseTable.vue'
+import ScopeChip from '@/components/ui/ScopeChip.vue'
+import StatusPill from '@/components/ui/StatusPill.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { authState } from '@/state/authState'
 import type { Theme } from '@/types/theme'
@@ -102,8 +100,8 @@ const columns = computed(() => [
   { key: 'mode', label: t('themes.table.columns.mode') },
   { key: 'scope', label: t('themes.table.columns.scope') },
   { key: 'status', label: t('themes.table.columns.status') },
-  { key: 'questionsCount', label: t('themes.table.columns.questions') },
-  { key: 'actions', label: t('themes.table.columns.actions') },
+  { key: 'questionsCount', label: t('themes.table.columns.questions'), align: 'center' as const },
+  { key: 'actions', label: t('themes.table.columns.actions'), align: 'right' as const },
 ])
 
 const tableItems = computed<ThemeTableRow[]>(() => props.themes.map((theme) => ({ ...theme })))
@@ -122,8 +120,8 @@ function getScopeLabel(scope: unknown): string {
   return scope === THEME_SCOPE_GLOBAL ? t('themes.scope.global') : t('themes.scope.company')
 }
 
-function getScopeClass(scope: unknown): string {
-  return scope === THEME_SCOPE_GLOBAL ? 'scope--global' : 'scope--company'
+function getScopeTone(scope: unknown): 'blue' | 'violet' {
+  return scope === THEME_SCOPE_GLOBAL ? 'blue' : 'violet'
 }
 
 function getModeLabel(mode: unknown): string {
@@ -150,24 +148,20 @@ function getStatusLabel(status: unknown): string {
   return t('themes.status.deleted')
 }
 
-function getStatusClass(status: unknown): string {
+function getStatusTone(status: unknown): 'ok' | 'warn' | 'danger' | 'muted' {
   if (status === THEME_STATUS_ACTIVE) {
-    return 'status--active'
-  }
-
-  if (status === THEME_STATUS_INACTIVE) {
-    return 'status--inactive'
+    return 'ok'
   }
 
   if (status === THEME_STATUS_DRAFT) {
-    return 'status--draft'
+    return 'warn'
   }
 
   if (status === THEME_STATUS_DELETED) {
-    return 'status--deleted'
+    return 'danger'
   }
 
-  return 'status--unknown'
+  return 'muted'
 }
 </script>
 
@@ -180,10 +174,10 @@ function getStatusClass(status: unknown): string {
 .theme-name {
   padding: 0;
   border: 0;
-  color: var(--primary);
+  color: var(--text-0);
   background: transparent;
   font: inherit;
-  font-weight: 900;
+  font-weight: 700;
   cursor: pointer;
 }
 
@@ -199,49 +193,7 @@ function getStatusClass(status: unknown): string {
   font-weight: 800;
 }
 
-.scope,
-.status {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  padding: 3px 9px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.scope--global {
-  color: #91c7ff;
-  background: rgba(80, 160, 255, 0.12);
-}
-
-.scope--company {
-  color: #d6a6ff;
-  background: rgba(190, 100, 255, 0.12);
-}
-
-.status--inactive {
-  color: #ffd36e;
-  background: rgba(255, 190, 70, 0.12);
-}
-
-.status--active {
-  color: #7dffb2;
-  background: rgba(45, 255, 137, 0.12);
-}
-
-.status--deleted {
-  color: #ff8a8a;
-  background: rgba(255, 107, 107, 0.12);
-}
-
-.status--draft {
-  color: #a7b8ff;
-  background: rgba(120, 145, 255, 0.12);
-}
-
-.status--unknown {
+.questions-count {
   color: var(--text-1);
-  background: rgba(255, 255, 255, 0.08);
 }
 </style>

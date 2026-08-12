@@ -11,13 +11,11 @@
   >
     <div class="questions-manager">
       <div class="questions-manager__header">
-        <div>
+        <div class="questions-manager__heading">
           <h3 class="questions-manager__title">
             {{ $t('themes.questions.addTitle') }}
           </h3>
-          <p class="questions-manager__description">
-            {{ $t('themes.questions.addDescription') }}
-          </p>
+          <Tooltip :text="$t('themes.questions.addDescription')" />
         </div>
 
         <UiButton variant="primary" type="button" :disabled="!canEdit" @click="goToCreateQuestion">
@@ -83,15 +81,10 @@
 
       <div class="linked-questions">
         <div class="linked-questions__header">
-          <div>
-            <h3 class="linked-questions__title">
-              {{ $t('themes.questions.linkedTitle') }}
-            </h3>
-            <p class="linked-questions__count">
-              {{ linkedQuestions.length }}
-              {{ $t('themes.questions.linkedCount') }}
-            </p>
-          </div>
+          <h3 class="linked-questions__title">
+            {{ $t('themes.questions.linkedTitle') }}
+            <span class="linked-questions__badge">{{ linkedQuestions.length }}</span>
+          </h3>
         </div>
 
         <div class="linked-questions__table-wrapper">
@@ -192,7 +185,9 @@ import BaseBanner from '@/components/ui/BaseBanner.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import FormField from '@/components/ui/form/FormField.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
+import Tooltip from '@/components/ui/Tooltip.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import { useConfirm } from '@/composables/useConfirm'
 import {
   attachQuestionToThemeService,
   detachQuestionFromThemeService,
@@ -214,6 +209,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+const { confirm } = useConfirm()
 const router = useRouter()
 
 const questions = ref<Question[]>([])
@@ -321,11 +317,15 @@ async function detachQuestion(question: Question): Promise<void> {
     return
   }
 
-  const confirmed = window.confirm(
-    t('themes.questions.removeConfirm', {
+  const confirmed = await confirm({
+    title: t('themes.questions.remove'),
+    message: t('themes.questions.removeConfirm', {
       question: question.question,
-    })
-  )
+    }),
+    confirmLabel: t('themes.questions.remove'),
+    cancelLabel: t('confirm.cancel'),
+    variant: 'danger',
+  })
 
   if (!confirmed) {
     return
@@ -488,6 +488,29 @@ onMounted(loadQuestions)
   font-weight: 900;
 }
 
+.questions-manager__heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.linked-questions__badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 8px;
+  margin-left: 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-2);
+  background: var(--glow-soft);
+  color: var(--accent-pink);
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  vertical-align: middle;
+}
+
 .questions-manager__description,
 .linked-questions__count {
   margin: 6px 0 0;
@@ -510,11 +533,9 @@ onMounted(loadQuestions)
   justify-content: space-between;
   gap: 14px;
   padding: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-2);
   border-radius: 16px;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
-    rgba(10, 14, 28, 0.72);
+  background: linear-gradient(135deg, var(--surface-2), var(--surface-0)), var(--bg-card);
 }
 
 .question-result__content {
@@ -541,7 +562,7 @@ onMounted(loadQuestions)
 .linked-questions__empty {
   margin: 0;
   padding: 18px;
-  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border: 1px dashed var(--border-2);
   border-radius: 16px;
   color: var(--text-2);
   text-align: center;
@@ -554,7 +575,7 @@ onMounted(loadQuestions)
 
 .linked-questions__table-wrapper {
   overflow-x: auto;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-2);
   border-radius: 18px;
 }
 
@@ -567,7 +588,7 @@ onMounted(loadQuestions)
 .linked-questions__table th,
 .linked-questions__table td {
   padding: 14px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom: 1px solid var(--border-ui);
   text-align: left;
   vertical-align: middle;
 }
@@ -597,7 +618,7 @@ onMounted(loadQuestions)
 }
 
 .question-remove {
-  color: #ff6b6b;
+  color: var(--danger);
 }
 
 .question-link {
@@ -624,34 +645,35 @@ onMounted(loadQuestions)
   padding: 3px 9px;
   border-radius: 999px;
   color: var(--text-2);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--surface-3);
   font-size: 12px;
   font-weight: 800;
 }
 
+/* Pills de statut : actif = teal, brouillon = ambre, inactif = éteint. */
 .pill--active {
-  color: #7dffb2;
-  background: rgba(45, 255, 137, 0.12);
+  color: var(--ok);
+  background: var(--ok-bg);
 }
 
 .pill--inactive {
-  color: #ffd36e;
-  background: rgba(255, 190, 70, 0.12);
+  color: var(--text-2);
+  background: var(--surface-3);
 }
 
 .pill--draft {
-  color: #a7b8ff;
-  background: rgba(120, 145, 255, 0.12);
+  color: var(--warn);
+  background: var(--warn-bg);
 }
 
 .pill--deleted {
-  color: #ff8a8a;
-  background: rgba(255, 107, 107, 0.12);
+  color: var(--danger);
+  background: var(--danger-bg);
 }
 
 .pill--warning {
-  color: #ffd36e;
-  background: rgba(255, 190, 70, 0.12);
+  color: var(--warn);
+  background: var(--warn-bg);
 }
 
 @media (max-width: 720px) {
