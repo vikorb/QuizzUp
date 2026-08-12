@@ -569,7 +569,6 @@ onBeforeUnmount(() => {
   box-shadow:
     0 24px 70px var(--shadow-2),
     inset 0 1px 0 var(--surface-2);
-  backdrop-filter: blur(16px);
 }
 
 .theme-multiselect__dropdown-head {

@@ -82,7 +82,7 @@
           :title="$t('questions.form.removeAnswer')"
           @click="removeAnswer(index)"
         >
-          🗑️
+          <MdIcon :path="mdiTrashCanOutline" :size="18" />
         </UiButton>
       </div>
     </section>
@@ -101,6 +101,7 @@
 </template>
 
 <script setup lang="ts">
+import { mdiTrashCanOutline } from '@mdi/js'
 import {
   QUESTION_MEDIA_TYPE_AUDIO,
   QUESTION_MEDIA_TYPE_IMAGE,
@@ -114,6 +115,7 @@ import FormActions from '@/components/ui/form/FormActions.vue'
 import FormField from '@/components/ui/form/FormField.vue'
 import FormResult from '@/components/ui/form/FormResult.vue'
 import SelectField from '@/components/ui/form/SelectField.vue'
+import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { createQuestionService, updateQuestionService } from '@/services/questionsService'
 import type { SelectFieldOption } from '@/types/form'

@@ -67,7 +67,7 @@ const props = withDefaults(
     as: 'input',
     required: false,
     disabled: false,
-    neon: true,
+    neon: false,
   }
 )
 

@@ -29,6 +29,7 @@ const variantClass = computed(() => `ui-btn--${props.variant}`)
   padding: 10px 18px;
   font-size: 14px;
   font-weight: 600;
+  line-height: 1;
   cursor: pointer;
   transition: var(--tr);
 }
