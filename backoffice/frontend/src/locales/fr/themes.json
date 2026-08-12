@@ -105,6 +105,10 @@
       }
     },
     "form": {
+      "status": {
+        "label": "Statut du thème",
+        "help": "Actif : le thème est disponible pour les parties. Inactif : masqué."
+      },
       "name": "Nom",
       "namePlaceholder": "Ex : Culture générale",
       "mode": "Mode",

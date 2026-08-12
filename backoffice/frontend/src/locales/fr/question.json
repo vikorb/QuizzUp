@@ -49,6 +49,10 @@
       }
     },
     "form": {
+      "status": {
+        "label": "Statut de la question",
+        "help": "Actif : la question peut être tirée en partie. Inactif : mise de côté."
+      },
       "theme": "Thème",
       "themes": "Thèmes",
       "themesHint": "Une question peut maintenant appartenir à plusieurs thèmes. Sélectionnez un ou plusieurs thèmes visibles pour votre rôle.",
@@ -67,6 +71,7 @@
       "mediaUrl": "URL du média",
       "mediaUrlPlaceholder": "Saisissez l'URL du média",
       "answers": "Réponses",
+      "answersRules": "Entre 2 et 4 réponses, avec au moins une bonne réponse.",
       "addAnswer": "Ajouter une réponse",
       "answerLabel": "Réponse {index}",
       "answerPlaceholder": "Saisissez la réponse {index}",

@@ -60,6 +60,7 @@ export interface QuestionPayload {
   typeMedia: QuestionMediaType
   mediaUrl: string | null
   answers: Answer[]
+  status?: number
 }
 
 export type UpdateQuestionStatusResult =
