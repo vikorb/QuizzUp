@@ -74,7 +74,7 @@
         :aria-label="$t('questions.form.selectTheme')"
         @click.stop="toggleDropdown"
       >
-        <span aria-hidden="true">⌄</span>
+        <MdIcon :path="mdiChevronDown" :size="20" />
       </button>
     </div>
 
@@ -128,9 +128,11 @@
 </template>
 
 <script setup lang="ts">
+import { mdiChevronDown } from '@mdi/js'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import MdIcon from '@/components/ui/MdIcon.vue'
 import type { Theme } from '@/types/question'
 
 const props = withDefaults(
@@ -234,6 +236,24 @@ function closeDropdown(): void {
   isOpen.value = false
   highlightedIndex.value = 0
 }
+
+function handleOutsidePointer(event: Event): void {
+  if (!isOpen.value) {
+    return
+  }
+
+  if (rootRef.value && !rootRef.value.contains(event.target as Node)) {
+    closeDropdown()
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('pointerdown', handleOutsidePointer)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', handleOutsidePointer)
+})
 
 function toggleDropdown(): void {
   if (isOpen.value) {
@@ -569,6 +589,17 @@ onBeforeUnmount(() => {
   box-shadow:
     0 24px 70px var(--shadow-2),
     inset 0 1px 0 var(--surface-2);
+}
+
+.theme-multiselect__toggle {
+  display: grid;
+  place-items: center;
+}
+.theme-multiselect__toggle :deep(svg) {
+  transition: transform 0.2s ease;
+}
+.theme-multiselect--open .theme-multiselect__toggle :deep(svg) {
+  transform: rotate(180deg);
 }
 
 .theme-multiselect__dropdown-head {

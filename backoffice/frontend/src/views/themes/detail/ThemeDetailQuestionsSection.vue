@@ -11,13 +11,11 @@
   >
     <div class="questions-manager">
       <div class="questions-manager__header">
-        <div>
+        <div class="questions-manager__heading">
           <h3 class="questions-manager__title">
             {{ $t('themes.questions.addTitle') }}
           </h3>
-          <p class="questions-manager__description">
-            {{ $t('themes.questions.addDescription') }}
-          </p>
+          <Tooltip :text="$t('themes.questions.addDescription')" />
         </div>
 
         <UiButton variant="primary" type="button" :disabled="!canEdit" @click="goToCreateQuestion">
@@ -83,15 +81,10 @@
 
       <div class="linked-questions">
         <div class="linked-questions__header">
-          <div>
-            <h3 class="linked-questions__title">
-              {{ $t('themes.questions.linkedTitle') }}
-            </h3>
-            <p class="linked-questions__count">
-              {{ linkedQuestions.length }}
-              {{ $t('themes.questions.linkedCount') }}
-            </p>
-          </div>
+          <h3 class="linked-questions__title">
+            {{ $t('themes.questions.linkedTitle') }}
+            <span class="linked-questions__badge">{{ linkedQuestions.length }}</span>
+          </h3>
         </div>
 
         <div class="linked-questions__table-wrapper">
@@ -192,6 +185,7 @@ import BaseBanner from '@/components/ui/BaseBanner.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import FormField from '@/components/ui/form/FormField.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
+import Tooltip from '@/components/ui/Tooltip.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import {
@@ -492,6 +486,29 @@ onMounted(loadQuestions)
   color: var(--text-1);
   font-size: 18px;
   font-weight: 900;
+}
+
+.questions-manager__heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.linked-questions__badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 8px;
+  margin-left: 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-2);
+  background: var(--glow-soft);
+  color: var(--accent-pink);
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  vertical-align: middle;
 }
 
 .questions-manager__description,

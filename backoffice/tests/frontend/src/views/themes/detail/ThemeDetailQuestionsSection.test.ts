@@ -48,7 +48,7 @@ describe('views/themes/detail/ThemeDetailQuestionsSection.vue', () => {
     const wrapper = await mountSection()
 
     expect(linkedQuestionLabels(wrapper)).toEqual(['Linked one', 'Linked two'])
-    expect(wrapper.find('.linked-questions__count').text()).toContain('2')
+    expect(wrapper.find('.linked-questions__badge').text()).toContain('2')
   })
 
   it('attaches a searched question and flags questions already linked elsewhere', async () => {
@@ -86,7 +86,7 @@ describe('views/themes/detail/ThemeDetailQuestionsSection.vue', () => {
 
     expect(detachQuestionFromThemeServiceMock).toHaveBeenCalledWith(101, 1)
     expect(linkedQuestionLabels(wrapper)).toEqual(['Linked two'])
-    expect(wrapper.find('.linked-questions__count').text()).toContain('1')
+    expect(wrapper.find('.linked-questions__badge').text()).toContain('1')
     expect(wrapper.find('[data-test="base-banner"]').text()).toContain('questionDetached')
   })
 

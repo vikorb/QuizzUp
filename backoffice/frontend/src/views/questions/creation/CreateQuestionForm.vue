@@ -43,7 +43,12 @@
       <div class="question-form__answers-header">
         <h3>{{ $t('questions.form.answers') }}</h3>
 
-        <UiButton type="button" variant="default" :disabled="saving" @click="addAnswer">
+        <UiButton
+          type="button"
+          variant="default"
+          :disabled="saving || form.answers.length >= 4"
+          @click="addAnswer"
+        >
           {{ $t('questions.form.addAnswer') }}
         </UiButton>
       </div>
@@ -64,16 +69,15 @@
           required
         />
 
-        <label class="question-form__correct">
-          <input
-            type="radio"
-            name="correct-answer"
-            :checked="answer.isCorrect"
-            :disabled="saving"
+        <div class="question-form__correct">
+          <SwitchField
+            :model-value="answer.isCorrect"
+            :disabled="saving || answer.isCorrect"
+            :label="$t('questions.form.correctAnswer')"
             @change="setCorrectAnswer(index)"
           />
           <span>{{ $t('questions.form.correctAnswer') }}</span>
-        </label>
+        </div>
 
         <UiButton
           type="button"
@@ -115,6 +119,7 @@ import FormActions from '@/components/ui/form/FormActions.vue'
 import FormField from '@/components/ui/form/FormField.vue'
 import FormResult from '@/components/ui/form/FormResult.vue'
 import SelectField from '@/components/ui/form/SelectField.vue'
+import SwitchField from '@/components/ui/form/SwitchField.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { createQuestionService, updateQuestionService } from '@/services/questionsService'
