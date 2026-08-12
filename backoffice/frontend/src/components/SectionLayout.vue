@@ -50,30 +50,30 @@ defineProps<{
   -webkit-mask-image: linear-gradient(
     to bottom,
     #000 0%,
-    #000 62%,
-    rgba(0, 0, 0, 0.7) 78%,
-    rgba(0, 0, 0, 0.35) 90%,
+    #000 52%,
+    rgba(0, 0, 0, 0.72) 74%,
+    rgba(0, 0, 0, 0.32) 90%,
     transparent 100%
   );
   mask-image: linear-gradient(
     to bottom,
     #000 0%,
-    #000 62%,
-    rgba(0, 0, 0, 0.7) 78%,
-    rgba(0, 0, 0, 0.35) 90%,
+    #000 52%,
+    rgba(0, 0, 0, 0.72) 74%,
+    rgba(0, 0, 0, 0.32) 90%,
     transparent 100%
   );
   background:
-    radial-gradient(900px 160px at 20% 0%, var(--glow-blue), transparent 72%),
-    radial-gradient(900px 160px at 80% 0%, var(--glow-pink), transparent 72%),
+    radial-gradient(1200px 200px at 12% -60%, rgba(74, 99, 216, 0.55), transparent 72%),
+    radial-gradient(1000px 220px at 88% -50%, rgba(139, 116, 255, 0.5), transparent 72%),
+    radial-gradient(700px 150px at 50% -30%, rgba(87, 224, 176, 0.14), transparent 70%),
     linear-gradient(
       to bottom,
-      var(--overlay) 0%,
-      var(--shadow-2) 55%,
-      var(--shadow-1) 82%,
+      var(--bg-0) 0%,
+      rgba(5, 6, 13, 0.88) 42%,
+      rgba(5, 6, 13, 0.45) 72%,
       transparent 100%
     );
-  border-bottom: 1px solid var(--border-ui);
 }
 
 .header-inner {

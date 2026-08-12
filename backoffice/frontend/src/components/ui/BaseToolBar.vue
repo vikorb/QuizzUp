@@ -148,11 +148,16 @@ function toggleCollapsed(): void {
   z-index: 1;
 }
 
+/* Barre de filtres plus compacte : ce ne sont que des filtres. */
+.toolbar-card.toolbar-card {
+  padding: 11px 14px;
+}
+
 .toolbar {
   display: grid;
   width: 100%;
   min-width: 0;
-  gap: 18px;
+  gap: 14px;
   overflow: visible;
 }
 
@@ -174,7 +179,7 @@ function toggleCollapsed(): void {
   justify-content: flex-start;
   gap: 8px;
 
-  min-height: 42px;
+  min-height: 34px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -272,6 +277,10 @@ function toggleCollapsed(): void {
   background: var(--danger-bg);
 }
 
+.toolbar__chip-remove :deep(svg) {
+  display: block;
+}
+
 .toolbar__filters {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--toolbar-filter-min-width)), 1fr));
@@ -313,11 +322,11 @@ function toggleCollapsed(): void {
 .toolbar__filters :deep(.select-field__trigger),
 .toolbar__filters :deep(.form-field__control),
 .toolbar__filters :deep(.form-field__input) {
-  min-height: 46px;
+  min-height: 42px;
 }
 
 .toolbar :deep(.ui-btn) {
-  min-height: 42px;
+  min-height: 38px;
 }
 
 @media (max-width: 1100px) {
