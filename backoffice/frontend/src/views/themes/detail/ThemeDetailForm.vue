@@ -354,7 +354,6 @@ async function submitForm(): Promise<void> {
 .theme-form {
   display: grid;
   gap: 16px;
-  max-width: 620px;
 }
 
 .theme-form__grid {
