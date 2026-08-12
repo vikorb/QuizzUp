@@ -34,21 +34,35 @@
       @click="focusSearch"
     >
       <div class="theme-multiselect__chips">
-        <button
-          v-for="theme in selectedThemes"
-          :key="theme.id"
-          class="theme-chip"
-          type="button"
-          :disabled="disabled"
-          :title="$t('questions.form.removeTheme')"
-          @click.stop="removeTheme(theme.id)"
-        >
+        <span v-for="theme in selectedThemes" :key="theme.id" class="theme-chip">
+          <a
+            class="theme-chip__open"
+            :href="getThemeHref(theme.id)"
+            target="_blank"
+            rel="noopener"
+            :title="$t('questions.form.openTheme')"
+            :aria-label="$t('questions.form.openTheme')"
+            @click.stop
+          >
+            <MdIcon :path="mdiOpenInNew" :size="14" />
+          </a>
+
           <span class="theme-chip__content">
             <span class="theme-chip__name">{{ theme.name }}</span>
             <span class="theme-chip__meta">{{ getThemeMeta(theme) }}</span>
           </span>
-          <span class="theme-chip__remove" aria-hidden="true">×</span>
-        </button>
+
+          <button
+            class="theme-chip__remove"
+            type="button"
+            :disabled="disabled"
+            :title="$t('questions.form.removeTheme')"
+            :aria-label="$t('questions.form.removeTheme')"
+            @click.stop="removeTheme(theme.id)"
+          >
+            <span aria-hidden="true">×</span>
+          </button>
+        </span>
 
         <input
           :id="inputId"
@@ -130,9 +144,10 @@
 </template>
 
 <script setup lang="ts">
-import { mdiChevronDown } from '@mdi/js'
+import { mdiChevronDown, mdiOpenInNew } from '@mdi/js'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 
 import MdIcon from '@/components/ui/MdIcon.vue'
 import type { Theme } from '@/types/question'
@@ -161,6 +176,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const router = useRouter()
 
 const rootRef = ref<HTMLElement | null>(null)
 const controlRef = ref<HTMLElement | null>(null)
@@ -265,6 +281,10 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', handleOutsidePointer)
 })
+
+function getThemeHref(themeId: number): string {
+  return router.resolve({ name: 'themes-edit', params: { themeId: String(themeId) } }).href
+}
 
 function toggleDropdown(): void {
   if (isOpen.value) {
@@ -526,10 +546,10 @@ onBeforeUnmount(() => {
 .theme-chip {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   max-width: 100%;
   min-height: 34px;
-  padding: 4px 6px 4px 11px;
+  padding: 4px 6px;
   border: 1px solid var(--border-2);
   border-radius: 999px;
   color: var(--text-1);
@@ -576,11 +596,45 @@ onBeforeUnmount(() => {
   place-items: center;
   width: 20px;
   height: 20px;
+  border: 0;
   border-radius: 999px;
   color: var(--text-0);
   background: var(--surface-3);
   font-size: 15px;
   line-height: 1;
+  cursor: pointer;
+  transition: var(--tr);
+}
+
+.theme-chip__remove:hover:not(:disabled) {
+  color: #fff;
+  background: var(--danger);
+}
+
+.theme-chip__remove:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.theme-chip__open {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  color: var(--text-2);
+  background: var(--surface-3);
+  text-decoration: none;
+  transition: var(--tr);
+}
+
+.theme-chip__open:hover {
+  color: var(--accent-pink);
+  background: var(--surface-2);
+}
+
+.theme-chip__open :deep(svg) {
+  display: block;
 }
 
 .theme-multiselect__dropdown {
