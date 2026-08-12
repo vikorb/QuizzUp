@@ -21,6 +21,16 @@
       required
     />
 
+    <FormStatusToggle
+      v-if="mode === 'edit'"
+      :active="isQuestionActive"
+      :label="$t('questions.form.status.label')"
+      :help="statusHelp"
+      :disabled="saving || isQuestionDeleted"
+      :pending="isStatusPending"
+      @toggle="toggleStatus"
+    />
+
     <div class="question-form__grid">
       <SelectField
         id="question-type-media"
@@ -93,16 +103,6 @@
         </UiButton>
       </div>
     </section>
-
-    <FormStatusToggle
-      v-if="mode === 'edit'"
-      :active="isQuestionActive"
-      :label="$t('questions.form.status.label')"
-      :help="$t('questions.form.status.help')"
-      :disabled="saving || isQuestionDeleted"
-      :pending="isStatusPending"
-      @toggle="toggleStatus"
-    />
 
     <FormResult :error="formError" :success="formSuccess" />
 
@@ -218,6 +218,18 @@ function toQuestionStatus(status: unknown): QuestionStatus {
 function toggleStatus(): void {
   form.status = isQuestionActive.value ? QUESTION_STATUS_INACTIVE : QUESTION_STATUS_ACTIVE
 }
+
+const statusHelp = computed(() => {
+  if (isStatusPending.value) {
+    return isQuestionActive.value
+      ? t('questions.form.status.pendingActiveHelp')
+      : t('questions.form.status.pendingInactiveHelp')
+  }
+
+  return isQuestionActive.value
+    ? t('questions.form.status.activeHelp')
+    : t('questions.form.status.inactiveHelp')
+})
 
 const typeMediaOptions = computed<SelectFieldOption[]>(() => [
   {

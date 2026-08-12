@@ -49,7 +49,7 @@
       v-if="mode === 'edit' && canEdit"
       :active="isThemeActive"
       :label="$t('themes.form.status.label')"
-      :help="$t('themes.form.status.help')"
+      :help="statusHelp"
       :disabled="saving || isThemeDeleted"
       :pending="isStatusPending"
       @toggle="toggleStatus"
@@ -152,6 +152,18 @@ const canSubmit = computed(() => props.mode === 'create' || props.canEdit)
 const isThemeActive = computed(() => form.status === THEME_STATUS_ACTIVE)
 const isThemeDeleted = computed(() => form.status === THEME_STATUS_DELETED)
 const isStatusPending = computed(() => Boolean(props.theme) && form.status !== props.theme?.status)
+
+const statusHelp = computed(() => {
+  if (isStatusPending.value) {
+    return isThemeActive.value
+      ? t('themes.form.status.pendingActiveHelp')
+      : t('themes.form.status.pendingInactiveHelp')
+  }
+
+  return isThemeActive.value
+    ? t('themes.form.status.activeHelp')
+    : t('themes.form.status.inactiveHelp')
+})
 
 function toThemeStatus(status: unknown): ThemeStatus {
   if (
@@ -342,6 +354,7 @@ async function submitForm(): Promise<void> {
 .theme-form {
   display: grid;
   gap: 16px;
+  max-width: 620px;
 }
 
 .theme-form__grid {

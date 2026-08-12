@@ -51,7 +51,10 @@
     "form": {
       "status": {
         "label": "Statut de la question",
-        "help": "Actif : la question peut être tirée en partie. Inactif : mise de côté."
+        "activeHelp": "La question est active : elle peut être tirée en partie.",
+        "inactiveHelp": "La question est inactive : mise de côté.",
+        "pendingActiveHelp": "La question passera active après l’enregistrement.",
+        "pendingInactiveHelp": "La question passera inactive après l’enregistrement."
       },
       "theme": "Thème",
       "themes": "Thèmes",

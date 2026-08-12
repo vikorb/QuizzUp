@@ -107,7 +107,10 @@
     "form": {
       "status": {
         "label": "Statut du thème",
-        "help": "Actif : le thème est disponible pour les parties. Inactif : masqué."
+        "activeHelp": "Le thème est actif : disponible pour les parties.",
+        "inactiveHelp": "Le thème est inactif : masqué des parties.",
+        "pendingActiveHelp": "Le thème passera actif après l’enregistrement.",
+        "pendingInactiveHelp": "Le thème passera inactif après l’enregistrement."
       },
       "name": "Nom",
       "namePlaceholder": "Ex : Culture générale",
