@@ -25,6 +25,7 @@
     </div>
 
     <div
+      ref="controlRef"
       class="theme-multiselect__control"
       role="combobox"
       aria-haspopup="listbox"
@@ -82,6 +83,7 @@
       <div
         v-if="isOpen && !disabled"
         :id="dropdownId"
+        ref="dropdownRef"
         class="theme-multiselect__dropdown"
         role="listbox"
       >
@@ -161,6 +163,8 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const rootRef = ref<HTMLElement | null>(null)
+const controlRef = ref<HTMLElement | null>(null)
+const dropdownRef = ref<HTMLElement | null>(null)
 const searchInputRef = ref<HTMLInputElement | null>(null)
 const searchQuery = ref('')
 const isOpen = ref(false)
@@ -242,7 +246,14 @@ function handleOutsidePointer(event: Event): void {
     return
   }
 
-  if (rootRef.value && !rootRef.value.contains(event.target as Node)) {
+  // On garde le menu ouvert seulement si l'on clique dans le contrôle (champ,
+  // chips, chevron) ou dans le menu lui-même ; sinon (titre, compteur, dehors)
+  // on ferme.
+  const target = event.target as Node
+  const insideControl = controlRef.value?.contains(target)
+  const insideDropdown = dropdownRef.value?.contains(target)
+
+  if (!insideControl && !insideDropdown) {
     closeDropdown()
   }
 }

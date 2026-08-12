@@ -72,9 +72,9 @@
         <div class="question-form__correct">
           <SwitchField
             :model-value="answer.isCorrect"
-            :disabled="saving || answer.isCorrect"
+            :disabled="saving"
             :label="$t('questions.form.correctAnswer')"
-            @change="setCorrectAnswer(index)"
+            @change="toggleCorrect(index)"
           />
           <span>{{ $t('questions.form.correctAnswer') }}</span>
         </div>
@@ -295,7 +295,7 @@ function validateForm(): boolean {
     errors.answers = 'questions.form.errors.answerRequired'
   }
 
-  if (form.answers.filter((answer) => answer.isCorrect).length !== 1) {
+  if (form.answers.filter((answer) => answer.isCorrect).length < 1) {
     errors.answers = 'questions.form.errors.oneCorrectRequired'
   }
 
@@ -317,11 +317,12 @@ function removeAnswer(index: number): void {
   }
 }
 
-function setCorrectAnswer(index: number): void {
-  form.answers = form.answers.map((answer, answerIndex) => ({
-    ...answer,
-    isCorrect: answerIndex === index,
-  }))
+function toggleCorrect(index: number): void {
+  const answer = form.answers[index]
+
+  if (answer) {
+    answer.isCorrect = !answer.isCorrect
+  }
 }
 
 function buildPayload(): QuestionPayload {

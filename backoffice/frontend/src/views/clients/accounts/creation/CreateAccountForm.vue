@@ -57,11 +57,7 @@
           :disabled="isLoading"
           required
         >
-          <option
-            v-for="option in roleOptions"
-            :key="option.value"
-            :value="option.value"
-          >
+          <option v-for="option in roleOptions" :key="option.value" :value="option.value">
             {{ option.label }}
           </option>
         </select>
@@ -95,7 +91,7 @@
       @cancel="goBack"
     />
 
-    <p class="account-form__hint">
+    <p v-if="hint" class="account-form__hint">
       {{ hint }}
     </p>
   </form>
@@ -151,7 +147,7 @@ const props = withDefaults(
     account: null,
     loadingAccount: false,
     profileMode: false,
-  },
+  }
 )
 
 const { t } = useI18n()
@@ -206,24 +202,22 @@ const roleOptions = computed<RoleOption[]>(() => {
 const canManageRole = computed(() => !props.profileMode && roleOptions.value.length > 0)
 
 const submitLabel = computed(() =>
-  isEditMode.value ? t('accounts.form.actions.update') : t('accounts.form.actions.create'),
+  isEditMode.value ? t('accounts.form.actions.update') : t('accounts.form.actions.create')
 )
 
 const passwordLabel = computed(() =>
   isEditMode.value
     ? t('accounts.form.fields.password.editLabel')
-    : t('accounts.form.fields.password.label'),
+    : t('accounts.form.fields.password.label')
 )
 
 const passwordPlaceholder = computed(() =>
   isEditMode.value
     ? t('accounts.form.fields.password.editPlaceholder')
-    : t('accounts.form.fields.password.placeholder'),
+    : t('accounts.form.fields.password.placeholder')
 )
 
-const hint = computed(() =>
-  isEditMode.value ? t('accounts.form.hints.edit') : t('accounts.form.hints.create'),
-)
+const hint = computed(() => (isEditMode.value ? '' : t('accounts.form.hints.create')))
 
 watch(
   () => props.account,
@@ -232,7 +226,7 @@ watch(
       Object.assign(form, getAccountFormValues(account))
     }
   },
-  { immediate: true },
+  { immediate: true }
 )
 
 watch(
@@ -242,7 +236,7 @@ watch(
       form.role = ADMIN_ROLE_USER
     }
   },
-  { immediate: true },
+  { immediate: true }
 )
 
 watch(
@@ -258,7 +252,7 @@ watch(
       form.role = ADMIN_ROLE_USER
     }
   },
-  { immediate: true },
+  { immediate: true }
 )
 
 function resetMessages(): void {
@@ -293,13 +287,13 @@ async function onSubmit(): Promise<void> {
       props.mode === 'create'
         ? await createCompanyAccountService(
             props.companyId,
-            buildCreateAccountPayload(form, canManageRole.value),
+            buildCreateAccountPayload(form, canManageRole.value)
           )
         : props.account
           ? await updateCompanyAccountService(
               props.companyId,
               props.account.id,
-              buildUpdateAccountPayload(form, canManageRole.value),
+              buildUpdateAccountPayload(form, canManageRole.value)
             )
           : null
 

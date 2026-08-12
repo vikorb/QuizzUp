@@ -1,33 +1,45 @@
 <template>
   <span
+    ref="rootRef"
     class="tooltip"
+    :class="{ 'tooltip--open': open }"
     tabindex="0"
+    role="button"
     :aria-label="text"
-    @mouseenter="open = true"
-    @mouseleave="open = false"
-    @focus="open = true"
-    @blur="open = false"
+    @click="open = !open"
+    @keydown.enter.prevent="open = !open"
+    @keydown.space.prevent="open = !open"
     @keydown.escape="open = false"
   >
     <slot>
       <MdIcon :path="mdiInformationOutline" :size="size" class="tooltip__icon" />
     </slot>
 
-    <Transition name="tooltip-fade">
-      <span v-if="open" class="tooltip__bubble" role="tooltip">{{ text }}</span>
-    </Transition>
+    <span class="tooltip__bubble" role="tooltip">{{ text }}</span>
   </span>
 </template>
 
 <script setup lang="ts">
 import { mdiInformationOutline } from '@mdi/js'
-import { ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 
 import MdIcon from '@/components/ui/MdIcon.vue'
 
 withDefaults(defineProps<{ text: string; size?: number }>(), { size: 16 })
 
 const open = ref(false)
+const rootRef = ref<HTMLElement | null>(null)
+
+// Tablette : l'infobulle s'ouvre au clic ; on la referme au clic à l'extérieur.
+function onOutsidePointer(event: Event): void {
+  if (!open.value) return
+  if (rootRef.value && !rootRef.value.contains(event.target as Node)) {
+    open.value = false
+  }
+}
+
+onMounted(() => document.addEventListener('pointerdown', onOutsidePointer))
+onBeforeUnmount(() => document.removeEventListener('pointerdown', onOutsidePointer))
 </script>
 
 <style scoped>
@@ -36,12 +48,13 @@ const open = ref(false)
   display: inline-flex;
   align-items: center;
   color: var(--text-3);
-  cursor: help;
+  cursor: pointer;
   outline: none;
 }
 
 .tooltip:hover,
-.tooltip:focus-visible {
+.tooltip:focus-visible,
+.tooltip--open {
   color: var(--accent-pink);
 }
 
@@ -53,7 +66,7 @@ const open = ref(false)
   position: absolute;
   bottom: calc(100% + 8px);
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateY(4px);
   z-index: 60;
   width: max-content;
   max-width: 240px;
@@ -68,7 +81,22 @@ const open = ref(false)
   white-space: normal;
   text-align: left;
   box-shadow: 0 14px 30px -12px rgba(0, 0, 0, 0.8);
+  opacity: 0;
+  visibility: hidden;
   pointer-events: none;
+  transition:
+    opacity 0.14s ease,
+    transform 0.14s ease,
+    visibility 0.14s;
+}
+
+/* Survol (desktop) OU ouvert au clic (tablette). */
+.tooltip:hover .tooltip__bubble,
+.tooltip:focus-visible .tooltip__bubble,
+.tooltip--open .tooltip__bubble {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
 }
 
 .tooltip__bubble::after {
@@ -81,22 +109,8 @@ const open = ref(false)
   border-top-color: var(--bg-elevated);
 }
 
-.tooltip-fade-enter-active,
-.tooltip-fade-leave-active {
-  transition:
-    opacity 0.14s ease,
-    transform 0.14s ease;
-}
-
-.tooltip-fade-enter-from,
-.tooltip-fade-leave-to {
-  opacity: 0;
-  transform: translateX(-50%) translateY(4px);
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .tooltip-fade-enter-active,
-  .tooltip-fade-leave-active {
+  .tooltip__bubble {
     transition: none;
   }
 }

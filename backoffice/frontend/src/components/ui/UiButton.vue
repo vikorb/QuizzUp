@@ -40,6 +40,15 @@ const variantClass = computed(() => `ui-btn--${props.variant}`)
   color: var(--text-0);
 }
 
+.ui-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ui-btn:disabled:hover {
+  transform: none;
+}
+
 /* Primaire : dégradé bleu → violet, le seul point « vif » de l'interface. */
 .ui-btn--primary {
   background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));

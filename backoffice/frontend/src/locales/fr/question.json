@@ -80,7 +80,7 @@
         "questionRequired": "La question est obligatoire.",
         "answersMinRequired": "Au moins deux réponses sont nécessaires.",
         "answerRequired": "Toutes les réponses doivent être renseignées.",
-        "oneCorrectRequired": "Une seule bonne réponse doit être sélectionnée."
+        "oneCorrectRequired": "Au moins une bonne réponse doit être sélectionnée."
       }
     },
     "themeModes": {
