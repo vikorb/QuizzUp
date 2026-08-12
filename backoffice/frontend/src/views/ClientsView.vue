@@ -66,22 +66,24 @@ const filteredCompanies = computed(() => {
   return filterCompaniesByStatus(searchedCompanies, statusFilter.value)
 })
 
-const stats = computed<Stat[]>(() => [
-  { label: t('clients.stats.total'), value: companies.value.length },
-  {
-    label: t('clients.stats.active'),
-    value: companies.value.filter((company) => company.status === COMPANY_STATUS_ACTIVE).length,
-    tone: 'ok',
-  },
-  {
-    label: t('clients.stats.accounts'),
-    value: companies.value.reduce(
-      (sum, company) => sum + Number((company as Record<string, unknown>).accountsCount ?? 0),
-      0
-    ),
-    tone: 'accent',
-  },
-])
+const ratioOf = (part: number, total: number): number => (total > 0 ? (part / total) * 100 : 0)
+
+const stats = computed<Stat[]>(() => {
+  const total = companies.value.length
+  const active = companies.value.filter(
+    (company) => company.status === COMPANY_STATUS_ACTIVE
+  ).length
+  const accounts = companies.value.reduce(
+    (sum, company) => sum + Number((company as Record<string, unknown>).accountsCount ?? 0),
+    0
+  )
+
+  return [
+    { label: t('clients.stats.total'), value: total },
+    { label: t('clients.stats.active'), value: active, tone: 'ok', ratio: ratioOf(active, total) },
+    { label: t('clients.stats.accounts'), value: accounts, tone: 'accent' },
+  ]
+})
 
 function clearActionBanner(): void {
   actionBanner.value = null

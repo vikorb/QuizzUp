@@ -73,19 +73,33 @@ const actionBanner = ref<ActionBanner | null>(null)
 const actionBannerVariant = computed(() => getBannerVariant(actionBanner.value))
 const actionBannerMessage = computed(() => getBannerMessage(actionBanner.value, t))
 
-const stats = computed<Stat[]>(() => [
-  { label: t('questions.stats.total'), value: questions.value.length },
-  {
-    label: t('questions.stats.active'),
-    value: questions.value.filter((question) => question.status === QUESTION_STATUS_ACTIVE).length,
-    tone: 'ok',
-  },
-  {
-    label: t('questions.stats.drafts'),
-    value: questions.value.filter((question) => question.status === QUESTION_STATUS_DRAFT).length,
-    tone: 'warn',
-  },
-])
+const ratioOf = (part: number, total: number): number => (total > 0 ? (part / total) * 100 : 0)
+
+const stats = computed<Stat[]>(() => {
+  const total = questions.value.length
+  const active = questions.value.filter(
+    (question) => question.status === QUESTION_STATUS_ACTIVE
+  ).length
+  const drafts = questions.value.filter(
+    (question) => question.status === QUESTION_STATUS_DRAFT
+  ).length
+
+  return [
+    { label: t('questions.stats.total'), value: total },
+    {
+      label: t('questions.stats.active'),
+      value: active,
+      tone: 'ok',
+      ratio: ratioOf(active, total),
+    },
+    {
+      label: t('questions.stats.drafts'),
+      value: drafts,
+      tone: 'warn',
+      ratio: ratioOf(drafts, total),
+    },
+  ]
+})
 
 const searchQuery = ref('')
 const themeFilter = ref('')

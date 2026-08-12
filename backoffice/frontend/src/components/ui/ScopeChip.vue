@@ -25,12 +25,14 @@ defineProps<{
 }
 
 .scope-chip--blue {
-  color: var(--edit);
-  background: var(--edit-bg);
+  color: #a9baff;
+  background: rgba(74, 99, 216, 0.16);
+  border-color: rgba(74, 99, 216, 0.32);
 }
 
 .scope-chip--violet {
-  color: var(--accent-pink);
-  background: var(--glow-soft);
+  color: #c3aeff;
+  background: rgba(116, 88, 230, 0.16);
+  border-color: rgba(116, 88, 230, 0.34);
 }
 </style>

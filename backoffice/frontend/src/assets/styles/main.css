@@ -2,48 +2,48 @@
 
 :root {
   /* ---- Fonds (spatial, mat, foncé) ---- */
-  --bg-0: #04050b;
-  --bg-1: #06070f;
-  --bg-card: rgba(11, 12, 24, 0.72);
-  --bg-card-hi: rgba(17, 18, 34, 0.8);
-  --bg-field: rgba(255, 255, 255, 0.022);
+  --bg-0: #05060d;
+  --bg-1: #080a15;
+  --bg-card: rgba(19, 21, 40, 0.72);
+  --bg-card-hi: rgba(26, 28, 52, 0.82);
+  --bg-field: rgba(255, 255, 255, 0.028);
 
   /* ---- Accents bleu-violet (mats) ---- */
-  --accent-blue: #3f57c0;
-  --accent-purple: #6a4fd6; /* violet principal */
-  --accent-pink: #8a5ce0; /* décalé du magenta vers le violet */
-  --accent-cyan: #5fcfb2; /* teal (logo) */
-  --primary: #6a4fd6; /* alias, était indéfini */
+  --accent-blue: #4a63d8;
+  --accent-purple: #7458e6; /* violet principal */
+  --accent-pink: #8b74ff; /* violet clair (accent haut) */
+  --accent-cyan: #57e0b0; /* teal (logo / statut actif) */
+  --primary: #7458e6;
 
   /* ---- Néons / lueurs (violet) ---- */
-  --neon-blue: rgba(63, 87, 192, 0.85);
-  --neon-pink: rgba(106, 79, 214, 0.85);
-  --glow-blue: rgba(63, 87, 192, 0.32);
-  --glow-pink: rgba(106, 79, 214, 0.3);
-  --glow-cyan: rgba(95, 207, 178, 0.3);
-  --glow-soft: rgba(106, 79, 214, 0.16);
+  --neon-blue: rgba(74, 99, 216, 0.85);
+  --neon-pink: rgba(116, 88, 230, 0.85);
+  --glow-blue: rgba(74, 99, 216, 0.32);
+  --glow-pink: rgba(116, 88, 230, 0.3);
+  --glow-cyan: rgba(87, 224, 176, 0.3);
+  --glow-soft: rgba(116, 88, 230, 0.14);
 
-  /* ---- Texte ---- */
-  --text-0: #e9e7f7;
-  --text-1: rgba(233, 231, 247, 0.86);
-  --text-2: rgba(233, 231, 247, 0.5);
-  --text-3: rgba(233, 231, 247, 0.28);
+  /* ---- Texte (blanc froid) ---- */
+  --text-0: #edecf8;
+  --text-1: rgba(237, 236, 248, 0.82);
+  --text-2: rgba(237, 236, 248, 0.52);
+  --text-3: rgba(237, 236, 248, 0.32);
 
   /* ---- Bordures ---- */
-  --border-ui: rgba(124, 118, 194, 0.12);
-  --border: rgba(124, 118, 194, 0.12); /* alias, était indéfini */
-  --border-2: rgba(124, 118, 194, 0.22);
-  --border-hover: rgba(124, 92, 232, 0.42);
+  --border-ui: rgba(126, 118, 200, 0.14);
+  --border: rgba(126, 118, 200, 0.14); /* alias, était indéfini */
+  --border-2: rgba(126, 118, 200, 0.24);
+  --border-hover: rgba(139, 116, 255, 0.5);
 
-  /* ---- Sémantique pastel douce (jamais agressif) ---- */
-  --ok: #5fcfb2;
-  --ok-bg: rgba(95, 207, 178, 0.1);
-  --warn: #d8a862;
-  --warn-bg: rgba(216, 168, 98, 0.1);
-  --edit: #8098e6;
-  --edit-bg: rgba(128, 152, 230, 0.1);
-  --danger: #d97a92;
-  --danger-bg: rgba(217, 122, 146, 0.11);
+  /* ---- Sémantique (un poil peps, texte = couleur du statut) ---- */
+  --ok: #57e0b0;
+  --ok-bg: rgba(87, 224, 176, 0.12);
+  --warn: #f0bd66;
+  --warn-bg: rgba(240, 189, 102, 0.12);
+  --edit: #93a6f2;
+  --edit-bg: rgba(147, 166, 242, 0.12);
+  --danger: #ec86a1;
+  --danger-bg: rgba(236, 134, 161, 0.12);
 
   /* ---- Neutres utilitaires (surfaces « verre », ombres, survol) ---- */
   /* Aliases neutres pour éviter les couleurs en dur dans les composants. */
@@ -55,10 +55,12 @@
   --shadow-1: rgba(0, 0, 0, 0.22);
   --shadow-2: rgba(0, 0, 0, 0.42);
   --overlay: rgba(0, 0, 0, 0.66);
-  --row-hover: rgba(106, 79, 214, 0.08); /* survol de ligne (tables) */
+  --row-hover: rgba(116, 88, 230, 0.08); /* survol de ligne (tables) */
   --bg-elevated: rgba(10, 12, 24, 0.98); /* menus / dropdowns opaques */
 
   --radius: 13px;
+  --side-w: 232px; /* menu latéral complet */
+  --rail-w: 78px; /* menu en rail d'icônes (tablette portrait) */
   --tr: all 0.16s cubic-bezier(0.4, 0, 0.2, 1);
 }
 

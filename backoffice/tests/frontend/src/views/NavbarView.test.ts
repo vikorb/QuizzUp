@@ -10,7 +10,7 @@ resetFrontendMocksBeforeEach()
 
 describe('views/navbar/NavbarView.vue', () => {
   it('renders the mobile layout at or below the mobile breakpoint', async () => {
-    await setViewportWidth(980)
+    await setViewportWidth(767)
 
     const wrapper = mountWithFrontendMocks(NavbarView, {
       global: {

@@ -67,26 +67,24 @@ const scopeFilter = ref('')
 
 const isSuperAdmin = computed(() => authState.me.value?.role === ADMIN_ROLE_SUPERADMIN)
 
-const stats = computed<Stat[]>(() => [
-  { label: t('themes.stats.total'), value: themes.value.length },
-  {
-    label: t('themes.stats.active'),
-    value: themes.value.filter((theme) => theme.status === THEME_STATUS_ACTIVE).length,
-    tone: 'ok',
-  },
-  {
-    label: t('themes.stats.drafts'),
-    value: themes.value.filter((theme) => theme.status === THEME_STATUS_DRAFT).length,
-    tone: 'warn',
-  },
-  {
-    label: t('themes.stats.questions'),
-    value: themes.value.reduce(
-      (sum, theme) => sum + Number((theme as Record<string, unknown>).questionsCount ?? 0),
-      0
-    ),
-  },
-])
+const ratioOf = (part: number, total: number): number => (total > 0 ? (part / total) * 100 : 0)
+
+const stats = computed<Stat[]>(() => {
+  const total = themes.value.length
+  const active = themes.value.filter((theme) => theme.status === THEME_STATUS_ACTIVE).length
+  const drafts = themes.value.filter((theme) => theme.status === THEME_STATUS_DRAFT).length
+  const questions = themes.value.reduce(
+    (sum, theme) => sum + Number((theme as Record<string, unknown>).questionsCount ?? 0),
+    0
+  )
+
+  return [
+    { label: t('themes.stats.total'), value: total },
+    { label: t('themes.stats.active'), value: active, tone: 'ok', ratio: ratioOf(active, total) },
+    { label: t('themes.stats.drafts'), value: drafts, tone: 'warn', ratio: ratioOf(drafts, total) },
+    { label: t('themes.stats.questions'), value: questions, tone: 'accent' },
+  ]
+})
 
 const actionBannerVariant = computed(() => getBannerVariant(actionBanner.value))
 const actionBannerMessage = computed(() => getBannerMessage(actionBanner.value, t))

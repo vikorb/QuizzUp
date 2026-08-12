@@ -1,4 +1,8 @@
-import { setAuthenticatedAdmin, setAuthenticatedSuperadmin, setUnauthenticated } from '@frontend-tests/_helpers/authStateMock'
+import {
+  setAuthenticatedAdmin,
+  setAuthenticatedSuperadmin,
+  setUnauthenticated,
+} from '@frontend-tests/_helpers/authStateMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { describe, expect, it } from 'vitest'
@@ -35,10 +39,9 @@ describe('views/navbar/SideBar.vue', () => {
     })
 
     expect(wrapper.find('.sidebar__actions').exists()).toBe(true)
-    expect(wrapper.findAll('[data-test="nav-group"]').map((group) => group.attributes('data-label'))).toEqual([
-      'navbar.language',
-      'navbar.account',
-    ])
+    expect(
+      wrapper.findAll('[data-test="nav-group"]').map((group) => group.attributes('data-label'))
+    ).toEqual(['navbar.language', 'navbar.account'])
   })
 
   it('renders company scoped navigation for company admins', () => {
@@ -59,10 +62,10 @@ describe('views/navbar/SideBar.vue', () => {
         { to: '/questions', labelKey: 'navbar.questionsAnswers' },
         { to: '/games', labelKey: 'navbar.games' },
         { to: '/stats', labelKey: 'navbar.statistics' },
-      ]),
+      ])
     )
     expect(items).not.toEqual(
-      expect.arrayContaining([{ to: '/clients', labelKey: 'navbar.clients' }]),
+      expect.arrayContaining([{ to: '/clients', labelKey: 'navbar.clients' }])
     )
   })
 
@@ -78,10 +81,39 @@ describe('views/navbar/SideBar.vue', () => {
         { to: '/players', labelKey: 'navbar.players' },
         { to: '/themes', labelKey: 'navbar.themes' },
         { to: '/questions', labelKey: 'navbar.questionsAnswers' },
-      ]),
+      ])
     )
     expect(items).not.toEqual(
-      expect.arrayContaining([{ to: '/clients/1', labelKey: 'navbar.myCompany' }]),
+      expect.arrayContaining([{ to: '/clients/1', labelKey: 'navbar.myCompany' }])
     )
+  })
+
+  it('shows a collapse toggle (desktop) that emits toggle-collapsed', async () => {
+    setAuthenticatedSuperadmin()
+
+    const wrapper = mountWithFrontendMocks(SideBar)
+    const toggle = wrapper.find('.sidebar__collapse')
+
+    expect(toggle.exists()).toBe(true)
+
+    await toggle.trigger('click')
+
+    expect(wrapper.emitted('toggle-collapsed')).toHaveLength(1)
+  })
+
+  it('hides the collapse toggle inside the mobile drawer', () => {
+    setAuthenticatedSuperadmin()
+
+    const wrapper = mountWithFrontendMocks(SideBar, { props: { showActions: true } })
+
+    expect(wrapper.find('.sidebar__collapse').exists()).toBe(false)
+  })
+
+  it('applies the rail modifier when collapsed', () => {
+    setAuthenticatedSuperadmin()
+
+    const wrapper = mountWithFrontendMocks(SideBar, { props: { collapsed: true } })
+
+    expect(wrapper.find('.sidebar').classes()).toContain('sidebar--rail')
   })
 })

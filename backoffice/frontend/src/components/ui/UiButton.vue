@@ -39,19 +39,23 @@ const variantClass = computed(() => `ui-btn--${props.variant}`)
   color: var(--text-0);
 }
 
-/* Primaire : violet mat translucide (foncé) + halo doux, jamais vif. */
+/* Primaire : dégradé bleu → violet, le seul point « vif » de l'interface. */
 .ui-btn--primary {
-  background: linear-gradient(135deg, var(--glow-blue), var(--glow-pink)), var(--bg-card-hi);
-  border-color: var(--border-2);
-  color: var(--text-0);
-  box-shadow: 0 0 0 1px var(--surface-1) inset;
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+  border-color: transparent;
+  color: #fff;
+  box-shadow:
+    0 10px 24px -12px var(--neon-pink),
+    0 0 0 1px rgba(255, 255, 255, 0.08) inset;
 }
 
 .ui-btn--primary:hover {
-  border-color: var(--border-hover);
+  transform: translateY(-1px);
+  border-color: transparent;
+  color: #fff;
   box-shadow:
-    0 0 0 1px var(--surface-2) inset,
-    0 0 16px var(--glow-soft);
+    0 14px 30px -12px var(--neon-pink),
+    0 0 0 1px rgba(255, 255, 255, 0.14) inset;
 }
 
 .ui-btn--seg {
