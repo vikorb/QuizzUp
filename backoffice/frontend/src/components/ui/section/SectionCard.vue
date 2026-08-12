@@ -37,7 +37,6 @@ const styleVars = computed(() => {
   background: var(--bg-card);
   border: 1px solid var(--border-ui);
   border-radius: 18px;
-  backdrop-filter: blur(10px);
   box-shadow:
     0 0 0 1px var(--surface-2) inset,
     0 0 18px var(--glow-blue),

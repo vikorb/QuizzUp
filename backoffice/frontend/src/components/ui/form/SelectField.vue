@@ -115,17 +115,41 @@ function handleChange(event: Event): void {
   color: var(--text-0);
   font: inherit;
   outline: none;
-  transition: var(--tr);
+  cursor: pointer;
+  transition:
+    border-color var(--tr),
+    box-shadow var(--tr),
+    background var(--tr);
 
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
 }
 
-.select-field__input:hover,
+.select-field__input:hover {
+  border-color: var(--border-2);
+  background: var(--surface-1);
+}
+
 .select-field__input:focus {
   border-color: var(--border-hover);
   box-shadow: 0 0 0 3px var(--glow-soft);
+}
+
+/* Options du menu déroulant : thème sombre là où le navigateur l'autorise. */
+.select-field__input option {
+  background: var(--bg-elevated);
+  color: var(--text-0);
+  padding: 10px;
+}
+
+.select-field__input option:disabled {
+  color: var(--text-3);
+}
+
+.select-field__input option:checked {
+  background: var(--accent-purple);
+  color: #fff;
 }
 
 .select-field__input:disabled {

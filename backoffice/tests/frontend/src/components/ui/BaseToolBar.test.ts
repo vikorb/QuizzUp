@@ -21,13 +21,13 @@ describe('components/ui/BaseToolBar.vue', () => {
     expect(wrapper.text()).toContain('Actifs')
   })
 
-  it('hides the chips and shows the filters slot when expanded', () => {
+  it('shows both the chips and the filters slot when expanded', () => {
     const wrapper = mountWithFrontendMocks(BaseToolBar, {
       props: { defaultCollapsed: false, activeFilters: buildFilters() },
       slots: { default: '<div data-test="slot-filters">filters</div>' },
     })
 
-    expect(wrapper.find('.toolbar__chip').exists()).toBe(false)
+    expect(wrapper.findAll('.toolbar__chip')).toHaveLength(2)
     expect(wrapper.find('[data-test="slot-filters"]').exists()).toBe(true)
   })
 
@@ -52,15 +52,18 @@ describe('components/ui/BaseToolBar.vue', () => {
     expect(onRemove).toHaveBeenCalledTimes(1)
   })
 
-  it('reveals the chips after collapsing through the toggle', async () => {
+  it('collapses the filters slot on toggle while the chips stay visible', async () => {
     const wrapper = mountWithFrontendMocks(BaseToolBar, {
       props: { defaultCollapsed: false, activeFilters: buildFilters() },
+      slots: { default: '<div data-test="slot-filters">filters</div>' },
     })
 
-    expect(wrapper.find('.toolbar__chip').exists()).toBe(false)
+    expect(wrapper.find('[data-test="slot-filters"]').exists()).toBe(true)
+    expect(wrapper.findAll('.toolbar__chip')).toHaveLength(2)
 
     await wrapper.find('.toolbar__toggle').trigger('click')
 
+    expect(wrapper.find('[data-test="slot-filters"]').exists()).toBe(false)
     expect(wrapper.findAll('.toolbar__chip')).toHaveLength(2)
   })
 })

@@ -86,7 +86,6 @@ function getColumnClass(column: BaseTableColumn): (string | undefined)[] {
   top: 0;
   z-index: 2;
   background: var(--bg-elevated);
-  backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border-2);
 }
 

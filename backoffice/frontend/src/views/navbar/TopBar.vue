@@ -60,7 +60,7 @@ defineEmits<{
 
   border: 1px solid var(--border-2);
   border-radius: 18px;
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(8px);
   box-shadow:
     0 12px 34px var(--shadow-2),
     0 0 14px var(--glow-blue),

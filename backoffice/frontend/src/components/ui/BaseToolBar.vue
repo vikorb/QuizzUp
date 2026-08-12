@@ -18,6 +18,21 @@
           {{ title }}
         </h3>
 
+        <div v-if="activeFilters.length > 0" class="toolbar__chips">
+          <span v-for="filter in activeFilters" :key="filter.key" class="toolbar__chip">
+            <span class="toolbar__chip-text">{{ filter.label }}</span>
+            <button
+              v-if="filter.onRemove"
+              class="toolbar__chip-remove"
+              type="button"
+              :aria-label="`${removeLabel} ${filter.label}`"
+              @click="filter.onRemove"
+            >
+              <MdIcon :path="mdiClose" :size="12" />
+            </button>
+          </span>
+        </div>
+
         <div class="toolbar__actions">
           <UiButton
             v-if="showReset && !isCollapsed"
@@ -39,21 +54,6 @@
             </span>
           </UiButton>
         </div>
-      </div>
-
-      <div v-if="isCollapsed && activeFilters.length > 0" class="toolbar__chips">
-        <span v-for="filter in activeFilters" :key="filter.key" class="toolbar__chip">
-          <span class="toolbar__chip-text">{{ filter.label }}</span>
-          <button
-            v-if="filter.onRemove"
-            class="toolbar__chip-remove"
-            type="button"
-            :aria-label="`${removeLabel} ${filter.label}`"
-            @click="filter.onRemove"
-          >
-            <MdIcon :path="mdiClose" :size="12" />
-          </button>
-        </span>
       </div>
 
       <div v-if="!isCollapsed" class="toolbar__filters">
@@ -158,15 +158,15 @@ function toggleCollapsed(): void {
 
 .toolbar__header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 16px;
   min-width: 0;
   overflow: visible;
 }
 
 .toolbar__toggle {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
 
   display: inline-flex;
@@ -188,7 +188,7 @@ function toggleCollapsed(): void {
 }
 
 .toolbar__title {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   margin: 0;
   font-size: 15px;
@@ -202,6 +202,7 @@ function toggleCollapsed(): void {
 
 .toolbar__actions {
   flex: 0 0 auto;
+  margin-left: auto;
 
   display: flex;
   align-items: center;
@@ -218,9 +219,12 @@ function toggleCollapsed(): void {
   gap: 8px;
 }
 
-/* Balises des filtres actifs (état replié). */
+/* Balises des filtres actifs : à droite du titre, panneau déplié ou non. */
 .toolbar__chips {
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: 8px;
 }
@@ -229,13 +233,25 @@ function toggleCollapsed(): void {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 6px 4px 11px;
+  padding: 5px 7px 5px 12px;
   border-radius: 999px;
   border: 1px solid var(--border-2);
   background: var(--glow-soft);
   color: var(--text-1);
   font-size: 12px;
   font-weight: 600;
+  animation: toolbar-chip-in 0.22s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@keyframes toolbar-chip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .toolbar__chip-remove {

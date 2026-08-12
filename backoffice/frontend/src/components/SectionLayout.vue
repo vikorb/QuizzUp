@@ -47,8 +47,6 @@ defineProps<{
   position: absolute;
   inset: 0;
   z-index: 0;
-  backdrop-filter: blur(85px) saturate(260%) brightness(1.12);
-  -webkit-backdrop-filter: blur(85px) saturate(260%) brightness(1.12);
   -webkit-mask-image: linear-gradient(
     to bottom,
     #000 0%,
@@ -96,10 +94,14 @@ defineProps<{
 .content-body {
   position: relative;
   z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-top: 4px;
 }
 
 .subtitle {
-  margin: 8px 0 24px 0;
+  margin: 0 0 2px 0;
   color: var(--text-2);
   font-size: 13px;
 }
