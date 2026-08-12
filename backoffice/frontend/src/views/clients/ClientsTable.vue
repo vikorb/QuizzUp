@@ -58,6 +58,7 @@ import BaseTable from '@/components/ui/BaseTable.vue'
 import StatusPill from '@/components/ui/StatusPill.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import type { Company, CompanyTableRow } from '@/types/company'
+import { toCompanyStatus } from '@/utils/company/status'
 import {
   getClientStatusLabel,
   getClientTableColumns,
@@ -94,11 +95,13 @@ function getStatusLabel(value: unknown): string {
 }
 
 function getStatusTone(value: unknown): 'ok' | 'danger' | 'muted' {
-  if (value === COMPANY_STATUS_ACTIVE) {
+  const status = toCompanyStatus(value)
+
+  if (status === COMPANY_STATUS_ACTIVE) {
     return 'ok'
   }
 
-  if (value === COMPANY_STATUS_DELETED) {
+  if (status === COMPANY_STATUS_DELETED) {
     return 'danger'
   }
 

@@ -2,35 +2,34 @@
   <BaseCard class="toolbar-card" :neon="false" :no-hover="true">
     <div class="toolbar" :class="{ 'toolbar--collapsed': isCollapsed }" :style="toolbarStyle">
       <div class="toolbar__header">
-        <button
-          v-if="collapsible"
+        <div
           class="toolbar__toggle"
-          type="button"
-          :aria-expanded="!isCollapsed"
-          :aria-label="toggleLabel"
-          @click="toggleCollapsed"
+          :class="{ 'toolbar__toggle--clickable': collapsible }"
+          :role="collapsible ? 'button' : undefined"
+          :tabindex="collapsible ? 0 : undefined"
+          :aria-expanded="collapsible ? !isCollapsed : undefined"
+          :aria-label="collapsible ? toggleLabel : undefined"
+          @click="collapsible && toggleCollapsed()"
+          @keydown.enter.prevent="collapsible && toggleCollapsed()"
+          @keydown.space.prevent="collapsible && toggleCollapsed()"
         >
-          <MdIcon :path="toggleIcon" :size="20" />
+          <MdIcon v-if="collapsible" class="toolbar__chevron" :path="toggleIcon" :size="20" />
           <span class="toolbar__title">{{ title }}</span>
-        </button>
 
-        <h3 v-else class="toolbar__title">
-          {{ title }}
-        </h3>
-
-        <div v-if="activeFilters.length > 0" class="toolbar__chips">
-          <span v-for="filter in activeFilters" :key="filter.key" class="toolbar__chip">
-            <span class="toolbar__chip-text">{{ filter.label }}</span>
-            <button
-              v-if="filter.onRemove"
-              class="toolbar__chip-remove"
-              type="button"
-              :aria-label="`${removeLabel} ${filter.label}`"
-              @click="filter.onRemove"
-            >
-              <MdIcon :path="mdiClose" :size="12" />
-            </button>
-          </span>
+          <div v-if="activeFilters.length > 0" class="toolbar__chips">
+            <span v-for="filter in activeFilters" :key="filter.key" class="toolbar__chip">
+              <span class="toolbar__chip-text">{{ filter.label }}</span>
+              <button
+                v-if="filter.onRemove"
+                class="toolbar__chip-remove"
+                type="button"
+                :aria-label="`${removeLabel} ${filter.label}`"
+                @click.stop="filter.onRemove"
+              >
+                <MdIcon :path="mdiClose" :size="12" />
+              </button>
+            </span>
+          </div>
         </div>
 
         <div class="toolbar__actions">
@@ -145,7 +144,9 @@ function toggleCollapsed(): void {
   width: 100%;
   min-width: 0;
   overflow: visible;
-  z-index: 1;
+  /* Au-dessus de la table (dont l'en-tête sticky) pour que les menus de select
+     ouverts passent par-dessus tout. */
+  z-index: 50;
 }
 
 /* Barre de filtres plus compacte : ce ne sont que des filtres. */
@@ -171,13 +172,13 @@ function toggleCollapsed(): void {
 }
 
 .toolbar__toggle {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-width: 0;
 
   display: inline-flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 8px;
+  gap: 10px;
 
   min-height: 34px;
   padding: 0;
@@ -185,11 +186,19 @@ function toggleCollapsed(): void {
   background: transparent;
   color: var(--text-0);
   font: inherit;
+}
+
+.toolbar__toggle--clickable {
   cursor: pointer;
 }
 
-.toolbar__toggle:hover {
+.toolbar__toggle--clickable:hover .toolbar__title,
+.toolbar__toggle--clickable:hover .toolbar__chevron {
   color: var(--primary);
+}
+
+.toolbar__chevron {
+  flex: 0 0 auto;
 }
 
 .toolbar__title {
@@ -264,6 +273,8 @@ function toggleCollapsed(): void {
   place-items: center;
   width: 18px;
   height: 18px;
+  padding: 0;
+  line-height: 0;
   border: 0;
   border-radius: 50%;
   background: var(--surface-2);
