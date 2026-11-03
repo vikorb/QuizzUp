@@ -1,5 +1,16 @@
 {
   "resetFilters": "Reset",
   "requiredLegend": "required field",
-  "filters": "Filters"
+  "filters": "Filters",
+  "errors": {
+    "room_name_already_exists": "A room with this name already exists in this company.",
+    "company_deleted": "This company is deleted: its rooms can no longer be changed."
+  },
+  "success": {
+    "roomCreated": "The room {name} has been created.",
+    "roomRenamed": "The room {name} has been renamed.",
+    "roomActivated": "The room {name} has been enabled.",
+    "roomDisabled": "The room {name} has been disabled.",
+    "roomDeleted": "The room {name} has been deleted."
+  }
 }

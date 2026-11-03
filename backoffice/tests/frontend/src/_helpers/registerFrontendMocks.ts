@@ -69,6 +69,19 @@ vi.mock('@/services/accountsService', async () => {
   }
 })
 
+vi.mock('@/services/roomsService', async () => {
+  const roomsService = await import('./roomsServiceMock')
+
+  return {
+    loadCompanyRoomsService: roomsService.loadCompanyRoomsServiceMock,
+    loadCompanyRoomService: roomsService.loadCompanyRoomServiceMock,
+    createCompanyRoomService: roomsService.createCompanyRoomServiceMock,
+    updateCompanyRoomService: roomsService.updateCompanyRoomServiceMock,
+    updateRoomStatusService: roomsService.updateRoomStatusServiceMock,
+    deleteRoomService: roomsService.deleteRoomServiceMock,
+  }
+})
+
 vi.mock('@/services/companiesService', async () => {
   const companiesService = await import('./companiesServiceMock')
 

@@ -16,16 +16,19 @@
         </UiButton>
       </template>
 
-      <ClientDetailForm
-        v-if="company"
-        :company="company"
-        @updated="handleCompanyUpdated"
-      />
+      <ClientDetailForm v-if="company" :company="company" @updated="handleCompanyUpdated" />
     </BaseCard>
 
     <ClientDetailAccountsSection
       :company-id="companyId"
       :can-show-accounts-section="canShowAccountsSection"
+    />
+
+    <ClientDetailRoomsSection
+      :company-id="companyId"
+      :can-show-rooms-section="canShowRoomsSection"
+      :can-manage-rooms="canManageRooms"
+      :can-see-deleted-rooms="canSeeDeletedRoomsList"
     />
   </SectionLayout>
 </template>
@@ -44,9 +47,15 @@ import {
   canShowCompanyAccountsSection,
   isSuperadminRole,
 } from '@/utils/company/details/permissions'
+import {
+  canManageCompanyRooms,
+  canSeeDeletedRooms,
+  canShowCompanyRoomsSection,
+} from '@/utils/room/permissions'
 
 import ClientDetailAccountsSection from './details/account/ClientDetailAccountsSection.vue'
 import ClientDetailForm from './details/ClientDetailForm.vue'
+import ClientDetailRoomsSection from './details/room/ClientDetailRoomsSection.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -57,9 +66,11 @@ const companyErrorCode = ref<string | null>(null)
 const currentRole = computed(() => me.value?.role ?? null)
 const isSuperadmin = computed(() => isSuperadminRole(currentRole.value))
 
-const canShowAccountsSection = computed(() =>
-  canShowCompanyAccountsSection(currentRole.value),
-)
+const canShowAccountsSection = computed(() => canShowCompanyAccountsSection(currentRole.value))
+
+const canShowRoomsSection = computed(() => canShowCompanyRoomsSection(currentRole.value))
+const canManageRooms = computed(() => canManageCompanyRooms(currentRole.value))
+const canSeeDeletedRoomsList = computed(() => canSeeDeletedRooms(currentRole.value))
 
 function handleCompanyUpdated(updatedCompany: Company): void {
   company.value = updatedCompany

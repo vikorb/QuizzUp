@@ -1,0 +1,97 @@
+{
+  "rooms": {
+    "toolbar": {
+      "title": "Salles"
+    },
+    "actions": {
+      "addRoom": "Ajouter une salle"
+    },
+    "filters": {
+      "searchLabel": "Rechercher une salle",
+      "searchPlaceholder": "Nom de la salle...",
+      "statusLabel": "Statut",
+      "status": {
+        "active": "Actives",
+        "inactive": "Inactives",
+        "deleted": "Supprimées",
+        "all": "Toutes"
+      }
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "deleted": "Supprimée",
+      "unknown": "Inconnu"
+    },
+    "config": {
+      "set": "Configurée",
+      "unset": "Non configurée"
+    },
+    "form": {
+      "createTitle": "Nouvelle salle",
+      "editTitle": "Renommer la salle",
+      "fields": {
+        "name": {
+          "label": "Nom de la salle",
+          "placeholder": "Ex : Salle Néon"
+        }
+      },
+      "actions": {
+        "cancel": "Annuler",
+        "create": "Créer la salle",
+        "update": "Enregistrer",
+        "submitting": "Enregistrement..."
+      },
+      "hints": {
+        "create": "La salle sera créée active, sans configuration matérielle.",
+        "edit": "La configuration matérielle (buzzers, lumières) se règle dans un écran dédié."
+      },
+      "validation": {
+        "nameRequired": "Le nom de la salle est obligatoire.",
+        "nameTooLong": "Le nom de la salle ne doit pas dépasser 255 caractères."
+      },
+      "errors": {
+        "room_name_already_exists": "Une salle porte déjà ce nom dans cette compagnie.",
+        "company_deleted": "Impossible d’ajouter une salle à une compagnie supprimée.",
+        "invalid_body": "Les informations envoyées sont invalides.",
+        "invalid_params": "Paramètres invalides.",
+        "forbidden": "Vous n’avez pas les droits nécessaires.",
+        "not_found": "Salle introuvable.",
+        "server_error": "Erreur serveur.",
+        "api_unreachable": "Le serveur est actuellement inaccessible.",
+        "default": "Une erreur est survenue."
+      }
+    },
+    "table": {
+      "title": "Salles de jeu",
+      "loading": "Chargement des salles...",
+      "empty": "Aucune salle trouvée.",
+      "retry": "Réessayer",
+      "columns": {
+        "name": "Nom",
+        "config": "Configuration matérielle",
+        "status": "Statut",
+        "actions": "Actions"
+      },
+      "actions": {
+        "edit": "Renommer la salle",
+        "delete": "Supprimer la salle",
+        "enable": "Activer la salle",
+        "disable": "Désactiver la salle",
+        "deleteConfirm": "Supprimer la salle {name} ?",
+        "enableConfirm": "Voulez-vous vraiment activer la salle {name} ?",
+        "disableConfirm": "Voulez-vous vraiment désactiver la salle {name} ?"
+      }
+    },
+    "errors": {
+      "missingToken": "Votre session a expiré. Veuillez vous reconnecter.",
+      "unauthorized": "Vous devez être connecté pour consulter les salles.",
+      "forbidden": "Vous n’avez pas les droits nécessaires.",
+      "apiUnreachable": "Le serveur est actuellement inaccessible.",
+      "invalidJson": "La réponse du serveur est invalide.",
+      "invalidBody": "Les informations envoyées sont invalides.",
+      "serverError": "Erreur serveur lors du chargement des salles.",
+      "default": "Une erreur est survenue."
+    }
+  }
+}
