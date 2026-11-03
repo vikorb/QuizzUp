@@ -1,0 +1,46 @@
+{
+  "questions": {
+    "form": {
+      "audio": {
+        "title": "Audio excerpt",
+        "help": "The file is played in steps during the blind test (1 s, then 5 s, then 20 s), always from the start point. Pick a recognisable passage of at least 20 seconds.",
+        "choose": "Choose a file",
+        "replace": "Replace file",
+        "remove": "Remove file",
+        "empty": "No file. Accepted formats: mp3 or ogg, {max} max.",
+        "unnamed": "Audio file",
+        "pending": "sent on save",
+        "unknownDuration": "unknown duration",
+        "start": "Excerpt start point",
+        "useCurrentPosition": "Use the playback position as start point",
+        "tooShort": "Less than 20 seconds after the start point: the last blind test step will stop early.",
+        "preview": "Preview from the start point",
+        "previewSeconds": "{seconds} s",
+        "previewFull": "Until the end",
+        "stop": "Stop playback",
+        "rights": "I certify I have the right to play this file",
+        "rightsHelp": "QuizzUP themes: royalty-free sound with a commercial licence only. Your centre's themes: the excerpt is played under your responsibility (your venue's music licence).",
+        "errors": {
+          "audioTypeInvalid": "Unsupported format: choose an mp3 or ogg file.",
+          "audioTooLarge": "File too large ({max} max).",
+          "audioEmpty": "The file is empty.",
+          "rightsRequired": "Tick the rights statement to upload this file.",
+          "previewFailed": "This file cannot be played in the browser.",
+          "uploadFailed": "The question is saved, but the audio excerpt was not uploaded: {reason}"
+        },
+        "apiErrors": {
+          "question_media_required": "the file is empty.",
+          "question_media_invalid_file": "the file content is not mp3 or ogg.",
+          "question_media_rights_required": "the rights statement is required.",
+          "question_media_duration_invalid": "invalid file duration.",
+          "question_media_not_found": "no file found for this question.",
+          "question_media_too_large": "the file is too large.",
+          "question_media_type_unsupported": "unsupported format.",
+          "forbidden": "you are not allowed to edit this question.",
+          "api_unreachable": "API unreachable.",
+          "server_error": "server error."
+        }
+      }
+    }
+  }
+}

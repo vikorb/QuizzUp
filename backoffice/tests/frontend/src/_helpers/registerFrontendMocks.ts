@@ -114,3 +114,13 @@ vi.mock('@/services/questionsService', async () => {
     detachQuestionFromThemeService: questionsService.detachQuestionFromThemeServiceMock,
   }
 })
+
+vi.mock('@/services/questionMediaService', async () => {
+  const questionMediaService = await import('./questionMediaServiceMock')
+
+  return {
+    uploadQuestionMediaService: questionMediaService.uploadQuestionMediaServiceMock,
+    deleteQuestionMediaService: questionMediaService.deleteQuestionMediaServiceMock,
+    fetchQuestionMediaBlobService: questionMediaService.fetchQuestionMediaBlobServiceMock,
+  }
+})

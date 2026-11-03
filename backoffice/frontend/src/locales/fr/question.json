@@ -90,6 +90,46 @@
         "answersMinRequired": "Au moins deux réponses sont nécessaires.",
         "answerRequired": "Toutes les réponses doivent être renseignées.",
         "oneCorrectRequired": "Au moins une bonne réponse doit être sélectionnée."
+      },
+      "audio": {
+        "title": "Extrait audio",
+        "help": "Le fichier est joué par paliers pendant le blind test (1 s, puis 5 s, puis 20 s), toujours depuis le point de départ. Choisissez un passage reconnaissable d'au moins 20 secondes.",
+        "choose": "Choisir un fichier",
+        "replace": "Remplacer le fichier",
+        "remove": "Retirer le fichier",
+        "empty": "Aucun fichier. Formats acceptés : mp3 ou ogg, {max} maximum.",
+        "unnamed": "Fichier audio",
+        "pending": "envoyé à l'enregistrement",
+        "unknownDuration": "durée inconnue",
+        "start": "Point de départ de l'extrait",
+        "useCurrentPosition": "Utiliser la position de lecture comme point de départ",
+        "tooShort": "Moins de 20 secondes après le point de départ : le dernier palier du blind test s'arrêtera avant la fin.",
+        "preview": "Pré-écoute depuis le point de départ",
+        "previewSeconds": "{seconds} s",
+        "previewFull": "Jusqu'à la fin",
+        "stop": "Arrêter la lecture",
+        "rights": "J'atteste avoir le droit de diffuser ce fichier",
+        "rightsHelp": "Thèmes QuizzUP : son libre de droits sous licence commerciale uniquement. Thèmes de votre centre : l'extrait est diffusé sous votre responsabilité (déclaration SACEM / SPRE de votre établissement).",
+        "errors": {
+          "audioTypeInvalid": "Format non accepté : choisissez un fichier mp3 ou ogg.",
+          "audioTooLarge": "Fichier trop lourd ({max} maximum).",
+          "audioEmpty": "Le fichier est vide.",
+          "rightsRequired": "Cochez l'attestation de droits pour envoyer ce fichier.",
+          "previewFailed": "Impossible de lire ce fichier dans le navigateur.",
+          "uploadFailed": "La question est enregistrée, mais l'extrait audio n'a pas été envoyé : {reason}"
+        },
+        "apiErrors": {
+          "question_media_required": "le fichier est vide.",
+          "question_media_invalid_file": "le contenu du fichier ne correspond pas à un mp3 ou un ogg.",
+          "question_media_rights_required": "l'attestation de droits est obligatoire.",
+          "question_media_duration_invalid": "la durée du fichier est invalide.",
+          "question_media_not_found": "aucun fichier trouvé pour cette question.",
+          "question_media_too_large": "le fichier est trop lourd.",
+          "question_media_type_unsupported": "format non accepté.",
+          "forbidden": "vous n'avez pas les droits pour modifier cette question.",
+          "api_unreachable": "API injoignable.",
+          "server_error": "erreur serveur."
+        }
       }
     },
     "themeModes": {
