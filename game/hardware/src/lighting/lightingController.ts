@@ -152,6 +152,8 @@ export function createLightingController(options: LightingControllerOptions): Li
   let running = false
   let inFlight: Promise<void> | null = null
   let pending = false
+  /** Numéro de session de sortie : une écriture d'une session close n'affecte pas la suivante. */
+  let session = 0
   let emergency = false
   let emergencyReason: string | null = null
   let lastFrameAt: number | null = null
@@ -214,16 +216,16 @@ export function createLightingController(options: LightingControllerOptions): Li
       return
     }
     pending = false
-    const target = output
+    const owner = session
     // Sortie en erreur : on continue d'essayer d'envoyer du noir, au cas où elle répond encore.
     const universe = degraded ? createUniverse() : frame
-    const write = target.write(universe).catch((error: unknown) => {
-      if (target === output) {
+    const write = output.write(universe).catch((error: unknown) => {
+      if (owner === session) {
         handleOutputError(error)
       }
     })
     const current = within(write, WRITE_TIMEOUT_MS).then((done) => {
-      if (!done && target === output) {
+      if (!done && owner === session) {
         handleOutputError(new Error('Interface DMX bloquée : aucune trame acceptée'))
       }
     })
@@ -274,6 +276,7 @@ export function createLightingController(options: LightingControllerOptions): Li
   }
 
   const openOutput = async () => {
+    session += 1
     outputStatus = 'opening'
     outputError = null
     notify()
@@ -313,6 +316,7 @@ export function createLightingController(options: LightingControllerOptions): Li
       // Sortie déjà fermée ou débranchée.
     }
     inFlight = null
+    session += 1
     outputStatus = 'closed'
   }
 

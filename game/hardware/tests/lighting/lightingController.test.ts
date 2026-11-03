@@ -638,4 +638,31 @@ describe('contrôleur lumières et fumée', () => {
     expect(written.at(-1)?.every((value) => value === 0)).toBe(true)
     await controller.stop()
   })
+
+  it('une écriture bloquée d’une session close ne met pas la suivante en erreur', async () => {
+    const clock = createManualClock()
+    let stuck = true
+    const output: DmxOutput = {
+      driver: 'usbpro',
+      open: async () => undefined,
+      write: () => (stuck ? new Promise<void>(() => undefined) : Promise.resolve()),
+      close: async () => undefined,
+      onDisconnect: () => () => undefined,
+    }
+    const controller = createLightingController({
+      config: lightingConfig(),
+      output,
+      clock,
+      doc: null,
+    })
+    await controller.start()
+    const stopping = controller.stop()
+    await advanceAsync(clock, 300)
+    await stopping
+    stuck = false
+    await controller.start()
+    await advanceAsync(clock, 1_000)
+    expect(controller.getState().outputStatus).toBe('open')
+    await controller.stop()
+  })
 })
