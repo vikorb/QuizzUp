@@ -54,7 +54,12 @@ import RoomTopBar from '@/components/game/RoomTopBar.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { useConfirm } from '@/composables/useConfirm'
-import { closeGame, getExtractPlayer, hasSavedGame, resumeSavedGame } from '@/game/useRoomGame'
+import {
+  discardSavedGame,
+  getExtractPlayer,
+  hasSavedGame,
+  resumeSavedGame,
+} from '@/game/useRoomGame'
 import { enterFullscreen, keepScreenAwake, lockSystemKeys } from '@/hardware/screen'
 import { signOut } from '@/state/roomAuth'
 
@@ -95,7 +100,7 @@ async function onResume(): Promise<void> {
   launching.value = true
   try {
     await prepareRoom()
-    if (resumeSavedGame()) {
+    if (await resumeSavedGame()) {
       await router.push({ name: 'play' })
     } else {
       savedGame.value = false
@@ -110,9 +115,7 @@ async function onDiscard(): Promise<void> {
   if (!ok) {
     return
   }
-  if (resumeSavedGame()) {
-    closeGame()
-  }
+  discardSavedGame()
   savedGame.value = hasSavedGame()
 }
 

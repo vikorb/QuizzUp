@@ -7,6 +7,7 @@ import fs from 'node:fs'
 
 import routes from './routes'
 import authPlugin from './plugins/auth'
+import { parseCorsOrigin } from './utils/cors'
 
 import type { FastifyStaticSwaggerOptions } from '@fastify/swagger'
 
@@ -35,10 +36,7 @@ export function buildApp() {
   const app = Fastify({ logger: true })
 
   app.register(cors, {
-    // Plusieurs origines possibles, séparées par des virgules (backoffice :4173, écran de salle :4174).
-    origin: process.env.CORS_ORIGIN
-      ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim())
-      : true,
+    origin: parseCorsOrigin(process.env.CORS_ORIGIN),
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],

@@ -43,7 +43,9 @@ export async function refreshRoomAccount(): Promise<void> {
   }
   const fetched = await fetchRoomAccount(token.value)
   if (fetched === 'unauthorized') {
-    clearLocalSession()
+    // Jeton expiré ou révoqué : retour à la connexion. Une partie interrompue reste
+    // reprenable après reconnexion ; elle est effacée à sa fin ou à la déconnexion.
+    clearLocalSession({ keepSavedGame: true })
     return
   }
   if (fetched) {
@@ -51,14 +53,16 @@ export async function refreshRoomAccount(): Promise<void> {
   }
 }
 
-function clearLocalSession(): void {
+function clearLocalSession(options: { keepSavedGame?: boolean } = {}): void {
   setRoomToken(null)
   setDemoMode(false)
   token.value = null
   account.value = null
   demo.value = false
   // Une partie sauvegardée contient les emails des joueurs : elle ne survit pas à la déconnexion.
-  createLocalSessionStorage().clear()
+  if (!options.keepSavedGame) {
+    createLocalSessionStorage().clear()
+  }
 }
 
 export async function signOut(): Promise<void> {

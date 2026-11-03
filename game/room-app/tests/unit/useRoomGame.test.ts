@@ -8,6 +8,7 @@ import {
   closeGame,
   configureRoomGame,
   createSeed,
+  discardSavedGame,
   getExtractPlayer,
   hasSavedGame,
   onGameEvents,
@@ -106,15 +107,33 @@ describe('useRoomGame', () => {
     expect(hasSavedGame()).toBe(false)
   })
 
-  it('reprend une partie sauvegardée', () => {
+  it('reprend une partie sauvegardée après avoir rechargé les extraits', async () => {
     const { state } = useRoomGame()
     startNewGame({ registrations: REGISTRATIONS, themes: getDemoThemes(), seed: 7 })
     const phase = state.value?.phase.name
 
-    expect(resumeSavedGame()).toBe(true)
+    expect(await resumeSavedGame()).toBe(true)
     expect(state.value?.phase.name).toBe(phase)
+    expect(player.preload).toHaveBeenCalledWith(expect.arrayContaining(['demo://9001/1']))
 
+    discardSavedGame()
     closeGame()
-    expect(resumeSavedGame()).toBe(false)
+    expect(await resumeSavedGame()).toBe(false)
+  })
+
+  it('relance l’extrait du palier en cours à la reprise', async () => {
+    const { state } = useRoomGame()
+    startNewGame({ registrations: REGISTRATIONS, themes: getDemoThemes(), seed: 7 })
+    clock.advance(DEFAULT_GAME_TIMINGS.roundIntroMs + 10)
+    vi.advanceTimersByTime(50)
+    const chooser = state.value?.rounds[0]?.chooserParticipantId as 1 | 2 | 3
+    pressBuzzer({ desk: chooser, button: 'A', at: clock.value })
+    clock.advance(300)
+    vi.advanceTimersByTime(1000)
+    vi.mocked(player.play).mockClear()
+
+    expect(await resumeSavedGame()).toBe(true)
+    expect(state.value?.phase.name).toBe('question')
+    expect(player.play).toHaveBeenCalledTimes(1)
   })
 })

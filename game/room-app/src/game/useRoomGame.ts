@@ -4,6 +4,7 @@ import { computed, ref, shallowRef } from 'vue'
 
 import { createAudioBridge } from '@/audio/audioBridge'
 import { createSilentExtractPlayer, type ExtractPlayer } from '@/audio/player'
+import { collectMediaUrls } from '@/game/content'
 import {
   finalizeRegistrations,
   type Registration,
@@ -96,8 +97,9 @@ function restoreAudio(resumed: GameSession): void {
   }
 
   const mini = phase.miniGameState
-  const paused = mini.status === 'answering' && mini.pausedAt !== null
-  const reference = paused && mini.pausedAt !== null ? mini.pausedAt : resumed.now()
+  const pausedAt = mini.status === 'answering' ? mini.pausedAt : null
+  const paused = pausedAt !== null
+  const reference = pausedAt ?? resumed.now()
 
   audioBridge.restore({
     mediaUrl: mini.question.mediaUrl,
@@ -143,17 +145,26 @@ export function hasSavedGame(): boolean {
   return storage.load() !== null
 }
 
-/** Reprend la partie sauvegardée dans le navigateur (après un rechargement). */
-export function resumeSavedGame(): boolean {
+/**
+ * Reprend la partie sauvegardée dans le navigateur (après un rechargement) : les
+ * extraits sont rechargés avant que l'horloge ne reparte.
+ */
+export async function resumeSavedGame(): Promise<boolean> {
   const resumed = GameSession.resume({ storage, now: clock })
 
   if (!resumed) {
     return false
   }
 
+  await player.preload(collectMediaUrls(resumed.state.setup.themes)).catch(() => undefined)
   attach(resumed)
   restoreAudio(resumed)
   return true
+}
+
+/** Oublie la partie sauvegardée sans la reprendre. */
+export function discardSavedGame(): void {
+  storage.clear()
 }
 
 export function pressBuzzer(press: BuzzerPress): void {

@@ -9,10 +9,10 @@ import { isRoomReady, refreshRoomAccount } from '@/state/roomAuth'
 
 const router = createRoomRouter()
 
-// Jeton expiré : retour à la connexion, sauf en pleine partie (elle se joue hors ligne).
+// Jeton expiré ou révoqué : retour à la connexion (une partie interrompue se reprend ensuite).
 void refreshRoomAccount().then(() => {
   const current = router.currentRoute.value
-  if (!isRoomReady.value && !current.meta.public && current.name !== 'play') {
+  if (!isRoomReady.value && !current.meta.public) {
     void router.replace({ name: 'login' })
   }
 })

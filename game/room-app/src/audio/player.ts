@@ -14,7 +14,10 @@ export type ExtractPlayer = {
     urls: string[],
     onProgress?: (done: number, total: number) => void
   ) => Promise<PreloadResult>
-  /** Joue `durationMs` depuis `startSec` ; se résout à la fin du palier ou à l'arrêt. */
+  /**
+   * Joue `durationMs` depuis `startSec` ; se résout à la fin du palier ou à l'arrêt.
+   * La lecture est engagée dès l'appel : un `pause()` juste après doit être pris en compte.
+   */
   play: (url: string, startSec: number, durationMs: number) => Promise<PlayOutcome>
   /** Met en pause et renvoie les millisecondes déjà jouées dans le palier. */
   pause: () => number

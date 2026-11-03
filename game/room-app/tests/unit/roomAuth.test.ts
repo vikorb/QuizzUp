@@ -3,6 +3,7 @@ import {
   refreshRoomAccount,
   roomAccount,
   signIn,
+  signOut,
   syncRoomAuth,
 } from '@/state/roomAuth'
 
@@ -18,7 +19,7 @@ describe('session du PC de la salle', () => {
 
   afterEach(() => vi.unstubAllGlobals())
 
-  it('déconnecte la salle et oublie la partie sauvegardée si le jeton a expiré', async () => {
+  it('déconnecte la salle si le jeton a expiré, en gardant la partie à reprendre', async () => {
     signIn('jwt', { id: 1, companyId: 1, role: 'room' })
     localStorage.setItem('quizzup_room_game', '{"version":1}')
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(401, {})))
@@ -27,6 +28,16 @@ describe('session du PC de la salle', () => {
 
     expect(isRoomReady.value).toBe(false)
     expect(localStorage.getItem('quizzup_room_token')).toBeNull()
+    expect(localStorage.getItem('quizzup_room_game')).toBe('{"version":1}')
+  })
+
+  it('oublie la partie sauvegardée (et ses emails) à la déconnexion volontaire', async () => {
+    signIn('jwt', { id: 1, companyId: 1, role: 'room' })
+    localStorage.setItem('quizzup_room_game', '{"version":1}')
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, {})))
+
+    await signOut()
+
     expect(localStorage.getItem('quizzup_room_game')).toBeNull()
   })
 
