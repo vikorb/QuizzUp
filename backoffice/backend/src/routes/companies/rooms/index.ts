@@ -8,6 +8,7 @@ import { requireApiPermission } from '../../../security/requireApiPermission'
 import { canManageRoomsContext, canReadRoomsContext } from '../../../security/roomsPolicy'
 import type { RoomRow } from '../../../types/room'
 
+import { isUniqueViolation } from '../../_shared/dbErrors'
 import { findCompanyById } from '../_shared'
 import { createRoomSchema, roomsParamsSchema } from './_schemas'
 import { isRoomNameTaken, roomSelect } from './_shared'
@@ -96,15 +97,26 @@ const companyRoomsRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(409).send({ error: 'room_name_already_exists' })
       }
 
-      const inserted = await db('rooms')
-        .insert({
-          company_id: companyId,
-          name,
-          config: config ?? {},
-          status: ROOM_STATUS_ACTIVE,
-          deleted_at: null,
-        })
-        .returning(roomSelect)
+      let inserted
+
+      try {
+        inserted = await db('rooms')
+          .insert({
+            company_id: companyId,
+            name,
+            config: config ?? {},
+            status: ROOM_STATUS_ACTIVE,
+            deleted_at: null,
+          })
+          .returning(roomSelect)
+      } catch (error) {
+        // Deux créations simultanées du même nom : l'index unique tranche.
+        if (isUniqueViolation(error)) {
+          return reply.code(409).send({ error: 'room_name_already_exists' })
+        }
+
+        throw error
+      }
 
       const room = Array.isArray(inserted) ? inserted[0] : inserted
 

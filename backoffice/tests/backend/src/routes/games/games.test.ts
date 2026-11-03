@@ -3,6 +3,7 @@ import '../_helpers/registerRouteMocks'
 import { describe, expect, it } from 'vitest'
 
 import {
+  COMPANY_STATUS_DELETED,
   GAME_DEFAULT_QUESTIONS_PER_ROUND,
   GAME_DEFAULT_ROUNDS,
   GAME_SEED_MAX,
@@ -181,6 +182,42 @@ describe('routes/games.ts (US-GAME-08)', () => {
 
       dbState.games[0]!.state = GAME_STATE_FINISHED
       expect((await launch(1)).statusCode).toBe(201)
+
+      await app.close()
+    })
+  })
+
+  describe('POST /companies/:companyId/games — edge cases', () => {
+    it('accepts the room id as returned by the API (bigint as text)', async () => {
+      seedRoom()
+      const app = await createRouteApp(gamesRoutes)
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/companies/1/games',
+        headers: authHeaders(companyAdminUser),
+        payload: { roomId: '1', participants: PARTICIPANTS },
+      })
+
+      expect(response.statusCode).toBe(201)
+
+      await app.close()
+    })
+
+    it('refuses to launch a game in a deleted company', async () => {
+      seedRoom()
+      dbState.companies[0]!.status = COMPANY_STATUS_DELETED
+      const app = await createRouteApp(gamesRoutes)
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/companies/1/games',
+        headers: authHeaders(superadminUser),
+        payload: { roomId: 1, participants: PARTICIPANTS },
+      })
+
+      expect(response.statusCode).toBe(409)
+      expect(parseJson(response)).toEqual({ error: 'company_deleted' })
 
       await app.close()
     })

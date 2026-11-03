@@ -2,7 +2,11 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 import { randomUUID } from 'node:crypto'
+import { ADMIN_ROLE_ROOM } from '@quizzup/shared'
 import db from '../db'
+
+/** Jeton d'un compte de salle (appareil fixe) : la révocation se fait en base. */
+const ROOM_TOKEN_EXPIRES_IN = '365d'
 
 type AdminRow = {
   id: number
@@ -89,7 +93,9 @@ const authRoutes: FastifyPluginAsync = async (app) => {
       // expiresIn peut être large (ex 7j) car l’inactivité est gérée par la session DB
       const token = app.jwt.sign(
         { sub: String(admin.id), company_id: admin.company_id, role: admin.role, sid },
-        { expiresIn: '7d' }
+        // US-ROOM-02 : le PC d'une salle reste connecté ; l'admin coupe l'accès en
+        // supprimant le compte (sessions révoquées en base).
+        { expiresIn: admin.role === ADMIN_ROLE_ROOM ? ROOM_TOKEN_EXPIRES_IN : '7d' }
       )
 
       return {

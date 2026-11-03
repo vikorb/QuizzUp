@@ -74,11 +74,14 @@ const gamesIdRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(409).send({ error: 'game_already_over' })
       }
 
-      await db('games').where('id', gameId).update({
-        state: GAME_STATE_ABORTED,
-        finished_at: db.fn.now(),
-        updated_at: db.fn.now(),
-      })
+      await db('games')
+        .where('id', gameId)
+        .whereIn('state', [GAME_STATE_PENDING, GAME_STATE_RUNNING])
+        .update({
+          state: GAME_STATE_ABORTED,
+          finished_at: db.fn.now(),
+          updated_at: db.fn.now(),
+        })
 
       return { game: await findGameInCompany(companyId, gameId) }
     }

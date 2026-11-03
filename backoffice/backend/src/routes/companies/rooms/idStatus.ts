@@ -8,7 +8,7 @@ import { canManageRoomsContext } from '../../../security/roomsPolicy'
 import type { RoomRow } from '../../../types/room'
 
 import { roomParamsSchema, updateRoomStatusSchema } from './_schemas'
-import { deleteRoomAccount } from './_account'
+import { abortRoomActiveGames, deleteRoomAccount } from './_account'
 import { findRoomInCompany, isRoomNameTaken, roomSelect } from './_shared'
 
 const companyRoomIdStatusRoutes: FastifyPluginAsync = async (app) => {
@@ -75,9 +75,10 @@ const companyRoomIdStatusRoutes: FastifyPluginAsync = async (app) => {
 
       const updatedRoom = Array.isArray(updated) ? updated[0] : updated
 
-      // Une salle supprimée ne doit plus pouvoir se connecter.
+      // Une salle supprimée ne doit plus pouvoir se connecter ni garder de partie active.
       if (status === ROOM_STATUS_DELETED) {
         await deleteRoomAccount(roomId)
+        await abortRoomActiveGames(roomId)
       }
 
       return { room: updatedRoom as RoomRow }

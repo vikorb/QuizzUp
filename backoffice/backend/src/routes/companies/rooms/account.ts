@@ -6,6 +6,7 @@ import db from '../../../db'
 import { API_ACTION, API_RESOURCE } from '../../../security/permissions'
 import { requireApiPermission } from '../../../security/requireApiPermission'
 import { canManageRoomsContext } from '../../../security/roomsPolicy'
+import { isUniqueViolation } from '../../_shared/dbErrors'
 
 import {
   buildRoomAccountEmail,
@@ -110,20 +111,31 @@ const companyRoomAccountRoutes: FastifyPluginAsync = async (app) => {
 
     const passwordHash = await bcrypt.hash(password, 12)
 
-    const inserted = await db('admins')
-      .insert({
-        company_id: companyId,
-        room_id: roomId,
-        role: ADMIN_ROLE_ROOM,
-        firstname: null,
-        lastname: null,
-        username,
-        email: buildRoomAccountEmail(),
-        mdp_hash: passwordHash,
-        status: ADMIN_STATUS_ACTIVE,
-        deleted_at: null,
-      })
-      .returning(roomAccountSelect)
+    let inserted
+
+    try {
+      inserted = await db('admins')
+        .insert({
+          company_id: companyId,
+          room_id: roomId,
+          role: ADMIN_ROLE_ROOM,
+          firstname: null,
+          lastname: null,
+          username,
+          email: buildRoomAccountEmail(),
+          mdp_hash: passwordHash,
+          status: ADMIN_STATUS_ACTIVE,
+          deleted_at: null,
+        })
+        .returning(roomAccountSelect)
+    } catch (error) {
+      // Créations simultanées : `admins_room_id_unique` ou l'unicité de l'identifiant tranche.
+      if (isUniqueViolation(error)) {
+        return reply.code(409).send({ error: 'room_account_already_exists' })
+      }
+
+      throw error
+    }
 
     const account = Array.isArray(inserted) ? inserted[0] : inserted
 

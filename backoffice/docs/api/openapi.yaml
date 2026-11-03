@@ -1143,7 +1143,7 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Crée le compte de rôle `room` (un seul compte actif par salle). Il se connecte via `POST /login` avec son identifiant ; sa session n'expire pas par inactivité.
+        Crée le compte de rôle `room` (un seul compte actif par salle). Il se connecte via `POST /login` avec son identifiant ; sa session n'expire pas par inactivité (jeton valable 365 jours). Un identifiant reste réservé après la suppression du compte. Une salle inactive garde son compte connecté mais ne peut pas recevoir de nouvelle partie.
 
         Accès : superadmin (toutes les compagnies) et `admin` de la compagnie.
       operationId: createRoomAccount
@@ -1201,7 +1201,7 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Suppression logique du compte et révocation immédiate de ses sessions. La suppression d'une salle supprime aussi son compte.
+        Suppression logique du compte et révocation immédiate de ses sessions. La suppression d'une salle supprime aussi son compte et arrête ses parties en attente ou en cours.
 
         Accès : superadmin (toutes les compagnies) et `admin` de la compagnie.
       operationId: deleteRoomAccount
@@ -1363,7 +1363,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: Salle inactive (`room_inactive`) ou partie déjà en attente / en cours (`room_busy`)
+          description: Compagnie supprimée (`company_deleted`), salle inactive (`room_inactive`) ou partie déjà en attente / en cours (`room_busy`)
           content:
             application/json:
               schema:

@@ -33,7 +33,8 @@ const participantSchema = z
 
 export const createGameSchema = z
   .object({
-    roomId: z.number().int().positive(),
+    // Les ids bigint sortent de l'API en texte : on accepte "7" comme 7.
+    roomId: z.coerce.number().int().positive(),
     roundsCount: z.number().int().min(1).max(GAME_MAX_ROUNDS).default(GAME_DEFAULT_ROUNDS),
     questionsPerRound: z
       .number()

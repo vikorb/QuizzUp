@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify'
 
 import {
+  COMPANY_STATUS_DELETED,
   GAME_STATE_PENDING,
   GAME_STATE_RUNNING,
   GAME_STATUS_ACTIVE,
@@ -12,16 +13,12 @@ import { canAccessCompanyContext } from '../security/companiesPolicy'
 import { API_ACTION, API_RESOURCE } from '../security/permissions'
 import { requireApiPermission } from '../security/requireApiPermission'
 import { getCurrentAdminId } from './_shared/adminContext'
+import { isUniqueViolation } from './_shared/dbErrors'
+import { findCompanyById } from './companies/_shared'
 import { findRoomInCompany } from './companies/rooms/_shared'
 import { createGameSchema, gamesParamsSchema } from './games/_schemas'
 import { drawGameSeed, findGameInCompany, gameSelect, toGameRow } from './games/_shared'
 import gamesIdRoutes from './games/id'
-
-const UNIQUE_VIOLATION = '23505'
-
-function isUniqueViolation(error: unknown): boolean {
-  return (error as { code?: string } | null)?.code === UNIQUE_VIOLATION
-}
 
 /** Parties d'une compagnie, lancées par l'opérateur depuis le backoffice (US-GAME-08). */
 const gamesRoutes: FastifyPluginAsync = async (app) => {
@@ -91,6 +88,16 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
 
       if (!canAccessCompanyContext(req, companyId)) {
         return reply.code(403).send({ error: 'forbidden' })
+      }
+
+      const company = await findCompanyById(companyId)
+
+      if (!company) {
+        return reply.code(404).send({ error: 'not_found' })
+      }
+
+      if (Number(company.status) === COMPANY_STATUS_DELETED) {
+        return reply.code(409).send({ error: 'company_deleted' })
       }
 
       const room = await findRoomInCompany(companyId, roomId)

@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto'
 
-import { ADMIN_ROLE_ROOM, ADMIN_STATUS_DELETED } from '@quizzup/shared'
+import {
+  ADMIN_ROLE_ROOM,
+  ADMIN_STATUS_DELETED,
+  GAME_STATE_ABORTED,
+  GAME_STATE_PENDING,
+  GAME_STATE_RUNNING,
+} from '@quizzup/shared'
 
 import db from '../../../db'
 
@@ -64,4 +70,16 @@ export async function deleteRoomAccount(roomId: number): Promise<number | null> 
     .update({ revoked_at: db.fn.now() })
 
   return Number(account.id)
+}
+
+/** Arrête les parties en attente ou en cours d'une salle (salle supprimée). */
+export async function abortRoomActiveGames(roomId: number): Promise<number> {
+  return db('games')
+    .where('room_id', roomId)
+    .whereIn('state', [GAME_STATE_PENDING, GAME_STATE_RUNNING])
+    .update({
+      state: GAME_STATE_ABORTED,
+      finished_at: db.fn.now(),
+      updated_at: db.fn.now(),
+    })
 }

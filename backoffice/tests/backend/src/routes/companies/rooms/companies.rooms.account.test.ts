@@ -6,6 +6,9 @@ import {
   ADMIN_ROLE_ROOM,
   ADMIN_STATUS_ACTIVE,
   ADMIN_STATUS_DELETED,
+  GAME_STATE_ABORTED,
+  GAME_STATE_FINISHED,
+  GAME_STATE_RUNNING,
   ROOM_STATUS_ACTIVE,
   ROOM_STATUS_DELETED,
 } from '@quizzup/shared'
@@ -223,24 +226,39 @@ describe('routes/companies/rooms/account (US-ROOM-02)', () => {
   it.each([
     ['DELETE', '/companies/1/rooms/1', undefined],
     ['PATCH', '/companies/1/rooms/1/status', { status: ROOM_STATUS_DELETED }],
-  ])('deletes the room account with the room (%s %s)', async (method, url, payload) => {
-    seedRoom()
-    seedRoomAccount()
-    const app = await buildApp()
+  ])(
+    'deletes the room account and aborts its active game with the room (%s %s)',
+    async (method, url, payload) => {
+      seedRoom()
+      seedRoomAccount()
+      dbState.games.push({ id: 1, room_id: 1, company_id: 1, state: GAME_STATE_RUNNING, status: 1 })
+      dbState.games.push({
+        id: 2,
+        room_id: 1,
+        company_id: 1,
+        state: GAME_STATE_FINISHED,
+        status: 1,
+      })
+      const app = await buildApp()
 
-    const response = await app.inject({
-      method: method as 'DELETE' | 'PATCH',
-      url,
-      headers: authHeaders(companyAdminUser),
-      ...(payload ? { payload } : {}),
-    })
+      const response = await app.inject({
+        method: method as 'DELETE' | 'PATCH',
+        url,
+        headers: authHeaders(companyAdminUser),
+        ...(payload ? { payload } : {}),
+      })
 
-    expect(response.statusCode).toBe(200)
-    expect(dbState.admins.find((admin) => admin.id === 10)?.status).toBe(ADMIN_STATUS_DELETED)
-    expect(dbState.admin_sessions[0]?.revoked_at).toBe(MOCK_NOW)
+      expect(response.statusCode).toBe(200)
+      expect(dbState.admins.find((admin) => admin.id === 10)?.status).toBe(ADMIN_STATUS_DELETED)
+      expect(dbState.games.map((game) => game.state)).toEqual([
+        GAME_STATE_ABORTED,
+        GAME_STATE_FINISHED,
+      ])
+      expect(dbState.admin_sessions[0]?.revoked_at).toBe(MOCK_NOW)
 
-    await app.close()
-  })
+      await app.close()
+    }
+  )
 
   it('keeps room accounts out of the staff accounts list', async () => {
     seedRoom()

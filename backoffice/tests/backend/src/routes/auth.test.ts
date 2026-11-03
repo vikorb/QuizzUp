@@ -2,7 +2,8 @@ import './_helpers/registerRouteMocks'
 
 import { describe, expect, it } from 'vitest'
 
-import { ADMIN_ROLE_SUPERADMIN } from '@quizzup/shared'
+import { ADMIN_ROLE_ROOM, ADMIN_ROLE_SUPERADMIN, ADMIN_STATUS_ACTIVE } from '@quizzup/shared'
+import bcrypt from 'bcryptjs'
 
 import authRoutes from '../../../../backend/src/routes/auth'
 
@@ -131,6 +132,38 @@ describe('routes/auth.ts', () => {
       }),
       { expiresIn: '7d' }
     )
+
+    await app.close()
+  })
+
+  it('gives a room account a long-lived token (US-ROOM-02)', async () => {
+    dbState.admins.push({
+      id: 10,
+      company_id: 1,
+      room_id: 1,
+      role: ADMIN_ROLE_ROOM,
+      firstname: null,
+      lastname: null,
+      username: 'salle-neon',
+      email: 'room-x@rooms.quizzup.invalid',
+      mdp_hash: bcrypt.hashSync('motdepasse-salle', 4),
+      status: ADMIN_STATUS_ACTIVE,
+      created_at: MOCK_NOW,
+      updated_at: null,
+      deleted_at: null,
+    })
+    const app = await createRouteApp(authRoutes)
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/login',
+      payload: { identifier: 'salle-neon', password: 'motdepasse-salle' },
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(jwtSignMock).toHaveBeenCalledWith(expect.objectContaining({ role: ADMIN_ROLE_ROOM }), {
+      expiresIn: '365d',
+    })
 
     await app.close()
   })

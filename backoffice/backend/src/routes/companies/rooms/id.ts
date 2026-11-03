@@ -9,7 +9,8 @@ import { isSuperadmin } from '../../../security/companiesPolicy'
 import type { RoomRow } from '../../../types/room'
 
 import { roomParamsSchema, updateRoomSchema } from './_schemas'
-import { deleteRoomAccount } from './_account'
+import { isUniqueViolation } from '../../_shared/dbErrors'
+import { abortRoomActiveGames, deleteRoomAccount } from './_account'
 import { findRoomInCompany, isRoomNameTaken, roomSelect } from './_shared'
 
 const companyRoomIdRoutes: FastifyPluginAsync = async (app) => {
@@ -87,14 +88,24 @@ const companyRoomIdRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(409).send({ error: 'room_name_already_exists' })
       }
 
-      const updated = await db('rooms')
-        .where('id', roomId)
-        .update({
-          ...(name !== undefined ? { name } : {}),
-          ...(config !== undefined ? { config } : {}),
-          updated_at: db.fn.now(),
-        })
-        .returning(roomSelect)
+      let updated
+
+      try {
+        updated = await db('rooms')
+          .where('id', roomId)
+          .update({
+            ...(name !== undefined ? { name } : {}),
+            ...(config !== undefined ? { config } : {}),
+            updated_at: db.fn.now(),
+          })
+          .returning(roomSelect)
+      } catch (error) {
+        if (isUniqueViolation(error)) {
+          return reply.code(409).send({ error: 'room_name_already_exists' })
+        }
+
+        throw error
+      }
 
       const updatedRoom = Array.isArray(updated) ? updated[0] : updated
 
@@ -141,8 +152,9 @@ const companyRoomIdRoutes: FastifyPluginAsync = async (app) => {
 
       const deletedRoom = Array.isArray(updated) ? updated[0] : updated
 
-      // Une salle supprimée ne doit plus pouvoir se connecter.
+      // Une salle supprimée ne doit plus pouvoir se connecter ni garder de partie active.
       await deleteRoomAccount(roomId)
+      await abortRoomActiveGames(roomId)
 
       return { room: deletedRoom as RoomRow }
     }
