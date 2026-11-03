@@ -374,3 +374,74 @@ Dès que ces points sont tranchés, je rédige les US au format du dépôt et je
 | 8 | Mini-jeux | Catalogue présenté, choix de la V1 en attente. |
 | 9 | Pricing / paiement | **Plus tard.** |
 | 10 | Nom | **QuizzUP**. |
+
+**Mise à jour du 3 novembre (soir)** : comptes de salle **conservés** (rôle dédié « salle », connecté sur le PC de la salle). Première version = **un seul mini-jeu, le blind test éclair**, pour poser toute la chaîne audio dès le départ. Electron remis en question → étude « sans installation » ci-dessous.
+
+---
+
+## 11. Étude : une salle « sans rien installer »
+
+Idée : le PC de la salle ouvre simplement le site QuizzUP dans **Chrome ou Edge**, se connecte avec le **compte de salle**, et tout fonctionne. Le moteur de jeu tourne alors **dans la page web** elle-même.
+
+### 11.1 Ce qui marche dans un navigateur
+
+| Besoin | Faisable sans installation ? | Comment |
+|---|---|---|
+| Buzzers clavier | ✅ | Lecture des touches physiques dans la page, plein écran. L'API *Keyboard Lock* de Chrome/Edge capte même Échap et les raccourcis en plein écran. |
+| Plein écran, kiosque | ✅ | Bouton « Lancer la salle » qui passe en plein écran. Option : raccourci Chrome en mode `--kiosk` (pas une installation, juste une icône). |
+| Son (blind test) | ✅ | Web Audio : lecture précise à la milliseconde d'un extrait coupé à 1 s, 5 s, 20 s. Le navigateur exige un premier clic avant de jouer du son → le bouton « Lancer la salle » sert aussi à ça. |
+| Partie sans Internet | ✅ | Site en **PWA** : l'application et tout le contenu de la partie (questions + fichiers audio) sont mis en cache au lancement ; la partie continue si la connexion coupe, puis le résultat est renvoyé au serveur au retour du réseau. |
+| Lumières / fumée en **USB DMX** | ✅ (Chrome/Edge uniquement) | **Web Serial** : la page parle directement aux interfaces USB-DMX compatibles « DMX USB Pro » (Enttec et nombreux clones) ou à un petit boîtier Arduino/ESP32. Le navigateur demande une seule fois l'autorisation d'accéder à l'interface, puis s'en souvient. |
+| Lumières en **Art-Net** (réseau) | ❌ | Un navigateur ne peut pas envoyer d'UDP. Il faudrait soit une interface USB à la place, soit un petit « pont » optionnel (seul cas où quelque chose serait à installer). |
+| Firefox / Safari | ⚠️ | Jeu et buzzers OK, mais **pas de Web Serial** → pas de lumières. On exige Chrome ou Edge sur le PC de salle. |
+
+### 11.2 Risques et parades
+
+- **La page perd le focus** (notification Windows, clic ailleurs) → les buzzers ne répondent plus. Parade : alerte plein écran « Cliquez pour réactiver les buzzers », et mode kiosque recommandé.
+- **Onglet fermé ou PC qui se met en veille** pendant la partie → l'état de la partie est sauvegardé en continu dans le navigateur (IndexedDB) et reprend à la réouverture. On demande aussi au navigateur de garder l'écran allumé (*Wake Lock*).
+- **Sécurité fumée** : si l'onglet plante, il n'envoie plus de trames DMX et certaines interfaces gardent la dernière valeur. Parade : privilégier une interface ou un boîtier qui coupe la fumée en l'absence de signal, et l'**arrêt d'urgence physique** reste obligatoire.
+- **Mises à jour** : rien à faire, le site est à jour à chaque ouverture (avantage net sur Electron).
+
+### 11.3 Recommandation
+
+**Partir sur le 100 % navigateur (PWA, Chrome/Edge) avec le compte de salle.** Electron n'apporte vraiment que l'Art-Net et un focus clavier garanti ; ça ne vaut pas l'installation. On garde une porte ouverte : un « pont » local optionnel, plus tard, pour les clients équipés uniquement en Art-Net.
+
+Conséquence sur l'architecture (remplace la section 7.3) :
+
+```
+game/
+├─ engine/     moteur pur TS (aucune I/O), testé, rejouable avec une graine
+└─ room-app/   écran de salle Vue 3 en PWA : exécute le moteur, lit les buzzers,
+               joue l'audio, pilote le DMX par Web Serial, cache offline
+backoffice/    + rôle « salle », salles, lancement, historique, upload audio
+```
+
+---
+
+## 12. Mini-jeu V1 : blind test éclair
+
+### 12.1 Règle proposée (à valider)
+
+1. Les 4 propositions de réponse s'affichent (A, B, C, D).
+2. **Palier 1** : l'extrait joue **1 seconde**. Les joueurs peuvent buzzer.
+3. Personne ne trouve → **palier 2** : l'extrait rejoue depuis le début pendant **5 secondes**.
+4. Personne ne trouve → **palier 3** : **20 secondes**.
+5. Toujours personne → **perdu pour tout le monde**, on révèle la réponse.
+
+Points dégressifs, par exemple **100 / 50 / 20** selon le palier.
+
+Points à trancher :
+
+- **Qui répond ?** Option A (proposée) : le **premier qui buzze** répond seul avec A-D ; faux = pénalité et bloqué jusqu'à la fin de la question, les autres peuvent encore buzzer. Option B : tout le monde répond en même temps à chaque palier, tous les justes marquent.
+- **Pénalité** en cas de mauvaise réponse : oui / non, combien ?
+- **Réponse à 4 choix ou libre ?** Avec les buzzers A-D, 4 choix est le plus naturel.
+
+### 12.2 Ce que ça construit d'entrée (la « stack audio »)
+
+- **Backoffice** : upload d'un fichier audio sur une question (type média `audio` déjà prévu), définition du point de départ de l'extrait, lecteur de pré-écoute.
+- **Stockage** des fichiers (stratégie à poser : disque serveur ou stockage objet compatible S3), formats acceptés (mp3/ogg), taille max.
+- **Salle** : préchargement de tous les extraits avant la partie (pas de blanc pendant le jeu, et marche hors ligne), lecture coupée précisément au palier.
+
+### 12.3 Point juridique à ne pas oublier
+
+Diffuser de la musique dans un lieu ouvert au public est soumis à licence (**SACEM / SPRE** en France) : c'est en général à la charge de chaque centre. Stocker et distribuer des extraits depuis la plateforme pose aussi la question des droits. À vérifier avant de commercialiser des thèmes blind test « éditeur ».
