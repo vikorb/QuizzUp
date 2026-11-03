@@ -64,6 +64,9 @@ Format inspiré de Keep a Changelog.
 
 ### Changed
 
+- La création de thèmes, questions et réponses est réservée au superadmin et à l'admin ; le rôle `user` passe en lecture seule (API, boutons et routes de création du backoffice).
+  US: US-PERM-01
+
 - Harmonisation des statuts entre le backend, le frontend et le package shared.
   US: us-shared-02
 

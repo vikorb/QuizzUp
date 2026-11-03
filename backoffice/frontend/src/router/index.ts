@@ -3,6 +3,8 @@ import { createWebHistory } from 'vue-router'
 
 import { isAuthenticated, me, refreshMe } from '@/state/authState'
 import { isCompanyAdminRole, isSuperadminRole } from '@/utils/company/details/permissions'
+import { canCreateQuestion } from '@/utils/question/permissions'
+import { canCreateTheme } from '@/utils/theme/permissions'
 import CreateAccountView from '@/views/clients/accounts/CreateAccountView.vue'
 import ClientDetailsView from '@/views/clients/ClientDetailsView.vue'
 import CreateClientView from '@/views/clients/CreateClientView.vue'
@@ -131,6 +133,7 @@ export const router = createRouter({
           path: '/themes/create',
           name: 'themes-create',
           component: ThemeDetailView,
+          meta: { requiresThemeCreation: true },
         },
         {
           path: '/themes/:themeId',
@@ -146,6 +149,7 @@ export const router = createRouter({
           path: '/questions/create',
           name: 'questions-create',
           component: CreateQuestionView,
+          meta: { requiresQuestionCreation: true },
         },
         {
           path: '/questions/:questionId/edit',
@@ -208,6 +212,14 @@ router.beforeEach(async (to) => {
 
   if (to.meta.requiresCompanyAdminAccess && !canManageCompany(to.params)) {
     return { name: 'home' }
+  }
+
+  if (to.meta.requiresThemeCreation && !canCreateTheme(me.value?.role)) {
+    return { name: 'themes' }
+  }
+
+  if (to.meta.requiresQuestionCreation && !canCreateQuestion(me.value?.role)) {
+    return { name: 'questions' }
   }
 
   return true

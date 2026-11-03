@@ -1,8 +1,4 @@
-import {
-  ADMIN_ROLE_ADMIN,
-  ADMIN_ROLE_SUPERADMIN,
-  ADMIN_ROLE_USER,
-} from '@quizzup/shared'
+import { ADMIN_ROLE_ADMIN, ADMIN_ROLE_SUPERADMIN, ADMIN_ROLE_USER } from '@quizzup/shared'
 
 export const API_RESOURCE = {
   COMPANY: 'company',
@@ -26,27 +22,27 @@ export type ApiResource = (typeof API_RESOURCE)[keyof typeof API_RESOURCE]
 export type ApiAction = (typeof API_ACTION)[keyof typeof API_ACTION]
 
 export type ApiRole =
-  | typeof ADMIN_ROLE_SUPERADMIN
-  | typeof ADMIN_ROLE_ADMIN
-  | typeof ADMIN_ROLE_USER
+  typeof ADMIN_ROLE_SUPERADMIN | typeof ADMIN_ROLE_ADMIN | typeof ADMIN_ROLE_USER
 
 type PermissionKey = `${ApiResource}:${ApiAction}`
 
 const contentReadPermissions: PermissionKey[] = [
   'theme:list',
   'theme:read',
-  'theme:create',
 
   'question:list',
   'question:read',
-  'question:create',
 
   'answer:list',
   'answer:read',
-  'answer:create',
 ]
 
+// US-PERM-01 : seuls le superadmin et l'admin d'une compagnie créent ou modifient du contenu.
 const contentWritePermissions: PermissionKey[] = [
+  'theme:create',
+  'question:create',
+  'answer:create',
+
   'theme:update',
   'theme:updateStatus',
   'theme:delete',
