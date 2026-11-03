@@ -2,7 +2,11 @@ import '../_helpers/registerRouteMocks'
 
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { ANSWER_STATUS_ACTIVE, ANSWER_STATUS_DELETED } from '@quizzup/shared'
+import {
+  ANSWER_STATUS_ACTIVE,
+  ANSWER_STATUS_DELETED,
+  ANSWER_STATUS_INACTIVE,
+} from '@quizzup/shared'
 import questionsRoutes from '@backend/routes/questions'
 import { dbState, MOCK_NOW } from '../_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
@@ -149,6 +153,26 @@ describe('routes/questions/answers — multiple correct answers', () => {
 
     expect(response.statusCode).toBe(200)
     expect(dbState.answers.find((answer) => answer.id === 10)?.status).toBe(ANSWER_STATUS_DELETED)
+
+    await app.close()
+  })
+
+  it('does not count an inactive correct answer as a remaining correct answer', async () => {
+    dbState.answers = dbState.answers.map((answer) =>
+      answer.id === 11 ? { ...answer, is_correct: true, status: ANSWER_STATUS_INACTIVE } : answer
+    )
+    const app = await createRouteApp(questionsRoutes)
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/questions/2/answers/10',
+      headers: authHeaders(companyAdminUser),
+      payload: { isCorrect: false },
+    })
+
+    expect(response.statusCode).toBe(400)
+    expect(parseJson(response)).toEqual({ error: 'answer_correct_required' })
+    expect(isCorrect(10)).toBe(true)
 
     await app.close()
   })

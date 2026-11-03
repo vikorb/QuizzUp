@@ -11,8 +11,8 @@ exports.up = async function (knex) {
 }
 
 /**
- * Ne garde que la plus ancienne bonne réponse de chaque question avant de
- * recréer l'index unique.
+ * Ne garde qu'une bonne réponse par question (la plus ancienne active en
+ * priorité) avant de recréer l'index unique.
  *
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
@@ -25,10 +25,10 @@ exports.down = async function (knex) {
     WHERE is_correct = true
     AND status <> 2
     AND id NOT IN (
-      SELECT MIN(id)
+      SELECT DISTINCT ON (question_id) id
       FROM answers
       WHERE is_correct = true AND status <> 2
-      GROUP BY question_id
+      ORDER BY question_id, (status = 1) DESC, id
     )
   `)
 

@@ -250,6 +250,8 @@ export type RoundChooserReason = (typeof ROUND_CHOOSER_REASON)[keyof typeof ROUN
 /** Format de partie et matériel d'une salle. */
 export const GAME_DEFAULT_ROUNDS = 10 as const
 export const GAME_DEFAULT_QUESTIONS_PER_ROUND = 10 as const
+export const GAME_MAX_ROUNDS = 20 as const
+export const GAME_MAX_QUESTIONS_PER_ROUND = 20 as const
 export const GAME_THEMES_OFFERED_PER_ROUND = 4 as const
 export const GAME_PODIUMS = 4 as const
 export const GAME_BUZZERS_PER_PODIUM = 4 as const

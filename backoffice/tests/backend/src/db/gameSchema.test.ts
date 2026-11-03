@@ -8,6 +8,8 @@ import {
   ADMIN_ROLE_ROOM,
   GAME_DEFAULT_QUESTIONS_PER_ROUND,
   GAME_DEFAULT_ROUNDS,
+  GAME_MAX_QUESTIONS_PER_ROUND,
+  GAME_MAX_ROUNDS,
   GAME_PODIUMS,
   GAME_STATE_PENDING,
   GAME_STATES,
@@ -76,6 +78,10 @@ describe('game schema migrations', () => {
     )
     expect(gamesMigration).toContain(
       `table.smallint('questions_per_round').notNullable().defaultTo(${GAME_DEFAULT_QUESTIONS_PER_ROUND})`
+    )
+    expect(gamesMigration).toContain(`rounds_count BETWEEN 1 AND ${GAME_MAX_ROUNDS}`)
+    expect(gamesMigration).toContain(
+      `questions_per_round BETWEEN 1 AND ${GAME_MAX_QUESTIONS_PER_ROUND}`
     )
     expect(gamesMigration).toContain(`podium BETWEEN 1 AND ${GAME_PODIUMS}`)
   })
