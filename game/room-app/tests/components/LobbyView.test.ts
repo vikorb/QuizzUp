@@ -79,3 +79,30 @@ describe('LobbyView', () => {
     wrapper.unmount()
   })
 })
+
+describe('LobbyView — échec au démarrage', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    syncRoomAuth()
+    enterDemo()
+    configureRoomGame({ storage: createMemorySessionStorage() })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    closeGame()
+  })
+
+  it('affiche un message si le contenu ne peut pas être chargé', async () => {
+    const content = await import('@/game/content')
+    vi.spyOn(content, 'loadRoomThemes').mockRejectedValueOnce(new Error('api down'))
+    const { wrapper, router } = await mountWithApp(LobbyView, { route: '/lobby' })
+
+    await wrapper.find('input[name=desk-1-name]').setValue('Léa')
+    await findButton(wrapper, 'Démarrer la partie')?.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Impossible de démarrer la partie')
+    expect(router.currentRoute.value.name).toBe('lobby')
+  })
+})

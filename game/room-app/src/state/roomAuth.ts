@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue'
 
+import { createLocalSessionStorage } from '@/game/session'
 import {
   fetchRoomAccount,
   getRoomToken,
@@ -32,24 +33,37 @@ export function enterDemo(): void {
   demo.value = true
 }
 
-/** Recharge le compte au démarrage ; API injoignable = on garde le jeton (partie hors ligne). */
+/**
+ * Recharge le compte au démarrage. Jeton expiré ou révoqué : la salle est
+ * déconnectée. API injoignable : on garde le jeton (partie hors ligne).
+ */
 export async function refreshRoomAccount(): Promise<void> {
   if (!token.value) {
     return
   }
   const fetched = await fetchRoomAccount(token.value)
+  if (fetched === 'unauthorized') {
+    clearLocalSession()
+    return
+  }
   if (fetched) {
     account.value = fetched
   }
 }
 
-export async function signOut(): Promise<void> {
-  const current = token.value
+function clearLocalSession(): void {
   setRoomToken(null)
   setDemoMode(false)
   token.value = null
   account.value = null
   demo.value = false
+  // Une partie sauvegardée contient les emails des joueurs : elle ne survit pas à la déconnexion.
+  createLocalSessionStorage().clear()
+}
+
+export async function signOut(): Promise<void> {
+  const current = token.value
+  clearLocalSession()
   if (current) {
     await logoutApi(current)
   }

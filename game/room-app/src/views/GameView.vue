@@ -74,7 +74,7 @@
 import { mdiStopCircleOutline } from '@mdi/js'
 import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRouter } from 'vue-router'
 
 import RoomTopBar from '@/components/game/RoomTopBar.vue'
 import ScoreBoard from '@/components/game/ScoreBoard.vue'
@@ -91,7 +91,7 @@ import {
   getRevealView,
   getThemeName,
 } from '@/game/selectors'
-import { abortGame, closeGame, pressBuzzer, resumeSavedGame, useRoomGame } from '@/game/useRoomGame'
+import { abortGame, closeGame, pressBuzzer, useRoomGame } from '@/game/useRoomGame'
 import { useBuzzers } from '@/hardware/useBuzzers'
 import BlindTestScreen from '@/views/game/BlindTestScreen.vue'
 import FinishedScreen from '@/views/game/FinishedScreen.vue'
@@ -135,9 +135,24 @@ const activeId = computed(() => {
 useBuzzers(pressBuzzer)
 
 onMounted(async () => {
-  if (!state.value && !resumeSavedGame()) {
-    await router.replace({ name: 'lobby' })
+  // Après un rechargement, la reprise passe par l'écran de lancement : il faut un clic
+  // pour rouvrir le plein écran, débloquer le son et recharger les extraits.
+  if (!state.value) {
+    await router.replace({ name: 'launch' })
   }
+})
+
+// Quitter l'écran (bouton Précédent, URL) en pleine partie l'arrête, après confirmation.
+onBeforeRouteLeave(async () => {
+  if (!state.value || isOver.value) {
+    return true
+  }
+  const ok = await confirm({ message: t('room.toolbar.abortConfirm'), variant: 'danger' })
+  if (ok) {
+    abortGame()
+    closeGame()
+  }
+  return ok
 })
 
 async function onAbort(): Promise<void> {

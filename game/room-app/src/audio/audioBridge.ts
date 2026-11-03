@@ -53,6 +53,31 @@ export function createAudioBridge(player: ExtractPlayer) {
   }
 
   return {
+    /**
+     * Après une reprise (rechargement), relance l'extrait du palier en cours là où
+     * il en était ; s'il était en pause (un joueur répondait), il reste en pause.
+     */
+    restore(options: {
+      mediaUrl: string | null
+      mediaStartMs: number
+      extractMs: number
+      elapsedMs: number
+      paused: boolean
+    }): void {
+      currentExtractMs = options.extractMs
+      const remainingMs = options.extractMs - options.elapsedMs
+
+      if (!options.mediaUrl || remainingMs <= 0) {
+        return
+      }
+
+      const startSec = (options.mediaStartMs + options.elapsedMs) / 1000
+      player.play(options.mediaUrl, startSec, remainingMs).catch(() => undefined)
+      if (options.paused) {
+        player.pause()
+      }
+    },
+
     handleEvents(events: GameEvent[]): void {
       for (const event of events) {
         handle(event)

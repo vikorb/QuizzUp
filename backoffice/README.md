@@ -164,7 +164,7 @@ ADMIN_SEED_EMAIL=admin@quizzup.local
 ADMIN_SEED_USERNAME=admin
 ADMIN_SEED_PASSWORD=ChangeMe123!
 API_PORT=3001
-CORS_ORIGIN=http://localhost:4173
+CORS_ORIGIN=http://localhost:4173,http://localhost:4174
 JWT_SECRET=change_me_super_secret
 JWT_EXPIRES_IN=2h
 ```

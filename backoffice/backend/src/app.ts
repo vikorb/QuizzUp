@@ -35,7 +35,10 @@ export function buildApp() {
   const app = Fastify({ logger: true })
 
   app.register(cors, {
-    origin: process.env.CORS_ORIGIN || true,
+    // Plusieurs origines possibles, séparées par des virgules (backoffice :4173, écran de salle :4174).
+    origin: process.env.CORS_ORIGIN
+      ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim())
+      : true,
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],

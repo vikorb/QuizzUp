@@ -66,6 +66,34 @@ describe('audioBridge', () => {
     expect(player.play).toHaveBeenCalled()
   })
 
+  it('relance l’extrait en cours après une reprise, en pause si un joueur répondait', () => {
+    const player = fakePlayer()
+    const bridge = createAudioBridge(player)
+
+    bridge.restore({
+      mediaUrl: 'a.mp3',
+      mediaStartMs: 2000,
+      extractMs: 20_000,
+      elapsedMs: 5000,
+      paused: true,
+    })
+    expect(player.play).toHaveBeenCalledWith('a.mp3', 7, 15_000)
+    expect(player.pause).toHaveBeenCalled()
+
+    // Reprise de la fenêtre de buzz : l'extrait n'était pas fini, il repart.
+    bridge.handleEvents([event('blind_test_stage_resumed', { elapsedMs: 6000 })])
+    expect(player.resume).toHaveBeenCalled()
+
+    bridge.restore({
+      mediaUrl: 'a.mp3',
+      mediaStartMs: 0,
+      extractMs: 1000,
+      elapsedMs: 2000,
+      paused: false,
+    })
+    expect(player.play).toHaveBeenCalledTimes(1)
+  })
+
   it('ne joue rien sans média', () => {
     const player = fakePlayer()
     createAudioBridge(player).handleEvents([

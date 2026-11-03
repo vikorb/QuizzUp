@@ -205,12 +205,19 @@ export class GameSession {
       return []
     }
 
+    // Le moteur ramène une commande en retard au dernier instant connu : on journalise
+    // l'instant effectivement appliqué, sinon le rejeu (sans les ticks) pourrait diverger.
+    const previousAt = this.currentState.lastAt
+    const applied: GameCommand = { ...command, at: Math.max(command.at, previousAt ?? command.at) }
     const step = reduceGame(this.currentState, command)
     this.currentState = step.state
-    this.lastAt = Math.max(this.lastAt, command.at)
+    this.lastAt = Math.max(this.lastAt, applied.at)
 
-    if (command.type !== 'tick') {
-      this.commands.push(command)
+    if (this.isOver) {
+      // Partie terminée : rien à reprendre, et les emails ne restent pas sur le PC de la salle.
+      this.storage.clear()
+    } else if (command.type !== 'tick') {
+      this.commands.push(applied)
       this.persist()
     } else if (step.events.length > 0 || this.lastAt - this.lastSavedAt >= TICK_SAVE_INTERVAL_MS) {
       this.persist()

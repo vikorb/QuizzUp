@@ -29,10 +29,32 @@ describe('GameView', () => {
 
   afterEach(() => closeGame())
 
-  it('sans partie en cours, renvoie au lobby', async () => {
-    const { wrapper, router } = await mountWithApp(GameView, { route: '/play' })
-    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('lobby'))
-    wrapper.unmount()
+  it('sans partie en mémoire (rechargement), renvoie au lancement pour reprendre d’un clic', async () => {
+    const { router } = await mountWithApp(GameView, { route: '/play' })
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('launch'))
+  })
+
+  it('demande confirmation avant de quitter une partie en cours', async () => {
+    startNewGame({ registrations: REGISTRATIONS, themes: getDemoThemes(), seed: 11 })
+    // Les gardes de navigation d'un composant ne s'activent que rendu par <RouterView> (App).
+    const { default: App } = await import('@/App.vue')
+    const { router } = await mountWithApp(App, { route: '/play' })
+    await flushPromises()
+    const { useConfirm } = await import('@/composables/useConfirm')
+
+    const refused = router.push('/lobby')
+    await flushPromises()
+    useConfirm().cancel()
+    await refused
+    expect(router.currentRoute.value.name).toBe('play')
+    expect(useRoomGame().state.value?.phase.name).toBe('round_intro')
+
+    const accepted = router.push('/lobby')
+    await flushPromises()
+    useConfirm().accept()
+    await accepted
+    expect(router.currentRoute.value.name).toBe('lobby')
+    expect(useRoomGame().state.value).toBeNull()
   })
 
   it('enchaîne annonce, choix du thème, blind test et révélation au rythme du moteur', async () => {

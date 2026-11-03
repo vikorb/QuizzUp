@@ -45,6 +45,9 @@
           <p v-if="submitted && !hasPlayer" class="lobby__error" role="alert">
             {{ $t('room.lobby.needPlayer') }}
           </p>
+          <p v-if="startFailed" class="lobby__error" role="alert">
+            {{ $t('room.lobby.startFailed') }}
+          </p>
           <UiButton
             variant="primary"
             class="lobby__start-btn"
@@ -63,7 +66,7 @@
 <script setup lang="ts">
 import { mdiPlay, mdiShieldLockOutline } from '@mdi/js'
 import { GAME_DEFAULT_QUESTIONS_PER_ROUND, GAME_DEFAULT_ROUNDS } from '@quizzup/shared'
-import { computed, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import RoomTopBar from '@/components/game/RoomTopBar.vue'
@@ -102,6 +105,8 @@ const formatId = ref<(typeof FORMATS)[number]['id']>(isDemo.value ? 'short' : 'f
 const submitted = ref(false)
 const starting = ref(false)
 const pinged = reactive(new Set<DeskNumber>())
+const startFailed = ref(false)
+const pingTimers = new Set<ReturnType<typeof setTimeout>>()
 
 const filledRegistrations = computed(() => registrations.filter(isRegistrationFilled))
 const hasPlayer = computed(() => filledRegistrations.value.length > 0)
@@ -114,7 +119,18 @@ const errorsByDesk = computed(() =>
 // Un appui sur n'importe quel buzzer d'un pupitre le fait briller : test rapide du matériel.
 useBuzzers((press) => {
   pinged.add(press.desk)
-  setTimeout(() => pinged.delete(press.desk), PING_DURATION_MS)
+  const timer = setTimeout(() => {
+    pingTimers.delete(timer)
+    pinged.delete(press.desk)
+  }, PING_DURATION_MS)
+  pingTimers.add(timer)
+})
+
+onBeforeUnmount(() => {
+  for (const timer of pingTimers) {
+    clearTimeout(timer)
+  }
+  pingTimers.clear()
 })
 
 async function onStart(): Promise<void> {
@@ -127,6 +143,7 @@ async function onStart(): Promise<void> {
   const format = FORMATS.find((option) => option.id === formatId.value) ?? FORMATS[0]
 
   starting.value = true
+  startFailed.value = false
   try {
     const themes = await loadRoomThemes()
     await getExtractPlayer().preload(collectMediaUrls(themes))
@@ -136,6 +153,14 @@ async function onStart(): Promise<void> {
       roundsCount: format.roundsCount,
       questionsPerRound: format.questionsPerRound,
     })
+  } catch {
+    // Contenu indisponible, préchargement ou configuration de partie invalide.
+    startFailed.value = true
+    starting.value = false
+    return
+  }
+
+  try {
     await router.push({ name: 'play' })
   } finally {
     starting.value = false

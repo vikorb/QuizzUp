@@ -37,7 +37,10 @@ src/
 - **L'écran ne calcule aucune règle** : il envoie des commandes horodatées au moteur
   (`start`, `tick` toutes les 50 ms, `press`, `abort`) et lit `state.phase` via `game/selectors.ts`.
 - **Reprise après rechargement** : graine + commandes (hors ticks) sont sauvegardées dans
-  `localStorage` ; à la réouverture la partie est rejouée et l'horloge recalée.
+  `localStorage` ; la reprise se fait d'un clic depuis l'écran de lancement (plein écran et son
+  à rouvrir), la partie est rejouée, l'horloge recalée et l'extrait en cours relancé. La
+  sauvegarde, qui contient les emails consentis, est effacée dès la fin de la partie et à la
+  déconnexion de la salle.
 - **Ports** à brancher quand les paquets voisins seront mergés :
   - buzzers appris : `setBuzzerInputFactory()` (`hardware/useBuzzers.ts`) ← `game/hardware` ;
   - lecture Web Audio : `configureRoomGame({ player })` (`game/useRoomGame.ts`) ← `game/audio` ;
@@ -60,7 +63,8 @@ Touches physiques (`KeyboardEvent.code`) : sur un clavier AZERTY, la rangée du 
 
 ```bash
 npm install          # .npmrc : legacy-peer-deps (comme game/engine)
-npm run dev          # http://localhost:4174 (VITE_API_URL pour l'API, défaut :3001)
+npm run dev          # http://localhost:4174 (VITE_API_URL pour l'API, défaut :3001 ;
+                     # le backend doit autoriser l'origine :4174 dans CORS_ORIGIN)
 npm run lint
 npm run format:check
 npm run type-check

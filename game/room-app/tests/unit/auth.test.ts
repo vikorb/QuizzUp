@@ -1,4 +1,5 @@
 import {
+  fetchRoomAccount,
   getRoomToken,
   isDemoMode,
   loginReasonToI18nKey,
@@ -54,6 +55,26 @@ describe('connexion du compte de salle', () => {
 
     expect(result).toEqual({ ok: false, reason: 'not_room_account' })
     expect(String(fetchMock.mock.calls[2]?.[0])).toMatch(/\/logout$/)
+  })
+
+  it('ferme la session serveur si /me échoue après le login', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, { token: 'jwt' }))
+      .mockResolvedValueOnce(jsonResponse(500, {}))
+      .mockResolvedValueOnce(jsonResponse(200, {}))
+
+    await expect(loginRoomApi({ identifier: 'a', password: 'b' })).resolves.toEqual({
+      ok: false,
+      reason: 'server_error',
+    })
+    expect(String(fetchMock.mock.calls[2]?.[0])).toMatch(/\/logout$/)
+  })
+
+  it('distingue un jeton expiré d’une API injoignable', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(401, {}))
+    await expect(fetchRoomAccount('jwt')).resolves.toBe('unauthorized')
+    fetchMock.mockRejectedValueOnce(new TypeError('offline'))
+    await expect(fetchRoomAccount('jwt')).resolves.toBeNull()
   })
 
   it.each([

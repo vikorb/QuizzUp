@@ -39,7 +39,8 @@
         "too_long": "{max} caractères maximum.",
         "invalid": "Email invalide.",
         "consent_required": "Coche la case de consentement, ou laisse l’email vide."
-      }
+      },
+      "startFailed": "Impossible de démarrer la partie (contenu indisponible). Réessaie ou passe en mode démo."
     },
     "focus": {
       "title": "Buzzers inactifs",

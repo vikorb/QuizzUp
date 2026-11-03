@@ -39,7 +39,8 @@
         "too_long": "{max} characters maximum.",
         "invalid": "Invalid email.",
         "consent_required": "Tick the consent box, or leave the email empty."
-      }
+      },
+      "startFailed": "Could not start the game (content unavailable). Try again or use demo mode."
     },
     "focus": {
       "title": "Buzzers inactive",

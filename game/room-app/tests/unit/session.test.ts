@@ -127,6 +127,31 @@ describe('GameSession', () => {
     expect(storage.current).toBeNull()
   })
 
+  it('efface la sauvegarde (et les emails) dès la fin de la partie', () => {
+    const storage = createMemorySessionStorage()
+    const clock = createManualClock()
+    const session = GameSession.create(baseSetup(), REGISTRATIONS, { storage, now: clock.now })
+    session.start()
+    expect(storage.current?.registrations[1]?.email).toBe('hugo@exemple.fr')
+
+    session.abort('operator_abort')
+    expect(storage.current).toBeNull()
+    expect(GameSession.resume({ storage })).toBeNull()
+  })
+
+  it('journalise un appui en retard à l’instant appliqué par le moteur', () => {
+    const storage = createMemorySessionStorage()
+    const clock = createManualClock()
+    const session = GameSession.create(baseSetup(), REGISTRATIONS, { storage, now: clock.now })
+    session.start()
+    clock.advance(500)
+    session.tick()
+
+    session.press(1, 0, 1200) // horodaté avant le dernier tick (1500)
+
+    expect(storage.current?.commands.at(-1)).toMatchObject({ type: 'press', at: 1500 })
+  })
+
   it('ignore une sauvegarde absente ou illisible', () => {
     const storage = createMemorySessionStorage()
     expect(GameSession.resume({ storage })).toBeNull()

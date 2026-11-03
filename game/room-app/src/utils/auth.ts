@@ -89,12 +89,21 @@ function authHeaders(token: string): Headers {
   return headers
 }
 
-export async function fetchRoomAccount(token: string): Promise<RoomAccount | null> {
+/**
+ * Compte connecté, `'unauthorized'` si le jeton est expiré ou révoqué (401), ou
+ * `null` si l'API est injoignable ou en erreur (la salle peut continuer hors ligne).
+ */
+export async function fetchRoomAccount(
+  token: string
+): Promise<RoomAccount | 'unauthorized' | null> {
   try {
     const res = await fetch(`${getApiBase()}/me`, {
       headers: authHeaders(token),
       credentials: 'include',
     })
+    if (res.status === 401) {
+      return 'unauthorized'
+    }
     if (!res.ok) {
       return null
     }
@@ -149,7 +158,9 @@ export async function loginRoomApi(args: {
 
   const account = await fetchRoomAccount(token)
 
-  if (!account) {
+  if (!account || account === 'unauthorized') {
+    // Ne pas laisser une session ouverte côté serveur pour un login inachevé.
+    await logoutApi(token)
     return { ok: false, reason: 'server_error' }
   }
 

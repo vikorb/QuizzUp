@@ -1,5 +1,5 @@
 import type { EngineTheme, GameEvent, GameState } from '@quizzup/game-engine'
-import { MAX_SEED } from '@quizzup/game-engine'
+import { FLASH_BLIND_TEST_STAGE_DURATIONS_MS, MAX_SEED } from '@quizzup/game-engine'
 import { computed, ref, shallowRef } from 'vue'
 
 import { createAudioBridge } from '@/audio/audioBridge'
@@ -82,7 +82,30 @@ function attach(next: GameSession): void {
     }
   })
 
-  ticker = setInterval(() => next.tick(), TICK_INTERVAL_MS)
+  if (!next.isOver) {
+    ticker = setInterval(() => next.tick(), TICK_INTERVAL_MS)
+  }
+}
+
+/** Relance l'extrait du palier en cours d'une partie reprise. */
+function restoreAudio(resumed: GameSession): void {
+  const { phase } = resumed.state
+
+  if (phase.name !== 'question') {
+    return
+  }
+
+  const mini = phase.miniGameState
+  const paused = mini.status === 'answering' && mini.pausedAt !== null
+  const reference = paused && mini.pausedAt !== null ? mini.pausedAt : resumed.now()
+
+  audioBridge.restore({
+    mediaUrl: mini.question.mediaUrl,
+    mediaStartMs: mini.question.mediaStartMs,
+    extractMs: FLASH_BLIND_TEST_STAGE_DURATIONS_MS[mini.stageIndex] ?? 0,
+    elapsedMs: Math.max(0, reference - mini.stageStartedAt),
+    paused,
+  })
 }
 
 export function createSeed(): number {
@@ -129,6 +152,7 @@ export function resumeSavedGame(): boolean {
   }
 
   attach(resumed)
+  restoreAudio(resumed)
   return true
 }
 
