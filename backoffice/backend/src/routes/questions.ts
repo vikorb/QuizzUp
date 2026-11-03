@@ -33,10 +33,12 @@ import questionAnswerIdRoutes from './questions/answers/id'
 import questionAnswerIdStatusRoutes from './questions/answers/idStatus'
 import questionIdRoutes from './questions/id'
 import questionIdStatusRoutes from './questions/idStatus'
+import questionMediaRoutes from './questions/media'
 
 const questionsRoutes: FastifyPluginAsync = async (app) => {
   app.register(questionIdRoutes)
   app.register(questionIdStatusRoutes)
+  app.register(questionMediaRoutes)
   app.register(questionAnswersRoutes)
   app.register(questionAnswerIdRoutes)
   app.register(questionAnswerIdStatusRoutes)

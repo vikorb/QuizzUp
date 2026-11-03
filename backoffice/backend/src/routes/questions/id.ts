@@ -12,6 +12,7 @@ import {
   getAnswerStatusFromQuestionStatus,
   getCurrentAdminId,
   getQuestionAccessRow,
+  getQuestionMediaDurationMs,
   getQuestionWithAnswers,
   getThemesForQuestion,
   hasInvalidAnswerStatus,
@@ -21,6 +22,7 @@ import {
   parseQuestionThemeIds,
   syncQuestionThemes,
   validateAnswers,
+  validateMediaStartMs,
   type QuestionBody,
   type QuestionParams,
 } from './_shared'
@@ -172,6 +174,17 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
 
       if (req.body.mediaUrl !== undefined) {
         patch.media_url = req.body.mediaUrl
+      }
+
+      if (req.body.mediaStartMs !== undefined) {
+        const durationMs = await getQuestionMediaDurationMs(questionId)
+        const mediaStartError = validateMediaStartMs(req.body.mediaStartMs, durationMs)
+
+        if (mediaStartError) {
+          return reply.code(400).send({ error: mediaStartError })
+        }
+
+        patch.media_start_ms = req.body.mediaStartMs
       }
 
       if (req.body.answers !== undefined) {
