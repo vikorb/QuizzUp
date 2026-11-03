@@ -30,6 +30,20 @@ function press(
   return flashBlindTest.press(state, { participantId, button, at })
 }
 
+/** Tous les joueurs buzzent puis se trompent (bouton A, la bonne réponse est C). */
+function everyoneWrong(initial: FlashBlindTestState, from: number) {
+  let state = initial
+  let last: QuestionStep<FlashBlindTestState> = { state, events: [] }
+
+  for (const [index, participant] of PARTICIPANTS.entries()) {
+    state = press(state, participant.id, 0, from + index * 10).state
+    last = press(state, participant.id, 0, from + 5 + index * 10)
+    state = last.state
+  }
+
+  return last
+}
+
 describe('flashBlindTest.isQuestionEligible', () => {
   it('accepts audio questions with 2 to 4 answers and a correct one', () => {
     expect(flashBlindTest.isQuestionEligible(question)).toBe(true)
@@ -189,20 +203,6 @@ describe('flashBlindTest answers', () => {
     })
     expect(timeout.state.lockedOutIds).toEqual([4])
   })
-
-  /** Tous les joueurs buzzent puis se trompent (bouton A, la bonne réponse est C). */
-  function everyoneWrong(initial: FlashBlindTestState, from: number) {
-    let state = initial
-    let last: QuestionStep<FlashBlindTestState> = { state, events: [] }
-
-    for (const [index, participant] of PARTICIPANTS.entries()) {
-      state = press(state, participant.id, 0, from + index * 10).state
-      last = press(state, participant.id, 0, from + 5 + index * 10)
-      state = last.state
-    }
-
-    return last
-  }
 
   it('moves to the next stage, locks reset, only when everybody got it wrong', () => {
     const stage1 = everyoneWrong(start().state, 100)
