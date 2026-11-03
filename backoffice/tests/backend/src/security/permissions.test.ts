@@ -40,3 +40,28 @@ describe('security/permissions — contenu (US-PERM-01)', () => {
     }
   })
 })
+
+describe('security/permissions — salles (US-ROOM-01)', () => {
+  const roomWriteActions = [
+    API_ACTION.CREATE,
+    API_ACTION.UPDATE,
+    API_ACTION.UPDATE_STATUS,
+    API_ACTION.DELETE,
+  ]
+
+  it('lets superadmin and admin manage rooms', () => {
+    for (const action of [API_ACTION.LIST, API_ACTION.READ, ...roomWriteActions]) {
+      expect(canRoleAccessApi(ADMIN_ROLE_SUPERADMIN, API_RESOURCE.ROOM, action)).toBe(true)
+      expect(canRoleAccessApi(ADMIN_ROLE_ADMIN, API_RESOURCE.ROOM, action)).toBe(true)
+    }
+  })
+
+  it('lets the user role read rooms only', () => {
+    expect(canRoleAccessApi(ADMIN_ROLE_USER, API_RESOURCE.ROOM, API_ACTION.LIST)).toBe(true)
+    expect(canRoleAccessApi(ADMIN_ROLE_USER, API_RESOURCE.ROOM, API_ACTION.READ)).toBe(true)
+
+    for (const action of roomWriteActions) {
+      expect(canRoleAccessApi(ADMIN_ROLE_USER, API_RESOURCE.ROOM, action)).toBe(false)
+    }
+  })
+})

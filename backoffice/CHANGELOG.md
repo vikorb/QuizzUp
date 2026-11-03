@@ -47,6 +47,9 @@ Format inspiré de Keep a Changelog.
 - Ajout de la table `rooms` (salles de jeu d'une compagnie, configuration matérielle en JSON).
   US: US-ROOM-01
 
+- Ajout de l'API de gestion des salles d'une compagnie : liste, création, lecture, modification (nom, configuration matérielle JSON), changement de statut et suppression logique. Le rôle `user` les consulte en lecture.
+  US: US-ROOM-01
+
 - Ajout du rôle `room` (compte de salle rattaché à une salle, un seul compte actif par salle).
   US: US-ROOM-02
 

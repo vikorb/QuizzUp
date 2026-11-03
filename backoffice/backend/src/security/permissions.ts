@@ -6,6 +6,7 @@ export const API_RESOURCE = {
   THEME: 'theme',
   QUESTION: 'question',
   ANSWER: 'answer',
+  ROOM: 'room',
 } as const
 
 export const API_ACTION = {
@@ -56,6 +57,16 @@ const contentWritePermissions: PermissionKey[] = [
   'answer:delete',
 ]
 
+// US-ROOM-01 : le staff (user) consulte les salles, l'admin les gère.
+const roomReadPermissions: PermissionKey[] = ['room:list', 'room:read']
+
+const roomWritePermissions: PermissionKey[] = [
+  'room:create',
+  'room:update',
+  'room:updateStatus',
+  'room:delete',
+]
+
 const permissionsByRole: Record<ApiRole, PermissionKey[]> = {
   [ADMIN_ROLE_SUPERADMIN]: [
     'company:list',
@@ -75,6 +86,9 @@ const permissionsByRole: Record<ApiRole, PermissionKey[]> = {
 
     ...contentReadPermissions,
     ...contentWritePermissions,
+
+    ...roomReadPermissions,
+    ...roomWritePermissions,
   ],
 
   [ADMIN_ROLE_ADMIN]: [
@@ -90,6 +104,9 @@ const permissionsByRole: Record<ApiRole, PermissionKey[]> = {
 
     ...contentReadPermissions,
     ...contentWritePermissions,
+
+    ...roomReadPermissions,
+    ...roomWritePermissions,
   ],
 
   [ADMIN_ROLE_USER]: [
@@ -99,6 +116,8 @@ const permissionsByRole: Record<ApiRole, PermissionKey[]> = {
     'companyAccount:update',
 
     ...contentReadPermissions,
+
+    ...roomReadPermissions,
   ],
 }
 
