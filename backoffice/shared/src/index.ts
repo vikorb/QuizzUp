@@ -261,3 +261,37 @@ export const GAME_SEED_MAX = 0xff_ff_ff_ff
 
 /** Participant d'une partie (US-GAME-08). */
 export const GAME_PARTICIPANT_DISPLAY_NAME_MAX_LENGTH = 100 as const
+
+/**
+ * Extraits audio des questions (US-MEDIA-01). Formats lus par Chrome / Edge sur le PC de
+ * salle ; `audio/mp3` est un alias non standard envoyé par certains navigateurs pour le mp3.
+ */
+export const QUESTION_AUDIO_MIME_TYPE_MPEG = 'audio/mpeg' as const
+export const QUESTION_AUDIO_MIME_TYPE_OGG = 'audio/ogg' as const
+
+export const QUESTION_AUDIO_MIME_TYPES = [
+  QUESTION_AUDIO_MIME_TYPE_MPEG,
+  QUESTION_AUDIO_MIME_TYPE_OGG,
+] as const
+
+export type QuestionAudioMimeType = (typeof QUESTION_AUDIO_MIME_TYPES)[number]
+
+export const QUESTION_AUDIO_MIME_TYPE_ALIASES: Readonly<Record<string, QuestionAudioMimeType>> = {
+  'audio/mpeg': QUESTION_AUDIO_MIME_TYPE_MPEG,
+  'audio/mp3': QUESTION_AUDIO_MIME_TYPE_MPEG,
+  'audio/ogg': QUESTION_AUDIO_MIME_TYPE_OGG,
+}
+
+export const QUESTION_AUDIO_EXTENSIONS: Readonly<Record<QuestionAudioMimeType, string>> = {
+  [QUESTION_AUDIO_MIME_TYPE_MPEG]: 'mp3',
+  [QUESTION_AUDIO_MIME_TYPE_OGG]: 'ogg',
+}
+
+/** Taille max par défaut d'un extrait (surchargée côté API par `MEDIA_MAX_BYTES`). */
+export const QUESTION_AUDIO_DEFAULT_MAX_BYTES = 10 * 1024 * 1024
+
+/**
+ * Durée d'écoute à garantir après le point de départ : le palier le plus long du blind test
+ * éclair (20 s, porté par le moteur de jeu). En dessous, le backoffice avertit seulement.
+ */
+export const QUESTION_AUDIO_RECOMMENDED_EXCERPT_MS = 20_000

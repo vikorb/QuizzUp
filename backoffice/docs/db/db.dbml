@@ -93,7 +93,17 @@ Table questions {
   scope varchar(50) [not null, default: 'global', note: 'global, company']
   question text [not null]
   type_media varchar(50) [not null, default: 'none', note: 'none, image, audio, video']
-  media_url text
+  media_url text [note: 'Lien externe (image / vidéo). Vidé quand un fichier audio est uploadé.']
+
+  media_key text [unique, note: 'Clé dans le stockage média (MEDIA_STORAGE_DIR) : questions/<id>/<uuid>.<ext>. Jamais exposée.']
+  media_mime_type varchar(50) [note: 'audio/mpeg, audio/ogg ; NULL sans fichier']
+  media_size_bytes integer [note: '> 0 si fichier']
+  media_duration_ms integer [note: 'Mesurée par le navigateur à l upload']
+  media_start_ms integer [not null, default: 0, note: 'Point de départ de l extrait (blind test)']
+  media_original_name varchar(255)
+  media_uploaded_by bigint [note: 'admins.id, SET NULL']
+  media_uploaded_at timestamptz
+  media_rights_attested_at timestamptz [note: 'L uploadeur atteste détenir le droit de diffuser le fichier']
 
   status smallint [not null, default: 1, note: '0=inactive, 1=active, 2=deleted, 3=draft']
   created_at timestamptz [not null, default: `now()`]
@@ -147,7 +157,7 @@ Table rooms {
   company_id bigint [not null]
 
   name varchar(255) [not null, note: 'Unique par compagnie (insensible à la casse, hors supprimées)']
-  config jsonb [not null, default: '{}', note: 'Configuration matérielle : buzzers, lumières, fumée']
+  config jsonb [not null, default: '{}', note: 'Configuration matérielle : buzzers, lumières, fumée (format RoomHardwareConfig v1, voir game/hardware/README.md)']
 
   status smallint [not null, default: 1, note: '0=inactive, 1=active, 2=deleted']
   created_at timestamptz [not null, default: `now()`]
@@ -279,6 +289,7 @@ Ref: admin_sessions.admin_id > admins.id [delete: cascade]
 Ref: themes.admin_id > admins.id [delete: restrict]
 Ref: themes.company_id > companies.id [delete: cascade]
 Ref: questions.admin_id > admins.id [delete: restrict]
+Ref: questions.media_uploaded_by > admins.id [delete: set null]
 Ref: questions.company_id > companies.id [delete: cascade]
 Ref: question_themes.question_id > questions.id [delete: cascade]
 Ref: question_themes.theme_id > themes.id [delete: cascade]

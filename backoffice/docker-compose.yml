@@ -22,9 +22,11 @@ services:
     environment:
       DATABASE_URL: postgresql://quizzup:quizzup@postgres:5432/quizzup_backoffice
       API_PORT: '3001'
-      CORS_ORIGIN: 'http://localhost:4173'
+      CORS_ORIGIN: 'http://localhost:4173,http://localhost:4174'
       JWT_SECRET: 'change_me_super_secret'
       JWT_EXPIRES_IN: '2h'
+      MEDIA_STORAGE_DIR: '/data/media'
+      MEDIA_MAX_BYTES: '10485760'
     ports:
       - '3001:3001'
     depends_on:
@@ -37,6 +39,7 @@ services:
       - ./tests:/workspace/tests
       - backend_node_modules:/workspace/backend/node_modules
       - shared_node_modules:/workspace/shared/node_modules
+      - media_data:/data/media
     working_dir: /workspace/backend
     command: >
       sh -c "
@@ -80,7 +83,7 @@ services:
     environment:
       DATABASE_URL: postgresql://quizzup:quizzup@postgres:5432/quizzup_backoffice
       API_PORT: '3001'
-      CORS_ORIGIN: 'http://localhost:4173'
+      CORS_ORIGIN: 'http://localhost:4173,http://localhost:4174'
       JWT_SECRET: 'change_me_super_secret'
       JWT_EXPIRES_IN: '2h'
       VITE_API_URL: 'http://backend:3001'
@@ -105,6 +108,7 @@ services:
 
 volumes:
   pgdata:
+  media_data:
   root_node_modules:
   backend_node_modules:
   frontend_node_modules:

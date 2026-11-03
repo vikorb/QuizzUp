@@ -1,0 +1,65 @@
+{
+  "game": {
+    "round": "Round {current} / {total}",
+    "question": "Question {current} / {total}",
+    "points": "{n} pts",
+    "miniGames": {
+      "flash_blind_test": {
+        "name": "Flash blind test",
+        "pitch": "Recognise the clip as fast as you can!",
+        "rules": [
+          "The clip plays for 1 second, then 5, then 20.",
+          "The first to buzz answers alone with A, B, C or D.",
+          "The sooner you find it, the more you score: 100, 50 or 20 points.",
+          "A mistake costs nothing, but you can no longer buzz on this clip."
+        ]
+      }
+    },
+    "intro": {
+      "drawing": "Drawing the mini-game…"
+    },
+    "themeChoice": {
+      "title": "{name} picks the theme",
+      "reason": {
+        "first_round_random": "Picked at random for the first round",
+        "random_excluding_leader": "Drawn among the chasers",
+        "fallback_random": "Drawn at random"
+      },
+      "hint": "Desk {desk}: press A, B, C or D",
+      "auto": "Without a choice, a theme will be drawn at random"
+    },
+    "blindTest": {
+      "stage": "Stage {stage}",
+      "stageDuration": "{seconds} s",
+      "listening": "Listen…",
+      "buzzWindow": "Buzz!",
+      "answering": "{name} answers!",
+      "answerHint": "A, B, C or D",
+      "locked": "Locked"
+    },
+    "reveal": {
+      "winner": "{name} finds it at stage {stage}",
+      "nobody": "Nobody found it",
+      "answer": "The right answer"
+    },
+    "summary": {
+      "title": "End of round {position}",
+      "next": "Next round in a moment…",
+      "last": "Final results in a moment…"
+    },
+    "finished": {
+      "title": "Game over",
+      "winner": "{name} wins the game!",
+      "tie": "Tie at the top!",
+      "noContent": "Not enough audio questions left to go on.",
+      "newGame": "New game",
+      "home": "Back to home"
+    },
+    "aborted": {
+      "title": "Game stopped"
+    },
+    "scoreboard": {
+      "label": "Scores"
+    }
+  }
+}

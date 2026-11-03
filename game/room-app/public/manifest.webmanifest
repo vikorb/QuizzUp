@@ -1,0 +1,9 @@
+{
+  "name": "QuizzUP — Salle",
+  "short_name": "QuizzUP Salle",
+  "start_url": "/",
+  "display": "fullscreen",
+  "background_color": "#05060d",
+  "theme_color": "#05060d",
+  "lang": "fr"
+}

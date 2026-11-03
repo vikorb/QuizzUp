@@ -48,6 +48,7 @@ export type UpdateQuestionPayload = {
   question?: string
   typeMedia?: QuestionMediaType
   mediaUrl?: string | null
+  mediaStartMs?: number
   status?: number
   answers?: Answer[]
 }
@@ -101,6 +102,10 @@ function buildQuestionBody(
 
   if (payload.mediaUrl !== undefined) {
     body.mediaUrl = payload.mediaUrl
+  }
+
+  if ('mediaStartMs' in payload && payload.mediaStartMs !== undefined) {
+    body.mediaStartMs = payload.mediaStartMs
   }
 
   if ('status' in payload && payload.status !== undefined) {

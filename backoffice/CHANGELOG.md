@@ -74,6 +74,12 @@ Format inspiré de Keep a Changelog.
 - Ajout du mini-jeu blind test éclair (extraits de 1 s / 5 s / 20 s, premier buzz répond, 100 / 50 / 20 points, sans pénalité).
   US: US-MINIGAME-01
 
+- Extraits audio des questions pour le blind test éclair : upload mp3/ogg (10 Mo max, signature
+  vérifiée, attestation de droits), stockage disque (`MEDIA_STORAGE_DIR`), lecture protégée
+  `GET /questions/:id/media`, point de départ `mediaStartMs`, pré-écoute 1 s / 5 s / 20 s dans le
+  formulaire question. Paquet `game/audio` (lecture Web Audio par paliers + sons d'interface).
+  US: US-MEDIA-01 (#59)
+
 ### Changed
 
 - La création de thèmes, questions et réponses est réservée au superadmin et à l'admin ; le rôle `user` passe en lecture seule (API, boutons et routes de création du backoffice).
