@@ -50,6 +50,9 @@ Format inspiré de Keep a Changelog.
 - Ajout de l'API de gestion des salles d'une compagnie : liste, création, lecture, modification (nom, configuration matérielle JSON), changement de statut et suppression logique. Le rôle `user` les consulte en lecture.
   US: US-ROOM-01
 
+- Ajout du compte de salle : création et suppression depuis la salle (un compte actif par salle, sessions révoquées à la suppression, y compris avec la salle), connexion sans expiration par inactivité, route `GET /room/me` pour le PC de la salle. Les comptes de salle n'apparaissent plus dans la gestion des comptes du staff.
+  US: US-ROOM-02
+
 - Ajout du rôle `room` (compte de salle rattaché à une salle, un seul compte actif par salle).
   US: US-ROOM-02
 

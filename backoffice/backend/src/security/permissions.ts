@@ -7,6 +7,7 @@ export const API_RESOURCE = {
   QUESTION: 'question',
   ANSWER: 'answer',
   ROOM: 'room',
+  ROOM_ACCOUNT: 'roomAccount',
 } as const
 
 export const API_ACTION = {
@@ -65,6 +66,11 @@ const roomWritePermissions: PermissionKey[] = [
   'room:update',
   'room:updateStatus',
   'room:delete',
+
+  // US-ROOM-02 : compte de connexion du PC de la salle.
+  'roomAccount:read',
+  'roomAccount:create',
+  'roomAccount:delete',
 ]
 
 const permissionsByRole: Record<ApiRole, PermissionKey[]> = {

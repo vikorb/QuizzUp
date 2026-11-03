@@ -1086,6 +1086,195 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /companies/{companyId}/rooms/{roomId}/account:
+    get:
+      tags:
+        - Rooms
+      summary: '[DISPONIBLE] Lire le compte de la salle'
+      description: |
+        Statut : **Disponible**
+
+        Renvoie le compte de connexion du PC de la salle, ou `null` s'il n'existe pas.
+
+        Accès : superadmin (toutes les compagnies) et `admin` de la compagnie.
+      operationId: getRoomAccount
+      x-availability: disponible
+      x-us: 'US-ROOM-02'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/RoomIdParam'
+      responses:
+        '200':
+          description: Compte de la salle
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  account:
+                    allOf:
+                      - $ref: '#/components/schemas/RoomAccount'
+                    nullable: true
+        '400':
+          description: Paramètres invalides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Salle introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags:
+        - Rooms
+      summary: '[DISPONIBLE] Créer le compte de la salle'
+      description: |
+        Statut : **Disponible**
+
+        Crée le compte de rôle `room` (un seul compte actif par salle). Il se connecte via `POST /login` avec son identifiant ; sa session n'expire pas par inactivité.
+
+        Accès : superadmin (toutes les compagnies) et `admin` de la compagnie.
+      operationId: createRoomAccount
+      x-availability: disponible
+      x-us: 'US-ROOM-02'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/RoomIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoomAccountRequest'
+      responses:
+        '201':
+          description: Compte créé
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  account:
+                    allOf:
+                      - $ref: '#/components/schemas/RoomAccount'
+        '400':
+          description: Corps de requête invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Salle introuvable ou supprimée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Compte déjà existant (`room_account_already_exists`) ou identifiant pris (`username_already_exists`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Rooms
+      summary: '[DISPONIBLE] Supprimer le compte de la salle'
+      description: |
+        Statut : **Disponible**
+
+        Suppression logique du compte et révocation immédiate de ses sessions. La suppression d'une salle supprime aussi son compte.
+
+        Accès : superadmin (toutes les compagnies) et `admin` de la compagnie.
+      operationId: deleteRoomAccount
+      x-availability: disponible
+      x-us: 'US-ROOM-02'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/RoomIdParam'
+      responses:
+        '200':
+          description: Compte supprimé
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Salle introuvable ou sans compte (`room_account_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /room/me:
+    get:
+      tags:
+        - Rooms
+      summary: '[DISPONIBLE] Salle du compte connecté'
+      description: |
+        Statut : **Disponible**
+
+        Renvoie la salle (avec sa configuration matérielle) et la compagnie du compte de salle connecté.
+
+        Accès : réservé au rôle `room`.
+      operationId: getCurrentRoom
+      x-availability: disponible
+      x-us: 'US-ROOM-02'
+      responses:
+        '200':
+          description: Salle du compte connecté
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  room:
+                    $ref: '#/components/schemas/Room'
+                  company:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      name:
+                        type: string
+        '403':
+          description: Compte qui n'est pas un compte de salle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Salle introuvable ou supprimée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /players:
     get:
       tags:
@@ -2578,6 +2767,43 @@ components:
         status:
           type: integer
           enum: [0, 1, 2]
+
+    RoomAccount:
+      type: object
+      properties:
+        id:
+          type: integer
+        companyId:
+          type: integer
+        roomId:
+          type: integer
+        username:
+          type: string
+          example: salle-neon
+        status:
+          type: integer
+          enum: [0, 1, 2]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    CreateRoomAccountRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 255
+          pattern: "^[\\w.-]+$"
+        password:
+          type: string
+          minLength: 8
+          maxLength: 100
 
     Account:
       type: object

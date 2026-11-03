@@ -9,6 +9,7 @@ import { isSuperadmin } from '../../../security/companiesPolicy'
 import type { RoomRow } from '../../../types/room'
 
 import { roomParamsSchema, updateRoomSchema } from './_schemas'
+import { deleteRoomAccount } from './_account'
 import { findRoomInCompany, isRoomNameTaken, roomSelect } from './_shared'
 
 const companyRoomIdRoutes: FastifyPluginAsync = async (app) => {
@@ -139,6 +140,9 @@ const companyRoomIdRoutes: FastifyPluginAsync = async (app) => {
         .returning(roomSelect)
 
       const deletedRoom = Array.isArray(updated) ? updated[0] : updated
+
+      // Une salle supprimée ne doit plus pouvoir se connecter.
+      await deleteRoomAccount(roomId)
 
       return { room: deletedRoom as RoomRow }
     }

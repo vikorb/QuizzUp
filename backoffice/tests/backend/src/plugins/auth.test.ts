@@ -8,7 +8,12 @@ import fastify, {
 } from 'fastify'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { ADMIN_ROLE_SUPERADMIN, ADMIN_STATUS_DELETED } from '@quizzup/shared'
+import {
+  ADMIN_ROLE_ROOM,
+  ADMIN_ROLE_SUPERADMIN,
+  ADMIN_STATUS_ACTIVE,
+  ADMIN_STATUS_DELETED,
+} from '@quizzup/shared'
 
 import authPlugin from '../../../../backend/src/plugins/auth'
 import { dbState, MOCK_NOW, resetDb } from '../routes/_helpers/mockDb'
@@ -197,6 +202,70 @@ describe('plugins/auth.ts (authenticate)', () => {
     expect(findSession('sid-1')?.revoked_at).toBe(MOCK_NOW)
 
     await app.close()
+  })
+
+  describe('room accounts (US-ROOM-02)', () => {
+    function seedRoomAccount(): void {
+      dbState.admins.push({
+        id: 10,
+        company_id: 1,
+        room_id: 7,
+        role: ADMIN_ROLE_ROOM,
+        username: 'salle-neon',
+        email: 'room-x@rooms.quizzup.invalid',
+        mdp_hash: 'hash',
+        status: ADMIN_STATUS_ACTIVE,
+        created_at: MOCK_NOW,
+        updated_at: null,
+        deleted_at: null,
+      })
+    }
+
+    it('keeps a room session alive after more than 1h of inactivity', async () => {
+      seedRoomAccount()
+      const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
+      seedSession({ id: 'sid-room', admin_id: 10, last_seen_at: twoDaysAgo })
+
+      const app = await buildApp()
+      const token = signToken(app, {
+        sub: '10',
+        company_id: 1,
+        role: ADMIN_ROLE_ROOM,
+        sid: 'sid-room',
+      })
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/protected',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect((response.json() as { user: { room_id: number } }).user.room_id).toBe(7)
+      expect(findSession('sid-room')?.revoked_at).toBeNull()
+
+      await app.close()
+    })
+
+    it('does not let a staff account use a room token to escape inactivity', async () => {
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+      seedSession({ id: 'sid-1', admin_id: 1, last_seen_at: twoHoursAgo })
+
+      const app = await buildApp()
+      // Le JWT est signé par le serveur ; ce cas couvre un compte dont le rôle a changé.
+      const token = signToken(app, { sub: '1', company_id: 1, role: ADMIN_ROLE_ROOM, sid: 'sid-1' })
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/protected',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(response.statusCode).toBe(401)
+      expect(findSession('sid-1')?.revoked_at).toBe(MOCK_NOW)
+
+      await app.close()
+    })
   })
 
   it('rejects and revokes the session when the admin status is inactive (S1)', async () => {

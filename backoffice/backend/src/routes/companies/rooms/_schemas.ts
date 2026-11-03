@@ -44,3 +44,14 @@ export const updateRoomStatusSchema = z.object({
     z.literal(ROOM_STATUS_DELETED),
   ]),
 })
+
+/** Identifiant de connexion du PC de la salle (US-ROOM-02). */
+export const createRoomAccountSchema = z.object({
+  username: z
+    .string()
+    .trim()
+    .min(3)
+    .max(255)
+    .regex(/^[\w.-]+$/),
+  password: z.string().min(8).max(100),
+})
