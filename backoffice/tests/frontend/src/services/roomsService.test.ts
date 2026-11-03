@@ -102,4 +102,42 @@ describe('services/roomsService.ts', () => {
       authenticated: true,
     })
   })
+
+  it('loads the room account', async () => {
+    const { loadRoomAccountService } = await loadService()
+
+    await loadRoomAccountService(7, 3)
+
+    expect(apiRequestJsonMock).toHaveBeenCalledWith({
+      path: '/companies/7/rooms/3/account',
+      method: 'GET',
+      authenticated: true,
+    })
+  })
+
+  it('creates the room account with a JSON body', async () => {
+    const { createRoomAccountService } = await loadService()
+
+    await createRoomAccountService(7, 3, { username: 'salle-neon', password: 'Secret123!' })
+
+    expect(apiRequestJsonMock).toHaveBeenCalledWith({
+      path: '/companies/7/rooms/3/account',
+      method: 'POST',
+      authenticated: true,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'salle-neon', password: 'Secret123!' }),
+    })
+  })
+
+  it('deletes the room account', async () => {
+    const { deleteRoomAccountService } = await loadService()
+
+    await deleteRoomAccountService(7, 3)
+
+    expect(apiRequestJsonMock).toHaveBeenCalledWith({
+      path: '/companies/7/rooms/3/account',
+      method: 'DELETE',
+      authenticated: true,
+    })
+  })
 })

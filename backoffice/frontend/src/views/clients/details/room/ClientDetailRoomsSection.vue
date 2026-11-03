@@ -24,6 +24,17 @@
       @cancel="closeForm"
     />
 
+    <RoomAccountPanel
+      v-if="canManageRooms && accountRoom"
+      :key="`account-${accountRoom.id}`"
+      :company-id="companyId"
+      :room="accountRoom"
+      @created="handleRoomAccountCreated"
+      @deleted="handleRoomAccountDeleted"
+      @error="handleTableError"
+      @close="closeAccountPanel"
+    />
+
     <RoomsTable
       :company-id="companyId"
       :rooms="filteredRooms"
@@ -33,6 +44,7 @@
       @updated="handleRoomUpdated"
       @deleted="handleRoomDeleted"
       @edit="handleEditRoom"
+      @account="handleManageRoomAccount"
       @error="handleTableError"
       @retry="loadRooms"
     />
@@ -46,10 +58,12 @@ import { useI18n } from 'vue-i18n'
 import BaseBanner from '@/components/ui/BaseBanner.vue'
 import { loadCompanyRoomsService } from '@/services/roomsService'
 import type { ActionBanner } from '@/types/banner'
-import type { Room, RoomFormMode, RoomStatusFilter } from '@/types/room'
+import type { Room, RoomAccount, RoomFormMode, RoomStatusFilter } from '@/types/room'
 import type { TimerHandle } from '@/types/timer'
 import { createErrorBanner, getBannerMessage, getBannerVariant } from '@/utils/banner'
 import {
+  createRoomAccountCreatedBanner,
+  createRoomAccountDeletedBanner,
   createRoomDeletedBanner,
   createRoomSavedBanner,
   createRoomUpdatedBanner,
@@ -66,8 +80,10 @@ import {
   removeRoomFromList,
   updateRoomInList,
 } from '@/utils/room/list'
+import { isRoomDeleted } from '@/utils/room/status'
 import { clearTimer, scheduleTimer } from '@/utils/timer'
 
+import RoomAccountPanel from '../../rooms/RoomAccountPanel.vue'
 import RoomForm from '../../rooms/RoomForm.vue'
 import RoomsTable from '../../rooms/RoomsTable.vue'
 import RoomsToolBar from '../../rooms/RoomsToolBar.vue'
@@ -93,6 +109,7 @@ const searchQuery = ref('')
 const statusFilter = ref<RoomStatusFilter>(DEFAULT_ROOM_STATUS_FILTER)
 const formMode = ref<RoomFormMode | null>(null)
 const editedRoomId = ref<number | null>(null)
+const accountRoomId = ref<number | null>(null)
 const actionBanner = ref<ActionBanner | null>(null)
 const actionBannerTimer = ref<TimerHandle | null>(null)
 const actionBannerVariant = computed(() => getBannerVariant(actionBanner.value))
@@ -101,6 +118,17 @@ const actionBannerMessage = computed(() => getBannerMessage(actionBanner.value, 
 const editedRoom = computed(() =>
   editedRoomId.value === null ? null : (findRoomById(rooms.value, editedRoomId.value) ?? null)
 )
+
+// Le compte de connexion du PC ne se gère que pour une salle non supprimée (US-ROOM-02).
+const accountRoom = computed(() => {
+  if (accountRoomId.value === null) {
+    return null
+  }
+
+  const room = findRoomById(rooms.value, accountRoomId.value)
+
+  return room && !isRoomDeleted(room.status) ? room : null
+})
 
 const formKey = computed(() => `${formMode.value ?? 'closed'}-${editedRoomId.value ?? 'new'}`)
 
@@ -138,10 +166,15 @@ function closeForm(): void {
   editedRoomId.value = null
 }
 
+function closeAccountPanel(): void {
+  accountRoomId.value = null
+}
+
 function resetSection(): void {
   rooms.value = []
   roomsErrorCode.value = null
   closeForm()
+  closeAccountPanel()
   clearActionBanner()
 }
 
@@ -188,6 +221,7 @@ function handleCreateRoom(): void {
     return
   }
 
+  closeAccountPanel()
   editedRoomId.value = null
   formMode.value = 'create'
 }
@@ -201,8 +235,41 @@ function handleEditRoom(roomId: number): void {
     return
   }
 
+  closeAccountPanel()
   editedRoomId.value = roomId
   formMode.value = 'edit'
+}
+
+// Un seul panneau inline à la fois : ouvrir le compte de salle ferme le formulaire.
+function handleManageRoomAccount(roomId: number): void {
+  if (!props.canShowRoomsSection || !props.canManageRooms) {
+    return
+  }
+
+  const room = findRoomById(rooms.value, roomId)
+
+  if (!room || isRoomDeleted(room.status)) {
+    return
+  }
+
+  closeForm()
+  accountRoomId.value = roomId
+}
+
+function handleRoomAccountCreated(account: RoomAccount): void {
+  if (!props.canShowRoomsSection || accountRoomId.value === null) {
+    return
+  }
+
+  showSuccessBanner(createRoomAccountCreatedBanner(rooms.value, accountRoomId.value, account))
+}
+
+function handleRoomAccountDeleted(account: RoomAccount): void {
+  if (!props.canShowRoomsSection || accountRoomId.value === null) {
+    return
+  }
+
+  showSuccessBanner(createRoomAccountDeletedBanner(rooms.value, accountRoomId.value, account))
 }
 
 function handleRoomSaved(savedRoom: Room): void {
@@ -235,6 +302,10 @@ function handleRoomDeleted(roomId: number): void {
 
   if (editedRoomId.value === roomId) {
     closeForm()
+  }
+
+  if (accountRoomId.value === roomId) {
+    closeAccountPanel()
   }
 
   // Hors superadmin, l'API ne renvoie plus les salles supprimées : on aligne la liste locale.
@@ -270,6 +341,7 @@ watch(
   (canManage) => {
     if (!canManage) {
       closeForm()
+      closeAccountPanel()
     }
   }
 )

@@ -1,6 +1,10 @@
 import type {
+  CreateRoomAccountPayload,
+  CreateRoomAccountResponse,
   CreateRoomPayload,
+  DeleteRoomAccountResponse,
   LoadCompanyRoomsResponse,
+  RoomAccountResponse,
   RoomResponse,
   RoomStatus,
   UpdateRoomPayload,
@@ -66,6 +70,44 @@ export function updateRoomStatusService(companyId: number, roomId: number, statu
 export function deleteRoomService(companyId: number, roomId: number) {
   return apiRequestJson<RoomResponse>({
     path: `/companies/${companyId}/rooms/${roomId}`,
+    method: 'DELETE',
+    authenticated: true,
+  })
+}
+
+function roomAccountPath(companyId: number, roomId: number): string {
+  return `/companies/${companyId}/rooms/${roomId}/account`
+}
+
+/** US-ROOM-02 : compte du PC de la salle (`account: null` si aucun compte). */
+export function loadRoomAccountService(companyId: number, roomId: number) {
+  return apiRequestJson<RoomAccountResponse>({
+    path: roomAccountPath(companyId, roomId),
+    method: 'GET',
+    authenticated: true,
+  })
+}
+
+export function createRoomAccountService(
+  companyId: number,
+  roomId: number,
+  payload: CreateRoomAccountPayload
+) {
+  return apiRequestJson<CreateRoomAccountResponse>({
+    path: roomAccountPath(companyId, roomId),
+    method: 'POST',
+    authenticated: true,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+}
+
+/** Supprime le compte et révoque ses sessions : le PC de la salle est déconnecté. */
+export function deleteRoomAccountService(companyId: number, roomId: number) {
+  return apiRequestJson<DeleteRoomAccountResponse>({
+    path: roomAccountPath(companyId, roomId),
     method: 'DELETE',
     authenticated: true,
   })

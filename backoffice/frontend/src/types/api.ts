@@ -20,6 +20,9 @@ export type ApiErrorCode =
   | 'conflict'
   | 'not_found'
   | 'room_name_already_exists'
+  | 'room_account_already_exists'
+  | 'room_account_not_found'
+  | 'username_already_exists'
   | 'company_deleted'
   | 'server_error'
 

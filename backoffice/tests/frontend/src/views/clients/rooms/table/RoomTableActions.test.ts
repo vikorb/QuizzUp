@@ -35,17 +35,42 @@ function mountActions(item = toRoomTableRow(roomsFixture[0]), stubs: Record<stri
   })
 }
 
-function actionButtons(wrapper: ReturnType<typeof mountWithFrontendMocks>) {
-  return wrapper.findAll('[data-test="ui-button"]')
+type RowAction = 'account' | 'edit' | 'delete'
+
+function actionButton(wrapper: ReturnType<typeof mountWithFrontendMocks>, action: RowAction) {
+  return wrapper.find(`[data-test="ui-button"].icon-${action}`)
 }
 
 describe('views/clients/rooms/table/RoomTableActions.vue', () => {
   it('emits edit with the room id (inline form, no navigation)', async () => {
     const wrapper = mountActions()
 
-    await actionButtons(wrapper)[0].trigger('click')
+    await actionButton(wrapper, 'edit').trigger('click')
 
     expect(wrapper.emitted('edit')).toEqual([[1]])
+  })
+
+  it('emits account with the room id to open the room account panel', async () => {
+    const wrapper = mountActions()
+
+    expect(actionButton(wrapper, 'account').attributes('aria-label')).toBe(
+      'rooms.table.actions.account'
+    )
+
+    await actionButton(wrapper, 'account').trigger('click')
+
+    expect(wrapper.emitted('account')).toEqual([[1]])
+    expect(wrapper.emitted('edit')).toBeUndefined()
+  })
+
+  it('disables the room account action for deleted rooms', async () => {
+    const wrapper = mountActions(toRoomTableRow(roomsFixture[2]))
+
+    expect(actionButton(wrapper, 'account').attributes('disabled')).toBeDefined()
+
+    await actionButton(wrapper, 'account').trigger('click')
+
+    expect(wrapper.emitted('account')).toBeUndefined()
   })
 
   it('confirms and soft-deletes a room', async () => {
@@ -53,7 +78,7 @@ describe('views/clients/rooms/table/RoomTableActions.vue', () => {
 
     const wrapper = mountActions()
 
-    await actionButtons(wrapper)[1].trigger('click')
+    await actionButton(wrapper, 'delete').trigger('click')
     await flushPromises()
 
     expect(confirmMock).toHaveBeenCalledWith(
@@ -72,7 +97,7 @@ describe('views/clients/rooms/table/RoomTableActions.vue', () => {
 
     const wrapper = mountActions()
 
-    await actionButtons(wrapper)[1].trigger('click')
+    await actionButton(wrapper, 'delete').trigger('click')
     await flushPromises()
 
     expect(deleteRoomServiceMock).not.toHaveBeenCalled()
@@ -84,7 +109,7 @@ describe('views/clients/rooms/table/RoomTableActions.vue', () => {
 
     const wrapper = mountActions()
 
-    await actionButtons(wrapper)[1].trigger('click')
+    await actionButton(wrapper, 'delete').trigger('click')
     await flushPromises()
 
     expect(wrapper.emitted('error')).toEqual([['not_found']])
@@ -94,8 +119,8 @@ describe('views/clients/rooms/table/RoomTableActions.vue', () => {
   it('disables edit and delete for deleted rooms', async () => {
     const wrapper = mountActions(toRoomTableRow(roomsFixture[2]))
 
-    expect(actionButtons(wrapper)[0].attributes('disabled')).toBeDefined()
-    expect(actionButtons(wrapper)[1].attributes('disabled')).toBeDefined()
+    expect(actionButton(wrapper, 'edit').attributes('disabled')).toBeDefined()
+    expect(actionButton(wrapper, 'delete').attributes('disabled')).toBeDefined()
   })
 
   it('forwards switch events and locks actions while the switch is busy', async () => {
@@ -119,6 +144,6 @@ describe('views/clients/rooms/table/RoomTableActions.vue', () => {
 
     expect(wrapper.emitted('updated')?.[0]?.[0]).toMatchObject({ id: 1 })
     expect(wrapper.emitted('error')).toEqual([['server_error']])
-    expect(actionButtons(wrapper)[0].attributes('disabled')).toBeDefined()
+    expect(actionButton(wrapper, 'edit').attributes('disabled')).toBeDefined()
   })
 })

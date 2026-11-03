@@ -2,9 +2,14 @@ import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import {
   createCompanyRoomServiceMock,
+  createRoomAccountServiceMock,
+  deleteRoomAccountServiceMock,
   loadCompanyRoomsServiceMock,
+  loadRoomAccountServiceMock,
   mockDeleteRoomFailure,
   mockLoadCompanyRoomsFailure,
+  mockLoadRoomAccountSuccess,
+  roomAccountFixture,
   updateCompanyRoomServiceMock,
 } from '@frontend-tests/_helpers/roomsServiceMock'
 import { ROOM_STATUS_DELETED } from '@quizzup/shared'
@@ -43,8 +48,16 @@ function rowKeys(wrapper: ReturnType<typeof mountWithFrontendMocks>): string[] {
     .map((row) => row.attributes('data-row-key') ?? '')
 }
 
-function rowButtons(wrapper: ReturnType<typeof mountWithFrontendMocks>, roomId: number) {
-  return wrapper.find(`[data-row-key="${roomId}"]`).findAll('[data-test="ui-button"]')
+function rowAction(
+  wrapper: ReturnType<typeof mountWithFrontendMocks>,
+  roomId: number,
+  action: 'account' | 'edit' | 'delete'
+) {
+  return wrapper.find(`[data-row-key="${roomId}"] [data-test="ui-button"].icon-${action}`)
+}
+
+function accountPanel(wrapper: ReturnType<typeof mountWithFrontendMocks>) {
+  return wrapper.find('#room-account')
 }
 
 async function selectStatus(wrapper: ReturnType<typeof mountWithFrontendMocks>, value: string) {
@@ -134,7 +147,7 @@ describe('views/clients/details/room/ClientDetailRoomsSection.vue', () => {
   it('renames a room from the row edit action', async () => {
     const wrapper = await mountSection('admin')
 
-    await rowButtons(wrapper, 1)[0].trigger('click')
+    await rowAction(wrapper, 1, 'edit').trigger('click')
 
     const input = wrapper.find('input[name="name"]')
 
@@ -161,7 +174,7 @@ describe('views/clients/details/room/ClientDetailRoomsSection.vue', () => {
   it('removes a deleted room from the admin list', async () => {
     const wrapper = await mountSection('admin')
 
-    await rowButtons(wrapper, 1)[1].trigger('click')
+    await rowAction(wrapper, 1, 'delete').trigger('click')
     await flushPromises()
 
     expect(rowKeys(wrapper)).toEqual([])
@@ -175,11 +188,90 @@ describe('views/clients/details/room/ClientDetailRoomsSection.vue', () => {
   it('keeps a deleted room visible to the superadmin', async () => {
     const wrapper = await mountSection('superadmin')
 
-    await rowButtons(wrapper, 1)[1].trigger('click')
+    await rowAction(wrapper, 1, 'delete').trigger('click')
     await flushPromises()
     await selectStatus(wrapper, String(ROOM_STATUS_DELETED))
 
     expect(rowKeys(wrapper)).toEqual(['1', '3'])
+  })
+
+  it('opens the room account panel from the row and closes the room form', async () => {
+    mockLoadRoomAccountSuccess(roomAccountFixture)
+
+    const wrapper = await mountSection('admin')
+
+    await wrapper.find('[data-test="base-toolbar-primary"]').trigger('click')
+    expect(wrapper.find('#room-form').exists()).toBe(true)
+
+    await rowAction(wrapper, 1, 'account').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('#room-form').exists()).toBe(false)
+    expect(accountPanel(wrapper).exists()).toBe(true)
+    expect(loadRoomAccountServiceMock).toHaveBeenCalledWith(1, 1)
+    expect(accountPanel(wrapper).text()).toContain('salle-neon')
+
+    await accountPanel(wrapper).find('.room-account__close').trigger('click')
+
+    expect(accountPanel(wrapper).exists()).toBe(false)
+  })
+
+  it('creates a room account and shows a success banner', async () => {
+    const wrapper = await mountSection('admin')
+
+    await rowAction(wrapper, 1, 'account').trigger('click')
+    await flushPromises()
+
+    const panel = accountPanel(wrapper)
+
+    await panel.find('input[name="username"]').setValue('salle-neon')
+    await panel.find('input[name="password"]').setValue('Secret123!')
+    await panel.find('input[name="passwordConfirm"]').setValue('Secret123!')
+    await panel.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(createRoomAccountServiceMock).toHaveBeenCalledWith(1, 1, {
+      username: 'salle-neon',
+      password: 'Secret123!',
+    })
+    expect(wrapper.find('[data-test="base-banner"]').text()).toContain('roomAccountCreated')
+    expect(accountPanel(wrapper).find('[data-account="set"]').exists()).toBe(true)
+  })
+
+  it('deletes a room account and shows a success banner', async () => {
+    mockLoadRoomAccountSuccess(roomAccountFixture)
+
+    const wrapper = await mountSection('admin')
+
+    await rowAction(wrapper, 1, 'account').trigger('click')
+    await flushPromises()
+    await accountPanel(wrapper).find('.room-account__delete').trigger('click')
+    await flushPromises()
+
+    expect(deleteRoomAccountServiceMock).toHaveBeenCalledWith(1, 1)
+    expect(wrapper.find('[data-test="base-banner"]').text()).toContain('roomAccountDeleted')
+    expect(accountPanel(wrapper).find('[data-account="unset"]').exists()).toBe(true)
+  })
+
+  it('closes the room account panel when the room is deleted', async () => {
+    const wrapper = await mountSection('admin')
+
+    await rowAction(wrapper, 1, 'account').trigger('click')
+    await flushPromises()
+    expect(accountPanel(wrapper).exists()).toBe(true)
+
+    await rowAction(wrapper, 1, 'delete').trigger('click')
+    await flushPromises()
+
+    expect(accountPanel(wrapper).exists()).toBe(false)
+  })
+
+  it('never offers the room account to the user role', async () => {
+    const wrapper = await mountSection('user')
+
+    expect(wrapper.find('.icon-account').exists()).toBe(false)
+    expect(accountPanel(wrapper).exists()).toBe(false)
+    expect(loadRoomAccountServiceMock).not.toHaveBeenCalled()
   })
 
   it('shows action errors in the banner', async () => {
@@ -187,7 +279,7 @@ describe('views/clients/details/room/ClientDetailRoomsSection.vue', () => {
 
     const wrapper = await mountSection('admin')
 
-    await rowButtons(wrapper, 1)[1].trigger('click')
+    await rowAction(wrapper, 1, 'delete').trigger('click')
     await flushPromises()
 
     expect(wrapper.find('[data-test="base-banner"]').text()).toContain('server_error')

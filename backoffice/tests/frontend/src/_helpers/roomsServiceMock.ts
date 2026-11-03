@@ -156,6 +156,120 @@ async function defaultDeleteRoom(companyId: number, roomId: number): Promise<Roo
   return defaultUpdateRoomStatus(companyId, roomId, ROOM_STATUS_DELETED)
 }
 
+export type RoomAccountMock = {
+  id: number
+  username: string
+  status: number
+  createdAt: string
+}
+
+export type RoomAccountResult =
+  | {
+      ok: true
+      data: {
+        account: RoomAccountMock | null
+      }
+    }
+  | ServiceErrorResult
+
+export type CreateRoomAccountResult =
+  | {
+      ok: true
+      data: {
+        account: RoomAccountMock
+      }
+    }
+  | ServiceErrorResult
+
+export type DeleteRoomAccountResult =
+  | {
+      ok: true
+      data: {
+        ok: true
+      }
+    }
+  | ServiceErrorResult
+
+export const roomAccountFixture: RoomAccountMock = {
+  id: 77,
+  username: 'salle-neon',
+  status: 1,
+  createdAt: '2026-03-01T10:00:00.000Z',
+}
+
+async function defaultLoadRoomAccount(
+  _companyId: number,
+  _roomId: number
+): Promise<RoomAccountResult> {
+  return {
+    ok: true,
+    data: {
+      account: null,
+    },
+  }
+}
+
+async function defaultCreateRoomAccount(
+  _companyId: number,
+  _roomId: number,
+  payload: { username: string; password: string }
+): Promise<CreateRoomAccountResult> {
+  return {
+    ok: true,
+    data: {
+      account: { ...roomAccountFixture, username: payload.username },
+    },
+  }
+}
+
+async function defaultDeleteRoomAccount(
+  _companyId: number,
+  _roomId: number
+): Promise<DeleteRoomAccountResult> {
+  return {
+    ok: true,
+    data: {
+      ok: true,
+    },
+  }
+}
+
+export const loadRoomAccountServiceMock = vi.fn(defaultLoadRoomAccount)
+export const createRoomAccountServiceMock = vi.fn(defaultCreateRoomAccount)
+export const deleteRoomAccountServiceMock = vi.fn(defaultDeleteRoomAccount)
+
+export function mockLoadRoomAccountSuccess(
+  account: RoomAccountMock | null = roomAccountFixture
+): void {
+  loadRoomAccountServiceMock.mockResolvedValue({
+    ok: true,
+    data: {
+      account,
+    },
+  })
+}
+
+export function mockLoadRoomAccountFailure(error = 'server_error'): void {
+  loadRoomAccountServiceMock.mockResolvedValue({
+    ok: false,
+    error,
+  })
+}
+
+export function mockCreateRoomAccountFailure(error = 'server_error'): void {
+  createRoomAccountServiceMock.mockResolvedValue({
+    ok: false,
+    error,
+  })
+}
+
+export function mockDeleteRoomAccountFailure(error = 'server_error'): void {
+  deleteRoomAccountServiceMock.mockResolvedValue({
+    ok: false,
+    error,
+  })
+}
+
 export const loadCompanyRoomsServiceMock = vi.fn(defaultLoadCompanyRooms)
 export const loadCompanyRoomServiceMock = vi.fn(defaultLoadCompanyRoom)
 export const createCompanyRoomServiceMock = vi.fn(defaultCreateCompanyRoom)
@@ -214,7 +328,13 @@ export function resetRoomsServiceMock(): void {
   updateCompanyRoomServiceMock.mockReset()
   updateRoomStatusServiceMock.mockReset()
   deleteRoomServiceMock.mockReset()
+  loadRoomAccountServiceMock.mockReset()
+  createRoomAccountServiceMock.mockReset()
+  deleteRoomAccountServiceMock.mockReset()
 
+  loadRoomAccountServiceMock.mockImplementation(defaultLoadRoomAccount)
+  createRoomAccountServiceMock.mockImplementation(defaultCreateRoomAccount)
+  deleteRoomAccountServiceMock.mockImplementation(defaultDeleteRoomAccount)
   loadCompanyRoomsServiceMock.mockImplementation(defaultLoadCompanyRooms)
   loadCompanyRoomServiceMock.mockImplementation(defaultLoadCompanyRoom)
   createCompanyRoomServiceMock.mockImplementation(defaultCreateCompanyRoom)

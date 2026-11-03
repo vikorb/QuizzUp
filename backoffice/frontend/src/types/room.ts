@@ -51,3 +51,40 @@ export type RoomFieldErrors = {
 }
 
 export type RoomFormMode = 'create' | 'edit'
+
+/** US-ROOM-02 : compte de connexion du PC de la salle (rôle `room`). */
+export type RoomAccount = {
+  id: number
+  username: string
+  status: number
+  createdAt: string
+}
+
+export type RoomAccountResponse = {
+  account: RoomAccount | null
+}
+
+export type CreateRoomAccountResponse = {
+  account: RoomAccount
+}
+
+export type DeleteRoomAccountResponse = {
+  ok: true
+}
+
+export type CreateRoomAccountPayload = {
+  username: string
+  password: string
+}
+
+export type RoomAccountFormValues = {
+  username: string
+  password: string
+  passwordConfirm: string
+}
+
+export type RoomAccountFieldErrors = {
+  username?: string
+  password?: string
+  passwordConfirm?: string
+}

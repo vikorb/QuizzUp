@@ -80,7 +80,8 @@
         "disable": "Disable the room",
         "deleteConfirm": "Delete the room {name}?",
         "enableConfirm": "Do you really want to enable the room {name}?",
-        "disableConfirm": "Do you really want to disable the room {name}?"
+        "disableConfirm": "Do you really want to disable the room {name}?",
+        "account": "Manage the room account"
       }
     },
     "errors": {
@@ -92,6 +93,70 @@
       "invalidBody": "The submitted information is invalid.",
       "serverError": "Server error while loading rooms.",
       "default": "An error occurred."
+    },
+    "account": {
+      "title": "Sign-in account — {name}",
+      "loading": "Loading the room account...",
+      "state": {
+        "set": "Room account active",
+        "unset": "No room account"
+      },
+      "details": {
+        "username": "Username",
+        "createdAt": "Created on"
+      },
+      "fields": {
+        "username": {
+          "label": "Room PC username",
+          "placeholder": "e.g. neon-room",
+          "hint": "At least 3 characters: letters, digits, dots, dashes or underscores."
+        },
+        "password": {
+          "label": "Password",
+          "placeholder": "••••••••••",
+          "hint": "At least 8 characters."
+        },
+        "passwordConfirm": {
+          "label": "Confirm the password",
+          "placeholder": "••••••••••"
+        }
+      },
+      "actions": {
+        "cancel": "Cancel",
+        "create": "Create the account",
+        "submitting": "Creating...",
+        "close": "Close the room account",
+        "delete": "Delete the room account",
+        "deleting": "Deleting...",
+        "deleteConfirm": "Delete the room account {username}? The PC of the room {name} will be signed out immediately and will no longer be able to sign in with this username."
+      },
+      "hints": {
+        "create": "This account is only used to connect the room PC to the room screen. It gives no access to the backoffice.",
+        "existing": "Enter this username on the room screen of the PC. The password cannot be shown again: delete and recreate the account to change it.",
+        "delete": "Deleting this account immediately signs the room PC out."
+      },
+      "validation": {
+        "usernameRequired": "The username is required.",
+        "usernameTooShort": "The username must contain at least 3 characters.",
+        "usernameTooLong": "The username must not exceed 255 characters.",
+        "usernameInvalid": "Use only letters, digits, dots, dashes or underscores.",
+        "passwordRequired": "The password is required.",
+        "passwordTooShort": "The password must contain at least 8 characters.",
+        "passwordTooLong": "The password must not exceed 100 characters.",
+        "passwordConfirmRequired": "Confirm the password.",
+        "passwordMismatch": "The passwords do not match."
+      },
+      "errors": {
+        "username_already_exists": "This username is already used by another account.",
+        "room_account_already_exists": "This room already has a sign-in account.",
+        "room_account_not_found": "This room no longer has a sign-in account.",
+        "invalid_body": "The submitted information is invalid.",
+        "forbidden": "You do not have the required permissions.",
+        "not_found": "Room not found.",
+        "server_error": "Server error.",
+        "api_unreachable": "The server is currently unreachable.",
+        "default": "An error occurred."
+      }
     }
   }
 }
