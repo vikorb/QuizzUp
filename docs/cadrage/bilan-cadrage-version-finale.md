@@ -57,7 +57,7 @@
 | Salles | Aucune entité `rooms` (ni établissements). |
 | Joueurs | Table `players` dessinée seulement ; l'issue #34 exige email + username pour chaque joueur. |
 | Vues | `GamesView`, `PlayersView`, `StatsView` = un simple titre. |
-| OpenAPI | Documente `/players`, `/games`, `/maps`, `/shop/items`, `/assets/upload-url`, `/stats/overview` qui **n'existent pas** dans le code. À nettoyer ou marquer « prévu ». |
+| OpenAPI | Documente aussi des routes prévues (`/players`, `/games`, `/maps`, `/shop/items`, `/assets/upload-url`, `/stats/overview`), correctement marquées `x-availability: non_disponible`. |
 | Temps réel | Rien (pas de WebSocket). |
 | Matériel | Rien. |
 | Issues ouvertes | 23, dont le bloc **US-GAME-01 à 06** (#33 à #36, #37, #45), stats (#38, #39, #40, #41, #8, #12, #18, #25), joueurs (#11, #13), accueil (#5, #6, #7), filtres/pagination (#42, #43), états UX (#44), déconnexion auto (#3). |
@@ -329,7 +329,7 @@ Estimations indicatives de coût cloud (elles dépendent beaucoup du nombre d'al
 
 | Lot | Contenu | Résultat visible | Coût estimé |
 |---|---|---|---|
-| **L0** Socle | GitHub Actions sur PR, nettoyage OpenAPI, US rédigées | PR vérifiées automatiquement | ~5 $ |
+| **L0** Socle | GitHub Actions sur PR, US rédigées | PR vérifiées automatiquement | ~5 $ |
 | **L1** Données | Migrations `rooms`, `games`, `game_*`, évolution `questions`, DBML, OpenAPI | Schéma cible en base | ~15 $ |
 | **L2** Moteur | `game/engine` : session, tirages avec graine, choix de thème, 4 mini-jeux V1, tests intensifs | Partie simulable en tests | ~25 $ |
 | **L3** Backoffice jeu | Salles, lancement de partie, liste et détail des parties (#33 à #37) | L'opérateur lance une partie | ~25 $ |
