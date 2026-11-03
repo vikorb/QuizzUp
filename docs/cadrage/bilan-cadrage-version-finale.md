@@ -357,3 +357,20 @@ Ordre conseillé : L0 → L1 → L2 → L3 → L4 → L5, puis L6/L7 selon le bu
 10. **Nom** : on garde « QuizzUp » partout (reco), « LumenQuiz » n'étant que le nom de la version locale ?
 
 Dès que ces points sont tranchés, je rédige les US au format du dépôt et je démarre par L0 + L1.
+
+---
+
+## 10. Décisions d'Enzo (3 novembre 2026)
+
+| # | Sujet | Décision |
+|---|---|---|
+| 1 | Où tourne le moteur | Explications données, **confirmation attendue** (reco : dans la salle). |
+| 2 | Electron | Explications données, **confirmation attendue**. |
+| 3 | Création de contenu | **Seulement l'éditeur (`superadmin`) et le client (`admin`)**. Le staff (`user`) perd le droit de créer. |
+| 4 | Thèmes maison des clients | **Oui**, on garde le scope `company`. |
+| 5 | Joueurs | **Email collecté, avec conformité RGPD** (consentement explicite, finalité, durée de conservation, droit à l'effacement). |
+| 6 | Format | **10 manches × 10 questions**. |
+| 7 | Matériel | Références à venir. **Principe : chaque client a son propre matériel → tout doit être universel** (mapping des buzzers par apprentissage, profils d'appareils DMX configurables, plusieurs sorties DMX possibles, simulation sans matériel). |
+| 8 | Mini-jeux | Catalogue présenté, choix de la V1 en attente. |
+| 9 | Pricing / paiement | **Plus tard.** |
+| 10 | Nom | **QuizzUP**. |
