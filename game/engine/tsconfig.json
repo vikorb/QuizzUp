@@ -7,7 +7,7 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "skipLibCheck": true,
-    "types": ["vitest/globals"],
+    "types": ["vitest/globals", "node"],
     "paths": {
       "@quizzup/shared": ["../../backoffice/shared/src/index.ts"],
       "@engine/*": ["./src/*"]
