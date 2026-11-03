@@ -139,7 +139,7 @@ Table answers {
     (status) [name: 'answers_status_index']
   }
 
-  Note: 'Index unique partiel : une seule bonne réponse non supprimée par question'
+  Note: 'Plusieurs bonnes réponses possibles ; au moins une imposée par l’API'
 }
 
 Table rooms {

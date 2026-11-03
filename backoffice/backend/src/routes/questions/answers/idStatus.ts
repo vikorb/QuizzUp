@@ -9,6 +9,7 @@ import {
   buildAnswerStatusPatch,
   canEditQuestion,
   getQuestionAccessRow,
+  hasCorrectAnswerBesides,
   isValidAnswerStatus,
   parsePositiveId,
   type AnswerParams,
@@ -21,13 +22,13 @@ const questionAnswerIdStatusRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [app.authenticate] },
     async (
       req: FastifyRequest<{ Params: AnswerParams; Body: AnswerStatusBody }>,
-      reply: FastifyReply,
+      reply: FastifyReply
     ) => {
       const hasPermission = requireApiPermission(
         req,
         reply,
         API_RESOURCE.ANSWER,
-        API_ACTION.UPDATE_STATUS,
+        API_ACTION.UPDATE_STATUS
       )
 
       if (!hasPermission) {
@@ -77,7 +78,7 @@ const questionAnswerIdStatusRoutes: FastifyPluginAsync = async (app) => {
           return reply.code(400).send({ error: 'question_answers_min_required' })
         }
 
-        if (existingAnswer.is_correct) {
+        if (existingAnswer.is_correct && !hasCorrectAnswerBesides(activeAnswers, answerId)) {
           return reply.code(400).send({ error: 'answer_correct_delete_forbidden' })
         }
       }
@@ -88,7 +89,7 @@ const questionAnswerIdStatusRoutes: FastifyPluginAsync = async (app) => {
         .returning(answerSelect)
 
       return { answer }
-    },
+    }
   )
 }
 

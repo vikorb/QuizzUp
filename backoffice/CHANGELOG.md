@@ -78,6 +78,9 @@ Format inspiré de Keep a Changelog.
 
 ### Fixed
 
+- Une question peut avoir plusieurs bonnes réponses côté API et base (le formulaire le permettait déjà, l'API n'en acceptait qu'une) ; au moins une bonne réponse reste obligatoire.
+  US: us-qr-multi-correct
+
 - Correction des erreurs CORS entre le frontend et le backend.
   US: us-config-03
 

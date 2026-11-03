@@ -255,11 +255,23 @@ export function validateAnswers(answers: NormalizedAnswer[]): string | null {
 
   const correctAnswersCount = answers.filter((answer) => answer.isCorrect).length
 
-  if (correctAnswersCount !== 1) {
-    return 'question_one_correct_answer_required'
+  if (correctAnswersCount < 1) {
+    return 'question_correct_answer_required'
   }
 
   return null
+}
+
+/**
+ * Plusieurs bonnes réponses sont autorisées, mais une question doit en garder
+ * au moins une : on ne peut retirer / supprimer une bonne réponse que s'il en
+ * reste une autre parmi les réponses actives.
+ */
+export function hasCorrectAnswerBesides(
+  answers: { id: unknown; is_correct?: unknown }[],
+  answerId: number
+): boolean {
+  return answers.some((answer) => Number(answer.id) !== answerId && Boolean(answer.is_correct))
 }
 
 export function parseQuestionThemeIds(body: QuestionBody): number[] {
