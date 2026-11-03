@@ -29,6 +29,18 @@ export type KeyboardBuzzerInput = BuzzerInput & {
   unlockSystemKeys: () => void
 }
 
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!target || typeof (target as Partial<HTMLElement>).tagName !== 'string') {
+    return false
+  }
+  const element = target as HTMLElement
+  return (
+    element.isContentEditable ||
+    element.getAttribute?.('contenteditable') === 'true' ||
+    ['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName)
+  )
+}
+
 /**
  * Buzzers qui émulent un clavier. Un appui = un buzz jusqu'au relâchement (l'auto-répétition et
  * les appuis maintenus sont ignorés), combinaisons Ctrl/Alt/Méta ignorées, horodatage immédiat.
@@ -69,15 +81,16 @@ export function createKeyboardBuzzerInput(
   const onKeyDown = (event: KeyboardEvent) => {
     const at = clock.now()
     const { code } = event
+    // Saisie dans un champ (formulaire de la page) ou raccourci (Ctrl+R…) : pas un buzz.
+    if (isEditableTarget(event.target) || event.ctrlKey || event.altKey || event.metaKey) {
+      return
+    }
     const slot = findSlot(keymap, code)
 
     if (slot && preventDefault) {
       event.preventDefault()
     }
     if (event.repeat || heldCodes.has(code)) {
-      return
-    }
-    if (event.ctrlKey || event.altKey || event.metaKey) {
       return
     }
 
@@ -99,6 +112,14 @@ export function createKeyboardBuzzerInput(
 
   const onKeyUp = (event: KeyboardEvent) => {
     if (heldCodes.delete(event.code) && findSlot(keymap, event.code)) {
+      notify()
+    }
+  }
+
+  const onFullscreenChange = () => {
+    // Le navigateur relâche le Keyboard Lock en sortant du plein écran.
+    if (!doc.fullscreenElement && keyboardLocked) {
+      keyboardLocked = false
       notify()
     }
   }
@@ -128,6 +149,7 @@ export function createKeyboardBuzzerInput(
   target.addEventListener('focus', onFocus)
   target.addEventListener('blur', onBlur)
   doc.addEventListener('visibilitychange', onVisibilityChange)
+  doc.addEventListener('fullscreenchange', onFullscreenChange)
 
   const keyboardApi = (): KeyboardLockApi | undefined =>
     (target.navigator as (Navigator & { keyboard?: KeyboardLockApi }) | undefined)?.keyboard
@@ -174,6 +196,11 @@ export function createKeyboardBuzzerInput(
       target.removeEventListener('focus', onFocus)
       target.removeEventListener('blur', onBlur)
       doc.removeEventListener('visibilitychange', onVisibilityChange)
+      doc.removeEventListener('fullscreenchange', onFullscreenChange)
+      if (keyboardLocked) {
+        keyboardApi()?.unlock()
+        keyboardLocked = false
+      }
       heldCodes.clear()
       notify()
       pressEmitter.clear()

@@ -42,7 +42,13 @@ export type SmokeStopReason =
   'manual' | 'watchdog' | 'output_error' | 'page_hidden' | 'disarmed' | 'emergency' | 'shutdown'
 
 export type SmokeRefusal =
-  'disabled' | 'not_armed' | 'firing' | 'cooldown' | 'emergency' | 'invalid_duration'
+  | 'disabled'
+  | 'not_armed'
+  | 'firing'
+  | 'cooldown'
+  | 'emergency'
+  | 'invalid_duration'
+  | 'page_hidden'
 
 export type SmokeFireResult = { ok: true; durationMs: number } | { ok: false; reason: SmokeRefusal }
 
@@ -238,7 +244,8 @@ export function createSmokeController(
         return
       }
       emergency = false
-      armed = !config.requireConfirmation
+      // Toujours désarmée après un arrêt d'urgence : un humain doit la réarmer.
+      armed = false
       notify()
     },
     level(now = clock.now()) {

@@ -44,7 +44,8 @@ await buzzers.lockSystemKeys() // après requestFullscreen() : capte Échap, Alt
 ```
 
 - Un appui = un buzz jusqu'au relâchement : auto-répétition et touche maintenue ignorées.
-- Combinaisons Ctrl / Alt / Méta ignorées ; touches système (Échap, Tab, F1-F12, Windows…)
+- Saisie dans un champ (`input`, `textarea`, `contenteditable`) et combinaisons Ctrl / Alt / Méta
+  ignorées (Ctrl+R reste possible) ; touches système (Échap, Tab, F1-F12, Windows…)
   refusées comme buzzer.
 - **Horodatage** à la capture, en millisecondes monotones (`performance.now()`), la même base que
   les `at` envoyés au moteur : c'est ce temps qui départage les buzzs.
@@ -147,12 +148,16 @@ Le contrôleur de fumée applique, quoi que dise la configuration :
 - **armement humain** : l'opérateur coche « fumée autorisée » (`lights.smoke.arm()`) avant la
   partie, sinon les scènes ne déclenchent rien ;
 - niveau calculé à partir de l'heure : un minuteur en retard ne peut pas prolonger la fumée ;
-- **chien de garde** : si la page gèle plus de 500 ms, ou si l'onglet passe en arrière-plan, ou
-  si l'interface DMX tombe, la fumée est coupée ;
+- **chien de garde** : si la page gèle plus de 500 ms, si l'onglet passe en arrière-plan ou si
+  l'interface DMX tombe ou ne répond plus (écriture bloquée plus de 500 ms), la fumée est
+  coupée ; tant que l'onglet est masqué, toute nouvelle émission est refusée ;
 - trames envoyées en continu (30 Hz), la plus récente d'abord : la trame d'arrêt n'est jamais
-  perdue derrière une écriture lente ;
+  perdue derrière une écriture lente ; en changeant d'interface ou à l'arrêt, plus aucune trame
+  de jeu ne part et une trame noire est envoyée **en dernier** ;
+- pas de célébration ni de fumée sur une partie terminée faute de contenu ;
 - **arrêt d'urgence logiciel** (`lights.emergencyStop()`) : noir complet, fumée coupée et
-  verrouillée ; `resetEmergency()` réarme les lumières, la fumée doit être réarmée à la main.
+  verrouillée ; `resetEmergency()` rallume l'ambiance ; la fumée reste désarmée et doit toujours être
+  réarmée à la main, même si la salle n'exige pas de confirmation.
 
 > ⚠️ **Obligatoire en salle** : un **arrêt d'urgence physique** qui coupe l'alimentation de la
 > machine à fumée et des lumières. Le bouton logiciel ne suffit pas : si le PC ou le navigateur

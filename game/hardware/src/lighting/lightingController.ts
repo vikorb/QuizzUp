@@ -22,6 +22,11 @@ export const WATCHDOG_STALL_MS = 500
 /** Attente maximale de la dernière trame noire à la fermeture de la sortie. */
 const CLOSE_TIMEOUT_MS = 250
 
+/** Une écriture DMX plus longue que ce délai signifie une interface bloquée. */
+export const WRITE_TIMEOUT_MS = 500
+
+const REFRESH_LIMITS = { min: 10, max: 40, fallback: 30 } as const
+
 /**
  * Événement de jeu, au format du moteur (`{ type, payload }` de `@quizzup/game-engine`).
  * Typé de façon structurelle pour ne pas dépendre du moteur.
@@ -112,6 +117,10 @@ export function createLightingController(options: LightingControllerOptions): Li
   const clock = options.clock ?? browserClock
   const doc = options.doc === undefined ? (globalThis.document ?? null) : options.doc
   const rig = parseRig(config.fixtures, config.customProfiles)
+  const refreshHz = Number.isFinite(config.refreshHz)
+    ? Math.min(REFRESH_LIMITS.max, Math.max(REFRESH_LIMITS.min, config.refreshHz))
+    : REFRESH_LIMITS.fallback
+  const intervalMs = Math.round(1000 / refreshHz)
   const fixtures = rig.fixtures
 
   const scenes = new Map<string, SceneDefinition>()
@@ -128,7 +137,7 @@ export function createLightingController(options: LightingControllerOptions): Li
     fixtures,
     deskColors: config.deskColors,
     onSmoke: (durationMs) => {
-      const result = smoke.fire(durationMs)
+      const result = fireSmoke(durationMs)
       if (!result.ok) {
         warn({ kind: 'smoke_refused', reason: result.reason, at: clock.now() })
       }
@@ -141,8 +150,9 @@ export function createLightingController(options: LightingControllerOptions): Li
   let detachOutput: Unsubscribe | null = null
   let timer: TimerHandle | null = null
   let running = false
-  let writing = false
+  let inFlight: Promise<void> | null = null
   let pending = false
+  let generation = 0
   let emergency = false
   let emergencyReason: string | null = null
   let lastFrameAt: number | null = null
@@ -183,28 +193,49 @@ export function createLightingController(options: LightingControllerOptions): Li
     flush()
   }
 
+  /** Résout `true` si la promesse aboutit avant le délai, `false` sinon. */
+  const within = (promise: Promise<unknown>, ms: number) =>
+    new Promise<boolean>((resolve) => {
+      const handle = clock.setTimeout(() => resolve(false), ms)
+      promise.then(
+        () => {
+          clock.clearTimeout(handle)
+          resolve(true)
+        },
+        () => {
+          clock.clearTimeout(handle)
+          resolve(true)
+        }
+      )
+    })
+
   function flush() {
-    if (outputStatus !== 'open' || writing || !pending) {
+    if (outputStatus !== 'open' || inFlight || !pending) {
       return
     }
     pending = false
-    writing = true
     const target = output
-    target
-      .write(frame)
-      .catch((error: unknown) => {
-        if (target === output) {
-          handleOutputError(error)
-        }
-      })
-      .finally(() => {
-        writing = false
-        flush()
-      })
+    const write = target.write(frame).catch((error: unknown) => {
+      if (target === output) {
+        handleOutputError(error)
+      }
+    })
+    const current = within(write, WRITE_TIMEOUT_MS).then((done) => {
+      if (!done && target === output) {
+        handleOutputError(new Error('Interface DMX bloquée : aucune trame acceptée'))
+      }
+    })
+    inFlight = current
+    void current.finally(() => {
+      if (inFlight === current) {
+        inFlight = null
+      }
+      flush()
+    })
   }
 
   function handleOutputError(error: unknown) {
-    if (outputStatus === 'error') {
+    if (outputStatus === 'error' || outputStatus === 'closing' || outputStatus === 'closed') {
       return
     }
     smoke.stop('output_error')
@@ -253,26 +284,61 @@ export function createLightingController(options: LightingControllerOptions): Li
     notify()
   }
 
+  /**
+   * Ferme la sortie courante : plus aucune trame de jeu n'est acceptée (`closing`), on attend
+   * l'écriture en cours puis on envoie une trame noire **en dernier**, sans attendre plus que
+   * prévu une interface bloquée.
+   */
   const closeOutput = async () => {
     detachOutput?.()
     detachOutput = null
-    frame = createUniverse()
+    const wasOpen = outputStatus === 'open' || outputStatus === 'error'
+    outputStatus = 'closing'
     pending = false
-    if (outputStatus === 'open') {
-      // Dernière trame noire, sans attendre indéfiniment une interface bloquée.
-      await Promise.race([
-        output.write(frame).catch(() => undefined),
-        new Promise<void>((resolve) => clock.setTimeout(resolve, CLOSE_TIMEOUT_MS)),
-      ])
+    frame = createUniverse()
+    if (wasOpen) {
+      if (inFlight) {
+        await within(inFlight, CLOSE_TIMEOUT_MS)
+      }
+      await within(output.write(frame), CLOSE_TIMEOUT_MS)
+    }
+    try {
+      await output.close()
+    } catch {
+      // Sortie déjà fermée ou débranchée.
     }
     outputStatus = 'closed'
-    await output.close()
+  }
+
+  const startLoop = () => {
+    if (timer === null) {
+      lastFrameAt = null
+      timer = clock.setInterval(tick, intervalMs)
+    }
+  }
+
+  const stopLoop = () => {
+    if (timer !== null) {
+      clock.clearInterval(timer)
+      timer = null
+    }
+  }
+
+  const isHidden = () => doc?.visibilityState === 'hidden'
+
+  const fireSmoke = (durationMs: number): SmokeFireResult => {
+    if (isHidden()) {
+      // Onglet en arrière-plan : les minuteurs sont bridés, la trame d'arrêt pourrait tarder.
+      return { ok: false, reason: 'page_hidden' }
+    }
+    return smoke.fire(durationMs)
   }
 
   const onVisibilityChange = () => {
     if (doc?.visibilityState === 'hidden') {
       // Onglet masqué : le navigateur ralentit les minuteurs, on ne garde pas de fumée active.
       smoke.stop('page_hidden')
+      tick()
       warn({ kind: 'page_hidden', at: clock.now() })
     }
   }
@@ -311,6 +377,10 @@ export function createLightingController(options: LightingControllerOptions): Li
       return { key: winners.length === 0 ? 'question_lost' : 'question_won', desk: explicitDesk }
     }
     if (event.type === 'game_ended') {
+      if (payload.reason !== undefined && payload.reason !== 'completed') {
+        // Partie terminée faute de contenu : pas de célébration (ni fumée).
+        return { key: 'game_ended_incomplete', desk: null }
+      }
       const winners = Array.isArray(payload.winnerIds) ? payload.winnerIds : []
       const desk =
         explicitDesk ??
@@ -329,23 +399,27 @@ export function createLightingController(options: LightingControllerOptions): Li
         return
       }
       running = true
+      generation += 1
+      const current = generation
       await openOutput()
+      if (current !== generation || !running) {
+        // `stop()` appelé pendant l'ouverture : on referme sans lancer la boucle.
+        await closeOutput()
+        return
+      }
       doc?.addEventListener('visibilitychange', onVisibilityChange)
       globalThis.addEventListener?.('pagehide', onPageHide)
-      lastFrameAt = null
-      timer = clock.setInterval(tick, Math.round(1000 / config.refreshHz))
+      startLoop()
       playScene(SCENE_IDS.IDLE)
       tick()
     },
     async stop() {
+      generation += 1
       if (!running) {
         return
       }
       running = false
-      if (timer !== null) {
-        clock.clearInterval(timer)
-        timer = null
-      }
+      stopLoop()
       doc?.removeEventListener('visibilitychange', onVisibilityChange)
       globalThis.removeEventListener?.('pagehide', onPageHide)
       smoke.stop('shutdown')
@@ -355,10 +429,16 @@ export function createLightingController(options: LightingControllerOptions): Li
     },
     async setOutput(next) {
       smoke.stop('output_error')
+      stopLoop()
       await closeOutput()
       output = next
       if (running) {
+        const current = generation
         await openOutput()
+        if (current === generation && running) {
+          startLoop()
+          tick()
+        }
       } else {
         notify()
       }
@@ -390,7 +470,7 @@ export function createLightingController(options: LightingControllerOptions): Li
         notify()
       },
       fire(durationMs) {
-        const result = smoke.fire(durationMs)
+        const result = fireSmoke(durationMs)
         notify()
         return result
       },

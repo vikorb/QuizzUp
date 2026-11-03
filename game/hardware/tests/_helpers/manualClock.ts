@@ -64,3 +64,14 @@ export function createManualClock(start = 1_000): ManualClock {
 
 /** Laisse les promesses en attente se résoudre (écritures DMX asynchrones). */
 export const flushPromises = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
+
+/**
+ * Avance le temps par petits pas en laissant les promesses se résoudre entre deux, comme le
+ * fait un navigateur entre deux minuteurs (écritures DMX asynchrones).
+ */
+export async function advanceAsync(clock: ManualClock, ms: number, step = 10): Promise<void> {
+  for (let elapsed = 0; elapsed < ms; elapsed += step) {
+    clock.advance(Math.min(step, ms - elapsed))
+    await flushPromises()
+  }
+}

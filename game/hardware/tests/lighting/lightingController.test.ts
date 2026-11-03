@@ -1,9 +1,13 @@
 import type { DmxOutput } from '@hardware/dmx/output'
 import { createSimulationOutput } from '@hardware/dmx/simulationOutput'
-import { createLightingController, WATCHDOG_STALL_MS } from '@hardware/lighting/lightingController'
+import {
+  createLightingController,
+  WATCHDOG_STALL_MS,
+  WRITE_TIMEOUT_MS,
+} from '@hardware/lighting/lightingController'
 import { DEFAULT_DESK_COLORS, SCENE_IDS } from '@hardware/lighting/scenes'
 
-import { createManualClock, flushPromises } from '../_helpers/manualClock'
+import { advanceAsync, createManualClock, flushPromises } from '../_helpers/manualClock'
 import { lightingConfig } from '../_helpers/rig'
 
 const SMOKE_CHANNEL = 29
@@ -45,8 +49,7 @@ describe('contrôleur lumières et fumée', () => {
       problems: [],
     })
     const sent = output.framesSent()
-    clock.advance(1_000)
-    await flushPromises()
+    await advanceAsync(clock, 1_000)
     expect(output.framesSent()).toBeGreaterThan(sent)
     expect(frame(output)[19]).toBeGreaterThan(0)
   })
@@ -58,8 +61,7 @@ describe('contrôleur lumières et fumée', () => {
 
     controller.handleGameEvent({ type: 'buzzer_pressed', payload: { participantId: 22, stage: 1 } })
     expect(controller.getState().currentSceneId).toBe(SCENE_IDS.BUZZ)
-    clock.advance(1_000)
-    await flushPromises()
+    await advanceAsync(clock, 1_000)
     const universe = frame(output)
     expect([...universe.subarray(3, 6)]).toEqual([
       DEFAULT_DESK_COLORS[2].r,
@@ -127,23 +129,20 @@ describe('contrôleur lumières et fumée', () => {
     await controller.start()
 
     controller.handleGameEvent({ type: 'game_ended', payload: { winnerIds: [11] } })
-    clock.advance(500)
-    await flushPromises()
+    await advanceAsync(clock, 500)
     expect(frame(output)[SMOKE_CHANNEL]).toBe(0)
     expect(warnings).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'smoke_refused', reason: 'not_armed' })
     )
 
-    clock.advance(20_000)
+    await advanceAsync(clock, 20_000, 100)
     expect(controller.smoke.arm()).toBe(true)
     controller.handleGameEvent({ type: 'game_ended', payload: { winnerIds: [11] } })
-    clock.advance(500)
-    await flushPromises()
+    await advanceAsync(clock, 500)
     expect(frame(output)[SMOKE_CHANNEL]).toBe(180)
     expect(controller.getState().smoke.status).toBe('firing')
 
-    clock.advance(3_000)
-    await flushPromises()
+    await advanceAsync(clock, 3_000)
     expect(frame(output)[SMOKE_CHANNEL]).toBe(0)
     expect(controller.getState().smoke.status).toBe('cooldown')
   })
@@ -163,12 +162,10 @@ describe('contrôleur lumières et fumée', () => {
     expect(controller.smoke.fire(1_000)).toEqual({ ok: false, reason: 'not_armed' })
     controller.smoke.arm()
     expect(controller.smoke.fire(1_000)).toEqual({ ok: true, durationMs: 1_000 })
-    clock.advance(100)
-    await flushPromises()
+    await advanceAsync(clock, 100)
     expect(frame(output)[SMOKE_CHANNEL]).toBe(180)
     controller.smoke.stop()
-    clock.advance(100)
-    await flushPromises()
+    await advanceAsync(clock, 100)
     expect(frame(output)[SMOKE_CHANNEL]).toBe(0)
     controller.smoke.disarm()
     expect(controller.getState().smoke.armed).toBe(false)
@@ -185,8 +182,7 @@ describe('contrôleur lumières et fumée', () => {
     clock.advance(100)
 
     clock.jump(WATCHDOG_STALL_MS + 100)
-    clock.advance(40)
-    await flushPromises()
+    await advanceAsync(clock, 40)
     expect(warnings).toHaveBeenCalledWith(expect.objectContaining({ kind: 'watchdog' }))
     expect(frame(output)[SMOKE_CHANNEL]).toBe(0)
     expect(controller.getState().smoke.lastStopReason).toBe('watchdog')
@@ -227,8 +223,7 @@ describe('contrôleur lumières et fumée', () => {
     expect(controller.identifyFixture('par1')).toBe(false)
     expect(controller.smoke.arm()).toBe(false)
 
-    clock.advance(1_000)
-    await flushPromises()
+    await advanceAsync(clock, 1_000)
     expect(frame(output).every((value) => value === 0)).toBe(true)
 
     controller.resetEmergency()
@@ -332,7 +327,7 @@ describe('contrôleur lumières et fumée', () => {
 
     // Interface bloquée : la fermeture n'attend pas plus que le délai prévu.
     const stopping = controller.stop()
-    clock.advance(300)
+    await advanceAsync(clock, 600)
     await stopping
     expect(controller.getState().outputStatus).toBe('closed')
   })
@@ -381,5 +376,151 @@ describe('contrôleur lumières et fumée', () => {
     await controller.start()
     expect(controller.playScene('inconnue')).toBe(false)
     await controller.stop()
+  })
+
+  it('changement de sortie : la trame noire part en dernier sur l’ancienne interface', async () => {
+    const clock = createManualClock()
+    const written: Uint8Array[] = []
+    let closed = false
+    const slowBlack: DmxOutput = {
+      driver: 'usbpro',
+      open: async () => undefined,
+      write: vi.fn((universe: Uint8Array) => {
+        if (closed) {
+          throw new Error('écriture après fermeture')
+        }
+        written.push(universe.slice())
+        return new Promise<void>((resolve) => clock.setTimeout(resolve, 100))
+      }),
+      close: async () => {
+        closed = true
+      },
+      onDisconnect: () => () => undefined,
+    }
+    const controller = createLightingController({
+      config: lightingConfig(),
+      output: slowBlack,
+      clock,
+      doc: null,
+    })
+    await controller.start()
+    controller.smoke.arm()
+    controller.handleGameEvent({
+      type: 'game_ended',
+      payload: { reason: 'completed', winnerIds: [] },
+    })
+    await advanceAsync(clock, 400)
+
+    const next = createSimulationOutput()
+    const switching = controller.setOutput(next)
+    await advanceAsync(clock, 1_000)
+    await switching
+
+    expect(closed).toBe(true)
+    expect(written.at(-1)?.every((value) => value === 0)).toBe(true)
+    expect(controller.getState().outputStatus).toBe('open')
+    await advanceAsync(clock, 100)
+    expect(next.framesSent()).toBeGreaterThan(0)
+    await controller.stop()
+  })
+
+  it('stop() pendant start() : aucune boucle fantôme', async () => {
+    const clock = createManualClock()
+    let finishOpen: () => void = () => undefined
+    const output = createSimulationOutput()
+    const opening: DmxOutput = {
+      ...output,
+      open: () => new Promise<void>((resolve) => (finishOpen = resolve)),
+    }
+    const controller = createLightingController({
+      config: lightingConfig(),
+      output: opening,
+      clock,
+      doc: null,
+    })
+    const starting = controller.start()
+    const stopping = controller.stop()
+    finishOpen()
+    await starting
+    await stopping
+    const sent = output.framesSent()
+    await advanceAsync(clock, 500)
+    expect(output.framesSent()).toBe(sent)
+    expect(clock.pending()).toBe(0)
+    expect(controller.getState()).toMatchObject({ running: false, outputStatus: 'closed' })
+  })
+
+  it('refuse la fumée tant que l’onglet est masqué', async () => {
+    current = setup()
+    const { controller } = current
+    await controller.start()
+    controller.smoke.arm()
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+    expect(controller.smoke.fire(1_000)).toEqual({ ok: false, reason: 'page_hidden' })
+    visibility.mockReturnValue('visible')
+    expect(controller.smoke.fire(1_000).ok).toBe(true)
+  })
+
+  it('signale une interface bloquée et coupe la fumée', async () => {
+    const clock = createManualClock()
+    const stuck: DmxOutput = {
+      driver: 'usbpro',
+      open: async () => undefined,
+      write: () => new Promise<void>(() => undefined),
+      close: async () => undefined,
+      onDisconnect: () => () => undefined,
+    }
+    const controller = createLightingController({
+      config: lightingConfig(),
+      output: stuck,
+      clock,
+      doc: null,
+    })
+    await controller.start()
+    controller.smoke.arm()
+    controller.smoke.fire(3_000)
+    await advanceAsync(clock, WRITE_TIMEOUT_MS + 50)
+    expect(controller.getState()).toMatchObject({ outputStatus: 'error' })
+    expect(controller.getState().outputError).toContain('bloquée')
+    expect(controller.getState().smoke.status).toBe('cooldown')
+    const stopping = controller.stop()
+    await advanceAsync(clock, 600)
+    await stopping
+  })
+
+  it('pas de victoire ni de fumée pour une partie terminée faute de contenu', async () => {
+    current = setup()
+    await current.controller.start()
+    current.controller.smoke.arm()
+    current.controller.handleGameEvent({
+      type: 'game_ended',
+      payload: { reason: 'no_content', winnerIds: [11] },
+    })
+    expect(current.controller.getState().currentSceneId).toBe(SCENE_IDS.IDLE)
+    expect(current.controller.getState().smoke.status).toBe('ready')
+  })
+
+  it('borne la fréquence d’envoi', async () => {
+    const clock = createManualClock()
+    const output = createSimulationOutput()
+    const controller = createLightingController({
+      config: lightingConfig({ refreshHz: 0 }),
+      output,
+      clock,
+      doc: null,
+    })
+    await controller.start()
+    await advanceAsync(clock, 1_000)
+    expect(output.framesSent()).toBeGreaterThanOrEqual(9)
+    expect(output.framesSent()).toBeLessThanOrEqual(12)
+    await controller.stop()
+    const nan = createLightingController({
+      config: lightingConfig({ refreshHz: Number.NaN }),
+      output: createSimulationOutput(),
+      clock,
+      doc: null,
+    })
+    await nan.start()
+    await nan.stop()
   })
 })

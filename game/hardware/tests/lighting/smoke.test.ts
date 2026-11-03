@@ -154,14 +154,16 @@ describe('contrôleur de fumée', () => {
     expect(smoke.getState().status).toBe('unarmed')
   })
 
-  it('réarme directement après urgence quand la confirmation est retirée', () => {
+  it('reste désarmée après urgence même sans confirmation exigée', () => {
     const clock = createManualClock()
     const smoke = createSmokeController({
       config: { ...enabled, requireConfirmation: false },
       clock,
     })
+    expect(smoke.getState().status).toBe('ready')
     smoke.emergencyStop()
     smoke.resetEmergency()
-    expect(smoke.getState().status).toBe('ready')
+    expect(smoke.getState().status).toBe('unarmed')
+    expect(smoke.arm()).toBe(true)
   })
 })

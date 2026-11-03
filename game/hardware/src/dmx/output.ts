@@ -9,7 +9,7 @@ export const DMX_DRIVERS = ['simulation', 'usbpro', 'opendmx'] as const
  */
 export type DmxDriver = (typeof DMX_DRIVERS)[number]
 
-export type DmxOutputStatus = 'closed' | 'opening' | 'open' | 'error'
+export type DmxOutputStatus = 'closed' | 'opening' | 'open' | 'closing' | 'error'
 
 /** Sortie DMX : reçoit l'univers complet à chaque trame. */
 export type DmxOutput = {

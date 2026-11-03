@@ -61,6 +61,23 @@ describe('buzzers clavier', () => {
     expect(current.presses).not.toHaveBeenCalled()
   })
 
+  it('ignore la saisie dans un champ et ne bloque pas les raccourcis', () => {
+    current = setup()
+    const field = document.createElement('input')
+    const editable = document.createElement('div')
+    editable.setAttribute('contenteditable', 'true')
+    document.body.append(field, editable)
+    for (const element of [field, editable]) {
+      const event = new KeyboardEvent('keydown', { code: 'KeyA', cancelable: true, bubbles: true })
+      element.dispatchEvent(event)
+      expect(event.defaultPrevented).toBe(false)
+    }
+    expect(current.presses).not.toHaveBeenCalled()
+    expect(keydown('KeyR', { ctrlKey: true }).defaultPrevented).toBe(false)
+    field.remove()
+    editable.remove()
+  })
+
   it('bloque l’action par défaut des touches associées seulement', () => {
     current = setup()
     expect(keydown('KeyA').defaultPrevented).toBe(true)
@@ -137,6 +154,15 @@ describe('buzzers clavier', () => {
     current.input.unlockSystemKeys()
     expect(keyboard.unlock).toHaveBeenCalled()
     expect(current.input.getState().keyboardLocked).toBe(false)
+
+    expect(await current.input.lockSystemKeys()).toBe(true)
+    document.dispatchEvent(new Event('fullscreenchange'))
+    expect(current.input.getState().keyboardLocked).toBe(false)
+
+    expect(await current.input.lockSystemKeys()).toBe(true)
+    keyboard.unlock.mockClear()
+    current.input.dispose()
+    expect(keyboard.unlock).toHaveBeenCalled()
 
     keyboard.lock.mockRejectedValue(new Error('pas en plein écran'))
     expect(await current.input.lockSystemKeys()).toBe(false)
