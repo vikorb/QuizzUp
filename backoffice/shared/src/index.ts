@@ -84,10 +84,7 @@ export const THEME_SCOPE = {
   COMPANY: THEME_SCOPE_COMPANY,
 } as const
 
-export const THEME_SCOPES = [
-  THEME_SCOPE_GLOBAL,
-  THEME_SCOPE_COMPANY,
-] as const
+export const THEME_SCOPES = [THEME_SCOPE_GLOBAL, THEME_SCOPE_COMPANY] as const
 
 export type ThemeScope = (typeof THEME_SCOPE)[keyof typeof THEME_SCOPE]
 
@@ -153,3 +150,106 @@ export const ANSWER_STATUSES = [
 ] as const
 
 export type AnswerStatus = (typeof ANSWER_STATUS)[keyof typeof ANSWER_STATUS]
+
+/**
+ * Compte de salle : le PC installé dans une salle de jeu se connecte avec ce rôle.
+ * Volontairement hors de `ADMIN_ROLE` : ce n'est pas un rôle attribuable depuis
+ * le formulaire de comptes, il est créé depuis la fiche d'une salle (US-ROOM-02).
+ */
+export const ADMIN_ROLE_ROOM = 'room' as const
+
+export const ROOM_STATUS_INACTIVE = 0 as const
+export const ROOM_STATUS_ACTIVE = 1 as const
+export const ROOM_STATUS_DELETED = 2 as const
+
+export const ROOM_STATUS = {
+  INACTIVE: ROOM_STATUS_INACTIVE,
+  ACTIVE: ROOM_STATUS_ACTIVE,
+  DELETED: ROOM_STATUS_DELETED,
+} as const
+
+export const ROOM_STATUSES = [
+  ROOM_STATUS_INACTIVE,
+  ROOM_STATUS_ACTIVE,
+  ROOM_STATUS_DELETED,
+] as const
+
+export type RoomStatus = (typeof ROOM_STATUS)[keyof typeof ROOM_STATUS]
+
+/** Statut « administratif » d'une game (convention commune, suppression logique). */
+export const GAME_STATUS_INACTIVE = 0 as const
+export const GAME_STATUS_ACTIVE = 1 as const
+export const GAME_STATUS_DELETED = 2 as const
+
+export const GAME_STATUS = {
+  INACTIVE: GAME_STATUS_INACTIVE,
+  ACTIVE: GAME_STATUS_ACTIVE,
+  DELETED: GAME_STATUS_DELETED,
+} as const
+
+export const GAME_STATUSES = [
+  GAME_STATUS_INACTIVE,
+  GAME_STATUS_ACTIVE,
+  GAME_STATUS_DELETED,
+] as const
+
+export type GameStatus = (typeof GAME_STATUS)[keyof typeof GAME_STATUS]
+
+/** Avancement d'une game, indépendant du statut de suppression logique. */
+export const GAME_STATE_PENDING = 'pending' as const
+export const GAME_STATE_RUNNING = 'running' as const
+export const GAME_STATE_FINISHED = 'finished' as const
+export const GAME_STATE_ABORTED = 'aborted' as const
+
+export const GAME_STATE = {
+  PENDING: GAME_STATE_PENDING,
+  RUNNING: GAME_STATE_RUNNING,
+  FINISHED: GAME_STATE_FINISHED,
+  ABORTED: GAME_STATE_ABORTED,
+} as const
+
+export const GAME_STATES = [
+  GAME_STATE_PENDING,
+  GAME_STATE_RUNNING,
+  GAME_STATE_FINISHED,
+  GAME_STATE_ABORTED,
+] as const
+
+export type GameState = (typeof GAME_STATE)[keyof typeof GAME_STATE]
+
+/** Mini-jeux disponibles. V1 : uniquement le blind test éclair (US-MINIGAME-01). */
+export const MINI_GAME_FLASH_BLIND_TEST = 'flash_blind_test' as const
+
+export const MINI_GAME = {
+  FLASH_BLIND_TEST: MINI_GAME_FLASH_BLIND_TEST,
+} as const
+
+export const MINI_GAMES = [MINI_GAME_FLASH_BLIND_TEST] as const
+
+export type MiniGame = (typeof MINI_GAME)[keyof typeof MINI_GAME]
+
+/** Raison pour laquelle un participant a été désigné pour choisir le thème d'une manche. */
+export const ROUND_CHOOSER_REASON_FIRST_ROUND_RANDOM = 'first_round_random' as const
+export const ROUND_CHOOSER_REASON_RANDOM_EXCLUDING_LEADER = 'random_excluding_leader' as const
+export const ROUND_CHOOSER_REASON_FALLBACK_RANDOM = 'fallback_random' as const
+
+export const ROUND_CHOOSER_REASON = {
+  FIRST_ROUND_RANDOM: ROUND_CHOOSER_REASON_FIRST_ROUND_RANDOM,
+  RANDOM_EXCLUDING_LEADER: ROUND_CHOOSER_REASON_RANDOM_EXCLUDING_LEADER,
+  FALLBACK_RANDOM: ROUND_CHOOSER_REASON_FALLBACK_RANDOM,
+} as const
+
+export const ROUND_CHOOSER_REASONS = [
+  ROUND_CHOOSER_REASON_FIRST_ROUND_RANDOM,
+  ROUND_CHOOSER_REASON_RANDOM_EXCLUDING_LEADER,
+  ROUND_CHOOSER_REASON_FALLBACK_RANDOM,
+] as const
+
+export type RoundChooserReason = (typeof ROUND_CHOOSER_REASON)[keyof typeof ROUND_CHOOSER_REASON]
+
+/** Format de partie et matériel d'une salle. */
+export const GAME_DEFAULT_ROUNDS = 10 as const
+export const GAME_DEFAULT_QUESTIONS_PER_ROUND = 10 as const
+export const GAME_THEMES_OFFERED_PER_ROUND = 4 as const
+export const GAME_PODIUMS = 4 as const
+export const GAME_BUZZERS_PER_PODIUM = 4 as const
