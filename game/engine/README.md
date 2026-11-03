@@ -59,9 +59,18 @@ Règles d'intégration :
 
 - **Horloge** : `at` en millisecondes monotones (`performance.now()`) ; l'hôte envoie un `tick`
   régulier (≈ 50-100 ms) pour faire avancer les délais.
+  Une commande dont `at` n'est pas un nombre fini est ignorée ; un `tick` antérieur au dernier
+  `at` est ignoré ; un appui antérieur est ramené au dernier `at` (temps de réponse ≥ 0, arrondis
+  à la milliseconde pour `game_answers.response_time_ms`).
+- **Échéances** : elles passent avant l'appui reçu au même instant (un buzz pile à la fin du
+  palier 1 compte au palier 2).
+- **Graine** : entier de 0 à 2³² − 1 (`MAX_SEED`), à générer côté API et stocker dans `games.seed`.
+- **Réponses** : l'ordre A-D est mélangé avec la graine au tirage de la manche ; l'hôte affiche
+  `state.rounds[].questions[].answers` dans l'ordre de l'état.
 - **Buzzers** : l'hôte traduit une touche clavier en `{ podium: 1-4, button: 0-3 }` (0 = A) et
   envoie `press`. Le moteur décide seul si l'appui compte (buzz, réponse, choix de thème).
-- **Persistance** : stocker la `seed` et les commandes suffit à rejouer la partie (`replayGame`).
+- **Persistance** : `game_events` ne suffit pas à rejouer une partie ; pour `replayGame`, l'hôte
+  doit aussi journaliser la `seed` et les commandes reçues (ticks compris).
 - Les payloads exacts sont dans `src/engine.ts` et `src/miniGames/flashBlindTest.ts`.
 
 ## Mini-jeux

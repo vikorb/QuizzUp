@@ -68,7 +68,7 @@ export function drawRoundChooser(
 
 /**
  * Thèmes proposés : parmi les thèmes jouables, on privilégie ceux pas encore
- * joués dans la partie ; si tous l'ont été, on repropose les déjà joués.
+ * joués dans la partie, puis on complète avec des thèmes déjà joués.
  */
 export function drawOfferedThemes(
   playableThemes: EngineTheme[],
@@ -77,9 +77,10 @@ export function drawOfferedThemes(
   random: Random
 ): EngineTheme[] {
   const freshThemes = playableThemes.filter((theme) => !usedThemeIds.includes(theme.id))
-  const pool = freshThemes.length > 0 ? freshThemes : playableThemes
+  const playedThemes = playableThemes.filter((theme) => usedThemeIds.includes(theme.id))
+  const drawnFresh = drawMany(freshThemes, count, random)
 
-  return drawMany(pool, count, random)
+  return [...drawnFresh, ...drawMany(playedThemes, count - drawnFresh.length, random)]
 }
 
 /**

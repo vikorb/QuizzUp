@@ -63,6 +63,15 @@ describe('drawOfferedThemes', () => {
     expect(offered.map((theme) => theme.id).toSorted()).toEqual([3, 4, 5, 6])
   })
 
+  it('completes with already played themes when too few remain unplayed', () => {
+    const offered = drawOfferedThemes(themes, [1, 2, 3, 4, 5], 4, createRandom(3))
+    const ids = offered.map((theme) => theme.id)
+
+    expect(ids).toHaveLength(4)
+    expect(ids[0]).toBe(6)
+    expect(new Set(ids).size).toBe(4)
+  })
+
   it('offers already played themes again when every theme was played', () => {
     const offered = drawOfferedThemes(themes.slice(0, 2), [1, 2], 4, createRandom(3))
 

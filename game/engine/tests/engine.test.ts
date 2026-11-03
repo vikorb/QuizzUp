@@ -137,6 +137,12 @@ describe('createGame', () => {
     [{ roundsCount: 21 }, 'rounds_count_invalid'],
     [{ questionsPerRound: 1.5 }, 'questions_per_round_invalid'],
     [{ seed: Number.NaN }, 'seed_invalid'],
+    [{ seed: 5.9 }, 'seed_invalid'],
+    [{ seed: -1 }, 'seed_invalid'],
+    [{ seed: 2 ** 32 }, 'seed_invalid'],
+    [{ timings: { themeChoiceMs: undefined } }, 'timings_invalid'],
+    [{ timings: { revealMs: -1 } }, 'timings_invalid'],
+    [{ timings: { unknownMs: 10 } as GameSetup['timings'] }, 'timings_invalid'],
     [{ miniGames: [] }, 'mini_games_invalid'],
     [{ miniGames: ['unknown' as typeof MINI_GAME_FLASH_BLIND_TEST] }, 'mini_games_invalid'],
   ])('rejects an invalid setup (%o)', (overrides, code) => {
@@ -409,5 +415,87 @@ describe('reduceGame — purity and determinism', () => {
     )
 
     expect(results.size).toBeGreaterThan(1)
+  })
+})
+
+/** Démarre une partie et amène la 1re question (palier 1 lancé à 4000). */
+function startFirstQuestion(setup: GameSetup = baseSetup()): Driver {
+  const driver = createDriver(setup)
+  driver.send({ type: 'start', at: 0 })
+  driver.send({ type: 'tick', at: 4000 })
+  const round = driver.state.rounds[0]
+  driver.send({
+    type: 'press',
+    at: 4000,
+    podium: podiumOf(round?.chooserParticipantId ?? null),
+    button: 0,
+  })
+  return driver
+}
+
+describe('reduceGame — host clock robustness', () => {
+  it('ignores commands whose time is not finite', () => {
+    const driver = startFirstQuestion()
+    const before = driver.state
+
+    expect(driver.send({ type: 'press', at: Number.NaN, podium: 1, button: 0 }).events).toEqual([])
+    expect(driver.send({ type: 'tick', at: Number.POSITIVE_INFINITY }).events).toEqual([])
+    expect(driver.state).toEqual(before)
+  })
+
+  it('ignores a late tick and clamps a late press to the last known time', () => {
+    const driver = startFirstQuestion()
+    driver.send({ type: 'tick', at: 4300 })
+
+    expect(driver.send({ type: 'tick', at: 4100 }).events).toEqual([])
+
+    driver.send({ type: 'press', at: 4200, podium: 1, button: 0 })
+    driver.send({ type: 'press', at: 4250, podium: 1, button: correctButton(driver.state) })
+
+    const answer = driver.state.rounds[0]?.answers[0]
+    expect(answer?.responseTimeMs).toBe(300)
+    expect(driver.state.lastAt).toBe(4300)
+  })
+
+  it('stores whole milliseconds when the host clock is fractional', () => {
+    const driver = startFirstQuestion()
+    driver.send({ type: 'press', at: 4300.489, podium: 1, button: 0 })
+    driver.send({ type: 'press', at: 4400.1, podium: 1, button: correctButton(driver.state) })
+
+    expect(driver.state.rounds[0]?.answers[0]?.responseTimeMs).toBe(300)
+  })
+})
+
+describe('reduceGame — content snapshots', () => {
+  it('shuffles answers with the seed, keeping every answer', () => {
+    const orders = new Set<string>()
+
+    for (let seed = 0; seed < 20; seed += 1) {
+      const driver = startFirstQuestion(baseSetup({ seed }))
+      const question = driver.state.rounds[0]?.questions[0]
+      const ids = question?.answers.map((answer) => answer.id) ?? []
+
+      expect(ids.toSorted()).toEqual(
+        ids.toSorted().map((_id, index) => (question?.id ?? 0) * 10 + index)
+      )
+      orders.add(JSON.stringify(ids))
+    }
+
+    expect(orders.size).toBeGreaterThan(1)
+  })
+
+  it('keeps its own copy of the themes and of the scores it emits', () => {
+    const setup = baseSetup()
+    const state = createGame(setup)
+    setup.themes[0]!.name = 'Modifié'
+
+    expect(state.setup.themes[0]?.name).not.toBe('Modifié')
+
+    const driver = createDriver(baseSetup({ roundsCount: 1, questionsPerRound: 1 }))
+    playFullGame(driver, () => 1)
+    const ended = driver.events.find((event) => event.type === 'game_ended')
+
+    expect(ended?.payload.scores).toEqual(driver.state.scores)
+    expect(ended?.payload.scores).not.toBe(driver.state.scores)
   })
 })

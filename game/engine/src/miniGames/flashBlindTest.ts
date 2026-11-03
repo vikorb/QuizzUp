@@ -96,7 +96,7 @@ function resumeAfterWrongAnswer(
     answerId,
     isCorrect: false,
     points: 0,
-    responseTimeMs: pausedAt - state.stageStartedAt,
+    responseTimeMs: Math.round(pausedAt - state.stageStartedAt),
     stage: getStageNumber(state),
   }
   const events: PendingEvent[] = [
@@ -252,7 +252,7 @@ export const flashBlindTest: MiniGameDefinition<FlashBlindTestState> = {
       answerId: answer.id,
       isCorrect: true,
       points,
-      responseTimeMs: pausedAt - state.stageStartedAt,
+      responseTimeMs: Math.round(pausedAt - state.stageStartedAt),
       stage: getStageNumber(state),
     }
 

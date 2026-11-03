@@ -17,7 +17,7 @@ import {
   type ScoreLine,
 } from './draws'
 import { MINI_GAME_DEFINITIONS, type MiniGameState, type QuestionStep } from './miniGames'
-import { createRandom, pickOne, type Random } from './random'
+import { createRandom, drawMany, pickOne, type Random } from './random'
 import type {
   EngineTheme,
   GameCommand,
@@ -50,6 +50,8 @@ export type GameState = {
   setup: ResolvedSetup
   randomState: number
   seq: number
+  /** Horodatage de la dernière commande appliquée (les commandes ne remontent pas le temps). */
+  lastAt: number | null
   phase: GamePhase
   /** Scores, dans l'ordre des pupitres. */
   scores: ScoreLine[]
@@ -65,6 +67,9 @@ export type GameStep = {
 
 /** Garde-fou contre une boucle de transitions infinie dans un même tick. */
 const MAX_TRANSITIONS_PER_COMMAND = 10_000
+
+/** Plus grande graine acceptée (générateur 32 bits). */
+export const MAX_SEED = 0xff_ff_ff_ff
 
 /**
  * Copie de travail d'une commande : `reduceGame` clone l'état reçu, puis les
@@ -103,8 +108,20 @@ function resolveSetup(setup: GameSetup): ResolvedSetup {
     'questions_per_round_invalid'
   )
 
-  if (!Number.isFinite(setup.seed)) {
+  // La graine alimente un générateur 32 bits : au-delà, deux graines différentes
+  // donneraient la même partie.
+  if (!Number.isInteger(setup.seed) || setup.seed < 0 || setup.seed > MAX_SEED) {
     throw new GameSetupError('seed_invalid')
+  }
+
+  const timings = { ...DEFAULT_GAME_TIMINGS }
+
+  for (const [key, value] of Object.entries(setup.timings ?? {})) {
+    if (!(key in DEFAULT_GAME_TIMINGS) || !Number.isInteger(value) || (value as number) < 0) {
+      throw new GameSetupError('timings_invalid')
+    }
+
+    timings[key as keyof GameTimings] = value as number
   }
 
   if (setup.participants.length === 0 || setup.participants.length > GAME_PODIUMS) {
@@ -129,11 +146,13 @@ function resolveSetup(setup: GameSetup): ResolvedSetup {
   return {
     seed: setup.seed,
     participants: [...setup.participants].sort((first, second) => first.podium - second.podium),
-    themes: setup.themes,
+    // Copie : une modification ultérieure du catalogue par l'appelant ne doit pas
+    // changer la partie.
+    themes: structuredClone(setup.themes),
     roundsCount,
     questionsPerRound,
     miniGames,
-    timings: { ...DEFAULT_GAME_TIMINGS, ...setup.timings },
+    timings,
   }
 }
 
@@ -143,8 +162,9 @@ export function createGame(setup: GameSetup): GameState {
 
   return {
     setup: resolved,
-    randomState: Math.trunc(resolved.seed) | 0,
+    randomState: resolved.seed | 0,
     seq: 0,
+    lastAt: null,
     phase: { name: 'lobby' },
     scores: resolved.participants.map((participant) => ({
       participantId: participant.id,
@@ -187,7 +207,7 @@ function finishGame(context: Context, at: number, reason: 'completed' | 'no_cont
       at,
       payload: {
         reason,
-        scores: context.state.scores,
+        scores: context.state.scores.map((line) => ({ ...line })),
         winnerIds: getLeaderIds(context.state.scores),
       },
     },
@@ -302,7 +322,12 @@ function selectTheme(context: Context, themeId: number, at: number, automatic: b
   )
 
   round.themeId = themeId
-  round.questions = structuredClone(questions)
+  // Les réponses sont mélangées (avec la graine) : sinon le bouton A serait
+  // souvent la bonne réponse, selon l'ordre de saisie dans le backoffice.
+  round.questions = structuredClone(questions).map((question) => ({
+    ...question,
+    answers: drawMany(question.answers, question.answers.length, context.random),
+  }))
   state.usedThemeIds = [...new Set([...state.usedThemeIds, themeId])]
   state.usedQuestionIds = [
     ...new Set([...state.usedQuestionIds, ...questions.map((question) => question.id)]),
@@ -393,7 +418,10 @@ function endRound(context: Context, at: number): void {
     {
       type: 'round_ended',
       at,
-      payload: { position: round.position, scores: context.state.scores },
+      payload: {
+        position: round.position,
+        scores: context.state.scores.map((line) => ({ ...line })),
+      },
     },
   ])
 }
@@ -501,7 +529,23 @@ function handlePress(context: Context, podium: number, button: number, at: numbe
  * Applique une commande à la partie. Fonction pure : l'état reçu n'est pas
  * modifié, un nouvel état et les événements émis sont renvoyés.
  */
-export function reduceGame(state: GameState, command: GameCommand): GameStep {
+export function reduceGame(state: GameState, received: GameCommand): GameStep {
+  // Une commande sans horodatage exploitable est ignorée : elle bloquerait les échéances.
+  if (!Number.isFinite(received.at)) {
+    return { state: structuredClone(state), events: [] }
+  }
+
+  // Un tick en retard n'apporte rien ; une autre commande en retard (appui capté
+  // juste avant le dernier tick) est ramenée au dernier instant connu, pour que
+  // les temps de réponse ne soient jamais négatifs.
+  if (received.type === 'tick' && state.lastAt !== null && received.at < state.lastAt) {
+    return { state: structuredClone(state), events: [] }
+  }
+
+  const command: GameCommand = {
+    ...received,
+    at: Math.max(received.at, state.lastAt ?? received.at),
+  }
   const context: Context = {
     state: structuredClone(state),
     events: [],
@@ -555,6 +599,7 @@ export function reduceGame(state: GameState, command: GameCommand): GameStep {
   }
 
   context.state.randomState = context.random.state()
+  context.state.lastAt = command.at
 
   return { state: context.state, events: context.events }
 }
