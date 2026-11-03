@@ -152,7 +152,6 @@ export function createLightingController(options: LightingControllerOptions): Li
   let running = false
   let inFlight: Promise<void> | null = null
   let pending = false
-  let generation = 0
   let emergency = false
   let emergencyReason: string | null = null
   let lastFrameAt: number | null = null
@@ -210,12 +209,15 @@ export function createLightingController(options: LightingControllerOptions): Li
     })
 
   function flush() {
-    if (outputStatus !== 'open' || inFlight || !pending) {
+    const degraded = outputStatus === 'error'
+    if ((outputStatus !== 'open' && !degraded) || inFlight || !pending) {
       return
     }
     pending = false
     const target = output
-    const write = target.write(frame).catch((error: unknown) => {
+    // Sortie en erreur : on continue d'essayer d'envoyer du noir, au cas où elle répond encore.
+    const universe = degraded ? createUniverse() : frame
+    const write = target.write(universe).catch((error: unknown) => {
       if (target === output) {
         handleOutputError(error)
       }
@@ -241,6 +243,8 @@ export function createLightingController(options: LightingControllerOptions): Li
     smoke.stop('output_error')
     outputStatus = 'error'
     outputError = error instanceof Error ? error.message : String(error)
+    // Une trame noire part dès que l'interface accepte de nouveau une écriture.
+    send(createUniverse())
     warn({ kind: 'output_error', message: outputError, at: clock.now() })
   }
 
@@ -255,7 +259,7 @@ export function createLightingController(options: LightingControllerOptions): Li
     }
     lastFrameAt = now
 
-    if (emergency) {
+    if (emergency || outputStatus === 'error') {
       send(createUniverse())
       return
     }
@@ -295,18 +299,20 @@ export function createLightingController(options: LightingControllerOptions): Li
     const wasOpen = outputStatus === 'open' || outputStatus === 'error'
     outputStatus = 'closing'
     pending = false
-    frame = createUniverse()
+    const black = createUniverse()
+    frame = black
     if (wasOpen) {
       if (inFlight) {
         await within(inFlight, CLOSE_TIMEOUT_MS)
       }
-      await within(output.write(frame), CLOSE_TIMEOUT_MS)
+      await within(output.write(black), CLOSE_TIMEOUT_MS)
     }
     try {
       await output.close()
     } catch {
       // Sortie déjà fermée ou débranchée.
     }
+    inFlight = null
     outputStatus = 'closed'
   }
 
@@ -338,7 +344,9 @@ export function createLightingController(options: LightingControllerOptions): Li
     if (doc?.visibilityState === 'hidden') {
       // Onglet masqué : le navigateur ralentit les minuteurs, on ne garde pas de fumée active.
       smoke.stop('page_hidden')
-      tick()
+      if (timer !== null) {
+        tick()
+      }
       warn({ kind: 'page_hidden', at: clock.now() })
     }
   }
@@ -393,56 +401,60 @@ export function createLightingController(options: LightingControllerOptions): Li
     }
   }
 
+  /**
+   * `start`, `stop` et `setOutput` s'exécutent l'un après l'autre : un `stop()` pendant une
+   * ouverture lente attend la fin de celle-ci puis referme proprement (pas de boucle fantôme,
+   * pas de port laissé ouvert).
+   */
+  let lifecycle: Promise<void> = Promise.resolve()
+  const serialize = (operation: () => Promise<void>): Promise<void> => {
+    const run = lifecycle.then(operation)
+    lifecycle = run.catch(() => undefined)
+    return run
+  }
+
   return {
-    async start() {
-      if (running) {
-        return
-      }
-      running = true
-      generation += 1
-      const current = generation
-      await openOutput()
-      if (current !== generation || !running) {
-        // `stop()` appelé pendant l'ouverture : on referme sans lancer la boucle.
-        await closeOutput()
-        return
-      }
-      doc?.addEventListener('visibilitychange', onVisibilityChange)
-      globalThis.addEventListener?.('pagehide', onPageHide)
-      startLoop()
-      playScene(SCENE_IDS.IDLE)
-      tick()
-    },
-    async stop() {
-      generation += 1
-      if (!running) {
-        return
-      }
-      running = false
-      stopLoop()
-      doc?.removeEventListener('visibilitychange', onVisibilityChange)
-      globalThis.removeEventListener?.('pagehide', onPageHide)
-      smoke.stop('shutdown')
-      player.blackout()
-      await closeOutput()
-      notify()
-    },
-    async setOutput(next) {
-      smoke.stop('output_error')
-      stopLoop()
-      await closeOutput()
-      output = next
-      if (running) {
-        const current = generation
+    start: () =>
+      serialize(async () => {
+        if (running) {
+          return
+        }
+        running = true
         await openOutput()
-        if (current === generation && running) {
+        doc?.addEventListener('visibilitychange', onVisibilityChange)
+        globalThis.addEventListener?.('pagehide', onPageHide)
+        startLoop()
+        playScene(SCENE_IDS.IDLE)
+        tick()
+      }),
+    stop: () =>
+      serialize(async () => {
+        if (!running) {
+          return
+        }
+        running = false
+        stopLoop()
+        doc?.removeEventListener('visibilitychange', onVisibilityChange)
+        globalThis.removeEventListener?.('pagehide', onPageHide)
+        smoke.stop('shutdown')
+        player.blackout()
+        await closeOutput()
+        notify()
+      }),
+    setOutput: (next) =>
+      serialize(async () => {
+        smoke.stop('output_error')
+        stopLoop()
+        await closeOutput()
+        output = next
+        if (running) {
+          await openOutput()
           startLoop()
           tick()
+        } else {
+          notify()
         }
-      } else {
-        notify()
-      }
-    },
+      }),
     handleGameEvent(event) {
       const { key, desk } = resolveEvent(event)
       const sceneId = Object.hasOwn(bindings, key) ? bindings[key] : undefined

@@ -440,8 +440,10 @@ describe('contrôleur lumières et fumée', () => {
     })
     const starting = controller.start()
     const stopping = controller.stop()
+    await flushPromises()
     finishOpen()
     await starting
+    await advanceAsync(clock, 600)
     await stopping
     const sent = output.framesSent()
     await advanceAsync(clock, 500)
@@ -522,5 +524,118 @@ describe('contrôleur lumières et fumée', () => {
     })
     await nan.start()
     await nan.stop()
+  })
+
+  it('écriture en retard : la sortie en erreur reçoit du noir dès qu’elle répond', async () => {
+    const clock = createManualClock()
+    const written: Uint8Array[] = []
+    let delay = 10
+    const lagging: DmxOutput = {
+      driver: 'usbpro',
+      open: async () => undefined,
+      write: (universe: Uint8Array) => {
+        written.push(universe.slice())
+        return new Promise<void>((resolve) => clock.setTimeout(resolve, delay))
+      },
+      close: async () => undefined,
+      onDisconnect: () => () => undefined,
+    }
+    const controller = createLightingController({
+      config: lightingConfig(),
+      output: lagging,
+      clock,
+      doc: null,
+    })
+    await controller.start()
+    controller.smoke.arm()
+    controller.smoke.fire(3_000)
+    await advanceAsync(clock, 100)
+    delay = 800
+    await advanceAsync(clock, 100)
+    expect(written.at(-1)?.[SMOKE_CHANNEL]).toBe(180)
+
+    await advanceAsync(clock, WRITE_TIMEOUT_MS)
+    expect(controller.getState().outputStatus).toBe('error')
+    await advanceAsync(clock, 1_000)
+    expect(written.at(-1)?.every((value) => value === 0)).toBe(true)
+
+    const count = written.length
+    controller.emergencyStop()
+    await advanceAsync(clock, 1_000)
+    expect(written.length).toBeGreaterThan(count)
+    expect(written.at(-1)?.every((value) => value === 0)).toBe(true)
+    const stopping = controller.stop()
+    await advanceAsync(clock, 2_000)
+    await stopping
+  })
+
+  it('stop() pendant l’ouverture d’une nouvelle sortie : le port est refermé', async () => {
+    current = setup()
+    const { controller, clock } = current
+    await controller.start()
+    let finishOpen: () => void = () => undefined
+    const nextBase = createSimulationOutput()
+    const close = vi.fn(async () => undefined)
+    const next: DmxOutput = {
+      ...nextBase,
+      open: () => new Promise<void>((resolve) => (finishOpen = resolve)),
+      close,
+    }
+    const switching = controller.setOutput(next)
+    await advanceAsync(clock, 600)
+    const stopping = controller.stop()
+    finishOpen()
+    await switching
+    await advanceAsync(clock, 600)
+    await stopping
+    expect(close).toHaveBeenCalled()
+    expect(controller.getState()).toMatchObject({ running: false, outputStatus: 'closed' })
+  })
+
+  it('start(), stop(), start() enchaînés : la sortie finale est ouverte et alimentée', async () => {
+    current = setup()
+    const { controller, output, clock } = current
+    const first = controller.start()
+    const second = controller.stop()
+    const third = controller.start()
+    await first
+    await advanceAsync(clock, 600)
+    await second
+    await third
+    expect(controller.getState()).toMatchObject({ running: true, outputStatus: 'open' })
+    const sent = output.framesSent()
+    await advanceAsync(clock, 200)
+    expect(output.framesSent()).toBeGreaterThan(sent)
+  })
+
+  it('onglet masqué pendant un changement de sortie : le noir reste la dernière trame', async () => {
+    const clock = createManualClock()
+    const written: Uint8Array[] = []
+    const slow: DmxOutput = {
+      driver: 'usbpro',
+      open: async () => undefined,
+      write: (universe: Uint8Array) => {
+        written.push(universe.slice())
+        return new Promise<void>((resolve) => clock.setTimeout(resolve, 100))
+      },
+      close: async () => undefined,
+      onDisconnect: () => () => undefined,
+    }
+    const controller = createLightingController({
+      config: lightingConfig(),
+      output: slow,
+      clock,
+      doc: document,
+    })
+    await controller.start()
+    await advanceAsync(clock, 2_000)
+    const switching = controller.setOutput(createSimulationOutput())
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+    document.dispatchEvent(new Event('visibilitychange'))
+    await advanceAsync(clock, 1_000)
+    await switching
+    visibility.mockRestore()
+    expect(written.at(-1)?.every((value) => value === 0)).toBe(true)
+    await controller.stop()
   })
 })
