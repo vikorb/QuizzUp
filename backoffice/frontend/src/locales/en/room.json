@@ -1,0 +1,97 @@
+{
+  "rooms": {
+    "toolbar": {
+      "title": "Rooms"
+    },
+    "actions": {
+      "addRoom": "Add a room"
+    },
+    "filters": {
+      "searchLabel": "Search a room",
+      "searchPlaceholder": "Room name...",
+      "statusLabel": "Status",
+      "status": {
+        "active": "Active",
+        "inactive": "Inactive",
+        "deleted": "Deleted",
+        "all": "All"
+      }
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "deleted": "Deleted",
+      "unknown": "Unknown"
+    },
+    "config": {
+      "set": "Configured",
+      "unset": "Not configured"
+    },
+    "form": {
+      "createTitle": "New room",
+      "editTitle": "Rename the room",
+      "fields": {
+        "name": {
+          "label": "Room name",
+          "placeholder": "e.g. Neon room"
+        }
+      },
+      "actions": {
+        "cancel": "Cancel",
+        "create": "Create the room",
+        "update": "Save",
+        "submitting": "Saving..."
+      },
+      "hints": {
+        "create": "The room will be created active, without any hardware configuration.",
+        "edit": "The hardware configuration (buzzers, lights) is set in a dedicated screen."
+      },
+      "validation": {
+        "nameRequired": "The room name is required.",
+        "nameTooLong": "The room name must not exceed 255 characters."
+      },
+      "errors": {
+        "room_name_already_exists": "A room with this name already exists in this company.",
+        "company_deleted": "A room cannot be added to a deleted company.",
+        "invalid_body": "The submitted information is invalid.",
+        "invalid_params": "Invalid parameters.",
+        "forbidden": "You do not have the required permissions.",
+        "not_found": "Room not found.",
+        "server_error": "Server error.",
+        "api_unreachable": "The server is currently unreachable.",
+        "default": "An error occurred."
+      }
+    },
+    "table": {
+      "title": "Game rooms",
+      "loading": "Loading rooms...",
+      "empty": "No room found.",
+      "retry": "Retry",
+      "columns": {
+        "name": "Name",
+        "config": "Hardware configuration",
+        "status": "Status",
+        "actions": "Actions"
+      },
+      "actions": {
+        "edit": "Rename the room",
+        "delete": "Delete the room",
+        "enable": "Enable the room",
+        "disable": "Disable the room",
+        "deleteConfirm": "Delete the room {name}?",
+        "enableConfirm": "Do you really want to enable the room {name}?",
+        "disableConfirm": "Do you really want to disable the room {name}?"
+      }
+    },
+    "errors": {
+      "missingToken": "Your session has expired. Please sign in again.",
+      "unauthorized": "You must be signed in to view rooms.",
+      "forbidden": "You do not have the required permissions.",
+      "apiUnreachable": "The server is currently unreachable.",
+      "invalidJson": "The server response is invalid.",
+      "invalidBody": "The submitted information is invalid.",
+      "serverError": "Server error while loading rooms.",
+      "default": "An error occurred."
+    }
+  }
+}

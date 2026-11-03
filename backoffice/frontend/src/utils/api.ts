@@ -12,6 +12,9 @@ const API_ERROR_CODES: ApiErrorCode[] = [
   'email_already_exists',
   'name_already_exists',
   'conflict',
+  'not_found',
+  'room_name_already_exists',
+  'company_deleted',
   'server_error',
 ]
 
