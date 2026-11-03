@@ -1,4 +1,8 @@
-import { createRoomFixture, roomsFixture } from '@frontend-tests/_helpers/roomsServiceMock'
+import {
+  createRoomFixture,
+  roomAccountFixture,
+  roomsFixture,
+} from '@frontend-tests/_helpers/roomsServiceMock'
 import {
   ADMIN_ROLE_ADMIN,
   ADMIN_ROLE_ROOM,
@@ -11,6 +15,20 @@ import {
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildCreateRoomAccountPayload,
+  createDefaultRoomAccountFormValues,
+  formatRoomAccountDate,
+  getRoomAccountApiFieldError,
+  getRoomAccountApiFormError,
+  hasRoomAccountFormErrors,
+  ROOM_ACCOUNT_PASSWORD_MAX_LENGTH,
+  ROOM_ACCOUNT_PASSWORD_MIN_LENGTH,
+  ROOM_ACCOUNT_USERNAME_MAX_LENGTH,
+  validateRoomAccountForm,
+} from '@/utils/room/account'
+import {
+  createRoomAccountCreatedBanner,
+  createRoomAccountDeletedBanner,
   createRoomDeletedBanner,
   createRoomSavedBanner,
   createRoomUpdatedBanner,
@@ -49,6 +67,7 @@ import {
   canManageCompanyRooms,
   canSeeDeletedRooms,
   canShowCompanyRoomsSection,
+  isRoomAccountRole,
 } from '@/utils/room/permissions'
 import {
   getRoomUpdateSuccessCode,
@@ -62,6 +81,24 @@ const t = (key: string) => key
 // Simule une traduction connue pour company_deleted, la clé brute sinon.
 const translateCompanyDeleted = (key: string) =>
   key === 'rooms.form.errors.company_deleted' ? 'Compagnie supprimée' : key
+
+// Idem pour le compte de salle déjà existant.
+const translateRoomAccountExists = (key: string) =>
+  key === 'rooms.account.errors.room_account_already_exists' ? 'Déjà un compte' : key
+
+const validRoomAccountForm = {
+  username: 'salle-neon',
+  password: 'Secret123!',
+  passwordConfirm: 'Secret123!',
+}
+
+function roomAccountUsernameError(username: string): string | undefined {
+  return validateRoomAccountForm({ ...validRoomAccountForm, username }, t).username
+}
+
+function roomAccountPasswordErrors(password: string, passwordConfirm = password) {
+  return validateRoomAccountForm({ ...validRoomAccountForm, password, passwordConfirm }, t)
+}
 
 describe('utils/room/permissions.ts', () => {
   it('shows the rooms section to superadmin, admin and user', () => {
@@ -78,6 +115,15 @@ describe('utils/room/permissions.ts', () => {
     expect(canManageCompanyRooms(ADMIN_ROLE_ADMIN)).toBe(true)
     expect(canManageCompanyRooms(ADMIN_ROLE_USER)).toBe(false)
     expect(canManageCompanyRooms(null)).toBe(false)
+  })
+
+  it('recognises only the room role as a room account', () => {
+    expect(isRoomAccountRole(ADMIN_ROLE_ROOM)).toBe(true)
+    expect(isRoomAccountRole(ADMIN_ROLE_SUPERADMIN)).toBe(false)
+    expect(isRoomAccountRole(ADMIN_ROLE_ADMIN)).toBe(false)
+    expect(isRoomAccountRole(ADMIN_ROLE_USER)).toBe(false)
+    expect(isRoomAccountRole(null)).toBe(false)
+    expect(isRoomAccountRole(undefined)).toBe(false)
   })
 
   it('reserves deleted rooms to the superadmin', () => {
@@ -251,5 +297,87 @@ describe('utils/room/detailsBanner.ts', () => {
 
     expect(createRoomSavedBanner(roomsFixture[0], 'create').code).toBe('roomCreated')
     expect(createRoomSavedBanner(roomsFixture[0], 'edit').code).toBe('roomRenamed')
+  })
+
+  it('creates success banners for the room account', () => {
+    expect(createRoomAccountCreatedBanner(roomsFixture, 1, roomAccountFixture)).toEqual({
+      variant: 'success',
+      code: 'roomAccountCreated',
+      params: { username: 'salle-neon', name: 'Salle Néon' },
+    })
+
+    expect(createRoomAccountDeletedBanner(roomsFixture, 99, roomAccountFixture)).toEqual({
+      variant: 'success',
+      code: 'roomAccountDeleted',
+      params: { username: 'salle-neon', name: '#99' },
+    })
+  })
+})
+
+describe('utils/room/account.ts', () => {
+  it('starts from an empty form without errors', () => {
+    expect(createDefaultRoomAccountFormValues()).toEqual({
+      username: '',
+      password: '',
+      passwordConfirm: '',
+    })
+    expect(hasRoomAccountFormErrors({})).toBe(false)
+    expect(hasRoomAccountFormErrors({ username: 'x' })).toBe(true)
+  })
+
+  it('accepts a valid form and builds a trimmed payload without the confirmation', () => {
+    expect(hasRoomAccountFormErrors(validateRoomAccountForm(validRoomAccountForm, t))).toBe(false)
+    expect(
+      buildCreateRoomAccountPayload({ ...validRoomAccountForm, username: '  salle.neon_2  ' })
+    ).toEqual({
+      username: 'salle.neon_2',
+      password: 'Secret123!',
+    })
+  })
+
+  it('validates the username like the API', () => {
+    expect(roomAccountUsernameError('   ')).toBe('rooms.account.validation.usernameRequired')
+    expect(roomAccountUsernameError('ab')).toBe('rooms.account.validation.usernameTooShort')
+    expect(roomAccountUsernameError('a'.repeat(ROOM_ACCOUNT_USERNAME_MAX_LENGTH + 1))).toBe(
+      'rooms.account.validation.usernameTooLong'
+    )
+    expect(roomAccountUsernameError('salle néon')).toBe('rooms.account.validation.usernameInvalid')
+    expect(roomAccountUsernameError('salle@neon')).toBe('rooms.account.validation.usernameInvalid')
+    expect(roomAccountUsernameError('  abc  ')).toBeUndefined()
+  })
+
+  it('validates the password and its confirmation', () => {
+    expect(roomAccountPasswordErrors('').password).toBe('rooms.account.validation.passwordRequired')
+    expect(
+      roomAccountPasswordErrors('a'.repeat(ROOM_ACCOUNT_PASSWORD_MIN_LENGTH - 1)).password
+    ).toBe('rooms.account.validation.passwordTooShort')
+    expect(
+      roomAccountPasswordErrors('a'.repeat(ROOM_ACCOUNT_PASSWORD_MAX_LENGTH + 1)).password
+    ).toBe('rooms.account.validation.passwordTooLong')
+    expect(roomAccountPasswordErrors('Secret123!', '').passwordConfirm).toBe(
+      'rooms.account.validation.passwordConfirmRequired'
+    )
+    expect(roomAccountPasswordErrors('Secret123!', 'Secret123?').passwordConfirm).toBe(
+      'rooms.account.validation.passwordMismatch'
+    )
+  })
+
+  it('maps API errors to the username field or to a form message', () => {
+    expect(getRoomAccountApiFieldError('username_already_exists', t)).toEqual({
+      field: 'username',
+      message: 'rooms.account.errors.username_already_exists',
+    })
+    expect(getRoomAccountApiFieldError('room_account_already_exists', t)).toBeNull()
+    expect(
+      getRoomAccountApiFormError('room_account_already_exists', translateRoomAccountExists)
+    ).toBe('Déjà un compte')
+    expect(getRoomAccountApiFormError('unknown_code', t)).toBe('rooms.account.errors.default')
+  })
+
+  it('formats the creation date and keeps invalid values as is', () => {
+    expect(formatRoomAccountDate('2026-03-01T10:00:00.000Z', 'fr')).toBe(
+      new Date('2026-03-01T10:00:00.000Z').toLocaleDateString('fr')
+    )
+    expect(formatRoomAccountDate('not-a-date', 'fr')).toBe('not-a-date')
   })
 })

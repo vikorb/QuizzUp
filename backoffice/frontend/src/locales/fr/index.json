@@ -26,7 +26,10 @@
     "question_theme_last_link": "Impossible de retirer le dernier thème d'une question.",
     "room_name_already_exists": "Une salle porte déjà ce nom dans cette compagnie.",
     "company_deleted": "Cette compagnie est supprimée : ses salles ne peuvent plus être modifiées.",
-    "default": "Une erreur est survenue."
+    "default": "Une erreur est survenue.",
+    "room_account_already_exists": "Cette salle a déjà un compte de connexion : il est affiché ci-dessous.",
+    "room_account_not_found": "Cette salle n’a plus de compte de connexion.",
+    "username_already_exists": "Cet identifiant est déjà utilisé par un autre compte."
   },
   "success": {
     "title": "Action confirmée",
@@ -47,6 +50,8 @@
     "roomRenamed": "La salle {name} a bien été renommée.",
     "roomActivated": "La salle {name} a bien été activée.",
     "roomDisabled": "La salle {name} a bien été désactivée.",
-    "roomDeleted": "La salle {name} a bien été supprimée."
+    "roomDeleted": "La salle {name} a bien été supprimée.",
+    "roomAccountCreated": "Le compte de salle {username} a bien été créé pour la salle {name}.",
+    "roomAccountDeleted": "Le compte de salle {username} a bien été supprimé : le PC de la salle {name} est déconnecté."
   }
 }

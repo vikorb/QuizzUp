@@ -80,7 +80,8 @@
         "disable": "Désactiver la salle",
         "deleteConfirm": "Supprimer la salle {name} ?",
         "enableConfirm": "Voulez-vous vraiment activer la salle {name} ?",
-        "disableConfirm": "Voulez-vous vraiment désactiver la salle {name} ?"
+        "disableConfirm": "Voulez-vous vraiment désactiver la salle {name} ?",
+        "account": "Gérer le compte de salle"
       }
     },
     "errors": {
@@ -92,6 +93,70 @@
       "invalidBody": "Les informations envoyées sont invalides.",
       "serverError": "Erreur serveur lors du chargement des salles.",
       "default": "Une erreur est survenue."
+    },
+    "account": {
+      "title": "Compte de connexion — {name}",
+      "loading": "Chargement du compte de salle...",
+      "state": {
+        "set": "Compte de salle actif",
+        "unset": "Aucun compte de salle"
+      },
+      "details": {
+        "username": "Identifiant",
+        "createdAt": "Créé le"
+      },
+      "fields": {
+        "username": {
+          "label": "Identifiant du PC de la salle",
+          "placeholder": "Ex : salle-neon",
+          "hint": "Au moins 3 caractères : lettres, chiffres, points, tirets ou underscores."
+        },
+        "password": {
+          "label": "Mot de passe",
+          "placeholder": "••••••••••",
+          "hint": "Au moins 8 caractères."
+        },
+        "passwordConfirm": {
+          "label": "Confirmer le mot de passe",
+          "placeholder": "••••••••••"
+        }
+      },
+      "actions": {
+        "cancel": "Annuler",
+        "create": "Créer le compte",
+        "submitting": "Création...",
+        "close": "Fermer le compte de salle",
+        "delete": "Supprimer le compte de salle",
+        "deleting": "Suppression...",
+        "deleteConfirm": "Supprimer le compte de salle {username} ? Le PC de la salle {name} sera immédiatement déconnecté et ne pourra plus se reconnecter avec cet identifiant."
+      },
+      "hints": {
+        "create": "Ce compte sert uniquement à connecter le PC de la salle à l’écran de salle. Il ne donne aucun accès au backoffice.",
+        "existing": "Saisissez cet identifiant sur l’écran de salle du PC. Le mot de passe n’est pas réaffichable : supprimez puis recréez le compte pour le changer.",
+        "delete": "Supprimer ce compte déconnecte immédiatement le PC de la salle."
+      },
+      "validation": {
+        "usernameRequired": "L’identifiant est obligatoire.",
+        "usernameTooShort": "L’identifiant doit contenir au moins 3 caractères.",
+        "usernameTooLong": "L’identifiant ne doit pas dépasser 255 caractères.",
+        "usernameInvalid": "Utilisez uniquement des lettres, chiffres, points, tirets ou underscores.",
+        "passwordRequired": "Le mot de passe est obligatoire.",
+        "passwordTooShort": "Le mot de passe doit contenir au moins 8 caractères.",
+        "passwordTooLong": "Le mot de passe ne doit pas dépasser 100 caractères.",
+        "passwordConfirmRequired": "Confirmez le mot de passe.",
+        "passwordMismatch": "Les mots de passe ne correspondent pas."
+      },
+      "errors": {
+        "username_already_exists": "Cet identifiant est déjà utilisé par un autre compte.",
+        "room_account_already_exists": "Cette salle a déjà un compte de connexion.",
+        "room_account_not_found": "Cette salle n’a plus de compte de connexion.",
+        "invalid_body": "Les informations envoyées sont invalides.",
+        "forbidden": "Vous n’avez pas les droits nécessaires.",
+        "not_found": "Salle introuvable.",
+        "server_error": "Erreur serveur.",
+        "api_unreachable": "Le serveur est actuellement inaccessible.",
+        "default": "Une erreur est survenue."
+      }
     }
   }
 }

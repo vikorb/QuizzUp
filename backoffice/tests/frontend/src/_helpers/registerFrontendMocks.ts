@@ -26,9 +26,11 @@ vi.mock('@/state/authState', async () => {
     authState: authState.authStateMock,
     isAuthenticated: authState.isAuthenticatedMock,
     me: authState.meMock,
+    roomAccountRejected: authState.roomAccountRejectedMock,
     login: authState.loginMock,
     logout: authState.logoutMock,
     refreshMe: authState.refreshMeMock,
+    clearRoomAccountRejection: authState.clearRoomAccountRejectionMock,
   }
 })
 
@@ -79,6 +81,9 @@ vi.mock('@/services/roomsService', async () => {
     updateCompanyRoomService: roomsService.updateCompanyRoomServiceMock,
     updateRoomStatusService: roomsService.updateRoomStatusServiceMock,
     deleteRoomService: roomsService.deleteRoomServiceMock,
+    loadRoomAccountService: roomsService.loadRoomAccountServiceMock,
+    createRoomAccountService: roomsService.createRoomAccountServiceMock,
+    deleteRoomAccountService: roomsService.deleteRoomAccountServiceMock,
   }
 })
 
