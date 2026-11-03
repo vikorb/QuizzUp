@@ -8,6 +8,7 @@ export const API_RESOURCE = {
   ANSWER: 'answer',
   ROOM: 'room',
   ROOM_ACCOUNT: 'roomAccount',
+  GAME: 'game',
 } as const
 
 export const API_ACTION = {
@@ -73,6 +74,9 @@ const roomWritePermissions: PermissionKey[] = [
   'roomAccount:delete',
 ]
 
+// US-GAME-08 : tout le staff (opérateur compris) lance et suit les parties de sa compagnie.
+const gamePermissions: PermissionKey[] = ['game:list', 'game:read', 'game:create', 'game:update']
+
 const permissionsByRole: Record<ApiRole, PermissionKey[]> = {
   [ADMIN_ROLE_SUPERADMIN]: [
     'company:list',
@@ -95,6 +99,8 @@ const permissionsByRole: Record<ApiRole, PermissionKey[]> = {
 
     ...roomReadPermissions,
     ...roomWritePermissions,
+
+    ...gamePermissions,
   ],
 
   [ADMIN_ROLE_ADMIN]: [
@@ -113,6 +119,8 @@ const permissionsByRole: Record<ApiRole, PermissionKey[]> = {
 
     ...roomReadPermissions,
     ...roomWritePermissions,
+
+    ...gamePermissions,
   ],
 
   [ADMIN_ROLE_USER]: [
@@ -124,6 +132,8 @@ const permissionsByRole: Record<ApiRole, PermissionKey[]> = {
     ...contentReadPermissions,
 
     ...roomReadPermissions,
+
+    ...gamePermissions,
   ],
 }
 

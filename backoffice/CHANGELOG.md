@@ -53,6 +53,9 @@ Format inspiré de Keep a Changelog.
 - Ajout du compte de salle : création et suppression depuis la salle (un compte actif par salle, sessions révoquées à la suppression, y compris avec la salle), connexion sans expiration par inactivité, route `GET /room/me` pour le PC de la salle. Les comptes de salle n'apparaissent plus dans la gestion des comptes du staff.
   US: US-ROOM-02
 
+- Ajout du lancement de partie par l'opérateur : choix d'une salle active et libre, 1 à 4 participants (email seulement avec consentement RGPD horodaté), format 10 × 10 par défaut, graine tirée par le serveur ; liste, détail et arrêt des parties ; côté salle, récupération de la partie courante et accusé de réception (`pending` → `running`).
+  US: US-GAME-08
+
 - Ajout du rôle `room` (compte de salle rattaché à une salle, un seul compte actif par salle).
   US: US-ROOM-02
 

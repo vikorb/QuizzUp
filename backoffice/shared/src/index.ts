@@ -255,3 +255,9 @@ export const GAME_MAX_QUESTIONS_PER_ROUND = 20 as const
 export const GAME_THEMES_OFFERED_PER_ROUND = 4 as const
 export const GAME_PODIUMS = 4 as const
 export const GAME_BUZZERS_PER_PODIUM = 4 as const
+
+/** Graine de tirage d'une partie : entier 32 bits (générateur du moteur de jeu). */
+export const GAME_SEED_MAX = 0xff_ff_ff_ff
+
+/** Participant d'une partie (US-GAME-08). */
+export const GAME_PARTICIPANT_DISPLAY_NAME_MAX_LENGTH = 100 as const
