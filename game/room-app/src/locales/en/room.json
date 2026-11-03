@@ -1,0 +1,56 @@
+{
+  "room": {
+    "brand": "QuizzUP",
+    "demoBadge": "Demo mode",
+    "desk": "Desk {n}",
+    "launch": {
+      "title": "Ready to play",
+      "subtitle": "Launch the room to go fullscreen, keep the screen awake and enable sound.",
+      "start": "Launch the room",
+      "starting": "Launching…",
+      "resumeTitle": "A game is in progress",
+      "resumeText": "The page was reloaded during a game. You can resume it where it stopped.",
+      "resume": "Resume the game",
+      "discard": "Abandon this game",
+      "discardConfirm": "Abandon the current game for good?",
+      "browserHint": "Use Chrome or Edge: they are the only browsers that can drive USB lights.",
+      "fullscreenFailed": "The browser refused fullscreen. You can retry with the F11 key."
+    },
+    "lobby": {
+      "title": "Player registration",
+      "subtitle": "One player per desk, from 1 to 4. Press a buzzer to check your desk.",
+      "displayName": "Display name",
+      "displayNamePlaceholder": "Your nickname",
+      "email": "Email (optional)",
+      "emailPlaceholder": "name{'@'}example.com",
+      "consent": "I agree that the venue keeps my email to send me my results and its news. Kept for 3 years at most, unsubscribe at any time.",
+      "privacyNote": "Your email is never shown on screen or shared with other players.",
+      "empty": "Free desk",
+      "buzzerOk": "Buzzer OK",
+      "clear": "Free the desk",
+      "format": "Game format",
+      "formatFull": "Full game · {rounds} rounds × {questions} questions",
+      "formatShort": "Short game · {rounds} rounds × {questions} questions",
+      "start": "Start the game",
+      "needPlayer": "Register at least one player to start.",
+      "keysHint": "Keyboard simulation: {keys}",
+      "errors": {
+        "required": "A display name is required.",
+        "too_long": "{max} characters maximum.",
+        "invalid": "Invalid email.",
+        "consent_required": "Tick the consent box, or leave the email empty."
+      }
+    },
+    "focus": {
+      "title": "Buzzers inactive",
+      "text": "The game window lost focus: buzzers are no longer received.",
+      "action": "Click anywhere to reactivate the buzzers"
+    },
+    "toolbar": {
+      "fullscreen": "Fullscreen",
+      "exitFullscreen": "Exit fullscreen",
+      "abort": "Stop the game",
+      "abortConfirm": "Stop the current game? Current scores will be kept as the result."
+    }
+  }
+}

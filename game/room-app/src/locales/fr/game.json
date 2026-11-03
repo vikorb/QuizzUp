@@ -1,0 +1,65 @@
+{
+  "game": {
+    "round": "Manche {current} / {total}",
+    "question": "Question {current} / {total}",
+    "points": "{n} pts",
+    "miniGames": {
+      "flash_blind_test": {
+        "name": "Blind test éclair",
+        "pitch": "Reconnais l’extrait le plus vite possible !",
+        "rules": [
+          "L’extrait joue 1 seconde, puis 5, puis 20.",
+          "Le premier qui buzze répond seul avec A, B, C ou D.",
+          "Plus tu trouves tôt, plus tu marques : 100, 50 ou 20 points.",
+          "Une erreur ne coûte rien, mais tu ne peux plus buzzer sur cet extrait."
+        ]
+      }
+    },
+    "intro": {
+      "drawing": "Tirage du mini-jeu…"
+    },
+    "themeChoice": {
+      "title": "{name} choisit le thème",
+      "reason": {
+        "first_round_random": "Désigné au hasard pour la première manche",
+        "random_excluding_leader": "Tiré au sort parmi les poursuivants",
+        "fallback_random": "Tiré au sort"
+      },
+      "hint": "Pupitre {desk} : appuie sur A, B, C ou D",
+      "auto": "Sans choix, un thème sera tiré au hasard"
+    },
+    "blindTest": {
+      "stage": "Palier {stage}",
+      "stageDuration": "{seconds} s",
+      "listening": "Écoute…",
+      "buzzWindow": "Buzzez !",
+      "answering": "{name} répond !",
+      "answerHint": "A, B, C ou D",
+      "locked": "Bloqué"
+    },
+    "reveal": {
+      "winner": "{name} trouve au palier {stage}",
+      "nobody": "Personne n’a trouvé",
+      "answer": "La bonne réponse"
+    },
+    "summary": {
+      "title": "Fin de la manche {position}",
+      "next": "Manche suivante dans un instant…",
+      "last": "Résultats finaux dans un instant…"
+    },
+    "finished": {
+      "title": "Fin de la partie",
+      "winner": "{name} remporte la partie !",
+      "tie": "Égalité au sommet !",
+      "noContent": "Plus assez de questions audio pour continuer la partie.",
+      "newGame": "Nouvelle partie",
+      "home": "Retour à l’accueil"
+    },
+    "aborted": {
+      "title": "Partie arrêtée"
+    },
+    "scoreboard": {
+      "label": "Scores"
+    }
+  }
+}
