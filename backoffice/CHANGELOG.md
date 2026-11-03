@@ -56,6 +56,12 @@ Format inspiré de Keep a Changelog.
 - Ajout d'une CI GitHub Actions sur les PR : lint, type-check, tests et aller-retour des migrations Knex.
   US: us-ci-01
 
+- Ajout du moteur de jeu pur et déterministe `@quizzup/game-engine` (`game/engine`) : manches tirées au sort, choix du thème par un joueur désigné, rejouable depuis la graine.
+  US: US-ENGINE-01
+
+- Ajout du mini-jeu blind test éclair (extraits de 1 s / 5 s / 20 s, premier buzz répond, 100 / 50 / 20 points, sans pénalité).
+  US: US-MINIGAME-01
+
 - Extraits audio des questions pour le blind test éclair : upload mp3/ogg (10 Mo max, signature
   vérifiée, attestation de droits), stockage disque (`MEDIA_STORAGE_DIR`), lecture protégée
   `GET /questions/:id/media`, point de départ `mediaStartMs`, pré-écoute 1 s / 5 s / 20 s dans le

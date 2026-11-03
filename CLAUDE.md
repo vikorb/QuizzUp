@@ -19,9 +19,9 @@ Rôles (multi-tenant) :
 État d'avancement :
 
 - ✅ **Backoffice** (auth, compagnies, comptes, thèmes, questions, réponses) : mûr et testé.
-- 🔨 **Moteur de jeu temps réel** (parties, buzzers, lumières, écran de salle, pupitres) :
-  **prochain grand chantier, pas encore commencé**. Les tables `games/rounds/…` sont dessinées
-  dans le DBML mais **pas encore migrées**.
+- 🔨 **Moteur de jeu** : en cours. Tables `rooms`, `games`, `game_*` migrées ; moteur pur dans
+  `game/engine` (blind test éclair en V1). À venir : écran de salle web (`game/room-app`),
+  buzzers clavier, DMX. Cadrage : `docs/cadrage/bilan-cadrage-version-finale.md`.
 
 ## 2. Structure du dépôt (monorepo)
 
@@ -36,7 +36,12 @@ backoffice/
 └─ tests/      espace de tests centralisé
 ```
 
-À venir : un dossier `game/` (moteur temps réel) à côté de `backoffice/`.
+```
+game/
+└─ engine/     @quizzup/game-engine — moteur pur et déterministe (npm séparé, tests dans engine/tests)
+```
+
+À venir : `game/room-app/` (écran de salle Vue 3 en PWA, sans installation).
 
 ## 3. Remotes & CI — IMPORTANT
 
@@ -50,8 +55,8 @@ Le code et la CI sont **volontairement séparés sur deux plateformes** :
 Conséquences à retenir :
 
 - La CI GitLab clone **la branche par défaut de GitHub (`main`)** : telle quelle elle valide
-  `main`, **pas** une branche de feature. (Un garde-fou pré-merge — GitHub Actions sur PR, ou
-  branche paramétrée côté GitLab — reste à ajouter.)
+  `main`, **pas** une branche de feature. Le garde-fou pré-merge est **GitHub Actions**
+  (`.github/workflows/ci.yml`) : lint, type-check, tests, migrations, moteur de jeu.
 - Le `.gitlab-ci.yml` vit sur le **repo GitLab**, pas dans ce dépôt GitHub. Pour le modifier,
   agir côté GitLab.
 - Identité des commits = **perso** : `Victoria Oruba <victoriaoruba06@gmail.com>` (config
@@ -70,7 +75,8 @@ Mode par défaut : **autonome**.
 4. Ouvrir une **PR GitHub** (`gh pr create`).
 5. Déclencher / lire la **CI GitLab** (`glab ci … -R victoriaoruba06/quizzup`), signaler quand
    c'est vert.
-6. L'utilisateur relit et merge.
+6. L'utilisateur relit et merge. **Consigne d'Enzo (nov. 2026)** : Claude fait relire la PR par
+   un sous-agent indépendant, corrige, puis merge lui-même une fois la CI GitHub verte.
 
 Exceptions : petites tâches (doc, config) peuvent être **poussées directement sur `main`** si
 l'utilisateur le demande.
@@ -128,6 +134,9 @@ npm run knip      # code mort
 
 **Shared — depuis `backoffice/shared/`** : `npm run build` (à builder avant back/front qui en dépendent).
 
+**Moteur de jeu — depuis `game/engine/`** : `npm install`, puis `npm run lint`,
+`npm run format:check`, `npm run type-check`, `npm test` (`npm run test:coverage` pour les seuils).
+
 **Docker** (depuis `backoffice/`) : `docker compose up --build`
 → backend `:3001`, frontend `:4173`, Swagger `:3001/docs`, Postgres `:5434`.
 
@@ -183,7 +192,7 @@ Env : copier `backoffice/backend/.env.example` → `.env` (idem frontend). `DATA
   binaire brut) et stocké sur disque (`MEDIA_STORAGE_DIR`, volume Docker `media_data`), derrière
   l'interface `backend/src/storage/mediaStorage.ts` (prévue pour un stockage S3 plus tard).
   Image / vidéo : toujours un simple lien `media_url`.
-- CI GitLab valide `main`, pas les branches de PR (cf. §3).
+- CI GitLab valide `main` ; les PR sont validées par GitHub Actions (cf. §3).
 - Node local très récent (v25) vs CI `node:22` — surveiller les écarts.
 - Moteur de jeu : privilégier un **serveur autoritatif + WebSocket**, **découplé du matériel**
   (tablettes/navigateur d'abord, passerelle hardware ESP32/MQTT ensuite via le même protocole).
