@@ -1,0 +1,140 @@
+{
+  "games": {
+    "title": "Parties",
+    "subtitle": "Lancement et suivi des parties dans les salles",
+    "stats": {
+      "total": "Parties",
+      "pending": "En attente",
+      "running": "En cours",
+      "finished": "Terminées"
+    },
+    "state": {
+      "pending": "En attente",
+      "running": "En cours",
+      "finished": "Terminée",
+      "aborted": "Arrêtée",
+      "unknown": "Inconnu"
+    },
+    "filters": {
+      "title": "Filtres",
+      "company": "Compagnie",
+      "state": "État",
+      "allStates": "Tous les états"
+    },
+    "table": {
+      "title": "Liste des parties",
+      "create": "Lancer une partie",
+      "loading": "Chargement des parties...",
+      "empty": "Aucune partie trouvée",
+      "retry": "Réessayer",
+      "columns": {
+        "room": "Salle",
+        "state": "État",
+        "participants": "Participants",
+        "date": "Date",
+        "actions": "Actions"
+      }
+    },
+    "actions": {
+      "view": "Voir le détail",
+      "abort": "Arrêter",
+      "abortTitle": "Arrêter la partie",
+      "abortConfirm": "Arrêter la partie en cours dans la salle « {room} » ? Elle ne pourra pas reprendre et la salle sera libérée.",
+      "back": "Retour aux parties"
+    },
+    "banners": {
+      "created": "La partie a bien été lancée dans la salle « {room} ».",
+      "aborted": "La partie de la salle « {room} » a bien été arrêtée."
+    },
+    "create": {
+      "title": "Lancer une partie",
+      "subtitle": "Choisir la salle, les participants et le format de la partie",
+      "cardTitle": "Nouvelle partie"
+    },
+    "form": {
+      "sections": {
+        "room": "Salle et format",
+        "participants": "Participants"
+      },
+      "room": "Salle",
+      "roomPlaceholder": "Choisir une salle",
+      "roomsLoading": "Chargement des salles...",
+      "noActiveRoom": "Aucune salle active dans cette compagnie : activez une salle avant de lancer une partie.",
+      "roundsCount": "Manches",
+      "roundsHint": "Entre 1 et {max}",
+      "questionsPerRound": "Questions par manche",
+      "questionsHint": "Entre 1 et {max}",
+      "participantsHint": "De 1 à {max} participants, un par pupitre.",
+      "participant": "Participant {index}",
+      "podium": "Pupitre",
+      "podiumOption": "Pupitre {podium}",
+      "displayName": "Nom affiché",
+      "displayNamePlaceholder": "Ex : Les Quizzeurs",
+      "email": "Email",
+      "emailPlaceholder": "Ex : joueur@exemple.fr (facultatif)",
+      "emailHint": "Facultatif.",
+      "consent": "J'accepte que mon adresse email soit utilisée pour recevoir les résultats de la partie et des offres du centre.",
+      "consentHint": "Obligatoire si un email est saisi. Le joueur peut retirer son consentement à tout moment.",
+      "addParticipant": "Ajouter un participant",
+      "removeParticipant": "Retirer le participant {index}",
+      "cancel": "Annuler",
+      "submit": "Lancer la partie",
+      "submitting": "Lancement...",
+      "errors": {
+        "roomRequired": "Choisissez une salle.",
+        "roundsInvalid": "Le nombre de manches doit être un entier entre 1 et {max}.",
+        "questionsInvalid": "Le nombre de questions par manche doit être un entier entre 1 et {max}.",
+        "podiumInvalid": "Choisissez un pupitre.",
+        "podiumDuplicated": "Ce pupitre est déjà attribué à un autre participant.",
+        "displayNameRequired": "Le nom affiché est obligatoire.",
+        "displayNameTooLong": "Le nom affiché est trop long.",
+        "emailInvalid": "L'adresse email est invalide.",
+        "consentRequired": "Cochez la case de consentement pour enregistrer cet email, ou retirez l'email."
+      }
+    },
+    "detail": {
+      "title": "Détail de la partie",
+      "subtitle": "État, format et participants de la partie",
+      "infoTitle": "Partie #{id}",
+      "participantsTitle": "Participants",
+      "loading": "Chargement de la partie...",
+      "notFound": "Cette partie est introuvable.",
+      "noParticipant": "Aucun participant.",
+      "fields": {
+        "room": "Salle",
+        "state": "État",
+        "format": "Format",
+        "formatValue": "{rounds} manches × {questions} questions",
+        "createdAt": "Créée le",
+        "startedAt": "Démarrée le",
+        "finishedAt": "Terminée le"
+      },
+      "columns": {
+        "podium": "Pupitre",
+        "displayName": "Nom",
+        "score": "Score",
+        "email": "Email"
+      }
+    },
+    "errors": {
+      "missingToken": "Vous devez être connecté.",
+      "unauthorized": "Vous devez être connecté pour effectuer cette action.",
+      "forbidden": "Vous n'avez pas les droits nécessaires.",
+      "apiUnreachable": "Impossible de joindre l'API.",
+      "invalidJson": "La réponse de l'API est invalide.",
+      "invalidBody": "La demande envoyée est invalide. Vérifiez les informations puis réessayez.",
+      "invalidParams": "Paramètres invalides.",
+      "invalidEmail": "L'adresse email est invalide.",
+      "emailAlreadyExists": "Cette adresse email est déjà utilisée.",
+      "nameAlreadyExists": "Ce nom est déjà utilisé.",
+      "notFound": "Cette partie est introuvable.",
+      "roomNotFound": "Cette salle est introuvable.",
+      "roomInactive": "Cette salle est inactive : activez-la avant d'y lancer une partie.",
+      "roomBusy": "Une partie est déjà en attente ou en cours dans cette salle.",
+      "gameAlreadyOver": "Cette partie est déjà terminée ou arrêtée.",
+      "emailConsentRequired": "Un email ne peut être enregistré qu'avec le consentement explicite du joueur.",
+      "conflict": "Conflit avec l'état actuel des données. Rechargez la page.",
+      "serverError": "Erreur serveur. Réessayez dans quelques instants."
+    }
+  }
+}
