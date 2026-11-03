@@ -1,0 +1,41 @@
+# CI GitHub — paquet game/audio (lecture audio de l'écran de salle).
+name: CI game/audio
+
+on:
+  pull_request:
+    paths:
+      - 'game/audio/**'
+      - '.github/workflows/game-audio.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'game/audio/**'
+
+concurrency:
+  group: ci-game-audio-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audio:
+    name: Type-check et tests (game/audio)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: game/audio
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: game/audio/package-lock.json
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Type-check
+        run: npm run type-check
+
+      - name: Tests
+        run: npm test
