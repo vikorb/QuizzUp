@@ -6,11 +6,14 @@ import type { MiniGameDefinition, QuestionStep } from './miniGame'
 /**
  * Blind test éclair (US-MINIGAME-01).
  *
- * L'extrait joue 1 s, puis 5 s, puis 20 s. Après chaque écoute, une courte
- * fenêtre laisse le temps de buzzer. Le premier qui buzze met l'extrait en
- * pause et répond seul avec A-D : juste = points du palier, faux = bloqué
- * jusqu'à la fin de la question (pas de pénalité), les autres peuvent encore
- * buzzer. Personne au bout du palier 3 : perdu pour tout le monde.
+ * Tout le monde joue en même temps. L'extrait joue 1 s, puis 5 s, puis 20 s ;
+ * après chaque écoute, une courte fenêtre laisse le temps de buzzer. Le premier
+ * qui buzze met l'extrait en pause et répond seul avec A-D : juste = il gagne
+ * les points du palier et la question s'arrête ; faux = pas de pénalité, il est
+ * bloqué pour le reste du palier et les autres peuvent encore buzzer.
+ * On ne passe au palier suivant (verrous remis à zéro) que si personne n'a
+ * trouvé : tout le monde s'est trompé, ou la fenêtre de buzz est écoulée.
+ * Personne au bout du palier 3 : perdu pour tout le monde.
  */
 export const FLASH_BLIND_TEST_STAGE_DURATIONS_MS = [1000, 5000, 20_000] as const
 export const FLASH_BLIND_TEST_STAGE_POINTS = [100, 50, 20] as const
@@ -42,6 +45,14 @@ type Step = QuestionStep<FlashBlindTestState>
 
 function getStageTotalMs(stageIndex: number): number {
   return (FLASH_BLIND_TEST_STAGE_DURATIONS_MS[stageIndex] ?? 0) + FLASH_BLIND_TEST_BUZZ_WINDOW_MS
+}
+
+/**
+ * Une seule réponse par joueur et par question (`game_answers` est unique sur
+ * manche × participant × question) : on garde sa dernière tentative.
+ */
+function withAnswer(answers: AnswerRecord[], answer: AnswerRecord): AnswerRecord[] {
+  return [...answers.filter((item) => item.participantId !== answer.participantId), answer]
 }
 
 function getStageNumber(state: FlashBlindTestState): number {
@@ -76,6 +87,8 @@ function startNextStageOrFinish(state: FlashBlindTestState, at: number): Step {
     ...state,
     stageIndex: state.stageIndex + 1,
     stageStartedAt: at,
+    // Nouveau palier : tout le monde peut de nouveau buzzer.
+    lockedOutIds: [],
   }
 
   return { state: next, events: [stageStartedEvent(next, at)] }
@@ -120,11 +133,14 @@ function resumeAfterWrongAnswer(
     answeringParticipantId: null,
     answerDeadline: null,
     lockedOutIds,
-    answers: [...state.answers, answer],
+    answers: withAnswer(state.answers, answer),
   }
 
+  // Tout le monde s'est trompé sur ce palier : on passe directement au suivant.
   if (lockedOutIds.length >= state.participantIds.length) {
-    return finish(resumed, events, at)
+    const next = startNextStageOrFinish(resumed, at)
+
+    return { ...next, events: [...events, ...next.events] }
   }
 
   const elapsedMs = pausedAt - state.stageStartedAt
@@ -257,7 +273,7 @@ export const flashBlindTest: MiniGameDefinition<FlashBlindTestState> = {
     }
 
     return finish(
-      { ...state, answers: [...state.answers, record] },
+      { ...state, answers: withAnswer(state.answers, record) },
       [
         {
           type: 'answer_correct',
