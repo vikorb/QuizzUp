@@ -21,12 +21,7 @@ const questionAnswersRoutes: FastifyPluginAsync = async (app) => {
     '/questions/:questionId/answers',
     { preHandler: [app.authenticate] },
     async (req: FastifyRequest<{ Params: QuestionParams }>, reply: FastifyReply) => {
-      const hasPermission = requireApiPermission(
-        req,
-        reply,
-        API_RESOURCE.ANSWER,
-        API_ACTION.LIST,
-      )
+      const hasPermission = requireApiPermission(req, reply, API_RESOURCE.ANSWER, API_ACTION.LIST)
 
       if (!hasPermission) {
         return
@@ -55,7 +50,7 @@ const questionAnswersRoutes: FastifyPluginAsync = async (app) => {
         .orderBy('id', 'asc')
 
       return { answers }
-    },
+    }
   )
 
   app.post<{ Params: QuestionParams; Body: AnswerBody }>(
@@ -63,14 +58,9 @@ const questionAnswersRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [app.authenticate] },
     async (
       req: FastifyRequest<{ Params: QuestionParams; Body: AnswerBody }>,
-      reply: FastifyReply,
+      reply: FastifyReply
     ) => {
-      const hasPermission = requireApiPermission(
-        req,
-        reply,
-        API_RESOURCE.ANSWER,
-        API_ACTION.CREATE,
-      )
+      const hasPermission = requireApiPermission(req, reply, API_RESOURCE.ANSWER, API_ACTION.CREATE)
 
       if (!hasPermission) {
         return
@@ -105,33 +95,21 @@ const questionAnswersRoutes: FastifyPluginAsync = async (app) => {
 
       const isCorrect = req.body!.isCorrect ?? false
 
-      const answer = await db.transaction(async (trx) => {
-        if (isCorrect) {
-          await trx('answers')
-            .where({ question_id: questionId })
-            .whereNot('status', ANSWER_STATUS_DELETED)
-            .update({
-              is_correct: false,
-              updated_at: trx.fn.now(),
-            })
-        }
-
-        const [createdAnswer] = await trx('answers')
-          .insert({
-            admin_id: adminId,
-            question_id: questionId,
-            response,
-            is_correct: isCorrect,
-            status: getCreateAnswerStatus(req),
-            deleted_at: null,
-          })
-          .returning(answerSelect)
-
-        return createdAnswer
-      })
+      // Plusieurs bonnes réponses sont autorisées : ajouter une bonne réponse
+      // ne modifie pas les autres.
+      const [answer] = await db('answers')
+        .insert({
+          admin_id: adminId,
+          question_id: questionId,
+          response,
+          is_correct: isCorrect,
+          status: getCreateAnswerStatus(req),
+          deleted_at: null,
+        })
+        .returning(answerSelect)
 
       return reply.code(201).send({ answer })
-    },
+    }
   )
 }
 

@@ -44,7 +44,18 @@ describe('routes/questions/_shared.ts', () => {
       ).toBe('question_answer_required')
     })
 
-    it('requires exactly one correct answer', () => {
+    it('requires at least one correct answer', () => {
+      expect(
+        validateAnswers(
+          normalizeAnswers([
+            { response: 'a', isCorrect: false },
+            { response: 'b', isCorrect: false },
+          ])
+        )
+      ).toBe('question_correct_answer_required')
+    })
+
+    it('accepts several correct answers', () => {
       expect(
         validateAnswers(
           normalizeAnswers([
@@ -52,7 +63,7 @@ describe('routes/questions/_shared.ts', () => {
             { response: 'b', isCorrect: true },
           ])
         )
-      ).toBe('question_one_correct_answer_required')
+      ).toBeNull()
     })
 
     it('accepts a valid set of answers', () => {

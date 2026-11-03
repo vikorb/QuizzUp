@@ -1,0 +1,94 @@
+# CI GitHub — garde-fou pré-merge sur les PR.
+# La CI complète (Sonar, Lighthouse, deploy) reste côté GitLab et valide `main`.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint, type-check et tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backoffice
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backoffice/package-lock.json
+            backoffice/shared/package-lock.json
+            backoffice/backend/package-lock.json
+            backoffice/frontend/package-lock.json
+
+      - name: Installer les dépendances
+        run: |
+          npm ci
+          npm --prefix shared ci && npm --prefix shared run build
+          npm --prefix backend ci
+          npm --prefix frontend ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npm run type-check
+
+      - name: Tests
+        run: npm test
+
+  migrations:
+    name: Migrations Knex (aller-retour)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: quizzup
+          POSTGRES_PASSWORD: quizzup
+          POSTGRES_DB: quizzup_backoffice
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U quizzup -d quizzup_backoffice"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://quizzup:quizzup@localhost:5434/quizzup_backoffice
+    defaults:
+      run:
+        working-directory: backoffice/backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backoffice/shared/package-lock.json
+            backoffice/backend/package-lock.json
+
+      - name: Installer les dépendances
+        run: |
+          npm --prefix ../shared ci && npm --prefix ../shared run build
+          npm ci
+
+      # Les migrations antérieures au 2026-05-21 n'ont pas un `down` rejouable
+      # (ex. 20260307164642_delete_deleted_at) : on ne teste l'aller-retour que
+      # des migrations suivantes, sans modifier les migrations déjà partagées.
+      - name: Migrer, annuler les migrations récentes, re-migrer
+        run: |
+          npx knex migrate:latest
+          RECENT=$(ls db/migrations | awk -F_ '$1 >= 20260521000000' | wc -l)
+          for _ in $(seq "$RECENT"); do npx knex migrate:down; done
+          npx knex migrate:latest

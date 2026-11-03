@@ -397,6 +397,11 @@ class QueryBuilder {
     return this
   }
 
+  // Verrou de ligne (SELECT … FOR UPDATE) : sans effet dans la base simulée.
+  public forUpdate(): this {
+    return this
+  }
+
   public first(...columns: unknown[]): Promise<Row | undefined> {
     if (columns.length > 0) {
       this.selectedColumns = this.flattenColumns(columns)

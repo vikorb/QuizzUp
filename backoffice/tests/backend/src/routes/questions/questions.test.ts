@@ -108,7 +108,7 @@ describe('routes/questions.ts', () => {
     await app.close()
   })
 
-  it('enforces the answer rules (min two, exactly one correct)', async () => {
+  it('enforces the answer rules (min two, at least one correct)', async () => {
     const app = await createRouteApp(questionsRoutes)
 
     const tooFew = await app.inject({
@@ -127,14 +127,14 @@ describe('routes/questions.ts', () => {
       headers: authHeaders(superadminUser),
       payload: questionBody({
         answers: [
-          { response: 'Four', isCorrect: true },
-          { response: 'Five', isCorrect: true },
+          { response: 'Four', isCorrect: false },
+          { response: 'Five', isCorrect: false },
         ],
       }),
     })
 
     expect(noCorrectAnswer.statusCode).toBe(400)
-    expect(parseJson(noCorrectAnswer)).toEqual({ error: 'question_one_correct_answer_required' })
+    expect(parseJson(noCorrectAnswer)).toEqual({ error: 'question_correct_answer_required' })
 
     await app.close()
   })

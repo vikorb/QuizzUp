@@ -5,6 +5,7 @@ import {
   ANSWER_STATUS_ACTIVE,
   ANSWER_STATUS_DELETED,
   ANSWER_STATUS_DRAFT,
+  ANSWER_STATUS_INACTIVE,
   QUESTION_MEDIA_TYPE_NONE,
   QUESTION_MEDIA_TYPES,
   QUESTION_STATUS_ACTIVE,
@@ -255,11 +256,46 @@ export function validateAnswers(answers: NormalizedAnswer[]): string | null {
 
   const correctAnswersCount = answers.filter((answer) => answer.isCorrect).length
 
-  if (correctAnswersCount !== 1) {
-    return 'question_one_correct_answer_required'
+  if (correctAnswersCount < 1) {
+    return 'question_correct_answer_required'
   }
 
   return null
+}
+
+/**
+ * Plusieurs bonnes réponses sont autorisées, mais une question doit en garder
+ * au moins une jouable : on ne peut retirer, désactiver ou supprimer une bonne
+ * réponse que s'il en reste une autre ni supprimée ni inactive.
+ */
+export type AnswerLockRow = {
+  id: number | string
+  is_correct: boolean
+  status: number
+}
+
+export function hasCorrectAnswerBesides(answers: AnswerLockRow[], answerId: number): boolean {
+  return answers.some(
+    (answer) =>
+      Number(answer.id) !== answerId &&
+      Boolean(answer.is_correct) &&
+      Number(answer.status) !== ANSWER_STATUS_DELETED &&
+      Number(answer.status) !== ANSWER_STATUS_INACTIVE
+  )
+}
+
+/**
+ * Verrouille la question le temps de la transaction puis renvoie ses réponses
+ * non supprimées : deux modifications simultanées ne peuvent pas retirer
+ * chacune « l'autre » bonne réponse.
+ */
+export async function lockQuestionAnswers(
+  trx: Knex.Transaction,
+  questionId: number
+): Promise<AnswerLockRow[]> {
+  await trx('questions').where({ id: questionId }).forUpdate().first('id')
+
+  return trx('answers').where({ question_id: questionId }).whereNot('status', ANSWER_STATUS_DELETED)
 }
 
 export function parseQuestionThemeIds(body: QuestionBody): number[] {

@@ -1,12 +1,11 @@
 // QuizzUp - Database schema
-// Version documentaire cible
-// Convention statuts : 0 = inactive, 1 = active, 2 = deleted
+// Reflète les migrations Knex (backend/db/migrations) à date.
+// Convention statuts : 0 = inactive, 1 = active, 2 = deleted (+ 3 = draft pour le contenu)
 
 Table companies {
   id bigint [pk, increment]
   name varchar(255) [not null]
   email varchar(255) [not null]
-  payment_info text
 
   status smallint [not null, default: 1, note: '0=inactive, 1=active, 2=deleted']
   created_at timestamptz [not null, default: `now()`]
@@ -23,8 +22,9 @@ Table companies {
 Table admins {
   id bigint [pk, increment]
   company_id bigint [not null]
+  room_id bigint [note: 'Renseigné uniquement pour le rôle room']
 
-  role varchar(50) [not null, note: 'admin, staff']
+  role varchar(50) [not null, note: 'superadmin, admin, user, room']
   firstname varchar(255)
   lastname varchar(255)
   username varchar(255) [not null]
@@ -41,7 +41,10 @@ Table admins {
     (company_id, status) [name: 'admins_company_id_status_index']
     (username) [unique, name: 'admins_username_unique_ci']
     (email) [unique, name: 'admins_email_unique_ci']
+    (room_id) [name: 'admins_room_id_index']
   }
+
+  Note: 'Index unique partiel : un seul compte room non supprimé par salle'
 }
 
 Table admin_sessions {
@@ -59,63 +62,61 @@ Table admin_sessions {
   }
 }
 
-Table players {
-  id bigint [pk, increment]
-
-  firstname varchar(255)
-  lastname varchar(255)
-  username varchar(255) [not null]
-  email varchar(255)
-
-  status smallint [not null, default: 1, note: '0=inactive, 1=active, 2=deleted']
-  created_at timestamptz [not null, default: `now()`]
-  updated_at timestamptz
-  deleted_at timestamptz
-
-  indexes {
-    (username) [unique, name: 'players_username_unique_ci']
-    (email) [unique, name: 'players_email_unique_ci']
-    (status) [name: 'players_status_index']
-  }
-}
-
 Table themes {
   id bigint [pk, increment]
   admin_id bigint [not null]
+  company_id bigint [note: 'NULL si scope = global']
 
+  scope varchar(50) [not null, default: 'global', note: 'global, company']
   name varchar(255) [not null]
   mode varchar(50) [not null, note: 'classic, image, audio, mixed']
 
-  status smallint [not null, default: 1, note: '0=inactive, 1=active, 2=deleted']
+  status smallint [not null, default: 1, note: '0=inactive, 1=active, 2=deleted, 3=draft']
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz
   deleted_at timestamptz
 
   indexes {
     (admin_id) [name: 'themes_admin_id_index']
+    (company_id) [name: 'themes_company_id_index']
     (name) [name: 'themes_name_index']
     (status) [name: 'themes_status_index']
+    (scope) [name: 'themes_scope_index']
   }
 }
 
 Table questions {
   id bigint [pk, increment]
   admin_id bigint [not null]
-  theme_id bigint [not null]
+  company_id bigint [note: 'NULL si scope = global']
 
+  scope varchar(50) [not null, default: 'global', note: 'global, company']
   question text [not null]
-  type_media varchar(50) [note: 'none, image, audio, video']
+  type_media varchar(50) [not null, default: 'none', note: 'none, image, audio, video']
   media_url text
 
-  status smallint [not null, default: 1, note: '0=inactive, 1=active, 2=deleted']
+  status smallint [not null, default: 1, note: '0=inactive, 1=active, 2=deleted, 3=draft']
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz
   deleted_at timestamptz
 
   indexes {
     (admin_id) [name: 'questions_admin_id_index']
-    (theme_id) [name: 'questions_theme_id_index']
+    (company_id) [name: 'questions_company_id_index']
     (status) [name: 'questions_status_index']
+    (scope) [name: 'questions_scope_index']
+  }
+}
+
+Table question_themes {
+  question_id bigint [not null]
+  theme_id bigint [not null]
+
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (question_id, theme_id) [pk, name: 'question_themes_primary']
+    (theme_id) [name: 'question_themes_theme_id_index']
   }
 }
 
@@ -127,7 +128,7 @@ Table answers {
   response text [not null]
   is_correct boolean [not null, default: false]
 
-  status smallint [not null, default: 1, note: '0=inactive, 1=active, 2=deleted']
+  status smallint [not null, default: 1, note: '0=inactive, 1=active, 2=deleted, 3=draft']
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz
   deleted_at timestamptz
@@ -137,54 +138,16 @@ Table answers {
     (question_id) [name: 'answers_question_id_index']
     (status) [name: 'answers_status_index']
   }
+
+  Note: 'Plusieurs bonnes réponses possibles ; au moins une imposée par l’API'
 }
 
-Table games {
+Table rooms {
   id bigint [pk, increment]
-  admin_id bigint [not null]
+  company_id bigint [not null]
 
-  nb_round integer [not null, default: 1]
-  time integer [not null, note: 'Temps par question ou par round en secondes']
-  winner bigint
-  room varchar(50) [not null]
-  mode varchar(50) [not null, note: 'classic, duel, party, training']
-
-  status smallint [not null, default: 1, note: '0=inactive/draft, 1=active, 2=deleted']
-  created_at timestamptz [not null, default: `now()`]
-  updated_at timestamptz
-  deleted_at timestamptz
-
-  indexes {
-    (admin_id) [name: 'games_admin_id_index']
-    (winner) [name: 'games_winner_index']
-    (room) [unique, name: 'games_room_unique']
-    (status) [name: 'games_status_index']
-  }
-}
-
-Table game_themes {
-  game_id bigint [not null]
-  theme_id bigint [not null]
-
-  created_at timestamptz [not null, default: `now()`]
-
-  indexes {
-    (game_id, theme_id) [pk, name: 'game_themes_pk']
-    (theme_id) [name: 'game_themes_theme_id_index']
-  }
-}
-
-Table rounds {
-  id bigint [pk, increment]
-  game_id bigint [not null]
-  theme_id bigint [not null]
-  question_id bigint [not null]
-
-  hierarchy integer [not null, note: 'Ordre du round dans la game']
-  name varchar(255)
-
-  type_multimedia varchar(50) [note: 'none, image, audio, video']
-  multimedia text
+  name varchar(255) [not null, note: 'Unique par compagnie (insensible à la casse, hors supprimées)']
+  config jsonb [not null, default: '{}', note: 'Configuration matérielle : buzzers, lumières, fumée']
 
   status smallint [not null, default: 1, note: '0=inactive, 1=active, 2=deleted']
   created_at timestamptz [not null, default: `now()`]
@@ -192,82 +155,148 @@ Table rounds {
   deleted_at timestamptz
 
   indexes {
-    (game_id) [name: 'rounds_game_id_index']
-    (theme_id) [name: 'rounds_theme_id_index']
-    (question_id) [name: 'rounds_question_id_index']
-    (game_id, hierarchy) [unique, name: 'rounds_game_hierarchy_unique']
-    (status) [name: 'rounds_status_index']
+    (company_id) [name: 'rooms_company_id_index']
+    (company_id, status) [name: 'rooms_company_id_status_index']
   }
 }
 
-Table game_players {
-  game_id bigint [not null]
-  player_id bigint [not null]
+Table games {
+  id bigint [pk, increment]
+  company_id bigint [not null]
+  room_id bigint [not null]
+  admin_id bigint [not null, note: 'Compte qui a lancé la partie']
 
-  score integer [not null, default: 0]
-  joined_at timestamptz [not null, default: `now()`]
+  rounds_count smallint [not null, default: 10, note: '1 à 20']
+  questions_per_round smallint [not null, default: 10, note: '1 à 20']
+  seed bigint [not null, note: 'Graine des tirages : rejouer la partie à l’identique']
+  state varchar(50) [not null, default: 'pending', note: 'pending, running, finished, aborted']
+
+  started_at timestamptz
   finished_at timestamptz
 
+  status smallint [not null, default: 1, note: '0=inactive, 1=active, 2=deleted']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz
+  deleted_at timestamptz
+
   indexes {
-    (game_id, player_id) [pk, name: 'game_players_pk']
-    (player_id) [name: 'game_players_player_id_index']
+    (company_id) [name: 'games_company_id_index']
+    (room_id) [name: 'games_room_id_index']
+    (admin_id) [name: 'games_admin_id_index']
+    (state) [name: 'games_state_index']
+    (status) [name: 'games_status_index']
+  }
+
+  Note: 'Index unique partiel : une seule partie pending/running par salle'
+}
+
+Table game_participants {
+  id bigint [pk, increment]
+  game_id bigint [not null]
+
+  podium smallint [not null, note: '1 à 4']
+  display_name varchar(100) [not null]
+  email varchar(255) [note: 'RGPD : uniquement si consent_at est renseigné']
+  consent_at timestamptz
+  score integer [not null, default: 0]
+
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz
+
+  indexes {
+    (game_id, podium) [unique, name: 'game_participants_game_id_podium_unique']
+    (email) [name: 'game_participants_email_index']
   }
 }
 
-Table player_answers {
+Table game_rounds {
   id bigint [pk, increment]
+  game_id bigint [not null]
+  theme_id bigint [note: 'NULL tant que le thème n’est pas choisi']
+  chooser_participant_id bigint
 
+  position smallint [not null, note: 'Ordre de la manche (1..n)']
+  mini_game varchar(50) [not null, note: 'flash_blind_test']
+  offered_theme_ids jsonb [not null, default: '[]']
+  chooser_reason varchar(50) [note: 'first_round_random, random_excluding_leader, fallback_random']
+  questions jsonb [not null, default: '[]', note: 'Snapshot des questions et réponses jouées']
+
+  started_at timestamptz
+  finished_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz
+
+  indexes {
+    (game_id, position) [unique, name: 'game_rounds_game_id_position_unique']
+    (theme_id) [name: 'game_rounds_theme_id_index']
+  }
+}
+
+Table game_answers {
+  id bigint [pk, increment]
   game_id bigint [not null]
   round_id bigint [not null]
-  player_id bigint [not null]
+  participant_id bigint [not null]
   question_id bigint [not null]
-  answer_id bigint [not null]
+  answer_id bigint [note: 'NULL si aucune réponse choisie']
 
   is_correct boolean [not null, default: false]
+  points integer [not null, default: 0]
+  response_time_ms integer
+  stage smallint [note: 'Palier du mini-jeu (ex. blind test : 1 = 1 s, 2 = 5 s, 3 = 20 s)']
   answered_at timestamptz [not null, default: `now()`]
 
   indexes {
-    (game_id) [name: 'player_answers_game_id_index']
-    (round_id) [name: 'player_answers_round_id_index']
-    (player_id) [name: 'player_answers_player_id_index']
-    (question_id) [name: 'player_answers_question_id_index']
-    (answer_id) [name: 'player_answers_answer_id_index']
-    (game_id, round_id, player_id, question_id, answer_id) [unique, name: 'player_answers_unique']
+    (round_id, participant_id, question_id) [unique, name: 'game_answers_round_participant_question_unique']
+    (game_id) [name: 'game_answers_game_id_index']
+    (participant_id) [name: 'game_answers_participant_id_index']
+    (question_id) [name: 'game_answers_question_id_index']
+  }
+}
+
+Table game_events {
+  id bigint [pk, increment]
+  game_id bigint [not null]
+
+  seq integer [not null, note: 'Unique par partie : resynchronisation idempotente']
+  type varchar(80) [not null]
+  payload jsonb [not null, default: '{}']
+  occurred_at timestamptz [not null]
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (game_id, seq) [unique, name: 'game_events_game_id_seq_unique']
+    (type) [name: 'game_events_type_index']
   }
 }
 
 // Relations existantes
 Ref: admins.company_id > companies.id [delete: restrict]
+Ref: admins.room_id > rooms.id [delete: restrict]
 Ref: admin_sessions.admin_id > admins.id [delete: cascade]
 
-// Relations joueurs / parties
-Ref: games.admin_id > admins.id [delete: restrict]
-Ref: games.winner > players.id [delete: set null]
-
-Ref: game_players.game_id > games.id [delete: cascade]
-Ref: game_players.player_id > players.id [delete: cascade]
-
-// Relations thèmes
+// Relations contenu
 Ref: themes.admin_id > admins.id [delete: restrict]
-
-Ref: game_themes.game_id > games.id [delete: cascade]
-Ref: game_themes.theme_id > themes.id [delete: restrict]
-
-// Relations questions / réponses
+Ref: themes.company_id > companies.id [delete: cascade]
 Ref: questions.admin_id > admins.id [delete: restrict]
-Ref: questions.theme_id > themes.id [delete: restrict]
-
+Ref: questions.company_id > companies.id [delete: cascade]
+Ref: question_themes.question_id > questions.id [delete: cascade]
+Ref: question_themes.theme_id > themes.id [delete: cascade]
 Ref: answers.admin_id > admins.id [delete: restrict]
 Ref: answers.question_id > questions.id [delete: cascade]
 
-// Relations rounds générés pour une game
-Ref: rounds.game_id > games.id [delete: cascade]
-Ref: rounds.theme_id > themes.id [delete: restrict]
-Ref: rounds.question_id > questions.id [delete: restrict]
-
-// Relations réponses joueur
-Ref: player_answers.game_id > games.id [delete: cascade]
-Ref: player_answers.round_id > rounds.id [delete: cascade]
-Ref: player_answers.player_id > players.id [delete: cascade]
-Ref: player_answers.question_id > questions.id [delete: restrict]
-Ref: player_answers.answer_id > answers.id [delete: restrict]
+// Relations salles / parties
+Ref: rooms.company_id > companies.id [delete: restrict]
+Ref: games.company_id > companies.id [delete: restrict]
+Ref: games.room_id > rooms.id [delete: restrict]
+Ref: games.admin_id > admins.id [delete: restrict]
+Ref: game_participants.game_id > games.id [delete: cascade]
+Ref: game_rounds.game_id > games.id [delete: cascade]
+Ref: game_rounds.theme_id > themes.id [delete: restrict]
+Ref: game_rounds.chooser_participant_id > game_participants.id [delete: set null]
+Ref: game_answers.game_id > games.id [delete: cascade]
+Ref: game_answers.round_id > game_rounds.id [delete: cascade]
+Ref: game_answers.participant_id > game_participants.id [delete: cascade]
+Ref: game_answers.question_id > questions.id [delete: restrict]
+Ref: game_answers.answer_id > answers.id [delete: restrict]
+Ref: game_events.game_id > games.id [delete: cascade]

@@ -9,6 +9,8 @@ import {
   buildAnswerStatusPatch,
   canEditQuestion,
   getQuestionAccessRow,
+  hasCorrectAnswerBesides,
+  lockQuestionAnswers,
   isValidAnswerStatus,
   parsePositiveId,
   type AnswerParams,
@@ -21,13 +23,13 @@ const questionAnswerIdStatusRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [app.authenticate] },
     async (
       req: FastifyRequest<{ Params: AnswerParams; Body: AnswerStatusBody }>,
-      reply: FastifyReply,
+      reply: FastifyReply
     ) => {
       const hasPermission = requireApiPermission(
         req,
         reply,
         API_RESOURCE.ANSWER,
-        API_ACTION.UPDATE_STATUS,
+        API_ACTION.UPDATE_STATUS
       )
 
       if (!hasPermission) {
@@ -59,36 +61,44 @@ const questionAnswerIdStatusRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(403).send({ error: 'forbidden' })
       }
 
-      const existingAnswer = await db('answers')
-        .where({ id: answerId, question_id: questionId })
-        .whereNot('status', ANSWER_STATUS_DELETED)
-        .first()
+      const nextStatus = req.body.status
 
-      if (!existingAnswer) {
-        return reply.code(404).send({ error: 'answer_not_found' })
-      }
+      const result = await db.transaction(async (trx) => {
+        const activeAnswers = await lockQuestionAnswers(trx, questionId)
+        const existingAnswer = activeAnswers.find((answer) => Number(answer.id) === answerId)
 
-      if (req.body.status === ANSWER_STATUS_DELETED) {
-        const activeAnswers = await db('answers')
-          .where({ question_id: questionId })
-          .whereNot('status', ANSWER_STATUS_DELETED)
-
-        if (activeAnswers.length <= 2) {
-          return reply.code(400).send({ error: 'question_answers_min_required' })
+        if (!existingAnswer) {
+          return { ok: false, status: 404, error: 'answer_not_found' } as const
         }
 
-        if (existingAnswer.is_correct) {
-          return reply.code(400).send({ error: 'answer_correct_delete_forbidden' })
+        if (nextStatus === ANSWER_STATUS_DELETED && activeAnswers.length <= 2) {
+          return { ok: false, status: 400, error: 'question_answers_min_required' } as const
         }
+
+        if (
+          nextStatus === ANSWER_STATUS_DELETED &&
+          existingAnswer.is_correct &&
+          !hasCorrectAnswerBesides(activeAnswers, answerId)
+        ) {
+          return { ok: false, status: 400, error: 'answer_correct_delete_forbidden' } as const
+        }
+
+        const [updatedAnswer] = await trx('answers')
+          .where({ id: answerId, question_id: questionId })
+          .update(buildAnswerStatusPatch(nextStatus))
+          .returning(answerSelect)
+
+        return { ok: true, answer: updatedAnswer } as const
+      })
+
+      if (!result.ok) {
+        return reply.code(result.status).send({ error: result.error })
       }
 
-      const [answer] = await db('answers')
-        .where({ id: answerId, question_id: questionId })
-        .update(buildAnswerStatusPatch(req.body.status))
-        .returning(answerSelect)
+      const { answer } = result
 
       return { answer }
-    },
+    }
   )
 }
 
