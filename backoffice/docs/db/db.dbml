@@ -147,7 +147,7 @@ Table rooms {
   company_id bigint [not null]
 
   name varchar(255) [not null, note: 'Unique par compagnie (insensible à la casse, hors supprimées)']
-  config jsonb [not null, default: '{}', note: 'Configuration matérielle : buzzers, lumières, fumée']
+  config jsonb [not null, default: '{}', note: 'Configuration matérielle : buzzers, lumières, fumée (format RoomHardwareConfig v1, voir game/hardware/README.md)']
 
   status smallint [not null, default: 1, note: '0=inactive, 1=active, 2=deleted']
   created_at timestamptz [not null, default: `now()`]

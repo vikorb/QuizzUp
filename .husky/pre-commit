@@ -11,3 +11,7 @@ fi
 if [ -d game/room-app/node_modules ]; then
   (cd game/room-app && npx --no -- lint-staged) || exit 1
 fi
+
+if [ -d game/hardware/node_modules ]; then
+  (cd game/hardware && npx --no -- lint-staged) || exit 1
+fi
