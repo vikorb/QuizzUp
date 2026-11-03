@@ -442,6 +442,17 @@ Points à trancher :
 - **Stockage** des fichiers (stratégie à poser : disque serveur ou stockage objet compatible S3), formats acceptés (mp3/ogg), taille max.
 - **Salle** : préchargement de tous les extraits avant la partie (pas de blanc pendant le jeu, et marche hors ligne), lecture coupée précisément au palier.
 
-### 12.3 Point juridique à ne pas oublier
+**Décisions d'Enzo** : le premier qui buzze répond seul (faux = bloqué pour cette question, les autres peuvent encore buzzer) ; **pas de pénalité** ; points **100 / 50 / 20** selon le palier.
 
-Diffuser de la musique dans un lieu ouvert au public est soumis à licence (**SACEM / SPRE** en France) : c'est en général à la charge de chaque centre. Stocker et distribuer des extraits depuis la plateforme pose aussi la question des droits. À vérifier avant de commercialiser des thèmes blind test « éditeur ».
+### 12.3 Droits musicaux (SACEM, YouTube, Spotify)
+
+*Synthèse de recherche, pas un avis juridique.*
+
+- **SACEM + SPRE** : dues par **le lieu qui diffuse** (chaque centre client), quelle que soit la source du son. Pas de barème spécifique « escape game » trouvé ; ordres de grandeur 2026 des minimums annuels HT : commerce ~165 €, café-restaurant ~461 € (SPRE comprise), bar dansant / karaoké ~749 € + SPRE. Une activité où la musique est au cœur du jeu sera probablement classée haut ; chiffrage exact via le simulateur sacem.fr ou un contact SACEM. -20 % en déclarant avant de diffuser.
+- **Spotify / YouTube ne contournent rien** : leurs conditions limitent l'usage au **personnel et non commercial** ; les conditions développeur Spotify interdisent aussi de constituer des bases de contenus. Et même avec une source autorisée, la SACEM reste due pour la diffusion publique.
+- **La plateforme** : héberger et distribuer des extraits de tubes demande en plus des droits de reproduction (auteurs et producteurs). C'est le vrai sujet pour des thèmes « éditeur ».
+- **Pistes réalistes** :
+  1. La technique audio est construite telle quelle, indépendante de la source.
+  2. Thèmes éditeur sur du **contenu sans tubes** : bruitages, instruments, sons du quotidien, musiques libres de droits sous licence commerciale.
+  3. Les **centres uploadent leurs propres extraits** dans leurs thèmes maison, sous leur responsabilité (clause dans les CGU), puisqu'ils déclarent déjà leur diffusion.
+  4. Avant de vendre des blind tests « tubes » éditeur : **avis d'un juriste / contact SACEM-SDRM** pour une licence plateforme.
