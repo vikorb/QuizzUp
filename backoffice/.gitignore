@@ -64,6 +64,9 @@ coverage/
 docker-data/
 data/
 
+# Fichiers média uploadés (extraits audio) en local
+**/storage/media/
+
 # =========================
 # Misc
 # =========================

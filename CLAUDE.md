@@ -188,8 +188,10 @@ Env : copier `backoffice/backend/.env.example` → `.env` (idem frontend). `DATA
 ## 10. Pièges connus / TODO
 
 - `JWT_SECRET` par défaut dans `docker-compose.yml` → à externaliser (secret) avant prod.
-- Stockage média (image/audio/vidéo des questions) : `type_media` existe mais **pas** de
-  stratégie d'upload/stockage.
+- Stockage média : l'**audio** des questions est uploadé (`PUT /questions/:id/media`, corps
+  binaire brut) et stocké sur disque (`MEDIA_STORAGE_DIR`, volume Docker `media_data`), derrière
+  l'interface `backend/src/storage/mediaStorage.ts` (prévue pour un stockage S3 plus tard).
+  Image / vidéo : toujours un simple lien `media_url`.
 - CI GitLab valide `main` ; les PR sont validées par GitHub Actions (cf. §3).
 - Node local très récent (v25) vs CI `node:22` — surveiller les écarts.
 - Moteur de jeu : privilégier un **serveur autoritatif + WebSocket**, **découplé du matériel**

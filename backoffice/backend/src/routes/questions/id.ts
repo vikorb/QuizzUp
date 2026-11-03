@@ -1,6 +1,10 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 
-import { ANSWER_STATUS_DELETED, QUESTION_STATUS_DELETED } from '@quizzup/shared'
+import {
+  ANSWER_STATUS_DELETED,
+  QUESTION_MEDIA_TYPE_AUDIO,
+  QUESTION_STATUS_DELETED,
+} from '@quizzup/shared'
 import db from '../../db'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
 import { requireApiPermission } from '../../security/requireApiPermission'
@@ -24,6 +28,7 @@ import {
   type QuestionBody,
   type QuestionParams,
 } from './_shared'
+import { applyQuestionMediaPatch, QuestionMediaPatchError, removeStoredMediaFile } from './_media'
 
 const questionIdRoutes: FastifyPluginAsync = async (app) => {
   app.get<{ Params: QuestionParams }>(
@@ -174,83 +179,106 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
         patch.media_url = req.body.mediaUrl
       }
 
-      if (req.body.answers !== undefined) {
-        const answers = normalizeAnswers(req.body.answers)
-        const answersError = validateAnswers(answers)
-
-        if (answersError) {
-          return reply.code(400).send({ error: answersError })
-        }
-
-        if (hasInvalidAnswerStatus(answers)) {
-          return reply.code(400).send({ error: 'question_answer_status_invalid' })
-        }
-
-        const answerStatus = getAnswerStatusFromQuestionStatus(accessQuestion.status)
-
-        await db.transaction(async (trx) => {
-          await trx('questions').where({ id: questionId }).update(patch)
-
-          if (nextThemeIds !== null) {
-            await syncQuestionThemes(trx, questionId, nextThemeIds)
-          }
-
-          const existingAnswers = await trx('answers')
-            .where({ question_id: questionId })
-            .whereNot('status', ANSWER_STATUS_DELETED)
-
-          const existingIds = new Set(existingAnswers.map((answer) => Number(answer.id)))
-          const keptIds = new Set<number>()
-
-          // Diff : on conserve les réponses existantes par id, on met à jour celles
-          // modifiées, on insère les nouvelles et on soft-delete uniquement les retirées.
-          for (const answer of answers) {
-            const existingId =
-              answer.id !== undefined && existingIds.has(answer.id) ? answer.id : null
-
-            if (existingId !== null) {
-              keptIds.add(existingId)
-
-              await trx('answers').where({ id: existingId, question_id: questionId }).update({
-                response: answer.response,
-                is_correct: answer.isCorrect,
-                status: answerStatus,
-                updated_at: trx.fn.now(),
-                deleted_at: null,
-              })
-            } else {
-              await trx('answers').insert({
-                admin_id: adminId,
-                question_id: questionId,
-                response: answer.response,
-                is_correct: answer.isCorrect,
-                status: answerStatus,
-                deleted_at: null,
-              })
-            }
-          }
-
-          for (const existingAnswer of existingAnswers) {
-            if (keptIds.has(Number(existingAnswer.id))) {
-              continue
-            }
-
-            await trx('answers').where({ id: existingAnswer.id, question_id: questionId }).update({
-              status: ANSWER_STATUS_DELETED,
-              updated_at: trx.fn.now(),
-              deleted_at: trx.fn.now(),
-            })
-          }
-        })
-      } else {
-        await db.transaction(async (trx) => {
-          await trx('questions').where({ id: questionId }).update(patch)
-
-          if (nextThemeIds !== null) {
-            await syncQuestionThemes(trx, questionId, nextThemeIds)
-          }
-        })
+      // Quitter le type audio détache le fichier ; le point de départ est validé contre le
+      // fichier courant. Les deux se font ligne verrouillée, dans la transaction de mise à jour.
+      const mediaRequest = {
+        leavesAudio:
+          req.body.typeMedia !== undefined && req.body.typeMedia !== QUESTION_MEDIA_TYPE_AUDIO,
+        startMs: req.body.mediaStartMs,
       }
+      let detachedMediaKey: string | null = null
+
+      try {
+        if (req.body.answers !== undefined) {
+          const answers = normalizeAnswers(req.body.answers)
+          const answersError = validateAnswers(answers)
+
+          if (answersError) {
+            return reply.code(400).send({ error: answersError })
+          }
+
+          if (hasInvalidAnswerStatus(answers)) {
+            return reply.code(400).send({ error: 'question_answer_status_invalid' })
+          }
+
+          const answerStatus = getAnswerStatusFromQuestionStatus(accessQuestion.status)
+
+          await db.transaction(async (trx) => {
+            detachedMediaKey = await applyQuestionMediaPatch(trx, questionId, mediaRequest)
+            await trx('questions').where({ id: questionId }).update(patch)
+
+            if (nextThemeIds !== null) {
+              await syncQuestionThemes(trx, questionId, nextThemeIds)
+            }
+
+            const existingAnswers = await trx('answers')
+              .where({ question_id: questionId })
+              .whereNot('status', ANSWER_STATUS_DELETED)
+
+            const existingIds = new Set(existingAnswers.map((answer) => Number(answer.id)))
+            const keptIds = new Set<number>()
+
+            // Diff : on conserve les réponses existantes par id, on met à jour celles
+            // modifiées, on insère les nouvelles et on soft-delete uniquement les retirées.
+            for (const answer of answers) {
+              const existingId =
+                answer.id !== undefined && existingIds.has(answer.id) ? answer.id : null
+
+              if (existingId !== null) {
+                keptIds.add(existingId)
+
+                await trx('answers').where({ id: existingId, question_id: questionId }).update({
+                  response: answer.response,
+                  is_correct: answer.isCorrect,
+                  status: answerStatus,
+                  updated_at: trx.fn.now(),
+                  deleted_at: null,
+                })
+              } else {
+                await trx('answers').insert({
+                  admin_id: adminId,
+                  question_id: questionId,
+                  response: answer.response,
+                  is_correct: answer.isCorrect,
+                  status: answerStatus,
+                  deleted_at: null,
+                })
+              }
+            }
+
+            for (const existingAnswer of existingAnswers) {
+              if (keptIds.has(Number(existingAnswer.id))) {
+                continue
+              }
+
+              await trx('answers')
+                .where({ id: existingAnswer.id, question_id: questionId })
+                .update({
+                  status: ANSWER_STATUS_DELETED,
+                  updated_at: trx.fn.now(),
+                  deleted_at: trx.fn.now(),
+                })
+            }
+          })
+        } else {
+          await db.transaction(async (trx) => {
+            detachedMediaKey = await applyQuestionMediaPatch(trx, questionId, mediaRequest)
+            await trx('questions').where({ id: questionId }).update(patch)
+
+            if (nextThemeIds !== null) {
+              await syncQuestionThemes(trx, questionId, nextThemeIds)
+            }
+          })
+        }
+      } catch (error) {
+        if (error instanceof QuestionMediaPatchError) {
+          return reply.code(400).send({ error: error.code })
+        }
+
+        throw error
+      }
+
+      await removeStoredMediaFile(req, detachedMediaKey)
 
       const question = await getQuestionWithAnswers(questionId, req)
 

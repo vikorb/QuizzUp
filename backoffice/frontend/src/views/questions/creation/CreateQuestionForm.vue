@@ -41,6 +41,7 @@
       />
 
       <FormField
+        v-if="!isAudio"
         v-model="form.mediaUrl"
         :label="$t('questions.form.mediaUrl')"
         name="mediaUrl"
@@ -48,6 +49,15 @@
         :disabled="saving || form.typeMedia === QUESTION_MEDIA_TYPE_NONE"
       />
     </div>
+
+    <QuestionAudioField
+      v-if="isAudio"
+      v-model="form.audio"
+      :existing-file="existingMediaFile"
+      :question-id="savedQuestionId"
+      :disabled="saving"
+      :error="getErrorLabel(errors.audio)"
+    />
 
     <section class="question-form__answers">
       <div class="question-form__answers-header">
@@ -142,10 +152,24 @@ import SwitchField from '@/components/ui/form/SwitchField.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import Tooltip from '@/components/ui/Tooltip.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import { QuestionMediaError } from '@/services/questionMediaError'
+import {
+  deleteQuestionMediaService,
+  uploadQuestionMediaService,
+} from '@/services/questionMediaService'
 import { createQuestionService, updateQuestionService } from '@/services/questionsService'
 import type { SelectFieldOption } from '@/types/form'
-import type { Answer, Question, QuestionMediaType, QuestionPayload, Theme } from '@/types/question'
+import type {
+  Answer,
+  Question,
+  QuestionAudioState,
+  QuestionMediaFile,
+  QuestionMediaType,
+  QuestionPayload,
+  Theme,
+} from '@/types/question'
 
+import QuestionAudioField from './QuestionAudioField.vue'
 import ThemeMultiSelect from './ThemeMultiSelect.vue'
 
 const props = withDefaults(
@@ -178,13 +202,19 @@ const form = reactive({
     { response: '', isCorrect: true },
     { response: '', isCorrect: false },
   ] as Answer[],
+  audio: createAudioState(),
 })
 
 const errors = reactive({
   themeIds: '',
   question: '',
   answers: '',
+  audio: '',
 })
+
+// Question déjà enregistrée : en création, si l'envoi du fichier échoue après la création, un
+// nouvel essai met à jour la même question au lieu d'en créer une seconde.
+const savedQuestion = ref<Question | null>(null)
 
 const saving = ref(false)
 const formError = ref<string | null>(null)
@@ -193,6 +223,25 @@ const formSuccess = ref<string | null>(null)
 const submitLabel = computed(() =>
   props.mode === 'edit' ? t('questions.form.save') : t('questions.form.create')
 )
+
+const isAudio = computed(() => form.typeMedia === QUESTION_MEDIA_TYPE_AUDIO)
+
+const savedQuestionId = computed(() => savedQuestion.value?.id ?? null)
+
+const existingMediaFile = computed<QuestionMediaFile | null>(
+  () => savedQuestion.value?.mediaFile ?? null
+)
+
+function createAudioState(startMs = 0): QuestionAudioState {
+  return {
+    file: null,
+    durationMs: null,
+    measuring: false,
+    startMs,
+    rightsAttested: false,
+    removeExisting: false,
+  }
+}
 
 const correctCount = computed(() => form.answers.filter((answer) => answer.isCorrect).length)
 
@@ -254,6 +303,8 @@ watch(
   [() => props.question, () => props.initialThemeIds, () => props.themes],
   ([question]) => {
     resetMessages()
+    savedQuestion.value = question
+    form.audio = createAudioState(question?.mediaStartMs ?? 0)
 
     if (!question) {
       form.themeIds = normalizeThemeIds(props.initialThemeIds)
@@ -316,6 +367,7 @@ function resetErrors(): void {
   errors.themeIds = ''
   errors.question = ''
   errors.answers = ''
+  errors.audio = ''
 }
 
 function resetMessages(): void {
@@ -359,7 +411,13 @@ function validateForm(): boolean {
     errors.answers = 'questions.form.errors.oneCorrectRequired'
   }
 
-  return !errors.themeIds && !errors.question && !errors.answers
+  if (isAudio.value && form.audio.file && form.audio.measuring) {
+    errors.audio = 'questions.form.audio.errors.measuring'
+  } else if (isAudio.value && form.audio.file && !form.audio.rightsAttested) {
+    errors.audio = 'questions.form.audio.errors.rightsRequired'
+  }
+
+  return !errors.themeIds && !errors.question && !errors.answers && !errors.audio
 }
 
 function addAnswer(): void {
@@ -390,7 +448,10 @@ function buildPayload(): QuestionPayload {
     themeIds: form.themeIds,
     question: form.question.trim(),
     typeMedia: form.typeMedia,
-    mediaUrl: form.typeMedia === QUESTION_MEDIA_TYPE_NONE ? null : form.mediaUrl.trim() || null,
+    mediaUrl:
+      form.typeMedia === QUESTION_MEDIA_TYPE_NONE || isAudio.value
+        ? null
+        : form.mediaUrl.trim() || null,
     answers: form.answers.map((answer) => ({
       id: answer.id,
       response: answer.response.trim(),
@@ -403,6 +464,59 @@ function buildPayload(): QuestionPayload {
   }
 
   return payload
+}
+
+/**
+ * Le fichier audio passe par ses propres routes, une fois la question enregistrée : upload ou
+ * retrait, puis point de départ (validé par l'API par rapport à la durée du fichier).
+ */
+async function applyAudioChanges(question: Question): Promise<Question> {
+  if (!isAudio.value) {
+    return question
+  }
+
+  let current = question
+
+  if (form.audio.file) {
+    current = await uploadQuestionMediaService(current.id, {
+      file: form.audio.file,
+      durationMs: form.audio.durationMs,
+      rightsAttested: form.audio.rightsAttested,
+    })
+    form.audio = { ...createAudioState(form.audio.startMs) }
+  } else if (form.audio.removeExisting && current.mediaFile) {
+    current = await deleteQuestionMediaService(current.id)
+    form.audio = createAudioState()
+  }
+
+  savedQuestion.value = current
+
+  if (current.mediaFile && form.audio.startMs !== (current.mediaStartMs ?? 0)) {
+    try {
+      current = await updateQuestionService(current.id, { mediaStartMs: form.audio.startMs })
+    } catch {
+      throw new QuestionStartPointError()
+    }
+
+    savedQuestion.value = current
+  }
+
+  return current
+}
+
+/** Le fichier est enregistré, seul le point de départ a été refusé. */
+class QuestionStartPointError extends Error {}
+
+function getAudioErrorMessage(error: unknown): string {
+  if (error instanceof QuestionStartPointError) {
+    return t('questions.form.audio.errors.startFailed')
+  }
+
+  const code = error instanceof QuestionMediaError ? error.code : 'server_error'
+
+  return t('questions.form.audio.errors.uploadFailed', {
+    reason: t(`questions.form.audio.apiErrors.${code}`),
+  })
 }
 
 async function submitForm(): Promise<void> {
@@ -418,19 +532,31 @@ async function submitForm(): Promise<void> {
 
   saving.value = true
 
+  let question: Question
+
   try {
-    const savedQuestion =
-      props.mode === 'edit' && props.question
-        ? await updateQuestionService(props.question.id, buildPayload())
-        : await createQuestionService(buildPayload())
+    question = savedQuestion.value
+      ? await updateQuestionService(savedQuestion.value.id, buildPayload())
+      : await createQuestionService(buildPayload())
+
+    savedQuestion.value = question
+  } catch {
+    formError.value = t('questions.errors.saveFailed')
+    emit('error', 'saveFailed')
+    saving.value = false
+    return
+  }
+
+  try {
+    question = await applyAudioChanges(question)
 
     formSuccess.value =
       props.mode === 'edit' ? t('questions.success.update') : t('questions.success.create')
 
-    emit('saved', savedQuestion)
-  } catch {
-    formError.value = t('questions.errors.saveFailed')
-    emit('error', 'saveFailed')
+    emit('saved', question)
+  } catch (error) {
+    // La question est enregistrée, seul l'extrait a échoué : on reste sur le formulaire.
+    formError.value = getAudioErrorMessage(error)
   } finally {
     saving.value = false
   }

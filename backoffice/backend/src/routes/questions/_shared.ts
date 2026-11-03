@@ -54,6 +54,7 @@ export type QuestionBody = {
   companyId?: number | null
   typeMedia?: QuestionMediaType
   mediaUrl?: string | null
+  mediaStartMs?: number
   status?: QuestionStatus
   answers?: unknown
 }
@@ -116,6 +117,13 @@ export const questionSelect = [
   'questions.question',
   'questions.type_media as typeMedia',
   'questions.media_url as mediaUrl',
+  'questions.media_key as mediaKey',
+  'questions.media_mime_type as mediaMimeType',
+  'questions.media_size_bytes as mediaSizeBytes',
+  'questions.media_duration_ms as mediaDurationMs',
+  'questions.media_start_ms as mediaStartMs',
+  'questions.media_original_name as mediaOriginalName',
+  'questions.media_uploaded_at as mediaUploadedAt',
   'questions.status',
   'questions.created_at as createdAt',
   'questions.updated_at as updatedAt',
@@ -133,6 +141,89 @@ export const answerSelect = [
   'answers.updated_at as updatedAt',
   'answers.deleted_at as deletedAt',
 ]
+
+type QuestionMediaColumns = {
+  id: number | string
+  mediaKey?: string | null
+  mediaMimeType?: string | null
+  mediaSizeBytes?: number | string | null
+  mediaDurationMs?: number | string | null
+  mediaStartMs?: number | string | null
+  mediaOriginalName?: string | null
+  mediaUploadedAt?: string | Date | null
+}
+
+export type QuestionMediaFile = {
+  url: string
+  mimeType: string
+  sizeBytes: number
+  durationMs: number | null
+  originalName: string | null
+  uploadedAt: string | Date | null
+}
+
+export function getQuestionMediaPath(questionId: number | string): string {
+  return `/questions/${questionId}/media`
+}
+
+/** Version du fichier = uuid de sa clé : change à chaque upload (URL de lecture, ETag). */
+export function getMediaVersion(mediaKey: string): string {
+  const fileName = mediaKey.split('/').pop() ?? mediaKey
+
+  return fileName.replace(/\.[a-z0-9]+$/, '')
+}
+
+function toNullableNumber(value: unknown): number | null {
+  return value === null || value === undefined ? null : Number(value)
+}
+
+/**
+ * Remplace les colonnes techniques du fichier audio par un objet `mediaFile` : la clé de
+ * stockage n'est jamais exposée, seule l'URL protégée de lecture l'est.
+ */
+export function serializeQuestionMedia<T extends QuestionMediaColumns>(question: T) {
+  const {
+    mediaKey,
+    mediaMimeType,
+    mediaSizeBytes,
+    mediaDurationMs,
+    mediaOriginalName,
+    mediaUploadedAt,
+    ...rest
+  } = question
+
+  const mediaFile: QuestionMediaFile | null = mediaKey
+    ? {
+        // URL versionnée : un remplacement change l'URL, donc aucun cache (navigateur ou
+        // préchargement de la salle) ne peut resservir l'ancien extrait.
+        url: `${getQuestionMediaPath(question.id)}?v=${getMediaVersion(mediaKey)}`,
+        mimeType: String(mediaMimeType),
+        sizeBytes: Number(mediaSizeBytes),
+        durationMs: toNullableNumber(mediaDurationMs),
+        originalName: mediaOriginalName ?? null,
+        uploadedAt: mediaUploadedAt ?? null,
+      }
+    : null
+
+  return {
+    ...rest,
+    mediaStartMs: toNullableNumber(question.mediaStartMs) ?? 0,
+    mediaFile,
+  }
+}
+
+/** Point de départ de l'extrait : entier en ms, positif, et avant la fin du fichier connu. */
+export function validateMediaStartMs(value: unknown, durationMs: number | null): string | null {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+    return 'question_media_start_invalid'
+  }
+
+  if (durationMs !== null && value >= durationMs) {
+    return 'question_media_start_out_of_range'
+  }
+
+  return null
+}
 
 const VALID_ANSWER_STATUSES: readonly AnswerStatus[] = [
   ANSWER_STATUS_ACTIVE,
@@ -403,11 +494,8 @@ export async function getThemesForQuestion(questionId: number) {
 }
 
 export async function attachThemesToQuestions<
-  T extends { id: number | string; scope: ThemeScope; companyId: number | null },
->(
-  questions: T[],
-  req?: FastifyRequest
-): Promise<Array<T & { themeId: number | null; themeIds: number[]; canEdit?: boolean }>> {
+  T extends QuestionMediaColumns & { scope: ThemeScope; companyId: number | null },
+>(questions: T[], req?: FastifyRequest) {
   if (questions.length === 0) {
     return []
   }
@@ -432,7 +520,7 @@ export async function attachThemesToQuestions<
     const themeIds = themeIdsByQuestionId[String(question.id)] ?? []
 
     return {
-      ...question,
+      ...serializeQuestionMedia(question),
       themeId: themeIds[0] ?? null,
       themeIds,
       ...(req ? { canEdit: canEditQuestionForScope(req, question.scope, question.companyId) } : {}),
@@ -459,7 +547,7 @@ export async function getQuestionWithAnswers(questionId: number, req?: FastifyRe
   const themes = await getThemesForQuestion(questionId)
 
   return {
-    ...question,
+    ...serializeQuestionMedia(question),
     themeId: themes[0]?.id ?? null,
     themeIds: themes.map((theme) => Number(theme.id)),
     themes,

@@ -1,0 +1,20 @@
+{
+  "name": "@quizzup/audio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lecture audio de l'écran de salle QuizzUp : extraits du blind test éclair (Web Audio) et sons d'interface synthétisés.",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest --run",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.6"
+  }
+}

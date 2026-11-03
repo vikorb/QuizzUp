@@ -24,6 +24,16 @@ export interface Answer {
   status?: number
 }
 
+/** Fichier audio uploadé (US-MEDIA-01) : l'URL est relative à l'API et protégée. */
+export interface QuestionMediaFile {
+  url: string
+  mimeType: string
+  sizeBytes: number
+  durationMs: number | null
+  originalName: string | null
+  uploadedAt: string | null
+}
+
 export interface Question {
   id: number
   adminId: number
@@ -38,6 +48,8 @@ export interface Question {
   question: string
   typeMedia: QuestionMediaType
   mediaUrl: string | null
+  mediaStartMs?: number
+  mediaFile?: QuestionMediaFile | null
   status: number
   canEdit?: boolean
   answers?: Answer[]
@@ -72,3 +84,14 @@ export type UpdateQuestionStatusResult =
       ok: false
       error: string
     }
+
+/** État du champ audio du formulaire question, envoyé à l'API après l'enregistrement. */
+export interface QuestionAudioState {
+  file: File | null
+  durationMs: number | null
+  /** Durée du fichier choisi en cours de lecture par le navigateur. */
+  measuring: boolean
+  startMs: number
+  rightsAttested: boolean
+  removeExisting: boolean
+}
