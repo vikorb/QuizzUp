@@ -641,11 +641,15 @@ describe('contrôleur lumières et fumée', () => {
 
   it('une écriture bloquée d’une session close ne met pas la suivante en erreur', async () => {
     const clock = createManualClock()
-    let stuck = true
+    let writes = 0
     const output: DmxOutput = {
       driver: 'usbpro',
       open: async () => undefined,
-      write: () => (stuck ? new Promise<void>(() => undefined) : Promise.resolve()),
+      // Seule la toute première écriture reste bloquée.
+      write: () => {
+        writes += 1
+        return writes === 1 ? new Promise<void>(() => undefined) : Promise.resolve()
+      },
       close: async () => undefined,
       onDisconnect: () => () => undefined,
     }
@@ -659,7 +663,6 @@ describe('contrôleur lumières et fumée', () => {
     const stopping = controller.stop()
     await advanceAsync(clock, 300)
     await stopping
-    stuck = false
     await controller.start()
     await advanceAsync(clock, 1_000)
     expect(controller.getState().outputStatus).toBe('open')
