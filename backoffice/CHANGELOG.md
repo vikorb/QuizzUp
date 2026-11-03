@@ -8,6 +8,11 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Catalogue de la salle (`GET /room/games/current/content`) limité aux questions audio actives
+  avec fichier, et lecture des extraits par le compte de salle
+  (`GET /room/questions/{questionId}/media`) pendant une partie.
+  US: us-game-08, us-media-01
+
 - Mise en place de l'authentification administrateur.
   US: us-auth-01
 

@@ -1490,6 +1490,120 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /room/games/current/content:
+    get:
+      tags:
+        - Rooms
+      summary: '[DISPONIBLE] Catalogue jouable de la partie courante'
+      description: |
+        Statut : **Disponible**
+
+        Thèmes actifs lisibles par la compagnie (global ou company), au format `EngineTheme` du
+        moteur de jeu. Seules les questions **audio actives qui ont un fichier uploadé** sont
+        retenues, avec leurs réponses actives ; les thèmes sans question jouable sont écartés.
+        `mediaUrl` est un chemin relatif à l'API (`/room/questions/{id}/media`).
+
+        Accès : réservé au rôle `room`, uniquement pendant une partie en attente ou en cours.
+      operationId: getCurrentRoomGameContent
+      x-availability: disponible
+      x-us: 'US-GAME-08'
+      responses:
+        '200':
+          description: Catalogue de la salle
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  themes:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        name: { type: string }
+                        questions:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              id: { type: integer }
+                              text: { type: string }
+                              mediaType: { type: string, example: audio }
+                              mediaUrl: { type: string, example: /room/questions/12/media }
+                              mediaStartMs: { type: integer }
+                              answers:
+                                type: array
+                                items:
+                                  type: object
+                                  properties:
+                                    id: { type: integer }
+                                    text: { type: string }
+                                    isCorrect: { type: boolean }
+        '403':
+          description: Compte qui n'est pas un compte de salle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Pas de partie courante (`game_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /room/questions/{questionId}/media:
+    get:
+      tags:
+        - Rooms
+      summary: "[DISPONIBLE] Extrait audio d'une question pour la salle"
+      description: |
+        Statut : **Disponible** (US-MEDIA-01)
+
+        Même flux et mêmes en-têtes que `GET /questions/{questionId}/media` (`ETag`,
+        `Cache-Control: private, no-cache`, `Vary: Authorization`, 304 sur `If-None-Match`).
+        La question doit être active, audio, avec un fichier, et lisible par la compagnie.
+
+        Accès : réservé au rôle `room`, uniquement pendant une partie en attente ou en cours.
+      operationId: getRoomQuestionMedia
+      x-availability: disponible
+      x-us: 'US-MEDIA-01'
+      parameters:
+        - $ref: '#/components/parameters/QuestionId'
+      responses:
+        '200':
+          description: Fichier audio
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+            audio/ogg:
+              schema:
+                type: string
+                format: binary
+        '304':
+          description: Fichier inchangé (ETag identique)
+        '400':
+          description: Id invalide (`question_id_invalid`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Compte qui n'est pas un compte de salle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Pas de partie courante (`game_not_found`) ou extrait indisponible (`question_media_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /room/games/{gameId}/start:
     post:
       tags:
