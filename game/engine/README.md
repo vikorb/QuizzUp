@@ -33,6 +33,37 @@ Les `events` (numérotés par `seq`) sont destinés à `game_events` ; `state.ro
 3. `question` × N : le mini-jeu gère la question ; puis `reveal` (bonne réponse affichée).
 4. `round_summary`, puis manche suivante ou `finished`.
 
+## Intégration côté hôte (écran de salle, audio, matériel)
+
+Le moteur ne joue aucun son et ne pilote aucun matériel : l'hôte **réagit aux événements**
+renvoyés par `reduceGame` et lit `state.phase` pour l'affichage.
+
+| Événement                                     | Payload principal                                                | Réaction attendue de l'hôte                                                  |
+| --------------------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `game_started`                                | —                                                                | écran d'accueil → partie, ambiance lumière                                   |
+| `round_started`                               | `position`, `miniGame`                                           | annonce du mini-jeu                                                          |
+| `round_chooser_selected`                      | `participantId`, `reason`                                        | mettre en avant le pupitre qui choisit                                       |
+| `round_themes_offered`                        | `themeIds`                                                       | afficher les 4 thèmes (A-D)                                                  |
+| `round_theme_selected`                        | `themeId`, `participantId`, `automatic`                          | thème retenu                                                                 |
+| `question_started`                            | `questionId`, `questionIndex`, `miniGame`                        | afficher la question et les réponses                                         |
+| `blind_test_stage_started`                    | `stage`, `extractMs`, `buzzWindowMs`, `mediaUrl`, `mediaStartMs` | **jouer l'extrait** de `extractMs` depuis `mediaStartMs`                     |
+| `buzzer_pressed`                              | `participantId`, `stage`                                         | lumière/son du pupitre qui a buzzé                                           |
+| `blind_test_paused`                           | `elapsedMs`                                                      | **couper l'audio**, attendre la réponse A-D                                  |
+| `blind_test_stage_resumed`                    | `stage`, `elapsedMs`, `remainingMs`                              | reprendre la fenêtre de buzz (audio déjà terminé si `elapsedMs ≥ extractMs`) |
+| `answer_correct` / `answer_wrong`             | `participantId`, `answerId`, `timedOut`                          | effet bonne / mauvaise réponse                                               |
+| `points_awarded`                              | `participantId`, `points`, `total`                               | animation de score                                                           |
+| `question_ended`                              | `questionId`, `winnerIds`                                        | phase `reveal` : afficher la bonne réponse                                   |
+| `round_ended` / `game_ended` / `game_aborted` | classement, raison                                               | récap, podium final, effets de fin (fumée…)                                  |
+
+Règles d'intégration :
+
+- **Horloge** : `at` en millisecondes monotones (`performance.now()`) ; l'hôte envoie un `tick`
+  régulier (≈ 50-100 ms) pour faire avancer les délais.
+- **Buzzers** : l'hôte traduit une touche clavier en `{ podium: 1-4, button: 0-3 }` (0 = A) et
+  envoie `press`. Le moteur décide seul si l'appui compte (buzz, réponse, choix de thème).
+- **Persistance** : stocker la `seed` et les commandes suffit à rejouer la partie (`replayGame`).
+- Les payloads exacts sont dans `src/engine.ts` et `src/miniGames/flashBlindTest.ts`.
+
 ## Mini-jeux
 
 Un mini-jeu implémente `MiniGameDefinition` (`src/miniGames/miniGame.ts`) et s'enregistre dans
