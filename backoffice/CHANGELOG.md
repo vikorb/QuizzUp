@@ -44,6 +44,18 @@ Format inspiré de Keep a Changelog.
 - Ajout du package `shared` pour partager les constantes entre le backend et le frontend.
   US: us-shared-01
 
+- Ajout de la table `rooms` (salles de jeu d'une compagnie, configuration matérielle en JSON).
+  US: US-ROOM-01
+
+- Ajout du rôle `room` (compte de salle rattaché à une salle, un seul compte actif par salle).
+  US: US-ROOM-02
+
+- Ajout du modèle de données des parties : `games`, `game_participants` (email soumis à consentement RGPD), `game_rounds` (mini-jeu, thèmes proposés, choix du joueur, snapshot des questions), `game_answers`, `game_events` (séquence unique pour la resynchronisation). Constantes associées dans `@quizzup/shared`.
+  US: US-GAME-07
+
+- Ajout d'une CI GitHub Actions sur les PR : lint, type-check, tests et aller-retour des migrations Knex.
+  US: us-ci-01
+
 ### Changed
 
 - Harmonisation des statuts entre le backend, le frontend et le package shared.
@@ -57,6 +69,9 @@ Format inspiré de Keep a Changelog.
 
 - Mise à jour de la configuration Docker Compose pour lancer le backend, le frontend, PostgreSQL et le package shared.
   US: us-config-02
+
+- Mise à jour du DBML pour refléter les migrations réelles (scope des thèmes/questions, `question_themes`, rôles) et le nouveau modèle de parties ; suppression des tables `players`, `game_themes`, `rounds`, `game_players`, `player_answers` jamais migrées.
+  US: US-GAME-07
 
 - Refonte visuelle du backoffice : design system néon bleu-violet (tokens, néon sélectif, typo Exo 2), menu latéral adaptatif (complet / rail d'icônes / tiroir), composants réutilisables (`StatBar`, `StatusPill`, `ScopeChip`, `Tooltip`, `FormStatusToggle`, select custom, pop-up de confirmation maison, chips de filtres), amélioration de la fluidité (scroll) et harmonisation des pages création/édition. Documentation : `docs/design/design-system.md`.
   US: us-front-design-01
