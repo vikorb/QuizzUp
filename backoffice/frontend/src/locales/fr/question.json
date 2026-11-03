@@ -116,7 +116,9 @@
           "audioEmpty": "Le fichier est vide.",
           "rightsRequired": "Cochez l'attestation de droits pour envoyer ce fichier.",
           "previewFailed": "Impossible de lire ce fichier dans le navigateur.",
-          "uploadFailed": "La question est enregistrée, mais l'extrait audio n'a pas été envoyé : {reason}"
+          "uploadFailed": "La question est enregistrée, mais l'extrait audio n'a pas été envoyé : {reason}",
+          "measuring": "Patientez : la durée du fichier est encore en cours de lecture.",
+          "startFailed": "La question et son fichier sont enregistrés, mais le point de départ n'a pas pu l'être. Réessayez."
         },
         "apiErrors": {
           "question_media_required": "le fichier est vide.",
@@ -129,7 +131,8 @@
           "forbidden": "vous n'avez pas les droits pour modifier cette question.",
           "api_unreachable": "API injoignable.",
           "server_error": "erreur serveur."
-        }
+        },
+        "measuring": "durée en cours de lecture…"
       }
     },
     "themeModes": {

@@ -89,6 +89,8 @@ export type UpdateQuestionStatusResult =
 export interface QuestionAudioState {
   file: File | null
   durationMs: number | null
+  /** Durée du fichier choisi en cours de lecture par le navigateur. */
+  measuring: boolean
   startMs: number
   rightsAttested: boolean
   removeExisting: boolean

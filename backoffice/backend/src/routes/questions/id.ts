@@ -1,6 +1,10 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 
-import { ANSWER_STATUS_DELETED, QUESTION_STATUS_DELETED } from '@quizzup/shared'
+import {
+  ANSWER_STATUS_DELETED,
+  QUESTION_MEDIA_TYPE_AUDIO,
+  QUESTION_STATUS_DELETED,
+} from '@quizzup/shared'
 import db from '../../db'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
 import { requireApiPermission } from '../../security/requireApiPermission'
@@ -12,7 +16,7 @@ import {
   getAnswerStatusFromQuestionStatus,
   getCurrentAdminId,
   getQuestionAccessRow,
-  getQuestionMediaDurationMs,
+  getQuestionMediaState,
   getQuestionWithAnswers,
   getThemesForQuestion,
   hasInvalidAnswerStatus,
@@ -26,6 +30,7 @@ import {
   type QuestionBody,
   type QuestionParams,
 } from './_shared'
+import { buildClearedMediaPatch, removeStoredMediaFile } from './_media'
 
 const questionIdRoutes: FastifyPluginAsync = async (app) => {
   app.get<{ Params: QuestionParams }>(
@@ -176,9 +181,30 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
         patch.media_url = req.body.mediaUrl
       }
 
-      if (req.body.mediaStartMs !== undefined) {
-        const durationMs = await getQuestionMediaDurationMs(questionId)
-        const mediaStartError = validateMediaStartMs(req.body.mediaStartMs, durationMs)
+      const mediaState =
+        req.body.mediaStartMs !== undefined || req.body.typeMedia !== undefined
+          ? await getQuestionMediaState(questionId)
+          : null
+
+      // Quitter le type audio détache le fichier : aucune question « image » ne garde un
+      // extrait servi en douce, et le fichier est supprimé du stockage après la mise à jour.
+      const detachedMediaKey =
+        req.body.typeMedia !== undefined &&
+        req.body.typeMedia !== QUESTION_MEDIA_TYPE_AUDIO &&
+        mediaState?.key
+          ? mediaState.key
+          : null
+
+      if (detachedMediaKey) {
+        Object.assign(patch, buildClearedMediaPatch(db))
+      }
+
+      if (req.body.mediaStartMs !== undefined && !detachedMediaKey) {
+        if (!mediaState?.key) {
+          return reply.code(400).send({ error: 'question_media_not_found' })
+        }
+
+        const mediaStartError = validateMediaStartMs(req.body.mediaStartMs, mediaState.durationMs)
 
         if (mediaStartError) {
           return reply.code(400).send({ error: mediaStartError })
@@ -264,6 +290,8 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
           }
         })
       }
+
+      await removeStoredMediaFile(req, detachedMediaKey)
 
       const question = await getQuestionWithAnswers(questionId, req)
 

@@ -63,6 +63,69 @@ describe('unlock', () => {
   })
 })
 
+describe('contexte audio non démarré', () => {
+  it('play() rejette explicitement si le contexte est fermé', async () => {
+    const player = await loadedPlayer()
+    ctx.state = 'closed'
+
+    await expect(player.play(SONG, 0, 1000)).rejects.toThrow(/AudioContext fermé/)
+    expect(ctx.sources).toHaveLength(0)
+    expect(player.pause()).toBe(0)
+  })
+
+  it('unlock() sur un contexte fermé en recrée un neuf et garde les buffers', async () => {
+    const first = ctx
+    const second = new FakeAudioContext()
+    const contexts = [first, second]
+    const createContext = vi.fn(() => (contexts.shift() as FakeAudioContext).asAudioContext())
+    const player = new WebAudioExtractPlayer({ createContext, fetch: files.fetch })
+    await player.unlock()
+    await player.preload([SONG])
+    const pending = track(player.play(SONG, 0, 5000))
+    first.state = 'closed'
+
+    await player.unlock()
+    await flush()
+
+    expect(pending.value).toBe('stopped')
+    expect(createContext).toHaveBeenCalledTimes(2)
+    expect(player.getContext()).toBe(second.asAudioContext())
+    expect(second.state).toBe('running')
+    const outcome = track(player.play(SONG, 0, 1000))
+    expect(second.lastSource().startCall).toEqual({ when: 0, offset: 0, duration: 1 })
+    expect(files.calls).toEqual([SONG])
+    second.advance(1)
+    await flush()
+    expect(outcome.value).toBe('ended')
+  })
+
+  it('play() sur un contexte suspendu tente resume() puis joue le palier', async () => {
+    const player = createPlayer()
+    await player.preload([SONG])
+    expect(ctx.state).toBe('suspended')
+
+    const outcome = track(player.play(SONG, 0, 1000))
+    await flush()
+
+    expect(ctx.resumeCalls).toBe(1)
+    expect(ctx.state).toBe('running')
+    ctx.advance(1)
+    await flush()
+    expect(outcome.value).toBe('ended')
+  })
+
+  it('play() rejette si le contexte suspendu refuse de reprendre', async () => {
+    const player = createPlayer()
+    await player.preload([SONG])
+    ctx.resume = vi.fn(async () => {
+      throw new Error('NotAllowedError')
+    })
+
+    await expect(player.play(SONG, 0, 1000)).rejects.toThrow(/impossible à reprendre/)
+    expect(player.pause()).toBe(0)
+  })
+})
+
 describe('preload', () => {
   it('télécharge, décode et garde les buffers en mémoire', async () => {
     const player = createPlayer()
@@ -656,17 +719,32 @@ describe('pause / resume', () => {
     expect(ctx.startedSources()).toHaveLength(1)
   })
 
-  it('pause après l’échéance mais avant onended : borne au palier, resume termine', async () => {
+  it('pause après l’échéance mais avant onended : termine le palier en « ended »', async () => {
     const player = await loadedPlayer()
     const outcome = track(player.play(SONG, 0, 1000))
     ctx.currentTime = 1.2 // l'horloge a dépassé la fin, onended pas encore livré
 
     expect(player.pause()).toBe(1000)
-    player.resume()
     await flush()
 
     expect(outcome.value).toBe('ended')
+    expect(player.pause()).toBe(0)
+    player.resume()
     expect(ctx.sources).toHaveLength(1)
+  })
+
+  it('pause pile à l’échéance après une reprise : « ended » et durée totale', async () => {
+    const player = await loadedPlayer()
+    const outcome = track(player.play(SONG, 0, 3000))
+    ctx.advance(1)
+    player.pause()
+    player.resume()
+    ctx.currentTime = 3 // fin réelle atteinte, onended pas encore livré
+
+    expect(player.pause()).toBe(3000)
+    await flush()
+
+    expect(outcome.value).toBe('ended')
   })
 
   it('pause sur un fichier trop court borne le temps restant à la fin du fichier', async () => {

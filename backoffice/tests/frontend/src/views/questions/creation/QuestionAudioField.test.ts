@@ -58,6 +58,7 @@ function emptyState(overrides: Partial<QuestionAudioState> = {}): QuestionAudioS
   return {
     file: null,
     durationMs: null,
+    measuring: false,
     startMs: 0,
     rightsAttested: false,
     removeExisting: false,
@@ -201,6 +202,49 @@ describe('views/questions/creation/QuestionAudioField.vue', () => {
 
     expect(lastState(wrapper)).toMatchObject({ removeExisting: true, startMs: 0, file: null })
     expect(wrapper.text()).toContain('questions.form.audio.empty')
+  })
+
+  it('only cancels the pending replacement when an existing file is kept', async () => {
+    const wrapper = mountField(emptyState(), { existingFile, questionId: 5 })
+
+    await chooseFile(wrapper, new File(['ID3'], 'nouveau.mp3', { type: 'audio/mpeg' }))
+    await wrapper.find('[data-test="audio-remove"]').trigger('click')
+
+    expect(lastState(wrapper)).toMatchObject({ file: null, removeExisting: false })
+    expect(wrapper.find('[data-test="audio-file-name"]').text()).toBe('existant.mp3')
+  })
+
+  it('keeps the file selected while its duration is being measured', async () => {
+    let finishMeasure: ((value: number) => void) | undefined
+    measureAudioDurationMsMock.mockImplementationOnce(
+      () => new Promise<number>((resolve) => (finishMeasure = resolve))
+    )
+    const wrapper = mountField()
+
+    await chooseFile(wrapper, new File(['ID3'], 'lent.mp3', { type: 'audio/mpeg' }))
+
+    expect(lastState(wrapper)).toMatchObject({ measuring: true, durationMs: null })
+
+    finishMeasure?.(42_000)
+    await flushPromises()
+
+    expect(lastState(wrapper)).toMatchObject({ measuring: false, durationMs: 42_000 })
+  })
+
+  it('does not start playing when stop is clicked during the download', async () => {
+    let finishDownload: ((blob: Blob) => void) | undefined
+    fetchQuestionMediaBlobServiceMock.mockImplementationOnce(
+      () => new Promise<Blob>((resolve) => (finishDownload = resolve))
+    )
+    const wrapper = mountField(emptyState(), { existingFile, questionId: 5 })
+
+    await wrapper.find('[data-test="audio-preview-5000"]').trigger('click')
+    await wrapper.find('[data-test="audio-preview-1000"]').trigger('click')
+    finishDownload?.(new Blob(['ID3']))
+    await settle()
+
+    expect(fetchQuestionMediaBlobServiceMock).toHaveBeenCalledTimes(1)
+    expect(playMock).toHaveBeenCalledTimes(1)
   })
 
   it('displays the error passed by the form', () => {

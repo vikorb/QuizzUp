@@ -41,6 +41,14 @@ nouveau `play()` interrompt le précédent (`'stopped'`) ; `stop()` pendant une 
 `pause()` / `resume()` sans lecture ne font rien. Si le **chargement à la volée** échoue, la
 promesse de `play()` est **rejetée** (préférer `preload` pour gérer les échecs en amont).
 
+AudioContext : `unlock()` **doit avoir été appelé dans un geste utilisateur** (clic, touche),
+sinon le navigateur laisse le contexte `suspended` et l'horloge audio reste figée. Si le
+contexte est encore `suspended` au moment de `play()`, le lecteur tente `resume()` ; si la
+reprise échoue, la promesse est **rejetée**. Sur un contexte `closed`, `play()` rejette avec
+une erreur explicite et `unlock()` recrée un contexte neuf (palier en cours `'stopped'`,
+buffers conservés). Une `pause()` qui tombe après la fin réelle du palier (avant la livraison
+d'`onended`) le termine en `'ended'` et renvoie sa durée totale.
+
 ## Usage côté room-app
 
 ```ts

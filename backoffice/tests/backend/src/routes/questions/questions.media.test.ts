@@ -121,7 +121,7 @@ describe('routes/questions/media — upload', () => {
     expect(question).not.toHaveProperty('mediaKey')
     expect(question.mediaStartMs).toBe(0)
     expect(question.mediaFile).toMatchObject({
-      url: '/questions/2/media',
+      url: `/questions/2/media?v=${String(row.media_key).split('/').pop()?.replace('.mp3', '')}`,
       mimeType: 'audio/mpeg',
       sizeBytes: MP3_BYTES.length,
       durationMs: 45_000,
@@ -150,6 +150,30 @@ describe('routes/questions/media — upload', () => {
     expect(storage.removed).toContain(firstKey)
     expect(storage.files.has(firstKey)).toBe(false)
     expect(storage.files.has(secondKey)).toBe(true)
+  })
+
+  it('changes the playback url on each upload so no cache serves the old excerpt', async () => {
+    const first = parseJson<{ question: { mediaFile: { url: string } } }>(await upload(2))
+    const second = parseJson<{ question: { mediaFile: { url: string } } }>(await upload(2))
+
+    expect(first.question.mediaFile.url).toMatch(/^\/questions\/2\/media\?v=[0-9a-f-]{36}$/)
+    expect(second.question.mediaFile.url).not.toBe(first.question.mediaFile.url)
+  })
+
+  it('rejects unauthenticated uploads before reading the body', async () => {
+    const app = await createRouteApp(questionsRoutes)
+
+    const response = await app.inject({
+      method: 'PUT',
+      url: '/questions/2/media?rightsAttested=true',
+      headers: { 'content-type': 'audio/mpeg' },
+      payload: MP3_BYTES,
+    })
+
+    await app.close()
+
+    expect(response.statusCode).toBe(401)
+    expect(storage.files.size).toBe(0)
   })
 
   it('keeps the start point when it still fits in the new file, resets it otherwise', async () => {
@@ -261,7 +285,8 @@ describe('routes/questions/media — read', () => {
     expect(response.statusCode).toBe(200)
     expect(response.headers['content-type']).toBe('audio/mpeg')
     expect(response.headers['content-length']).toBe(String(MP3_BYTES.length))
-    expect(response.headers['cache-control']).toBe('private, max-age=3600')
+    expect(response.headers['cache-control']).toBe('private, no-cache')
+    expect(response.headers.vary).toBe('Authorization')
     expect(response.rawPayload).toEqual(MP3_BYTES)
   })
 
@@ -372,8 +397,55 @@ describe('routes/questions — mediaStartMs', () => {
   })
 
   it('rejects negative or non integer values', async () => {
+    await upload(2)
+
     expect((await patchStart(2, -1)).statusCode).toBe(400)
     expect(parseJson(await patchStart(2, 1.5))).toEqual({ error: 'question_media_start_invalid' })
+  })
+
+  it('refuses a start point on a question without file', async () => {
+    const response = await patchStart(2, 1000)
+
+    expect(response.statusCode).toBe(400)
+    expect(parseJson(response)).toEqual({ error: 'question_media_not_found' })
+  })
+
+  it('detaches and removes the file when the question leaves the audio type', async () => {
+    await upload(2)
+    const key = String(questionRow(2).media_key)
+    const app = await createRouteApp(questionsRoutes)
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/questions/2',
+      headers: authHeaders(companyAdminUser),
+      payload: { typeMedia: QUESTION_MEDIA_TYPE_NONE, mediaStartMs: 5000 },
+    })
+
+    await app.close()
+
+    expect(response.statusCode).toBe(200)
+    expect(questionRow(2).type_media).toBe(QUESTION_MEDIA_TYPE_NONE)
+    expect(questionRow(2).media_key).toBeNull()
+    expect(questionRow(2).media_start_ms).toBe(0)
+    expect(storage.files.has(key)).toBe(false)
+  })
+
+  it('keeps the file when the audio type is resent', async () => {
+    await upload(2)
+    const app = await createRouteApp(questionsRoutes)
+
+    await app.inject({
+      method: 'PATCH',
+      url: '/questions/2',
+      headers: authHeaders(companyAdminUser),
+      payload: { typeMedia: QUESTION_MEDIA_TYPE_AUDIO },
+    })
+
+    await app.close()
+
+    expect(questionRow(2).media_key).not.toBeNull()
+    expect(storage.files.size).toBe(1)
   })
 
   it('rejects a start point after the end of the file', async () => {
@@ -402,7 +474,9 @@ describe('routes/questions — mediaStartMs', () => {
     const withoutMedia = questions.find((question) => question.id === 1)
 
     expect(withMedia).not.toHaveProperty('mediaKey')
-    expect(withMedia?.mediaFile).toMatchObject({ url: '/questions/2/media' })
+    expect(withMedia?.mediaFile).toMatchObject({
+      url: expect.stringMatching(/^\/questions\/2\/media\?v=/),
+    })
     expect(withoutMedia?.mediaFile).toBeNull()
     expect(withoutMedia?.typeMedia).toBe(QUESTION_MEDIA_TYPE_NONE)
   })

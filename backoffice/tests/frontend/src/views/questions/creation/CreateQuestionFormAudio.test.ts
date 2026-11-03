@@ -113,6 +113,33 @@ describe('views/questions/creation/CreateQuestionForm.vue — audio', () => {
     )
   })
 
+  it('waits for the duration measure before saving', async () => {
+    measureAudioDurationMsMock.mockImplementationOnce(() => new Promise<number>(() => {}))
+    const wrapper = mountForm(mediaQuestion(5, { answers }), 'edit')
+
+    await chooseFile(wrapper)
+    await wrapper.find('[data-test="audio-rights"]').setValue(true)
+    await submitForm(wrapper)
+
+    expect(updateQuestionServiceMock).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-test="audio-error"]').text()).toBe(
+      'questions.form.audio.errors.measuring'
+    )
+  })
+
+  it('reports a start point failure separately from the upload', async () => {
+    updateQuestionServiceMock
+      .mockResolvedValueOnce(mediaQuestion(5, { answers }))
+      .mockRejectedValueOnce(new Error('invalid_body'))
+    const wrapper = mountForm(mediaQuestion(5, { answers }), 'edit')
+
+    await wrapper.find('[data-test="audio-start-range"]').setValue('15000')
+    await submitForm(wrapper)
+
+    expect(wrapper.text()).toContain('questions.form.audio.errors.startFailed')
+    expect(wrapper.emitted('saved')).toBeUndefined()
+  })
+
   it('uploads the new file after saving the question', async () => {
     updateQuestionServiceMock.mockResolvedValue(mediaQuestion(5, { answers }))
     const wrapper = mountForm(mediaQuestion(5, { answers }), 'edit')

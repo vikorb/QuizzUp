@@ -54,7 +54,7 @@ export type QuestionBody = {
   companyId?: number | null
   typeMedia?: QuestionMediaType
   mediaUrl?: string | null
-  mediaStartMs?: number | null
+  mediaStartMs?: number
   status?: QuestionStatus
   answers?: unknown
 }
@@ -166,6 +166,13 @@ export function getQuestionMediaPath(questionId: number | string): string {
   return `/questions/${questionId}/media`
 }
 
+/** Version du fichier = uuid de sa clé : change à chaque upload (URL de lecture, ETag). */
+export function getMediaVersion(mediaKey: string): string {
+  const fileName = mediaKey.split('/').pop() ?? mediaKey
+
+  return fileName.replace(/\.[a-z0-9]+$/, '')
+}
+
 function toNullableNumber(value: unknown): number | null {
   return value === null || value === undefined ? null : Number(value)
 }
@@ -187,7 +194,9 @@ export function serializeQuestionMedia<T extends QuestionMediaColumns>(question:
 
   const mediaFile: QuestionMediaFile | null = mediaKey
     ? {
-        url: getQuestionMediaPath(question.id),
+        // URL versionnée : un remplacement change l'URL, donc aucun cache (navigateur ou
+        // préchargement de la salle) ne peut resservir l'ancien extrait.
+        url: `${getQuestionMediaPath(question.id)}?v=${getMediaVersion(mediaKey)}`,
         mimeType: String(mediaMimeType),
         sizeBytes: Number(mediaSizeBytes),
         durationMs: toNullableNumber(mediaDurationMs),
@@ -303,10 +312,21 @@ export async function getQuestionAccessRow(questionId: number): Promise<Question
   return question ? (question as QuestionAccessRow) : null
 }
 
-export async function getQuestionMediaDurationMs(questionId: number): Promise<number | null> {
-  const row = await db('questions').select('media_duration_ms').where({ id: questionId }).first()
+export type QuestionMediaState = {
+  key: string | null
+  durationMs: number | null
+}
 
-  return toNullableNumber(row?.media_duration_ms)
+export async function getQuestionMediaState(questionId: number): Promise<QuestionMediaState> {
+  const row = await db('questions')
+    .select('media_key', 'media_duration_ms')
+    .where({ id: questionId })
+    .first()
+
+  return {
+    key: (row?.media_key as string | null | undefined) ?? null,
+    durationMs: toNullableNumber(row?.media_duration_ms),
+  }
 }
 
 export function normalizeAnswers(answers: unknown): NormalizedAnswer[] {

@@ -236,6 +236,7 @@ function createAudioState(startMs = 0): QuestionAudioState {
   return {
     file: null,
     durationMs: null,
+    measuring: false,
     startMs,
     rightsAttested: false,
     removeExisting: false,
@@ -410,7 +411,9 @@ function validateForm(): boolean {
     errors.answers = 'questions.form.errors.oneCorrectRequired'
   }
 
-  if (isAudio.value && form.audio.file && !form.audio.rightsAttested) {
+  if (isAudio.value && form.audio.file && form.audio.measuring) {
+    errors.audio = 'questions.form.audio.errors.measuring'
+  } else if (isAudio.value && form.audio.file && !form.audio.rightsAttested) {
     errors.audio = 'questions.form.audio.errors.rightsRequired'
   }
 
@@ -489,14 +492,26 @@ async function applyAudioChanges(question: Question): Promise<Question> {
   savedQuestion.value = current
 
   if (current.mediaFile && form.audio.startMs !== (current.mediaStartMs ?? 0)) {
-    current = await updateQuestionService(current.id, { mediaStartMs: form.audio.startMs })
+    try {
+      current = await updateQuestionService(current.id, { mediaStartMs: form.audio.startMs })
+    } catch {
+      throw new QuestionStartPointError()
+    }
+
     savedQuestion.value = current
   }
 
   return current
 }
 
+/** Le fichier est enregistré, seul le point de départ a été refusé. */
+class QuestionStartPointError extends Error {}
+
 function getAudioErrorMessage(error: unknown): string {
+  if (error instanceof QuestionStartPointError) {
+    return t('questions.form.audio.errors.startFailed')
+  }
+
   const code = error instanceof QuestionMediaError ? error.code : 'server_error'
 
   return t('questions.form.audio.errors.uploadFailed', {

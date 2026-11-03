@@ -28,6 +28,7 @@
           variant="icon"
           :disabled="disabled"
           :title="$t('questions.form.audio.remove')"
+          :aria-label="$t('questions.form.audio.remove')"
           data-test="audio-remove"
           @click="removeFile"
         >
@@ -46,7 +47,12 @@
         <span class="audio-field__file-name" data-test="audio-file-name">{{ fileName }}</span>
         <span class="audio-field__file-meta">
           {{ fileSizeLabel }} · {{ durationLabel }}
-          <template v-if="isPendingUpload">· {{ $t('questions.form.audio.pending') }}</template>
+          <template v-if="modelValue.measuring"
+            >· {{ $t('questions.form.audio.measuring') }}</template
+          >
+          <template v-else-if="isPendingUpload"
+            >· {{ $t('questions.form.audio.pending') }}</template
+          >
         </span>
       </div>
 
@@ -62,6 +68,7 @@
             :max="rangeMax"
             :step="AUDIO_START_STEP_MS"
             :value="modelValue.startMs"
+            :aria-valuetext="formatAudioTime(modelValue.startMs)"
             :disabled="disabled || !durationMs"
             data-test="audio-start-range"
             @input="onRangeInput"
@@ -98,6 +105,7 @@
             type="button"
             variant="seg"
             :class="{ 'audio-field__seg--active': playingDurationMs === previewMs }"
+            :aria-pressed="playingDurationMs === previewMs"
             :disabled="disabled || loadingSource"
             :data-test="`audio-preview-${previewMs}`"
             @click="playExcerpt(previewMs)"
@@ -123,6 +131,7 @@
             variant="icon"
             :disabled="!isPlaying"
             :title="$t('questions.form.audio.stop')"
+            :aria-label="$t('questions.form.audio.stop')"
             data-test="audio-stop"
             @click="stopPreview"
           >
@@ -135,6 +144,8 @@
         <input
           type="checkbox"
           :checked="modelValue.rightsAttested"
+          required
+          :aria-invalid="!!error && !modelValue.rightsAttested"
           :disabled="disabled"
           data-test="audio-rights"
           @change="onRightsChange"
@@ -147,8 +158,10 @@
       </label>
     </template>
 
-    <p v-if="error" class="audio-field__error" data-test="audio-error">{{ error }}</p>
-    <p v-if="previewError" class="audio-field__error">{{ previewError }}</p>
+    <p v-if="error" class="audio-field__error" role="alert" data-test="audio-error">
+      {{ error }}
+    </p>
+    <p v-if="previewError" class="audio-field__error" role="alert">{{ previewError }}</p>
   </section>
 </template>
 
@@ -215,6 +228,8 @@ const isPlaying = ref(false)
 const playingDurationMs = ref<number | null>(null)
 const currentPositionMs = ref(0)
 let stopTimer: number | null = null
+let playToken = 0
+let existingUrlRequest: Promise<string | null> | null = null
 
 const maxSizeLabel = formatFileSize(QUESTION_AUDIO_DEFAULT_MAX_BYTES)
 
@@ -293,14 +308,19 @@ async function onFileChange(event: Event): Promise<void> {
   revokePendingUrl()
   pendingUrl.value = URL.createObjectURL(file)
 
+  // Le fichier est retenu tout de suite ; l'enregistrement attend la fin de la mesure.
+  update({ file, durationMs: null, measuring: true, rightsAttested: false, removeExisting: false })
+
   const measuredMs = await measureAudioDurationMs(pendingUrl.value)
 
+  if (props.modelValue.file !== file) {
+    return
+  }
+
   update({
-    file,
     durationMs: measuredMs,
+    measuring: false,
     startMs: clampStartMs(props.modelValue.startMs, measuredMs),
-    rightsAttested: false,
-    removeExisting: false,
   })
 }
 
@@ -309,9 +329,22 @@ function removeFile(): void {
   revokePendingUrl()
   currentPositionMs.value = 0
 
+  // Avec un remplacement en attente, la corbeille annule seulement le remplacement.
+  if (isPendingUpload.value && visibleExistingFile.value) {
+    update({
+      file: null,
+      durationMs: null,
+      measuring: false,
+      rightsAttested: false,
+      startMs: clampStartMs(props.modelValue.startMs, visibleExistingFile.value.durationMs),
+    })
+    return
+  }
+
   update({
     file: null,
     durationMs: null,
+    measuring: false,
     startMs: 0,
     rightsAttested: false,
     removeExisting: props.existingFile !== null,
@@ -346,10 +379,17 @@ async function resolveSourceUrl(): Promise<string | null> {
     return null
   }
 
+  // Deux clics rapides partagent le même téléchargement.
+  existingUrlRequest ??= downloadExistingFile(props.questionId)
+
+  return existingUrlRequest
+}
+
+async function downloadExistingFile(questionId: number): Promise<string | null> {
   loadingSource.value = true
 
   try {
-    const blob = await fetchQuestionMediaBlobService(props.questionId)
+    const blob = await fetchQuestionMediaBlobService(questionId)
 
     existingUrl.value = URL.createObjectURL(blob)
 
@@ -360,6 +400,7 @@ async function resolveSourceUrl(): Promise<string | null> {
     return null
   } finally {
     loadingSource.value = false
+    existingUrlRequest = null
   }
 }
 
@@ -392,9 +433,11 @@ async function playExcerpt(previewMs: number | null): Promise<void> {
   previewError.value = null
   stopPreview()
 
+  const token = playToken
   const source = await resolveSourceUrl()
 
-  if (!source) {
+  // Un « Stop » ou une autre pré-écoute est arrivé pendant le chargement.
+  if (!source || token !== playToken) {
     return
   }
 
@@ -413,6 +456,11 @@ async function playExcerpt(previewMs: number | null): Promise<void> {
     return
   }
 
+  if (token !== playToken) {
+    element.pause()
+    return
+  }
+
   isPlaying.value = true
   playingDurationMs.value = previewMs
 
@@ -422,11 +470,22 @@ async function playExcerpt(previewMs: number | null): Promise<void> {
 }
 
 function stopPreview(): void {
+  playToken += 1
   clearStopTimer()
   audio.value?.pause()
   isPlaying.value = false
   playingDurationMs.value = null
 }
+
+// Après l'upload, le formulaire remet `file` à null : on libère l'URL locale du fichier.
+watch(
+  () => props.modelValue.file,
+  (file) => {
+    if (!file) {
+      revokePendingUrl()
+    }
+  }
+)
 
 watch(
   () => props.existingFile?.url,

@@ -26,7 +26,9 @@
           "audioEmpty": "The file is empty.",
           "rightsRequired": "Tick the rights statement to upload this file.",
           "previewFailed": "This file cannot be played in the browser.",
-          "uploadFailed": "The question is saved, but the audio excerpt was not uploaded: {reason}"
+          "uploadFailed": "The question is saved, but the audio excerpt was not uploaded: {reason}",
+          "measuring": "Please wait: the file duration is still being read.",
+          "startFailed": "The question and its file are saved, but the start point could not be. Try again."
         },
         "apiErrors": {
           "question_media_required": "the file is empty.",
@@ -39,7 +41,8 @@
           "forbidden": "you are not allowed to edit this question.",
           "api_unreachable": "API unreachable.",
           "server_error": "server error."
-        }
+        },
+        "measuring": "reading duration…"
       }
     }
   }

@@ -21,10 +21,17 @@ import {
   isValidMediaKey,
 } from '../../storage/mediaStorage'
 import {
+  buildClearedMediaPatch,
+  lockQuestionMediaRow,
+  type QuestionMediaRow,
+  removeStoredMediaFile,
+} from './_media'
+import {
   canEditQuestion,
   canReadQuestion,
   getCurrentAdminId,
   getQuestionAccessRow,
+  getMediaVersion,
   getQuestionWithAnswers,
   parsePositiveId,
   type QuestionAccessRow,
@@ -37,21 +44,16 @@ type MediaUploadQuery = {
   rightsAttested?: string
 }
 
-type QuestionMediaRow = {
-  media_key: string | null
-  media_mime_type: string | null
-  media_start_ms: number | string | null
-}
-
 type AccessResult =
   | { ok: true; questionId: number; question: QuestionAccessRow }
   | { ok: false; status: number; error: string }
 
 const MAX_DURATION_MS = 60 * 60 * 1000
 
-// Lecture de l'extrait en cache navigateur (privé) : la clé change à chaque upload, donc
-// l'URL ne renvoie jamais un ancien fichier après remplacement (ETag = clé).
-const MEDIA_CACHE_CONTROL = 'private, max-age=3600'
+// Cache navigateur privé mais toujours revalidé (ETag = version du fichier) : après un
+// remplacement ou un changement de compte sur le PC de salle, le serveur recontrôle la requête
+// et renvoie 304 seulement si c'est bien le même fichier.
+const MEDIA_CACHE_CONTROL = 'private, no-cache'
 
 async function resolveQuestionAccess(
   req: FastifyRequest<{ Params: QuestionParams }>,
@@ -125,17 +127,20 @@ function keepStartMs(currentStartMs: unknown, durationMs: number | null): number
   return durationMs !== null && startMs >= durationMs ? 0 : startMs
 }
 
-async function removeStoredFile(req: FastifyRequest, key: string | null): Promise<void> {
-  if (!isValidMediaKey(key)) {
-    return
+/** Authentification et permission avant la lecture du corps (jusqu'à 10 Mo en mémoire). */
+async function rejectBeforeUploadParsing(
+  req: FastifyRequest,
+  reply: FastifyReply
+): Promise<FastifyReply | undefined> {
+  if (reply.sent) {
+    return reply
   }
 
-  try {
-    await getMediaStorage().remove(key)
-  } catch (error) {
-    // Un fichier orphelin ne doit pas faire échouer la requête : il est seulement journalisé.
-    req.log.warn({ err: error, key }, 'question media removal failed')
+  if (!requireApiPermission(req, reply, API_RESOURCE.QUESTION, API_ACTION.UPDATE)) {
+    return reply
   }
+
+  return undefined
 }
 
 const questionMediaRoutes: FastifyPluginAsync = async (app) => {
@@ -171,9 +176,10 @@ const questionMediaRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(404).send({ error: 'question_media_not_found' })
       }
 
-      const etag = `"${media.media_key.split('/').pop()}"`
+      const etag = `"${getMediaVersion(media.media_key)}"`
 
       reply.header('Cache-Control', MEDIA_CACHE_CONTROL)
+      reply.header('Vary', 'Authorization')
       reply.header('ETag', etag)
 
       if (req.headers['if-none-match'] === etag) {
@@ -197,22 +203,14 @@ const questionMediaRoutes: FastifyPluginAsync = async (app) => {
 
   app.put<{ Params: QuestionParams; Querystring: MediaUploadQuery; Body: Buffer }>(
     '/questions/:questionId/media',
-    { preHandler: [app.authenticate], bodyLimit: getMediaMaxBytes() },
+    {
+      onRequest: [app.authenticate, rejectBeforeUploadParsing],
+      bodyLimit: getMediaMaxBytes(),
+    },
     async (
       req: FastifyRequest<{ Params: QuestionParams; Querystring: MediaUploadQuery; Body: Buffer }>,
       reply: FastifyReply
     ) => {
-      const hasPermission = requireApiPermission(
-        req,
-        reply,
-        API_RESOURCE.QUESTION,
-        API_ACTION.UPDATE
-      )
-
-      if (!hasPermission) {
-        return
-      }
-
       const adminId = getCurrentAdminId(req)
 
       if (adminId === null) {
@@ -252,35 +250,42 @@ const questionMediaRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(400).send({ error: 'question_media_duration_invalid' })
       }
 
-      const previous = await getQuestionMediaRow(access.questionId)
       const key = buildQuestionMediaKey(access.questionId, QUESTION_AUDIO_EXTENSIONS[mimeType])
 
       await getMediaStorage().save(key, content)
 
+      let replacedKey: string | null = null
+
       try {
-        await db('questions')
-          .where({ id: access.questionId })
-          .update({
-            type_media: QUESTION_MEDIA_TYPE_AUDIO,
-            media_url: null,
-            media_key: key,
-            media_mime_type: mimeType,
-            media_size_bytes: content.length,
-            media_duration_ms: durationMs,
-            media_start_ms: keepStartMs(previous?.media_start_ms, durationMs),
-            media_original_name: decodeFileName(req.query.fileName),
-            media_uploaded_by: adminId,
-            media_uploaded_at: db.fn.now(),
-            media_rights_attested_at: db.fn.now(),
-            updated_at: db.fn.now(),
-          })
+        replacedKey = await db.transaction(async (trx) => {
+          const previous = await lockQuestionMediaRow(trx, access.questionId)
+
+          await trx('questions')
+            .where({ id: access.questionId })
+            .update({
+              type_media: QUESTION_MEDIA_TYPE_AUDIO,
+              media_url: null,
+              media_key: key,
+              media_mime_type: mimeType,
+              media_size_bytes: content.length,
+              media_duration_ms: durationMs,
+              media_start_ms: keepStartMs(previous?.media_start_ms, durationMs),
+              media_original_name: decodeFileName(req.query.fileName),
+              media_uploaded_by: adminId,
+              media_uploaded_at: trx.fn.now(),
+              media_rights_attested_at: trx.fn.now(),
+              updated_at: trx.fn.now(),
+            })
+
+          return previous?.media_key ?? null
+        })
       } catch (error) {
-        await removeStoredFile(req, key)
+        await removeStoredMediaFile(req, key)
         throw error
       }
 
-      if (previous?.media_key && previous.media_key !== key) {
-        await removeStoredFile(req, previous.media_key)
+      if (replacedKey !== key) {
+        await removeStoredMediaFile(req, replacedKey)
       }
 
       const question = await getQuestionWithAnswers(access.questionId, req)
@@ -310,26 +315,24 @@ const questionMediaRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(access.status).send({ error: access.error })
       }
 
-      const previous = await getQuestionMediaRow(access.questionId)
+      // Le type média reste `audio` : la question attend simplement un nouveau fichier.
+      const removedKey = await db.transaction(async (trx) => {
+        const previous = await lockQuestionMediaRow(trx, access.questionId)
 
-      if (!previous?.media_key) {
+        if (!previous?.media_key) {
+          return null
+        }
+
+        await trx('questions').where({ id: access.questionId }).update(buildClearedMediaPatch(trx))
+
+        return previous.media_key
+      })
+
+      if (!removedKey) {
         return reply.code(404).send({ error: 'question_media_not_found' })
       }
 
-      await db('questions').where({ id: access.questionId }).update({
-        media_key: null,
-        media_mime_type: null,
-        media_size_bytes: null,
-        media_duration_ms: null,
-        media_start_ms: 0,
-        media_original_name: null,
-        media_uploaded_by: null,
-        media_uploaded_at: null,
-        media_rights_attested_at: null,
-        updated_at: db.fn.now(),
-      })
-
-      await removeStoredFile(req, previous.media_key)
+      await removeStoredMediaFile(req, removedKey)
 
       const question = await getQuestionWithAnswers(access.questionId, req)
 

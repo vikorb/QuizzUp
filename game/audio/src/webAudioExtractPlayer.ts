@@ -59,9 +59,14 @@ export class WebAudioExtractPlayer implements ExtractPlayer {
     return this.context
   }
 
+  /**
+   * À appeler dans un geste utilisateur (politique autoplay). Un contexte fermé est remplacé
+   * par un contexte neuf : le palier en cours est arrêté, les buffers décodés sont conservés.
+   */
   async unlock(): Promise<void> {
+    if (this.context?.state === 'closed') this.replaceClosedContext()
     const context = this.getContext()
-    if (context.state === 'running' || context.state === 'closed') return
+    if (context.state === 'running') return
     await context.resume()
   }
 
@@ -120,9 +125,17 @@ export class WebAudioExtractPlayer implements ExtractPlayer {
     this.stop()
     if (!(durationMs > 0)) return Promise.resolve('ended')
 
+    const context = this.getContext()
+    if (context.state === 'closed') {
+      return Promise.reject(
+        new Error('AudioContext fermé : appeler unlock() pour en recréer un avant play()')
+      )
+    }
+
     return new Promise<PlayOutcome>((resolve, reject) => {
       const segment = createSegment(url, sanitizeStart(startSec), durationMs, resolve)
       this.current = segment
+      if (context.state === 'suspended') this.resumeFor(segment, context, reject)
       const buffer = this.buffers.get(url)
       if (buffer) {
         this.begin(segment, buffer)
@@ -150,7 +163,13 @@ export class WebAudioExtractPlayer implements ExtractPlayer {
 
     const elapsedMs = (this.getContext().currentTime - segment.runStartedAt) * 1000
     const remainingMs = segment.totalMs - segment.playedMs
-    segment.playedMs = roundMs(segment.playedMs + clamp(elapsedMs, 0, remainingMs))
+    if (elapsedMs >= remainingMs) {
+      // La source a déjà fini mais `onended` n'est pas encore livré : le palier est terminé.
+      segment.playedMs = segment.totalMs
+      this.finish(segment, 'ended')
+      return segment.totalMs
+    }
+    segment.playedMs = roundMs(segment.playedMs + Math.max(0, elapsedMs))
     this.halt(segment)
     return segment.playedMs
   }
@@ -168,6 +187,31 @@ export class WebAudioExtractPlayer implements ExtractPlayer {
     if (!segment) return
     this.halt(segment)
     this.finish(segment, 'stopped')
+  }
+
+  /**
+   * Contexte suspendu au moment de `play()` : on tente de le reprendre. La source peut être
+   * planifiée tout de suite (elle démarre quand l'horloge repart) ; si la reprise échoue, le
+   * palier est rejeté au lieu de rester bloqué sur une horloge figée.
+   */
+  private resumeFor(segment: Segment, context: AudioContext, reject: (error: Error) => void): void {
+    context.resume().catch((error: unknown) => {
+      if (this.current !== segment) return
+      this.halt(segment)
+      this.current = null
+      const reason = error instanceof Error ? error.message : String(error)
+      reject(
+        new Error(`AudioContext suspendu et impossible à reprendre (unlock() oublié ?) : ${reason}`)
+      )
+    })
+  }
+
+  /** Abandonne un contexte fermé (et son gain maître) ; le palier en cours est arrêté. */
+  private replaceClosedContext(): void {
+    const segment = this.current
+    if (segment) this.finish(segment, 'stopped')
+    this.context = null
+    this.master = null
   }
 
   /** Le buffer est disponible : on borne le palier à la fin du fichier puis on lance. */
