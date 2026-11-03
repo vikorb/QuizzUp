@@ -1,0 +1,57 @@
+{
+  "room": {
+    "brand": "QuizzUP",
+    "demoBadge": "Mode démo",
+    "desk": "Pupitre {n}",
+    "launch": {
+      "title": "Prêt à jouer",
+      "subtitle": "Lance la salle pour passer en plein écran, garder l’écran allumé et activer le son.",
+      "start": "Lancer la salle",
+      "starting": "Lancement…",
+      "resumeTitle": "Une partie est en cours",
+      "resumeText": "La page a été rechargée pendant une partie. Tu peux la reprendre où elle s’était arrêtée.",
+      "resume": "Reprendre la partie",
+      "discard": "Abandonner cette partie",
+      "discardConfirm": "Abandonner définitivement la partie en cours ?",
+      "browserHint": "Utilise Chrome ou Edge : ce sont les seuls navigateurs qui pilotent les lumières en USB.",
+      "fullscreenFailed": "Le plein écran a été refusé par le navigateur. Tu peux le relancer avec la touche F11."
+    },
+    "lobby": {
+      "title": "Inscription des joueurs",
+      "subtitle": "Un joueur par pupitre, de 1 à 4. Appuie sur un buzzer pour vérifier ton pupitre.",
+      "displayName": "Pseudo affiché",
+      "displayNamePlaceholder": "Ton pseudo",
+      "email": "Email (facultatif)",
+      "emailPlaceholder": "prenom{'@'}exemple.fr",
+      "consent": "J’accepte que le centre conserve mon email pour m’envoyer mes résultats et ses actualités. Conservation 3 ans maximum, désinscription possible à tout moment.",
+      "privacyNote": "Ton email n’est jamais affiché à l’écran ni partagé avec les autres joueurs.",
+      "empty": "Pupitre libre",
+      "buzzerOk": "Buzzer OK",
+      "clear": "Libérer le pupitre",
+      "format": "Format de partie",
+      "formatFull": "Partie complète · {rounds} manches × {questions} questions",
+      "formatShort": "Partie courte · {rounds} manches × {questions} questions",
+      "start": "Démarrer la partie",
+      "needPlayer": "Inscris au moins un joueur pour démarrer.",
+      "keysHint": "Simulation clavier : {keys}",
+      "errors": {
+        "required": "Le pseudo est obligatoire.",
+        "too_long": "{max} caractères maximum.",
+        "invalid": "Email invalide.",
+        "consent_required": "Coche la case de consentement, ou laisse l’email vide."
+      },
+      "startFailed": "Impossible de démarrer la partie (contenu indisponible). Réessaie ou passe en mode démo."
+    },
+    "focus": {
+      "title": "Buzzers inactifs",
+      "text": "La fenêtre du jeu n’a plus le focus : les buzzers ne sont plus reçus.",
+      "action": "Clique n’importe où pour réactiver les buzzers"
+    },
+    "toolbar": {
+      "fullscreen": "Plein écran",
+      "exitFullscreen": "Quitter le plein écran",
+      "abort": "Arrêter la partie",
+      "abortConfirm": "Arrêter la partie en cours ? Les scores actuels seront conservés comme résultat."
+    }
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "name": "@quizzup/room-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Écran de salle QuizzUp : application Vue 3 qui tourne dans Chrome / Edge sur le PC de la salle et exécute le moteur de jeu.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "type-check": "vue-tsc -p tsconfig.json --noEmit",
+    "test": "vitest --run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest --run --coverage"
+  },
+  "dependencies": {
+    "@mdi/js": "^7.4.47",
+    "vue": "^3.5.25",
+    "vue-i18n": "^11.2.8",
+    "vue-router": "^5.0.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.10.1",
+    "@vitejs/plugin-vue": "^6.0.2",
+    "@vitest/coverage-v8": "~4.1.10",
+    "@vue/test-utils": "^2.4.10",
+    "eslint": "~10.8.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-simple-import-sort": "^12.1.1",
+    "eslint-plugin-unicorn": "^63.0.0",
+    "eslint-plugin-unused-imports": "^4.4.1",
+    "eslint-plugin-vue": "^10.8.0",
+    "globals": "~17.8.0",
+    "jsdom": "^29.1.1",
+    "lint-staged": "^16.3.1",
+    "prettier": "~3.9.6",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "~8.65.0",
+    "vite": "^7.3.1",
+    "vitest": "~4.1.10",
+    "vue-eslint-parser": "^10.4.0",
+    "vue-tsc": "^3.1.5"
+  }
+}

@@ -20,8 +20,8 @@ Rôles (multi-tenant) :
 
 - ✅ **Backoffice** (auth, compagnies, comptes, thèmes, questions, réponses) : mûr et testé.
 - 🔨 **Moteur de jeu** : en cours. Tables `rooms`, `games`, `game_*` migrées ; moteur pur dans
-  `game/engine` (blind test éclair en V1). À venir : écran de salle web (`game/room-app`),
-  buzzers clavier, DMX. Cadrage : `docs/cadrage/bilan-cadrage-version-finale.md`.
+  `game/engine` (blind test éclair en V1) ; écran de salle web `game/room-app` (connexion,
+  lobby RGPD, partie complète, mode démo). À venir : buzzers appris, audio Web Audio, DMX. Cadrage : `docs/cadrage/bilan-cadrage-version-finale.md`.
 
 ## 2. Structure du dépôt (monorepo)
 
@@ -38,10 +38,10 @@ backoffice/
 
 ```
 game/
-└─ engine/     @quizzup/game-engine — moteur pur et déterministe (npm séparé, tests dans engine/tests)
+├─ engine/     @quizzup/game-engine — moteur pur et déterministe (npm séparé, tests dans engine/tests)
+└─ room-app/   @quizzup/room-app — écran de salle Vue 3, 100 % navigateur (npm séparé, port 4174),
+               charte importée du backoffice, consomme le moteur en sources (cf. son README)
 ```
-
-À venir : `game/room-app/` (écran de salle Vue 3 en PWA, sans installation).
 
 ## 3. Remotes & CI — IMPORTANT
 
