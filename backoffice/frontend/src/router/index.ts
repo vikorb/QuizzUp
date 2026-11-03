@@ -9,6 +9,8 @@ import CreateAccountView from '@/views/clients/accounts/CreateAccountView.vue'
 import ClientDetailsView from '@/views/clients/ClientDetailsView.vue'
 import CreateClientView from '@/views/clients/CreateClientView.vue'
 import ClientsView from '@/views/ClientsView.vue'
+import CreateGameView from '@/views/games/CreateGameView.vue'
+import GameDetailView from '@/views/games/GameDetailView.vue'
 import GamesView from '@/views/GamesView.vue'
 import HomeView from '@/views/HomeView.vue'
 import LoginView from '@/views/LoginView.vue'
@@ -160,6 +162,18 @@ export const router = createRouter({
           path: 'games',
           name: 'games',
           component: GamesView,
+          meta: { requiresAuth: true },
+        },
+        {
+          path: 'games/create',
+          name: 'games-create',
+          component: CreateGameView,
+          meta: { requiresAuth: true },
+        },
+        {
+          path: 'games/:gameId',
+          name: 'games-detail',
+          component: GameDetailView,
           meta: { requiresAuth: true },
         },
         {

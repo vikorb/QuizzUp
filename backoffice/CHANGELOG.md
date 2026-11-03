@@ -63,6 +63,8 @@ Format inspiré de Keep a Changelog.
 
 - Ajout de la section « Salles » sur la fiche compagnie du backoffice : recherche, filtre par statut, activation/désactivation, suppression avec confirmation, création et renommage dans un formulaire inline, indicateur de configuration matérielle. Lecture seule pour le rôle `user`, salles supprimées réservées au superadmin.
   US: US-ROOM-01
+- Ajout de l'écran « Parties » du backoffice : liste filtrable par état avec arrêt confirmé, page de lancement (salle active, 1 à 4 participants par pupitre, case de consentement RGPD non cochée et obligatoire si un email est saisi, format modifiable), détail d'une partie (participants, scores, dates). Le superadmin choisit la compagnie.
+  US: US-GAME-08
 
 - Ajout du rôle `room` (compte de salle rattaché à une salle, un seul compte actif par salle).
   US: US-ROOM-02
