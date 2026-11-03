@@ -3,6 +3,7 @@ export {
   WebAudioExtractPlayer,
   DEFAULT_CONCURRENCY,
   DEFAULT_FADE_MS,
+  DEFAULT_RESUME_TIMEOUT_MS,
   type WebAudioExtractPlayerOptions,
 } from './webAudioExtractPlayer'
 export {

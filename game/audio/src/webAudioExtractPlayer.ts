@@ -1,6 +1,8 @@
 import type { ExtractPlayer, PlayOutcome, PreloadOptions, PreloadResult } from './extractPlayer'
 
 export const DEFAULT_FADE_MS = 15
+/** Délai max pour qu'un contexte suspendu reprenne avant que `play()` n'abandonne. */
+export const DEFAULT_RESUME_TIMEOUT_MS = 2000
 export const DEFAULT_CONCURRENCY = 3
 
 type FetchFn = (url: string) => Promise<Response>
@@ -10,6 +12,7 @@ export type WebAudioExtractPlayerOptions = {
   createContext?: () => AudioContext
   /** Fondu d'entrée/sortie en ms, pour éviter les clics (défaut 15). */
   fadeMs?: number
+  resumeTimeoutMs?: number
   /** Volume général entre 0 et 1 (défaut 1). */
   volume?: number
   /** Fetch par défaut pour les chargements à la volée (défaut : `fetch` global). */
@@ -40,6 +43,7 @@ export class WebAudioExtractPlayer implements ExtractPlayer {
   private readonly fadeSec: number
   private volume: number
   private fetchFn: FetchFn
+  private readonly resumeTimeoutMs: number
   private context: AudioContext | null = null
   private master: GainNode | null = null
   private readonly buffers = new Map<string, AudioBuffer>()
@@ -51,6 +55,7 @@ export class WebAudioExtractPlayer implements ExtractPlayer {
     this.fadeSec = Math.max(0, options.fadeMs ?? DEFAULT_FADE_MS) / 1000
     this.volume = clampVolume(options.volume ?? 1, 1)
     this.fetchFn = options.fetch ?? ((url) => fetch(url))
+    this.resumeTimeoutMs = Math.max(0, options.resumeTimeoutMs ?? DEFAULT_RESUME_TIMEOUT_MS)
   }
 
   /** AudioContext partagé (créé au premier besoin), réutilisable par `UiSoundPlayer`. */
@@ -195,15 +200,28 @@ export class WebAudioExtractPlayer implements ExtractPlayer {
    * palier est rejeté au lieu de rester bloqué sur une horloge figée.
    */
   private resumeFor(segment: Segment, context: AudioContext, reject: (error: Error) => void): void {
-    context.resume().catch((error: unknown) => {
+    const abandon = (reason: string): void => {
       if (this.current !== segment) return
       this.halt(segment)
       this.current = null
-      const reason = error instanceof Error ? error.message : String(error)
       reject(
         new Error(`AudioContext suspendu et impossible à reprendre (unlock() oublié ?) : ${reason}`)
       )
-    })
+    }
+
+    // Sans geste utilisateur, `resume()` peut rester en attente sans jamais rejeter : ce délai
+    // de garde (pas une mesure de temps de jeu) évite de bloquer le moteur indéfiniment.
+    const watchdog = setTimeout(() => {
+      if (context.state !== 'running') abandon('délai dépassé')
+    }, this.resumeTimeoutMs)
+
+    context.resume().then(
+      () => clearTimeout(watchdog),
+      (error: unknown) => {
+        clearTimeout(watchdog)
+        abandon(error instanceof Error ? error.message : String(error))
+      }
+    )
   }
 
   /** Abandonne un contexte fermé (et son gain maître) ; le palier en cours est arrêté. */

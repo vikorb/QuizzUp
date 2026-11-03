@@ -44,7 +44,8 @@ promesse de `play()` est **rejetée** (préférer `preload` pour gérer les éch
 AudioContext : `unlock()` **doit avoir été appelé dans un geste utilisateur** (clic, touche),
 sinon le navigateur laisse le contexte `suspended` et l'horloge audio reste figée. Si le
 contexte est encore `suspended` au moment de `play()`, le lecteur tente `resume()` ; si la
-reprise échoue, la promesse est **rejetée**. Sur un contexte `closed`, `play()` rejette avec
+reprise échoue, ou si elle n'aboutit pas dans `resumeTimeoutMs` (2 s par défaut, option du
+constructeur), la promesse est **rejetée**. Sur un contexte `closed`, `play()` rejette avec
 une erreur explicite et `unlock()` recrée un contexte neuf (palier en cours `'stopped'`,
 buffers conservés). Une `pause()` qui tombe après la fin réelle du palier (avant la livraison
 d'`onended`) le termine en `'ended'` et renvoie sa durée totale.

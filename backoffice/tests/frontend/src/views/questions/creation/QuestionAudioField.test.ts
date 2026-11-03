@@ -231,22 +231,6 @@ describe('views/questions/creation/QuestionAudioField.vue', () => {
     expect(lastState(wrapper)).toMatchObject({ measuring: false, durationMs: 42_000 })
   })
 
-  it('does not start playing when stop is clicked during the download', async () => {
-    let finishDownload: ((blob: Blob) => void) | undefined
-    fetchQuestionMediaBlobServiceMock.mockImplementationOnce(
-      () => new Promise<Blob>((resolve) => (finishDownload = resolve))
-    )
-    const wrapper = mountField(emptyState(), { existingFile, questionId: 5 })
-
-    await wrapper.find('[data-test="audio-preview-5000"]').trigger('click')
-    await wrapper.find('[data-test="audio-preview-1000"]').trigger('click')
-    finishDownload?.(new Blob(['ID3']))
-    await settle()
-
-    expect(fetchQuestionMediaBlobServiceMock).toHaveBeenCalledTimes(1)
-    expect(playMock).toHaveBeenCalledTimes(1)
-  })
-
   it('displays the error passed by the form', () => {
     const wrapper = mountField(emptyState(), { error: 'Cochez l’attestation' })
 

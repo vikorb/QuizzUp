@@ -448,6 +448,23 @@ describe('routes/questions — mediaStartMs', () => {
     expect(storage.files.size).toBe(1)
   })
 
+  it('rolls back the whole update when the start point is refused', async () => {
+    await upload(2)
+    const app = await createRouteApp(questionsRoutes)
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/questions/2',
+      headers: authHeaders(companyAdminUser),
+      payload: { question: 'Nouveau texte', mediaStartMs: 999_999 },
+    })
+
+    await app.close()
+
+    expect(response.statusCode).toBe(400)
+    expect(questionRow(2).question).toBe('Company1 Q')
+  })
+
   it('rejects a start point after the end of the file', async () => {
     await upload(2)
 

@@ -126,6 +126,26 @@ describe('contexte audio non démarré', () => {
   })
 })
 
+describe('contexte bloqué par le navigateur', () => {
+  it('play() abandonne si resume() reste en attente (pas de geste utilisateur)', async () => {
+    vi.useFakeTimers()
+    try {
+      const player = createPlayer()
+      await player.preload([SONG])
+      ctx.resume = vi.fn(() => new Promise<void>(() => {}))
+
+      const outcome = player.play(SONG, 0, 1000)
+      const assertion = expect(outcome).rejects.toThrow(/délai dépassé/)
+      await vi.advanceTimersByTimeAsync(2000)
+
+      await assertion
+      expect(player.pause()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe('preload', () => {
   it('télécharge, décode et garde les buffers en mémoire', async () => {
     const player = createPlayer()

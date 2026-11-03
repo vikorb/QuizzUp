@@ -312,23 +312,6 @@ export async function getQuestionAccessRow(questionId: number): Promise<Question
   return question ? (question as QuestionAccessRow) : null
 }
 
-export type QuestionMediaState = {
-  key: string | null
-  durationMs: number | null
-}
-
-export async function getQuestionMediaState(questionId: number): Promise<QuestionMediaState> {
-  const row = await db('questions')
-    .select('media_key', 'media_duration_ms')
-    .where({ id: questionId })
-    .first()
-
-  return {
-    key: (row?.media_key as string | null | undefined) ?? null,
-    durationMs: toNullableNumber(row?.media_duration_ms),
-  }
-}
-
 export function normalizeAnswers(answers: unknown): NormalizedAnswer[] {
   if (!Array.isArray(answers)) {
     return []

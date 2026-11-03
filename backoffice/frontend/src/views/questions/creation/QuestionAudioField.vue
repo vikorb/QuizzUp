@@ -452,7 +452,11 @@ async function playExcerpt(previewMs: number | null): Promise<void> {
   try {
     await element.play()
   } catch {
-    previewError.value = t('questions.form.audio.errors.previewFailed')
+    // Une lecture interrompue volontairement (Stop, autre fichier) n'est pas une erreur.
+    if (token === playToken) {
+      previewError.value = t('questions.form.audio.errors.previewFailed')
+    }
+
     return
   }
 
