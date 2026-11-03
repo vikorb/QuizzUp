@@ -1,5 +1,9 @@
 if [ -d backoffice/node_modules ]; then
-  cd backoffice && npx --no -- lint-staged
+  (cd backoffice && npx --no -- lint-staged) || exit 1
 else
   echo "husky(pre-commit): backoffice/node_modules absent -> lint-staged ignore. Lance 'npm install' dans backoffice/ pour activer le lint pre-commit."
+fi
+
+if [ -d game/engine/node_modules ]; then
+  (cd game/engine && npx --no -- lint-staged) || exit 1
 fi
