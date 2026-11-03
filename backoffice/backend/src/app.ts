@@ -7,6 +7,7 @@ import fs from 'node:fs'
 
 import routes from './routes'
 import authPlugin from './plugins/auth'
+import { parseCorsOrigin } from './utils/cors'
 
 import type { FastifyStaticSwaggerOptions } from '@fastify/swagger'
 
@@ -35,7 +36,7 @@ export function buildApp() {
   const app = Fastify({ logger: true })
 
   app.register(cors, {
-    origin: process.env.CORS_ORIGIN || true,
+    origin: parseCorsOrigin(process.env.CORS_ORIGIN),
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
