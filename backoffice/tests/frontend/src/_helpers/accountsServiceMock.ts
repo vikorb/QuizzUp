@@ -142,7 +142,7 @@ export const loadCompanyAccountsServiceMock = vi.fn(
     data: {
       accounts: accountsFixture,
     },
-  }),
+  })
 )
 
 export const loadCompanyAccountServiceMock = vi.fn(
@@ -155,11 +155,14 @@ export const loadCompanyAccountServiceMock = vi.fn(
         email: 'loaded@quizzup.test',
       }),
     },
-  }),
+  })
 )
 
 export const createCompanyAccountServiceMock = vi.fn(
-  async (companyId: number, payload: Record<string, unknown>): Promise<CreateCompanyAccountResult> => ({
+  async (
+    companyId: number,
+    payload: Record<string, unknown>
+  ): Promise<CreateCompanyAccountResult> => ({
     ok: true,
     data: {
       account: createAccountFixture({
@@ -171,14 +174,14 @@ export const createCompanyAccountServiceMock = vi.fn(
         role: (payload.role as AdminRole | undefined) ?? ADMIN_ROLE_USER,
       }),
     },
-  }),
+  })
 )
 
 export const updateCompanyAccountServiceMock = vi.fn(
   async (
     companyId: number,
     accountId: number,
-    payload: Record<string, unknown>,
+    payload: Record<string, unknown>
   ): Promise<UpdateCompanyAccountResult> => ({
     ok: true,
     data: {
@@ -193,14 +196,14 @@ export const updateCompanyAccountServiceMock = vi.fn(
         role: (payload.role as AdminRole | undefined) ?? ADMIN_ROLE_USER,
       }),
     },
-  }),
+  })
 )
 
 export const updateAccountStatusServiceMock = vi.fn(
   async (
     companyId: number,
     accountId: number,
-    status: AdminStatus,
+    status: AdminStatus
   ): Promise<UpdateAccountStatusResult> => ({
     ok: true,
     data: {
@@ -211,7 +214,7 @@ export const updateAccountStatusServiceMock = vi.fn(
         deletedAt: status === ADMIN_STATUS_DELETED ? '2026-03-01T00:00:00.000Z' : null,
       }),
     },
-  }),
+  })
 )
 
 export const deleteAccountServiceMock = vi.fn(
@@ -225,7 +228,7 @@ export const deleteAccountServiceMock = vi.fn(
         deletedAt: '2026-03-01T00:00:00.000Z',
       }),
     },
-  }),
+  })
 )
 
 export function mockLoadCompanyAccountsSuccess(accounts: AccountMock[] = accountsFixture): void {
@@ -260,7 +263,9 @@ export function mockLoadCompanyAccountFailure(error = 'not_found'): void {
   })
 }
 
-export function mockCreateCompanyAccountSuccess(account: AccountMock = createdAccountFixture): void {
+export function mockCreateCompanyAccountSuccess(
+  account: AccountMock = createdAccountFixture
+): void {
   createCompanyAccountServiceMock.mockResolvedValue({
     ok: true,
     data: {
@@ -276,7 +281,9 @@ export function mockCreateCompanyAccountFailure(error = 'server_error'): void {
   })
 }
 
-export function mockUpdateCompanyAccountSuccess(account: AccountMock = createdAccountFixture): void {
+export function mockUpdateCompanyAccountSuccess(
+  account: AccountMock = createdAccountFixture
+): void {
   updateCompanyAccountServiceMock.mockResolvedValue({
     ok: true,
     data: {
@@ -305,7 +312,7 @@ export function mockUpdateAccountStatusSuccess(account: Partial<AccountMock> = {
           deletedAt: status === ADMIN_STATUS_DELETED ? '2026-03-01T00:00:00.000Z' : null,
         }),
       },
-    }),
+    })
   )
 }
 
@@ -329,7 +336,7 @@ export function mockDeleteAccountSuccess(account: Partial<AccountMock> = {}): vo
           deletedAt: '2026-03-01T00:00:00.000Z',
         }),
       },
-    }),
+    })
   )
 }
 

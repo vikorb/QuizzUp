@@ -1,6 +1,11 @@
 import '../_helpers/registerRouteMocks'
 
-import { adminParamsSchema, createCompanySchema, updateAdminSchema, updateCompanySchema } from '@backend/routes/companies/_schemas'
+import {
+  adminParamsSchema,
+  createCompanySchema,
+  updateAdminSchema,
+  updateCompanySchema,
+} from '@backend/routes/companies/_schemas'
 import { describe, expect, it } from 'vitest'
 
 describe('routes/companies/_schemas.ts', () => {

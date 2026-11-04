@@ -1,7 +1,4 @@
-import {
-  accountsFixture,
-  createAccountFixture,
-} from '@frontend-tests/_helpers/accountsServiceMock'
+import { accountsFixture, createAccountFixture } from '@frontend-tests/_helpers/accountsServiceMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { ADMIN_STATUS_DELETED, ADMIN_STATUS_INACTIVE } from '@quizzup/shared'
@@ -67,9 +64,13 @@ describe('views/clients/accounts/AccountsTable.vue', () => {
       },
     })
 
-    expect(errorWrapper.find('[data-test="base-card"]').attributes('data-error')).toBe('server_error')
+    expect(errorWrapper.find('[data-test="base-card"]').attributes('data-error')).toBe(
+      'server_error'
+    )
 
-    await errorWrapper.find('[data-test="base-card-actions"] [data-test="ui-button"]').trigger('click')
+    await errorWrapper
+      .find('[data-test="base-card-actions"] [data-test="ui-button"]')
+      .trigger('click')
 
     expect(errorWrapper.emitted('retry')).toHaveLength(1)
   })

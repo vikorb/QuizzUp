@@ -2,10 +2,7 @@ import './_helpers/registerRouteMocks'
 
 import { describe, expect, it } from 'vitest'
 
-import {
-  ADMIN_ROLE_ADMIN,
-  ADMIN_STATUS_ACTIVE,
-} from '@quizzup/shared'
+import { ADMIN_ROLE_ADMIN, ADMIN_STATUS_ACTIVE } from '@quizzup/shared'
 
 import meRoutes from '../../../../backend/src/routes/me'
 

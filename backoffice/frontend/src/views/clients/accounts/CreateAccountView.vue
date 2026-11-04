@@ -30,7 +30,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { type RouteLocationNormalizedLoaded,useRoute, useRouter } from 'vue-router'
+import { type RouteLocationNormalizedLoaded, useRoute, useRouter } from 'vue-router'
 
 import SectionLayout from '@/components/SectionLayout.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
@@ -113,12 +113,7 @@ const pageContext = computed(() => {
 const pageTexts = computed(() => getAccountFormPageTexts(pageContext.value, t))
 
 const canRenderForm = computed(() =>
-  canRenderAccountForm(
-    pageContext.value,
-    account.value,
-    loadingAccount.value,
-    accountError.value,
-  ),
+  canRenderAccountForm(pageContext.value, account.value, loadingAccount.value, accountError.value)
 )
 
 async function loadAccount(): Promise<void> {
@@ -140,7 +135,7 @@ async function loadAccount(): Promise<void> {
   try {
     const result = await loadCompanyAccountService(
       pageContext.value.companyId,
-      pageContext.value.accountId,
+      pageContext.value.accountId
     )
 
     if (!result.ok) {
