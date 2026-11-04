@@ -1,4 +1,4 @@
-import { DEFAULT_GAME_TIMINGS } from '@quizzup/game-engine'
+import { DEFAULT_GAME_TIMINGS, getMiniGameQuestion } from '@quizzup/game-engine'
 
 import type { GameSession } from '@/game/session'
 
@@ -26,6 +26,7 @@ export function correctButton(session: GameSession): 0 | 1 | 2 | 3 {
   if (phase.name !== 'question') {
     throw new Error(`not in question: ${phase.name}`)
   }
-  return phase.miniGameState.question.answers.findIndex((answer) => answer.isCorrect) as
-    0 | 1 | 2 | 3
+  return getMiniGameQuestion(phase.miniGameState).answers.findIndex(
+    (answer) => answer.isCorrect
+  ) as 0 | 1 | 2 | 3
 }

@@ -226,7 +226,7 @@ Table game_rounds {
   chooser_participant_id bigint
 
   position smallint [not null, note: 'Ordre de la manche (1..n)']
-  mini_game varchar(50) [not null, note: 'flash_blind_test']
+  mini_game varchar(50) [not null, note: 'flash_blind_test, quick_answer, first_buzz, true_false, double_or_nothing, sudden_death, point_steal, streak, estimate, progressive_reveal']
   offered_theme_ids jsonb [not null, default: '[]']
   chooser_reason varchar(50) [note: 'first_round_random, random_excluding_leader, fallback_random']
   questions jsonb [not null, default: '[]', note: 'Snapshot des questions et réponses jouées']
@@ -253,7 +253,7 @@ Table game_answers {
   is_correct boolean [not null, default: false]
   points integer [not null, default: 0]
   response_time_ms integer
-  stage smallint [note: 'Palier du mini-jeu (ex. blind test : 1 = 1 s, 2 = 5 s, 3 = 20 s)']
+  stage smallint [note: 'Palier du mini-jeu (blind test : 1 = 1 s, 2 = 5 s, 3 = 20 s ; série : multiplicateur 1 à 5)']
   answered_at timestamptz [not null, default: `now()`]
 
   indexes {
