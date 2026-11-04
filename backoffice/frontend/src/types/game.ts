@@ -1,13 +1,29 @@
 import type { GameState, GameStatus, RoomStatus } from '@quizzup/shared'
 
+/** 2e joueur facultatif d'un pupitre, tel que renvoyé par l'API. */
+export type GameSecondPlayer = {
+  displayName: string
+  /** `null` si absent, ou masqué pour le rôle `user` (voir `hasEmail`). */
+  email: string | null
+  hasEmail: boolean
+  consentAt: string | null
+}
+
 export type GameParticipant = {
   id: number
   podium: number
   displayName: string
+  /** `null` si absent, ou masqué pour le rôle `user` (voir `hasEmail`). */
   email: string | null
+  hasEmail: boolean
   consentAt: string | null
+  secondPlayer: GameSecondPlayer | null
+  /** Score du pupitre, partagé par ses joueurs. */
   score: number
 }
+
+/** Ce qui suffit pour afficher l'email d'un joueur (1er ou 2e). */
+export type GamePlayerEmail = Pick<GameParticipant, 'email' | 'hasEmail'>
 
 export type Game = {
   id: number
@@ -39,11 +55,19 @@ export type GameRoom = {
 
 export type GameStateFilter = GameState | ''
 
+export type CreateGameSecondPlayerPayload = {
+  displayName: string
+  email?: string
+  emailConsent?: boolean
+}
+
 export type CreateGameParticipantPayload = {
   podium: number
   displayName: string
   email?: string
   emailConsent?: boolean
+  /** Envoyé seulement quand le bloc du 2e joueur est ouvert. */
+  secondPlayer?: CreateGameSecondPlayerPayload
 }
 
 export type CreateGamePayload = {
@@ -60,7 +84,22 @@ export type GameParticipantFormValues = {
   displayName: string
   email: string
   emailConsent: boolean
+  /** Bloc « 2e joueur » ouvert sur ce pupitre. */
+  hasSecondPlayer: boolean
+  secondDisplayName: string
+  secondEmail: string
+  secondEmailConsent: boolean
 }
+
+/** Champs saisissables d'un pupitre (joueur 1 et 2e joueur). */
+export type GameParticipantField =
+  | 'podium'
+  | 'displayName'
+  | 'email'
+  | 'emailConsent'
+  | 'secondDisplayName'
+  | 'secondEmail'
+  | 'secondEmailConsent'
 
 export type GameFormValues = {
   roomId: string
@@ -74,6 +113,9 @@ export type GameParticipantFieldErrors = {
   displayName: string
   email: string
   emailConsent: string
+  secondDisplayName: string
+  secondEmail: string
+  secondEmailConsent: string
 }
 
 export type GameFieldErrors = {

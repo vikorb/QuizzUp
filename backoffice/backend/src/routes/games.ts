@@ -18,7 +18,7 @@ import { isUniqueViolation } from './_shared/dbErrors'
 import { findCompanyById } from './companies/_shared'
 import { findRoomInCompany } from './companies/rooms/_shared'
 import { createGameSchema, gamesParamsSchema } from './games/_schemas'
-import { drawGameSeed, findGameInCompany, gameSelect, toGameRow } from './games/_shared'
+import { drawGameSeed, findStaffGame, gameSelect, toGameRow } from './games/_shared'
 import gamesIdRoutes from './games/id'
 
 /** Parties d'une compagnie, lancées par l'opérateur depuis le backoffice (US-GAME-08). */
@@ -149,6 +149,8 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
           await trx('game_participants').insert(
             participants.map((participant) => {
               const email = participant.email ?? null
+              const second = participant.secondPlayer ?? null
+              const secondEmail = second?.email ?? null
 
               return {
                 game_id: createdId,
@@ -156,6 +158,9 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
                 display_name: participant.displayName,
                 email,
                 consent_at: email ? db.fn.now() : null,
+                second_display_name: second?.displayName ?? null,
+                second_email: secondEmail,
+                second_consent_at: secondEmail ? db.fn.now() : null,
               }
             })
           )
@@ -171,7 +176,7 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
         throw error
       }
 
-      const game = await findGameInCompany(companyId, gameId)
+      const game = await findStaffGame(req, companyId, gameId)
 
       return reply.code(201).send({ game })
     }

@@ -93,6 +93,7 @@ Table questions {
   scope varchar(50) [not null, default: 'global', note: 'global, company']
   question text [not null]
   type_media varchar(50) [not null, default: 'none', note: 'none, image, audio, video']
+  kind varchar(20) [not null, default: 'qcm', note: 'qcm, true_false, estimate (éligibilité des mini-jeux)']
   media_url text [note: 'Lien externe (image / vidéo). Vidé quand un fichier audio est uploadé.']
 
   media_key text [unique, note: 'Clé dans le stockage média (MEDIA_STORAGE_DIR) : questions/<id>/<uuid>.<ext>. Jamais exposée.']
@@ -208,7 +209,10 @@ Table game_participants {
   display_name varchar(100) [not null]
   email varchar(255) [note: 'RGPD : uniquement si consent_at est renseigné']
   consent_at timestamptz
-  score integer [not null, default: 0]
+  second_display_name varchar(100) [note: '2e joueur facultatif du pupitre']
+  second_email varchar(255) [note: 'RGPD : uniquement si second_consent_at est renseigné']
+  second_consent_at timestamptz
+  score integer [not null, default: 0, note: 'score du pupitre (partagé par ses joueurs)']
 
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz
@@ -216,6 +220,7 @@ Table game_participants {
   indexes {
     (game_id, podium) [unique, name: 'game_participants_game_id_podium_unique']
     (email) [name: 'game_participants_email_index']
+    (second_email) [name: 'game_participants_second_email_index']
   }
 }
 
