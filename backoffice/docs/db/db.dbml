@@ -202,6 +202,14 @@ Table games {
   Note: 'Index unique partiel : une seule partie pending/running par salle'
 }
 
+Table question_kind_retypings {
+  question_id bigint [pk, note: 'Question dont le type a été déduit de ses réponses (retypage de l ancien contenu)']
+  kind varchar(20) [not null, note: 'Type posé : true_false ou estimate (l ancien type était qcm)']
+  retyped_at timestamptz [not null, default: `now()`]
+
+  Note: 'Trace de la migration retype_legacy_questions, pour son retour arrière exact'
+}
+
 Table game_participants {
   id bigint [pk, increment]
   game_id bigint [not null]
@@ -301,6 +309,7 @@ Ref: question_themes.question_id > questions.id [delete: cascade]
 Ref: question_themes.theme_id > themes.id [delete: cascade]
 Ref: answers.admin_id > admins.id [delete: restrict]
 Ref: answers.question_id > questions.id [delete: cascade]
+Ref: question_kind_retypings.question_id > questions.id [delete: cascade]
 
 // Relations salles / parties
 Ref: rooms.company_id > companies.id [delete: restrict]
