@@ -63,6 +63,56 @@ describe('configuration matérielle de salle', () => {
     expect(parsed.problems[0]).toContain('artnet')
   })
 
+  describe('cible Art-Net (`lighting.artnet`)', () => {
+    const parse = (artnet: unknown) =>
+      parseRoomHardwareConfig({ lighting: { driver: 'artnet-bridge', artnet } })
+
+    it('relit une config v1 sans `artnet`, sans problème', () => {
+      const parsed = parse(undefined)
+      expect(parsed.config.lighting).not.toHaveProperty('artnet')
+      expect(parsed.problems).toEqual([])
+      expect(defaultRoomHardwareConfig().lighting).not.toHaveProperty('artnet')
+    })
+
+    it('garde une IP locale, avec ou sans port', () => {
+      expect(parse({ target: '192.168.1.50' }).config.lighting.artnet).toEqual({
+        target: '192.168.1.50',
+      })
+      const withPort = parse({ target: ' 10.0.0.9 ', port: 6455 })
+      expect(withPort.config.lighting.artnet).toEqual({ target: '10.0.0.9', port: 6455 })
+      expect(withPort.problems).toEqual([])
+    })
+
+    it('est conservé tel quel par une seconde relecture', () => {
+      const once = parse({ target: '192.168.1.50', port: 6455 }).config
+      expect(parseRoomHardwareConfig(once).config).toEqual(once)
+    })
+
+    it.each(['8.8.8.8', '1.1.1.1', '192.168.1.300', 'noeud.local', 42])(
+      'écarte la cible %s et signale un problème',
+      (target) => {
+        const parsed = parse({ target })
+        expect(parsed.config.lighting).not.toHaveProperty('artnet')
+        expect(parsed.problems).toHaveLength(1)
+        expect(parsed.problems[0]).toContain('IP du nœud Art-Net refusée')
+      }
+    )
+
+    it('ignore un port invalide mais garde la cible', () => {
+      const parsed = parse({ target: '192.168.1.50', port: 70_000 })
+      expect(parsed.config.lighting.artnet).toEqual({ target: '192.168.1.50' })
+      expect(parsed.problems[0]).toContain('Port Art-Net invalide')
+    })
+
+    it('traite une cible vide, nulle ou une section illisible comme un réglage absent', () => {
+      for (const artnet of [{ target: '' }, { target: '  ' }, {}, null, 'x', []]) {
+        const parsed = parse(artnet)
+        expect(parsed.config.lighting).not.toHaveProperty('artnet')
+        expect(parsed.problems).toEqual([])
+      }
+    })
+  })
+
   describe('nombre de pupitres (`desksCount`)', () => {
     it('vaut 4 pour une salle neuve et pour une config sans le champ', () => {
       expect(defaultRoomHardwareConfig().desksCount).toBe(4)

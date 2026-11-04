@@ -2,6 +2,7 @@ import { createDefaultKeymap } from '@hardware/buzzers/keymap'
 import {
   activeKeymap,
   activeLightingConfig,
+  defaultRoomHardwareConfig,
   gamepadMatcher,
   parseRoomHardwareConfig,
 } from '@hardware/config'
@@ -489,5 +490,29 @@ describe('assistant d’installation : récapitulatif', () => {
       parseRoomHardwareConfig({ buzzers: { source: { kind: 'gamepad', match: '  ' } } }).config
         .buzzers.source
     ).toEqual({ kind: 'gamepad' })
+  })
+})
+
+describe('assistant d’installation : cible Art-Net', () => {
+  it('enregistre l’IP du nœud, garde le port, et l’efface quand le champ est vidé', () => {
+    const wizard = createSetupWizard({
+      ...defaultRoomHardwareConfig(),
+      lighting: {
+        ...defaultRoomHardwareConfig().lighting,
+        artnet: { target: '10.0.0.1', port: 6455 },
+      },
+    })
+    wizard.setArtnetTarget(' 192.168.1.50 ')
+    expect(wizard.summary().config.lighting.artnet).toEqual({ target: '192.168.1.50', port: 6455 })
+    wizard.setArtnetTarget('')
+    expect(wizard.summary().config.lighting).not.toHaveProperty('artnet')
+  })
+
+  it('une IP publique est écartée à l’enregistrement, avec un problème', () => {
+    const wizard = createSetupWizard()
+    wizard.setArtnetTarget('8.8.8.8')
+    const saved = parseRoomHardwareConfig(wizard.summary().config)
+    expect(saved.config.lighting).not.toHaveProperty('artnet')
+    expect(saved.problems.join(' ')).toContain('IP du nœud Art-Net refusée')
   })
 })

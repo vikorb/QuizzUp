@@ -1,6 +1,7 @@
 import type { BuzzerKeymap } from './buzzers/keymap'
 import { parseKeymap } from './buzzers/keymap'
-import { parseBridgeUrl } from './dmx/bridgeOutput'
+import type { ArtnetTargetConfig } from './dmx/bridgeOutput'
+import { isLocalArtnetTarget, parseBridgeUrl } from './dmx/bridgeOutput'
 import type { FixtureConfig, ResolvedFixture } from './dmx/fixtures'
 import { parseRig, unsupportedUniverseProblems } from './dmx/fixtures'
 import type { DmxDriver } from './dmx/output'
@@ -24,6 +25,12 @@ export type LightingConfig = {
    * `ws://localhost:<port>`. Absente = `DEFAULT_BRIDGE_URL`.
    */
   bridgeUrl?: string
+  /**
+   * Cible Art-Net réglée depuis l'écran Matériel (pilote `artnet-bridge`) : IP du nœud, réseau local
+   * uniquement, et port UDP facultatif (6454 par défaut). Envoyée au pont à chaque connexion ; le
+   * `--target` du pont, s'il existe, reste prioritaire. Absente = le pont garde sa propre cible.
+   */
+  artnet?: ArtnetTargetConfig
   refreshHz: number
   fixtures: FixtureConfig[]
   customProfiles: FixtureProfile[]
@@ -117,6 +124,19 @@ export function withDesksCount(config: RoomHardwareConfig, count: number): RoomH
   return { ...config, desksCount: clampDeskCount(count) }
 }
 
+/**
+ * Règle l'IP du nœud Art-Net (`lighting.artnet`), le port éventuel est conservé. Chaîne vide = pas de
+ * réglage (le pont garde sa propre cible). La validité de l'IP est jugée à la relecture.
+ */
+export function withArtnetTarget(config: RoomHardwareConfig, target: string): RoomHardwareConfig {
+  const { artnet: previous, ...lighting } = config.lighting
+  const trimmed = target.trim()
+  return {
+    ...config,
+    lighting: { ...lighting, ...(trimmed ? { artnet: { ...previous, target: trimmed } } : {}) },
+  }
+}
+
 /** Buzzers des pupitres de la salle : ceux des pupitres au-delà de `desksCount` (réserve) sont ignorés. */
 export function activeKeymap(config: RoomHardwareConfig): BuzzerKeymap {
   return Object.fromEntries(
@@ -184,6 +204,41 @@ function parseBindings(input: unknown): Record<string, string | null> {
 }
 
 /**
+ * Cible Art-Net : absente ou vide = pas de réglage. Une IP invalide ou hors réseau local est écartée
+ * avec un problème (le pont la refuserait de toute façon) ; un port invalide est ignoré (6454).
+ */
+function parseArtnet(input: unknown, problems: string[]): ArtnetTargetConfig | undefined {
+  if (input === undefined || input === null) {
+    return undefined
+  }
+  const raw = asRecord(input)
+  const target = typeof raw.target === 'string' ? raw.target.trim() : raw.target
+  if (target === undefined || target === '') {
+    return undefined
+  }
+  if (!isLocalArtnetTarget(target)) {
+    problems.push(
+      `IP du nœud Art-Net refusée : ${String(raw.target)} (adresse IPv4 d'un réseau local : ` +
+        '10.x, 172.16-31.x, 192.168.x, 169.254.x ou 127.x)'
+    )
+    return undefined
+  }
+  if (raw.port === undefined) {
+    return { target }
+  }
+  if (
+    typeof raw.port === 'number' &&
+    Number.isInteger(raw.port) &&
+    raw.port >= 1 &&
+    raw.port <= 65_535
+  ) {
+    return { target, port: raw.port }
+  }
+  problems.push(`Port Art-Net invalide : ${String(raw.port)} (1 à 65535, 6454 utilisé)`)
+  return { target }
+}
+
+/**
  * Relit `rooms.config` de façon tolérante : une config vide, ancienne ou partiellement invalide
  * donne toujours une config utilisable (valeurs par défaut) et la liste des problèmes trouvés.
  */
@@ -241,6 +296,8 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
     }
   }
 
+  const artnet = parseArtnet(lighting.artnet, problems)
+
   const refreshHz =
     typeof lighting.refreshHz === 'number' && Number.isFinite(lighting.refreshHz)
       ? Math.min(DMX_REFRESH_LIMITS.max, Math.max(DMX_REFRESH_LIMITS.min, lighting.refreshHz))
@@ -253,6 +310,7 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
     lighting: {
       driver,
       ...(bridgeUrl ? { bridgeUrl } : {}),
+      ...(artnet ? { artnet } : {}),
       refreshHz,
       fixtures: rig.fixtures.map(({ profile: _profile, ...fixture }) => fixture),
       customProfiles: rig.customProfiles,
