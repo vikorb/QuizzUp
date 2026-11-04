@@ -236,6 +236,9 @@ déjà utilisée ou réservée au système est refusée avec un message clair.
 3. Relancer tout de suite : refus « Pause de sécurité » (pause minimale entre deux émissions).
 4. **Arrêt d'urgence** (bouton à l'écran) : tout s'éteint, la fumée est coupée et désarmée.
    « Rallumer les lumières » rallume l'ambiance, mais la fumée doit être **réarmée à la main**.
+   L'arrêt d'urgence est **retenu sur le PC** : si on recharge la page (F5) ou si le poste
+   redémarre, la salle reste éteinte, bandeau « Arrêt d'urgence actif » compris, jusqu'au
+   réarmement.
 5. Sécurités automatiques à vérifier : pendant une émission, passer sur un autre onglet → la
    fumée est coupée ; débrancher l'USB → statut « en erreur » et fumée coupée.
 
