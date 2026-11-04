@@ -3,6 +3,8 @@ import path from 'node:path'
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
+import { assertTestDatabase } from '../../setup/assertTestDatabase'
+
 /**
  * Régression A0 (recette Docker) : `pg` renvoie les bigint (ids, `company_id`) en chaîne, donc
  * `"10" === 10` (JWT / session) était faux et un admin de compagnie recevait 403 sur ses propres
@@ -34,6 +36,7 @@ describe('parseur int8 de pg', () => {
 type Db = typeof import('@backend/db').default
 type Scope = typeof import('@backend/routes/_shared/scope')
 type Req = Parameters<Scope['canReadScoped']>[1]
+type Questions = typeof import('@backend/routes/questions/_shared')
 
 function reqOfCompany(companyId: number, role = 'admin') {
   return { user: { role, company_id: companyId } } as unknown as Req
@@ -42,26 +45,21 @@ function reqOfCompany(companyId: number, role = 'admin') {
 describe.skipIf(!PG_INTEGRATION_URL)('portée company_id sur PostgreSQL', () => {
   let db: Db
   let scope: Scope
+  let questions: Questions
+  let ownThemeId: number
+  let otherThemeId: number
   let getThemeAccessRow: typeof import('@backend/routes/themes/_shared').getThemeAccessRow
 
   beforeAll(async () => {
     db = (await import('@backend/db')).default
     scope = await import('@backend/routes/_shared/scope')
+    questions = await import('@backend/routes/questions/_shared')
     getThemeAccessRow = (await import('@backend/routes/themes/_shared')).getThemeAccessRow
 
-    // Garde-fou : ne jamais tronquer une autre base que celle demandée.
-    const { current_database: name } = (await db.raw('select current_database()')).rows[0]
-    expect(PG_INTEGRATION_URL).toMatch(new RegExp(`/${name}$`))
-
+    await assertTestDatabase(db)
     await db.migrate.latest({ directory: path.resolve(process.cwd(), 'backend/db/migrations') })
     await db.raw('TRUNCATE themes, admins, companies RESTART IDENTITY CASCADE')
-  }, 120_000)
 
-  afterAll(async () => {
-    await db?.destroy()
-  })
-
-  it('un admin de compagnie lit et modifie le thème de sa compagnie, pas celui d’une autre', async () => {
     await db('companies').insert([
       { id: 10, name: 'Centre 10', email: 'c10@x.test' },
       { id: 11, name: 'Centre 11', email: 'c11@x.test' },
@@ -75,13 +73,19 @@ describe.skipIf(!PG_INTEGRATION_URL)('portée company_id sur PostgreSQL', () => 
       mdp_hash: 'x',
     })
     const theme = { mode: 'classic', scope: 'company', admin_id: 52 }
-    const [{ id: ownThemeId }] = await db('themes')
+    ;[{ id: ownThemeId }] = await db('themes')
       .insert({ ...theme, name: 'Mon thème', company_id: 10 })
       .returning('id')
-    const [{ id: otherThemeId }] = await db('themes')
+    ;[{ id: otherThemeId }] = await db('themes')
       .insert({ ...theme, name: 'Autre thème', company_id: 11 })
       .returning('id')
+  }, 120_000)
 
+  afterAll(async () => {
+    await db?.destroy()
+  })
+
+  it('un admin de compagnie lit et modifie le thème de sa compagnie, pas celui d’une autre', async () => {
     const own = await getThemeAccessRow(ownThemeId)
     const other = await getThemeAccessRow(otherThemeId)
 
@@ -90,5 +94,16 @@ describe.skipIf(!PG_INTEGRATION_URL)('portée company_id sur PostgreSQL', () => 
     expect(scope.canEditScoped(own!, reqOfCompany(10))).toBe(true)
     expect(scope.canReadScoped(other!, reqOfCompany(10))).toBe(false)
     expect(scope.canEditScoped(other!, reqOfCompany(10))).toBe(false)
+  })
+
+  // Chemin de création d'une question (canReadTheme + isThemeCompatibleWithQuestion).
+  it('un admin de compagnie peut rattacher une question à son thème, pas à celui d’une autre', async () => {
+    const usable = (themeId: number, role = 'admin') =>
+      questions.ensureThemeIsUsable(themeId, reqOfCompany(10, role), 'company', 10)
+    expect(await usable(ownThemeId)).toBeNull()
+    expect(await usable(otherThemeId)).toBe('question_theme_forbidden')
+    // Superadmin : la lecture passe, seule la compatibilité thème / question tranche.
+    expect(await usable(ownThemeId, 'superadmin')).toBeNull()
+    expect(await usable(otherThemeId, 'superadmin')).toBe('question_theme_scope_mismatch')
   })
 })

@@ -4,6 +4,7 @@ import path from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { getQuestionKindAnswersError } from '@quizzup/shared'
+import { assertTestDatabase } from '../../setup/assertTestDatabase'
 
 /**
  * Migration de données `retype_legacy_questions` : la règle de déduction (copiée du moteur de
@@ -94,6 +95,7 @@ describe.skipIf(!PG_INTEGRATION_URL)('retype_legacy_questions sur PostgreSQL', (
   beforeAll(async () => {
     process.env.DATABASE_URL = PG_INTEGRATION_URL
     db = (await import('@backend/db')).default
+    await assertTestDatabase(db)
     await db.migrate.latest({ directory: path.resolve(process.cwd(), 'backend/db/migrations') })
   }, 120_000)
 
@@ -244,7 +246,7 @@ describe.skipIf(!PG_INTEGRATION_URL)('retype_legacy_questions sur PostgreSQL', (
         expect(
           await trx('questions').where({ kind: 'true_false', question: 'Bulk ?' })
         ).toHaveLength(1500)
-        expect(await trx('question_kind_retypings').count({ n: '*' })).toEqual([{ n: '1504' }])
+        expect(await trx('question_kind_retypings').count({ n: '*' })).toEqual([{ n: 1504 }])
 
         expect(await kinds(trx, ids)).toEqual({
           [trueFalse]: 'true_false',
