@@ -167,7 +167,12 @@ API_PORT=3001
 CORS_ORIGIN=http://localhost:4173,http://localhost:4174
 JWT_SECRET=change_me_super_secret
 JWT_EXPIRES_IN=2h
+PLAYER_EMAIL_PURGE_INTERVAL_HOURS=24
 ```
+
+RGPD : les emails des joueurs sont effacés, compagnie par compagnie, 3 ans après leur dernière
+partie dans la compagnie, automatiquement (`PLAYER_EMAIL_PURGE_INTERVAL_HOURS`, minimum 1, `0` pour
+désactiver) ou à la main avec `npm run purge:emails` depuis `backend/`.
 
 ### Frontend
 
