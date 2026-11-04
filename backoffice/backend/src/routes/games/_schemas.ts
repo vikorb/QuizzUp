@@ -7,6 +7,7 @@ import {
   GAME_MAX_ROUNDS,
   GAME_PARTICIPANT_DISPLAY_NAME_MAX_LENGTH,
   GAME_PODIUMS,
+  MINI_GAMES,
 } from '@quizzup/shared'
 
 export const gamesParamsSchema = z.object({
@@ -57,6 +58,18 @@ export const createGameSchema = z
       .max(GAME_MAX_QUESTIONS_PER_ROUND)
       .default(GAME_DEFAULT_QUESTIONS_PER_ROUND),
     participants: z.array(participantSchema).min(1).max(GAME_PODIUMS),
+    // Programme de la partie : absent, tous les mini-jeux du moteur. La liste complète est
+    // ramenée à « absent » (stocké `null`), comme le fait le formulaire : un futur mini-jeu
+    // sera ainsi inclus d'office.
+    miniGames: z
+      .array(z.enum(MINI_GAMES))
+      .min(1)
+      .max(MINI_GAMES.length)
+      .refine((miniGames) => new Set(miniGames).size === miniGames.length, {
+        message: 'mini_games_duplicated',
+      })
+      .transform((miniGames) => (miniGames.length === MINI_GAMES.length ? undefined : miniGames))
+      .optional(),
   })
   .refine(
     (body) =>

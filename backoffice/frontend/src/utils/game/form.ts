@@ -1,3 +1,4 @@
+import type { MiniGame } from '@quizzup/shared'
 import {
   GAME_DEFAULT_QUESTIONS_PER_ROUND,
   GAME_DEFAULT_ROUNDS,
@@ -5,6 +6,7 @@ import {
   GAME_MAX_ROUNDS,
   GAME_PARTICIPANT_DISPLAY_NAME_MAX_LENGTH,
   GAME_PODIUMS,
+  MINI_GAMES,
   ROOM_STATUS_ACTIVE,
 } from '@quizzup/shared'
 
@@ -74,6 +76,8 @@ export function createDefaultGameFormValues(): GameFormValues {
     roomId: '',
     roundsCount: String(GAME_DEFAULT_ROUNDS),
     questionsPerRound: String(GAME_DEFAULT_QUESTIONS_PER_ROUND),
+    // Tous les mini-jeux cochés par défaut : l'opérateur retire ce qu'il ne veut pas.
+    miniGames: [...MINI_GAMES],
     participants: [createGameParticipantFormValues(1)],
   }
 }
@@ -95,6 +99,7 @@ export function createGameFieldErrors(participantsCount = 0): GameFieldErrors {
     roomId: '',
     roundsCount: '',
     questionsPerRound: '',
+    miniGames: '',
     participants: Array.from({ length: participantsCount }, createGameParticipantFieldErrors),
   }
 }
@@ -237,6 +242,10 @@ export function validateGameForm(form: GameFormValues): GameFieldErrors {
     errors.questionsPerRound = 'games.form.errors.questionsInvalid'
   }
 
+  if (form.miniGames.length === 0) {
+    errors.miniGames = 'games.form.errors.miniGamesRequired'
+  }
+
   const duplicatedPodiums = getDuplicatedPodiums(form.participants)
 
   errors.participants = form.participants.map((participant) =>
@@ -248,7 +257,7 @@ export function validateGameForm(form: GameFormValues): GameFieldErrors {
 
 export function hasGameFormErrors(errors: GameFieldErrors): boolean {
   return (
-    Boolean(errors.roomId || errors.roundsCount || errors.questionsPerRound) ||
+    Boolean(errors.roomId || errors.roundsCount || errors.questionsPerRound || errors.miniGames) ||
     errors.participants.some((participant) => Object.values(participant).some(Boolean))
   )
 }
@@ -290,9 +299,19 @@ function buildParticipantPayload(
   return payload
 }
 
+/**
+ * Mini-jeux à envoyer, dans l'ordre de MINI_GAMES, ou `undefined` quand tous sont cochés :
+ * le champ est alors omis (= « tous »), ce qui inclut d'office un futur mini-jeu.
+ */
+export function getSelectedMiniGames(selected: MiniGame[]): MiniGame[] | undefined {
+  const ordered = MINI_GAMES.filter((miniGame) => selected.includes(miniGame))
+
+  return ordered.length === MINI_GAMES.length ? undefined : ordered
+}
+
 /** Corps de POST /companies/:companyId/games, à n'appeler qu'après validation. */
 export function buildCreateGamePayload(form: GameFormValues): CreateGamePayload {
-  return {
+  const payload: CreateGamePayload = {
     roomId: Number(form.roomId),
     roundsCount: Number(form.roundsCount.trim()),
     questionsPerRound: Number(form.questionsPerRound.trim()),
@@ -300,4 +319,11 @@ export function buildCreateGamePayload(form: GameFormValues): CreateGamePayload 
       .map(buildParticipantPayload)
       .sort((left, right) => left.podium - right.podium),
   }
+  const miniGames = getSelectedMiniGames(form.miniGames)
+
+  if (miniGames) {
+    payload.miniGames = miniGames
+  }
+
+  return payload
 }

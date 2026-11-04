@@ -1,5 +1,9 @@
 import { DEFAULT_GAME_TIMINGS } from '@quizzup/game-engine'
-import { MINI_GAME_FLASH_BLIND_TEST } from '@quizzup/shared'
+import {
+  MINI_GAME_FLASH_BLIND_TEST,
+  MINI_GAME_POINT_STEAL,
+  QUESTION_MEDIA_TYPE_NONE,
+} from '@quizzup/shared'
 
 import { createSilentExtractPlayer, type ExtractPlayer } from '@/audio/player'
 import { getDemoThemes } from '@/game/demoContent'
@@ -13,12 +17,14 @@ import {
   discardSavedGame,
   getExtractPlayer,
   hasSavedGame,
+  NoPlayableMiniGameError,
   onGameEvents,
   preloadExtracts,
   pressBuzzer,
   resumeSavedGame,
   startNewGame,
   useRoomGame,
+  validateNewGame,
 } from '@/game/useRoomGame'
 
 import { createManualClock, getPlayableThemes, REGISTRATIONS } from '../_helpers/fixtures'
@@ -226,5 +232,73 @@ describe('preloadExtracts', () => {
     configureRoomGame({ player })
 
     await expect(preloadExtracts(themes)).resolves.toEqual(['https://api/questions/1/media?v=2'])
+  })
+})
+
+describe('validateNewGame', () => {
+  const soloRegistrations = [REGISTRATIONS[0]!]
+  const textOnlyThemes = getPlayableThemes().map((theme) => ({
+    ...theme,
+    questions: theme.questions.map((question) => ({
+      ...question,
+      mediaType: QUESTION_MEDIA_TYPE_NONE,
+      mediaUrl: null,
+    })),
+  }))
+
+  afterEach(() => {
+    localStorage.removeItem(MINI_GAMES_STORAGE_KEY)
+  })
+
+  it('accepte une partie dont un mini-jeu choisi est jouable', () => {
+    expect(() =>
+      validateNewGame({
+        registrations: REGISTRATIONS,
+        themes: getPlayableThemes(),
+        seed: 7,
+        miniGames: [MINI_GAME_POINT_STEAL],
+      })
+    ).not.toThrow()
+  })
+
+  it('refuse un mini-jeu qui exige plus de pupitres que de joueurs', () => {
+    expect(() =>
+      validateNewGame({
+        registrations: soloRegistrations,
+        themes: getPlayableThemes(),
+        seed: 7,
+        miniGames: [MINI_GAME_POINT_STEAL],
+      })
+    ).toThrow(NoPlayableMiniGameError)
+  })
+
+  it('refuse le blind test sans question audio éligible', () => {
+    expect(() =>
+      validateNewGame({
+        registrations: REGISTRATIONS,
+        themes: textOnlyThemes,
+        seed: 7,
+        miniGames: BLIND_TEST_ONLY,
+      })
+    ).toThrow(NoPlayableMiniGameError)
+  })
+
+  it('applique la même vérification au réglage local de la salle', () => {
+    localStorage.setItem(MINI_GAMES_STORAGE_KEY, JSON.stringify([MINI_GAME_POINT_STEAL]))
+
+    expect(() =>
+      validateNewGame({ registrations: soloRegistrations, themes: getPlayableThemes(), seed: 7 })
+    ).toThrow(NoPlayableMiniGameError)
+  })
+
+  it('laisse l’erreur du moteur prioritaire quand la configuration est invalide', () => {
+    expect(() =>
+      validateNewGame({
+        registrations: REGISTRATIONS,
+        themes: getPlayableThemes(),
+        seed: -1,
+        miniGames: BLIND_TEST_ONLY,
+      })
+    ).toThrow(expect.objectContaining({ code: 'seed_invalid' }))
   })
 })
