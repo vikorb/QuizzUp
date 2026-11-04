@@ -251,6 +251,33 @@ describe('routes/room.ts — hardware config', () => {
     await app.close()
   })
 
+  it('keeps the sections the PC does not send, like the backoffice lights', async () => {
+    seedRoom({ config: { lights: { profile: 'par-led' }, buzzers: { podiums: 2 } } })
+    const app = await createRouteApp(roomRoutes)
+
+    const saved = await app.inject({
+      method: 'PUT',
+      url: '/room/config',
+      headers: authHeaders(roomUser),
+      payload: { config: { buzzers: { podiums: 4 } } },
+    })
+    const tooLarge = await app.inject({
+      method: 'PUT',
+      url: '/room/config',
+      headers: authHeaders(roomUser),
+      payload: { config: { smoke: 'x'.repeat(19_960) } },
+    })
+
+    expect(parseJson<{ room: { config: unknown } }>(saved).room.config).toEqual({
+      lights: { profile: 'par-led' },
+      buzzers: { podiums: 4 },
+    })
+    expect(tooLarge.statusCode).toBe(400)
+    expect(parseJson(tooLarge)).toEqual({ error: 'room_config_too_large' })
+
+    await app.close()
+  })
+
   it('validates the config and is reserved to a non deleted room', async () => {
     seedRoom()
     const app = await createRouteApp(roomRoutes)

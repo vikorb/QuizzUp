@@ -13,7 +13,7 @@ import {
 import db from '../db'
 import { getMediaStorage, isValidMediaKey } from '../storage/mediaStorage'
 import type { RoomRow } from '../types/room'
-import { roomConfigSchema } from './companies/rooms/_schemas'
+import { ROOM_CONFIG_MAX_LENGTH, roomConfigSchema } from './companies/rooms/_schemas'
 import { roomSelect } from './companies/rooms/_shared'
 import { findGameInCompany } from './games/_shared'
 import { getMediaVersion } from './questions/_shared'
@@ -101,7 +101,8 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
   })
 
   // Le PC de la salle enregistre sa configuration matérielle (buzzers appris, lumières…) dans
-  // `rooms.config` (décision d'Enzo, 2026-11-04) ; il la relit avec `GET /room/me`.
+  // `rooms.config` (décision d'Enzo, 2026-11-04) ; il la relit avec `GET /room/me`. Les sections
+  // envoyées remplacent celles du même nom, les autres sont gardées.
   app.put('/room/config', { preHandler: [app.authenticate] }, async (req, reply) => {
     if (!isRoomAccount(req)) {
       return reply.code(403).send({ error: 'forbidden' })
@@ -113,17 +114,29 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ error: 'invalid_body', details: parsedBody.error.flatten() })
     }
 
-    const updated = await db('rooms')
+    const current = await db('rooms')
       .where('id', req.user.room_id)
       .where('company_id', req.user.company_id)
       .whereNot('status', ROOM_STATUS_DELETED)
-      .update({ config: parsedBody.data.config, updated_at: db.fn.now() })
-      .returning(roomSelect)
-    const room = Array.isArray(updated) ? updated[0] : updated
+      .first('config')
 
-    if (!room) {
+    if (!current) {
       return reply.code(404).send({ error: 'not_found' })
     }
+
+    // Fusion des clés de premier niveau : le PC envoie ses sections (ex. `buzzers`) sans
+    // effacer celles réglées depuis le backoffice.
+    const config = { ...(current.config ?? {}), ...parsedBody.data.config }
+
+    if (JSON.stringify(config).length > ROOM_CONFIG_MAX_LENGTH) {
+      return reply.code(400).send({ error: 'room_config_too_large' })
+    }
+    const updated = await db('rooms')
+      .where('id', req.user.room_id)
+      .where('company_id', req.user.company_id)
+      .update({ config, updated_at: db.fn.now() })
+      .returning(roomSelect)
+    const room = Array.isArray(updated) ? updated[0] : updated
 
     return { room: room as RoomRow }
   })

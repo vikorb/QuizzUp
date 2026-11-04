@@ -1466,7 +1466,7 @@ paths:
         Statut : **Disponible**
 
         Le PC de la salle enregistre sa configuration matérielle (buzzers appris, lumières, fumée)
-        dans `rooms.config`. Elle remplace la précédente et se relit avec `GET /room/me`.
+        dans `rooms.config`. Les sections de premier niveau envoyées remplacent celles du même nom, les autres sont gardées (réglages faits depuis le backoffice). Elle se relit avec `GET /room/me`.
         Objet JSON de 20 000 caractères au plus.
 
         Accès : réservé au rôle `room`.
