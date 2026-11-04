@@ -18,7 +18,7 @@
     },
     "lobby": {
       "title": "Inscription des joueurs",
-      "subtitle": "Un joueur par pupitre, de 1 à 4. Appuie sur un buzzer pour vérifier ton pupitre.",
+      "subtitle": "Un joueur par pupitre, de 1 à {n}. Appuie sur un buzzer pour vérifier ton pupitre.",
       "displayName": "Pseudo affiché",
       "displayNamePlaceholder": "Ton pseudo",
       "email": "Email (facultatif)",

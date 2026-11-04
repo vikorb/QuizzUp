@@ -1,12 +1,17 @@
 import type { FastifyPluginAsync } from 'fastify'
 
-import { COMPANY_STATUS_DELETED, ROOM_STATUS_ACTIVE, ROOM_STATUS_DELETED } from '@quizzup/shared'
+import {
+  COMPANY_STATUS_DELETED,
+  getRoomDesksCount,
+  ROOM_STATUS_ACTIVE,
+  ROOM_STATUS_DELETED,
+} from '@quizzup/shared'
 import db from '../../../db'
 import { isSuperadmin } from '../../../security/companiesPolicy'
 import { API_ACTION, API_RESOURCE } from '../../../security/permissions'
 import { requireApiPermission } from '../../../security/requireApiPermission'
 import { canManageRoomsContext, canReadRoomsContext } from '../../../security/roomsPolicy'
-import type { RoomRow } from '../../../types/room'
+import type { RoomListItem, RoomRow } from '../../../types/room'
 
 import { isUniqueViolation } from '../../_shared/dbErrors'
 import { findCompanyById } from '../_shared'
@@ -48,7 +53,13 @@ const companyRoomsRoutes: FastifyPluginAsync = async (app) => {
 
     const rooms = await query.select(roomSelect).orderBy('id', 'asc')
 
-    return { rooms: rooms as RoomRow[] }
+    // Le formulaire de lancement ne propose que les pupitres de la salle choisie.
+    return {
+      rooms: (rooms as RoomRow[]).map((room): RoomListItem => ({
+        ...room,
+        desksCount: getRoomDesksCount(room.config),
+      })),
+    }
   })
 
   app.post(

@@ -525,3 +525,87 @@ describe('scores across mixed games', () => {
     expect(setup).toEqual(snapshot)
   })
 })
+
+describe('games with 5 and 6 podiums', () => {
+  const sixPlayers: EngineParticipant[] = [1, 2, 3, 4, 5, 6].map((podium) => ({
+    id: podium * 10,
+    podium,
+    displayName: `Joueur ${podium}`,
+  }))
+
+  it.each([5, 6])('plays complete mixed games with %i players, whatever the mini game', (count) => {
+    const participants = sixPlayers.slice(0, count)
+
+    for (const seed of [3, 11, 2026]) {
+      const driver = playedGame(
+        mixedSetup({ seed, participants, roundsCount: 12 }),
+        mixedStrategy,
+        true
+      )
+
+      expect(driver.state.phase).toEqual({ name: 'finished', reason: 'completed' })
+      expect(driver.state.scores).toHaveLength(count)
+      expect(driver.state.scores.map((line) => line.participantId)).toEqual(
+        participants.map((participant) => participant.id)
+      )
+      expect(driver.state.scores.every((line) => line.score >= 0)).toBe(true)
+      expectNeverNegative(driver.events)
+      // La partie a bien distribué des points.
+      expect(driver.state.scores.some((line) => line.score > 0)).toBe(true)
+    }
+  })
+
+  it('replays a 6-player game exactly from its seed and commands', () => {
+    const setup = mixedSetup({ seed: 77, participants: sixPlayers, roundsCount: 8 })
+    const driver = playedGame(setup, mixedStrategy)
+    const replay = replayGame(setup, driver.commands)
+
+    expect(replay.state).toEqual(driver.state)
+    expect(replay.events).toEqual(driver.events)
+  })
+
+  it('draws the theme choosers among the 6 players', () => {
+    const driver = playedGame(
+      mixedSetup({ seed: 5, participants: sixPlayers, roundsCount: 20 }),
+      mixedStrategy
+    )
+    const choosers = new Set(driver.state.rounds.map((round) => round.chooserParticipantId))
+
+    expect(choosers.size).toBeGreaterThanOrEqual(4)
+    for (const chooser of choosers) {
+      expect(sixPlayers.map((participant) => participant.id)).toContain(chooser)
+    }
+  })
+
+  it('steals points by scrolling the target in a 6-player point steal game', () => {
+    const driver = playedGame(
+      mixedSetup({
+        seed: 9,
+        participants: sixPlayers,
+        miniGames: [MINI_GAME_POINT_STEAL],
+        roundsCount: 10,
+      }),
+      mixedStrategy,
+      true
+    )
+    const requests = driver.events.filter((event) => event.type === 'steal_target_requested')
+    const steals = driver.events.filter((event) => event.type === 'points_stolen')
+
+    expect(driver.state.phase).toEqual({ name: 'finished', reason: 'completed' })
+    expect(requests.length).toBeGreaterThan(0)
+    // Le voleur valide lui-même dans certaines questions, sinon le temps tranche.
+    expect(steals.some((event) => event.payload.automatic === false)).toBe(true)
+    expectNeverNegative(driver.events)
+  })
+
+  it('plays a point steal game with only 4 players on pupitres 1 to 4 as before', () => {
+    const driver = playedGame(
+      mixedSetup({ seed: 9, miniGames: [MINI_GAME_POINT_STEAL], roundsCount: 6 }),
+      mixedStrategy
+    )
+    const steals = driver.events.filter((event) => event.type === 'points_stolen')
+
+    expect(driver.state.phase).toEqual({ name: 'finished', reason: 'completed' })
+    expect(steals.length).toBeGreaterThan(0)
+  })
+})

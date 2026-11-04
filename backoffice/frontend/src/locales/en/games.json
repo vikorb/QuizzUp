@@ -72,6 +72,11 @@
       "room": "Room",
       "roomPlaceholder": "Pick a room",
       "roomsLoading": "Loading rooms...",
+      "roomChange": {
+        "moved": "This room only has {max} podiums: podium changed for {list}.",
+        "removed": "Removed for lack of a free podium in this room: {list}.",
+        "participant": "Participant {n}"
+      },
       "noActiveRoom": "No active room in this company: activate a room before launching a game.",
       "roundsCount": "Rounds",
       "roundsHint": "Between 1 and {max}",
@@ -153,6 +158,7 @@
       "roomNotFound": "This room cannot be found.",
       "roomInactive": "This room is inactive: activate it before launching a game in it.",
       "roomBusy": "A game is already pending or running in this room.",
+      "podiumNotInRoom": "One of the chosen podiums does not exist in this room.",
       "companyDeleted": "This company is deleted: no game can be launched in it.",
       "companyInactive": "This company is inactive: reactivate it before launching a game.",
       "gameAlreadyOver": "This game is already finished or stopped.",

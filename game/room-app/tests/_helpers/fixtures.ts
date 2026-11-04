@@ -17,6 +17,15 @@ export const REGISTRATIONS: Registration[] = [
   { desk: 3, displayName: 'Inès', email: '', consent: false, consentAt: null },
 ]
 
+/** Six pupitres inscrits (pupitres 1 à 6), pour les parties à 5 ou 6 joueurs. */
+export const SIX_REGISTRATIONS: Registration[] = ([1, 2, 3, 4, 5, 6] as const).map((desk) => ({
+  desk,
+  displayName: `Joueur ${desk}`,
+  email: '',
+  consent: false,
+  consentAt: null,
+}))
+
 export function baseSetup(overrides: Partial<GameSetup> = {}): GameSetup {
   return {
     seed: 42,

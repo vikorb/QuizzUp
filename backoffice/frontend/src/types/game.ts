@@ -53,6 +53,8 @@ export type GameRoom = {
   id: number
   name: string
   status: RoomStatus
+  /** Pupitres de la salle (4 par défaut, jusqu'à 6) ; absent d'une ancienne réponse. */
+  desksCount?: number
 }
 
 export type GameStateFilter = GameState | ''
@@ -145,6 +147,7 @@ export type GameApiErrorCode =
   | 'room_not_found'
   | 'room_inactive'
   | 'room_busy'
+  | 'podium_not_in_room'
   | 'company_deleted'
   | 'company_inactive'
   | 'game_already_over'

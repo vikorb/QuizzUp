@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import {
   ADMIN_ROLE_ROOM,
+  GAME_PODIUMS,
   GAME_STATE_FINISHED,
   GAME_STATE_PENDING,
   GAME_STATE_RUNNING,
@@ -29,11 +30,11 @@ const roomGameFinishBodySchema = z.object({
   scores: z
     .array(
       z.object({
-        podium: z.number().int().min(1).max(4),
+        podium: z.number().int().min(1).max(GAME_PODIUMS),
         score: z.number().int().min(-1_000_000).max(1_000_000),
       })
     )
-    .max(4),
+    .max(GAME_PODIUMS),
 })
 
 const roomConfigBodySchema = z.object({ config: roomConfigSchema })

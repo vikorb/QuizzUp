@@ -206,7 +206,7 @@ Table game_participants {
   id bigint [pk, increment]
   game_id bigint [not null]
 
-  podium smallint [not null, note: '1 à 4']
+  podium smallint [not null, note: '1 à 6 (GAME_PODIUMS) ; pupitres de la salle : rooms.config.desksCount, 4 par défaut']
   display_name varchar(100) [not null]
   email varchar(255) [note: 'RGPD : uniquement si consent_at est renseigné']
   consent_at timestamptz

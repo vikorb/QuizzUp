@@ -69,6 +69,7 @@
         "rules": [
           "Everyone answers at the same time: 50 points per right answer.",
           "The fastest right player picks an opponent with their buzzers (A = desk 1, B = desk 2…).",
+          "If a player is at desk 5 or 6: A moves the target back, B moves it forward, C or D confirms it.",
           "They steal up to 100 points.",
           "Without a choice, the steal targets the player with the most points."
         ]
@@ -195,6 +196,10 @@
     "steal": {
       "title": "{name} picks who to rob",
       "hint": "Press the letter of the target desk: up to {n} points stolen",
+      "scrollHint": "A: previous target · B: next target · C or D: confirm. Up to {n} points stolen",
+      "scrollPrevious": "A previous",
+      "scrollNext": "B next",
+      "scrollValidate": "C or D confirms",
       "auto": "Without a choice, the steal targets the player with the most points"
     }
   }
