@@ -226,6 +226,8 @@ const questionMediaRoutes: FastifyPluginAsync = async (app) => {
       }
 
       // Un extrait audio bascule la question en type audio : refusé hors QCM.
+      // ponytail: contrôle hors transaction, un PATCH du type au même instant peut passer ; le
+      // refaire après `lockQuestionMediaRow` si l'édition concurrente devient réelle.
       const kindMediaError = getQuestionKindMediaError(
         access.question.kind ?? DEFAULT_QUESTION_KIND,
         QUESTION_MEDIA_TYPE_AUDIO

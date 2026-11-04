@@ -8,6 +8,7 @@ import {
   QUESTION_KIND_ESTIMATE,
   QUESTION_KIND_QCM,
   QUESTION_KIND_TRUE_FALSE,
+  QUESTION_MEDIA_TYPE_AUDIO,
   QUESTION_MEDIA_TYPE_IMAGE,
   QUESTION_MEDIA_TYPE_VIDEO,
   QUESTION_STATUS_ACTIVE,
@@ -191,6 +192,15 @@ describe('views/questions/creation/CreateQuestionForm.vue', () => {
     await findInput(wrapper, 'question').setValue('La Terre est ronde ?')
     await findInput(wrapper, 'answer-0').setValue('Vrai')
     await findInput(wrapper, 'answer-1').setValue('Faux')
+    await submitForm(wrapper)
+
+    expect(createQuestionServiceMock).not.toHaveBeenCalled()
+    expect(field('question-type-media').attributes('error')).toBe(
+      'questions.form.errors.kindMediaInvalid'
+    )
+
+    select('question-type-media', QUESTION_MEDIA_TYPE_AUDIO)
+    await nextTick()
     await submitForm(wrapper)
 
     expect(createQuestionServiceMock).not.toHaveBeenCalled()

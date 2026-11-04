@@ -190,6 +190,8 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
       }
 
       // Le couple type / média est contrôlé avec la valeur en base pour le champ non envoyé.
+      // ponytail: lu hors verrou, deux PATCH simultanés (type puis média) peuvent passer ; relire
+      // la ligne en `forUpdate()` dans la transaction si l'édition concurrente devient réelle.
       if (req.body.kind !== undefined || req.body.typeMedia !== undefined) {
         const kindMediaError = getQuestionKindMediaError(
           req.body.kind ?? accessQuestion.kind ?? DEFAULT_QUESTION_KIND,
