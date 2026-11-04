@@ -1,3 +1,4 @@
+import { PENDING_FINISHES_KEY, readPendingFinishes } from '@/game/pendingFinishes'
 import {
   isRoomReady,
   refreshRoomAccount,
@@ -58,5 +59,39 @@ describe('session du PC de la salle', () => {
     )
     await refreshRoomAccount()
     expect(roomAccount.value?.username).toBe('salle-1')
+  })
+
+  it('envoie les résultats de partie en attente dès que la salle se connecte', async () => {
+    localStorage.setItem(
+      PENDING_FINISHES_KEY,
+      JSON.stringify([{ gameId: 9, seed: 1, scores: [{ podium: 2, score: 300 }] }])
+    )
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { game: { id: 9 } }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    signIn('jwt', { id: 1, companyId: 1, role: 'room' })
+    await vi.waitFor(() => expect(readPendingFinishes()).toEqual([]))
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('http://localhost:3001/room/games/9/finish')
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get('Authorization')).toBe(
+      'Bearer jwt'
+    )
+  })
+
+  it('garde les résultats en attente quand le jeton est refusé, sans réessayer en boucle', async () => {
+    localStorage.setItem(
+      PENDING_FINISHES_KEY,
+      JSON.stringify([{ gameId: 9, seed: 1, scores: [{ podium: 2, score: 300 }] }])
+    )
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(401, { error: 'unauthorized' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    signIn('expiré', { id: 1, companyId: 1, role: 'room' })
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(readPendingFinishes()).toHaveLength(1)
   })
 })
