@@ -6,14 +6,14 @@
 
 ## 1. Ce que contient cette version
 
-| Brique          | Ce qu'on peut tester                                                                             |
-| --------------- | ------------------------------------------------------------------------------------------------ |
-| Backoffice      | Comptes, compagnies, salles et comptes de salle, thèmes, questions, extraits audio, parties      |
-| Écran de salle  | Connexion de la salle, lobby RGPD, blind test éclair complet, podium, reprise après rechargement |
-| Moteur de jeu   | Blind test éclair : paliers 1 s / 5 s / 20 s, 100 / 50 / 20 points, premier buzz juste gagne     |
-| Audio           | Extraits joués au palier près (Web Audio), sons d'interface                                      |
-| Matériel        | Buzzers (clavier, carte manette), lumières USB DMX, fumée sécurisée, arrêt d'urgence             |
-| Données de démo | Une compagnie, une salle, un compte de salle, deux thèmes blind test de 10 extraits chacun       |
+| Brique          | Ce qu'on peut tester                                                                           |
+| --------------- | ---------------------------------------------------------------------------------------------- |
+| Backoffice      | Comptes, compagnies, salles et comptes de salle, thèmes, questions, extraits audio, parties    |
+| Écran de salle  | Connexion de la salle, partie reçue du backoffice, blind test éclair, podium, reprise après F5 |
+| Moteur de jeu   | Blind test éclair : paliers 1 s / 5 s / 20 s, 100 / 50 / 20 points, premier buzz juste gagne   |
+| Audio           | Extraits joués au palier près (Web Audio), sons d'interface                                    |
+| Matériel        | Buzzers (clavier, carte manette), lumières USB DMX, fumée sécurisée, arrêt d'urgence           |
+| Données de démo | Une compagnie, une salle, un compte de salle, deux thèmes blind test de 10 extraits chacun     |
 
 Les extraits de démo sont **fabriqués par calcul** (`scripts/demo/generate-demo-audio.py`) :
 des mélodies du domaine public jouées note par note, et des sons du quotidien synthétisés.
@@ -275,7 +275,8 @@ en bout tournent dans la CI GitHub.
 
 ## 10. Limites connues de cette version
 
-- **Un seul mini-jeu** : le blind test éclair. Les suivants sont en cours.
+- **Un seul mini-jeu à l'écran** : le blind test éclair. Le moteur en connaît déjà 13 autres
+  (réponse rapide, vrai/faux, quitte ou double…), leurs écrans sont en cours.
 - **4 pupitres** : les salles 6 pupitres déjà équipées attendent la décision « passer à 6 ».
 - **Résultats** : la partie reste « En cours » au backoffice après le podium (scores et fin de
   partie pas encore renvoyés par la salle).
