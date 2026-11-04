@@ -10,7 +10,9 @@ import {
   THEME_STATUS_ACTIVE,
 } from '@quizzup/shared'
 
-import { dbState, MOCK_NOW } from '../_helpers/mockDb'
+import { vi } from 'vitest'
+
+import { db, dbState, MOCK_NOW } from '../_helpers/mockDb'
 
 function theme(overrides: Record<string, unknown>): Record<string, unknown> {
   return {
@@ -126,4 +128,18 @@ export function seedQuestionsData(): void {
     answer({ id: 20, question_id: 1, response: 'Yes', is_correct: true }),
     answer({ id: 21, question_id: 1, response: 'No', is_correct: false }),
   ]
+}
+
+/**
+ * Fait jouer une écriture concurrente juste avant la prochaine transaction de la route : la
+ * lecture initiale (hors verrou) est alors périmée, comme dans une vraie course.
+ */
+export function concurrentWriteBeforeTransaction(write: () => void): void {
+  const realTransaction = db.transaction
+
+  vi.spyOn(db, 'transaction').mockImplementationOnce((callback) => {
+    write()
+
+    return realTransaction(callback)
+  })
 }
