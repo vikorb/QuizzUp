@@ -8,7 +8,7 @@ import {
   type GameState,
   type RoundRecord,
 } from '@quizzup/game-engine'
-import { MINI_GAME_FLASH_BLIND_TEST } from '@quizzup/shared'
+import { MINI_GAME_FLASH_BLIND_TEST, type MiniGame } from '@quizzup/shared'
 
 /**
  * Lecture de l'état du moteur pour l'affichage. Fonctions pures : l'écran ne
@@ -139,12 +139,23 @@ export function getBlindTestView(state: GameState, now: number): BlindTestView |
   }
 }
 
+export type RevealResult = {
+  participantId: number
+  isCorrect: boolean
+  /** Points de la question (négatifs : pénalité, mise perdue, points volés). */
+  points: number
+}
+
 export type RevealView = {
+  miniGame: MiniGame
   question: EngineQuestion
   correctAnswerIds: number[]
+  /** Premier joueur juste (le seul au blind test et au premier buzz). */
   winnerId: number | null
   points: number
   stage: number | null
+  /** Bilan de la question par joueur, dans l'ordre des pupitres (lignes jouées seulement). */
+  results: RevealResult[]
 }
 
 export function getRevealView(state: GameState): RevealView | null {
@@ -161,11 +172,17 @@ export function getRevealView(state: GameState): RevealView | null {
     return null
   }
 
-  const winning = round.answers.find(
-    (answer) => answer.questionId === question.id && answer.isCorrect
-  )
+  const answers = round.answers.filter((answer) => answer.questionId === question.id)
+  const winning = answers.find((answer) => answer.isCorrect)
+  const results = state.setup.participants.flatMap((participant) => {
+    const answer = answers.find((candidate) => candidate.participantId === participant.id)
+    return answer
+      ? [{ participantId: participant.id, isCorrect: answer.isCorrect, points: answer.points }]
+      : []
+  })
 
   return {
+    miniGame: round.miniGame,
     question,
     correctAnswerIds: question.answers
       .filter((answer) => answer.isCorrect)
@@ -173,6 +190,7 @@ export function getRevealView(state: GameState): RevealView | null {
     winnerId: winning?.participantId ?? null,
     points: winning?.points ?? 0,
     stage: winning?.stage ?? null,
+    results,
   }
 }
 

@@ -78,6 +78,7 @@ import MdIcon from '@/components/ui/MdIcon.vue'
 import SectionCard from '@/components/ui/SectionCard.vue'
 import SectionHeader from '@/components/ui/SectionHeader.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import { syncHardwareWithRoom } from '@/hardware/hardwareSync'
 import { enterDemo, signIn } from '@/state/roomAuth'
 import { loginReasonToI18nKey, loginRoomApi } from '@/utils/auth'
 
@@ -113,6 +114,7 @@ async function onSubmit(): Promise<void> {
     }
 
     signIn(result.token, result.account)
+    void syncHardwareWithRoom()
     await router.replace({ name: 'launch' })
   } finally {
     loading.value = false
@@ -121,6 +123,7 @@ async function onSubmit(): Promise<void> {
 
 async function onDemo(): Promise<void> {
   enterDemo()
+  void syncHardwareWithRoom()
   await router.replace({ name: 'launch' })
 }
 </script>

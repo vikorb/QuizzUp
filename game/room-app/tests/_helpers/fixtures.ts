@@ -1,4 +1,5 @@
 import type { GameSetup } from '@quizzup/game-engine'
+import { MINI_GAME_FLASH_BLIND_TEST } from '@quizzup/shared'
 
 import { getDemoThemes } from '@/game/demoContent'
 import type { Registration } from '@/game/registrations'
@@ -23,6 +24,8 @@ export function baseSetup(overrides: Partial<GameSetup> = {}): GameSetup {
     themes: getDemoThemes(),
     roundsCount: 2,
     questionsPerRound: 2,
+    // Les scénarios historiques ciblent le blind test ; les autres mini-jeux ont leurs tests.
+    miniGames: [MINI_GAME_FLASH_BLIND_TEST],
     ...overrides,
   }
 }

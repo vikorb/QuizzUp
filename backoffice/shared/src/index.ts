@@ -163,6 +163,8 @@ const ESTIMATE_RANGE_PREFIXES = [
   'au moins',
   'au plus',
   "jusqu'a",
+  'avant',
+  'apres',
 ]
 
 // Une fourchette commence par un nombre, éventuellement précédé d'un mot (« Moins de 100 ») ou

@@ -1,7 +1,6 @@
 import type { GameEvent } from '@quizzup/game-engine'
 
 import type { ExtractPlayer } from '@/audio/player'
-import { DEMO_MEDIA_PREFIX } from '@/game/content'
 
 /**
  * Traduit les événements du moteur en ordres pour le lecteur d'extraits
@@ -11,11 +10,11 @@ export function createAudioBridge(player: ExtractPlayer) {
   let currentExtractMs = 0
 
   /**
-   * Seuls les extraits préchargés sont joués : un téléchargement à la volée
-   * démarrerait en retard et déborderait du palier décidé par le moteur.
+   * Seuls les extraits prêts sont joués (préchargés, ou synthétisés en démo) : un
+   * téléchargement à la volée démarrerait en retard et déborderait du palier.
    */
   function isPlayable(url: string | null): url is string {
-    return Boolean(url) && !url!.startsWith(DEMO_MEDIA_PREFIX) && player.isLoaded(url!)
+    return url !== null && url !== '' && player.isLoaded(url)
   }
 
   function handle(event: GameEvent): void {

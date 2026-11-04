@@ -8,7 +8,6 @@
       "lights": "Lights and smoke",
       "advanced": "Advanced settings"
     },
-    "localNote": "This configuration is saved on this PC.",
     "buzzers": {
       "title": "Buzzers",
       "simulation": "No buzzer paired: the simulation keyboard is used (one row of keys per desk).",
@@ -126,6 +125,12 @@
       "saved": "Configuration saved.",
       "problems": "To fix",
       "profiles": "Available fixture profiles"
+    },
+    "sync": {
+      "local": "This configuration is saved on this PC.",
+      "saved": "Configuration saved on the room account (backup copy on this PC).",
+      "error": "Back office unreachable: the configuration is kept on this PC and will be sent again at the next start or save.",
+      "rejected": "Configuration refused by the back office (too large or invalid): it is only kept on this PC."
     }
   }
 }

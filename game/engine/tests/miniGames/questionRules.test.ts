@@ -13,6 +13,9 @@ import {
 } from '@engine/miniGames/questionRules'
 import {
   isEstimateRange,
+  QUESTION_KIND_ESTIMATE,
+  QUESTION_KIND_QCM,
+  QUESTION_KIND_TRUE_FALSE,
   QUESTION_MEDIA_TYPE_AUDIO,
   QUESTION_MEDIA_TYPE_IMAGE,
   QUESTION_MEDIA_TYPE_VIDEO,
@@ -58,9 +61,9 @@ describe('hasPlayableAnswers', () => {
 })
 
 describe('isMultipleChoiceQuestion', () => {
-  it('accepts text and image questions with 2 to 4 answers', () => {
+  it('accepts text questions with 2 to 4 answers, images stay for the progressive reveal', () => {
     expect(isMultipleChoiceQuestion(qcmQuestion(1))).toBe(true)
-    expect(isMultipleChoiceQuestion(imageQuestion(1))).toBe(true)
+    expect(isMultipleChoiceQuestion(imageQuestion(1))).toBe(false)
     expect(isMultipleChoiceQuestion(qcmQuestion(1, 1, 2))).toBe(true)
   })
 
@@ -94,7 +97,7 @@ describe('isTrueFalseQuestion', () => {
         mediaUrl: 'x',
         mediaType: QUESTION_MEDIA_TYPE_IMAGE,
       })
-    ).toBe(true)
+    ).toBe(false)
   })
 
   it('rejects other answers, counts, media or correctness', () => {
@@ -213,12 +216,110 @@ const answer = (text: string) => ({ id: 1, text, isCorrect: false })
 
 describe('isRangeAnswer', () => {
   it('accepts numeric ranges and rejects QCM answers that merely contain a number', () => {
-    for (const text of ['100 à 199', 'Moins de 50', 'Entre 10 et 20', '< 5', '1 000 ou plus']) {
+    for (const text of [
+      '100 à 199',
+      'Moins de 50',
+      'Entre 10 et 20',
+      '< 5',
+      '1 000 ou plus',
+      'Avant 1800',
+      'Après 1900',
+    ]) {
       expect(isRangeAnswer(answer(text))).toBe(true)
     }
     for (const text of ['Henri 4', 'Louis 14', 'Réponse 0']) {
       expect(isRangeAnswer(answer(text))).toBe(false)
     }
+  })
+})
+
+const numbers = (texts: string[], correct = 0) =>
+  texts.map((text, index) => ({ id: index + 1, text, isCorrect: index === correct }))
+
+describe('question kind from the backoffice', () => {
+  it('keeps plain numbers as a QCM unless the question is typed as an estimate', () => {
+    const question = { ...qcmQuestion(1), answers: numbers(['6', '4', '7', '12']) }
+
+    expect(isEstimateQuestion(question)).toBe(false)
+    expect(isEstimateQuestion({ ...question, kind: QUESTION_KIND_ESTIMATE })).toBe(true)
+    expect(isMultipleChoiceQuestion(question)).toBe(true)
+  })
+
+  it('reads ranges with « avant » / « après » or two linked numbers without a kind', () => {
+    const before = {
+      ...qcmQuestion(1),
+      answers: numbers(['Avant 1800', '1800 à 1849', '1850 à 1899', 'Après 1900'], 1),
+    }
+    const dashes = { ...qcmQuestion(2), answers: numbers(['1-9', '10-19', '20-29']) }
+
+    expect(isEstimateQuestion(before)).toBe(true)
+    expect(isEstimateQuestion(dashes)).toBe(true)
+  })
+
+  it('deduces the kind behind the default « qcm » (old content), trusts the other kinds', () => {
+    // « qcm » est la valeur par défaut en base, l'ancien contenu l'a aussi.
+    expect(isEstimateQuestion({ ...estimateQuestion(1), kind: QUESTION_KIND_QCM })).toBe(true)
+    expect(isTrueFalseQuestion({ ...trueFalseQuestion(1, true), kind: QUESTION_KIND_QCM })).toBe(
+      true
+    )
+    expect(
+      isTrueFalseQuestion({ ...trueFalseQuestion(1, true), kind: QUESTION_KIND_TRUE_FALSE })
+    ).toBe(true)
+    expect(
+      isTrueFalseQuestion({ ...trueFalseQuestion(1, true), kind: QUESTION_KIND_ESTIMATE })
+    ).toBe(false)
+    expect(isEstimateQuestion({ ...estimateQuestion(1), kind: QUESTION_KIND_TRUE_FALSE })).toBe(
+      false
+    )
+  })
+
+  it('keeps scores, « environ » lists and plain numbers as QCM without the estimate kind', () => {
+    for (const texts of [
+      ['3-0', '2-1', '1-0', '2-0'],
+      ['Environ 5', 'Environ 10', 'Environ 15', 'Environ 20'],
+      ['~5', '~10', '~15'],
+    ]) {
+      expect(isEstimateQuestion({ ...qcmQuestion(1), answers: numbers(texts) })).toBe(false)
+    }
+  })
+
+  it('reads « ou avant », « et plus » and increasing linked numbers as ranges', () => {
+    for (const texts of [
+      ['1800 ou avant', '1850', '1900', '1950'],
+      ['10', '20', '50 et plus'],
+      ['1 000 à 1 999', '2 000', '3 000'],
+    ]) {
+      expect(isEstimateQuestion({ ...qcmQuestion(1), answers: numbers(texts) })).toBe(true)
+    }
+  })
+
+  it('rejects image questions whatever their kind', () => {
+    expect(
+      isTrueFalseQuestion({
+        ...trueFalseQuestion(1, true),
+        kind: QUESTION_KIND_TRUE_FALSE,
+        mediaType: QUESTION_MEDIA_TYPE_IMAGE,
+        mediaUrl: 'x',
+      })
+    ).toBe(false)
+    expect(
+      isEstimateQuestion({
+        ...estimateQuestion(1),
+        kind: QUESTION_KIND_ESTIMATE,
+        mediaType: QUESTION_MEDIA_TYPE_IMAGE,
+        mediaUrl: 'x',
+      })
+    ).toBe(false)
+  })
+
+  it('still needs numbers to sort an estimate typed as such', () => {
+    expect(
+      isEstimateQuestion({
+        ...qcmQuestion(1),
+        kind: QUESTION_KIND_ESTIMATE,
+        answers: numbers(['Peu', 'Beaucoup', 'Énormément']),
+      })
+    ).toBe(false)
   })
 })
 
@@ -234,6 +335,8 @@ describe('estimate ranges accepted by the backoffice', () => {
       '100 à 199',
       '-5',
       'Environ 12',
+      'Avant 1900',
+      'Après 2000',
     ]) {
       expect(isEstimateRange(text)).toBe(true)
       expect(isRangeAnswer(answer(text))).toBe(true)

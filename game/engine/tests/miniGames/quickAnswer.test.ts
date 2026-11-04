@@ -36,7 +36,7 @@ describe('quickAnswer.isQuestionEligible', () => {
   it('accepts text or image questions with 2 to 4 answers', () => {
     expect(quickAnswer.id).toBe(MINI_GAME_QUICK_ANSWER)
     expect(quickAnswer.isQuestionEligible(question)).toBe(true)
-    expect(quickAnswer.isQuestionEligible(imageQuestion(1))).toBe(true)
+    expect(quickAnswer.isQuestionEligible(imageQuestion(1))).toBe(false)
     expect(quickAnswer.isQuestionEligible(qcmQuestion(1, 0, 2))).toBe(true)
   })
 

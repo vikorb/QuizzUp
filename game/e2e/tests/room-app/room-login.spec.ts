@@ -30,7 +30,13 @@ test.describe('Écran de salle — connexion du compte de salle', () => {
 
     await page.getByRole('button', { name: 'Déconnecter la salle' }).click()
     await expect(page).toHaveURL(/\/login$/)
-    expect(api.calls).toEqual(['POST /login', 'GET /me', 'GET /me', 'POST /logout'])
+    const accountCalls = api.calls.filter((call) => !call.includes(' /room/'))
+    expect(accountCalls).toEqual(['POST /login', 'GET /me', 'GET /me', 'POST /logout'])
+    // Config matérielle relue sur le compte de la salle ; un PC neuf (config par défaut)
+    // n'écrase jamais une salle vierge.
+    expect(api.calls).toContain('GET /room/me')
+    expect(api.calls).not.toContain('PUT /room/config')
+    expect(api.roomConfig).toEqual({})
     expect(await page.evaluate(() => localStorage.getItem('quizzup_room_token'))).toBeNull()
   })
 

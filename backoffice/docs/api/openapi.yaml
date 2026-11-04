@@ -3192,7 +3192,7 @@ components:
             Changer le type revalide les réponses existantes (actives ou en brouillon). Les routes
             unitaires `/questions/{questionId}/answers…` appliquent les mêmes règles à l'état final.
             Préfixes de fourchette reconnus : moins de, plus de, entre, de, environ, au moins, au plus,
-            jusqu'à, ou un symbole (<, >, ≤, ≥, ~).
+            jusqu'à, avant, après, ou un symbole (<, >, ≤, ≥, ~).
         mediaUrl:
           type: string
           nullable: true
@@ -3240,7 +3240,7 @@ components:
             Changer le type revalide les réponses existantes (actives ou en brouillon). Les routes
             unitaires `/questions/{questionId}/answers…` appliquent les mêmes règles à l'état final.
             Préfixes de fourchette reconnus : moins de, plus de, entre, de, environ, au moins, au plus,
-            jusqu'à, ou un symbole (<, >, ≤, ≥, ~).
+            jusqu'à, avant, après, ou un symbole (<, >, ≤, ≥, ~).
         mediaUrl:
           type: string
           nullable: true

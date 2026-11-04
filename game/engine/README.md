@@ -91,12 +91,18 @@ on répond seul).
 | Vrai ou faux éclair (`true_false`)            | 2 réponses « Vrai » / « Faux » | A = vrai, B = faux, 6 s, 50 points, révélation 2,5 s                                                     |
 | Quitte ou double (`double_or_nothing`)        | QCM                            | mise A = 0, B = 100, C = 200, D = tapis (score, min. 300), puis réponse : ± la mise                      |
 | Mort subite (`sudden_death`)                  | QCM                            | 50 points, erreur = éliminé (sauf si tous se trompent), dernier debout +200 (survivants justes à la fin) |
-| Vol de points (`point_steal`, 2 joueurs min.) | QCM                            | 50 points, le plus rapide juste vole jusqu'à 100 points (bouton = pupitre), auto = leader                |
+| Vol de points (`point_steal`, 2 joueurs min.) | QCM                            | 50 points, le plus rapide juste vole jusqu'à 100 points (bouton = pupitre), auto = plus de points        |
 | Série (`streak`)                              | QCM                            | 25 points × multiplicateur (×1 → ×5) qui grimpe à chaque bonne réponse d'affilée                         |
 | Estimation (`estimate`)                       | 3-4 fourchettes chiffrées      | fourchettes triées (A = la plus petite), 100 points, fourchette voisine 30                               |
 | Révélation progressive (`progressive_reveal`) | image (`media_url`)            | image floue qui se précise en 20 s, premier buzz répond seul, 100 → 20 points                            |
 
-Le type de question n'existe pas encore en base : il est déduit des réponses (`questionRules.ts`).
+« QCM » = question texte sans média, 2 à 4 réponses (tous types confondus). Les questions à image
+sont réservées à la révélation progressive : nette, l'image donnerait souvent la réponse.
+Le type saisi au backoffice (`question.kind`) fait foi quand il vaut `true_false` ou `estimate`.
+`qcm` étant la valeur par défaut en base (ancien contenu compris), il ne prouve rien : le type est
+alors déduit des réponses (`questionRules.ts`), comme sans type. Une estimation déduite doit avoir
+au moins une vraie fourchette (« Moins de », « Avant », « 10 à 20 »…), pour que « 4 / 6 / 7 / 12 »
+ou des scores (« 3-0 / 2-1 ») restent des QCM.
 Événements propres aux nouveaux jeux : `answer_locked` (un joueur a répondu, choix secret),
 `bet_placed` / `bets_closed`, `player_eliminated`, `steal_target_requested` / `points_stolen`.
 Les mini-jeux « buzz » réutilisent `buzzer_pressed`, `answer_correct` et `answer_wrong` ; tous se

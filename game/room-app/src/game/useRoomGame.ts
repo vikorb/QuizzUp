@@ -1,12 +1,13 @@
-import type { EngineTheme, GameEvent, GameState } from '@quizzup/game-engine'
-import { FLASH_BLIND_TEST_STAGE_DURATIONS_MS, MAX_SEED } from '@quizzup/game-engine'
-import { MINI_GAME_FLASH_BLIND_TEST } from '@quizzup/shared'
+import type { EngineTheme, GameEvent, GameSetup, GameState } from '@quizzup/game-engine'
+import { createGame, FLASH_BLIND_TEST_STAGE_DURATIONS_MS, MAX_SEED } from '@quizzup/game-engine'
+import { MINI_GAME_FLASH_BLIND_TEST, type MiniGame } from '@quizzup/shared'
 import { computed, ref, shallowRef } from 'vue'
 
 import { createAudioBridge } from '@/audio/audioBridge'
 import { createSilentExtractPlayer, type ExtractPlayer } from '@/audio/player'
 import { createUiSoundBridge, type UiSoundOutput } from '@/audio/uiSoundBridge'
 import { collectMediaUrls } from '@/game/content'
+import { readMiniGamesSetting } from '@/game/miniGamesSetting'
 import {
   finalizeRegistrations,
   type Registration,
@@ -151,28 +152,42 @@ export function createSeed(): number {
   return Math.min(values[0] ?? 0, MAX_SEED)
 }
 
-export function startNewGame(options: {
+export type NewGameOptions = {
   registrations: Registration[]
   themes: EngineTheme[]
   roundsCount?: number
   questionsPerRound?: number
+  /** Mini-jeux tirés au sort (réglage de la salle, sinon tous). */
+  miniGames?: MiniGame[]
   seed?: number
-}): GameSession {
+}
+
+function buildSetup(options: NewGameOptions, registrations: Registration[]): GameSetup {
+  return {
+    seed: options.seed ?? createSeed(),
+    participants: toEngineParticipants(registrations),
+    themes: options.themes,
+    roundsCount: options.roundsCount,
+    questionsPerRound: options.questionsPerRound,
+    // Tous les mini-jeux par défaut, ou le réglage de la salle.
+    miniGames: options.miniGames ?? readMiniGamesSetting(),
+  }
+}
+
+/**
+ * Vérifie avec le moteur qu'une partie peut être créée (graine, format, joueurs,
+ * contenu), sans rien sauvegarder ni lancer : lève l'erreur du moteur sinon.
+ */
+export function validateNewGame(options: NewGameOptions & { seed: number }): void {
+  createGame(buildSetup(options, finalizeRegistrations(options.registrations)))
+}
+
+export function startNewGame(options: NewGameOptions): GameSession {
   const registrations = finalizeRegistrations(options.registrations)
-  const next = GameSession.create(
-    {
-      seed: options.seed ?? createSeed(),
-      participants: toEngineParticipants(registrations),
-      themes: options.themes,
-      roundsCount: options.roundsCount,
-      questionsPerRound: options.questionsPerRound,
-      // L'écran de salle n'affiche encore que le blind test éclair : les autres
-      // mini-jeux du moteur arrivent avec leurs écrans.
-      miniGames: [MINI_GAME_FLASH_BLIND_TEST],
-    },
-    registrations,
-    { storage, now: clock }
-  )
+  const next = GameSession.create(buildSetup(options, registrations), registrations, {
+    storage,
+    now: clock,
+  })
 
   attach(next)
   next.start()

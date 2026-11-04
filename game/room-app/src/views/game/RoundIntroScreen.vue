@@ -9,7 +9,7 @@
       <li v-for="(rule, index) in rules" :key="index">{{ rule }}</li>
     </ul>
 
-    <ol class="intro__stages">
+    <ol v-if="miniGame === MINI_GAME_FLASH_BLIND_TEST" class="intro__stages">
       <li v-for="stage in BLIND_TEST_STAGES" :key="stage.stage" class="intro__stage">
         <span class="intro__stage-time">
           {{ $t('game.blindTest.stageDuration', { seconds: stage.durationMs / 1000 }) }}
@@ -21,7 +21,7 @@
 </template>
 
 <script setup lang="ts">
-import type { MiniGame } from '@quizzup/shared'
+import { MINI_GAME_FLASH_BLIND_TEST, type MiniGame } from '@quizzup/shared'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
