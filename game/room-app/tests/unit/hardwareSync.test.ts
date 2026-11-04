@@ -161,7 +161,10 @@ describe('config matérielle sur le compte de la salle', () => {
       'quizzup_room_hardware',
       JSON.stringify({ buzzers: { keymap: LOCAL_KEYMAP } })
     )
-    localStorage.setItem('quizzup_room_hardware_sync', JSON.stringify({ accountId: 7 }))
+    localStorage.setItem(
+      'quizzup_room_hardware_sync',
+      JSON.stringify({ accountId: 7, pending: true })
+    )
     await reload()
     vi.spyOn(roomApi, 'fetchRoomInfo').mockRejectedValue(new Error('offline'))
     const save = mockSave()

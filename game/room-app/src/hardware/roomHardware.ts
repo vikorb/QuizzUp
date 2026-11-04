@@ -421,7 +421,13 @@ export function pushHardwareConfig(
   generation = saveGeneration
 ): Promise<void> {
   const saver = remoteSaver
-  if (!saver || foreignCopy) {
+  if (!saver) {
+    return Promise.resolve()
+  }
+  if (foreignCopy) {
+    // Copie modifiée sans savoir pour quel compte : elle ne part plus vers aucun,
+    // pas même vers son compte d'origine.
+    writeSyncMeta({ pending: false })
     return Promise.resolve()
   }
   writeSyncMeta({ pending: true })
