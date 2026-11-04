@@ -3,6 +3,7 @@ import { confirmMock, setConfirmResult } from '@frontend-tests/_helpers/confirmM
 import {
   abortGameServiceMock,
   createGameFixture,
+  createParticipantFixture,
   loadGameServiceMock,
   mockServiceFailure,
   resetGamesServiceMock,
@@ -65,6 +66,53 @@ describe('views/games/GameDetailView.vue', () => {
     expect(rows[0].get('[data-test="base-table-cell-score"]').text()).toBe('12')
     expect(rows[0].get('[data-test="base-table-cell-email"]').text()).toBe('a@quizzup.test')
     expect(rows[1].get('[data-test="base-table-cell-email"]').text()).toBe('—')
+  })
+
+  it('shows the second player under the first one, with masked emails for the staff', async () => {
+    loadGameServiceMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        game: createGameFixture({
+          id: 4,
+          participants: [
+            createParticipantFixture({
+              id: 1,
+              podium: 1,
+              displayName: 'Team A',
+              email: null,
+              hasEmail: true,
+              score: 12,
+              secondPlayer: {
+                displayName: 'Alex',
+                email: null,
+                hasEmail: true,
+                consentAt: '2026-11-03T10:00:00.000Z',
+              },
+            }),
+            createParticipantFixture({
+              id: 2,
+              podium: 2,
+              displayName: 'Team B',
+              secondPlayer: { displayName: 'Sam', email: null, hasEmail: false, consentAt: null },
+            }),
+          ],
+        }),
+      },
+    })
+
+    const wrapper = await mountView()
+    const rows = participantRows(wrapper)
+
+    expect(rows).toHaveLength(2)
+    expect(rows[0].get('[data-test="game-player-name-1"]').text()).toBe('Team A')
+    expect(rows[0].get('[data-test="game-player-name-2"]').text()).toBe('Alex')
+    expect(rows[1].get('[data-test="game-player-name-2"]').text()).toBe('Sam')
+    expect(rows[0].get('[data-test="base-table-cell-score"]').text()).toBe('12')
+    expect(rows[0].get('[data-test="game-player-email-1"]').text()).toBe('games.detail.emailMasked')
+    expect(rows[0].get('[data-test="game-player-email-2"]').text()).toBe('games.detail.emailMasked')
+    expect(rows[1].get('[data-test="game-player-email-1"]').text()).toBe('—')
+    expect(rows[1].get('[data-test="game-player-email-2"]').text()).toBe('—')
   })
 
   it('stops the game after confirmation and shows its new state', async () => {
