@@ -24,6 +24,12 @@ extraits du blind test et affiche la partie sur l'écran de la salle.
 
 Une alerte plein écran signale la **perte de focus** (les buzzers clavier ne sont plus reçus).
 
+**Un seul onglet par poste** (`utils/singleInstance.ts`, `main.ts`) : la page prend le verrou Web
+Locks `quizzup-room` (`ifAvailable`) et le garde tant qu'elle vit. Un second onglet ou une seconde
+fenêtre du même navigateur n'affiche que « QuizzUp est déjà ouvert sur ce PC » : ni moteur, ni
+buzzers, ni lumières, ni sauvegarde de partie. Sans `navigator.locks` (navigateur ancien, page non
+sécurisée), l'application démarre normalement sans cette protection.
+
 ## Architecture
 
 ```
