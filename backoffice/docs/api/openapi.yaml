@@ -2374,7 +2374,8 @@ paths:
         '400':
           description: |
             `question_media_required`, `question_media_invalid_file`,
-            `question_media_rights_required`, `question_media_duration_invalid`
+            `question_media_rights_required`, `question_media_duration_invalid`,
+            `question_kind_media_invalid` (l'audio est réservé aux questions QCM)
           content:
             application/json:
               schema:
@@ -3193,6 +3194,8 @@ components:
             unitaires `/questions/{questionId}/answers…` appliquent les mêmes règles à l'état final.
             Préfixes de fourchette reconnus : moins de, plus de, entre, de, environ, au moins, au plus,
             jusqu'à, avant, après, ou un symbole (<, >, ≤, ≥, ~).
+            `true_false` et `estimate` n'acceptent que `typeMedia` `none` ou `image`
+            (`question_kind_media_invalid` sinon) ; en modification, le champ non envoyé est pris en base.
         mediaUrl:
           type: string
           nullable: true
@@ -3241,6 +3244,8 @@ components:
             unitaires `/questions/{questionId}/answers…` appliquent les mêmes règles à l'état final.
             Préfixes de fourchette reconnus : moins de, plus de, entre, de, environ, au moins, au plus,
             jusqu'à, avant, après, ou un symbole (<, >, ≤, ≥, ~).
+            `true_false` et `estimate` n'acceptent que `typeMedia` `none` ou `image`
+            (`question_kind_media_invalid` sinon) ; en modification, le champ non envoyé est pris en base.
         mediaUrl:
           type: string
           nullable: true

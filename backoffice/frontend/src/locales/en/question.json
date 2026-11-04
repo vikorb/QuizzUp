@@ -47,7 +47,8 @@
       "kind": "Question type",
       "errors": {
         "trueFalseAnswers": "A true / false question has exactly two answers, « Vrai » and « Faux », with one correct.",
-        "estimateAnswers": "An estimate has 3 or 4 ranges starting with a number (e.g. « Moins de 100 », « 100 à 199 »), with one correct."
+        "estimateAnswers": "An estimate has 3 or 4 ranges starting with a number (e.g. « Moins de 100 », « 100 à 199 »), with one correct.",
+        "kindMediaInvalid": "A true / false or estimate question only accepts text or an image: audio and video are for multiple-choice questions."
       },
       "kindRules": {
         "true_false": "True / false: two answers « Vrai » and « Faux », one correct.",

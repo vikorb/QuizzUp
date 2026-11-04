@@ -289,6 +289,51 @@ describe('routes/questions.ts', () => {
     await app.close()
   })
 
+  it('refuses audio or video for a true / false or estimate question on creation', async () => {
+    const app = await createRouteApp(questionsRoutes)
+    const trueFalseAnswers = [
+      { response: 'Vrai', isCorrect: true },
+      { response: 'Faux', isCorrect: false },
+    ]
+    const post = (overrides: Record<string, unknown>) =>
+      app.inject({
+        method: 'POST',
+        url: '/questions',
+        headers: authHeaders(superadminUser),
+        payload: questionBody(overrides),
+      })
+
+    const audio = await post({
+      kind: QUESTION_KIND_TRUE_FALSE,
+      typeMedia: 'audio',
+      answers: trueFalseAnswers,
+    })
+    const video = await post({
+      kind: QUESTION_KIND_ESTIMATE,
+      typeMedia: 'video',
+      answers: [
+        { response: 'Moins de 10', isCorrect: false },
+        { response: '10 à 99', isCorrect: true },
+        { response: '100 ou plus', isCorrect: false },
+      ],
+    })
+    const image = await post({
+      kind: QUESTION_KIND_TRUE_FALSE,
+      typeMedia: 'image',
+      answers: trueFalseAnswers,
+    })
+    const qcmVideo = await post({ kind: QUESTION_KIND_QCM, typeMedia: 'video' })
+
+    expect(audio.statusCode).toBe(400)
+    expect(parseJson(audio)).toEqual({ error: 'question_kind_media_invalid' })
+    expect(video.statusCode).toBe(400)
+    expect(parseJson(video)).toEqual({ error: 'question_kind_media_invalid' })
+    expect(image.statusCode).toBe(201)
+    expect(qcmVideo.statusCode).toBe(201)
+
+    await app.close()
+  })
+
   it('limits visibility to global and own-company questions for non-superadmins', async () => {
     const app = await createRouteApp(questionsRoutes)
 

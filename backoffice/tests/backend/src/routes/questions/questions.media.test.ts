@@ -4,7 +4,11 @@ import { Readable } from 'node:stream'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { QUESTION_MEDIA_TYPE_AUDIO, QUESTION_MEDIA_TYPE_NONE } from '@quizzup/shared'
+import {
+  QUESTION_KIND_ESTIMATE,
+  QUESTION_MEDIA_TYPE_AUDIO,
+  QUESTION_MEDIA_TYPE_NONE,
+} from '@quizzup/shared'
 import questionsRoutes from '@backend/routes/questions'
 import { type MediaStorage, setMediaStorage } from '@backend/storage/mediaStorage'
 import { dbState } from '../_helpers/mockDb'
@@ -127,6 +131,17 @@ describe('routes/questions/media — upload', () => {
       durationMs: 45_000,
       originalName: 'extrait été.mp3',
     })
+  })
+
+  it('refuses an audio excerpt for a question that is not a multiple-choice one', async () => {
+    questionRow(2).kind = QUESTION_KIND_ESTIMATE
+
+    const response = await upload(2)
+
+    expect(response.statusCode).toBe(400)
+    expect(parseJson(response)).toEqual({ error: 'question_kind_media_invalid' })
+    expect(questionRow(2).type_media).not.toBe(QUESTION_MEDIA_TYPE_AUDIO)
+    expect(storage.files.size).toBe(0)
   })
 
   it('accepts ogg files and the non standard audio/mp3 alias', async () => {

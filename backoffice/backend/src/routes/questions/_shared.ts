@@ -75,6 +75,7 @@ export type QuestionAccessRow = {
   scope: ThemeScope
   status: QuestionStatus
   kind?: QuestionKind
+  type_media?: QuestionMediaType
 }
 
 export type QuestionStatusBody = {
@@ -317,7 +318,7 @@ export function canEditQuestion(question: QuestionAccessRow, req: FastifyRequest
 
 export async function getQuestionAccessRow(questionId: number): Promise<QuestionAccessRow | null> {
   const question = await db('questions')
-    .select('id', 'admin_id', 'company_id', 'scope', 'status', 'kind')
+    .select('id', 'admin_id', 'company_id', 'scope', 'status', 'kind', 'type_media')
     .where({ id: questionId })
     .first()
 

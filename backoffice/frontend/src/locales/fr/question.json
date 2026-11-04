@@ -91,7 +91,8 @@
         "answerRequired": "Toutes les réponses doivent être renseignées.",
         "oneCorrectRequired": "Au moins une bonne réponse doit être sélectionnée.",
         "trueFalseAnswers": "Une question vrai/faux a exactement deux réponses, « Vrai » et « Faux », dont une seule juste.",
-        "estimateAnswers": "Une estimation a 3 ou 4 fourchettes qui commencent par un nombre (ex : « Moins de 100 », « 100 à 199 »), dont une seule juste."
+        "estimateAnswers": "Une estimation a 3 ou 4 fourchettes qui commencent par un nombre (ex : « Moins de 100 », « 100 à 199 »), dont une seule juste.",
+        "kindMediaInvalid": "Une question vrai/faux ou estimation n'accepte qu'un texte ou une image : l'audio et la vidéo sont réservés au QCM."
       },
       "audio": {
         "title": "Extrait audio",

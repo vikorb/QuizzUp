@@ -46,6 +46,7 @@
         :label="$t('questions.form.typeMedia')"
         :options="typeMediaOptions"
         :disabled="saving"
+        :error="getErrorLabel(errors.typeMedia)"
       />
 
       <FormField
@@ -140,6 +141,7 @@ import { mdiTrashCanOutline } from '@mdi/js'
 import {
   DEFAULT_QUESTION_KIND,
   getQuestionKindAnswersError,
+  getQuestionKindMediaError,
   QUESTION_KIND_ANSWERS_ERROR_TRUE_FALSE,
   QUESTION_KIND_ESTIMATE,
   QUESTION_KIND_QCM,
@@ -225,6 +227,7 @@ const errors = reactive({
   themeIds: '',
   question: '',
   answers: '',
+  typeMedia: '',
   audio: '',
 })
 
@@ -397,6 +400,7 @@ function resetErrors(): void {
   errors.themeIds = ''
   errors.question = ''
   errors.answers = ''
+  errors.typeMedia = ''
   errors.audio = ''
 }
 
@@ -451,13 +455,20 @@ function validateForm(): boolean {
         : 'questions.form.errors.estimateAnswers'
   }
 
+  // Vrai/faux et estimation : le moteur ne tire que les questions texte ou image.
+  if (getQuestionKindMediaError(form.kind, form.typeMedia)) {
+    errors.typeMedia = 'questions.form.errors.kindMediaInvalid'
+  }
+
   if (isAudio.value && form.audio.file && form.audio.measuring) {
     errors.audio = 'questions.form.audio.errors.measuring'
   } else if (isAudio.value && form.audio.file && !form.audio.rightsAttested) {
     errors.audio = 'questions.form.audio.errors.rightsRequired'
   }
 
-  return !errors.themeIds && !errors.question && !errors.answers && !errors.audio
+  return (
+    !errors.themeIds && !errors.question && !errors.answers && !errors.typeMedia && !errors.audio
+  )
 }
 
 function addAnswer(): void {

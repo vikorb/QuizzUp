@@ -8,6 +8,9 @@ import {
   QUESTION_KIND_ESTIMATE,
   QUESTION_KIND_QCM,
   QUESTION_KIND_TRUE_FALSE,
+  QUESTION_MEDIA_TYPE_AUDIO,
+  QUESTION_MEDIA_TYPE_IMAGE,
+  QUESTION_MEDIA_TYPE_VIDEO,
   QUESTION_STATUS_ACTIVE,
   THEME_SCOPE_GLOBAL,
 } from '@quizzup/shared'
@@ -171,6 +174,48 @@ describe('views/questions/creation/CreateQuestionForm.vue', () => {
 
     expect(createQuestionServiceMock).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('questions.form.errors.estimateAnswers')
+  })
+
+  it('refuses audio or video for a true / false question before calling the API', async () => {
+    createQuestionServiceMock.mockResolvedValue(savedQuestion())
+
+    const wrapper = mountWithFrontendMocks(CreateQuestionForm, {
+      props: { question: null, themes, mode: 'create', initialThemeIds: [1] },
+    })
+    const field = (id: string) =>
+      wrapper.findAllComponents(SelectField).find((select) => select.attributes('id') === id)!
+    const select = (id: string, value: string) => field(id).vm.$emit('update:modelValue', value)
+
+    select('question-kind', QUESTION_KIND_TRUE_FALSE)
+    select('question-type-media', QUESTION_MEDIA_TYPE_VIDEO)
+    await nextTick()
+    await findInput(wrapper, 'question').setValue('La Terre est ronde ?')
+    await findInput(wrapper, 'answer-0').setValue('Vrai')
+    await findInput(wrapper, 'answer-1').setValue('Faux')
+    await submitForm(wrapper)
+
+    expect(createQuestionServiceMock).not.toHaveBeenCalled()
+    expect(field('question-type-media').attributes('error')).toBe(
+      'questions.form.errors.kindMediaInvalid'
+    )
+
+    select('question-type-media', QUESTION_MEDIA_TYPE_AUDIO)
+    await nextTick()
+    await submitForm(wrapper)
+
+    expect(createQuestionServiceMock).not.toHaveBeenCalled()
+    expect(field('question-type-media').attributes('error')).toBe(
+      'questions.form.errors.kindMediaInvalid'
+    )
+
+    select('question-type-media', QUESTION_MEDIA_TYPE_IMAGE)
+    await nextTick()
+    await submitForm(wrapper)
+
+    expect(field('question-type-media').attributes('error')).toBeUndefined()
+    expect(createQuestionServiceMock).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: QUESTION_KIND_TRUE_FALSE, typeMedia: 'image' })
+    )
   })
 
   it('keeps existing answer ids when updating a question (B3)', async () => {
