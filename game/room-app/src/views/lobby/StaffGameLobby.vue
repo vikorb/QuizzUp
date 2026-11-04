@@ -153,7 +153,31 @@ const status = ref<Status>('loading')
 const game = shallowRef<RoomGame | null>(null)
 const starting = ref(false)
 const error = ref<StartError | null>(null)
-const savedGame = ref(hasSavedGame())
+/** Partie du backoffice dont la sauvegarde locale est la progression. */
+const SAVED_GAME_ID_KEY = 'quizzup_room_backoffice_game'
+
+function readSavedGameId(): string | null {
+  try {
+    return localStorage.getItem(SAVED_GAME_ID_KEY)
+  } catch {
+    return null
+  }
+}
+
+function rememberSavedGameId(id: number): void {
+  try {
+    localStorage.setItem(SAVED_GAME_ID_KEY, String(id))
+  } catch {
+    // Stockage indisponible : la reprise ne sera simplement pas proposée.
+  }
+}
+
+/** Une sauvegarde locale existe, et c'est bien celle de la partie `current`. */
+function hasSaveFor(current: RoomGame | null): boolean {
+  return current !== null && hasSavedGame() && readSavedGameId() === String(current.id)
+}
+
+const savedGame = ref(false)
 const pinged = reactive(new Set<DeskNumber>())
 const timers = new Set<ReturnType<typeof setTimeout>>()
 let poller: ReturnType<typeof setInterval> | null = null
@@ -222,7 +246,7 @@ async function refresh(): Promise<void> {
     }
     game.value = current
     status.value = current ? 'ready' : 'waiting'
-    savedGame.value = hasSavedGame()
+    savedGame.value = hasSaveFor(current)
   } catch {
     failures += 1
     if (!game.value || failures >= OFFLINE_AFTER_FAILURES) {
@@ -291,6 +315,7 @@ async function onStart(): Promise<void> {
       return
     }
     startNewGame(options)
+    rememberSavedGameId(current.id)
   } catch (caught) {
     error.value = toStartError(caught)
     return

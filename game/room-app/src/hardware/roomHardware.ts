@@ -287,10 +287,26 @@ export type HardwareSyncStatus = 'local' | 'saved' | 'error' | 'rejected'
 
 type RemoteSaver = (config: RoomHardwareConfig) => Promise<void>
 
-/** État de la copie locale : salle d'origine, et modifications pas encore envoyées. */
-export type HardwareSyncMeta = { roomId: number | null; pending: boolean }
+/**
+ * État de la copie locale : compte de salle auquel elle se rapporte, empreinte du
+ * jeton qui l'y a reliée (pour la retrouver hors ligne), et modifications pas encore envoyées.
+ */
+export type HardwareSyncMeta = {
+  accountId: number | null
+  tokenTag: string | null
+  pending: boolean
+}
+
+/** Compte de salle auquel partent les enregistrements. */
+export type HardwareBinding = { accountId: number; tokenTag: string }
 
 let remoteSaver: RemoteSaver | null = null
+let binding: HardwareBinding | null = null
+/**
+ * La copie locale vient d'un autre compte de salle : rien n'est envoyé tant que la
+ * config du compte connecté n'a pas été relue et appliquée.
+ */
+let foreignCopy = false
 const syncStatus = shallowRef<HardwareSyncStatus>('local')
 /** Incrémenté à chaque enregistrement local : une config relue avant est périmée. */
 let saveGeneration = 0
@@ -323,11 +339,12 @@ export function getHardwareSyncMeta(): HardwareSyncMeta {
     const raw = getStorage()?.getItem(HARDWARE_SYNC_STORAGE_KEY)
     const value = raw ? (JSON.parse(raw) as Partial<HardwareSyncMeta>) : {}
     return {
-      roomId: typeof value.roomId === 'number' ? value.roomId : null,
+      accountId: typeof value.accountId === 'number' ? value.accountId : null,
+      tokenTag: typeof value.tokenTag === 'string' ? value.tokenTag : null,
       pending: value.pending === true,
     }
   } catch {
-    return { roomId: null, pending: false }
+    return { accountId: null, tokenTag: null, pending: false }
   }
 }
 
@@ -348,12 +365,31 @@ export function getHardwareSaveGeneration(): number {
 }
 
 /**
- * Enregistrement côté backoffice (`rooms.config`, compte de la salle). Sans
- * enregistreur (mode démo), la config reste sur ce PC.
+ * Enregistrement côté backoffice (`rooms.config`) pour le compte de salle `next`.
+ * Sans enregistreur (mode démo, compte inconnu), la config reste sur ce PC. Une
+ * copie locale rattachée à un autre compte n'est jamais envoyée à celui-ci.
  */
-export function setHardwareRemoteSaver(saver: RemoteSaver | null): void {
-  remoteSaver = saver
+export function setHardwareRemoteSaver(
+  saver: RemoteSaver | null,
+  next: HardwareBinding | null = null
+): void {
+  remoteSaver = saver && next ? saver : null
+  binding = remoteSaver ? next : null
   syncStatus.value = 'local'
+  foreignCopy = false
+  if (binding) {
+    const meta = getHardwareSyncMeta()
+    if (meta.accountId !== null && meta.accountId !== binding.accountId) {
+      foreignCopy = true
+    } else {
+      writeSyncMeta({ accountId: binding.accountId, tokenTag: binding.tokenTag })
+    }
+  }
+}
+
+/** La copie locale appartient à un autre compte de salle que celui connecté. */
+export function isHardwareCopyForeign(): boolean {
+  return foreignCopy
 }
 
 async function applyConfig(input: unknown): Promise<ParsedRoomHardwareConfig> {
@@ -385,7 +421,7 @@ export function pushHardwareConfig(
   generation = saveGeneration
 ): Promise<void> {
   const saver = remoteSaver
-  if (!saver) {
+  if (!saver || foreignCopy) {
     return Promise.resolve()
   }
   writeSyncMeta({ pending: true })
@@ -399,9 +435,13 @@ export function pushHardwareConfig(
       }
     } catch (caught) {
       if (generation === saveGeneration) {
-        // Un 400 (config trop volumineuse ou invalide) ne passera pas mieux plus tard.
-        syncStatus.value =
-          caught instanceof RoomApiError && caught.status === 400 ? 'rejected' : 'error'
+        // Un 400 (config trop volumineuse ou invalide) ne passera pas mieux plus tard :
+        // elle n'est pas renvoyée, le prochain démarrage reprend celle du compte.
+        const rejected = caught instanceof RoomApiError && caught.status === 400
+        if (rejected) {
+          writeSyncMeta({ pending: false })
+        }
+        syncStatus.value = rejected ? 'rejected' : 'error'
       }
     }
   }
@@ -424,16 +464,23 @@ export async function saveRoomHardwareConfig(input: unknown): Promise<ParsedRoom
   return next
 }
 
-/** Config relue depuis le compte de la salle `roomId` : appliquée sans être renvoyée. */
-export async function applyRemoteHardwareConfig(input: unknown, roomId: number): Promise<void> {
+/**
+ * Config relue depuis le compte connecté : appliquée sans être renvoyée. La copie
+ * locale lui est désormais rattachée. Un enregistrement local fait pendant
+ * l'application reste « à envoyer ».
+ */
+export async function applyRemoteHardwareConfig(input: unknown): Promise<void> {
+  const generation = saveGeneration
   await applyConfig(input)
-  writeSyncMeta({ roomId, pending: false })
-  syncStatus.value = 'saved'
-}
-
-/** Rattache la copie locale à la salle connectée (avant de la lui envoyer). */
-export function bindHardwareToRoom(roomId: number): void {
-  writeSyncMeta({ roomId })
+  if (!binding) {
+    return
+  }
+  foreignCopy = false
+  writeSyncMeta({ accountId: binding.accountId, tokenTag: binding.tokenTag })
+  if (generation === saveGeneration) {
+    writeSyncMeta({ pending: false })
+    syncStatus.value = 'saved'
+  }
 }
 
 /** Config actuelle (normalisée), par exemple pour la pousser vers le backoffice. */
@@ -453,6 +500,8 @@ export async function resetRoomHardware(options: { storage?: HardwareStorage | n
   preferSimulation = false
   pendingEmergency = null
   remoteSaver = null
+  binding = null
+  foreignCopy = false
   syncStatus.value = 'local'
   saveGeneration = 0
   saveQueue = Promise.resolve()

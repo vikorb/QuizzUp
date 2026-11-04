@@ -17,10 +17,15 @@ function mockSave() {
   return vi.spyOn(roomApi, 'saveRoomConfig').mockResolvedValue({ ...ROOM, config: {} })
 }
 
-/** Rechargement de la page : la config repart de la copie locale. */
-async function reload(): Promise<void> {
+const ACCOUNT = { id: 10, companyId: 1, role: 'room' }
+
+/** Rechargement de la page : la config repart de la copie locale, le compte est relu. */
+async function reload(options: { offline?: boolean } = {}): Promise<void> {
   await resetRoomHardware()
   syncRoomAuth()
+  if (!options.offline) {
+    signIn('tok', ACCOUNT)
+  }
 }
 
 describe('config matérielle sur le compte de la salle', () => {
@@ -90,7 +95,7 @@ describe('config matérielle sur le compte de la salle', () => {
 
     save.mockRejectedValueOnce(new TypeError('Failed to fetch'))
     await saveBuzzerKeymap(LOCAL_KEYMAP)
-    expect(getHardwareSyncMeta()).toEqual({ roomId: 1, pending: true })
+    expect(getHardwareSyncMeta()).toMatchObject({ accountId: 10, pending: true })
 
     await reload()
     await syncHardwareWithRoom()
@@ -128,7 +133,7 @@ describe('config matérielle sur le compte de la salle', () => {
 
     expect(useRoomHardware().hardware.value.config.buzzers.keymap).toEqual(LOCAL_KEYMAP)
     expect(save).toHaveBeenCalledOnce()
-    expect(getHardwareSyncMeta().roomId).toBe(1)
+    expect(getHardwareSyncMeta().accountId).toBe(10)
   })
 
   it('n’envoie pas à une salle la copie locale d’une autre salle', async () => {
@@ -136,7 +141,10 @@ describe('config matérielle sur le compte de la salle', () => {
       'quizzup_room_hardware',
       JSON.stringify({ buzzers: { keymap: LOCAL_KEYMAP } })
     )
-    localStorage.setItem('quizzup_room_hardware_sync', JSON.stringify({ roomId: 7, pending: true }))
+    localStorage.setItem(
+      'quizzup_room_hardware_sync',
+      JSON.stringify({ accountId: 7, pending: true })
+    )
     await reload()
     vi.spyOn(roomApi, 'fetchRoomInfo').mockResolvedValue({ ...ROOM, config: {} })
     const save = mockSave()
@@ -145,7 +153,68 @@ describe('config matérielle sur le compte de la salle', () => {
 
     expect(save).not.toHaveBeenCalled()
     expect(useRoomHardware().hardware.value.config.buzzers.keymap).toEqual({})
-    expect(getHardwareSyncMeta()).toEqual({ roomId: 1, pending: false })
+    expect(getHardwareSyncMeta()).toMatchObject({ accountId: 10, pending: false })
+  })
+
+  it('n’envoie rien à un autre compte tant que sa config n’a pas été relue', async () => {
+    localStorage.setItem(
+      'quizzup_room_hardware',
+      JSON.stringify({ buzzers: { keymap: LOCAL_KEYMAP } })
+    )
+    localStorage.setItem('quizzup_room_hardware_sync', JSON.stringify({ accountId: 7 }))
+    await reload()
+    vi.spyOn(roomApi, 'fetchRoomInfo').mockRejectedValue(new Error('offline'))
+    const save = mockSave()
+
+    await syncHardwareWithRoom()
+    await saveBuzzerKeymap(SERVER_KEYMAP)
+
+    expect(save).not.toHaveBeenCalled()
+    expect(getHardwareSyncMeta()).toMatchObject({ accountId: 7, pending: false })
+  })
+
+  it('retrouve hors ligne le compte de la copie locale et la renvoie au retour du réseau', async () => {
+    vi.spyOn(roomApi, 'fetchRoomInfo').mockResolvedValueOnce({
+      ...ROOM,
+      config: { buzzers: { keymap: SERVER_KEYMAP } },
+    })
+    const save = mockSave()
+    await syncHardwareWithRoom()
+
+    await reload({ offline: true })
+    vi.spyOn(roomApi, 'fetchRoomInfo').mockRejectedValueOnce(new Error('offline'))
+    await syncHardwareWithRoom()
+    save.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    await saveBuzzerKeymap(LOCAL_KEYMAP)
+    expect(getHardwareSyncMeta()).toMatchObject({ accountId: 10, pending: true })
+
+    await reload()
+    vi.spyOn(roomApi, 'fetchRoomInfo').mockResolvedValueOnce({
+      ...ROOM,
+      config: { buzzers: { keymap: SERVER_KEYMAP } },
+    })
+    await syncHardwareWithRoom()
+    expect(useRoomHardware().hardware.value.config.buzzers.keymap).toEqual(LOCAL_KEYMAP)
+    expect(save).toHaveBeenLastCalledWith(
+      'tok',
+      expect.objectContaining({ buzzers: { keymap: LOCAL_KEYMAP } })
+    )
+  })
+
+  it('ne renvoie pas une config refusée au démarrage suivant', async () => {
+    vi.spyOn(roomApi, 'fetchRoomInfo').mockResolvedValue({
+      ...ROOM,
+      config: { buzzers: { keymap: SERVER_KEYMAP } },
+    })
+    const save = mockSave()
+    await syncHardwareWithRoom()
+    save.mockRejectedValueOnce(new roomApi.RoomApiError(400, 'room_config_too_large'))
+    await saveBuzzerKeymap(LOCAL_KEYMAP)
+    expect(getHardwareSyncMeta().pending).toBe(false)
+
+    await reload()
+    await syncHardwareWithRoom()
+    expect(useRoomHardware().hardware.value.config.buzzers.keymap).toEqual(SERVER_KEYMAP)
   })
 
   it('ignore la config relue si le PC a enregistré pendant la lecture', async () => {

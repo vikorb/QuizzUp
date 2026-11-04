@@ -204,7 +204,26 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
     expect(router.currentRoute.value.name).not.toBe('play')
   })
 
+  it('ne propose pas de reprendre la sauvegarde d’une autre partie', async () => {
+    GameSession.create(
+      {
+        seed: GAME.seed,
+        participants: [{ id: 1, podium: 1, displayName: 'Léa' }],
+        themes: getPlayableThemes(),
+      },
+      [],
+      { storage }
+    )
+    localStorage.setItem('quizzup_room_backoffice_game', '41')
+    vi.spyOn(roomApi, 'fetchCurrentGame').mockResolvedValue({ ...GAME, state: 'running' })
+    const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="resume-game"]').exists()).toBe(false)
+  })
+
   it('propose de reprendre une partie déjà en cours sur ce PC', async () => {
+    localStorage.setItem('quizzup_room_backoffice_game', '42')
     GameSession.create(
       {
         seed: GAME.seed,
@@ -241,5 +260,6 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
     await wrapper.find('[data-test="start-game"]').trigger('click')
     useConfirm().accept()
     await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('play'))
+    expect(localStorage.getItem('quizzup_room_backoffice_game')).toBe('42')
   })
 })
