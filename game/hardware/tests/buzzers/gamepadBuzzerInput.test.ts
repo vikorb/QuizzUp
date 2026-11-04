@@ -257,4 +257,39 @@ describe('buzzers manette (API Gamepad)', () => {
       delete (window.navigator as { getGamepads?: unknown }).getGamepads
     }
   })
+
+  it('verrouille les touches système comme les buzzers clavier', async () => {
+    current = setup([createPad().pad])
+    expect(await current.input.lockSystemKeys()).toBe(false)
+
+    const keyboard = { lock: vi.fn().mockResolvedValue(undefined), unlock: vi.fn() }
+    Object.defineProperty(navigator, 'keyboard', { value: keyboard, configurable: true })
+    try {
+      const changes = vi.fn()
+      current.input.onChange(changes)
+
+      expect(await current.input.lockSystemKeys()).toBe(true)
+      expect(current.input.getState().keyboardLocked).toBe(true)
+      expect(changes).toHaveBeenCalled()
+      current.input.unlockSystemKeys()
+      expect(keyboard.unlock).toHaveBeenCalled()
+      expect(current.input.getState().keyboardLocked).toBe(false)
+
+      // Le navigateur relâche le verrou en sortant du plein écran.
+      expect(await current.input.lockSystemKeys()).toBe(true)
+      document.dispatchEvent(new Event('fullscreenchange'))
+      expect(current.input.getState().keyboardLocked).toBe(false)
+
+      // Relâché à la fermeture de l'entrée.
+      expect(await current.input.lockSystemKeys()).toBe(true)
+      keyboard.unlock.mockClear()
+      current.input.dispose()
+      expect(keyboard.unlock).toHaveBeenCalled()
+
+      keyboard.lock.mockRejectedValue(new Error('pas en plein écran'))
+      expect(await current.input.lockSystemKeys()).toBe(false)
+    } finally {
+      Reflect.deleteProperty(navigator, 'keyboard')
+    }
+  })
 })

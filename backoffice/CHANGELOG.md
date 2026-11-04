@@ -148,6 +148,13 @@ Format inspiré de Keep a Changelog.
 
 ### Fixed
 
+- Écran de salle : le verrou clavier (Keyboard Lock, Échap et raccourcis système captés en plein
+  écran) s'applique aussi quand les buzzers sont lus sur une carte manette, et il est repris si
+  la source des buzzers change en cours de séance. Le synthé du mode démo ajoute un court fondu
+  d'entrée (40 ms) et de sortie (60 ms) du volume pour éviter les claquements, sans changer la
+  durée des paliers du blind test.
+  US: us-room-polish
+
 - Compte de salle : connexion refusée et PC déconnecté si la compagnie n'est plus active ;
   suppression d'une salle atomique (salle, compte et parties actives) ; salles et comptes de
   salle non modifiables dans une compagnie supprimée ; ids des parties renvoyés en nombres ;

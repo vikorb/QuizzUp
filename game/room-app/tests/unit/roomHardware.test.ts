@@ -251,6 +251,37 @@ describe('buzzers sur une carte USB vue comme une manette', () => {
     expect(useRoomHardware().buzzerState.value?.active).toBe(true)
   })
 
+  it('verrouille les touches système aussi avec la carte manette, et les garde au changement de source', async () => {
+    const keyboard = { lock: vi.fn().mockResolvedValue(undefined), unlock: vi.fn() }
+    Object.defineProperty(navigator, 'keyboard', { value: keyboard, configurable: true })
+
+    try {
+      const { lockBuzzerSystemKeys } = await import('@/hardware/roomHardware')
+      await saveRoomHardwareConfig({
+        buzzers: {
+          keymap: Object.fromEntries([['GamepadButton0', { desk: 2, button: 'C' } as const]]),
+          source: { kind: 'gamepad', match: 'joystick' },
+        },
+      })
+      expect(useRoomHardware().usesGamepad.value).toBe(true)
+
+      expect(await lockBuzzerSystemKeys()).toBe(true)
+      expect(keyboard.lock).toHaveBeenCalledTimes(1)
+      expect(useRoomHardware().buzzerState.value?.keyboardLocked).toBe(true)
+
+      // Retour au clavier : le verrou est repris par le nouveau lecteur.
+      await saveRoomHardwareConfig({
+        buzzers: { keymap: LEARNED_KEYMAP, source: { kind: 'keyboard' } },
+      })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(useRoomHardware().usesGamepad.value).toBe(false)
+      expect(keyboard.lock).toHaveBeenCalledTimes(2)
+      expect(useRoomHardware().buzzerState.value?.keyboardLocked).toBe(true)
+    } finally {
+      Reflect.deleteProperty(navigator, 'keyboard')
+    }
+  })
+
   it('n’annonce pas les touches de simulation avec une carte manette', async () => {
     const { saveBuzzerSource } = await import('@/hardware/roomHardware')
     expect(useRoomHardware().usesSimulationKeys.value).toBe(true)

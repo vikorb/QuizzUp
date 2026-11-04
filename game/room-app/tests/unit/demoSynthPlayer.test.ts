@@ -7,17 +7,27 @@ import {
 import { createSilentExtractPlayer, type ExtractPlayer } from '@/audio/player'
 
 function param() {
-  return { value: 0, setValueAtTime: vi.fn(), linearRampToValueAtTime: vi.fn() }
+  return {
+    value: 0,
+    setValueAtTime: vi.fn(),
+    linearRampToValueAtTime: vi.fn(),
+    cancelScheduledValues: vi.fn(),
+  }
 }
 
 function fakeContext() {
   const oscillators: { start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn> }[] = []
+  const gains: { gain: ReturnType<typeof param> }[] = []
   const context = {
     state: 'running',
     currentTime: 0,
     destination: {},
     resume: vi.fn(async () => undefined),
-    createGain: () => ({ gain: param(), connect: vi.fn() }),
+    createGain: () => {
+      const node = { gain: param(), connect: vi.fn() }
+      gains.push(node)
+      return node
+    },
     createOscillator: () => {
       const node = {
         type: 'sine',
@@ -30,7 +40,7 @@ function fakeContext() {
       return node
     },
   }
-  return { context: context as unknown as AudioContext, oscillators }
+  return { context: context as unknown as AudioContext, raw: context, oscillators, gains }
 }
 
 function manualScheduler() {
@@ -93,6 +103,42 @@ describe('extraits de démo synthétisés', () => {
 
     await expect(outcome).resolves.toBe('ended')
     expect(player.isLoaded('demo://9001/1')).toBe(true)
+  })
+
+  it('fond le volume à l’entrée et à la coupure, sans toucher à la durée du palier', async () => {
+    const { context, raw, oscillators, gains } = fakeContext()
+    const scheduler = manualScheduler()
+    const player = createDemoSynthPlayer(() => context, scheduler)
+
+    const outcome = player.play('demo://9001/1', 0, 5000)
+    const master = gains[0]!.gain
+
+    // Montée du volume général (40 ms) à partir du silence, au démarrage prévu du son.
+    expect(master.setValueAtTime).toHaveBeenCalledWith(0, 0.01)
+    expect(master.linearRampToValueAtTime).toHaveBeenCalledWith(0.22, 0.05)
+
+    // Coupure à 1,5 s : descente en 60 ms puis arrêt des oscillateurs juste après, pas net.
+    raw.currentTime = 1.5
+    scheduler.advance(1500)
+    player.pause()
+
+    expect(master.cancelScheduledValues).toHaveBeenCalledWith(1.5)
+    expect(master.linearRampToValueAtTime).toHaveBeenLastCalledWith(0, 1.56)
+    for (const node of oscillators) {
+      expect(node.stop).toHaveBeenLastCalledWith(1.57)
+    }
+
+    // Le minuteur du palier n'est pas décalé par les fondus : il reste 3,5 s.
+    player.resume()
+    scheduler.advance(3499)
+    let settled = false
+    void outcome.then(() => {
+      settled = true
+    })
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    scheduler.advance(1)
+    await expect(outcome).resolves.toBe('ended')
   })
 
   it('résout « stopped » à l’arrêt ou quand un autre palier démarre', async () => {

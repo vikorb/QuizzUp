@@ -3,10 +3,9 @@ import { browserClock } from '../clock'
 import { createEmitter } from '../emitter'
 import { buttonToIndex } from '../types'
 import type { BuzzerInput, BuzzerInputState, BuzzerPress, RawKeyPress } from './buzzerInput'
+import { createKeyboardLock } from './keyboardLock'
 import type { BuzzerKeymap } from './keymap'
 import { findSlot, isAllowedBuzzerCode } from './keymap'
-
-type KeyboardLockApi = { lock: (codes?: string[]) => Promise<void>; unlock: () => void }
 
 export type KeyboardBuzzerInputOptions = {
   keymap: BuzzerKeymap
@@ -61,14 +60,16 @@ export function createKeyboardBuzzerInput(
   const heldCodes = new Set<string>()
   let focused = doc.hasFocus()
   let visible = doc.visibilityState !== 'hidden'
-  let keyboardLocked = false
   let disposed = false
+
+  // Le rappel passe par `notify`, déclaré juste après (appelé plus tard seulement).
+  const systemKeys = createKeyboardLock({ target, doc, onChange: () => notify() })
 
   const getState = (): BuzzerInputState => ({
     focused,
     visible,
     active: focused && visible && !disposed,
-    keyboardLocked,
+    keyboardLocked: systemKeys.isLocked(),
     simulation: false,
     held: [...heldCodes].flatMap((code) => {
       const slot = findSlot(keymap, code)
@@ -116,14 +117,6 @@ export function createKeyboardBuzzerInput(
     }
   }
 
-  const onFullscreenChange = () => {
-    // Le navigateur relâche le Keyboard Lock en sortant du plein écran.
-    if (!doc.fullscreenElement && keyboardLocked) {
-      keyboardLocked = false
-      notify()
-    }
-  }
-
   const onFocus = () => {
     focused = true
     notify()
@@ -149,10 +142,6 @@ export function createKeyboardBuzzerInput(
   target.addEventListener('focus', onFocus)
   target.addEventListener('blur', onBlur)
   doc.addEventListener('visibilitychange', onVisibilityChange)
-  doc.addEventListener('fullscreenchange', onFullscreenChange)
-
-  const keyboardApi = (): KeyboardLockApi | undefined =>
-    (target.navigator as (Navigator & { keyboard?: KeyboardLockApi }) | undefined)?.keyboard
 
   return {
     onPress: pressEmitter.on,
@@ -165,27 +154,8 @@ export function createKeyboardBuzzerInput(
       notify()
     },
     getKeymap: () => ({ ...keymap }),
-    async lockSystemKeys() {
-      const api = keyboardApi()
-      if (!api) {
-        return false
-      }
-      try {
-        await api.lock()
-        keyboardLocked = true
-      } catch {
-        keyboardLocked = false
-      }
-      notify()
-      return keyboardLocked
-    },
-    unlockSystemKeys() {
-      keyboardApi()?.unlock()
-      if (keyboardLocked) {
-        keyboardLocked = false
-        notify()
-      }
-    },
+    lockSystemKeys: systemKeys.lock,
+    unlockSystemKeys: systemKeys.unlock,
     dispose() {
       if (disposed) {
         return
@@ -196,11 +166,7 @@ export function createKeyboardBuzzerInput(
       target.removeEventListener('focus', onFocus)
       target.removeEventListener('blur', onBlur)
       doc.removeEventListener('visibilitychange', onVisibilityChange)
-      doc.removeEventListener('fullscreenchange', onFullscreenChange)
-      if (keyboardLocked) {
-        keyboardApi()?.unlock()
-        keyboardLocked = false
-      }
+      systemKeys.dispose()
       heldCodes.clear()
       notify()
       pressEmitter.clear()
