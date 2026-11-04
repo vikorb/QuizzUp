@@ -254,16 +254,59 @@ describe('question kind from the backoffice', () => {
     expect(isEstimateQuestion(dashes)).toBe(true)
   })
 
-  it('never plays a question typed otherwise as an estimate or a true/false', () => {
-    expect(isEstimateQuestion({ ...estimateQuestion(1), kind: QUESTION_KIND_QCM })).toBe(false)
+  it('deduces the kind behind the default « qcm » (old content), trusts the other kinds', () => {
+    // « qcm » est la valeur par défaut en base, l'ancien contenu l'a aussi.
+    expect(isEstimateQuestion({ ...estimateQuestion(1), kind: QUESTION_KIND_QCM })).toBe(true)
     expect(isTrueFalseQuestion({ ...trueFalseQuestion(1, true), kind: QUESTION_KIND_QCM })).toBe(
-      false
+      true
     )
     expect(
       isTrueFalseQuestion({ ...trueFalseQuestion(1, true), kind: QUESTION_KIND_TRUE_FALSE })
     ).toBe(true)
     expect(
       isTrueFalseQuestion({ ...trueFalseQuestion(1, true), kind: QUESTION_KIND_ESTIMATE })
+    ).toBe(false)
+    expect(isEstimateQuestion({ ...estimateQuestion(1), kind: QUESTION_KIND_TRUE_FALSE })).toBe(
+      false
+    )
+  })
+
+  it('keeps scores, « environ » lists and plain numbers as QCM without the estimate kind', () => {
+    for (const texts of [
+      ['3-0', '2-1', '1-0', '2-0'],
+      ['Environ 5', 'Environ 10', 'Environ 15', 'Environ 20'],
+      ['~5', '~10', '~15'],
+    ]) {
+      expect(isEstimateQuestion({ ...qcmQuestion(1), answers: numbers(texts) })).toBe(false)
+    }
+  })
+
+  it('reads « ou avant », « et plus » and increasing linked numbers as ranges', () => {
+    for (const texts of [
+      ['1800 ou avant', '1850', '1900', '1950'],
+      ['10', '20', '50 et plus'],
+      ['1 000 à 1 999', '2 000', '3 000'],
+    ]) {
+      expect(isEstimateQuestion({ ...qcmQuestion(1), answers: numbers(texts) })).toBe(true)
+    }
+  })
+
+  it('rejects image questions whatever their kind', () => {
+    expect(
+      isTrueFalseQuestion({
+        ...trueFalseQuestion(1, true),
+        kind: QUESTION_KIND_TRUE_FALSE,
+        mediaType: QUESTION_MEDIA_TYPE_IMAGE,
+        mediaUrl: 'x',
+      })
+    ).toBe(false)
+    expect(
+      isEstimateQuestion({
+        ...estimateQuestion(1),
+        kind: QUESTION_KIND_ESTIMATE,
+        mediaType: QUESTION_MEDIA_TYPE_IMAGE,
+        mediaUrl: 'x',
+      })
     ).toBe(false)
   })
 

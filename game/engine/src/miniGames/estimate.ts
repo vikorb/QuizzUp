@@ -34,7 +34,8 @@ export function getRangeSortValue(text: string): number {
   if (
     /^(?:moins de|au plus|jusqu['’]a|avant|[<≤])/.test(normalized) ||
     normalized.includes('ou moins') ||
-    normalized.includes('ou avant')
+    normalized.includes('ou avant') ||
+    normalized.includes('et moins')
   ) {
     return value - 0.5
   }
@@ -42,7 +43,8 @@ export function getRangeSortValue(text: string): number {
   if (
     /^(?:plus de|au moins|apres|[>≥])/.test(normalized) ||
     normalized.includes('ou plus') ||
-    normalized.includes('ou apres')
+    normalized.includes('ou apres') ||
+    normalized.includes('et plus')
   ) {
     return value + 0.5
   }

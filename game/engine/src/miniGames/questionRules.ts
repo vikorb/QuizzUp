@@ -8,8 +8,10 @@ import type { ScoreLine } from '../draws'
 import type { EngineAnswer, EngineParticipant, EngineQuestion } from '../types'
 
 /**
- * Règles communes d'éligibilité des questions. Le type saisi au backoffice
- * (`question.kind`) fait foi ; sans lui (ancien contenu), on le déduit des réponses.
+ * Règles communes d'éligibilité des questions. Un type « vrai/faux » ou « estimation »
+ * saisi au backoffice (`question.kind`) fait foi. « QCM » est le type par défaut en
+ * base, y compris pour l'ancien contenu saisi avant le champ : on ne peut pas s'y fier
+ * et l'on déduit alors le type des réponses, comme sans type.
  *
  * Les questions à image sont réservées à la révélation progressive : affichée nette
  * dans un autre mini-jeu, l'image donnerait souvent la réponse.
@@ -39,7 +41,11 @@ export function isMultipleChoiceQuestion(question: EngineQuestion): boolean {
 
 /** Minuscules, sans accents ni espaces superflus : « Vrai », « VRAI » et « vrai » se valent. */
 export function normalizeText(text: string): string {
-  return text.normalize('NFD').replaceAll(/[̀-ͯ]/g, '').trim().toLowerCase()
+  return text
+    .normalize('NFD')
+    .replaceAll(/[\u0300-\u036F]/g, '')
+    .trim()
+    .toLowerCase()
 }
 
 const TRUE_WORDS = new Set(['vrai', 'true'])
@@ -60,7 +66,7 @@ export function isTrueFalseQuestion(question: EngineQuestion): boolean {
     question.answers.length !== 2 ||
     !first ||
     !second ||
-    (question.kind !== undefined && question.kind !== QUESTION_KIND_TRUE_FALSE)
+    question.kind === QUESTION_KIND_ESTIMATE
   ) {
     return false
   }
@@ -94,20 +100,36 @@ const RANGE_PREFIX =
  */
 const RANGE_PATTERN = new RegExp(String.raw`^(?:(?:${RANGE_PREFIX})\s*)?-?\d`)
 
-/** Bornes explicites : un mot de comparaison, ou deux nombres reliés (« 10 à 20 », « 10-20 »). */
-const RANGE_MARKER_PATTERN = new RegExp(
-  String.raw`^(?:${RANGE_PREFIX})|\bou (?:moins|plus)\b|\d\s*(?:a|et|-|–)\s*\d`
-)
+/** Mot de comparaison explicite (« environ » ou « ~ » seuls ne bornent rien). */
+const RANGE_WORD_PATTERN =
+  /^(?:moins de|plus de|entre|de|au moins|au plus|jusqu'a|jusqu\u2019a|avant|apres|[<>\u2264\u2265])\s*-?\d|\b(?:ou|et) (?:moins|plus|avant|apres)\b/
+
+/** Deux nombres croissants reliés (« 10 à 20 », « 10-20 ») : « 3-0 », un score, n'en est pas. */
+const LINKED_NUMBERS_PATTERN = /(-?\d+(?:[.,]\d+)?)\s*(?:a|et|-|\u2013)\s*(-?\d+(?:[.,]\d+)?)/
+
+function hasRangeMarker(text: string): boolean {
+  const normalized = normalizeText(text).replaceAll(/(\d)[\s\u00A0\u202F](?=\d)/g, '$1')
+  if (RANGE_WORD_PATTERN.test(normalized)) {
+    return true
+  }
+
+  const linked = LINKED_NUMBERS_PATTERN.exec(normalized)
+  if (!linked?.[1] || !linked[2]) {
+    return false
+  }
+
+  return Number(linked[1].replace(',', '.')) < Number(linked[2].replace(',', '.'))
+}
 
 export function isRangeAnswer(answer: EngineAnswer): boolean {
   return RANGE_PATTERN.test(normalizeText(answer.text))
 }
 
 /**
- * Estimation : 3 ou 4 fourchettes chiffrées, une seule juste. Typée au backoffice, il
- * suffit que chaque réponse commence par un nombre (pour les trier) ; sans type, il faut
- * en plus au moins une vraie fourchette, sinon « 4 / 6 / 7 / 12 » serait pris pour une
- * estimation alors que c'est un QCM.
+ * Estimation : 3 ou 4 fourchettes chiffrées, une seule juste. Typée « estimation », il
+ * suffit que chaque réponse commence par un nombre (pour les trier) ; sinon il faut en
+ * plus au moins une vraie fourchette, pour que « 4 / 6 / 7 / 12 » ou des scores
+ * (« 3-0 / 2-1 ») restent des QCM.
  */
 export function isEstimateQuestion(question: EngineQuestion): boolean {
   if (
@@ -119,11 +141,14 @@ export function isEstimateQuestion(question: EngineQuestion): boolean {
     return false
   }
 
-  if (question.kind !== undefined) {
-    return question.kind === QUESTION_KIND_ESTIMATE
+  if (question.kind === QUESTION_KIND_ESTIMATE) {
+    return true
   }
 
-  return question.answers.some((answer) => RANGE_MARKER_PATTERN.test(normalizeText(answer.text)))
+  return (
+    question.kind !== QUESTION_KIND_TRUE_FALSE &&
+    question.answers.some((answer) => hasRangeMarker(answer.text))
+  )
 }
 
 export function getScore(scores: ScoreLine[], participantId: number): number {

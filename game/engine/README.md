@@ -98,10 +98,11 @@ on répond seul).
 
 « QCM » = question texte sans média, 2 à 4 réponses (tous types confondus). Les questions à image
 sont réservées à la révélation progressive : nette, l'image donnerait souvent la réponse.
-Le type saisi au backoffice (`question.kind` : `qcm`, `true_false`, `estimate`) fait foi pour le
-vrai/faux et l'estimation ; absent (ancien contenu), il est déduit des réponses (`questionRules.ts`) :
-une estimation non typée doit alors avoir au moins une vraie fourchette (« Moins de », « Avant »,
-« 10 à 20 »…), pour que « 4 / 6 / 7 / 12 » reste un QCM.
+Le type saisi au backoffice (`question.kind`) fait foi quand il vaut `true_false` ou `estimate`.
+`qcm` étant la valeur par défaut en base (ancien contenu compris), il ne prouve rien : le type est
+alors déduit des réponses (`questionRules.ts`), comme sans type. Une estimation déduite doit avoir
+au moins une vraie fourchette (« Moins de », « Avant », « 10 à 20 »…), pour que « 4 / 6 / 7 / 12 »
+ou des scores (« 3-0 / 2-1 ») restent des QCM.
 Événements propres aux nouveaux jeux : `answer_locked` (un joueur a répondu, choix secret),
 `bet_placed` / `bets_closed`, `player_eliminated`, `steal_target_requested` / `points_stolen`.
 Les mini-jeux « buzz » réutilisent `buzzer_pressed`, `answer_correct` et `answer_wrong` ; tous se

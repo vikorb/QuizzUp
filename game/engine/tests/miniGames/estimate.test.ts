@@ -176,6 +176,8 @@ describe('sortRanges with open-ended ranges', () => {
     expect(getRangeSortValue('Après 1900')).toBe(1900.5)
     expect(getRangeSortValue('1900 ou après')).toBe(1900.5)
     expect(getRangeSortValue('1800 ou avant')).toBe(1799.5)
+    expect(getRangeSortValue('50 et plus')).toBe(50.5)
+    expect(getRangeSortValue('5 et moins')).toBe(4.5)
     expect(getRangeSortValue('1,5 m')).toBe(1.5)
   })
 })

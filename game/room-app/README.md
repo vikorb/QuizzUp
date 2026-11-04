@@ -14,13 +14,13 @@ extraits du blind test et affiche la partie sur l'écran de la salle.
 
 ## Parcours
 
-| Écran     | Route       | Rôle                                                                                                                                                                                                                                                   |
-| --------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Connexion | `/login`    | Compte de salle (rôle `room`, US-ROOM-02) ou **mode démo** sans compte.                                                                                                                                                                                |
-| Lancement | `/`         | « Lancer la salle » : plein écran, écran maintenu allumé, son débloqué, touches système captées. Reprise d'une partie interrompue.                                                                                                                     |
-| Lobby     | `/lobby`    | Un joueur par pupitre (1 à 4) : pseudo, email facultatif avec **consentement RGPD explicite et horodaté**. Un appui buzzer fait briller son pupitre. Format 10 × 10 ou partie courte 3 × 3.                                                            |
-| Matériel  | `/hardware` | Association des buzzers (apprentissage pupitre × A-D) et test, lumières (salle simulée, connexion de l'interface DMX, scènes de test, identification), fumée (autorisation par l'opérateur, test), **arrêt d'urgence**, configuration avancée en JSON. |
-| Partie    | `/play`     | Annonce du mini-jeu tiré au sort → choix du thème par le joueur désigné (A-D) → blind test éclair (paliers 1 s / 5 s / 20 s, 100 / 50 / 20 pts) → révélation → bilan de manche → podium final.                                                         |
+| Écran     | Route       | Rôle                                                                                                                                                                                                                                                                                                   |
+| --------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Connexion | `/login`    | Compte de salle (rôle `room`, US-ROOM-02) ou **mode démo** sans compte.                                                                                                                                                                                                                                |
+| Lancement | `/`         | « Lancer la salle » : plein écran, écran maintenu allumé, son débloqué, touches système captées. Reprise d'une partie interrompue.                                                                                                                                                                     |
+| Lobby     | `/lobby`    | Un joueur par pupitre (1 à 4) : pseudo, email facultatif avec **consentement RGPD explicite et horodaté**. Un appui buzzer fait briller son pupitre. Format 10 × 10 ou partie courte 3 × 3.                                                                                                            |
+| Matériel  | `/hardware` | Association des buzzers (apprentissage pupitre × A-D) et test, lumières (salle simulée, connexion de l'interface DMX, scènes de test, identification), fumée (autorisation par l'opérateur, test), **arrêt d'urgence**, configuration avancée en JSON.                                                 |
+| Partie    | `/play`     | Annonce du mini-jeu tiré au sort → choix du thème par le joueur désigné (A-D) → question du mini-jeu (blind test éclair, rapidité, premier buzz, vrai ou faux, quitte ou double, mort subite, vol de points, série, estimation, révélation progressive) → révélation → bilan de manche → podium final. |
 
 Une alerte plein écran signale la **perte de focus** (les buzzers clavier ne sont plus reçus).
 
@@ -35,6 +35,10 @@ src/
 └─ components/  composants de jeu (tableau des scores, réponses A-D, minuteur…) et UI du backoffice
 ```
 
+- **Mini-jeux tirés au sort** : tous par défaut. Le réglage `localStorage`
+  `quizzup_room_mini_games` (liste JSON de codes, ex. `["flash_blind_test"]`) restreint le tirage
+  sur cette salle, en attendant `rooms.config` ; les tests de bout en bout s'en servent pour le
+  blind test (`src/game/miniGamesSetting.ts`).
 - **L'écran ne calcule aucune règle** : il envoie des commandes horodatées au moteur
   (`start`, `tick` toutes les 50 ms, `press`, `abort`) et lit `state.phase` via `game/selectors.ts`.
 - **Reprise après rechargement** : graine + commandes (hors ticks) sont sauvegardées dans
