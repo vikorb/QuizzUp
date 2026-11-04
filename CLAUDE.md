@@ -88,6 +88,31 @@ Mode par défaut : **autonome**.
 Exceptions : petites tâches (doc, config) peuvent être **poussées directement sur `main`** si
 l'utilisateur le demande.
 
+### 4.1 Organisation des agents — RÈGLE IMPÉRATIVE (Enzo, nov. 2026)
+
+À respecter à **chaque** session et à **chaque** tâche, sans exception :
+
+- **La session principale (Opus 5.5) est le coordinateur.** Elle lit le besoin, découpe en
+  tâches, rédige les briefs, choisit le modèle de chaque sous-agent, vérifie les résultats
+  (diff, lint, type-check, tests), pilote git / PR / CI / merge et tient `docs/REPRISE.md`. Elle
+  **n'écrit pas elle-même le code** d'un lot.
+- **Choisir le modèle selon le travail, jamais au hasard.** Toujours passer `model`
+  explicitement (le mod `garde-agents` refuse sinon) :
+
+  | Travail                                                                           | Modèle         | Paramètres                             |
+  | --------------------------------------------------------------------------------- | -------------- | -------------------------------------- |
+  | **Développer** : écrire ou modifier du code, des tests, des migrations, l'i18n    | **Sonnet 5.5** | `model: sonnet`, `effort: high`        |
+  | **Chercher une information** : trouver un fichier, une valeur, lire un document   | **Haiku 5.5**  | agent `me-lecteur` (ou `model: haiku`) |
+  | **Réfléchir** : concevoir, arbitrer, diagnostiquer un problème dur, relire une PR | **Opus 5.5**   | `model: opus`                          |
+
+- **Surveiller les sous-agents, ne pas les laisser se bloquer ni tourner en boucle.** Brief
+  borné : objectif, fichiers concernés, ce qui est exclu, contrôles à lancer, critère de fin.
+  Un agent qui boucle, piétine ou sort du périmètre est arrêté puis rebriefé (jamais relancé à
+  l'identique). Ne pas refaire soi-même un travail délégué ; vérifier son résultat avant de
+  l'accepter.
+- **Économie** : le moins d'agents possible, un seul relecteur par PR, pas de relecture en
+  double, lancer en parallèle seulement des tâches réellement indépendantes.
+
 Commits : **Conventional Commits** (`feat(scope): …`, `fix`, `docs`, `refactor`, `chore`,
 `test`). **husky (à la racine) + commitlint** valident chaque message de commit ; un
 `pre-commit` lance lint-staged (voir §5 et `CONTRIBUTING.md`).
