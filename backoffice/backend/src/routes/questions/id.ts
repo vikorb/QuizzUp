@@ -19,6 +19,7 @@ import {
   getQuestionWithAnswers,
   getThemesForQuestion,
   hasInvalidAnswerStatus,
+  isValidQuestionKind,
   isValidQuestionMediaType,
   normalizeAnswers,
   parsePositiveId,
@@ -173,6 +174,14 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
         }
 
         patch.type_media = req.body.typeMedia
+      }
+
+      if (req.body.kind !== undefined) {
+        if (!isValidQuestionKind(req.body.kind)) {
+          return reply.code(400).send({ error: 'question_kind_invalid' })
+        }
+
+        patch.kind = req.body.kind
       }
 
       if (req.body.mediaUrl !== undefined) {

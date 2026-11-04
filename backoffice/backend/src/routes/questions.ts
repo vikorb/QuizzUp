@@ -1,7 +1,12 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import type { Knex } from 'knex'
 
-import { QUESTION_STATUS_DELETED, THEME_SCOPE_COMPANY, THEME_SCOPE_GLOBAL } from '@quizzup/shared'
+import {
+  DEFAULT_QUESTION_KIND,
+  QUESTION_STATUS_DELETED,
+  THEME_SCOPE_COMPANY,
+  THEME_SCOPE_GLOBAL,
+} from '@quizzup/shared'
 import db from '../db'
 import { API_ACTION, API_RESOURCE } from '../security/permissions'
 import { requireApiPermission } from '../security/requireApiPermission'
@@ -17,6 +22,7 @@ import {
   getQuestionScope,
   getQuestionWithAnswers,
   hasInvalidAnswerStatus,
+  isValidQuestionKind,
   isValidQuestionMediaType,
   isValidQuestionScope,
   isValidQuestionStatus,
@@ -100,6 +106,10 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
         questionsQuery.where('questions.type_media', query.typeMedia)
       }
 
+      if (query.kind && isValidQuestionKind(query.kind)) {
+        questionsQuery.where('questions.kind', query.kind)
+      }
+
       if (query.scope && isValidQuestionScope(query.scope)) {
         questionsQuery.where('questions.scope', query.scope)
       }
@@ -135,6 +145,7 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
       const questionText = req.body.question?.trim()
       const themeIds = parseQuestionThemeIds(req.body)
       const typeMedia = req.body.typeMedia ?? DEFAULT_QUESTION_MEDIA_TYPE
+      const kind = req.body.kind ?? DEFAULT_QUESTION_KIND
       const mediaUrl = req.body.mediaUrl ?? null
       const answers = normalizeAnswers(req.body.answers)
 
@@ -148,6 +159,10 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
 
       if (!isValidQuestionMediaType(typeMedia)) {
         return reply.code(400).send({ error: 'question_type_media_invalid' })
+      }
+
+      if (!isValidQuestionKind(kind)) {
+        return reply.code(400).send({ error: 'question_kind_invalid' })
       }
 
       const answersError = validateAnswers(answers)
@@ -187,6 +202,7 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
             scope,
             question: questionText,
             type_media: typeMedia,
+            kind,
             media_url: mediaUrl,
             status: questionStatus,
             deleted_at: null,

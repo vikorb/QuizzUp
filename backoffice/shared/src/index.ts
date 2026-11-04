@@ -130,6 +130,30 @@ export const QUESTION_MEDIA_TYPES = [
 
 export type QuestionMediaType = (typeof QUESTION_MEDIA_TYPE)[keyof typeof QUESTION_MEDIA_TYPE]
 
+/**
+ * Type de question (décision d'Enzo, 2026-11-04) : le moteur de jeu s'en sert pour choisir
+ * les questions éligibles à chaque mini-jeu (vrai/faux, estimation…).
+ */
+export const QUESTION_KIND_QCM = 'qcm' as const
+export const QUESTION_KIND_TRUE_FALSE = 'true_false' as const
+export const QUESTION_KIND_ESTIMATE = 'estimate' as const
+
+export const QUESTION_KIND = {
+  QCM: QUESTION_KIND_QCM,
+  TRUE_FALSE: QUESTION_KIND_TRUE_FALSE,
+  ESTIMATE: QUESTION_KIND_ESTIMATE,
+} as const
+
+export const QUESTION_KINDS = [
+  QUESTION_KIND_QCM,
+  QUESTION_KIND_TRUE_FALSE,
+  QUESTION_KIND_ESTIMATE,
+] as const
+
+export type QuestionKind = (typeof QUESTION_KIND)[keyof typeof QUESTION_KIND]
+
+export const DEFAULT_QUESTION_KIND = QUESTION_KIND_QCM
+
 export const ANSWER_STATUS_INACTIVE = 0 as const
 export const ANSWER_STATUS_ACTIVE = 1 as const
 export const ANSWER_STATUS_DELETED = 2 as const

@@ -93,6 +93,7 @@ Table questions {
   scope varchar(50) [not null, default: 'global', note: 'global, company']
   question text [not null]
   type_media varchar(50) [not null, default: 'none', note: 'none, image, audio, video']
+  kind varchar(20) [not null, default: 'qcm', note: 'qcm, true_false, estimate (éligibilité des mini-jeux)']
   media_url text [note: 'Lien externe (image / vidéo). Vidé quand un fichier audio est uploadé.']
 
   media_key text [unique, note: 'Clé dans le stockage média (MEDIA_STORAGE_DIR) : questions/<id>/<uuid>.<ext>. Jamais exposée.']

@@ -1587,6 +1587,7 @@ paths:
                             properties:
                               id: { type: integer }
                               text: { type: string }
+                              kind: { type: string, enum: [qcm, true_false, estimate] }
                               mediaType: { type: string, example: audio }
                               mediaUrl:
                                 { type: string, nullable: true, example: /room/questions/12/media }
@@ -3179,6 +3180,11 @@ components:
         typeMedia:
           type: string
           enum: [none, image, audio, video]
+        kind:
+          type: string
+          enum: [qcm, true_false, estimate]
+          default: qcm
+          description: Type de question, utilisé par le moteur pour l'éligibilité des mini-jeux (`question_kind_invalid` sinon)
         mediaUrl:
           type: string
           nullable: true
@@ -3214,6 +3220,11 @@ components:
         typeMedia:
           type: string
           enum: [none, image, audio, video]
+        kind:
+          type: string
+          enum: [qcm, true_false, estimate]
+          default: qcm
+          description: Type de question, utilisé par le moteur pour l'éligibilité des mini-jeux (`question_kind_invalid` sinon)
         mediaUrl:
           type: string
           nullable: true

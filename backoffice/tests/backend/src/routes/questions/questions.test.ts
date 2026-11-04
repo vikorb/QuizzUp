@@ -7,6 +7,8 @@ import {
   QUESTION_STATUS_ACTIVE,
   THEME_SCOPE_COMPANY,
   THEME_SCOPE_GLOBAL,
+  QUESTION_KIND_QCM,
+  QUESTION_KIND_TRUE_FALSE,
 } from '@quizzup/shared'
 import questionsRoutes from '@backend/routes/questions'
 import { dbState } from '../_helpers/mockDb'
@@ -211,6 +213,47 @@ describe('routes/questions.ts', () => {
     )
     expect(createdAnswers).toHaveLength(2)
     expect(createdAnswers.every((answer) => answer.status === ANSWER_STATUS_ACTIVE)).toBe(true)
+
+    await app.close()
+  })
+
+  it('stores the question kind, qcm by default, and filters on it', async () => {
+    const app = await createRouteApp(questionsRoutes)
+
+    const byDefault = await app.inject({
+      method: 'POST',
+      url: '/questions',
+      headers: authHeaders(superadminUser),
+      payload: questionBody(),
+    })
+    const trueFalse = await app.inject({
+      method: 'POST',
+      url: '/questions',
+      headers: authHeaders(superadminUser),
+      payload: questionBody({ kind: QUESTION_KIND_TRUE_FALSE }),
+    })
+    const invalid = await app.inject({
+      method: 'POST',
+      url: '/questions',
+      headers: authHeaders(superadminUser),
+      payload: questionBody({ kind: 'riddle' }),
+    })
+    const filtered = await app.inject({
+      method: 'GET',
+      url: `/questions?kind=${QUESTION_KIND_TRUE_FALSE}`,
+      headers: authHeaders(superadminUser),
+    })
+
+    expect(parseJson<{ question: QuestionPayload }>(byDefault).question).toMatchObject({
+      kind: QUESTION_KIND_QCM,
+    })
+    const created = parseJson<{ question: QuestionPayload }>(trueFalse).question
+    expect(created).toMatchObject({ kind: QUESTION_KIND_TRUE_FALSE })
+    expect(invalid.statusCode).toBe(400)
+    expect(parseJson(invalid)).toEqual({ error: 'question_kind_invalid' })
+    expect(
+      parseJson<{ questions: QuestionPayload[] }>(filtered).questions.map((item) => item.id)
+    ).toEqual([created.id])
 
     await app.close()
   })

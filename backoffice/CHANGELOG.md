@@ -8,6 +8,10 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Type de question (`kind` : QCM, vrai/faux, estimation ; QCM par défaut) en base, dans l'API
+  des questions (création, modification, filtre) et dans le catalogue de la salle.
+  US: us-minigame-01
+
 - 2e joueur facultatif par pupitre (nom et email RGPD propres, score du pupitre), emails des
   joueurs masqués pour le rôle `user` après l'inscription, et enregistrement de la configuration
   matérielle par le PC de salle (`PUT /room/config`).
