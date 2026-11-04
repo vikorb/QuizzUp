@@ -56,7 +56,12 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
 
 1. **Mini-jeux dans une partie lancée du backoffice** : aujourd'hui elle ne propose que le blind
    test. Finir la branche `feat/backoffice-mini-games` (voir §2), lancer tous les contrôles, PR.
-2. **Fin de partie** (#88 mergée) : réessai de l'envoi des scores après une panne réseau.
+2. ~~**Fin de partie** : réessai de l'envoi des scores après une panne réseau~~ : fait (branche
+   `fix/room-finish-retry`). File persistante `quizzup_room_pending_finishes`
+   (`room-app/src/game/pendingFinishes.ts`) : survit au rechargement et à une nouvelle partie ;
+   essais à 2 s, 5 s, 15 s, 30 s puis toutes les 60 s, essai immédiat sur `online`, vidage au
+   démarrage et à la connexion du compte de salle ; 404/409/400 abandonnés, 401/403 attendent une
+   reconnexion. État affiché au podium, bandeau dans le lobby staff.
 3. **Tests matériel réels** sur TERMIVAVOR2 : buzzers (clavier AZERTY, carte manette), interface
    USB DMX quand Enzo l'aura (tout est testable en simulation d'ici là), relais fumée temporisé
    10 s maximum. En salle compatible concurrent : vérifier l'ordre des canaux des lyres 9 canaux
