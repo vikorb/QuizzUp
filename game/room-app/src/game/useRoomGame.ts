@@ -5,6 +5,7 @@ import { computed, ref, shallowRef } from 'vue'
 
 import { createAudioBridge } from '@/audio/audioBridge'
 import { createSilentExtractPlayer, type ExtractPlayer } from '@/audio/player'
+import { createUiSoundBridge, type UiSoundOutput } from '@/audio/uiSoundBridge'
 import { collectMediaUrls } from '@/game/content'
 import {
   finalizeRegistrations,
@@ -12,7 +13,7 @@ import {
   toEngineParticipants,
 } from '@/game/registrations'
 import { createLocalSessionStorage, GameSession, type SessionStorage } from '@/game/session'
-import { type BuzzerPress, toEngineButton } from '@/hardware/buzzers'
+import type { BuzzerPress } from '@/hardware/buzzers'
 
 /**
  * État de jeu partagé par les écrans de la salle (une seule partie à la fois).
@@ -29,6 +30,8 @@ const eventListeners = new Set<(events: GameEvent[]) => void>()
 let storage: SessionStorage = createLocalSessionStorage()
 let player: ExtractPlayer = createSilentExtractPlayer()
 let audioBridge = createAudioBridge(player)
+let soundBridge = createUiSoundBridge({ play: () => undefined })
+let mediaFetch: ((url: string) => Promise<Response>) | undefined
 let clock: () => number = () => performance.now()
 let ticker: ReturnType<typeof setInterval> | null = null
 let unsubscribe: (() => void) | null = null
@@ -36,8 +39,18 @@ let unsubscribe: (() => void) | null = null
 export function configureRoomGame(options: {
   storage?: SessionStorage
   player?: ExtractPlayer
+  /** Sons d'interface (buzz, bonne / mauvaise réponse…). */
+  sounds?: UiSoundOutput
+  /** Téléchargement des extraits (ajoute le jeton de la salle pour les médias du backoffice). */
+  fetchMedia?: (url: string) => Promise<Response>
   now?: () => number
 }): void {
+  if (options.sounds) {
+    soundBridge = createUiSoundBridge(options.sounds)
+  }
+  if (options.fetchMedia) {
+    mediaFetch = options.fetchMedia
+  }
   if (options.storage) {
     storage = options.storage
   }
@@ -74,6 +87,7 @@ function attach(next: GameSession): void {
 
     if (events.length > 0) {
       audioBridge.handleEvents(events)
+      soundBridge.handleEvents(events)
       for (const listener of eventListeners) {
         listener(events)
       }
@@ -109,6 +123,26 @@ function restoreAudio(resumed: GameSession): void {
     elapsedMs: Math.max(0, reference - mini.stageStartedAt),
     paused,
   })
+}
+
+/**
+ * Télécharge et décode les extraits des thèmes avant la partie (lecture sans
+ * blanc, hors ligne). Ne rejette jamais : renvoie les URL en échec.
+ */
+export async function preloadExtracts(
+  themes: EngineTheme[],
+  onProgress?: (done: number, total: number) => void
+): Promise<string[]> {
+  const urls = collectMediaUrls(themes)
+  if (urls.length === 0) {
+    return []
+  }
+  try {
+    const { failed } = await player.preload(urls, { fetch: mediaFetch, onProgress })
+    return failed
+  } catch {
+    return urls
+  }
 }
 
 export function createSeed(): number {
@@ -160,7 +194,7 @@ export async function resumeSavedGame(): Promise<boolean> {
     return false
   }
 
-  await player.preload(collectMediaUrls(resumed.state.setup.themes)).catch(() => undefined)
+  await preloadExtracts(resumed.state.setup.themes)
   attach(resumed)
   restoreAudio(resumed)
   return true
@@ -172,7 +206,7 @@ export function discardSavedGame(): void {
 }
 
 export function pressBuzzer(press: BuzzerPress): void {
-  session.value?.press(press.desk, toEngineButton(press.button), press.at)
+  session.value?.press(press.desk, press.buttonIndex, press.at)
 }
 
 export function abortGame(reason = 'operator_abort'): void {

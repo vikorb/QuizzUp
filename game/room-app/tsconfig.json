@@ -19,6 +19,8 @@
     "paths": {
       "@/*": ["./src/*"],
       "@quizzup/game-engine": ["../engine/src/index.ts"],
+      "@quizzup/hardware": ["../hardware/src/index.ts"],
+      "@quizzup/audio": ["../audio/src/index.ts"],
       "@quizzup/shared": ["../../backoffice/shared/src/index.ts"],
       "@backoffice-assets/*": ["../../backoffice/frontend/src/assets/*"]
     }

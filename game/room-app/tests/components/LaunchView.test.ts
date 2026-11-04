@@ -18,6 +18,8 @@ function fakePlayer(): ExtractPlayer {
     pause: vi.fn(() => 0),
     resume: vi.fn(),
     stop: vi.fn(),
+    isLoaded: vi.fn(() => true),
+    release: vi.fn(),
   }
 }
 

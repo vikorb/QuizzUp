@@ -38,3 +38,14 @@ export function createManualClock(start = 1000) {
   }
   return clock
 }
+
+/** Thèmes de démo avec de « vraies » URL d'extraits (la démo `demo://` reste muette). */
+export function getPlayableThemes() {
+  return getDemoThemes().map((theme) => ({
+    ...theme,
+    questions: theme.questions.map((question) => ({
+      ...question,
+      mediaUrl: question.mediaUrl?.replace('demo://', 'https://media.test/') ?? null,
+    })),
+  }))
+}

@@ -4,16 +4,18 @@ import { flushPromises } from '@vue/test-utils'
 import { getDemoThemes } from '@/game/demoContent'
 import { createMemorySessionStorage } from '@/game/session'
 import { closeGame, configureRoomGame, startNewGame, useRoomGame } from '@/game/useRoomGame'
+import { saveRoomHardwareConfig, startLighting, useRoomHardware } from '@/hardware/roomHardware'
 import { enterDemo, syncRoomAuth } from '@/state/roomAuth'
 import GameView from '@/views/GameView.vue'
 
 import { createManualClock, REGISTRATIONS } from '../_helpers/fixtures'
+import { pressKey } from '../_helpers/keyboard'
 import { mountWithApp } from '../_helpers/mount'
 
 const KEY_BY_DESK = { 1: 'Digit1', 2: 'KeyQ', 3: 'KeyA', 4: 'KeyZ' } as const
 
 function press(code: string): void {
-  window.dispatchEvent(new KeyboardEvent('keydown', { code }))
+  pressKey(code)
 }
 
 describe('GameView', () => {
@@ -100,6 +102,26 @@ describe('GameView', () => {
     expect(wrapper.find('.answer--correct').exists()).toBe(true)
     expect(state.value?.scores.find((line) => line.participantId === 1)?.score).toBe(100)
     wrapper.unmount()
+  })
+
+  it('propose l’arrêt d’urgence des lumières quand la salle a des appareils', async () => {
+    await saveRoomHardwareConfig({
+      lighting: { fixtures: [{ id: 'par1', name: 'PAR 1', profileId: 'par-rgb', address: 1 }] },
+    })
+    await startLighting()
+    startNewGame({ registrations: REGISTRATIONS, themes: getDemoThemes(), seed: 11 })
+    const { wrapper } = await mountWithApp(GameView, { route: '/play' })
+
+    await wrapper.find('[data-test="emergency-stop"]').trigger('click')
+    await flushPromises()
+    expect(useRoomHardware().lightingState.value?.emergency).toBe(true)
+
+    await wrapper.find('[data-test="emergency-reset"]').trigger('click')
+    // Le réarmement est confirmé (la modale n'est pas montée ici).
+    const { useConfirm } = await import('@/composables/useConfirm')
+    useConfirm().accept()
+    await flushPromises()
+    expect(useRoomHardware().lightingState.value?.emergency).toBe(false)
   })
 
   it('verrouille un joueur qui s’est trompé', async () => {

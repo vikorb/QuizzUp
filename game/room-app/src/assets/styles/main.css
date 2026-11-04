@@ -40,3 +40,65 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---- Écran « Matériel de la salle » : panneaux partagés ---- */
+.hw-panel {
+  display: grid;
+  gap: 14px;
+  padding: 20px 22px;
+  border-radius: 18px;
+  border: 1px solid var(--border-ui);
+  background: var(--bg-card);
+}
+
+.hw-panel__head {
+  display: grid;
+  gap: 4px;
+}
+
+.hw-panel__title,
+.hw-panel__subtitle {
+  margin: 0;
+  font-weight: 900;
+}
+
+.hw-panel__title {
+  font-size: clamp(20px, 1.8vw, 28px);
+}
+
+.hw-panel__subtitle {
+  margin-top: 8px;
+  font-size: 17px;
+}
+
+.hw-panel__status,
+.hw-hint {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 14px;
+}
+
+.hw-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.hw-alert {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.hw-alert--danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.hw-ok {
+  margin: 0;
+  color: var(--ok);
+}

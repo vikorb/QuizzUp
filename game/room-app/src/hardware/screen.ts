@@ -4,7 +4,6 @@
  * faire renvoie `false` au lieu de casser le lancement de la salle.
  */
 
-type KeyboardLock = { lock?: (keys?: string[]) => Promise<void>; unlock?: () => void }
 type WakeLockSentinelLike = { release: () => Promise<void> }
 type WakeLockLike = { request: (type: 'screen') => Promise<WakeLockSentinelLike> }
 
@@ -34,22 +33,6 @@ export async function exitFullscreen(doc: Document = document): Promise<void> {
     await doc.exitFullscreen?.()
   } catch {
     // Déjà sorti du plein écran.
-  }
-}
-
-/** Capte Échap et les raccourcis en plein écran (Chrome / Edge uniquement). */
-export async function lockSystemKeys(nav: Navigator = navigator): Promise<boolean> {
-  const keyboard = (nav as Navigator & { keyboard?: KeyboardLock }).keyboard
-
-  if (!keyboard?.lock) {
-    return false
-  }
-
-  try {
-    await keyboard.lock()
-    return true
-  } catch {
-    return false
   }
 }
 
