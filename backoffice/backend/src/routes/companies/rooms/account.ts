@@ -16,7 +16,7 @@ import {
   type RoomAccountRow,
 } from './_account'
 import { createRoomAccountSchema, roomParamsSchema } from './_schemas'
-import { findRoomInCompany } from './_shared'
+import { findRoomInCompany, isRoomCompanyDeleted } from './_shared'
 
 const ROOM_ACCOUNT_URL = '/companies/:companyId/rooms/:roomId/account'
 
@@ -96,6 +96,10 @@ const companyRoomAccountRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(404).send({ error: 'not_found' })
     }
 
+    if (await isRoomCompanyDeleted(companyId)) {
+      return reply.code(409).send({ error: 'company_deleted' })
+    }
+
     if (await findRoomAccount(roomId)) {
       return reply.code(409).send({ error: 'room_account_already_exists' })
     }
@@ -129,9 +133,15 @@ const companyRoomAccountRoutes: FastifyPluginAsync = async (app) => {
         })
         .returning(roomAccountSelect)
     } catch (error) {
-      // Créations simultanées : `admins_room_id_unique` ou l'unicité de l'identifiant tranche.
+      // Créations simultanées : `admins_room_id_unique` ou `admins_username_unique_ci` tranche.
       if (isUniqueViolation(error)) {
-        return reply.code(409).send({ error: 'room_account_already_exists' })
+        const constraint = String((error as { constraint?: string }).constraint ?? '')
+
+        return reply.code(409).send({
+          error: constraint.includes('username')
+            ? 'username_already_exists'
+            : 'room_account_already_exists',
+        })
       }
 
       throw error

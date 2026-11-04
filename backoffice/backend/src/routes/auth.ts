@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { randomUUID } from 'node:crypto'
 import { ADMIN_ROLE_ROOM } from '@quizzup/shared'
 import db from '../db'
+import { isRoomCompanyActive } from '../security/roomCompany'
 
 /** Jeton d'un compte de salle (appareil fixe) : la révocation se fait en base. */
 const ROOM_TOKEN_EXPIRES_IN = '365d'
@@ -82,6 +83,11 @@ const authRoutes: FastifyPluginAsync = async (app) => {
 
       const ok = await bcrypt.compare(password, admin.mdp_hash)
       if (!ok) return reply.code(401).send({ error: 'invalid_credentials' })
+
+      // Compte de salle d'une compagnie désactivée ou supprimée : connexion refusée.
+      if (admin.role === ADMIN_ROLE_ROOM && !(await isRoomCompanyActive(admin.company_id))) {
+        return reply.code(401).send({ error: 'invalid_credentials' })
+      }
 
       const sid = randomUUID()
 

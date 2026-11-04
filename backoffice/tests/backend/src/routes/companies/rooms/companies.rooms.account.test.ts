@@ -6,6 +6,7 @@ import {
   ADMIN_ROLE_ROOM,
   ADMIN_STATUS_ACTIVE,
   ADMIN_STATUS_DELETED,
+  COMPANY_STATUS_DELETED,
   GAME_STATE_ABORTED,
   GAME_STATE_FINISHED,
   GAME_STATE_RUNNING,
@@ -191,6 +192,25 @@ describe('routes/companies/rooms/account (US-ROOM-02)', () => {
     expect(otherCompany.statusCode).toBe(403)
     expect(deletedRoom.statusCode).toBe(404)
     expect(unknownRoom.statusCode).toBe(404)
+
+    await app.close()
+  })
+
+  it('refuses to create an account for a room of a deleted company', async () => {
+    seedRoom()
+    dbState.companies[0]!.status = COMPANY_STATUS_DELETED
+    const app = await buildApp()
+
+    const response = await app.inject({
+      method: 'POST',
+      url: URL,
+      headers: authHeaders(superadminUser),
+      payload: { username: 'salle-neon', password: 'motdepasse-salle' },
+    })
+
+    expect(response.statusCode).toBe(409)
+    expect(parseJson(response)).toEqual({ error: 'company_deleted' })
+    expect(dbState.admins.some((admin) => admin.role === ADMIN_ROLE_ROOM)).toBe(false)
 
     await app.close()
   })

@@ -184,7 +184,7 @@ function showCreatedBanner(): void {
     return
   }
 
-  const createdGame = games.value.find((game) => game.id === createdGameId)
+  const createdGame = games.value.find((game) => Number(game.id) === createdGameId)
 
   actionBanner.value = createSuccessBanner(GAME_BANNER_CREATED, {
     room: createdGame ? getGameRoomName(createdGame) : `#${createdGameId}`,

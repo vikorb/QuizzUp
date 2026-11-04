@@ -15,6 +15,7 @@ import {
   ROOM_STATUS_INACTIVE,
 } from '@quizzup/shared'
 import gamesRoutes from '@backend/routes/games'
+import { findGameParticipants, toGameRow } from '@backend/routes/games/_shared'
 import { dbState, MOCK_NOW } from '../_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
 import {
@@ -299,5 +300,45 @@ describe('routes/games.ts (US-GAME-08)', () => {
 
       await app.close()
     })
+  })
+})
+
+describe('routes/games/_shared.ts', () => {
+  it('returns bigint ids, seed and counters as numbers (pg sends them as text)', () => {
+    const row = toGameRow({
+      id: '7',
+      companyId: '1',
+      roomId: '3',
+      adminId: '2',
+      seed: '4294967295',
+      participantsCount: '4',
+      state: GAME_STATE_PENDING,
+    })
+
+    expect(row).toMatchObject({
+      id: 7,
+      companyId: 1,
+      roomId: 3,
+      adminId: 2,
+      seed: 4_294_967_295,
+      participantsCount: 4,
+    })
+    expect(toGameRow({ id: '7', seed: '1' })).not.toHaveProperty('participantsCount')
+  })
+
+  it('returns participant ids as numbers', async () => {
+    dbState.game_participants.push({
+      id: '12',
+      game_id: 1,
+      podium: 2,
+      display_name: 'Hugo',
+      email: null,
+      consent_at: null,
+      score: '50',
+    })
+
+    expect(await findGameParticipants(1)).toEqual([
+      expect.objectContaining({ id: 12, podium: 2, score: 50 }),
+    ])
   })
 })

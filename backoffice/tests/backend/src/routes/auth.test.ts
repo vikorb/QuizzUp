@@ -2,7 +2,12 @@ import './_helpers/registerRouteMocks'
 
 import { describe, expect, it } from 'vitest'
 
-import { ADMIN_ROLE_ROOM, ADMIN_ROLE_SUPERADMIN, ADMIN_STATUS_ACTIVE } from '@quizzup/shared'
+import {
+  ADMIN_ROLE_ROOM,
+  ADMIN_ROLE_SUPERADMIN,
+  ADMIN_STATUS_ACTIVE,
+  COMPANY_STATUS_INACTIVE,
+} from '@quizzup/shared'
 import bcrypt from 'bcryptjs'
 
 import authRoutes from '../../../../backend/src/routes/auth'
@@ -164,6 +169,34 @@ describe('routes/auth.ts', () => {
     expect(jwtSignMock).toHaveBeenCalledWith(expect.objectContaining({ role: ADMIN_ROLE_ROOM }), {
       expiresIn: '365d',
     })
+
+    await app.close()
+  })
+
+  it('refuses a room account whose company is inactive (US-ROOM-02)', async () => {
+    dbState.admins.push({
+      id: 10,
+      company_id: 1,
+      room_id: 1,
+      role: ADMIN_ROLE_ROOM,
+      username: 'salle-neon',
+      email: 'room-x@rooms.quizzup.invalid',
+      mdp_hash: bcrypt.hashSync('motdepasse-salle', 4),
+      status: ADMIN_STATUS_ACTIVE,
+    })
+    const company = dbState.companies.find((row) => Number(row.id) === 1)
+    if (company) company.status = COMPANY_STATUS_INACTIVE
+    const app = await createRouteApp(authRoutes)
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/login',
+      payload: { identifier: 'salle-neon', password: 'motdepasse-salle' },
+    })
+
+    expect(response.statusCode).toBe(401)
+    expect(response.json()).toEqual({ error: 'invalid_credentials' })
+    expect(dbState.admin_sessions).toHaveLength(0)
 
     await app.close()
   })

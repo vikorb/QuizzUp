@@ -10,8 +10,8 @@ import type { RoomRow } from '../../../types/room'
 
 import { roomParamsSchema, updateRoomSchema } from './_schemas'
 import { isUniqueViolation } from '../../_shared/dbErrors'
-import { abortRoomActiveGames, deleteRoomAccount } from './_account'
-import { findRoomInCompany, isRoomNameTaken, roomSelect } from './_shared'
+import { softDeleteRoom } from './_account'
+import { findRoomInCompany, isRoomCompanyDeleted, isRoomNameTaken, roomSelect } from './_shared'
 
 const companyRoomIdRoutes: FastifyPluginAsync = async (app) => {
   app.get(
@@ -84,6 +84,10 @@ const companyRoomIdRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(404).send({ error: 'not_found' })
       }
 
+      if (await isRoomCompanyDeleted(companyId)) {
+        return reply.code(409).send({ error: 'company_deleted' })
+      }
+
       if (name !== undefined && (await isRoomNameTaken(companyId, name, roomId))) {
         return reply.code(409).send({ error: 'room_name_already_exists' })
       }
@@ -141,20 +145,8 @@ const companyRoomIdRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(404).send({ error: 'not_found' })
       }
 
-      const updated = await db('rooms')
-        .where('id', roomId)
-        .update({
-          status: ROOM_STATUS_DELETED,
-          updated_at: db.fn.now(),
-          deleted_at: db.fn.now(),
-        })
-        .returning(roomSelect)
-
-      const deletedRoom = Array.isArray(updated) ? updated[0] : updated
-
       // Une salle supprimée ne doit plus pouvoir se connecter ni garder de partie active.
-      await deleteRoomAccount(roomId)
-      await abortRoomActiveGames(roomId)
+      const deletedRoom = await softDeleteRoom(roomId, roomSelect)
 
       return { room: deletedRoom as RoomRow }
     }

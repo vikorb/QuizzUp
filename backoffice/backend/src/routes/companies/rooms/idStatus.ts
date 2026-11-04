@@ -8,8 +8,9 @@ import { canManageRoomsContext } from '../../../security/roomsPolicy'
 import type { RoomRow } from '../../../types/room'
 
 import { roomParamsSchema, updateRoomStatusSchema } from './_schemas'
-import { abortRoomActiveGames, deleteRoomAccount } from './_account'
-import { findRoomInCompany, isRoomNameTaken, roomSelect } from './_shared'
+import { isUniqueViolation } from '../../_shared/dbErrors'
+import { softDeleteRoom } from './_account'
+import { findRoomInCompany, isRoomCompanyDeleted, isRoomNameTaken, roomSelect } from './_shared'
 
 const companyRoomIdStatusRoutes: FastifyPluginAsync = async (app) => {
   app.patch(
@@ -55,6 +56,11 @@ const companyRoomIdStatusRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(404).send({ error: 'not_found' })
       }
 
+      // Supprimer reste possible ; réactiver ou restaurer une salle d'une compagnie supprimée, non.
+      if (status !== ROOM_STATUS_DELETED && (await isRoomCompanyDeleted(companyId))) {
+        return reply.code(409).send({ error: 'company_deleted' })
+      }
+
       // Restaurer une salle supprimée ne doit pas créer de doublon de nom.
       if (
         room.status === ROOM_STATUS_DELETED &&
@@ -64,22 +70,28 @@ const companyRoomIdStatusRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(409).send({ error: 'room_name_already_exists' })
       }
 
-      const updated = await db('rooms')
-        .where('id', roomId)
-        .update({
-          status,
-          updated_at: db.fn.now(),
-          deleted_at: status === ROOM_STATUS_DELETED ? db.fn.now() : null,
-        })
-        .returning(roomSelect)
-
-      const updatedRoom = Array.isArray(updated) ? updated[0] : updated
-
       // Une salle supprimée ne doit plus pouvoir se connecter ni garder de partie active.
       if (status === ROOM_STATUS_DELETED) {
-        await deleteRoomAccount(roomId)
-        await abortRoomActiveGames(roomId)
+        return { room: (await softDeleteRoom(roomId, roomSelect)) as RoomRow }
       }
+
+      let updated
+
+      try {
+        updated = await db('rooms')
+          .where('id', roomId)
+          .update({ status, updated_at: db.fn.now(), deleted_at: null })
+          .returning(roomSelect)
+      } catch (error) {
+        // Restauration simultanée d'une salle et création d'une autre du même nom.
+        if (isUniqueViolation(error)) {
+          return reply.code(409).send({ error: 'room_name_already_exists' })
+        }
+
+        throw error
+      }
+
+      const updatedRoom = Array.isArray(updated) ? updated[0] : updated
 
       return { room: updatedRoom as RoomRow }
     }

@@ -1,4 +1,4 @@
-import { ROOM_STATUS_DELETED } from '@quizzup/shared'
+import { COMPANY_STATUS_DELETED, ROOM_STATUS_DELETED } from '@quizzup/shared'
 
 import db from '../../../db'
 import type { RoomRow } from '../../../types/room'
@@ -44,4 +44,11 @@ export async function isRoomNameTaken(
   const existing = await query.first('id')
 
   return Boolean(existing)
+}
+
+/** Les salles d'une compagnie supprimée ne peuvent plus être modifiées (409 `company_deleted`). */
+export async function isRoomCompanyDeleted(companyId: number): Promise<boolean> {
+  const company = await db('companies').where('id', companyId).first('status')
+
+  return Number(company?.status) === COMPANY_STATUS_DELETED
 }

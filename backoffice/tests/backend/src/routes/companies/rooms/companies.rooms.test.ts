@@ -247,6 +247,48 @@ describe('routes/companies/rooms (US-ROOM-01)', () => {
     })
   })
 
+  describe('rooms of a deleted company', () => {
+    it('refuses to edit, reactivate or restore them, but still allows deleting', async () => {
+      seedRooms(room(), room({ id: 2, name: 'Salle Laser', status: ROOM_STATUS_DELETED }))
+      dbState.companies[0]!.status = COMPANY_STATUS_DELETED
+      const app = await rooms()
+
+      const rename = await app.inject({
+        method: 'PATCH',
+        url: '/companies/1/rooms/1',
+        headers: authHeaders(superadminUser),
+        payload: { name: 'Nouveau nom' },
+      })
+      const deactivate = await app.inject({
+        method: 'PATCH',
+        url: '/companies/1/rooms/1/status',
+        headers: authHeaders(superadminUser),
+        payload: { status: ROOM_STATUS_INACTIVE },
+      })
+      const restore = await app.inject({
+        method: 'PATCH',
+        url: '/companies/1/rooms/2/status',
+        headers: authHeaders(superadminUser),
+        payload: { status: ROOM_STATUS_ACTIVE },
+      })
+      const remove = await app.inject({
+        method: 'PATCH',
+        url: '/companies/1/rooms/1/status',
+        headers: authHeaders(superadminUser),
+        payload: { status: ROOM_STATUS_DELETED },
+      })
+
+      for (const response of [rename, deactivate, restore]) {
+        expect(response.statusCode).toBe(409)
+        expect(parseJson(response)).toEqual({ error: 'company_deleted' })
+      }
+      expect(remove.statusCode).toBe(200)
+      expect(dbState.rooms[0]).toMatchObject({ status: ROOM_STATUS_DELETED, deleted_at: MOCK_NOW })
+
+      await app.close()
+    })
+  })
+
   describe('GET /companies/:companyId/rooms/:roomId', () => {
     it('returns the room, hides deleted rooms from non superadmins', async () => {
       seedRooms(room(), room({ id: 2, name: 'Rétro', status: ROOM_STATUS_DELETED }))

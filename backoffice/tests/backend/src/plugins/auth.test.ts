@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
   ADMIN_ROLE_ROOM,
+  COMPANY_STATUS_DELETED,
   ADMIN_ROLE_SUPERADMIN,
   ADMIN_STATUS_ACTIVE,
   ADMIN_STATUS_DELETED,
@@ -243,6 +244,33 @@ describe('plugins/auth.ts (authenticate)', () => {
       expect(response.statusCode).toBe(200)
       expect((response.json() as { user: { room_id: number } }).user.room_id).toBe(7)
       expect(findSession('sid-room')?.revoked_at).toBeNull()
+
+      await app.close()
+    })
+
+    it('disconnects a room PC when its company is no longer active', async () => {
+      seedRoomAccount()
+      seedSession({ id: 'sid-room', admin_id: 10 })
+      const company = dbState.companies.find((row) => Number(row.id) === 1)
+      if (company) company.status = COMPANY_STATUS_DELETED
+
+      const app = await buildApp()
+      const token = signToken(app, {
+        sub: '10',
+        company_id: 1,
+        role: ADMIN_ROLE_ROOM,
+        sid: 'sid-room',
+      })
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/protected',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(response.statusCode).toBe(401)
+      expect(response.json()).toEqual({ error: 'account_inactive' })
+      expect(findSession('sid-room')?.revoked_at).toBe(MOCK_NOW)
 
       await app.close()
     })

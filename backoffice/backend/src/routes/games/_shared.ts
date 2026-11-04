@@ -56,9 +56,27 @@ export async function findGameInCompany(
   return { ...toGameRow(game), participants }
 }
 
-/** `games.seed` est un bigint : `pg` le renvoie en texte, le moteur attend un nombre. */
+function toOptionalNumber(value: unknown): number | undefined {
+  return value === undefined || value === null ? undefined : Number(value)
+}
+
+/**
+ * Ids, graine et compteurs sont des bigint : `pg` les renvoie en texte. Le moteur de jeu
+ * compare les ids strictement, on renvoie donc des nombres (contrat OpenAPI `integer`).
+ */
 export function toGameRow(row: Record<string, unknown>): GameRow {
-  return { ...(row as GameRow), seed: Number(row.seed) }
+  const game = row as GameRow
+  const participantsCount = toOptionalNumber(row.participantsCount)
+
+  return {
+    ...game,
+    id: Number(row.id),
+    companyId: Number(row.companyId),
+    roomId: Number(row.roomId),
+    adminId: Number(row.adminId),
+    seed: Number(row.seed),
+    ...(participantsCount === undefined ? {} : { participantsCount }),
+  }
 }
 
 export async function findGameParticipants(gameId: number): Promise<GameParticipantRow[]> {
@@ -67,5 +85,10 @@ export async function findGameParticipants(gameId: number): Promise<GameParticip
     .select(participantSelect)
     .orderBy('podium', 'asc')
 
-  return participants as GameParticipantRow[]
+  return (participants as GameParticipantRow[]).map((participant) => ({
+    ...participant,
+    id: Number(participant.id),
+    podium: Number(participant.podium),
+    score: Number(participant.score),
+  }))
 }
