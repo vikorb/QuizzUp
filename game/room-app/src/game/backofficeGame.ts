@@ -7,52 +7,40 @@ import {
   readSavedBackofficeGame,
   rememberBackofficeGameId,
 } from '@/game/backofficeGameMemory'
+import { enqueuePendingFinish, findPendingFinishBySeed } from '@/game/pendingFinishes'
 import { getLeaderboard } from '@/game/selectors'
 import { getRoomToken, isDemoMode } from '@/utils/auth'
-import { finishRoomGame, RoomApiError } from '@/utils/roomApi'
 
 export { readBackofficeGameId, rememberBackofficeGameId }
 
-let reporting: Promise<boolean> | null = null
-
 /**
- * Au podium, signale la fin de la partie au backoffice avec les scores des pupitres, pour
- * qu'elle ne reste pas « en cours ». Sans effet en mode démo, hors partie du backoffice ou
- * si la partie jouée n'est pas celle retenue (graine différente) ou appartient à un autre compte de salle. Un seul envoi à la fois.
+ * Au podium, met en file la fin de la partie (scores des pupitres) à signaler au backoffice,
+ * pour qu'elle ne reste pas « en cours » ; l'envoi se fait en arrière-plan et se répète tant
+ * que le réseau manque (cf. `pendingFinishes.ts`). Sans effet en mode démo, hors partie du
+ * backoffice ou si la partie jouée n'est pas celle retenue (graine différente) ou appartient à
+ * un autre compte de salle.
+ *
+ * Retourne l'id de la partie du backoffice dont l'état d'envoi concerne ce podium, sinon `null` :
+ * soit le rapport vient d'être mis en file (la partie retenue est alors oubliée, la file garde
+ * le relais), soit il y est déjà (page rechargée au podium, même graine).
  */
-export function reportFinishedGame(state: GameState): Promise<boolean> {
-  reporting ??= send(state).finally(() => {
-    reporting = null
-  })
-  return reporting
-}
-
-async function send(state: GameState): Promise<boolean> {
-  const token = getRoomToken()
+export function reportFinishedGame(state: GameState): number | null {
+  if (isDemoMode()) {
+    return null
+  }
   const saved = readSavedBackofficeGame()
 
   if (
-    isDemoMode() ||
-    !token ||
+    !getRoomToken() ||
     !saved ||
     saved.seed !== state.setup.seed ||
     !isRememberedForCurrentAccount(saved)
   ) {
-    return false
+    return findPendingFinishBySeed(state.setup.seed)?.gameId ?? null
   }
 
   const scores = getLeaderboard(state).map(({ podium, score }) => ({ podium, score }))
-
-  try {
-    await finishRoomGame(token, saved.id, scores)
-  } catch (error) {
-    // Partie annulée ou disparue côté backoffice : inutile de réessayer.
-    if (error instanceof RoomApiError && (error.status === 404 || error.status === 409)) {
-      forgetBackofficeGameId()
-      return false
-    }
-    throw error
-  }
+  void enqueuePendingFinish({ gameId: saved.id, seed: saved.seed, scores })
   forgetBackofficeGameId()
-  return true
+  return saved.id
 }

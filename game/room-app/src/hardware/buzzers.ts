@@ -2,8 +2,9 @@ import {
   BUZZER_BUTTONS,
   type BuzzerKeymap,
   createDefaultKeymap,
-  DEFAULT_DESKS,
   type Desk,
+  DESKS as ALL_DESKS_LIST,
+  desksForCount,
   findCode,
 } from '@quizzup/hardware'
 import { shallowRef } from 'vue'
@@ -22,18 +23,25 @@ export type {
 export { BUZZER_BUTTONS } from '@quizzup/hardware'
 
 /**
- * Pupitres gérés par l'écran de salle : 4 en V1 (couleurs, lobby, test). Le paquet
- * matériel en connaît jusqu'à 6, en attente de décision.
+ * Tous les pupitres que l'écran de salle sait afficher (6 au maximum). Ceux d'une salle donnée
+ * sont les `desksCount` premiers (`useRoomHardware().desks`, 4 par défaut).
  */
-export const DESKS: readonly Desk[] = DEFAULT_DESKS
+export const ALL_DESKS: readonly Desk[] = ALL_DESKS_LIST
 
 export type DeskNumber = Desk
 
+/** Le numéro est celui d'un pupitre connu (1 à 6). */
+export function isDeskNumber(value: number): value is DeskNumber {
+  return (ALL_DESKS as readonly number[]).includes(value)
+}
+
 /**
  * Mapping utilisé tant qu'aucun buzzer n'est associé : une rangée du clavier par
- * pupitre (1-4, Q-R, A-F, Z-V), pour jouer sans matériel.
+ * pupitre (1-4, Q-R, A-F, Z-V, puis 5-8 et T-I), pour jouer sans matériel.
  */
-export const SIMULATION_KEYMAP: Readonly<BuzzerKeymap> = Object.freeze(createDefaultKeymap())
+export function createSimulationKeymap(desksCount: number): BuzzerKeymap {
+  return createDefaultKeymap(desksForCount(desksCount))
+}
 
 type KeyboardLayout = { get: (code: string) => string | undefined }
 type LayoutNavigator = { keyboard?: { getLayoutMap?: () => Promise<KeyboardLayout> } }

@@ -46,6 +46,7 @@ const roomsMigration = readMigration('20261103220000_create_rooms_table.js')
 const roomRoleMigration = readMigration('20261103220100_add_room_role_to_admins.js')
 const gamesMigration = readMigration('20261103220200_create_games_tables.js')
 const miniGamesMigration = readMigration('20261104010000_add_mini_games_to_game_rounds.js')
+const podiumsMigration = readMigration('20261104040000_raise_game_podiums_to_six.js')
 
 describe('game schema migrations', () => {
   it('aligns room statuses with shared constants', () => {
@@ -94,6 +95,20 @@ describe('game schema migrations', () => {
     expect(gamesMigration).toContain(
       `questions_per_round BETWEEN 1 AND ${GAME_MAX_QUESTIONS_PER_ROUND}`
     )
-    expect(gamesMigration).toContain(`podium BETWEEN 1 AND ${GAME_PODIUMS}`)
+    // Le CHECK d'origine plafonnait à 4 pupitres ; la migration « six pupitres » l'élargit.
+    expect(gamesMigration).toContain('podium BETWEEN 1 AND 4')
+  })
+
+  it('aligns the podium ceiling with GAME_PODIUMS and keeps a safe rollback', () => {
+    const split = podiumsMigration.indexOf('exports.down')
+    const upSource = podiumsMigration.slice(0, split)
+    const downSource = podiumsMigration.slice(split)
+
+    expect(podiumsMigration).toContain(`const MAX_PODIUM = ${GAME_PODIUMS}`)
+    expect(upSource).toContain('podium BETWEEN 1 AND ${MAX_PODIUM}')
+    // Retour à 4 refusé tant qu'un participant occupe un pupitre 5 ou 6.
+    expect(downSource).toContain("where('podium', '>', PREVIOUS_MAX_PODIUM)")
+    expect(downSource).toContain('Rollback impossible')
+    expect(downSource).toContain('podium BETWEEN 1 AND ${PREVIOUS_MAX_PODIUM}')
   })
 })

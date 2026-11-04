@@ -3,3 +3,5 @@ dist
 coverage
 .backup
 .pgdata
+# Migrations Knex déjà partagées : ne jamais les modifier (CLAUDE.md §6)
+backend/db/migrations

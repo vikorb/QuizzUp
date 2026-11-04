@@ -32,7 +32,7 @@ export type EngineTheme = {
 
 export type EngineParticipant = {
   id: number
-  /** Pupitre 1 à 4. */
+  /** Pupitre 1 à 6 (4 par défaut dans une salle). */
   podium: number
   displayName: string
 }

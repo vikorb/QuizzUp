@@ -120,10 +120,29 @@ describe('createGame', () => {
     expect(state.setup.miniGames).toEqual([...MINI_GAMES])
   })
 
+  it('accepts up to 6 participants on pupitres 1 to 6, sorted by podium', () => {
+    const six = [6, 3, 1, 5, 2, 4].map((podium) => ({
+      id: podium * 10,
+      podium,
+      displayName: `Joueur ${podium}`,
+    }))
+    const state = createGame(baseSetup({ participants: six }))
+
+    expect(state.scores.map((line) => line.participantId)).toEqual([10, 20, 30, 40, 50, 60])
+    expect(createGame(baseSetup({ participants: six.slice(0, 5) })).scores).toHaveLength(5)
+  })
+
   it.each([
     [{ participants: [] }, 'participants_count_invalid'],
     [
-      { participants: [...PARTICIPANTS, { id: 5, podium: 4, displayName: 'X' }] },
+      {
+        participants: [
+          ...PARTICIPANTS,
+          { id: 5, podium: 5, displayName: 'X' },
+          { id: 6, podium: 6, displayName: 'Y' },
+          { id: 7, podium: 4, displayName: 'Z' },
+        ],
+      },
       'participants_count_invalid',
     ],
     [

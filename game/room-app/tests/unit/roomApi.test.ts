@@ -2,6 +2,7 @@ import {
   fetchCurrentContent,
   fetchCurrentGame,
   fetchRoomInfo,
+  FINISH_REQUEST_TIMEOUT_MS,
   finishRoomGame,
   resolveMediaUrl,
   RoomApiError,
@@ -68,6 +69,39 @@ describe('API de la salle', () => {
     expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(
       JSON.stringify({ scores: [{ podium: 1, score: 300 }] })
     )
+  })
+
+  it('abandonne l’envoi de fin de partie après 10 s, sans délai pour les autres appels', async () => {
+    expect(FINISH_REQUEST_TIMEOUT_MS).toBe(10_000)
+    const timeout = vi.spyOn(AbortSignal, 'timeout')
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(async () => new Response(JSON.stringify({ game: {}, room: {} })))
+
+    await finishRoomGame('tok', 4, [])
+    await fetchRoomInfo('tok')
+
+    expect(timeout).toHaveBeenCalledOnce()
+    expect(timeout).toHaveBeenCalledWith(10_000)
+    expect(fetchMock.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal)
+    expect(fetchMock.mock.calls[1]?.[1]?.signal).toBeUndefined()
+  })
+
+  it('rejette l’envoi de fin de partie quand le délai est dépassé', async () => {
+    const abort = new AbortController()
+    vi.spyOn(AbortSignal, 'timeout').mockReturnValue(abort.signal)
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason))
+        })
+    )
+
+    const sending = finishRoomGame('tok', 4, [])
+    abort.abort(new DOMException('signal timed out', 'TimeoutError'))
+
+    await expect(sending).rejects.toMatchObject({ name: 'TimeoutError' })
+    await expect(sending).rejects.not.toBeInstanceOf(RoomApiError)
   })
 
   it('traduit les erreurs du backoffice', async () => {

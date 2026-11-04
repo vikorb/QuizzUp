@@ -1,3 +1,5 @@
+import type { MiniGame } from '@quizzup/shared'
+
 import type { GamePlayerEmail } from '@/types/game'
 
 /** Date et heure courtes d'une partie (ex. « 03/11/2026 14:05 »), « — » si absente. */
@@ -49,4 +51,9 @@ export function formatGameParticipantsCount(value: unknown): number {
 
 export function getGameRoomName(game: { roomName?: string; roomId: number }): string {
   return game.roomName?.trim() || `#${game.roomId}`
+}
+
+/** Clé i18n du nom d'un mini-jeu (ex. `games.miniGames.first_buzz`). */
+export function getGameMiniGameLabelKey(miniGame: MiniGame): string {
+  return `games.miniGames.${miniGame}`
 }

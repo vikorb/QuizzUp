@@ -791,6 +791,8 @@ paths:
       description: |
         Statut : **Disponible**
 
+        Chaque salle porte son nombre de pupitres (`desksCount`, 4 par défaut, de 1 à 6).
+
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie (lecture).
       operationId: listCompanyRooms
       x-availability: disponible
@@ -808,7 +810,18 @@ paths:
                   rooms:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Room'
+                      allOf:
+                        - $ref: '#/components/schemas/Room'
+                        - type: object
+                          properties:
+                            desksCount:
+                              type: integer
+                              minimum: 1
+                              maximum: 6
+                              example: 4
+                              description: >-
+                                Pupitres de la salle, lus dans `config.desksCount` (4 par défaut,
+                                de 1 à 6). Le formulaire de lancement d'une partie ne propose que ceux-là.
         '400':
           description: Paramètres ou corps de requête invalides
           content:
@@ -1345,7 +1358,7 @@ paths:
                     allOf:
                       - $ref: '#/components/schemas/GameDetail'
         '400':
-          description: Corps invalide (dont `email_consent_required`, `participants_podium_duplicated`)
+          description: Corps invalide (dont `email_consent_required`, `participants_podium_duplicated`), ou pupitre au-delà du nombre de pupitres de la salle (`podium_not_in_room`, avec `desksCount`)
           content:
             application/json:
               schema:
@@ -1467,7 +1480,8 @@ paths:
 
         Le PC de la salle enregistre sa configuration matérielle (buzzers appris, lumières, fumée)
         dans `rooms.config`. Les sections de premier niveau envoyées remplacent celles du même nom, les autres sont gardées (réglages faits depuis le backoffice). Elle se relit avec `GET /room/me`.
-        Objet JSON de 20 000 caractères au plus.
+        Objet JSON de 20 000 caractères au plus. `desksCount`, s'il est présent, est un entier de 1 à 6
+        (nombre de pupitres de la salle, 4 par défaut).
 
         Accès : réservé au rôle `room`.
       operationId: updateRoomConfig
@@ -1730,7 +1744,7 @@ paths:
               properties:
                 scores:
                   type: array
-                  maxItems: 4
+                  maxItems: 6
                   items:
                     type: object
                     required: [podium, score]
@@ -1738,7 +1752,7 @@ paths:
                       podium:
                         type: integer
                         minimum: 1
-                        maximum: 4
+                        maximum: 6
                       score:
                         type: integer
                         minimum: -1000000
@@ -3548,8 +3562,10 @@ components:
         config:
           type: object
           additionalProperties: true
-          description: Configuration matérielle (buzzers, lumières, fumée), JSON libre de 20 000 caractères max.
-          example: {}
+          description: >-
+            Configuration matérielle (buzzers, lumières, fumée), JSON libre de 20 000 caractères max.
+            `desksCount` (entier de 1 à 6, 4 par défaut) fixe le nombre de pupitres de la salle.
+          example: { desksCount: 4 }
         status:
           type: integer
           enum: [0, 1, 2]
@@ -3634,6 +3650,21 @@ components:
           minLength: 8
           maxLength: 100
 
+    MiniGame:
+      type: string
+      description: Code d'un mini-jeu du moteur de jeu (voir `MINI_GAMES` dans `@quizzup/shared`)
+      enum:
+        - flash_blind_test
+        - quick_answer
+        - first_buzz
+        - true_false
+        - double_or_nothing
+        - sudden_death
+        - point_steal
+        - streak
+        - estimate
+        - progressive_reveal
+
     GameSummary:
       type: object
       properties:
@@ -3654,6 +3685,19 @@ components:
         questionsPerRound:
           type: integer
           example: 10
+        miniGames:
+          type: array
+          nullable: true
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/MiniGame'
+          description: >-
+            Mini-jeux tirés au sort à chaque manche, avec la même probabilité (dans l'ordre de
+            `MINI_GAMES`). `null` = tous les mini-jeux, y compris les futurs : c'est aussi ce qui est
+            enregistré quand la création reçoit la liste complète. À la relecture, les codes
+            inconnus sont ignorés et une liste qui devient vide est renvoyée comme `null`.
+            Renvoyé aussi par `GET /room/games/current`.
         seed:
           type: integer
           minimum: 0
@@ -3690,7 +3734,7 @@ components:
         podium:
           type: integer
           minimum: 1
-          maximum: 4
+          maximum: 6
         displayName:
           type: string
         email:
@@ -3779,10 +3823,24 @@ components:
           minimum: 1
           maximum: 20
           default: 10
+        miniGames:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/MiniGame'
+          description: >-
+            Mini-jeux autorisés pour la partie. Facultatif : omis, la partie les autorise tous
+            (stocké `null`) ; la liste complète est elle aussi enregistrée comme `null`, pour
+            inclure d'office les futurs mini-jeux. Un code inconnu, un doublon ou un tableau
+            vide donnent `400 invalid_body`.
         participants:
           type: array
           minItems: 1
-          maxItems: 4
+          maxItems: 6
+          description: >-
+            Au plus autant de participants que la salle a de pupitres (`desksCount`, 4 par défaut,
+            6 au maximum) ; un pupitre au-delà donne `400 podium_not_in_room`.
           items:
             type: object
             required: [podium, displayName]
@@ -3790,7 +3848,7 @@ components:
               podium:
                 type: integer
                 minimum: 1
-                maximum: 4
+                maximum: 6
               displayName:
                 type: string
                 maxLength: 100

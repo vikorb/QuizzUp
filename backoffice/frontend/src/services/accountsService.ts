@@ -19,7 +19,7 @@ export function loadCompanyAccountsService(companyId: number) {
 export function updateAccountStatusService(
   companyId: number,
   accountId: number,
-  status: AccountStatus,
+  status: AccountStatus
 ) {
   return apiRequestJson<AccountStatusUpdateResponse>({
     path: `/companies/${companyId}/admins/${accountId}/status`,
@@ -63,7 +63,7 @@ export function loadCompanyAccountService(companyId: number, accountId: number) 
 export function updateCompanyAccountService(
   companyId: number,
   accountId: number,
-  payload: UpdateAccountPayload,
+  payload: UpdateAccountPayload
 ) {
   return apiRequestJson<AccountResponse>({
     path: `/companies/${companyId}/admins/${accountId}`,

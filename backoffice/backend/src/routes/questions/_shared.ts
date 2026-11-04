@@ -386,9 +386,10 @@ export function validateAnswersForKind(
 
 /** Réponses actives ou en brouillon d'une question, pour revalider ses règles quand son type change. */
 export async function getQuestionAnswersForValidation(
-  questionId: number
+  questionId: number,
+  executor: Knex | Knex.Transaction = db
 ): Promise<NormalizedAnswer[]> {
-  const rows = await db('answers')
+  const rows = await executor('answers')
     .where('question_id', questionId)
     .whereIn('status', [ANSWER_STATUS_ACTIVE, ANSWER_STATUS_DRAFT])
     .select('response', 'is_correct')
@@ -437,18 +438,38 @@ export function hasCorrectAnswerBesides(answers: AnswerLockRow[], answerId: numb
   )
 }
 
+/** État de la question relu sous verrou, avec ses réponses non supprimées. */
+export type LockedQuestionAnswers = {
+  /** Type relu sur la ligne verrouillée : seul fait foi pour les règles de réponses. */
+  kind: QuestionKind | null
+  status: number | null
+  answers: AnswerLockRow[]
+}
+
 /**
- * Verrouille la question le temps de la transaction puis renvoie ses réponses
- * non supprimées : deux modifications simultanées ne peuvent pas retirer
- * chacune « l'autre » bonne réponse.
+ * Verrouille la question le temps de la transaction puis renvoie son type, son statut et ses
+ * réponses non supprimées : deux modifications simultanées ne peuvent pas retirer chacune
+ * « l'autre » bonne réponse, et les règles du type se vérifient sur le type réel, pas sur celui
+ * lu avant la transaction. Ordre des verrous partout : la question, puis ses réponses.
  */
 export async function lockQuestionAnswers(
   trx: Knex.Transaction,
   questionId: number
-): Promise<AnswerLockRow[]> {
-  await trx('questions').where({ id: questionId }).forUpdate().first('id')
+): Promise<LockedQuestionAnswers> {
+  const question = await trx('questions')
+    .where({ id: questionId })
+    .forUpdate()
+    .first('kind', 'status')
 
-  return trx('answers').where({ question_id: questionId }).whereNot('status', ANSWER_STATUS_DELETED)
+  const answers: AnswerLockRow[] = await trx('answers')
+    .where({ question_id: questionId })
+    .whereNot('status', ANSWER_STATUS_DELETED)
+
+  return {
+    kind: (question?.kind as QuestionKind | null | undefined) ?? null,
+    status: question?.status === undefined ? null : Number(question.status),
+    answers,
+  }
 }
 
 export function parseQuestionThemeIds(body: QuestionBody): number[] {

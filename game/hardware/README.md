@@ -79,7 +79,7 @@ buzzers.getGamepad() // { index, id, buttons } ou null : « Appuyez sur un buzze
 ### Apprentissage
 
 ```ts
-const learning = createBuzzerLearning() // 4 pupitres × A-D ; { desks: DESKS } pour 6, [1, 2] pour 2
+const learning = createBuzzerLearning() // 4 pupitres × A-D ; { desks: desksForCount(6) } pour 6, [1, 2] pour 2
 const stop = buzzers.onKey(({ code }) => learning.capture(code))
 learning.onChange((state) => {
   // state.current = { desk, button } → « Appuyez sur le buzzer B du pupitre 3 »
@@ -92,7 +92,11 @@ learning.skip() / learning.back() / learning.restart()
 L'écran de test se construit avec `onPress` (allumer le buzzer à l'écran) et `state.held`.
 `createSimulatedBuzzerInput()` offre la même interface avec `press(desk, button)` (démo, tests).
 
-Une salle a **4 pupitres par défaut** (`DEFAULT_DESKS`) et jusqu'à **6** (`DESKS`).
+Une salle a **4 pupitres par défaut** (`DEFAULT_DESKS`) et jusqu'à **6** (`DESKS`). Son nombre de
+pupitres est `desksCount` dans `rooms.config` (`RoomHardwareConfig.desksCount`, 1 à 6, absent = 4,
+valeur invalide ramenée dans 1..6 et signalée) ; `desksForCount(n)` donne les pupitres 1 à n. Le
+backoffice le relit pour ne proposer que ces pupitres au lancement d'une partie. Le mapping clavier
+de simulation (`createDefaultKeymap(desks)`) ajoute pour les pupitres 5 et 6 les rangées 5-8 et T-I.
 
 ### Salles 6 pupitres déjà équipées
 

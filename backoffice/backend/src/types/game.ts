@@ -1,4 +1,4 @@
-import type { GameState, GameStatus } from '@quizzup/shared'
+import type { GameState, GameStatus, MiniGame } from '@quizzup/shared'
 
 /** 2e joueur facultatif d'un pupitre. */
 export type GameSecondPlayerRow = {
@@ -30,6 +30,8 @@ export type GameRow = {
   adminId: number
   roundsCount: number
   questionsPerRound: number
+  /** Mini-jeux choisis au lancement, `null` = tous. */
+  miniGames: MiniGame[] | null
   seed: number
   state: GameState
   startedAt: string | null

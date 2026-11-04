@@ -1,4 +1,8 @@
-import { COMPANY_STATUS_ACTIVE, COMPANY_STATUS_DELETED, COMPANY_STATUS_INACTIVE } from "@quizzup/shared"
+import {
+  COMPANY_STATUS_ACTIVE,
+  COMPANY_STATUS_DELETED,
+  COMPANY_STATUS_INACTIVE,
+} from '@quizzup/shared'
 
 export type CompanyRow = {
   id: number
@@ -21,10 +25,7 @@ export type CompanyStatusUpdateBody = {
 }
 
 export type CompanyStatus =
-  | typeof COMPANY_STATUS_INACTIVE
-  | typeof COMPANY_STATUS_ACTIVE
-  | typeof COMPANY_STATUS_DELETED
-
+  typeof COMPANY_STATUS_INACTIVE | typeof COMPANY_STATUS_ACTIVE | typeof COMPANY_STATUS_DELETED
 
 export type CompanyUpdateBody = {
   name?: string

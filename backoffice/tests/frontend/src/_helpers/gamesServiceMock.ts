@@ -76,8 +76,8 @@ export const gamesFixture: Game[] = [
 ]
 
 export const roomsFixture: GameRoom[] = [
-  { id: 10, name: 'Salle Néon', status: ROOM_STATUS_ACTIVE },
-  { id: 11, name: 'Salle Laser', status: ROOM_STATUS_ACTIVE },
+  { id: 10, name: 'Salle Néon', status: ROOM_STATUS_ACTIVE, desksCount: 4 },
+  { id: 11, name: 'Salle Laser', status: ROOM_STATUS_ACTIVE, desksCount: 6 },
   { id: 12, name: 'Salle fermée', status: ROOM_STATUS_INACTIVE },
 ]
 

@@ -17,6 +17,16 @@
 
     <Leaderboard :lines="lines" />
 
+    <p
+      v-if="sync"
+      class="finished__sync"
+      :class="`finished__sync--${sync}`"
+      role="status"
+      data-test="finish-sync"
+    >
+      {{ $t(`game.finished.sync.${sync}`) }}
+    </p>
+
     <div class="finished__actions">
       <UiButton variant="primary" class="finished__btn" @click="emit('new-game')">
         <MdIcon :path="mdiReplay" :size="22" />
@@ -36,9 +46,16 @@ import { computed } from 'vue'
 import Leaderboard from '@/components/game/Leaderboard.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import type { FinishSyncStatus } from '@/game/pendingFinishes'
 import type { LeaderboardLine } from '@/game/selectors'
 
-const props = defineProps<{ lines: LeaderboardLine[]; aborted: boolean; noContent: boolean }>()
+const props = defineProps<{
+  lines: LeaderboardLine[]
+  aborted: boolean
+  noContent: boolean
+  /** Envoi des résultats au backoffice ; `null` : rien à afficher (démo, partie hors backoffice). */
+  sync?: Exclude<FinishSyncStatus, 'idle'> | null
+}>()
 
 const emit = defineEmits<{
   (event: 'new-game'): void
@@ -78,6 +95,25 @@ const winners = computed(() => props.lines.filter((line) => line.rank === 1 && l
   font-weight: 900;
   color: var(--warn);
   text-shadow: 0 0 24px var(--warn-bg);
+}
+
+.finished__sync {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--stage-small);
+}
+
+.finished__sync--sent {
+  color: var(--ok);
+}
+
+.finished__sync--refused {
+  color: var(--danger);
+}
+
+.finished__sync--offline,
+.finished__sync--auth {
+  color: var(--warn);
 }
 
 .finished__actions {

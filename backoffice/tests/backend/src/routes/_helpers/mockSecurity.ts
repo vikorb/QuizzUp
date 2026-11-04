@@ -100,7 +100,7 @@ export const requireApiPermissionMock = vi.fn(
     reply.code(403).send({ error: 'forbidden' })
 
     return false
-  },
+  }
 )
 
 export const companiesPolicyMock = {
@@ -109,11 +109,17 @@ export const companiesPolicyMock = {
   isSuperadmin: vi.fn((req: FastifyRequest) => isSuperadminImpl(req)),
 
   canAccessCompanyContext: vi.fn((req: FastifyRequest, companyId: number) => {
-    return securityState.context.canAccessCompany ?? (isSuperadminImpl(req) || sameCompany(req, companyId))
+    return (
+      securityState.context.canAccessCompany ??
+      (isSuperadminImpl(req) || sameCompany(req, companyId))
+    )
   }),
 
   canUpdateCompanyContext: vi.fn((req: FastifyRequest, companyId: number) => {
-    return securityState.context.canUpdateCompany ?? (isSuperadminImpl(req) || sameCompany(req, companyId))
+    return (
+      securityState.context.canUpdateCompany ??
+      (isSuperadminImpl(req) || sameCompany(req, companyId))
+    )
   }),
 
   canUpdateCompanyStatusContext: vi.fn((req: FastifyRequest) => {
@@ -131,23 +137,20 @@ export const companiesPolicyMock = {
     (req: FastifyRequest, companyId: number, requestedRole: AdminRole) => {
       const allowedByRole =
         isSuperadminImpl(req) ||
-        (isAdminImpl(req) &&
-          sameCompany(req, companyId) &&
-          requestedRole === ADMIN_ROLE_ADMIN || requestedRole === ADMIN_ROLE_USER)
+        (isAdminImpl(req) && sameCompany(req, companyId) && requestedRole === ADMIN_ROLE_ADMIN) ||
+        requestedRole === ADMIN_ROLE_USER
 
       return securityState.context.canCreateCompanyAccount ?? allowedByRole
-    },
+    }
   ),
 
-  canReadCompanyAccountContext: vi.fn(
-    (req: FastifyRequest, companyId: number, adminId: number) => {
-      return (
-        securityState.context.canReadCompanyAccount ??
-        (isSuperadminImpl(req) ||
-          (sameCompany(req, companyId) && (isAdminImpl(req) || getCurrentAdminId(req) === adminId)))
-      )
-    },
-  ),
+  canReadCompanyAccountContext: vi.fn((req: FastifyRequest, companyId: number, adminId: number) => {
+    return (
+      securityState.context.canReadCompanyAccount ??
+      (isSuperadminImpl(req) ||
+        (sameCompany(req, companyId) && (isAdminImpl(req) || getCurrentAdminId(req) === adminId)))
+    )
+  }),
 
   canUpdateCompanyAccountContext: vi.fn(
     (
@@ -155,7 +158,7 @@ export const companiesPolicyMock = {
       companyId: number,
       adminId: number,
       existingAdmin: AdminAccessRow,
-      changes: AccountUpdateContext = {},
+      changes: AccountUpdateContext = {}
     ) => {
       const userRole = getUser(req).role
       const wantsSuperadminRole = changes.role === ADMIN_ROLE_SUPERADMIN
@@ -170,7 +173,7 @@ export const companiesPolicyMock = {
           getCurrentAdminId(req) !== adminId)
 
       return securityState.context.canUpdateCompanyAccount ?? allowedByRole
-    },
+    }
   ),
 
   canDeleteCompanyAccountContext: vi.fn(
@@ -183,7 +186,7 @@ export const companiesPolicyMock = {
           getCurrentAdminId(req) !== existingAdmin.id)
 
       return securityState.context.canDeleteCompanyAccount ?? allowedByRole
-    },
+    }
   ),
 
   canUpdateCompanyAccountStatusContext: vi.fn(
@@ -196,6 +199,6 @@ export const companiesPolicyMock = {
           getCurrentAdminId(req) !== existingAdmin.id)
 
       return securityState.context.canUpdateCompanyAccountStatus ?? allowedByRole
-    },
+    }
   ),
 }

@@ -1,11 +1,11 @@
-import { mockLoadCompaniesFailure, mockLoadCompaniesSuccess } from '@frontend-tests/_helpers/companiesServiceMock'
+import {
+  mockLoadCompaniesFailure,
+  mockLoadCompaniesSuccess,
+} from '@frontend-tests/_helpers/companiesServiceMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { pushMock } from '@frontend-tests/_helpers/routerMock'
-import {
-  COMPANY_STATUS_ACTIVE,
-  COMPANY_STATUS_INACTIVE,
-} from '@quizzup/shared'
+import { COMPANY_STATUS_ACTIVE, COMPANY_STATUS_INACTIVE } from '@quizzup/shared'
 import { describe, expect, it } from 'vitest'
 import { defineComponent, h, nextTick } from 'vue'
 
@@ -31,11 +31,23 @@ const clientsTableStub = defineComponent({
           'ul',
           { 'data-test': 'companies-list' },
           (props.companies as Array<{ id: number; name: string }>).map((company) =>
-            h('li', { 'data-test': 'company-row', 'data-company-id': String(company.id) }, company.name),
-          ),
+            h(
+              'li',
+              { 'data-test': 'company-row', 'data-company-id': String(company.id) },
+              company.name
+            )
+          )
         ),
-        h('button', { type: 'button', 'data-test': 'view-accounts', onClick: () => emit('view-accounts', 1) }),
-        h('button', { type: 'button', 'data-test': 'edit-company', onClick: () => emit('edit', 1) }),
+        h('button', {
+          type: 'button',
+          'data-test': 'view-accounts',
+          onClick: () => emit('view-accounts', 1),
+        }),
+        h('button', {
+          type: 'button',
+          'data-test': 'edit-company',
+          onClick: () => emit('edit', 1),
+        }),
         h('button', {
           type: 'button',
           'data-test': 'updated-company',
@@ -48,8 +60,16 @@ const clientsTableStub = defineComponent({
               accountsCount: 3,
             }),
         }),
-        h('button', { type: 'button', 'data-test': 'deleted-company', onClick: () => emit('deleted', 1) }),
-        h('button', { type: 'button', 'data-test': 'table-error', onClick: () => emit('error', 'server_error') }),
+        h('button', {
+          type: 'button',
+          'data-test': 'deleted-company',
+          onClick: () => emit('deleted', 1),
+        }),
+        h('button', {
+          type: 'button',
+          'data-test': 'table-error',
+          onClick: () => emit('error', 'server_error'),
+        }),
         h('button', { type: 'button', 'data-test': 'retry', onClick: () => emit('retry') }),
       ])
   },
@@ -92,7 +112,9 @@ describe('views/ClientsView.vue', () => {
     const wrapper = await mountClientsView()
 
     expect(wrapper.find('[data-test="section-layout-title"]').text()).toBe('clients.title')
-    expect(wrapper.findAll('[data-test="company-row"]').map((row) => row.text())).toEqual(['Acme Corp'])
+    expect(wrapper.findAll('[data-test="company-row"]').map((row) => row.text())).toEqual([
+      'Acme Corp',
+    ])
   })
 
   it('forwards toolbar filters to the table data', async () => {
@@ -101,22 +123,30 @@ describe('views/ClientsView.vue', () => {
     await wrapper.find('input').setValue('acme')
     await nextTick()
 
-    expect(wrapper.findAll('[data-test="company-row"]').map((row) => row.text())).toEqual(['Acme Corp'])
+    expect(wrapper.findAll('[data-test="company-row"]').map((row) => row.text())).toEqual([
+      'Acme Corp',
+    ])
   })
 
   it('displays load errors and retries loading companies', async () => {
     mockLoadCompaniesFailure('server_error')
     const wrapper = await mountClientsView()
 
-    expect(wrapper.find('[data-test="clients-table-stub"]').attributes('data-error')).toBe('server_error')
+    expect(wrapper.find('[data-test="clients-table-stub"]').attributes('data-error')).toBe(
+      'server_error'
+    )
 
     mockLoadCompaniesSuccess()
     await wrapper.find('[data-test="retry"]').trigger('click')
     await nextTick()
     await nextTick()
 
-    expect(wrapper.find('[data-test="clients-table-stub"]').attributes('data-error')).toBeUndefined()
-    expect(wrapper.findAll('[data-test="company-row"]').map((row) => row.text())).toEqual(['Acme Corp'])
+    expect(
+      wrapper.find('[data-test="clients-table-stub"]').attributes('data-error')
+    ).toBeUndefined()
+    expect(wrapper.findAll('[data-test="company-row"]').map((row) => row.text())).toEqual([
+      'Acme Corp',
+    ])
   })
 
   it('navigates to accounts and edit pages from table events', async () => {

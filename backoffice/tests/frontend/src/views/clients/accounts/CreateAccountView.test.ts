@@ -46,8 +46,12 @@ describe('views/clients/accounts/CreateAccountView.vue', () => {
 
     expect(wrapper.find('[data-test="section-layout"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="create-account-form-stub"]').exists()).toBe(true)
-    expect(wrapper.find('[data-test="create-account-form-stub"]').attributes('data-mode')).toBe('create')
-    expect(wrapper.find('[data-test="create-account-form-stub"]').attributes('data-company-id')).toBe('1')
+    expect(wrapper.find('[data-test="create-account-form-stub"]').attributes('data-mode')).toBe(
+      'create'
+    )
+    expect(
+      wrapper.find('[data-test="create-account-form-stub"]').attributes('data-company-id')
+    ).toBe('1')
     expect(loadCompanyAccountServiceMock).not.toHaveBeenCalled()
   })
 
@@ -76,8 +80,12 @@ describe('views/clients/accounts/CreateAccountView.vue', () => {
 
     expect(loadCompanyAccountServiceMock).toHaveBeenCalledWith(1, 1)
     expect(wrapper.find('[data-test="create-account-form-stub"]').exists()).toBe(true)
-    expect(wrapper.find('[data-test="create-account-form-stub"]').attributes('data-mode')).toBe('edit')
-    expect(wrapper.find('[data-test="create-account-form-stub"]').attributes('data-account-id')).toBe('1')
+    expect(wrapper.find('[data-test="create-account-form-stub"]').attributes('data-mode')).toBe(
+      'edit'
+    )
+    expect(
+      wrapper.find('[data-test="create-account-form-stub"]').attributes('data-account-id')
+    ).toBe('1')
   })
 
   it('renders error when account loading fails', async () => {

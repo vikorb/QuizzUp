@@ -1,9 +1,6 @@
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
-import {
-  COMPANY_STATUS_ACTIVE,
-  COMPANY_STATUS_INACTIVE,
-} from '@quizzup/shared'
+import { COMPANY_STATUS_ACTIVE, COMPANY_STATUS_INACTIVE } from '@quizzup/shared'
 import { describe, expect, it } from 'vitest'
 import { defineComponent, h } from 'vue'
 
@@ -23,9 +20,21 @@ const clientTableActionsStub = defineComponent({
   setup(props, { emit }) {
     return () =>
       h('div', { 'data-test': 'client-table-actions-stub' }, [
-        h('button', { type: 'button', 'data-test': 'row-view', onClick: () => emit('view-accounts', props.item.id) }),
-        h('button', { type: 'button', 'data-test': 'row-edit', onClick: () => emit('edit', props.item.id) }),
-        h('button', { type: 'button', 'data-test': 'row-error', onClick: () => emit('error', 'server_error') }),
+        h('button', {
+          type: 'button',
+          'data-test': 'row-view',
+          onClick: () => emit('view-accounts', props.item.id),
+        }),
+        h('button', {
+          type: 'button',
+          'data-test': 'row-edit',
+          onClick: () => emit('edit', props.item.id),
+        }),
+        h('button', {
+          type: 'button',
+          'data-test': 'row-error',
+          onClick: () => emit('error', 'server_error'),
+        }),
       ])
   },
 })

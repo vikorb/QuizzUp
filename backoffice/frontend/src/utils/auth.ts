@@ -1,4 +1,4 @@
-import type { LoginFailReason, LoginResult } from "@/types/auth"
+import type { LoginFailReason, LoginResult } from '@/types/auth'
 
 export const TOKEN_KEY = 'quizzup_token'
 

@@ -63,6 +63,13 @@ export type StealView = QuestionBase & {
   thiefId: number
   /** Cibles possibles (adversaires qui ont des points). */
   targetIds: number[]
+  /**
+   * `direct` : un bouton = un pupitre (A à D, jusqu'à 4 pupitres) ; `scroll` : A et B font défiler
+   * la cible, C ou D valide (pupitre 5 ou 6 dans la partie).
+   */
+  targeting: 'direct' | 'scroll'
+  /** Mode `scroll` : cible en surbrillance (`null` en mode `direct`). */
+  highlightedId: number | null
   remainingRatio: number
 }
 
@@ -189,6 +196,8 @@ export function getMiniGameView(state: GameState, now: number): MiniGameView | n
           return start + gained > 0
         })
         .map((participant) => participant.id),
+      targeting: mini.targeting,
+      highlightedId: mini.highlightedId,
       remainingRatio:
         mini.targetDeadline === null
           ? 0

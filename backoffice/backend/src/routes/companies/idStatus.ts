@@ -19,7 +19,7 @@ const companiesIdStatusRoutes: FastifyPluginAsync = async (app) => {
         req,
         reply,
         API_RESOURCE.COMPANY,
-        API_ACTION.UPDATE_STATUS,
+        API_ACTION.UPDATE_STATUS
       )
 
       if (!hasPermission) {
@@ -80,7 +80,7 @@ const companiesIdStatusRoutes: FastifyPluginAsync = async (app) => {
           accountsCount,
         } satisfies CompanyRow,
       })
-    },
+    }
   )
 }
 

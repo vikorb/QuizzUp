@@ -25,14 +25,13 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
 ## 2. Travail en cours au moment de l'arrêt
 
 - **PR #88 mergée** : l'écran de salle appelle `POST /room/games/:id/finish` au podium ; la
-  partie passe « terminée » et les scores sont enregistrés. Aucune PR de code n'est ouverte.
-- **Branche `feat/backoffice-mini-games`** (WIP, commit 5b15168a, pas de PR, lint et tests non
-  lancés) : choix des mini-jeux à la création d'une partie. Fait côté backend : migration
-  `games.mini_games` (jsonb, null = tous), `db.dbml`, champ optionnel `miniGames` à la création
-  (`z.enum(MINI_GAMES)`, au moins 1, sans doublon), relu dans `gameSelect`, donc déjà renvoyé par
-  `GET /room/games/current`. Reste : cases à cocher dans le formulaire backoffice, i18n fr/en,
-  room-app (passer `current.miniGames` à `startNewGame` dans `StaffGameLobby` ; `useRoomGame.ts`
-  force encore le seul blind test), OpenAPI, CHANGELOG, tests.
+  partie passe « terminée » et les scores sont enregistrés.
+- **PR #91 (lot 1, mini-jeux)** : choix des mini-jeux à la création d'une partie (cases à cocher,
+  tout coché par défaut ; tout coché = `null` = tous, y compris un futur mini-jeu, règle appliquée
+  aussi par le serveur). Stocké dans `games.mini_games`, renvoyé par `GET /room/games/current`.
+  Côté salle : choix du backoffice, sinon réglage local, sinon tous ; codes inconnus ignorés ; une
+  sélection injouable (participants ou contenu) est refusée avant `startRoomGame`
+  (`getPlayableMiniGames` exporté par `game/engine`).
 
 ## 3. Décisions d'Enzo (à respecter)
 
@@ -51,12 +50,17 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
 - Compatibilité avec les salles du concurrent (6 pupitres, carte manette, DMX) : reprendre seulement
   des valeurs d'installation, jamais leur code ni leurs contenus. Voir `docs/compatibilite/`.
 - SACEM et pricing : plus tard.
+- **6 pupitres : oui, 6 au maximum, 4 par défaut** (décision du 2026-11-04).
 
 ## 4. Lots restants, par priorité
 
-1. **Mini-jeux dans une partie lancée du backoffice** : aujourd'hui elle ne propose que le blind
-   test. Finir la branche `feat/backoffice-mini-games` (voir §2), lancer tous les contrôles, PR.
-2. **Fin de partie** (#88 mergée) : réessai de l'envoi des scores après une panne réseau.
+1. ~~**Mini-jeux dans une partie lancée du backoffice**~~ : fait (PR #91).
+2. ~~**Fin de partie** : réessai de l'envoi des scores après une panne réseau~~ : fait (branche
+   `fix/room-finish-retry`). File persistante `quizzup_room_pending_finishes`
+   (`room-app/src/game/pendingFinishes.ts`) : survit au rechargement et à une nouvelle partie ;
+   essais à 2 s, 5 s, 15 s, 30 s puis toutes les 60 s, essai immédiat sur `online`, vidage au
+   démarrage et à la connexion du compte de salle ; 404/409/400 abandonnés, 401/403 attendent une
+   reconnexion. État affiché au podium, bandeau dans le lobby staff.
 3. **Tests matériel réels** sur TERMIVAVOR2 : buzzers (clavier AZERTY, carte manette), interface
    USB DMX quand Enzo l'aura (tout est testable en simulation d'ici là), relais fumée temporisé
    10 s maximum. En salle compatible concurrent : vérifier l'ordre des canaux des lyres 9 canaux
@@ -64,11 +68,27 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
    Dans `room-app/src/hardware/roomHardware.ts`, s'assurer que `createGamepadBuzzerInput` reçoit
    bien le `gamepadMatcher` quand `buzzers.source.kind` vaut `'gamepad'`.
 4. **Recette VPS** : déployer `deploy/recette/` dès qu'Enzo donne l'IP et l'accès SSH du VPS.
-5. **Purge RGPD** des emails joueurs 3 ans après leur dernière partie.
-6. **6 pupitres** : non tranché par Enzo (recommandation : 6 au maximum, 4 par défaut).
-   `game/hardware` gère déjà 1-6. Si oui : `GAME_PODIUMS` 4 → 6 dans `@quizzup/shared`,
-   `GAME_PARTICIPANTS_MAX`, `game_participants`, lobby de room-app (`DESKS` dans
-   `src/hardware/buzzers.ts`) et le mini-jeu de vol de points (limité à 4).
+5. ~~**Purge RGPD** des emails joueurs 3 ans après leur dernière partie~~ : fait (branche
+   `feat/rgpd-purge-emails`). Purge planifiée dans le backend (30 s après le démarrage puis
+   toutes les 24 h, `PLAYER_EMAIL_PURGE_INTERVAL_HOURS=0` pour la couper) et
+   `npm run purge:emails` dans `backend/`. Purge **par compagnie** (le consentement est donné au
+   centre) : un joueur = son email (joueur 1 ou 2e joueur) dans une compagnie ; dernière partie
+   dans cette compagnie = `COALESCE(finished_at, started_at, created_at)`, parties supprimées
+   comprises ; au-delà de 3 ans, email et consentement effacés dans les parties de cette
+   compagnie seulement, noms et scores gardés. Tout se fait en SQL (verrou consultatif) ; test
+   d'intégration PostgreSQL dans la CI (job migrations).
+6. ~~**6 pupitres**~~ : fait (branche `feat/six-podiums`). `GAME_PODIUMS` = 6 (`@quizzup/shared`) ;
+   migration `20261104040000` (CHECK `podium` 1..6, retour arrière refusé si un pupitre 5 ou 6 est
+   utilisé) ; nombre de pupitres d'une salle = `rooms.config.desksCount` (1 à 6, absent = 4), réglé
+   dans l'écran Matériel (onglet Buzzers et assistant), renvoyé par `GET /companies/:id/rooms`
+   (`desksCount`) ; le formulaire de lancement ne propose que les pupitres de la salle, le backend
+   refuse au-delà (`400 podium_not_in_room`). Écran de salle : lobby, apprentissage, test des
+   buzzers, lumières et clavier de simulation (pupitres 5 = `5-8`, 6 = `T Y U I`) suivent
+   `desksCount` ; couleurs `--desk-5` / `--desk-6`. Vol de points : désignation directe A-D tant que
+   tous les pupitres sont de 1 à 4 ; dès un pupitre 5 ou 6, A recule / B avance la cible (en boucle),
+   C ou D valide, sans validation le vol vise le plus riche (cible automatique, en surbrillance au
+   départ). Reste à faire à la main : essai sur un vrai écran 5-6 joueurs (mise en page vue seulement
+   en tests) et sur la carte manette 24 entrées.
 7. Plus tard : SACEM, pricing, mode hors ligne (V2).
 
 Petits suivis connus : pas de Keyboard Lock avec la carte manette ; ~~`LaunchView` reprend

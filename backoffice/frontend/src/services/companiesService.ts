@@ -1,4 +1,16 @@
-import type { CompanyDetailsResponse, CompanySwitchStatus, CreateCompanyPayload, CreateCompanyResponse, DeleteCompanyResponse, DeleteCompanyResult, LoadCompaniesResult, UpdateCompanyPayload, UpdateCompanyResponse, UpdateCompanyStatusResponse, UpdateCompanyStatusResult } from '@/types/company'
+import type {
+  CompanyDetailsResponse,
+  CompanySwitchStatus,
+  CreateCompanyPayload,
+  CreateCompanyResponse,
+  DeleteCompanyResponse,
+  DeleteCompanyResult,
+  LoadCompaniesResult,
+  UpdateCompanyPayload,
+  UpdateCompanyResponse,
+  UpdateCompanyStatusResponse,
+  UpdateCompanyStatusResult,
+} from '@/types/company'
 import { apiRequestJson } from '@/utils/api'
 import { parseCompaniesResponse } from '@/utils/company/parser'
 
@@ -24,9 +36,8 @@ export async function loadCompaniesService(): Promise<LoadCompaniesResult> {
   }
 }
 
-
 export async function deleteCompanyPermanentlyService(
-  companyId: number,
+  companyId: number
 ): Promise<DeleteCompanyResult> {
   const result = await apiRequestJson<DeleteCompanyResponse>({
     path: `/companies/${companyId}/permanent`,
@@ -47,10 +58,9 @@ export async function deleteCompanyPermanentlyService(
   }
 }
 
-
 export async function updateCompanyStatusService(
   companyId: number,
-  status: CompanySwitchStatus,
+  status: CompanySwitchStatus
 ): Promise<UpdateCompanyStatusResult> {
   const result = await apiRequestJson<UpdateCompanyStatusResponse>({
     path: `/companies/${companyId}/status`,

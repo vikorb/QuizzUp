@@ -171,10 +171,10 @@ Dans `game/hardware` (`@quizzup/hardware`) :
    est occupée (rendu, démarrage audio), une lecture peut regrouper plusieurs dizaines de ms. Un
    appui plus court que l'intervalle réel entre deux lectures est perdu (limite de l'API Gamepad).
    Le mode clavier reste disponible.
-5. **Produit à 6 pupitres** (décision demandée à Enzo) : seule la couche matériel accepte 6
-   pupitres pour l'instant. Doivent suivre : `GAME_PODIUMS = 4` dans `@quizzup/shared` (le moteur
-   refuse les pupitres 5 et 6), l'écran de salle (`game/room-app`, lobby à 4 pupitres) et la base
-   (`game_participants`, pupitre 1-4).
+5. **Produit à 6 pupitres** (décision d'Enzo du 2026-11-04 : 6 au maximum, 4 par défaut) : fait.
+   `GAME_PODIUMS = 6` dans `@quizzup/shared`, `game_participants.podium` 1..6, nombre de pupitres de
+   la salle dans `rooms.config.desksCount`, lobby et écrans de `game/room-app` jusqu'à 6, vol de
+   points à 5 ou 6 joueurs par défilement de la cible.
 6. **Équipes de 2 joueurs par pupitre** : le concurrent l'autorise (prénom + e-mail de chaque
    joueur). À prévoir dans le lobby si on vise ces centres.
 7. **Inscription par QR code depuis un smartphone** et **feuille de résultats imprimable** : ce sont

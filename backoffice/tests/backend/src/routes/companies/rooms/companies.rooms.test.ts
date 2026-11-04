@@ -91,6 +91,34 @@ describe('routes/companies/rooms (US-ROOM-01)', () => {
       await app.close()
     })
 
+    it('returns the number of pupitres of each room, 4 by default, from 1 to 6', async () => {
+      seedRooms(
+        room({ id: 1, config: {} }),
+        room({ id: 2, name: 'Six', config: { desksCount: 6 } }),
+        room({ id: 3, name: 'Deux', config: { desksCount: 2 } }),
+        room({ id: 4, name: 'Trop', config: { desksCount: 9 } }),
+        room({ id: 5, name: 'Zéro', config: { desksCount: 0 } }),
+        room({ id: 6, name: 'Texte', config: { desksCount: '5' } }),
+        room({ id: 7, name: 'Décimal', config: { desksCount: 2.7 } }),
+        room({ id: 8, name: 'Ancienne', config: { buzzers: { keymap: {} } } })
+      )
+      const app = await rooms()
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/companies/1/rooms',
+        headers: authHeaders(companyAdminUser),
+      })
+
+      expect(parseJson<RoomsBody>(response).rooms.map((item) => item.desksCount)).toEqual([
+        4, 6, 2, 6, 1, 4, 2, 4,
+      ])
+      // La config est renvoyée telle quelle : seule la valeur lue est bornée.
+      expect(parseJson<RoomsBody>(response).rooms[3]!.config).toEqual({ desksCount: 9 })
+
+      await app.close()
+    })
+
     it('forbids another company and missing permissions', async () => {
       const app = await rooms()
 
@@ -170,6 +198,25 @@ describe('routes/companies/rooms (US-ROOM-01)', () => {
 
       expect(response.statusCode).toBe(201)
       expect(parseJson<RoomBody>(response).room.config).toEqual(config)
+
+      await app.close()
+    })
+
+    it('accepts a desksCount from 1 to 6 and refuses anything else', async () => {
+      const app = await rooms()
+      const create = (desksCount: unknown) =>
+        app.inject({
+          method: 'POST',
+          url: '/companies/1/rooms',
+          headers: authHeaders(companyAdminUser),
+          payload: { name: `Salle ${String(desksCount)}`, config: { desksCount } },
+        })
+
+      expect((await create(1)).statusCode).toBe(201)
+      expect((await create(6)).statusCode).toBe(201)
+      for (const invalid of [0, 7, 2.5, '4', null, -1]) {
+        expect((await create(invalid)).statusCode).toBe(400)
+      }
 
       await app.close()
     })

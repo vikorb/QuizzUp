@@ -1,5 +1,10 @@
 import type { EngineTheme, GameEvent, GameSetup, GameState } from '@quizzup/game-engine'
-import { createGame, FLASH_BLIND_TEST_STAGE_DURATIONS_MS, MAX_SEED } from '@quizzup/game-engine'
+import {
+  createGame,
+  FLASH_BLIND_TEST_STAGE_DURATIONS_MS,
+  getPlayableMiniGames,
+  MAX_SEED,
+} from '@quizzup/game-engine'
 import { MINI_GAME_FLASH_BLIND_TEST, type MiniGame } from '@quizzup/shared'
 import { computed, ref, shallowRef } from 'vue'
 
@@ -185,12 +190,27 @@ function buildSetup(options: NewGameOptions, registrations: Registration[]): Gam
   }
 }
 
+/** Aucun des mini-jeux choisis n'est jouable avec ces joueurs et ce contenu. */
+export class NoPlayableMiniGameError extends Error {
+  constructor() {
+    super('no_playable_mini_game')
+    this.name = 'NoPlayableMiniGameError'
+  }
+}
+
 /**
  * Vérifie avec le moteur qu'une partie peut être créée (graine, format, joueurs,
- * contenu), sans rien sauvegarder ni lancer : lève l'erreur du moteur sinon.
+ * contenu), sans rien sauvegarder ni lancer : lève l'erreur du moteur sinon, ou
+ * `NoPlayableMiniGameError` si le moteur terminerait aussitôt la partie faute de
+ * mini-jeu jouable.
  */
 export function validateNewGame(options: NewGameOptions & { seed: number }): void {
-  createGame(buildSetup(options, finalizeRegistrations(options.registrations)))
+  const setup = buildSetup(options, finalizeRegistrations(options.registrations))
+
+  createGame(setup)
+  if (getPlayableMiniGames(setup).length === 0) {
+    throw new NoPlayableMiniGameError()
+  }
 }
 
 export function startNewGame(options: NewGameOptions): GameSession {

@@ -532,7 +532,7 @@ async function apply(options: { forFreezeTest?: boolean } = {}): Promise<void> {
 
 function onDeskCount(event: Event): void {
   const count = Number((event.target as HTMLSelectElement).value)
-  run(() => wizard.setDesks(DESKS.slice(0, count)))
+  run(() => wizard.setDesksCount(count))
 }
 
 function onSourceKind(event: Event): void {
