@@ -141,6 +141,21 @@ describe('extraits de démo synthétisés', () => {
     await expect(outcome).resolves.toBe('ended')
   })
 
+  it('garde le volume à zéro avant la montée, même si on coupe aussitôt', () => {
+    const { context, gains, oscillators } = fakeContext()
+    const player = createDemoSynthPlayer(() => context, manualScheduler())
+
+    player.play('demo://9001/1', 0, 5000)
+    player.stop()
+
+    const master = gains[0]!.gain
+    expect(master.setValueAtTime.mock.calls[0]).toEqual([0, 0])
+    expect(master.linearRampToValueAtTime).toHaveBeenLastCalledWith(0, 0.06)
+    for (const node of oscillators) {
+      expect(node.stop.mock.lastCall?.[0]).toBeCloseTo(0.07, 6)
+    }
+  })
+
   it('résout « stopped » à l’arrêt ou quand un autre palier démarre', async () => {
     const { context } = fakeContext()
     const player = createDemoSynthPlayer(() => context, manualScheduler())

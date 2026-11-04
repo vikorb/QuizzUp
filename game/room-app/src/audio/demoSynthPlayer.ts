@@ -145,6 +145,9 @@ export function createDemoSynthPlayer(
     master.connect(context.destination)
 
     const origin = context.currentTime + 0.01
+    // Gain à 0 dès maintenant (le défaut serait 1) : une coupure ou un contexte suspendu avant
+    // l'instant de départ ne doit pas laisser passer une note à pleine puissance.
+    master.gain.setValueAtTime(0, context.currentTime)
     master.gain.setValueAtTime(0, origin)
     master.gain.linearRampToValueAtTime(MASTER_GAIN, origin + FADE_IN_SEC)
     output = { context, master }

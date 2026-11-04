@@ -27,6 +27,7 @@ export type KeyboardLock = {
 export function createKeyboardLock(options: KeyboardLockOptions): KeyboardLock {
   const { target, doc, onChange } = options
   let locked = false
+  let disposed = false
 
   const api = (): KeyboardLockApi | undefined =>
     (target.navigator as (Navigator & { keyboard?: KeyboardLockApi }) | undefined)?.keyboard
@@ -49,12 +50,19 @@ export function createKeyboardLock(options: KeyboardLockOptions): KeyboardLock {
       }
       try {
         await keyboard.lock()
-        locked = true
       } catch {
         locked = false
+        onChange()
+        return false
       }
+      if (disposed) {
+        // Le lecteur a été fermé pendant l'attente : on ne garde pas un verrou sans propriétaire.
+        keyboard.unlock()
+        return false
+      }
+      locked = true
       onChange()
-      return locked
+      return true
     },
     unlock() {
       api()?.unlock()
@@ -65,6 +73,7 @@ export function createKeyboardLock(options: KeyboardLockOptions): KeyboardLock {
     },
     isLocked: () => locked,
     dispose() {
+      disposed = true
       doc.removeEventListener('fullscreenchange', onFullscreenChange)
       if (locked) {
         api()?.unlock()
