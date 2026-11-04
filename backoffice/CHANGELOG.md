@@ -8,6 +8,11 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Version testable : `npm run demo` à la racine (base, API, backoffice, écran de salle), seed de
+  démo (compagnie « QuizzUP Démo », `demo-admin`, salle « Salle 1 » et son compte de salle
+  `salle1-demo`, 2 thèmes blind test de 10 extraits générés libres de droits), recette VPS en
+  HTTPS (`deploy/recette/`) et guide de test (`docs/recette/guide-de-test.md`).
+
 - Type de question (`kind` : QCM, vrai/faux, estimation ; QCM par défaut) en base, dans l'API
   des questions (création, modification, filtre) et dans le catalogue de la salle.
   US: us-minigame-01
@@ -97,6 +102,10 @@ Format inspiré de Keep a Changelog.
   US: US-MEDIA-01 (#59)
 
 ### Changed
+
+- Docker Compose : seeds complets seulement sur une base vide (`SEED_ON_START=always` pour
+  l'ancien comportement), seul le seed de démo est rejoué ensuite ; ports publiés sur
+  `127.0.0.1` uniquement.
 
 - La création de thèmes, questions et réponses est réservée au superadmin et à l'admin ; le rôle `user` passe en lecture seule (API, boutons et routes de création du backoffice).
   US: US-PERM-01

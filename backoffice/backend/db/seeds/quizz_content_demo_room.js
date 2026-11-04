@@ -16,8 +16,9 @@ const bcrypt = require('bcryptjs')
  *   fabriqués) : aucun enregistrement tiers, donc libres de droits.
  *
  * Le nom du fichier le fait passer APRÈS `quizz_content.js` (qui vide le contenu) : knex
- * exécute les seeds par ordre alphabétique. Idempotent : comptes et salle réactivés, thèmes créés
- * seulement s'ils n'existent pas déjà.
+ * exécute les seeds par ordre alphabétique. Rejoué à chaque démarrage Docker (`seedIfEmpty.js`),
+ * il est idempotent et ne fait que créer ce qui manque : un compte, une salle ou un thème déjà
+ * présents ne sont jamais modifiés (mot de passe changé, compte désactivé… restent tels quels).
  * `DEMO_SEED=false` désactive ce seed.
  */
 
@@ -159,13 +160,10 @@ async function seedTheme(trx, { adminId, companyId, storageDir, writtenFiles }, 
   }
 }
 
-async function upsertCompany(trx, { name, email }) {
+async function findOrCreateCompany(trx, { name, email }) {
   const existing = await trx('companies').whereRaw('lower(name) = lower(?)', [name]).first('id')
 
   if (existing) {
-    await trx('companies')
-      .where('id', existing.id)
-      .update({ status: STATUS_ACTIVE, deleted_at: null, updated_at: trx.fn.now() })
     return existing.id
   }
 
@@ -175,15 +173,14 @@ async function upsertCompany(trx, { name, email }) {
   return inserted.id ?? inserted
 }
 
-async function upsertAdmin(trx, values) {
+async function findOrCreateAdmin(trx, values) {
   const existing = await trx('admins')
     .whereRaw('lower(username) = lower(?)', [values.username])
     .first('id')
 
+  // Compte déjà là : on n'y touche pas (mot de passe changé, compte désactivé ou supprimé,
+  // salle réattribuée… sont des choix faits depuis le backoffice).
   if (existing) {
-    await trx('admins')
-      .where('id', existing.id)
-      .update({ ...values, status: STATUS_ACTIVE, deleted_at: null, updated_at: trx.fn.now() })
     return existing.id
   }
 
@@ -193,7 +190,7 @@ async function upsertAdmin(trx, values) {
   return inserted.id ?? inserted
 }
 
-async function upsertRoom(trx, companyId, name) {
+async function findOrCreateRoom(trx, companyId, name) {
   const existing = await trx('rooms')
     .where('company_id', companyId)
     .whereRaw('lower(name) = lower(?)', [name])
@@ -201,9 +198,6 @@ async function upsertRoom(trx, companyId, name) {
     .first('id')
 
   if (existing) {
-    await trx('rooms')
-      .where('id', existing.id)
-      .update({ status: STATUS_ACTIVE, updated_at: trx.fn.now() })
     return existing.id
   }
 
@@ -225,12 +219,12 @@ exports.seed = async function (knex) {
 
   await knex
     .transaction(async (trx) => {
-      const companyId = await upsertCompany(trx, {
+      const companyId = await findOrCreateCompany(trx, {
         name: 'QuizzUP Démo',
         email: 'contact@demo.quizzup.local',
       })
 
-      const adminId = await upsertAdmin(trx, {
+      const adminId = await findOrCreateAdmin(trx, {
         company_id: companyId,
         room_id: null,
         role: ADMIN_ROLE_ADMIN,
@@ -241,18 +235,26 @@ exports.seed = async function (knex) {
         mdp_hash: mdpHash,
       })
 
-      const roomId = await upsertRoom(trx, companyId, 'Salle 1')
+      const roomId = await findOrCreateRoom(trx, companyId, 'Salle 1')
 
-      await upsertAdmin(trx, {
-        company_id: companyId,
-        room_id: roomId,
-        role: ADMIN_ROLE_ROOM,
-        firstname: 'Salle 1',
-        lastname: 'Démo',
-        username: 'salle1-demo',
-        email: 'salle1@demo.quizzup.local',
-        mdp_hash: mdpHash,
-      })
+      // Un seul compte de salle non supprimé par salle (index admins_room_id_unique) : on ne
+      // crée celui de la démo que si la salle n'en a pas déjà un.
+      const roomAccount = await trx('admins')
+        .where('room_id', roomId)
+        .whereNot('status', 2)
+        .first('id')
+      if (!roomAccount) {
+        await findOrCreateAdmin(trx, {
+          company_id: companyId,
+          room_id: roomId,
+          role: ADMIN_ROLE_ROOM,
+          firstname: 'Salle 1',
+          lastname: 'Démo',
+          username: 'salle1-demo',
+          email: 'salle1@demo.quizzup.local',
+          mdp_hash: mdpHash,
+        })
+      }
 
       for (const themeSeed of DEMO_THEMES) {
         await seedTheme(trx, { adminId, companyId, storageDir, writtenFiles }, themeSeed)

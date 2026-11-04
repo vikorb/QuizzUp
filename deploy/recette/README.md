@@ -62,3 +62,4 @@ docker compose -f deploy/recette/docker-compose.yml --env-file deploy/recette/.e
 - Pas de sauvegarde automatique de la base : c'est un environnement de test.
 - Le backend tourne avec `tsx` (TypeScript à la volée), suffisant pour une recette.
 - Le JWT et les mots de passe viennent de `.env` : ne jamais committer ce fichier.
+- La documentation de l'API (Swagger, `https://api.<DOMAIN>/docs`) est publique.

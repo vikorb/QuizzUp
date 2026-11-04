@@ -1,3 +1,5 @@
+# Ports publiés sur 127.0.0.1 seulement : mots de passe de démo et JWT_SECRET sont publics,
+# le PC (souvent celui d'une salle, sur le réseau du lieu) ne doit pas les exposer.
 services:
   postgres:
     image: postgres:16-alpine
@@ -6,7 +8,7 @@ services:
       POSTGRES_PASSWORD: quizzup
       POSTGRES_DB: quizzup_backoffice
     ports:
-      - '5434:5432'
+      - '127.0.0.1:5434:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -30,7 +32,7 @@ services:
       # Seeds au premier démarrage seulement (base vide) ; `always` pour réinitialiser à chaque up.
       SEED_ON_START: '${SEED_ON_START:-if-empty}'
     ports:
-      - '3001:3001'
+      - '127.0.0.1:3001:3001'
     depends_on:
       postgres:
         condition: service_healthy
@@ -61,7 +63,7 @@ services:
       VITE_API_URL: 'http://localhost:3001'
       CHOKIDAR_USEPOLLING: 'true'
     ports:
-      - '4173:5173'
+      - '127.0.0.1:4173:5173'
     depends_on:
       - backend
     volumes:
@@ -87,7 +89,7 @@ services:
       VITE_API_URL: 'http://localhost:3001'
       CHOKIDAR_USEPOLLING: 'true'
     ports:
-      - '4174:4174'
+      - '127.0.0.1:4174:4174'
     depends_on:
       - backend
     volumes:

@@ -3,7 +3,7 @@
 if [ -x backoffice/node_modules/.bin/lint-staged ]; then
   (cd backoffice && npx --no -- lint-staged) || exit 1
 else
-  echo "husky(pre-commit): backoffice/node_modules absent -> lint-staged ignore. Lance 'npm install' dans backoffice/ pour activer le lint pre-commit."
+  echo "husky(pre-commit): lint-staged absent de backoffice/node_modules -> lint ignore. Lance 'npm install' dans backoffice/ pour activer le lint pre-commit."
 fi
 
 if [ -x game/engine/node_modules/.bin/lint-staged ]; then
@@ -18,6 +18,6 @@ if [ -x game/hardware/node_modules/.bin/lint-staged ]; then
   (cd game/hardware && npx --no -- lint-staged) || exit 1
 fi
 
-if [ -d game/e2e/node_modules ]; then
+if [ -x game/e2e/node_modules/.bin/lint-staged ]; then
   (cd game/e2e && npx --no -- lint-staged) || exit 1
 fi
