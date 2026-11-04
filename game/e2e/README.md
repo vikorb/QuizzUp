@@ -13,6 +13,7 @@ Objectif : attraper les régressions que les tests unitaires de chaque paquet ne
 | `tests/room-app/full-game.spec.ts`        | écran de salle (mode démo)             | Lobby RGPD (buzzer qui fait briller son pupitre, email refusé sans consentement, email jamais affiché), partie courte 3 × 3 jouée au clavier, points 100 / 50 / 20, « Personne n'a trouvé », bilans de manche, podium final, sauvegarde effacée à la fin. Arrêt de partie confirmé. |
 | `tests/room-app/blind-test-rules.spec.ts` | écran de salle + moteur                | Règles validées par Enzo : tout le monde joue en même temps, une erreur ne bloque **que pour le palier**, on passe au palier suivant **seulement si personne n'a trouvé** (tous faux, ou fenêtre de buzz écoulée).                                                                  |
 | `tests/room-app/hardware-dmx.spec.ts`     | écran « Matériel » (`/hardware`)       | Config de salle en JSON (2 PAR), sortie simulée, scène « buzz » sur le pupitre 2 (PAR à sa couleur, l'autre baissé), arrêt d'urgence = tout éteint et scènes bloquées, réarmement confirmé.                                                                                         |
+| `tests/room-app/mini-games.spec.ts`       | écran de salle (mode démo)             | Chacun des 10 mini-jeux (réglage `quizzup_room_mini_games`) : une manche jouée au clavier, bonne réponse d'Alice à chaque question, mise, vol de points, élimination en mort subite, bilan de manche. Une capture par étape.                                                        |
 | `tests/room-app/demo-audio.spec.ts`       | écran de salle (mode démo, son réel)   | Extraits démo synthétisés en Web Audio, mesurés en sortie : l'extrait joue pendant l'écoute du palier, silence pendant la fenêtre de buzz, coupé au buzz, repris après une erreur, arrêté sur une bonne réponse. Horloge réelle (le son suit l'horloge audio).                      |
 | `tests/harness/blind-test-audio.spec.ts`  | banc audio (moteur + pont + Web Audio) | **Son réel** mesuré en sortie : démarre et s'arrête à 1 s, 5 s, 20 s (± 150 ms), respecte le point de départ de l'extrait, se coupe au buzz, reprend après une erreur, s'arrête sur une bonne réponse.                                                                              |
 | `tests/harness/dmx-simulation.spec.ts`    | banc lumières (moteur + buzzers + DMX) | Boucle DMX ~30 trames/s, scènes buzz / bonne / mauvaise réponse / victoire, PAR du pupitre qui a buzzé à sa couleur, arrêt d'urgence = noir complet, réarmement, fumée activée mais non armée : déclenchement refusé (`not_armed`), canal fumée toujours à 0.                       |
@@ -48,6 +49,11 @@ L'extrait est **synthétisé par le test** (`tests/support/freeExtract.ts`) : un
 La majeur, en WAV PCM. Aucune œuvre ni enregistrement, donc aucun droit à gérer, et rien de
 binaire dans le dépôt. Il est muet pendant les 2 premières secondes et la question démarre à
 2 s : si le point de départ était ignoré, le palier 1 serait muet et le test échouerait.
+
+### Captures d'écran
+
+Les scénarios des mini-jeux joignent une capture par étape au rapport Playwright. Avec
+`E2E_CAPTURES_DIR=<dossier>`, elles sont aussi écrites dans `<dossier>/mini-jeux/<nn>-<mini-jeu>/`.
 
 ## Commandes
 

@@ -10,8 +10,8 @@ import {
   pressBuzzer,
   startShortGame,
 } from '../support/roomApp'
-import { ROOM_APP_URL } from '../support/urls'
 import { heardBetween, installSoundProbe, lastSilenceBefore, now } from '../support/soundProbe'
+import { ROOM_APP_URL } from '../support/urls'
 
 /**
  * Son réel dans l'écran de salle, en mode démo (extraits synthétisés en Web Audio, libres de

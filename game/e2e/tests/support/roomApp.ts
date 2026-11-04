@@ -51,16 +51,22 @@ export const MINI_GAMES_STORAGE_KEY = 'quizzup_room_mini_games'
 
 /**
  * Entre en mode démo. Par défaut la salle ne tire que le blind test éclair, dont ces
- * scénarios vérifient les règles ; `miniGames: 'all'` garde le tirage de tous les mini-jeux.
+ * scénarios vérifient les règles ; `miniGames: 'all'` garde le tirage de tous les
+ * mini-jeux, une liste (`['streak']`) restreint le tirage à ces mini-jeux.
  */
 export async function enterDemo(
   page: Page,
-  options: { miniGames?: 'blind_test' | 'all' } = {}
+  options: { miniGames?: 'blind_test' | 'all' | string[] } = {}
 ): Promise<void> {
-  if ((options.miniGames ?? 'blind_test') === 'blind_test') {
-    await page.addInitScript((key) => {
-      localStorage.setItem(key, JSON.stringify(['flash_blind_test']))
-    }, MINI_GAMES_STORAGE_KEY)
+  const setting = options.miniGames ?? 'blind_test'
+  if (setting !== 'all') {
+    const miniGames = setting === 'blind_test' ? ['flash_blind_test'] : setting
+    await page.addInitScript(
+      ({ key, value }) => {
+        localStorage.setItem(key, value)
+      },
+      { key: MINI_GAMES_STORAGE_KEY, value: JSON.stringify(miniGames) }
+    )
   }
   await page.goto('/login')
   await page.getByRole('button', { name: 'Essayer en mode démo (sans compte)' }).click()
