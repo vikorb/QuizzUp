@@ -201,6 +201,16 @@ Format inspiré de Keep a Changelog.
   thème jouable ; compte d'une salle supprimée refusé.
   US: us-room-02, us-game-08
 
+- Écran de salle : une partie sauvegardée n'est proposée à la reprise que dans son contexte :
+  en mode démo, une partie démo ; avec un compte de salle, la partie retenue du backoffice
+  (même graine) jouée par ce compte, dont l'identifiant est désormais mémorisé (mémoire ancienne
+  sans compte : la graine fait foi). La fin de partie n'est pas non plus envoyée avec le jeton
+  d'un autre compte. Une partie de salle retenue n'est jamais effacée par l'écran de lancement,
+  même en mode démo ou avec un autre compte (jeton expiré : elle revient à la reconnexion du
+  bon compte). Sont effacées : une partie démo hors mode démo et une sauvegarde dont la partie
+  n'est plus retenue (résultats envoyés, abandonnée). Une partie en cours n'est jamais touchée.
+  US: us-room-resume
+
 - Une question peut avoir plusieurs bonnes réponses côté API et base (le formulaire le permettait déjà, l'API n'en acceptait qu'une) ; au moins une bonne réponse reste obligatoire.
   US: us-qr-multi-correct
 
