@@ -3,6 +3,7 @@ import { browserClock } from '../clock'
 import { createEmitter } from '../emitter'
 import { buttonToIndex } from '../types'
 import type { BuzzerInput, BuzzerInputState, BuzzerPress, RawKeyPress } from './buzzerInput'
+import { createKeyboardLock } from './keyboardLock'
 import type { BuzzerKeymap } from './keymap'
 import { findSlot } from './keymap'
 
@@ -46,6 +47,13 @@ export type GamepadBuzzerInput = BuzzerInput & {
   getKeymap: () => BuzzerKeymap
   /** Carte lue actuellement, `null` si aucune n'est visible par le navigateur. */
   getGamepad: () => GamepadInfo | null
+  /**
+   * Capte Échap, Alt+Tab… via l'API Keyboard Lock, comme pour les buzzers clavier : les buzzers
+   * sont lus en manette, mais le clavier du staff reste là et Échap ne doit pas quitter le plein
+   * écran en pleine partie. Plein écran requis (Chrome / Edge) ; `false` si le navigateur refuse.
+   */
+  lockSystemKeys: () => Promise<boolean>
+  unlockSystemKeys: () => void
 }
 
 /**
@@ -91,11 +99,14 @@ export function createGamepadBuzzerInput(options: GamepadBuzzerInputOptions): Ga
   let timer: TimerHandle | null = null
   let tieRotation = 0
 
+  // Le rappel passe par `notify`, déclaré juste après (appelé plus tard seulement).
+  const systemKeys = createKeyboardLock({ target, doc, onChange: () => notify() })
+
   const getState = (): BuzzerInputState => ({
     focused,
     visible,
     active: visible && gamepad !== null && !disposed,
-    keyboardLocked: false,
+    keyboardLocked: systemKeys.isLocked(),
     simulation: false,
     held: [...heldCodes].flatMap((code) => {
       const slot = findSlot(keymap, code)
@@ -240,6 +251,8 @@ export function createGamepadBuzzerInput(options: GamepadBuzzerInputOptions): Ga
     },
     getKeymap: () => ({ ...keymap }),
     getGamepad: () => (gamepad ? { ...gamepad } : null),
+    lockSystemKeys: systemKeys.lock,
+    unlockSystemKeys: systemKeys.unlock,
     dispose() {
       if (disposed) {
         return
@@ -254,6 +267,7 @@ export function createGamepadBuzzerInput(options: GamepadBuzzerInputOptions): Ga
       target.removeEventListener('blur', onBlur)
       target.removeEventListener('gamepadconnected', poll)
       target.removeEventListener('gamepaddisconnected', poll)
+      systemKeys.dispose()
       heldCodes.clear()
       notify()
       pressEmitter.clear()

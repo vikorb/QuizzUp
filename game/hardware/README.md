@@ -69,6 +69,9 @@ buzzers.getGamepad() // { index, id, buttons } ou null : « Appuyez sur un buzze
 ```
 
 - Le navigateur n'expose la carte qu'après un **premier appui** sur un de ses boutons.
+- `lockSystemKeys()` / `unlockSystemKeys()` existent aussi ici (même verrou Keyboard Lock que les
+  buzzers clavier, `src/buzzers/keyboardLock.ts`) : Échap ne doit pas quitter le plein écran en
+  pleine partie, quelle que soit la source des buzzers. Les touches restent livrées à la page.
 - Lecture toutes les 4 ms ; l'appui est horodaté avec la mise à jour de la carte
   (`Gamepad.timestamp`), bornée entre deux lectures.
 - Appuis vus dans la même lecture : même horodatage, ordre d'émission tournant (aucun pupitre ne

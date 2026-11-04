@@ -65,6 +65,7 @@ import UiButton from '@/components/ui/UiButton.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import {
   discardSavedGame,
+  discardStaleSavedGame,
   getExtractPlayer,
   hasSavedGame,
   resumeSavedGame,
@@ -77,6 +78,8 @@ const { t } = useI18n()
 const router = useRouter()
 const { confirm } = useConfirm()
 
+// Une sauvegarde d'un autre contexte (démo, autre compte, partie close) n'est ni proposée ni gardée.
+discardStaleSavedGame()
 const savedGame = ref(hasSavedGame())
 const launching = ref(false)
 const fullscreenRefused = ref(false)
@@ -96,7 +99,8 @@ async function prepareRoom(): Promise<void> {
   // Lumières en ambiance, sans retarder le lancement : une interface DMX déjà
   // autorisée se reconnecte seule.
   void startLighting().catch(() => undefined)
-  await Promise.all([keepScreenAwake(), lockBuzzerSystemKeys()])
+  // Le verrou clavier n'a de sens (et n'est accepté) qu'en plein écran effectif.
+  await Promise.all([keepScreenAwake(), fullscreen ? lockBuzzerSystemKeys() : false])
 }
 
 async function onLaunch(): Promise<void> {

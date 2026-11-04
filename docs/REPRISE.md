@@ -91,8 +91,8 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
    en tests) et sur la carte manette 24 entrées.
 7. Plus tard : SACEM, pricing, mode hors ligne (V2).
 
-Petits suivis connus : pas de Keyboard Lock avec la carte manette ; `LaunchView` reprend
-n'importe quelle sauvegarde ; le synthé de démo n'a pas de fondu ; typage
+Petits suivis connus : ~~`LaunchView` reprend
+n'importe quelle sauvegarde~~ (fait : `fix/launch-resume-save`, reprise limitée au contexte courant) ; typage
 de l'ancien contenu : **décision d'Enzo à prendre**. La migration `20261104020000_add_kind_to_questions`
 a rempli toutes les anciennes questions avec `kind = 'qcm'` (défaut `NOT NULL`), donc rien n'est à
 `NULL` et une ancienne question est indiscernable d'un QCM choisi exprès. Le moteur déduit déjà le
