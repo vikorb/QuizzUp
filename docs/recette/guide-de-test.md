@@ -88,8 +88,8 @@ SOS en morse, carillon…).
 | 3       | `Q` | `S` | `D` | `F` |
 | 4       | `W` | `X` | `C` | `V` |
 
-Ce sont les touches d'un clavier **AZERTY**. Attention : l'écran affiche les noms QWERTY des
-mêmes touches (« Q W E R » pour le pupitre 2), c'est la même rangée physique.
+Ce sont les touches d'un clavier **AZERTY** ; Chrome et Edge affichent à l'écran les lettres
+de votre clavier.
 
 En mode démo, les extraits sont des petites mélodies synthétisées à la volée (pas les thèmes
 du backoffice) ; l'inscription des joueurs se fait directement sur l'écran.
