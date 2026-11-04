@@ -8,6 +8,15 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Retypage de l'ancien contenu : nouvelle migration de données qui remplace le type `qcm` posé par
+  défaut par `true_false` ou `estimate` sur les questions texte non supprimées (toutes compagnies
+  et contenu global) que le moteur de jeu déduisait déjà de leurs réponses : exactement deux
+  réponses « Vrai » / « Faux » ; ou 3 à 4 fourchettes chiffrées dont chacune porte un marqueur en
+  mots (« Entre 10 et 20 », « Moins de 5 », « Plus de 30 »), une seule juste. Scores, périodes
+  (« 1914-1918 »), nombres isolés et questions à média restent des QCM. Les lignes retypées sont tracées dans la nouvelle table
+  `question_kind_retypings` ; le retour arrière remet `qcm` sur exactement ces lignes.
+  US: us-retype-legacy-questions
+
 - 6 pupitres au maximum, 4 par défaut (décision d'Enzo du 2026-11-04). `GAME_PODIUMS` passe de 4 à
   6 dans `@quizzup/shared` (avec `ROOM_DEFAULT_DESKS` et `getRoomDesksCount`) ; le nombre de
   pupitres d'une salle est `rooms.config.desksCount` (1 à 6, absent = 4), réglable depuis l'écran
