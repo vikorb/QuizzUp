@@ -14,7 +14,8 @@
       "@/*": ["./frontend/src/*"],
       "@views/*": ["./frontend/src/views/*"],
       "@shared/*": ["./shared/src/*"],
-      "@frontend-tests/*": ["./tests/frontend/src/*"]
+      "@frontend-tests/*": ["./tests/frontend/src/*"],
+      "@intlify/message-compiler": ["./frontend/node_modules/@intlify/message-compiler"]
     }
   }
 }
