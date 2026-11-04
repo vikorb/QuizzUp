@@ -11,6 +11,7 @@ import {
   setBuzzerInput,
   startLighting,
   stopLighting,
+  triggerEmergencyStop,
   useRoomHardware,
 } from '@/hardware/roomHardware'
 
@@ -155,5 +156,19 @@ describe('sécurité des lumières à l’enregistrement', () => {
     const controller = await restarted
     expect(getLighting()).toBe(controller)
     expect(controller.getState().running).toBe(true)
+  })
+})
+
+describe('arrêt d’urgence pendant un redémarrage', () => {
+  it('applique au prochain contrôleur un arrêt pressé sans contrôleur actif', async () => {
+    triggerEmergencyStop('operator')
+    const controller = await startLighting()
+    expect(controller.getState().emergency).toBe(true)
+  })
+
+  it('arrête aussi le contrôleur actif', async () => {
+    const controller = await startLighting()
+    triggerEmergencyStop()
+    expect(controller.getState().emergency).toBe(true)
   })
 })

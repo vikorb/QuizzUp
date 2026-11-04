@@ -140,3 +140,22 @@ describe('createSilentExtractPlayer', () => {
     await expect(player.preload(['a', 'b'])).resolves.toEqual({ loaded: ['a', 'b'], failed: [] })
   })
 })
+
+const stage = (mediaUrl: string) => ({
+  type: 'blind_test_stage_started',
+  at: 0,
+  payload: { mediaUrl, mediaStartMs: 0, extractMs: 1000 },
+})
+
+describe('extraits jouables', () => {
+  it('ne joue ni les extraits de démo ni ceux qui ne sont pas préchargés', () => {
+    const player = createSilentExtractPlayer()
+    const play = vi.spyOn(player, 'play')
+    player.isLoaded = (url: string) => url === 'https://media.test/ok'
+    const bridge = createAudioBridge(player)
+    bridge.handleEvents([stage('demo://1/1'), stage('https://media.test/absent')] as never)
+    expect(play).not.toHaveBeenCalled()
+    bridge.handleEvents([stage('https://media.test/ok')] as never)
+    expect(play).toHaveBeenCalledWith('https://media.test/ok', 0, 1000)
+  })
+})

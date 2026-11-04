@@ -119,6 +119,10 @@ let stopLightingState: (() => void) | null = null
 let stopLightingEvents: (() => void) | null = null
 /** L'opérateur a choisi la simulation : pas de reconnexion automatique de l'interface. */
 let preferSimulation = false
+/** Arrêt d'urgence pressé pendant un redémarrage (aucun contrôleur actif) : appliqué au suivant. */
+let pendingEmergency: string | null = null
+/** Contrôleur en cours de fermeture : il reçoit aussi un arrêt d'urgence. */
+let closingLighting: LightingController | null = null
 const lightingState = shallowRef<LightingState | null>(null)
 const lightingRef = shallowRef<LightingController | null>(null)
 
@@ -150,15 +154,22 @@ async function reconnectGrantedPort(controller: LightingController): Promise<voi
   }
 }
 
-async function createLighting(options: { emergencyReason?: string | null } = {}) {
+async function createLighting(
+  options: { emergencyReason?: string | null; disarmSmoke?: boolean } = {}
+) {
   const controller = createLightingController({
     config: parsed.value.config.lighting,
     output: createSimulationOutput(),
     resolveDesk,
   })
-  // Un arrêt d'urgence en cours survit au redémarrage (noir avant la première trame).
-  if (options.emergencyReason) {
-    controller.emergencyStop(options.emergencyReason)
+  // Fumée désarmée et arrêt d'urgence repris avant la première trame.
+  if (options.disarmSmoke) {
+    controller.smoke.disarm()
+  }
+  const emergencyReason = options.emergencyReason ?? pendingEmergency
+  pendingEmergency = null
+  if (emergencyReason) {
+    controller.emergencyStop(emergencyReason)
   }
   lighting = controller
   lightingRef.value = controller
@@ -186,7 +197,25 @@ async function shutdownLighting(): Promise<void> {
   stopLightingState?.()
   stopLightingState = null
   lightingState.value = null
-  await controller?.stop()
+  closingLighting = controller
+  try {
+    await controller?.stop()
+  } finally {
+    closingLighting = null
+  }
+}
+
+/**
+ * Arrêt d'urgence logiciel, jamais perdu : appliqué au contrôleur actif, à celui
+ * qui se ferme, et retenu pour le prochain s'il est pressé pendant un redémarrage.
+ */
+export function triggerEmergencyStop(reason = 'operator'): void {
+  closingLighting?.emergencyStop(reason)
+  if (lighting) {
+    lighting.emergencyStop(reason)
+  } else {
+    pendingEmergency = reason
+  }
 }
 
 /** Démarre (une seule fois) le contrôleur de lumières de la page. */
@@ -216,8 +245,7 @@ async function restartLighting(): Promise<void> {
     const previous = lighting.getState()
     const emergencyReason = previous.emergency ? (previous.emergencyReason ?? 'operator') : null
     await shutdownLighting()
-    const controller = await createLighting({ emergencyReason })
-    controller.smoke.disarm()
+    await createLighting({ emergencyReason, disarmSmoke: true })
   })
 }
 
@@ -280,6 +308,7 @@ export async function resetRoomHardware(options: { storage?: HardwareStorage | n
   await stopLighting()
   setBuzzerInput(null)
   preferSimulation = false
+  pendingEmergency = null
   storage = options.storage ?? null
   parsed.value = parseRoomHardwareConfig(loadStoredConfig())
 }
