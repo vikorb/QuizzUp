@@ -1,0 +1,162 @@
+{
+  "rooms": {
+    "toolbar": {
+      "title": "Salles"
+    },
+    "actions": {
+      "addRoom": "Ajouter une salle"
+    },
+    "filters": {
+      "searchLabel": "Rechercher une salle",
+      "searchPlaceholder": "Nom de la salle...",
+      "statusLabel": "Statut",
+      "status": {
+        "active": "Actives",
+        "inactive": "Inactives",
+        "deleted": "Supprimées",
+        "all": "Toutes"
+      }
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "deleted": "Supprimée",
+      "unknown": "Inconnu"
+    },
+    "config": {
+      "set": "Configurée",
+      "unset": "Non configurée"
+    },
+    "form": {
+      "createTitle": "Nouvelle salle",
+      "editTitle": "Renommer la salle",
+      "fields": {
+        "name": {
+          "label": "Nom de la salle",
+          "placeholder": "Ex : Salle Néon"
+        }
+      },
+      "actions": {
+        "cancel": "Annuler",
+        "create": "Créer la salle",
+        "update": "Enregistrer",
+        "submitting": "Enregistrement..."
+      },
+      "hints": {
+        "create": "La salle sera créée active, sans configuration matérielle.",
+        "edit": "La configuration matérielle (buzzers, lumières) se règle dans un écran dédié."
+      },
+      "validation": {
+        "nameRequired": "Le nom de la salle est obligatoire.",
+        "nameTooLong": "Le nom de la salle ne doit pas dépasser 255 caractères."
+      },
+      "errors": {
+        "room_name_already_exists": "Une salle porte déjà ce nom dans cette compagnie.",
+        "company_deleted": "Impossible d’ajouter une salle à une compagnie supprimée.",
+        "invalid_body": "Les informations envoyées sont invalides.",
+        "invalid_params": "Paramètres invalides.",
+        "forbidden": "Vous n’avez pas les droits nécessaires.",
+        "not_found": "Salle introuvable.",
+        "server_error": "Erreur serveur.",
+        "api_unreachable": "Le serveur est actuellement inaccessible.",
+        "default": "Une erreur est survenue."
+      }
+    },
+    "table": {
+      "title": "Salles de jeu",
+      "loading": "Chargement des salles...",
+      "empty": "Aucune salle trouvée.",
+      "retry": "Réessayer",
+      "columns": {
+        "name": "Nom",
+        "config": "Configuration matérielle",
+        "status": "Statut",
+        "actions": "Actions"
+      },
+      "actions": {
+        "edit": "Renommer la salle",
+        "delete": "Supprimer la salle",
+        "enable": "Activer la salle",
+        "disable": "Désactiver la salle",
+        "deleteConfirm": "Supprimer la salle {name} ?",
+        "enableConfirm": "Voulez-vous vraiment activer la salle {name} ?",
+        "disableConfirm": "Voulez-vous vraiment désactiver la salle {name} ?",
+        "account": "Gérer le compte de salle"
+      }
+    },
+    "errors": {
+      "missingToken": "Votre session a expiré. Veuillez vous reconnecter.",
+      "unauthorized": "Vous devez être connecté pour consulter les salles.",
+      "forbidden": "Vous n’avez pas les droits nécessaires.",
+      "apiUnreachable": "Le serveur est actuellement inaccessible.",
+      "invalidJson": "La réponse du serveur est invalide.",
+      "invalidBody": "Les informations envoyées sont invalides.",
+      "serverError": "Erreur serveur lors du chargement des salles.",
+      "default": "Une erreur est survenue."
+    },
+    "account": {
+      "title": "Compte de connexion — {name}",
+      "loading": "Chargement du compte de salle...",
+      "state": {
+        "set": "Compte de salle actif",
+        "unset": "Aucun compte de salle"
+      },
+      "details": {
+        "username": "Identifiant",
+        "createdAt": "Créé le"
+      },
+      "fields": {
+        "username": {
+          "label": "Identifiant du PC de la salle",
+          "placeholder": "Ex : salle-neon",
+          "hint": "Au moins 3 caractères : lettres, chiffres, points, tirets ou underscores."
+        },
+        "password": {
+          "label": "Mot de passe",
+          "placeholder": "••••••••••",
+          "hint": "Au moins 8 caractères."
+        },
+        "passwordConfirm": {
+          "label": "Confirmer le mot de passe",
+          "placeholder": "••••••••••"
+        }
+      },
+      "actions": {
+        "cancel": "Annuler",
+        "create": "Créer le compte",
+        "submitting": "Création...",
+        "close": "Fermer le compte de salle",
+        "delete": "Supprimer le compte de salle",
+        "deleting": "Suppression...",
+        "deleteConfirm": "Supprimer le compte de salle {username} ? Le PC de la salle {name} sera immédiatement déconnecté et ne pourra plus se reconnecter avec cet identifiant."
+      },
+      "hints": {
+        "create": "Ce compte sert uniquement à connecter le PC de la salle à l’écran de salle. Il ne donne aucun accès au backoffice.",
+        "existing": "Saisissez cet identifiant sur l’écran de salle du PC. Le mot de passe n’est pas réaffichable : supprimez puis recréez le compte pour le changer.",
+        "delete": "Supprimer ce compte déconnecte immédiatement le PC de la salle."
+      },
+      "validation": {
+        "usernameRequired": "L’identifiant est obligatoire.",
+        "usernameTooShort": "L’identifiant doit contenir au moins 3 caractères.",
+        "usernameTooLong": "L’identifiant ne doit pas dépasser 255 caractères.",
+        "usernameInvalid": "Utilisez uniquement des lettres, chiffres, points, tirets ou underscores.",
+        "passwordRequired": "Le mot de passe est obligatoire.",
+        "passwordTooShort": "Le mot de passe doit contenir au moins 8 caractères.",
+        "passwordTooLong": "Le mot de passe ne doit pas dépasser 100 caractères.",
+        "passwordConfirmRequired": "Confirmez le mot de passe.",
+        "passwordMismatch": "Les mots de passe ne correspondent pas."
+      },
+      "errors": {
+        "username_already_exists": "Cet identifiant est déjà utilisé par un autre compte.",
+        "room_account_already_exists": "Cette salle a déjà un compte de connexion.",
+        "room_account_not_found": "Cette salle n’a plus de compte de connexion.",
+        "invalid_body": "Les informations envoyées sont invalides.",
+        "forbidden": "Vous n’avez pas les droits nécessaires.",
+        "not_found": "Salle introuvable.",
+        "server_error": "Erreur serveur.",
+        "api_unreachable": "Le serveur est actuellement inaccessible.",
+        "default": "Une erreur est survenue."
+      }
+    }
+  }
+}

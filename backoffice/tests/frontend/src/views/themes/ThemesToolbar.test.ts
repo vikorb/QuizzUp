@@ -1,3 +1,4 @@
+import { setAuthenticatedAdmin, setAuthenticatedUser } from '@frontend-tests/_helpers/authStateMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { pushMock } from '@frontend-tests/_helpers/routerMock'
@@ -82,6 +83,7 @@ describe('views/themes/ThemesToolbar.vue', () => {
   })
 
   it('navigates to the theme creation page from the primary action', async () => {
+    setAuthenticatedAdmin()
     const wrapper = mountWithFrontendMocks(ThemesToolbar, {
       props: {
         modelValue: '',
@@ -91,5 +93,16 @@ describe('views/themes/ThemesToolbar.vue', () => {
     await wrapper.find('[data-test="base-toolbar-primary"]').trigger('click')
 
     expect(pushMock).toHaveBeenCalledWith({ name: 'themes-create' })
+  })
+
+  it('hides the creation action from the read-only user role (US-PERM-01)', () => {
+    setAuthenticatedUser()
+    const wrapper = mountWithFrontendMocks(ThemesToolbar, {
+      props: {
+        modelValue: '',
+      },
+    })
+
+    expect(wrapper.find('[data-test="base-toolbar-primary"]').exists()).toBe(false)
   })
 })

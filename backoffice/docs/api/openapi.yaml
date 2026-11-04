@@ -25,6 +25,10 @@ tags:
     description: Gestion des compagnies
   - name: Accounts
     description: Gestion des comptes administrateurs rattachés aux compagnies
+  - name: Rooms
+    description: Salles de jeu d'une compagnie et leur configuration matérielle
+  - name: Games
+    description: Parties lancées par l'opérateur dans une salle
 
 security:
   - bearerAuth: []
@@ -778,6 +782,870 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/NotImplementedResponse'
+
+  /companies/{companyId}/rooms:
+    get:
+      tags:
+        - Rooms
+      summary: "[DISPONIBLE] Lister les salles d'une compagnie"
+      description: |
+        Statut : **Disponible**
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie (lecture).
+      operationId: listCompanyRooms
+      x-availability: disponible
+      x-us: 'US-ROOM-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+      responses:
+        '200':
+          description: Salles de la compagnie (les salles supprimées ne sont visibles que du superadmin)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rooms:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Room'
+        '400':
+          description: Paramètres ou corps de requête invalides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Compagnie ou salle introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags:
+        - Rooms
+      summary: '[DISPONIBLE] Créer une salle'
+      description: |
+        Statut : **Disponible**
+
+        Crée une salle active. La configuration matérielle est vide par défaut.
+
+        Accès : superadmin (toutes les compagnies) et `admin` de la compagnie.
+      operationId: createCompanyRoom
+      x-availability: disponible
+      x-us: 'US-ROOM-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoomRequest'
+      responses:
+        '201':
+          description: Salle créée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  room:
+                    $ref: '#/components/schemas/Room'
+        '400':
+          description: Paramètres ou corps de requête invalides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Compagnie ou salle introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Nom de salle déjà utilisé dans la compagnie (`room_name_already_exists`) ou compagnie supprimée (`company_deleted`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/rooms/{roomId}:
+    get:
+      tags:
+        - Rooms
+      summary: '[DISPONIBLE] Lire une salle'
+      description: |
+        Statut : **Disponible**
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie (lecture).
+      operationId: getCompanyRoom
+      x-availability: disponible
+      x-us: 'US-ROOM-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/RoomIdParam'
+      responses:
+        '200':
+          description: Salle
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  room:
+                    $ref: '#/components/schemas/Room'
+        '400':
+          description: Paramètres ou corps de requête invalides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Compagnie ou salle introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    patch:
+      tags:
+        - Rooms
+      summary: '[DISPONIBLE] Modifier une salle'
+      description: |
+        Statut : **Disponible**
+
+        Modifie le nom et/ou la configuration matérielle.
+
+        Accès : superadmin (toutes les compagnies) et `admin` de la compagnie.
+      operationId: updateCompanyRoom
+      x-availability: disponible
+      x-us: 'US-ROOM-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/RoomIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRoomRequest'
+      responses:
+        '200':
+          description: Salle modifiée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  room:
+                    $ref: '#/components/schemas/Room'
+        '400':
+          description: Paramètres ou corps de requête invalides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Compagnie ou salle introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Nom de salle déjà utilisé dans la compagnie (`room_name_already_exists`) ou compagnie supprimée (`company_deleted`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Rooms
+      summary: '[DISPONIBLE] Supprimer une salle'
+      description: |
+        Statut : **Disponible**
+
+        Suppression logique (`status = 2`, `deleted_at` renseigné).
+
+        Accès : superadmin (toutes les compagnies) et `admin` de la compagnie.
+      operationId: deleteCompanyRoom
+      x-availability: disponible
+      x-us: 'US-ROOM-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/RoomIdParam'
+      responses:
+        '200':
+          description: Salle supprimée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  room:
+                    $ref: '#/components/schemas/Room'
+        '400':
+          description: Paramètres ou corps de requête invalides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Compagnie ou salle introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/rooms/{roomId}/status:
+    patch:
+      tags:
+        - Rooms
+      summary: "[DISPONIBLE] Changer le statut d'une salle"
+      description: |
+        Statut : **Disponible**
+
+        `0` inactive, `1` active, `2` supprimée. Restaurer une salle dont le nom a été repris est refusé.
+
+        Accès : superadmin (toutes les compagnies) et `admin` de la compagnie.
+      operationId: updateCompanyRoomStatus
+      x-availability: disponible
+      x-us: 'US-ROOM-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/RoomIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRoomStatusRequest'
+      responses:
+        '200':
+          description: Statut modifié
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  room:
+                    $ref: '#/components/schemas/Room'
+        '400':
+          description: Paramètres ou corps de requête invalides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Compagnie ou salle introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Nom de salle déjà utilisé dans la compagnie (`room_name_already_exists`) ou compagnie supprimée (`company_deleted`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/rooms/{roomId}/account:
+    get:
+      tags:
+        - Rooms
+      summary: '[DISPONIBLE] Lire le compte de la salle'
+      description: |
+        Statut : **Disponible**
+
+        Renvoie le compte de connexion du PC de la salle, ou `null` s'il n'existe pas.
+
+        Accès : superadmin (toutes les compagnies) et `admin` de la compagnie.
+      operationId: getRoomAccount
+      x-availability: disponible
+      x-us: 'US-ROOM-02'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/RoomIdParam'
+      responses:
+        '200':
+          description: Compte de la salle
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  account:
+                    allOf:
+                      - $ref: '#/components/schemas/RoomAccount'
+                    nullable: true
+        '400':
+          description: Paramètres invalides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Salle introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags:
+        - Rooms
+      summary: '[DISPONIBLE] Créer le compte de la salle'
+      description: |
+        Statut : **Disponible**
+
+        Crée le compte de rôle `room` (un seul compte actif par salle). Il se connecte via `POST /login` avec son identifiant ; sa session n'expire pas par inactivité (jeton valable 365 jours). Un identifiant reste réservé après la suppression du compte. Une salle inactive garde son compte connecté mais ne peut pas recevoir de nouvelle partie.
+
+        Accès : superadmin (toutes les compagnies) et `admin` de la compagnie.
+      operationId: createRoomAccount
+      x-availability: disponible
+      x-us: 'US-ROOM-02'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/RoomIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoomAccountRequest'
+      responses:
+        '201':
+          description: Compte créé
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  account:
+                    allOf:
+                      - $ref: '#/components/schemas/RoomAccount'
+        '400':
+          description: Corps de requête invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Salle introuvable ou supprimée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Compte déjà existant (`room_account_already_exists`) ou identifiant pris (`username_already_exists`) ou compagnie supprimée (`company_deleted`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Rooms
+      summary: '[DISPONIBLE] Supprimer le compte de la salle'
+      description: |
+        Statut : **Disponible**
+
+        Suppression logique du compte et révocation immédiate de ses sessions. La suppression d'une salle supprime aussi son compte et arrête ses parties en attente ou en cours.
+
+        Accès : superadmin (toutes les compagnies) et `admin` de la compagnie.
+      operationId: deleteRoomAccount
+      x-availability: disponible
+      x-us: 'US-ROOM-02'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/RoomIdParam'
+      responses:
+        '200':
+          description: Compte supprimé
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Salle introuvable ou sans compte (`room_account_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /room/me:
+    get:
+      tags:
+        - Rooms
+      summary: '[DISPONIBLE] Salle du compte connecté'
+      description: |
+        Statut : **Disponible**
+
+        Renvoie la salle (avec sa configuration matérielle) et la compagnie du compte de salle connecté.
+
+        Accès : réservé au rôle `room`.
+      operationId: getCurrentRoom
+      x-availability: disponible
+      x-us: 'US-ROOM-02'
+      responses:
+        '200':
+          description: Salle du compte connecté
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  room:
+                    $ref: '#/components/schemas/Room'
+                  company:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      name:
+                        type: string
+        '403':
+          description: Compte qui n'est pas un compte de salle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Salle introuvable ou supprimée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/games:
+    get:
+      tags:
+        - Games
+      summary: "[DISPONIBLE] Lister les parties d'une compagnie"
+      description: |
+        Statut : **Disponible**
+
+        Parties de la compagnie, de la plus récente à la plus ancienne, avec le nom de la salle et le nombre de participants.
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: listCompanyGames
+      x-availability: disponible
+      x-us: 'US-GAME-08'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+      responses:
+        '200':
+          description: Parties
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  games:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/GameSummary'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags:
+        - Games
+      summary: '[DISPONIBLE] Lancer une partie'
+      description: |
+        Statut : **Disponible**
+
+        Crée une partie en attente dans une salle active et libre, avec 1 à 4 participants (un par pupitre). Un email n'est accepté qu'avec `emailConsent: true` (consentement RGPD horodaté dans `consentAt`). Format par défaut : 10 manches × 10 questions. La graine de tirage (0 à 2³² − 1) est tirée par le serveur.
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: createCompanyGame
+      x-availability: disponible
+      x-us: 'US-GAME-08'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGameRequest'
+      responses:
+        '201':
+          description: Partie créée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  game:
+                    allOf:
+                      - $ref: '#/components/schemas/GameDetail'
+        '400':
+          description: Corps invalide (dont `email_consent_required`, `participants_podium_duplicated`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Salle introuvable (`room_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Compagnie supprimée (`company_deleted`) ou inactive (`company_inactive`), salle inactive (`room_inactive`) ou partie déjà en attente / en cours (`room_busy`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/games/{gameId}:
+    get:
+      tags:
+        - Games
+      summary: '[DISPONIBLE] Lire une partie'
+      description: |
+        Statut : **Disponible**
+
+        Partie avec ses participants.
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: getCompanyGame
+      x-availability: disponible
+      x-us: 'US-GAME-08'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/GameIdParam'
+      responses:
+        '200':
+          description: Partie
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  game:
+                    allOf:
+                      - $ref: '#/components/schemas/GameDetail'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Partie introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/games/{gameId}/abort:
+    post:
+      tags:
+        - Games
+      summary: '[DISPONIBLE] Arrêter une partie'
+      description: |
+        Statut : **Disponible**
+
+        Passe une partie en attente ou en cours à l'état `aborted` et libère la salle.
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: abortCompanyGame
+      x-availability: disponible
+      x-us: 'US-GAME-08'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/GameIdParam'
+      responses:
+        '200':
+          description: Partie arrêtée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  game:
+                    allOf:
+                      - $ref: '#/components/schemas/GameDetail'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Partie introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Partie déjà terminée (`game_already_over`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /room/games/current:
+    get:
+      tags:
+        - Rooms
+      summary: '[DISPONIBLE] Partie courante de la salle'
+      description: |
+        Statut : **Disponible**
+
+        Partie en attente ou en cours de la salle du compte connecté, ou `null`. Les emails des participants ne sont pas renvoyés.
+
+        Accès : réservé au rôle `room`.
+      operationId: getCurrentRoomGame
+      x-availability: disponible
+      x-us: 'US-GAME-08'
+      responses:
+        '200':
+          description: Partie courante
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  game:
+                    allOf:
+                      - $ref: '#/components/schemas/RoomGame'
+                    nullable: true
+        '403':
+          description: Compte qui n'est pas un compte de salle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /room/games/current/content:
+    get:
+      tags:
+        - Rooms
+      summary: '[DISPONIBLE] Catalogue jouable de la partie courante'
+      description: |
+        Statut : **Disponible**
+
+        Thèmes actifs lisibles par la compagnie (global ou company), au format `EngineTheme` du
+        moteur de jeu, avec leurs questions actives de tous types et leurs réponses actives. Une
+        question **audio** n'est retenue que si son fichier est uploadé (`mediaUrl` = chemin relatif
+        à l'API, `/room/questions/{id}/media`) ; une image / vidéo que si elle a un lien
+        (`mediaUrl` = ce lien) ; sans média, `mediaUrl` vaut `null`. Le moteur trie ensuite les
+        questions par éligibilité de chaque mini-jeu. Les thèmes sans question jouable sont écartés.
+
+        Accès : réservé au rôle `room`, uniquement pendant une partie en attente ou en cours.
+      operationId: getCurrentRoomGameContent
+      x-availability: disponible
+      x-us: 'US-GAME-08'
+      responses:
+        '200':
+          description: Catalogue de la salle
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  themes:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        name: { type: string }
+                        questions:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              id: { type: integer }
+                              text: { type: string }
+                              mediaType: { type: string, example: audio }
+                              mediaUrl:
+                                { type: string, nullable: true, example: /room/questions/12/media }
+                              mediaStartMs: { type: integer }
+                              answers:
+                                type: array
+                                items:
+                                  type: object
+                                  properties:
+                                    id: { type: integer }
+                                    text: { type: string }
+                                    isCorrect: { type: boolean }
+        '403':
+          description: Compte qui n'est pas un compte de salle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Pas de partie courante (`game_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /room/questions/{questionId}/media:
+    get:
+      tags:
+        - Rooms
+      summary: "[DISPONIBLE] Extrait audio d'une question pour la salle"
+      description: |
+        Statut : **Disponible** (US-MEDIA-01)
+
+        Même flux et mêmes en-têtes que `GET /questions/{questionId}/media` (`ETag`,
+        `Cache-Control: private, no-cache`, `Vary: Authorization`, 304 sur `If-None-Match`).
+        La question doit être active, audio, avec un fichier, et lisible par la compagnie.
+
+        Accès : réservé au rôle `room`, uniquement pendant une partie en attente ou en cours.
+      operationId: getRoomQuestionMedia
+      x-availability: disponible
+      x-us: 'US-MEDIA-01'
+      parameters:
+        - $ref: '#/components/parameters/QuestionId'
+      responses:
+        '200':
+          description: Fichier audio
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+            audio/ogg:
+              schema:
+                type: string
+                format: binary
+        '304':
+          description: Fichier inchangé (ETag identique)
+        '400':
+          description: Id invalide (`question_id_invalid`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Compte qui n'est pas un compte de salle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Pas de partie courante (`game_not_found`) ou extrait indisponible (`question_media_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /room/games/{gameId}/start:
+    post:
+      tags:
+        - Rooms
+      summary: '[DISPONIBLE] Démarrer la partie (accusé de réception)'
+      description: |
+        Statut : **Disponible**
+
+        La salle accuse réception de la partie lancée : `pending` → `running`, `startedAt` renseigné. Idempotent si la partie tourne déjà.
+
+        Accès : réservé au rôle `room`.
+      operationId: startRoomGame
+      x-availability: disponible
+      x-us: 'US-GAME-08'
+      parameters:
+        - $ref: '#/components/parameters/GameIdParam'
+      responses:
+        '200':
+          description: Partie démarrée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  game:
+                    allOf:
+                      - $ref: '#/components/schemas/RoomGame'
+        '403':
+          description: Compte qui n'est pas un compte de salle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Pas de partie courante avec cet id (`game_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /players:
     get:
@@ -2144,6 +3012,24 @@ components:
         type: integer
         example: 1
 
+    RoomIdParam:
+      name: roomId
+      in: path
+      required: true
+      description: Identifiant de la salle
+      schema:
+        type: integer
+        example: 1
+
+    GameIdParam:
+      name: gameId
+      in: path
+      required: true
+      description: Identifiant de la partie
+      schema:
+        type: integer
+        example: 1
+
     CompanyIdParam:
       name: companyId
       in: path
@@ -2483,6 +3369,245 @@ components:
             companiesCount:
               type: integer
               example: 1
+
+    Room:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        companyId:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: Salle Néon
+        config:
+          type: object
+          additionalProperties: true
+          description: Configuration matérielle (buzzers, lumières, fumée), JSON libre de 20 000 caractères max.
+          example: {}
+        status:
+          type: integer
+          enum: [0, 1, 2]
+          description: '`0` inactive, `1` active, `2` supprimée'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    CreateRoomRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          example: Salle Néon
+        config:
+          type: object
+          additionalProperties: true
+
+    UpdateRoomRequest:
+      type: object
+      description: Au moins un champ est requis.
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        config:
+          type: object
+          additionalProperties: true
+
+    UpdateRoomStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: integer
+          enum: [0, 1, 2]
+
+    RoomAccount:
+      type: object
+      properties:
+        id:
+          type: integer
+        companyId:
+          type: integer
+        roomId:
+          type: integer
+        username:
+          type: string
+          example: salle-neon
+        status:
+          type: integer
+          enum: [0, 1, 2]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    CreateRoomAccountRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 255
+          pattern: "^[\\w.-]+$"
+        password:
+          type: string
+          minLength: 8
+          maxLength: 100
+
+    GameSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        companyId:
+          type: integer
+        roomId:
+          type: integer
+        roomName:
+          type: string
+        adminId:
+          type: integer
+          description: Opérateur qui a lancé la partie
+        roundsCount:
+          type: integer
+          example: 10
+        questionsPerRound:
+          type: integer
+          example: 10
+        seed:
+          type: integer
+          minimum: 0
+          maximum: 4294967295
+        state:
+          type: string
+          enum: [pending, running, finished, aborted]
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: integer
+          enum: [0, 1, 2]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        participantsCount:
+          type: integer
+
+    GameParticipant:
+      type: object
+      properties:
+        id:
+          type: integer
+        podium:
+          type: integer
+          minimum: 1
+          maximum: 4
+        displayName:
+          type: string
+        email:
+          type: string
+          nullable: true
+        consentAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Horodatage du consentement RGPD (obligatoire si un email est renseigné)
+        score:
+          type: integer
+
+    GameDetail:
+      allOf:
+        - $ref: '#/components/schemas/GameSummary'
+        - type: object
+          properties:
+            participants:
+              type: array
+              items:
+                $ref: '#/components/schemas/GameParticipant'
+
+    RoomGame:
+      allOf:
+        - $ref: '#/components/schemas/GameSummary'
+        - type: object
+          properties:
+            participants:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  podium:
+                    type: integer
+                  displayName:
+                    type: string
+                  score:
+                    type: integer
+
+    CreateGameRequest:
+      type: object
+      required: [roomId, participants]
+      properties:
+        roomId:
+          type: integer
+        roundsCount:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 10
+        questionsPerRound:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 10
+        participants:
+          type: array
+          minItems: 1
+          maxItems: 4
+          items:
+            type: object
+            required: [podium, displayName]
+            properties:
+              podium:
+                type: integer
+                minimum: 1
+                maximum: 4
+              displayName:
+                type: string
+                maxLength: 100
+              email:
+                type: string
+                format: email
+                nullable: true
+              emailConsent:
+                type: boolean
+                description: Case RGPD cochée explicitement ; requise si `email` est renseigné
 
     Account:
       type: object

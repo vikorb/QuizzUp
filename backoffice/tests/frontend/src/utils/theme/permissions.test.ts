@@ -33,10 +33,10 @@ function makeTheme(overrides: Partial<Theme> = {}): Theme {
 
 describe('utils/theme/permissions', () => {
   describe('canCreateTheme', () => {
-    it('allows every known authenticated role', () => {
+    it('allows superadmin and admin only (US-PERM-01)', () => {
       expect(canCreateTheme(ADMIN_ROLE_SUPERADMIN)).toBe(true)
       expect(canCreateTheme(ADMIN_ROLE_ADMIN)).toBe(true)
-      expect(canCreateTheme(ADMIN_ROLE_USER)).toBe(true)
+      expect(canCreateTheme(ADMIN_ROLE_USER)).toBe(false)
     })
 
     it('rejects an unknown or missing role', () => {

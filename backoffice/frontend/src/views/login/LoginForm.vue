@@ -36,7 +36,7 @@
       </template>
     </FormField>
 
-    <p v-if="formError" class="form-error">{{ formError }}</p>
+    <p v-if="displayedError" class="form-error" role="alert">{{ displayedError }}</p>
 
     <UiButton class="submit" variant="primary" type="submit" :disabled="loading">
       <span v-if="!loading">{{ $t('auth.login.submit') }}</span>
@@ -49,13 +49,14 @@
 
 <script setup lang="ts">
 import { mdiEyeOffOutline, mdiEyeOutline } from '@mdi/js'
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
 import FormField from '@/components/ui/form/FormField.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import { clearRoomAccountRejection, refreshMe, roomAccountRejected } from '@/state/authState'
 import { loginApi, loginReasonToI18nKey, setToken as storeToken } from '@/utils/auth'
 import { getRedirect } from '@/utils/router'
 import { isBlank } from '@/utils/validation'
@@ -70,8 +71,14 @@ const loading = ref(false)
 const formError = ref<string | null>(null)
 const fieldErrors = reactive<{ identifier?: string; password?: string }>({})
 
+// Un compte de salle refusé (ici ou par le router via /me) est expliqué sur l'écran de login.
+const displayedError = computed(
+  () => formError.value ?? (roomAccountRejected.value ? t('auth.errors.roomAccount') : null)
+)
+
 function resetErrors() {
   formError.value = null
+  clearRoomAccountRejection()
   fieldErrors.identifier = undefined
   fieldErrors.password = undefined
 }
@@ -96,6 +103,14 @@ async function onSubmit() {
     }
 
     storeToken(result.token)
+
+    // /me décide du rôle : un compte de salle est déconnecté aussitôt et reste sur le login.
+    await refreshMe()
+
+    if (roomAccountRejected.value) {
+      return
+    }
+
     router.replace(getRedirect(route, '/'))
   } finally {
     loading.value = false
