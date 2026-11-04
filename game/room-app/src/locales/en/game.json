@@ -141,7 +141,13 @@
       "tie": "Tie at the top!",
       "noContent": "Not enough questions left to continue the game.",
       "newGame": "New game",
-      "home": "Back to home"
+      "home": "Back to home",
+      "sync": {
+        "sending": "Sending results…",
+        "sent": "Results saved",
+        "offline": "Offline: results pending, retrying automatically",
+        "auth": "Room signed out: results pending, they will be sent after sign-in"
+      }
     },
     "aborted": {
       "title": "Game stopped"

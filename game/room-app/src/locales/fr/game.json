@@ -141,7 +141,13 @@
       "tie": "Égalité au sommet !",
       "noContent": "Plus assez de questions pour continuer la partie.",
       "newGame": "Nouvelle partie",
-      "home": "Retour à l’accueil"
+      "home": "Retour à l’accueil",
+      "sync": {
+        "sending": "Envoi des résultats…",
+        "sent": "Résultats enregistrés",
+        "offline": "Hors ligne : résultats en attente, nouvel essai automatique",
+        "auth": "Salle déconnectée : résultats en attente, ils seront envoyés à la reconnexion"
+      }
     },
     "aborted": {
       "title": "Partie arrêtée"

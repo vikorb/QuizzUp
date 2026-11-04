@@ -78,7 +78,8 @@
       "resume": "Reprendre la partie",
       "restart": "Recommencer depuis le début",
       "restartConfirm": "Recommencer la partie depuis le début ? Les scores déjà marqués sur ce PC seront perdus.",
-      "duo": "{first} & {second}"
+      "duo": "{first} & {second}",
+      "pendingResults": "{n} résultat de partie en attente d’envoi au backoffice : nouvel essai automatique. | {n} résultats de parties en attente d’envoi au backoffice : nouvel essai automatique."
     }
   }
 }

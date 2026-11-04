@@ -90,6 +90,7 @@
         :lines="leaderboard"
         :aborted="phase.name === 'aborted'"
         :no-content="phase.name === 'finished' && phase.reason === 'no_content'"
+        :sync="finishSync"
         @new-game="onNewGame"
         @home="onHome"
       />
@@ -110,7 +111,7 @@
 
 <script setup lang="ts">
 import { mdiAlertOctagonOutline, mdiStopCircleOutline } from '@mdi/js'
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
 
@@ -121,6 +122,7 @@ import UiButton from '@/components/ui/UiButton.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import { reportFinishedGame } from '@/game/backofficeGame'
 import { getMiniGameView } from '@/game/miniGameViews'
+import { usePendingFinishes } from '@/game/pendingFinishes'
 import {
   getBlindTestView,
   getCurrentRound,
@@ -213,15 +215,17 @@ const activeId = computed(() => {
 useBuzzers(pressBuzzer)
 
 // Podium : le backoffice passe la partie « terminée » avec les scores (aussi après une reprise).
-// ponytail: un seul essai, la partie reste « en cours » côté backoffice si le réseau est coupé
-// (l'opérateur peut l'arrêter) ; réessayer en arrière-plan si ça arrive en salle.
+// L'envoi est mis en file et réessayé en arrière-plan si le réseau est coupé.
+const finishReported = ref(false)
+const { status: finishStatus } = usePendingFinishes()
+const finishSync = computed(() =>
+  finishReported.value && finishStatus.value !== 'idle' ? finishStatus.value : null
+)
 watch(
   () => phase.value.name === 'finished' && state.value,
   (finished) => {
-    if (finished) {
-      reportFinishedGame(finished).catch((error: unknown) => {
-        console.warn('Fin de partie non envoyée au backoffice', error)
-      })
+    if (finished && reportFinishedGame(finished)) {
+      finishReported.value = true
     }
   },
   { immediate: true }
