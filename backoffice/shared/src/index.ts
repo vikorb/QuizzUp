@@ -130,6 +130,30 @@ export const QUESTION_MEDIA_TYPES = [
 
 export type QuestionMediaType = (typeof QUESTION_MEDIA_TYPE)[keyof typeof QUESTION_MEDIA_TYPE]
 
+/**
+ * Type de question (décision d'Enzo, 2026-11-04) : le moteur de jeu s'en sert pour choisir
+ * les questions éligibles à chaque mini-jeu (vrai/faux, estimation…).
+ */
+export const QUESTION_KIND_QCM = 'qcm' as const
+export const QUESTION_KIND_TRUE_FALSE = 'true_false' as const
+export const QUESTION_KIND_ESTIMATE = 'estimate' as const
+
+export const QUESTION_KIND = {
+  QCM: QUESTION_KIND_QCM,
+  TRUE_FALSE: QUESTION_KIND_TRUE_FALSE,
+  ESTIMATE: QUESTION_KIND_ESTIMATE,
+} as const
+
+export const QUESTION_KINDS = [
+  QUESTION_KIND_QCM,
+  QUESTION_KIND_TRUE_FALSE,
+  QUESTION_KIND_ESTIMATE,
+] as const
+
+export type QuestionKind = (typeof QUESTION_KIND)[keyof typeof QUESTION_KIND]
+
+export const DEFAULT_QUESTION_KIND = QUESTION_KIND_QCM
+
 export const ANSWER_STATUS_INACTIVE = 0 as const
 export const ANSWER_STATUS_ACTIVE = 1 as const
 export const ANSWER_STATUS_DELETED = 2 as const
@@ -217,14 +241,48 @@ export const GAME_STATES = [
 
 export type GameState = (typeof GAME_STATE)[keyof typeof GAME_STATE]
 
-/** Mini-jeux disponibles. V1 : uniquement le blind test éclair (US-MINIGAME-01). */
+/**
+ * Mini-jeux disponibles (catalogue du cadrage §5.2). Chaque code est implémenté
+ * par un module de `game/engine/src/miniGames` et autorisé par le CHECK de
+ * `game_rounds.mini_game`.
+ */
 export const MINI_GAME_FLASH_BLIND_TEST = 'flash_blind_test' as const
+export const MINI_GAME_QUICK_ANSWER = 'quick_answer' as const
+export const MINI_GAME_FIRST_BUZZ = 'first_buzz' as const
+export const MINI_GAME_TRUE_FALSE = 'true_false' as const
+export const MINI_GAME_DOUBLE_OR_NOTHING = 'double_or_nothing' as const
+export const MINI_GAME_SUDDEN_DEATH = 'sudden_death' as const
+export const MINI_GAME_POINT_STEAL = 'point_steal' as const
+export const MINI_GAME_STREAK = 'streak' as const
+export const MINI_GAME_ESTIMATE = 'estimate' as const
+export const MINI_GAME_PROGRESSIVE_REVEAL = 'progressive_reveal' as const
 
 export const MINI_GAME = {
   FLASH_BLIND_TEST: MINI_GAME_FLASH_BLIND_TEST,
+  QUICK_ANSWER: MINI_GAME_QUICK_ANSWER,
+  FIRST_BUZZ: MINI_GAME_FIRST_BUZZ,
+  TRUE_FALSE: MINI_GAME_TRUE_FALSE,
+  DOUBLE_OR_NOTHING: MINI_GAME_DOUBLE_OR_NOTHING,
+  SUDDEN_DEATH: MINI_GAME_SUDDEN_DEATH,
+  POINT_STEAL: MINI_GAME_POINT_STEAL,
+  STREAK: MINI_GAME_STREAK,
+  ESTIMATE: MINI_GAME_ESTIMATE,
+  PROGRESSIVE_REVEAL: MINI_GAME_PROGRESSIVE_REVEAL,
 } as const
 
-export const MINI_GAMES = [MINI_GAME_FLASH_BLIND_TEST] as const
+/** Codes acceptés en base (`game_rounds.mini_game`), qu'ils soient déjà jouables ou non. */
+export const MINI_GAMES = [
+  MINI_GAME_FLASH_BLIND_TEST,
+  MINI_GAME_QUICK_ANSWER,
+  MINI_GAME_FIRST_BUZZ,
+  MINI_GAME_TRUE_FALSE,
+  MINI_GAME_DOUBLE_OR_NOTHING,
+  MINI_GAME_SUDDEN_DEATH,
+  MINI_GAME_POINT_STEAL,
+  MINI_GAME_STREAK,
+  MINI_GAME_ESTIMATE,
+  MINI_GAME_PROGRESSIVE_REVEAL,
+] as const
 
 export type MiniGame = (typeof MINI_GAME)[keyof typeof MINI_GAME]
 

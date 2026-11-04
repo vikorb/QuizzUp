@@ -64,7 +64,7 @@
       "roundsHint": "Between 1 and {max}",
       "questionsPerRound": "Questions per round",
       "questionsHint": "Between 1 and {max}",
-      "participantsHint": "From 1 to {max} participants, one per podium.",
+      "participantsHint": "From 1 to {max} podiums, with 1 or 2 players per podium.",
       "participant": "Participant {index}",
       "podium": "Podium",
       "podiumOption": "Podium {podium}",
@@ -90,7 +90,11 @@
         "displayNameTooLong": "The display name is too long.",
         "emailInvalid": "The email address is invalid.",
         "consentRequired": "Tick the consent box to keep this email, or remove the email."
-      }
+      },
+      "secondPlayer": "2nd player",
+      "secondDisplayNamePlaceholder": "e.g. Alex",
+      "addSecondPlayer": "Add a 2nd player",
+      "removeSecondPlayer": "Remove the 2nd player"
     },
     "detail": {
       "title": "Game details",
@@ -114,7 +118,8 @@
         "displayName": "Name",
         "score": "Score",
         "email": "Email"
-      }
+      },
+      "emailMasked": "Email saved (hidden)"
     },
     "errors": {
       "missingToken": "You must be signed in.",

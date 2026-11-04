@@ -8,6 +8,7 @@ import {
   type GameState,
   type RoundRecord,
 } from '@quizzup/game-engine'
+import { MINI_GAME_FLASH_BLIND_TEST } from '@quizzup/shared'
 
 /**
  * Lecture de l'état du moteur pour l'affichage. Fonctions pures : l'écran ne
@@ -106,7 +107,7 @@ export type BlindTestView = {
 export function getBlindTestView(state: GameState, now: number): BlindTestView | null {
   const { phase } = state
 
-  if (phase.name !== 'question') {
+  if (phase.name !== 'question' || phase.miniGameState.kind !== MINI_GAME_FLASH_BLIND_TEST) {
     return null
   }
 

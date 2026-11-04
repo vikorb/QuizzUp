@@ -11,6 +11,8 @@ import {
   GAME_STATE_FINISHED,
   GAME_STATE_PENDING,
   GAME_STATUS_ACTIVE,
+  QUESTION_KIND_QCM,
+  QUESTION_KIND_TRUE_FALSE,
   QUESTION_MEDIA_TYPE_AUDIO,
   QUESTION_MEDIA_TYPE_IMAGE,
   QUESTION_MEDIA_TYPE_NONE,
@@ -166,7 +168,11 @@ describe('routes/room.ts — content of the current game', () => {
     theme(1)
     question(11, 1)
     question(12, 1, { media_key: null }) // audio sans fichier : écartée
-    question(13, 1, { type_media: QUESTION_MEDIA_TYPE_NONE, media_key: null })
+    question(13, 1, {
+      type_media: QUESTION_MEDIA_TYPE_NONE,
+      media_key: null,
+      kind: QUESTION_KIND_TRUE_FALSE,
+    })
     question(14, 1, { status: QUESTION_STATUS_DRAFT })
     question(15, 1, { scope: THEME_SCOPE_COMPANY, company_id: 2 })
     question(16, 1, {
@@ -199,6 +205,7 @@ describe('routes/room.ts — content of the current game', () => {
     expect(body.themes[0].questions[0]).toEqual({
       id: 11,
       text: 'Extrait 11',
+      kind: QUESTION_KIND_QCM,
       mediaType: QUESTION_MEDIA_TYPE_AUDIO,
       mediaUrl: '/room/questions/11/media',
       mediaStartMs: 1500,
@@ -208,6 +215,7 @@ describe('routes/room.ts — content of the current game', () => {
       ],
     })
     expect(body.themes[0].questions[1]).toMatchObject({
+      kind: QUESTION_KIND_TRUE_FALSE,
       mediaType: QUESTION_MEDIA_TYPE_NONE,
       mediaUrl: null,
       mediaStartMs: 1500,

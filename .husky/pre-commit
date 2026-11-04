@@ -17,3 +17,7 @@ fi
 if [ -x game/hardware/node_modules/.bin/lint-staged ]; then
   (cd game/hardware && npx --no -- lint-staged) || exit 1
 fi
+
+if [ -d game/e2e/node_modules ]; then
+  (cd game/e2e && npx --no -- lint-staged) || exit 1
+fi

@@ -16,7 +16,7 @@ import {
   getLeaderIds,
   type ScoreLine,
 } from './draws'
-import { MINI_GAME_DEFINITIONS, type MiniGameState, type QuestionStep } from './miniGames'
+import { getMiniGameDefinition, type MiniGameState, type QuestionStep } from './miniGames'
 import { createRandom, drawMany, pickOne, type Random } from './random'
 import type {
   EngineTheme,
@@ -190,7 +190,7 @@ function getCurrentRound(state: GameState): RoundRecord | undefined {
 }
 
 function getPlayableThemes(themes: EngineTheme[], miniGame: MiniGame): EngineTheme[] {
-  const definition = MINI_GAME_DEFINITIONS[miniGame]
+  const definition = getMiniGameDefinition(miniGame)
 
   return themes.filter((theme) =>
     theme.questions.some((question) => definition.isQuestionEligible(question))
@@ -219,7 +219,9 @@ function beginRound(context: Context, at: number): void {
   const position = state.rounds.length + 1
   const previousMiniGame = getCurrentRound(state)?.miniGame
   const playableMiniGames = state.setup.miniGames.filter(
-    (miniGame) => getPlayableThemes(state.setup.themes, miniGame).length > 0
+    (miniGame) =>
+      state.setup.participants.length >= (getMiniGameDefinition(miniGame).minParticipants ?? 1) &&
+      getPlayableThemes(state.setup.themes, miniGame).length > 0
   )
   // Pas deux fois le même mini-jeu d'affilée quand on a le choix.
   const candidates =
@@ -285,13 +287,28 @@ function startQuestion(context: Context, questionIndex: number, at: number): voi
   const { state } = context
   const round = getCurrentRound(state) as RoundRecord
   const question = round.questions[questionIndex]
+  const definition = getMiniGameDefinition(round.miniGame)
+  const playedQuestions = round.questions.slice(0, questionIndex)
+  const roundOver =
+    questionIndex > 0 &&
+    definition.isRoundOver?.({
+      participants: state.setup.participants,
+      playedQuestions,
+      roundAnswers: round.answers,
+    }) === true
 
-  if (!question) {
+  if (!question || roundOver) {
     endRound(context, at)
     return
   }
 
-  const step = MINI_GAME_DEFINITIONS[round.miniGame].start(question, state.setup.participants, at)
+  const step = definition.start(question, state.setup.participants, at, {
+    questionIndex,
+    questionsCount: round.questions.length,
+    roundQuestions: round.questions,
+    roundAnswers: round.answers,
+    scores: state.scores,
+  })
 
   emit(context, [
     {
@@ -313,7 +330,7 @@ function selectTheme(context: Context, themeId: number, at: number, automatic: b
   const { state } = context
   const round = getCurrentRound(state) as RoundRecord
   const theme = state.setup.themes.find((candidate) => candidate.id === themeId) as EngineTheme
-  const definition = MINI_GAME_DEFINITIONS[round.miniGame]
+  const definition = getMiniGameDefinition(round.miniGame)
   const questions = drawRoundQuestions(
     theme.questions.filter((question) => definition.isQuestionEligible(question)),
     state.usedQuestionIds,
@@ -323,10 +340,13 @@ function selectTheme(context: Context, themeId: number, at: number, automatic: b
 
   round.themeId = themeId
   // Les réponses sont mélangées (avec la graine) : sinon le bouton A serait
-  // souvent la bonne réponse, selon l'ordre de saisie dans le backoffice.
+  // souvent la bonne réponse, selon l'ordre de saisie dans le backoffice. Un
+  // mini-jeu peut imposer son ordre (vrai/faux, fourchettes d'estimation).
   round.questions = structuredClone(questions).map((question) => ({
     ...question,
-    answers: drawMany(question.answers, question.answers.length, context.random),
+    answers: definition.arrangeAnswers
+      ? definition.arrangeAnswers(question.answers)
+      : drawMany(question.answers, question.answers.length, context.random),
   }))
   state.usedThemeIds = [...new Set([...state.usedThemeIds, themeId])]
   state.usedQuestionIds = [
@@ -403,7 +423,9 @@ function applyQuestionStep(context: Context, step: QuestionStep<MiniGameState>, 
       },
     },
   ])
-  state.phase = { name: 'reveal', questionIndex, deadline: endedAt + state.setup.timings.revealMs }
+  const revealMs = getMiniGameDefinition(round.miniGame).revealMs ?? state.setup.timings.revealMs
+
+  state.phase = { name: 'reveal', questionIndex, deadline: endedAt + revealMs }
 }
 
 function endRound(context: Context, at: number): void {
@@ -455,7 +477,7 @@ function advanceTimers(context: Context, at: number): boolean {
 
     case 'question': {
       const round = getCurrentRound(state) as RoundRecord
-      const step = MINI_GAME_DEFINITIONS[round.miniGame].tick(phase.miniGameState, at)
+      const step = getMiniGameDefinition(round.miniGame).tick(phase.miniGameState, at)
 
       if (step.events.length === 0 && !step.answers) {
         return false
@@ -515,7 +537,7 @@ function handlePress(context: Context, podium: number, button: number, at: numbe
 
   if (state.phase.name === 'question') {
     const round = getCurrentRound(state) as RoundRecord
-    const step = MINI_GAME_DEFINITIONS[round.miniGame].press(state.phase.miniGameState, {
+    const step = getMiniGameDefinition(round.miniGame).press(state.phase.miniGameState, {
       participantId: participant.id,
       button: button as 0 | 1 | 2 | 3,
       at,
