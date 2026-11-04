@@ -46,7 +46,7 @@ export class RoomApiError extends Error {
 async function request<T>(
   token: string,
   path: string,
-  init: { method?: string; body?: unknown } = {}
+  init: { method?: string; body?: unknown; timeoutMs?: number } = {}
 ): Promise<T> {
   const headers = authHeaders(token)
   if (init.body !== undefined) {
@@ -57,6 +57,8 @@ async function request<T>(
     method: init.method ?? 'GET',
     headers,
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
+    // Abandon (erreur brute, comme une coupure réseau) si le serveur ne répond pas à temps.
+    signal: init.timeoutMs === undefined ? undefined : AbortSignal.timeout(init.timeoutMs),
   })
 
   const data = (await res.json().catch(() => null)) as (T & { error?: string }) | null
@@ -109,6 +111,9 @@ export async function startRoomGame(token: string, gameId: number): Promise<Room
 /** Score final d'un pupitre, envoyé au podium. */
 export type RoomGameScore = { podium: number; score: number }
 
+/** Délai maximal de l'envoi de fin de partie : au-delà, l'envoi est réessayé plus tard. */
+export const FINISH_REQUEST_TIMEOUT_MS = 10_000
+
 /** Fin de partie : le backoffice la passe « terminée » avec les scores (idempotent). */
 export async function finishRoomGame(
   token: string,
@@ -118,6 +123,7 @@ export async function finishRoomGame(
   const data = await request<{ game: RoomGame }>(token, `/room/games/${gameId}/finish`, {
     method: 'POST',
     body: { scores },
+    timeoutMs: FINISH_REQUEST_TIMEOUT_MS,
   })
   return data.game
 }

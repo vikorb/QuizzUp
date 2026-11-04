@@ -11,6 +11,7 @@ import { flushPromises } from '@vue/test-utils'
 import type { ExtractPlayer } from '@/audio/player'
 import { useConfirm } from '@/composables/useConfirm'
 import { MINI_GAMES_STORAGE_KEY } from '@/game/miniGamesSetting'
+import { PENDING_FINISHES_KEY } from '@/game/pendingFinishes'
 import { createMemorySessionStorage, GameSession, type SessionStorage } from '@/game/session'
 import { closeGame, configureRoomGame, useRoomGame } from '@/game/useRoomGame'
 import { signIn, syncRoomAuth } from '@/state/roomAuth'
@@ -45,6 +46,15 @@ function fakePlayer(): ExtractPlayer {
     isLoaded: vi.fn(() => true),
     release: vi.fn(),
   }
+}
+
+function queue(...gameIds: number[]): void {
+  localStorage.setItem(
+    PENDING_FINISHES_KEY,
+    JSON.stringify(
+      gameIds.map((gameId) => ({ gameId, seed: gameId, scores: [{ podium: 1, score: 10 }] }))
+    )
+  )
 }
 
 async function startWith(miniGames: roomApi.RoomGame['miniGames']): Promise<void> {
@@ -388,6 +398,43 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
     await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('play'))
     expect(JSON.parse(localStorage.getItem('quizzup_room_backoffice_game') ?? '')).toMatchObject({
       id: 42,
+    })
+  })
+
+  describe('résultats de parties en attente d’envoi', () => {
+    it('n’affiche aucun bandeau quand tout est envoyé', async () => {
+      vi.spyOn(roomApi, 'fetchCurrentGame').mockResolvedValue(GAME)
+      const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+      await flushPromises()
+
+      expect(wrapper.find('[data-test="pending-results"]').exists()).toBe(false)
+    })
+
+    it('prévient qu’un résultat attend son envoi au backoffice', async () => {
+      queue(5)
+      vi.spyOn(roomApi, 'fetchCurrentGame').mockResolvedValue(GAME)
+      const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+      await flushPromises()
+
+      const notice = wrapper.find('[data-test="pending-results"]')
+      expect(notice.text()).toBe(
+        '1 résultat de partie en attente d’envoi au backoffice : nouvel essai automatique.'
+      )
+      expect(notice.attributes('role')).toBe('status')
+      // Le lobby reste utilisable.
+      expect(wrapper.find('[data-test="start-game"]').exists()).toBe(true)
+    })
+
+    it('compte les résultats en attente, même quand le backoffice est injoignable', async () => {
+      queue(5, 6, 7)
+      vi.spyOn(roomApi, 'fetchCurrentGame').mockRejectedValue(new Error('network'))
+      const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+      await flushPromises()
+
+      expect(wrapper.find('[data-test="pending-results"]').text()).toContain(
+        '3 résultats de parties en attente'
+      )
+      expect(wrapper.text()).toContain('Backoffice injoignable')
     })
   })
 })
