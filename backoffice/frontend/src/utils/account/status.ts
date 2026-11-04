@@ -1,8 +1,4 @@
-import {
-  ADMIN_STATUS_ACTIVE,
-  ADMIN_STATUS_DELETED,
-  ADMIN_STATUS_INACTIVE,
-} from '@quizzup/shared'
+import { ADMIN_STATUS_ACTIVE, ADMIN_STATUS_DELETED, ADMIN_STATUS_INACTIVE } from '@quizzup/shared'
 
 import type { AccountStatus } from '@/types/account'
 

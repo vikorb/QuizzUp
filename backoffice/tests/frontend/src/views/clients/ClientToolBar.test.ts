@@ -1,10 +1,7 @@
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { pushMock } from '@frontend-tests/_helpers/routerMock'
-import {
-  COMPANY_STATUS_ACTIVE,
-  COMPANY_STATUS_INACTIVE,
-} from '@quizzup/shared'
+import { COMPANY_STATUS_ACTIVE, COMPANY_STATUS_INACTIVE } from '@quizzup/shared'
 import { describe, expect, it } from 'vitest'
 
 import ClientToolBar from '@/views/clients/ClientToolBar.vue'

@@ -33,11 +33,7 @@
       @toggle="toggleCompanyStatus"
     />
 
-    <FormResult
-      v-if="permissions.canManageCompany"
-      :error="formError"
-      :success="formSuccess"
-    />
+    <FormResult v-if="permissions.canManageCompany" :error="formError" :success="formSuccess" />
 
     <div v-if="permissions.canManageCompany" class="company-form__actions">
       <UiButton variant="default" type="button" :disabled="companySaving" @click="resetCompanyForm">
@@ -46,9 +42,7 @@
 
       <UiButton variant="primary" type="submit" :disabled="companySaving || !hasCompanyChanges">
         {{
-          companySaving
-            ? $t('clients.details.actions.saving')
-            : $t('clients.details.actions.save')
+          companySaving ? $t('clients.details.actions.saving') : $t('clients.details.actions.save')
         }}
       </UiButton>
     </div>
@@ -98,7 +92,7 @@ Object.assign(form, getClientDetailFormValues(props.company))
 const permissions = computed(() => getClientDetailPermissions(me.value?.role ?? null))
 
 const hasCompanyChanges = computed(() =>
-  hasClientDetailCompanyChanges(form, props.company, permissions.value.canManageCompany),
+  hasClientDetailCompanyChanges(form, props.company, permissions.value.canManageCompany)
 )
 
 function clearSuccessMessageTimer(): void {
@@ -143,11 +137,7 @@ function toggleCompanyStatus(): void {
 }
 
 async function handleSubmit(): Promise<void> {
-  if (
-    !permissions.value.canManageCompany ||
-    companySaving.value ||
-    !hasCompanyChanges.value
-  ) {
+  if (!permissions.value.canManageCompany || companySaving.value || !hasCompanyChanges.value) {
     return
   }
 
@@ -185,7 +175,7 @@ watch(
 
     resetFormMessages()
     Object.assign(form, getClientDetailFormValues(company))
-  },
+  }
 )
 
 onBeforeUnmount(() => {

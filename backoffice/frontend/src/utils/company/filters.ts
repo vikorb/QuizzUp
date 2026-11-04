@@ -14,7 +14,7 @@ export function filterCompanies(companies: Company[], query: string): Company[] 
 
 export function filterCompaniesByStatus(
   companies: Company[],
-  statusFilter: ClientStatusFilter,
+  statusFilter: ClientStatusFilter
 ): Company[] {
   switch (statusFilter) {
     case COMPANY_STATUS_ACTIVE:
@@ -53,7 +53,7 @@ export function getClientStatusFilterOptions(t: TranslateFn) {
 
 export function parseClientStatusFilter(
   value: unknown,
-  fallback: ClientStatusFilter,
+  fallback: ClientStatusFilter
 ): ClientStatusFilter {
   switch (String(value)) {
     case String(COMPANY_STATUS_ACTIVE):
@@ -75,7 +75,7 @@ export function parseClientStatusFilter(
 
 export function hasClientToolbarActiveFilters(
   searchQuery: string,
-  statusFilter: ClientStatusFilter,
+  statusFilter: ClientStatusFilter
 ): boolean {
   return searchQuery.trim() !== '' || statusFilter !== DEFAULT_CLIENT_STATUS_FILTER
 }

@@ -8,9 +8,9 @@
     </RoomTopBar>
 
     <section class="lobby__body">
-      <p class="lobby__subtitle">{{ $t('room.lobby.subtitle') }}</p>
+      <p class="lobby__subtitle">{{ $t('room.lobby.subtitle', { n: desks.length }) }}</p>
 
-      <div class="lobby__desks">
+      <div class="lobby__desks" :style="{ '--desk-cols': deskColumns }" data-test="lobby-desks">
         <DeskRegistration
           v-for="(registration, index) in registrations"
           :key="registration.desk"
@@ -69,7 +69,7 @@
 <script setup lang="ts">
 import { mdiPlay, mdiShieldLockOutline } from '@mdi/js'
 import { GAME_DEFAULT_QUESTIONS_PER_ROUND, GAME_DEFAULT_ROUNDS } from '@quizzup/shared'
-import { computed, onBeforeUnmount, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import RoomTopBar from '@/components/game/RoomTopBar.vue'
@@ -84,7 +84,8 @@ import {
   validateRegistration,
 } from '@/game/registrations'
 import { preloadExtracts, startNewGame } from '@/game/useRoomGame'
-import { type DeskNumber, DESKS } from '@/hardware/buzzers'
+import { type DeskNumber } from '@/hardware/buzzers'
+import { useRoomHardware } from '@/hardware/roomHardware'
 import { useBuzzers } from '@/hardware/useBuzzers'
 import { isDemo } from '@/state/roomAuth'
 import DeskRegistration from '@/views/lobby/DeskRegistration.vue'
@@ -104,7 +105,24 @@ const PING_DURATION_MS = 1200
 
 const router = useRouter()
 
-const registrations = reactive<Registration[]>(DESKS.map(createEmptyRegistration))
+// Pupitres de la salle (4 par défaut, jusqu'à 6) : réglés dans l'écran Matériel.
+const { desks } = useRoomHardware()
+const registrations = reactive<Registration[]>(desks.value.map(createEmptyRegistration))
+// La config de la salle peut arriver (ou changer) après l'affichage : on refait la liste des
+// pupitres en gardant la saisie de ceux qui restent.
+watch(
+  () => desks.value.length,
+  () => {
+    const kept = new Map(registrations.map((registration) => [registration.desk, registration]))
+    registrations.splice(
+      0,
+      registrations.length,
+      ...desks.value.map((desk) => kept.get(desk) ?? createEmptyRegistration(desk))
+    )
+  }
+)
+// 4 pupitres ou moins sur une ligne ; 5 et 6 sur deux lignes de 3 (les cartes restent lisibles).
+const deskColumns = computed(() => (desks.value.length <= 4 ? desks.value.length : 3))
 const formatId = ref<(typeof FORMATS)[number]['id']>(isDemo.value ? 'short' : 'full')
 const submitted = ref(false)
 const starting = ref(false)
@@ -199,7 +217,7 @@ async function onStart(): Promise<void> {
 
 .lobby__desks {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--desk-cols, 4), minmax(0, 1fr));
   gap: 16px;
 }
 

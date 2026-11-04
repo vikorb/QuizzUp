@@ -280,7 +280,7 @@ en bout tournent dans la CI GitHub.
 
 - **Un seul mini-jeu à l'écran** : le blind test éclair. Le moteur en connaît déjà 13 autres
   (réponse rapide, vrai/faux, quitte ou double…), leurs écrans sont en cours.
-- **4 pupitres** : les salles 6 pupitres déjà équipées attendent la décision « passer à 6 ».
+- **Pupitres** : 4 par défaut, 6 au maximum. Le nombre se règle par salle dans l'écran Matériel (onglet Buzzers) ; le backoffice ne propose que les pupitres de la salle choisie.
 - **Résultats** : la partie reste « En cours » au backoffice après le podium (scores et fin de
   partie pas encore renvoyés par la salle).
 - **Ports en local seulement** : `npm run demo` n'est joignable que depuis le PC qui le lance

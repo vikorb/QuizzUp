@@ -37,11 +37,7 @@ const adminStatusSchema = z.union([
   z.literal(ADMIN_STATUS_DELETED),
 ])
 
-export const adminRoleSchema = z.enum([
-  ADMIN_ROLE_SUPERADMIN,
-  ADMIN_ROLE_ADMIN,
-  ADMIN_ROLE_USER,
-])
+export const adminRoleSchema = z.enum([ADMIN_ROLE_SUPERADMIN, ADMIN_ROLE_ADMIN, ADMIN_ROLE_USER])
 
 export const createCompanySchema = z.object({
   name: z.string().trim().min(2).max(120),
@@ -54,9 +50,12 @@ export const updateCompanySchema = z
     email: z.string().trim().toLowerCase().email().max(255).optional(),
     status: companyStatusSchema.optional(),
   })
-  .refine((body) => body.name !== undefined || body.email !== undefined || body.status !== undefined, {
-    message: 'empty_body',
-  })
+  .refine(
+    (body) => body.name !== undefined || body.email !== undefined || body.status !== undefined,
+    {
+      message: 'empty_body',
+    }
+  )
 
 export const updateCompanyStatusSchema = z.object({
   status: companyStatusSchema,
@@ -96,5 +95,5 @@ export const updateAdminSchema = z
       body.status !== undefined,
     {
       message: 'empty_body',
-    },
+    }
   )

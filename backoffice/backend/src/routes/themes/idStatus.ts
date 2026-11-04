@@ -20,13 +20,13 @@ const themeIdStatusRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [app.authenticate] },
     async (
       req: FastifyRequest<{ Params: ThemeParams; Body: ThemeStatusBody }>,
-      reply: FastifyReply,
+      reply: FastifyReply
     ) => {
       const hasPermission = requireApiPermission(
         req,
         reply,
         API_RESOURCE.THEME,
-        API_ACTION.UPDATE_STATUS,
+        API_ACTION.UPDATE_STATUS
       )
 
       if (!hasPermission) {
@@ -59,7 +59,7 @@ const themeIdStatusRoutes: FastifyPluginAsync = async (app) => {
         .returning(themeSelect)
 
       return { theme }
-    },
+    }
   )
 }
 

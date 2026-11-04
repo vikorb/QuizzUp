@@ -7,6 +7,7 @@ import {
   GAME_STATE_RUNNING,
   GAME_STATUS_ACTIVE,
   GAME_STATUS_DELETED,
+  getRoomDesksCount,
   ROOM_STATUS_ACTIVE,
 } from '@quizzup/shared'
 import db from '../db'
@@ -85,7 +86,7 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const { companyId } = parsedParams.data
-      const { roomId, roundsCount, questionsPerRound, participants } = parsedBody.data
+      const { roomId, roundsCount, questionsPerRound, participants, miniGames } = parsedBody.data
 
       if (!canAccessCompanyContext(req, companyId)) {
         return reply.code(403).send({ error: 'forbidden' })
@@ -116,6 +117,13 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(409).send({ error: 'room_inactive' })
       }
 
+      // Une salle de 4 pupitres n'a pas de pupitre 5 : le nombre vient de `rooms.config`.
+      const desksCount = getRoomDesksCount(room.config)
+
+      if (participants.some((participant) => participant.podium > desksCount)) {
+        return reply.code(400).send({ error: 'podium_not_in_room', desksCount })
+      }
+
       const busyGame = await db('games')
         .where('room_id', roomId)
         .whereIn('state', [GAME_STATE_PENDING, GAME_STATE_RUNNING])
@@ -138,6 +146,7 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
               admin_id: getCurrentAdminId(req),
               rounds_count: roundsCount,
               questions_per_round: questionsPerRound,
+              mini_games: miniGames ? JSON.stringify(miniGames) : null,
               seed: drawGameSeed(),
               state: GAME_STATE_PENDING,
               status: GAME_STATUS_ACTIVE,

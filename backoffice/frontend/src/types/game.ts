@@ -1,4 +1,4 @@
-import type { GameState, GameStatus, RoomStatus } from '@quizzup/shared'
+import type { GameState, GameStatus, MiniGame, RoomStatus } from '@quizzup/shared'
 
 /** 2e joueur facultatif d'un pupitre, tel que renvoyé par l'API. */
 export type GameSecondPlayer = {
@@ -33,6 +33,8 @@ export type Game = {
   adminId: number
   roundsCount: number
   questionsPerRound: number
+  /** Mini-jeux autorisés pour la partie ; `null` ou absent = tous. */
+  miniGames?: MiniGame[] | null
   seed: number
   state: GameState
   startedAt: string | null
@@ -51,6 +53,8 @@ export type GameRoom = {
   id: number
   name: string
   status: RoomStatus
+  /** Pupitres de la salle (4 par défaut, jusqu'à 6) ; absent d'une ancienne réponse. */
+  desksCount?: number
 }
 
 export type GameStateFilter = GameState | ''
@@ -75,6 +79,8 @@ export type CreateGamePayload = {
   participants: CreateGameParticipantPayload[]
   roundsCount?: number
   questionsPerRound?: number
+  /** Omis quand tous les mini-jeux sont autorisés (= tous, y compris les futurs). */
+  miniGames?: MiniGame[]
 }
 
 /** Saisie d'un participant dans le formulaire de lancement (champs texte bruts). */
@@ -105,6 +111,8 @@ export type GameFormValues = {
   roomId: string
   roundsCount: string
   questionsPerRound: string
+  /** Mini-jeux cochés (tous par défaut). */
+  miniGames: MiniGame[]
   participants: GameParticipantFormValues[]
 }
 
@@ -122,6 +130,7 @@ export type GameFieldErrors = {
   roomId: string
   roundsCount: string
   questionsPerRound: string
+  miniGames: string
   participants: GameParticipantFieldErrors[]
 }
 
@@ -138,6 +147,7 @@ export type GameApiErrorCode =
   | 'room_not_found'
   | 'room_inactive'
   | 'room_busy'
+  | 'podium_not_in_room'
   | 'company_deleted'
   | 'company_inactive'
   | 'game_already_over'

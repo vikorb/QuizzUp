@@ -5,9 +5,7 @@ import type {
 } from '@quizzup/shared'
 
 export type AdminStatus =
-  | typeof ADMIN_STATUS_ACTIVE
-  | typeof ADMIN_STATUS_INACTIVE
-  | typeof ADMIN_STATUS_DELETED
+  typeof ADMIN_STATUS_ACTIVE | typeof ADMIN_STATUS_INACTIVE | typeof ADMIN_STATUS_DELETED
 
 export type AdminRow = {
   id: number

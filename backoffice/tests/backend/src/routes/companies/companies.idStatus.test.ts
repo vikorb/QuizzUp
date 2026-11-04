@@ -9,7 +9,13 @@ import {
 } from '@quizzup/shared'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
 import { securityState } from '../_helpers/mockSecurity'
-import { authHeaders, companyAdminUser, createRouteApp, parseJson, superadminUser } from '../_helpers/testApp'
+import {
+  authHeaders,
+  companyAdminUser,
+  createRouteApp,
+  parseJson,
+  superadminUser,
+} from '../_helpers/testApp'
 import companiesIdStatusRoutes from '@backend/routes/companies/idStatus'
 import { dbState, MOCK_NOW } from '../_helpers/mockDb'
 

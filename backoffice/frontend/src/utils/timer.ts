@@ -1,4 +1,4 @@
-import type { TimerHandle } from "@/types/timer"
+import type { TimerHandle } from '@/types/timer'
 
 export function clearTimer(timer: TimerHandle | null): null {
   if (timer) {
@@ -11,7 +11,7 @@ export function clearTimer(timer: TimerHandle | null): null {
 export function scheduleTimer(
   timer: TimerHandle | null,
   callback: () => void,
-  delay = 4000,
+  delay = 4000
 ): TimerHandle {
   if (timer) {
     clearTimeout(timer)

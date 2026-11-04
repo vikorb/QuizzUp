@@ -67,7 +67,7 @@ Règles d'intégration :
 - **Graine** : entier de 0 à 2³² − 1 (`MAX_SEED`), à générer côté API et stocker dans `games.seed`.
 - **Réponses** : l'ordre A-D est mélangé avec la graine au tirage de la manche ; l'hôte affiche
   `state.rounds[].questions[].answers` dans l'ordre de l'état.
-- **Buzzers** : l'hôte traduit une touche clavier en `{ podium: 1-4, button: 0-3 }` (0 = A) et
+- **Buzzers** : l'hôte traduit une touche clavier en `{ podium: 1-6, button: 0-3 }` (0 = A) et
   envoie `press`. Le moteur décide seul si l'appui compte (buzz, réponse, choix de thème).
 - **Persistance** : `game_events` ne suffit pas à rejouer une partie ; pour `replayGame`, l'hôte
   doit aussi journaliser la `seed` et les commandes reçues (ticks compris).
@@ -83,18 +83,18 @@ réponses déjà jouées dans la manche, scores) et peut déclarer : `minPartici
 `simultaneous.ts` (tout le monde verrouille une réponse A-D) et `buzzToAnswer.ts` (on buzze, puis
 on répond seul).
 
-| Mini-jeu (`code`)                             | Questions                      | Règles                                                                                                   |
-| --------------------------------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| Blind test éclair (`flash_blind_test`)        | audio                          | extraits 1 / 5 / 20 s, premier buzz répond seul, 100 / 50 / 20, erreur = bloqué pour le palier           |
-| Rapidité (`quick_answer`)                     | QCM                            | tous répondent en 15 s, 100 → 20 points selon la vitesse                                                 |
-| Premier buzz (`first_buzz`)                   | QCM                            | premier buzz répond seul, 100 points, erreur = −25 (borné à 0) et la main passe                          |
-| Vrai ou faux éclair (`true_false`)            | 2 réponses « Vrai » / « Faux » | A = vrai, B = faux, 6 s, 50 points, révélation 2,5 s                                                     |
-| Quitte ou double (`double_or_nothing`)        | QCM                            | mise A = 0, B = 100, C = 200, D = tapis (score, min. 300), puis réponse : ± la mise                      |
-| Mort subite (`sudden_death`)                  | QCM                            | 50 points, erreur = éliminé (sauf si tous se trompent), dernier debout +200 (survivants justes à la fin) |
-| Vol de points (`point_steal`, 2 joueurs min.) | QCM                            | 50 points, le plus rapide juste vole jusqu'à 100 points (bouton = pupitre), auto = plus de points        |
-| Série (`streak`)                              | QCM                            | 25 points × multiplicateur (×1 → ×5) qui grimpe à chaque bonne réponse d'affilée                         |
-| Estimation (`estimate`)                       | 3-4 fourchettes chiffrées      | fourchettes triées (A = la plus petite), 100 points, fourchette voisine 30                               |
-| Révélation progressive (`progressive_reveal`) | image (`media_url`)            | image floue qui se précise en 20 s, premier buzz répond seul, 100 → 20 points                            |
+| Mini-jeu (`code`)                             | Questions                      | Règles                                                                                                                                                                |
+| --------------------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Blind test éclair (`flash_blind_test`)        | audio                          | extraits 1 / 5 / 20 s, premier buzz répond seul, 100 / 50 / 20, erreur = bloqué pour le palier                                                                        |
+| Rapidité (`quick_answer`)                     | QCM                            | tous répondent en 15 s, 100 → 20 points selon la vitesse                                                                                                              |
+| Premier buzz (`first_buzz`)                   | QCM                            | premier buzz répond seul, 100 points, erreur = −25 (borné à 0) et la main passe                                                                                       |
+| Vrai ou faux éclair (`true_false`)            | 2 réponses « Vrai » / « Faux » | A = vrai, B = faux, 6 s, 50 points, révélation 2,5 s                                                                                                                  |
+| Quitte ou double (`double_or_nothing`)        | QCM                            | mise A = 0, B = 100, C = 200, D = tapis (score, min. 300), puis réponse : ± la mise                                                                                   |
+| Mort subite (`sudden_death`)                  | QCM                            | 50 points, erreur = éliminé (sauf si tous se trompent), dernier debout +200 (survivants justes à la fin)                                                              |
+| Vol de points (`point_steal`, 2 joueurs min.) | QCM                            | 50 points, le plus rapide juste vole jusqu'à 100 points (bouton = pupitre ; dès un pupitre 5 ou 6, A / B font défiler la cible, C ou D valide), auto = plus de points |
+| Série (`streak`)                              | QCM                            | 25 points × multiplicateur (×1 → ×5) qui grimpe à chaque bonne réponse d'affilée                                                                                      |
+| Estimation (`estimate`)                       | 3-4 fourchettes chiffrées      | fourchettes triées (A = la plus petite), 100 points, fourchette voisine 30                                                                                            |
+| Révélation progressive (`progressive_reveal`) | image (`media_url`)            | image floue qui se précise en 20 s, premier buzz répond seul, 100 → 20 points                                                                                         |
 
 « QCM » = question texte sans média, 2 à 4 réponses (tous types confondus). Les questions à image
 sont réservées à la révélation progressive : nette, l'image donnerait souvent la réponse.

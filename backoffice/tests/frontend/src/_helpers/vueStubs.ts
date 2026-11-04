@@ -34,7 +34,7 @@ export const frontendStubs = {
             'data-test': 'router-link',
             'data-to': JSON.stringify(props.to),
           },
-          slots.default?.(),
+          slots.default?.()
         )
     },
   }),
@@ -57,51 +57,51 @@ export const frontendStubs = {
             'data-login-key': props.loginKey,
             'data-logout-key': props.logoutKey,
           },
-          'auth-button',
+          'auth-button'
         )
     },
   }),
 
   baseBanner: defineComponent({
-  name: 'BaseBanner',
-  props: {
-    message: String,
-    type: String,
-    dismissible: {
-      type: Boolean,
-      default: true,
+    name: 'BaseBanner',
+    props: {
+      message: String,
+      type: String,
+      dismissible: {
+        type: Boolean,
+        default: true,
+      },
     },
-  },
-  emits: ['dismiss', 'close'],
-  setup(props, { emit, slots }) {
-    return () =>
-      h(
-        'div',
-        {
-          'data-test': 'base-banner',
-          'data-type': props.type,
-        },
-        [
-          props.message,
-          slots.default?.(),
-          props.dismissible
-            ? h(
-                'button',
-                {
-                  type: 'button',
-                  'data-test': 'base-banner-dismiss',
-                  onClick: () => {
-                    emit('dismiss')
-                    emit('close')
+    emits: ['dismiss', 'close'],
+    setup(props, { emit, slots }) {
+      return () =>
+        h(
+          'div',
+          {
+            'data-test': 'base-banner',
+            'data-type': props.type,
+          },
+          [
+            props.message,
+            slots.default?.(),
+            props.dismissible
+              ? h(
+                  'button',
+                  {
+                    type: 'button',
+                    'data-test': 'base-banner-dismiss',
+                    onClick: () => {
+                      emit('dismiss')
+                      emit('close')
+                    },
                   },
-                },
-                'dismiss',
-              )
-            : null,
-        ],
-      )
-  },
-}),
+                  'dismiss'
+                )
+              : null,
+          ]
+        )
+    },
+  }),
 
   baseCard: defineComponent({
     name: 'BaseCard',
@@ -132,7 +132,7 @@ export const frontendStubs = {
             props.empty ? h('p', { 'data-test': 'base-card-empty' }, props.emptyLabel) : null,
             slots.actions ? h('div', { 'data-test': 'base-card-actions' }, slots.actions()) : null,
             h('div', { 'data-test': 'base-card-content' }, slots.default?.()),
-          ],
+          ]
         )
     },
   }),
@@ -166,9 +166,9 @@ export const frontendStubs = {
                     'data-test': 'base-table-header',
                     'data-column': column.key,
                   },
-                  column.label,
-                ),
-              ),
+                  column.label
+                )
+              )
             ),
           ]),
           h(
@@ -195,11 +195,11 @@ export const frontendStubs = {
                           item,
                           value: item[column.key],
                         })
-                      : String(item[column.key] ?? ''),
+                      : String(item[column.key] ?? '')
                   )
-                }),
-              ),
-            ),
+                })
+              )
+            )
           ),
         ])
     },
@@ -226,7 +226,7 @@ export const frontendStubs = {
               'data-test': 'base-toolbar-reset',
               onClick: () => emit('reset'),
             },
-            props.resetLabel,
+            props.resetLabel
           ),
           props.showPrimary
             ? h(
@@ -236,7 +236,7 @@ export const frontendStubs = {
                   'data-test': 'base-toolbar-primary',
                   onClick: () => emit('primary'),
                 },
-                props.primaryLabel,
+                props.primaryLabel
               )
             : null,
         ])
@@ -264,7 +264,7 @@ export const frontendStubs = {
               'data-test': 'form-actions-cancel',
               onClick: () => emit('cancel'),
             },
-            props.cancelLabel,
+            props.cancelLabel
           ),
           h(
             'button',
@@ -274,7 +274,7 @@ export const frontendStubs = {
               class: 'submit',
               'data-test': 'form-actions-submit',
             },
-            props.loading ? props.submittingLabel : props.submitLabel,
+            props.loading ? props.submittingLabel : props.submitLabel
           ),
         ])
     },
@@ -336,7 +336,7 @@ export const frontendStubs = {
             }),
             slots.right ? h('div', { 'data-test': 'form-field-right' }, slots.right()) : null,
             props.error ? h('p', { 'data-test': 'form-field-error' }, props.error) : null,
-          ],
+          ]
         )
     },
   }),
@@ -374,7 +374,7 @@ export const frontendStubs = {
             'data-variant': props.variant,
             'data-show-label': String(props.showLabel),
           },
-          'language-switcher',
+          'language-switcher'
         )
     },
   }),
@@ -423,11 +423,11 @@ export const frontendStubs = {
                   'data-to': item.to,
                   'data-label-key': item.labelKey,
                 },
-                item.labelKey,
-              ),
+                item.labelKey
+              )
             ),
             slots.default?.(),
-          ],
+          ]
         )
     },
   }),
@@ -468,7 +468,7 @@ export const frontendStubs = {
                     'data-test': 'frame-burger',
                     onClick: () => emit('toggle-sidebar'),
                   },
-                  'burger',
+                  'burger'
                 )
               : null,
             props.withSidebar && slots.sidebar
@@ -476,7 +476,7 @@ export const frontendStubs = {
               : null,
             slots.default?.(),
             slots.overlay ? h('div', { 'data-test': 'frame-overlay' }, slots.overlay()) : null,
-          ],
+          ]
         )
     },
   }),
@@ -495,9 +495,11 @@ export const frontendStubs = {
             'data-max-width': String(props.maxWidth),
           },
           [
-            slots.header ? h('header', { 'data-test': 'section-card-header' }, slots.header()) : null,
+            slots.header
+              ? h('header', { 'data-test': 'section-card-header' }, slots.header())
+              : null,
             h('div', { 'data-test': 'section-card-content' }, slots.default?.()),
-          ],
+          ]
         )
     },
   }),
@@ -558,8 +560,8 @@ export const frontendStubs = {
               },
             },
             (props.options as Array<{ value: string | number; label: string }>).map((option) =>
-              h('option', { value: String(option.value) }, option.label),
-            ),
+              h('option', { value: String(option.value) }, option.label)
+            )
           ),
         ])
     },
@@ -586,7 +588,7 @@ export const frontendStubs = {
             'data-test': 'switch-field',
             onClick: () => emit('change', !props.modelValue),
           },
-          props.label,
+          props.label
         )
     },
   }),
@@ -617,7 +619,7 @@ export const frontendStubs = {
             'data-test': 'ui-button',
             'data-variant': props.variant,
           },
-          slots.default?.(),
+          slots.default?.()
         )
     },
   }),

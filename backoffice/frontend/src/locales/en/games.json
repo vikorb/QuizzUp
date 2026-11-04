@@ -51,19 +51,38 @@
       "subtitle": "Pick the room, the participants and the game format",
       "cardTitle": "New game"
     },
+    "miniGames": {
+      "flash_blind_test": "Flash blind test",
+      "quick_answer": "Quick answer",
+      "first_buzz": "First buzz",
+      "true_false": "Flash true or false",
+      "double_or_nothing": "Double or nothing",
+      "sudden_death": "Sudden death",
+      "point_steal": "Point steal",
+      "streak": "Streak",
+      "estimate": "Estimate",
+      "progressive_reveal": "Progressive reveal"
+    },
     "form": {
       "sections": {
         "room": "Room and format",
+        "miniGames": "Mini-games",
         "participants": "Participants"
       },
       "room": "Room",
       "roomPlaceholder": "Pick a room",
       "roomsLoading": "Loading rooms...",
+      "roomChange": {
+        "moved": "This room only has {max} podiums: podium changed for {list}.",
+        "removed": "Removed for lack of a free podium in this room: {list}.",
+        "participant": "Participant {n}"
+      },
       "noActiveRoom": "No active room in this company: activate a room before launching a game.",
       "roundsCount": "Rounds",
       "roundsHint": "Between 1 and {max}",
       "questionsPerRound": "Questions per round",
       "questionsHint": "Between 1 and {max}",
+      "miniGamesHint": "Drawn at random for each round, with equal probability (at least one).",
       "participantsHint": "From 1 to {max} podiums, with 1 or 2 players per podium.",
       "participant": "Participant {index}",
       "podium": "Podium",
@@ -81,6 +100,7 @@
       "submit": "Launch the game",
       "submitting": "Launching...",
       "errors": {
+        "miniGamesRequired": "Pick at least one mini-game.",
         "roomRequired": "Pick a room.",
         "roundsInvalid": "The number of rounds must be a whole number between 1 and {max}.",
         "questionsInvalid": "The number of questions per round must be a whole number between 1 and {max}.",
@@ -109,6 +129,8 @@
         "state": "State",
         "format": "Format",
         "formatValue": "{rounds} rounds × {questions} questions",
+        "miniGames": "Mini-games",
+        "miniGamesAll": "All",
         "createdAt": "Created on",
         "startedAt": "Started on",
         "finishedAt": "Finished on"
@@ -136,6 +158,7 @@
       "roomNotFound": "This room cannot be found.",
       "roomInactive": "This room is inactive: activate it before launching a game in it.",
       "roomBusy": "A game is already pending or running in this room.",
+      "podiumNotInRoom": "One of the chosen podiums does not exist in this room.",
       "companyDeleted": "This company is deleted: no game can be launched in it.",
       "companyInactive": "This company is inactive: reactivate it before launching a game.",
       "gameAlreadyOver": "This game is already finished or stopped.",
