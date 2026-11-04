@@ -6,6 +6,7 @@ import { computed, ref, shallowRef } from 'vue'
 import { createAudioBridge } from '@/audio/audioBridge'
 import { createSilentExtractPlayer, type ExtractPlayer } from '@/audio/player'
 import { createUiSoundBridge, type UiSoundOutput } from '@/audio/uiSoundBridge'
+import { isRememberedBackofficeSeed } from '@/game/backofficeGameMemory'
 import { collectMediaUrls } from '@/game/content'
 import { readMiniGamesSetting } from '@/game/miniGamesSetting'
 import {
@@ -13,8 +14,14 @@ import {
   type Registration,
   toEngineParticipants,
 } from '@/game/registrations'
-import { createLocalSessionStorage, GameSession, type SessionStorage } from '@/game/session'
+import {
+  createLocalSessionStorage,
+  GameSession,
+  type SessionSnapshot,
+  type SessionStorage,
+} from '@/game/session'
 import type { BuzzerPress } from '@/hardware/buzzers'
+import { isDemoMode } from '@/utils/auth'
 
 /**
  * État de jeu partagé par les écrans de la salle (une seule partie à la fois).
@@ -187,6 +194,7 @@ export function startNewGame(options: NewGameOptions): GameSession {
   const next = GameSession.create(buildSetup(options, registrations), registrations, {
     storage,
     now: clock,
+    demo: isDemoMode(),
   })
 
   attach(next)
@@ -194,8 +202,36 @@ export function startNewGame(options: NewGameOptions): GameSession {
   return next
 }
 
+/**
+ * Une sauvegarde est-elle propre au contexte courant ? En démo : une partie démo. Avec un
+ * compte de salle : la partie retenue du backoffice (même graine) ; une sauvegarde d'avant
+ * le champ `demo` suit la même règle.
+ */
+function matchesCurrentContext(snapshot: SessionSnapshot): boolean {
+  if (isDemoMode()) {
+    return snapshot.demo === true
+  }
+  return snapshot.demo !== true && isRememberedBackofficeSeed(snapshot.setup.seed)
+}
+
+/** Une sauvegarde existe ET peut être reprise dans le contexte courant (démo ou compte). */
 export function hasSavedGame(): boolean {
-  return storage.load() !== null
+  const snapshot = storage.load()
+  return snapshot !== null && matchesCurrentContext(snapshot)
+}
+
+/**
+ * Efface la sauvegarde d'un autre contexte (autre compte, démo, partie déjà terminée côté
+ * backoffice). Sans effet pendant qu'une partie tourne : sa sauvegarde est la progression.
+ */
+export function discardStaleSavedGame(): void {
+  if (session.value) {
+    return
+  }
+  const snapshot = storage.load()
+  if (snapshot && !matchesCurrentContext(snapshot)) {
+    storage.clear()
+  }
 }
 
 /**
@@ -203,6 +239,11 @@ export function hasSavedGame(): boolean {
  * extraits sont rechargés avant que l'horloge ne reparte.
  */
 export async function resumeSavedGame(): Promise<boolean> {
+  if (!hasSavedGame()) {
+    discardStaleSavedGame()
+    return false
+  }
+
   const resumed = GameSession.resume({ storage, now: clock })
 
   if (!resumed) {

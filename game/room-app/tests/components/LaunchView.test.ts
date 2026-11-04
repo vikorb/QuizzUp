@@ -1,10 +1,11 @@
 import { flushPromises } from '@vue/test-utils'
 
 import type { ExtractPlayer } from '@/audio/player'
+import { rememberBackofficeGameId } from '@/game/backofficeGame'
 import { getDemoThemes } from '@/game/demoContent'
 import { createMemorySessionStorage, GameSession } from '@/game/session'
-import { closeGame, configureRoomGame, useRoomGame } from '@/game/useRoomGame'
-import { enterDemo, syncRoomAuth } from '@/state/roomAuth'
+import { closeGame, configureRoomGame, startNewGame, useRoomGame } from '@/game/useRoomGame'
+import { enterDemo, signIn, syncRoomAuth } from '@/state/roomAuth'
 import LaunchView from '@/views/LaunchView.vue'
 
 import { REGISTRATIONS } from '../_helpers/fixtures'
@@ -21,6 +22,10 @@ function fakePlayer(): ExtractPlayer {
     isLoaded: vi.fn(() => true),
     release: vi.fn(),
   }
+}
+
+function signInAsRoom(): void {
+  signIn('token-salle', { id: 10, companyId: 1, role: 'room' })
 }
 
 describe('LaunchView', () => {
@@ -61,7 +66,7 @@ describe('LaunchView', () => {
         themes: getDemoThemes(),
       },
       REGISTRATIONS.slice(0, 1),
-      { storage }
+      { storage, demo: true }
     )
     session.start()
     const { wrapper, router } = await mountWithApp(LaunchView)
@@ -82,7 +87,7 @@ describe('LaunchView', () => {
         themes: getDemoThemes(),
       },
       [],
-      { storage }
+      { storage, demo: true }
     )
     const { wrapper } = await mountWithApp(LaunchView)
 
@@ -94,6 +99,74 @@ describe('LaunchView', () => {
 
     expect(storage.current).toBeNull()
     expect(wrapper.text()).not.toContain('Une partie est en cours')
+  })
+
+  describe('sauvegarde d’un autre contexte', () => {
+    const SEED = 3
+
+    function saveGame(demo: boolean): void {
+      GameSession.create(
+        {
+          seed: SEED,
+          participants: [{ id: 1, podium: 1, displayName: 'Léa' }],
+          themes: getDemoThemes(),
+        },
+        REGISTRATIONS.slice(0, 1),
+        { storage, demo }
+      ).start()
+    }
+
+    it('démo : ne propose pas et efface la sauvegarde d’une partie du backoffice', async () => {
+      saveGame(false)
+      rememberBackofficeGameId(5, SEED)
+      const { wrapper } = await mountWithApp(LaunchView)
+
+      expect(wrapper.text()).not.toContain('Une partie est en cours')
+      expect(storage.current).toBeNull()
+    })
+
+    it('compte de salle : propose la partie retenue du backoffice', async () => {
+      signInAsRoom()
+      saveGame(false)
+      rememberBackofficeGameId(5, SEED)
+      const { wrapper } = await mountWithApp(LaunchView)
+
+      expect(wrapper.text()).toContain('Une partie est en cours')
+      expect(storage.current).not.toBeNull()
+    })
+
+    it('compte de salle : ignore et efface une partie démo', async () => {
+      signInAsRoom()
+      saveGame(true)
+      rememberBackofficeGameId(5, SEED)
+      const { wrapper } = await mountWithApp(LaunchView)
+
+      expect(wrapper.text()).not.toContain('Une partie est en cours')
+      expect(storage.current).toBeNull()
+    })
+
+    it('compte de salle : ignore et efface une partie d’une autre graine', async () => {
+      signInAsRoom()
+      saveGame(false)
+      rememberBackofficeGameId(5, SEED + 1)
+      const { wrapper } = await mountWithApp(LaunchView)
+
+      expect(wrapper.text()).not.toContain('Une partie est en cours')
+      expect(storage.current).toBeNull()
+    })
+
+    it('ne touche pas à la sauvegarde d’une partie en cours de jeu', async () => {
+      signInAsRoom()
+      startNewGame({
+        registrations: REGISTRATIONS.slice(0, 1),
+        themes: getDemoThemes(),
+        seed: SEED,
+      })
+      const { wrapper } = await mountWithApp(LaunchView)
+
+      expect(wrapper.text()).not.toContain('Une partie est en cours')
+      expect(storage.current).not.toBeNull()
+    })
   })
 
   it('déconnecte la salle', async () => {

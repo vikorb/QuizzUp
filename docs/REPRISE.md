@@ -71,8 +71,8 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
    `src/hardware/buzzers.ts`) et le mini-jeu de vol de points (limité à 4).
 7. Plus tard : SACEM, pricing, mode hors ligne (V2).
 
-Petits suivis connus : pas de Keyboard Lock avec la carte manette ; `LaunchView` reprend
-n'importe quelle sauvegarde ; le synthé de démo n'a pas de fondu ; course de concurrence si deux admins changent en même temps le type et le
+Petits suivis connus : pas de Keyboard Lock avec la carte manette ; ~~`LaunchView` reprend
+n'importe quelle sauvegarde~~ (fait : `fix/launch-resume-save`, reprise limitée au contexte courant) ; le synthé de démo n'a pas de fondu ; course de concurrence si deux admins changent en même temps le type et le
 média d'une question (noté `ponytail:` dans `routes/questions/id.ts` et `media.ts`) ; migration
 de données qui typerait l'ancien contenu (le moteur sait déjà déduire le type).
 

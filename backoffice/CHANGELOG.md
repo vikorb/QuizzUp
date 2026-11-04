@@ -155,6 +155,12 @@ Format inspiré de Keep a Changelog.
   thème jouable ; compte d'une salle supprimée refusé.
   US: us-room-02, us-game-08
 
+- Écran de salle : une partie sauvegardée n'est proposée à la reprise que si elle correspond au
+  contexte courant (partie démo en mode démo ; avec un compte de salle, la partie retenue du
+  backoffice, même graine). Sinon elle est ignorée et effacée, sans toucher à une partie en cours.
+  Les anciennes sauvegardes (sans indicateur démo) suivent la règle de la graine.
+  US: us-room-resume
+
 - Une question peut avoir plusieurs bonnes réponses côté API et base (le formulaire le permettait déjà, l'API n'en acceptait qu'une) ; au moins une bonne réponse reste obligatoire.
   US: us-qr-multi-correct
 

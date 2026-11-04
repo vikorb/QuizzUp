@@ -2,6 +2,7 @@ import { flushPromises } from '@vue/test-utils'
 
 import type { ExtractPlayer } from '@/audio/player'
 import { useConfirm } from '@/composables/useConfirm'
+import { rememberBackofficeGameId } from '@/game/backofficeGame'
 import { createMemorySessionStorage, GameSession, type SessionStorage } from '@/game/session'
 import { closeGame, configureRoomGame, useRoomGame } from '@/game/useRoomGame'
 import { signIn, syncRoomAuth } from '@/state/roomAuth'
@@ -222,8 +223,26 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
     expect(wrapper.find('[data-test="resume-game"]').exists()).toBe(false)
   })
 
+  it('ne propose pas la sauvegarde d’une partie de même numéro mais de graine différente', async () => {
+    rememberBackofficeGameId(GAME.id, GAME.seed + 1)
+    GameSession.create(
+      {
+        seed: GAME.seed,
+        participants: [{ id: 1, podium: 1, displayName: 'Léa' }],
+        themes: getPlayableThemes(),
+      },
+      [],
+      { storage }
+    )
+    vi.spyOn(roomApi, 'fetchCurrentGame').mockResolvedValue({ ...GAME, state: 'running' })
+    const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="resume-game"]').exists()).toBe(false)
+  })
+
   it('propose de reprendre une partie déjà en cours sur ce PC', async () => {
-    localStorage.setItem('quizzup_room_backoffice_game', '42')
+    rememberBackofficeGameId(GAME.id, GAME.seed)
     GameSession.create(
       {
         seed: GAME.seed,
