@@ -205,7 +205,7 @@ Table games {
 Table question_kind_retypings {
   question_id bigint [pk, note: 'Question dont le type a été déduit de ses réponses (retypage de l ancien contenu)']
   kind varchar(20) [not null, note: 'Type posé : true_false ou estimate (l ancien type était qcm)']
-  retyped_at timestamptz [not null, default: `now()`]
+  created_at timestamptz [not null, default: `now()`]
 
   Note: 'Trace de la migration retype_legacy_questions, pour son retour arrière exact'
 }

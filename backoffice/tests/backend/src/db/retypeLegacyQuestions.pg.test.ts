@@ -30,7 +30,6 @@ describe('inferKind (règle du moteur appliquée à l’ancien contenu)', () => 
     [answers(0, 'Faux', 'Vrai'), 'true_false'],
     [answers(0, 'Entre 10 et 20', 'Entre 20 et 30', 'Plus de 30'), 'estimate'],
     [answers(1, 'Moins de 5', 'Entre 5 et 10', 'Plus de 10', 'Plus de 100'), 'estimate'],
-    [answers(0, '10-20', '20-30', '30-40'), 'estimate'],
   ])('%j -> %s', (given, expected) => {
     expect(migration.inferKind(given)).toBe(expected)
   })
@@ -39,6 +38,13 @@ describe('inferKind (règle du moteur appliquée à l’ancien contenu)', () => 
     ['QCM classique', answers(0, 'Paris', 'Lyon', 'Nice', 'Lille')],
     ['nombres isolés', answers(0, '4', '6', '7', '12')],
     ['scores', answers(0, '3-0', '2-1', '1-1')],
+    ['scores à 4 réponses', answers(0, '1-0', '0-1', '2-1', '1-1')],
+    ['périodes', answers(0, '1914-1918', '1939-1945', '1870-1871')],
+    [
+      'fourchette mêlée à des nombres seuls',
+      answers(0, '1789', '1815', '1914', 'Entre 1950 et 1960'),
+    ],
+    ['fourchettes nues', answers(0, '10-20', '20-30', '30-40')],
     ['noms avec nombre', answers(0, 'Henri 4', 'Louis 14', 'Louis 16')],
     [
       'vrai/faux sans bonne réponse unique',
@@ -69,7 +75,6 @@ describe('inferKind (règle du moteur appliquée à l’ancien contenu)', () => 
     for (const given of [
       answers(0, 'Vrai', 'Faux'),
       answers(0, 'Entre 10 et 20', 'Entre 20 et 30', 'Plus de 30'),
-      answers(0, '10-20', '20-30', '30-40'),
     ]) {
       const kind = migration.inferKind(given) as 'true_false' | 'estimate'
       const shared = given.map(({ response, is_correct }) => ({ response, isCorrect: is_correct }))
@@ -89,17 +94,7 @@ describe.skipIf(!PG_INTEGRATION_URL)('retype_legacy_questions sur PostgreSQL', (
   beforeAll(async () => {
     process.env.DATABASE_URL = PG_INTEGRATION_URL
     db = (await import('@backend/db')).default
-    // Les fichiers pg.test migrent la même base en parallèle : sur une base vide, la création
-    // de la table de verrou de Knex peut entrer en conflit. On réessaie, l'autre a fini entre-temps.
-    for (let attempt = 1; ; attempt++) {
-      try {
-        await db.migrate.latest({ directory: path.resolve(process.cwd(), 'backend/db/migrations') })
-        break
-      } catch (error) {
-        if (attempt === 5) throw error
-        await new Promise((resolve) => setTimeout(resolve, 2000))
-      }
-    }
+    await db.migrate.latest({ directory: path.resolve(process.cwd(), 'backend/db/migrations') })
   }, 120_000)
 
   afterAll(async () => {
@@ -223,10 +218,33 @@ describe.skipIf(!PG_INTEGRATION_URL)('retype_legacy_questions sur PostgreSQL', (
           ],
         })
         const ids = [trueFalse, estimateGlobal, draft, qcm, deleted, withImage, withDeletedAnswer]
+        // Plus de 1 000 questions à retyper : la migration travaille par lots.
+        const bulk = await trx('questions')
+          .insert(
+            Array.from({ length: 1500 }, () => ({
+              admin_id: base.admin_id,
+              company_id: 901,
+              scope: 'company',
+              question: 'Bulk ?',
+            }))
+          )
+          .returning('id')
+        await trx('answers').insert(
+          bulk.flatMap(({ id }) => [
+            { admin_id: base.admin_id, question_id: id, response: 'Vrai', is_correct: true },
+            { admin_id: base.admin_id, question_id: id, response: 'Faux', is_correct: false },
+          ])
+        )
+
         const before = await kinds(trx, ids)
         expect(Object.values(before).every((kind) => kind === 'qcm')).toBe(true)
 
         await migration.up(trx)
+
+        expect(
+          await trx('questions').where({ kind: 'true_false', question: 'Bulk ?' })
+        ).toHaveLength(1500)
+        expect(await trx('question_kind_retypings').count({ n: '*' })).toEqual([{ n: '1504' }])
 
         expect(await kinds(trx, ids)).toEqual({
           [trueFalse]: 'true_false',
@@ -253,6 +271,7 @@ describe.skipIf(!PG_INTEGRATION_URL)('retype_legacy_questions sur PostgreSQL', (
           ...before,
           [manual]: 'true_false',
         })
+        expect(await trx('questions').where({ kind: 'qcm', question: 'Bulk ?' })).toHaveLength(1500)
 
         throw ROLLBACK
       })
