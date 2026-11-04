@@ -85,6 +85,10 @@ de données qui typerait l'ancien contenu (le moteur sait déjà déduire le typ
   mineurs en « Suivis » dans la PR.
 - Mettre à jour OpenAPI, DBML, CHANGELOG (lignes `US:`), i18n fr/en selon le changement.
 - Rester économe en tokens : peu de sous-agents, pas de relecture en double.
+- **Organisation des agents (impératif, voir `CLAUDE.md` §4.1)** : la session principale
+  (Opus 5.5) coordonne et ne code pas ; développement = Sonnet 5.5 effort élevé ; recherche ou
+  lecture d'information = Haiku 5.5 (`me-lecteur`) ; réflexion, conception et relecture de PR =
+  Opus 5.5. Modèle toujours explicite ; sous-agents surveillés, jamais bloqués ni en boucle.
 
 ## 6. Pièges connus
 
