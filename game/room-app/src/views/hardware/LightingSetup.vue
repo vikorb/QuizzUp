@@ -66,6 +66,15 @@
             : $t('hardware.lights.noWebSerial')
       }}
     </p>
+    <p v-if="bridgeArtnet && !state?.simulation" class="hw-hint" data-test="lights-artnet">
+      {{
+        $t('hardware.assistant.interface.artnetEffective', {
+          target: bridgeArtnet.target ?? '—',
+          port: bridgeArtnet.port,
+        })
+      }}
+      ({{ $t(`hardware.assistant.interface.artnetSource.${bridgeArtnet.source}`) }})
+    </p>
     <p class="hw-hint">{{ $t('hardware.lights.physicalStop') }}</p>
 
     <h3 class="hw-panel__subtitle">{{ $t('hardware.smoke.title') }}</h3>
@@ -175,7 +184,14 @@ const TEST_SCENES = [
 ] as const
 
 const { t } = useI18n()
-const { hardware, desks, lightingState: state, lighting, bridgeError } = useRoomHardware()
+const {
+  hardware,
+  desks,
+  lightingState: state,
+  lighting,
+  bridgeError,
+  bridgeArtnet,
+} = useRoomHardware()
 const emergency = useEmergencyStop()
 
 const fixtures = shallowRef<FixtureView[]>([])

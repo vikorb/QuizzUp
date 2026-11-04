@@ -2,6 +2,7 @@ import type { GameEvent } from '@quizzup/game-engine'
 import {
   activeKeymap,
   activeLightingConfig,
+  type BridgeArtnetStatus,
   type BuzzerInput,
   type BuzzerInputState,
   type BuzzerKeymap,
@@ -36,6 +37,7 @@ import {
   type RoomHardwareConfig,
   type SerialPortLike,
   watchDmxPortReconnection,
+  withArtnetTarget,
   withDesksCount,
   withLearnedKeymap,
 } from '@quizzup/hardware'
@@ -300,6 +302,9 @@ let bridgeRetryTimer: ReturnType<typeof setTimeout> | null = null
 /** Dernier échec de connexion au pont (absent, occupé…) ; `null` si connecté ou jamais essayé. */
 const bridgeError = shallowRef<string | null>(null)
 
+/** Cible Art-Net effective annoncée par le pont à la connexion (et d'où elle vient) ; `null` si non connecté. */
+const bridgeArtnet = shallowRef<BridgeArtnetStatus | null>(null)
+
 function clearBridgeRetry(): void {
   if (bridgeRetryTimer !== null) {
     clearTimeout(bridgeRetryTimer)
@@ -309,14 +314,16 @@ function clearBridgeRetry(): void {
 
 async function useBridge(controller: LightingController): Promise<void> {
   clearBridgeRetry()
-  const output = createMeteredOutput(
-    createBridgeOutput({ url: parsed.value.config.lighting.bridgeUrl ?? DEFAULT_BRIDGE_URL })
-  )
+  const { bridgeUrl, artnet } = parsed.value.config.lighting
+  // La cible de la salle part dans le hello, à chaque (re)connexion au pont.
+  const bridge = createBridgeOutput({ url: bridgeUrl ?? DEFAULT_BRIDGE_URL, artnet })
+  const output = createMeteredOutput(bridge)
   meteredOutput = output
   dmxPort = null
   await controller.setOutput(output)
   const { outputStatus, outputError } = controller.getState()
   bridgeError.value = outputStatus === 'open' ? null : (outputError ?? 'bridge_unavailable')
+  bridgeArtnet.value = outputStatus === 'open' ? bridge.artnetStatus() : null
 }
 
 /**
@@ -473,6 +480,7 @@ async function shutdownLighting(): Promise<void> {
   stopReconnectWatch = null
   clearBridgeRetry()
   meteredOutput = null
+  bridgeArtnet.value = null
   lightingState.value = null
   closingLighting = controller
   try {
@@ -559,6 +567,7 @@ export async function switchToSimulatedLights(
   preferSimulation = true
   clearBridgeRetry()
   bridgeError.value = null
+  bridgeArtnet.value = null
   await lighting?.setOutput(output)
 }
 
@@ -798,6 +807,14 @@ export async function saveBuzzerSource(source: BuzzerSource): Promise<ParsedRoom
   return saveRoomHardwareConfig({ ...config, buzzers: { ...config.buzzers, source } })
 }
 
+/**
+ * Enregistre l'IP du nœud Art-Net (pilote `artnet-bridge`, chaîne vide = pas de réglage). Les lumières
+ * redémarrent et la cible repart au pont dans le `hello` de la nouvelle connexion.
+ */
+export async function saveArtnetTarget(target: string): Promise<ParsedRoomHardwareConfig> {
+  return saveRoomHardwareConfig(withArtnetTarget(parsed.value.config, target))
+}
+
 /** Enregistre seulement le mapping des buzzers (fin de l'apprentissage). */
 export async function saveBuzzerKeymap(keymap: BuzzerKeymap): Promise<ParsedRoomHardwareConfig> {
   return saveRoomHardwareConfig({
@@ -830,6 +847,7 @@ export async function resetRoomHardware(options: { storage?: HardwareStorage | n
   pendingEmergency = null
   dmxPort = null
   bridgeError.value = null
+  bridgeArtnet.value = null
   remoteSaver = null
   binding = null
   foreignCopy = false
@@ -859,5 +877,7 @@ export function useRoomHardware() {
     syncStatus: computed(() => syncStatus.value),
     /** Pourquoi le pont Art-Net n'est pas connecté (`null` : connecté, ou pas essayé). */
     bridgeError: computed(() => bridgeError.value),
+    /** Cible Art-Net effective annoncée par le pont (`source` : `cli`, `room` ou `none`), ou `null`. */
+    bridgeArtnet: computed(() => bridgeArtnet.value),
   }
 }

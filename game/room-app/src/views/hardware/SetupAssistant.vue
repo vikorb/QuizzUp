@@ -89,6 +89,52 @@
       <p v-if="view.config.lighting.driver === 'artnet-bridge'" class="hw-alert" role="status">
         {{ $t('hardware.assistant.interface.bridge') }}
       </p>
+      <div v-if="view.config.lighting.driver === 'artnet-bridge'" class="stack" data-test="artnet">
+        <label class="hw-field hw-field--grow">
+          {{ $t('hardware.assistant.interface.artnetTarget') }}
+          <input
+            v-model="artnetDraft"
+            type="text"
+            inputmode="decimal"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="192.168.1.50"
+            data-test="artnet-target"
+            @change="onArtnetTarget"
+          />
+        </label>
+        <small class="hw-hint">{{ $t('hardware.assistant.interface.artnetTargetHint') }}</small>
+        <p
+          v-if="artnetInvalid"
+          class="hw-alert hw-alert--danger"
+          role="alert"
+          data-test="artnet-invalid"
+        >
+          {{ $t('hardware.assistant.interface.artnetInvalid') }}
+        </p>
+        <p v-if="bridgeArtnet" class="hw-ok" role="status" data-test="artnet-effective">
+          {{
+            $t('hardware.assistant.interface.artnetEffective', {
+              target: bridgeArtnet.target ?? '—',
+              port: bridgeArtnet.port,
+            })
+          }}
+          ({{ $t(`hardware.assistant.interface.artnetSource.${bridgeArtnet.source}`) }})
+        </p>
+        <p v-else-if="connected" class="hw-alert" role="status" data-test="artnet-old-bridge">
+          {{ $t('hardware.assistant.interface.artnetOldBridge') }}
+        </p>
+        <p
+          v-if="
+            bridgeArtnet?.source === 'cli' && artnetTarget && artnetTarget !== bridgeArtnet.target
+          "
+          class="hw-alert"
+          role="status"
+          data-test="artnet-cli-wins"
+        >
+          {{ $t('hardware.assistant.interface.artnetCliWins') }}
+        </p>
+      </div>
       <div v-if="view.config.lighting.driver !== 'simulation'" class="hw-actions">
         <UiButton :disabled="connecting" data-test="assistant-connect" @click="onConnect">
           <MdIcon :path="mdiUsb" :size="18" />
@@ -421,6 +467,7 @@ import {
   findProfile,
   GENERIC_PROFILES,
   INTERFACE_CHOICES,
+  isLocalArtnetTarget,
   MAX_FREEZE_MS,
   type PanTilt,
   parsePanTiltCalibration,
@@ -437,6 +484,7 @@ import UiButton from '@/components/ui/UiButton.vue'
 import {
   connectDmxInterface,
   getLighting,
+  saveArtnetTarget,
   saveBuzzerSource,
   saveRoomHardwareConfig,
   startLighting,
@@ -454,7 +502,7 @@ const BROWSER_KEYS = [
 const CENTER: PanTilt = { pan: 32_768, tilt: 32_768 }
 
 const { t } = useI18n()
-const { hardware, lightingState } = useRoomHardware()
+const { hardware, lightingState, bridgeArtnet } = useRoomHardware()
 const { run: runFreezeTest, refusal: freezeRefusal } = useFreezeTest()
 
 const wizard = createSetupWizard(hardware.value.config)
@@ -504,6 +552,11 @@ const gamepadMatch = computed(() => {
   const source = view.value.config.buzzers.source
   return source?.kind === 'gamepad' ? (source.match ?? '') : ''
 })
+const artnetTarget = computed(() => view.value.config.lighting.artnet?.target ?? '')
+// Texte en cours de saisie : gardé tel quel tant qu'il est refusé (sinon le champ se viderait).
+const artnetDraft = ref(artnetTarget.value)
+watch(artnetTarget, (target) => (artnetDraft.value = target))
+const artnetInvalid = ref(false)
 const profiles = computed(() => [...GENERIC_PROFILES, ...view.value.config.lighting.customProfiles])
 const suggested = computed(() => {
   void view.value
@@ -584,6 +637,17 @@ function onGamepadMatch(event: Event): void {
   const source: BuzzerSource = { kind: 'gamepad', ...(match ? { match } : {}) }
   run(() => wizard.setBuzzerSource(source))
   void saveBuzzerSource(source)
+}
+
+/** IP du nœud Art-Net : enregistrée tout de suite (le pont la reçoit à la prochaine connexion). */
+function onArtnetTarget(): void {
+  const target = artnetDraft.value.trim()
+  artnetInvalid.value = target !== '' && !isLocalArtnetTarget(target)
+  if (artnetInvalid.value) {
+    return
+  }
+  run(() => wizard.setArtnetTarget(target))
+  void saveArtnetTarget(target)
 }
 
 function onDriver(driver: DmxDriver): void {

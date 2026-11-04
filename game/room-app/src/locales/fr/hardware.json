@@ -266,7 +266,18 @@
           "opendmx": "Câble USB-DMX simple (FTDI) sans processeur : bon marché, moins fiable.",
           "artnet-bridge": "Programme quizzup-artnet-bridge lancé sur le PC : pilote un boîtier Art-Net (ex. Showtec NET-2/3) sur le réseau."
         },
-        "bridge": "Lance d’abord le programme quizzup-artnet-bridge sur ce PC (voir sa notice). Chrome peut demander l’autorisation d’accéder au réseau local : accepte-la."
+        "bridge": "Lance d’abord le programme quizzup-artnet-bridge sur ce PC (voir sa notice). Chrome peut demander l’autorisation d’accéder au réseau local : accepte-la.",
+        "artnetTarget": "IP du nœud Art-Net",
+        "artnetTargetHint": "Adresse du boîtier Art-Net sur le réseau de la salle (ex. 192.168.1.50), ou adresse de diffusion (ex. 192.168.1.255). Réseaux locaux uniquement. Elle est transmise au pont à chaque connexion.",
+        "artnetInvalid": "Adresse refusée : saisis une IPv4 d’un réseau local (10.x.x.x, 172.16 à 31.x.x, 192.168.x.x, 169.254.x.x ou 127.x.x.x).",
+        "artnetEffective": "Cible effective du pont : {target} (port {port})",
+        "artnetSource": {
+          "cli": "imposée par la ligne de commande du pont",
+          "room": "réglage de la salle",
+          "none": "aucune cible : saisis l’IP du nœud"
+        },
+        "artnetOldBridge": "Ce pont est trop ancien pour recevoir l’IP depuis l’écran de salle : mets-le à jour, ou lance-le avec --target.",
+        "artnetCliWins": "Le pont a été lancé avec --target : cette adresse est prioritaire et le champ ci-dessus est ignoré."
       },
       "fixtures": {
         "importSix": "Importer une salle 6 pupitres",

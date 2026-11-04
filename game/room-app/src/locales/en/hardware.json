@@ -266,7 +266,18 @@
           "opendmx": "Simple USB-DMX cable (FTDI) without a processor: cheap, less reliable.",
           "artnet-bridge": "quizzup-artnet-bridge program running on the PC: drives an Art-Net node (e.g. Showtec NET-2/3) on the network."
         },
-        "bridge": "Start the quizzup-artnet-bridge program on this PC first (see its guide). Chrome may ask for local network access: allow it."
+        "bridge": "Start the quizzup-artnet-bridge program on this PC first (see its guide). Chrome may ask for local network access: allow it.",
+        "artnetTarget": "Art-Net node IP",
+        "artnetTargetHint": "Address of the Art-Net box on the room network (e.g. 192.168.1.50), or a broadcast address (e.g. 192.168.1.255). Local networks only. It is sent to the bridge on every connection.",
+        "artnetInvalid": "Address refused: enter an IPv4 from a local network (10.x.x.x, 172.16 to 31.x.x, 192.168.x.x, 169.254.x.x or 127.x.x.x).",
+        "artnetEffective": "Bridge target in use: {target} (port {port})",
+        "artnetSource": {
+          "cli": "forced by the bridge command line",
+          "room": "room setting",
+          "none": "no target: enter the node IP"
+        },
+        "artnetOldBridge": "This bridge is too old to receive the IP from the room screen: update it, or start it with --target.",
+        "artnetCliWins": "The bridge was started with --target: that address takes priority and the field above is ignored."
       },
       "fixtures": {
         "importSix": "Import a 6-desk room",
