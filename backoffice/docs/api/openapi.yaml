@@ -3634,6 +3634,21 @@ components:
           minLength: 8
           maxLength: 100
 
+    MiniGame:
+      type: string
+      description: Code d'un mini-jeu du moteur de jeu (voir `MINI_GAMES` dans `@quizzup/shared`)
+      enum:
+        - flash_blind_test
+        - quick_answer
+        - first_buzz
+        - true_false
+        - double_or_nothing
+        - sudden_death
+        - point_steal
+        - streak
+        - estimate
+        - progressive_reveal
+
     GameSummary:
       type: object
       properties:
@@ -3654,6 +3669,17 @@ components:
         questionsPerRound:
           type: integer
           example: 10
+        miniGames:
+          type: array
+          nullable: true
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/MiniGame'
+          description: >-
+            Mini-jeux tirés au sort à chaque manche, avec la même probabilité (dans l'ordre de
+            `MINI_GAMES`). `null` : aucun choix au lancement, tous les mini-jeux (y compris les
+            futurs) sont tirés. Renvoyé aussi par `GET /room/games/current`.
         seed:
           type: integer
           minimum: 0
@@ -3779,6 +3805,16 @@ components:
           minimum: 1
           maximum: 20
           default: 10
+        miniGames:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/MiniGame'
+          description: >-
+            Mini-jeux autorisés pour la partie. Facultatif : omis, la partie les autorise tous
+            (stocké `null`). Un code inconnu, un doublon ou un tableau vide donnent
+            `400 invalid_body`.
         participants:
           type: array
           minItems: 1

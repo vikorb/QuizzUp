@@ -12,6 +12,10 @@ import {
   GAME_STATE_FINISHED,
   GAME_STATE_PENDING,
   GAME_STATUS_ACTIVE,
+  MINI_GAME_FIRST_BUZZ,
+  MINI_GAME_FLASH_BLIND_TEST,
+  MINI_GAME_QUICK_ANSWER,
+  MINI_GAMES,
   ROOM_STATUS_ACTIVE,
   ROOM_STATUS_INACTIVE,
 } from '@quizzup/shared'
@@ -356,6 +360,75 @@ describe('routes/games.ts (US-GAME-08)', () => {
     })
   })
 
+  describe('POST /companies/:companyId/games — mini-jeux', () => {
+    async function launch(extra: Record<string, unknown>) {
+      seedRoom()
+      const app = await createRouteApp(gamesRoutes)
+      const response = await app.inject({
+        method: 'POST',
+        url: '/companies/1/games',
+        headers: authHeaders(operator),
+        payload: { roomId: 1, participants: PARTICIPANTS, ...extra },
+      })
+
+      await app.close()
+      return response
+    }
+
+    it('stores the chosen subset as JSON and returns it as an array', async () => {
+      const response = await launch({ miniGames: [MINI_GAME_FIRST_BUZZ, MINI_GAME_QUICK_ANSWER] })
+
+      expect(response.statusCode).toBe(201)
+      expect(dbState.games[0]!.mini_games).toBe(
+        JSON.stringify([MINI_GAME_FIRST_BUZZ, MINI_GAME_QUICK_ANSWER])
+      )
+      // Relu dans l'ordre des codes partagés, quel que soit l'ordre d'envoi.
+      expect(parseJson<GameBody>(response).game.miniGames).toEqual([
+        MINI_GAME_QUICK_ANSWER,
+        MINI_GAME_FIRST_BUZZ,
+      ])
+    })
+
+    it('stores a single mini-game', async () => {
+      const response = await launch({ miniGames: [MINI_GAME_FLASH_BLIND_TEST] })
+
+      expect(response.statusCode).toBe(201)
+      expect(dbState.games[0]!.mini_games).toBe(JSON.stringify([MINI_GAME_FLASH_BLIND_TEST]))
+    })
+
+    it('accepts every known mini-game', async () => {
+      const response = await launch({ miniGames: [...MINI_GAMES] })
+
+      expect(response.statusCode).toBe(201)
+      expect(parseJson<GameBody>(response).game.miniGames).toEqual([...MINI_GAMES])
+    })
+
+    it('stores null (= every mini-game) when the field is omitted', async () => {
+      const response = await launch({})
+
+      expect(response.statusCode).toBe(201)
+      expect(dbState.games[0]!.mini_games ?? null).toBeNull()
+      expect(parseJson<GameBody>(response).game.miniGames).toBeNull()
+    })
+
+    it.each([
+      ['an unknown code', { miniGames: ['not_a_mini_game'] }],
+      ['a duplicate', { miniGames: [MINI_GAME_FIRST_BUZZ, MINI_GAME_FIRST_BUZZ] }],
+      ['an empty array', { miniGames: [] }],
+      ['a non-array value', { miniGames: MINI_GAME_FIRST_BUZZ }],
+      ['null', { miniGames: null }],
+    ])('rejects %s with a 400 and creates nothing', async (_label, extra) => {
+      const response = await launch(extra)
+
+      expect(response.statusCode).toBe(400)
+      expect(parseJson(response)).toMatchObject({
+        error: 'invalid_body',
+        details: { fieldErrors: { miniGames: expect.any(Array) } },
+      })
+      expect(dbState.games).toHaveLength(0)
+    })
+  })
+
   describe('GET /companies/:companyId/games', () => {
     it('lists the games of the company, newest first, with the room name', async () => {
       seedRoom()
@@ -379,6 +452,48 @@ describe('routes/games.ts (US-GAME-08)', () => {
       expect(games.map((game) => game.id)).toEqual([2, 1])
       expect(games[0]).toMatchObject({ roomName: 'Salle Néon', state: GAME_STATE_PENDING })
       expect(forbidden.statusCode).toBe(403)
+
+      await app.close()
+    })
+  })
+
+  describe('GET /companies/:companyId/games/:gameId — mini-jeux', () => {
+    it('returns the chosen mini-games of the game as an array', async () => {
+      seedRoom()
+      seedGame({ mini_games: [MINI_GAME_FIRST_BUZZ] })
+      const app = await createRouteApp(gamesRoutes)
+
+      const detail = await app.inject({
+        method: 'GET',
+        url: '/companies/1/games/1',
+        headers: authHeaders(superadminUser),
+      })
+
+      expect(parseJson<GameBody>(detail).game.miniGames).toEqual([MINI_GAME_FIRST_BUZZ])
+
+      await app.close()
+    })
+
+    it('returns null when the game has no restriction', async () => {
+      seedRoom()
+      seedGame()
+      const app = await createRouteApp(gamesRoutes)
+
+      const detail = await app.inject({
+        method: 'GET',
+        url: '/companies/1/games/1',
+        headers: authHeaders(superadminUser),
+      })
+      const list = await app.inject({
+        method: 'GET',
+        url: '/companies/1/games',
+        headers: authHeaders(superadminUser),
+      })
+
+      expect(parseJson<GameBody>(detail).game.miniGames).toBeNull()
+      expect(
+        parseJson<{ games: Array<Record<string, unknown>> }>(list).games[0]!.miniGames
+      ).toBeNull()
 
       await app.close()
     })
@@ -436,6 +551,44 @@ describe('routes/games.ts (US-GAME-08)', () => {
 })
 
 describe('routes/games/_shared.ts', () => {
+  describe('toMiniGames (via toGameRow)', () => {
+    it('reads the jsonb array as sent by pg', () => {
+      expect(
+        toGameRow({ id: '1', seed: '1', miniGames: [MINI_GAME_QUICK_ANSWER, MINI_GAME_FIRST_BUZZ] })
+          .miniGames
+      ).toEqual([MINI_GAME_QUICK_ANSWER, MINI_GAME_FIRST_BUZZ])
+    })
+
+    it('also accepts the JSON text form', () => {
+      expect(
+        toGameRow({ id: '1', seed: '1', miniGames: JSON.stringify([MINI_GAME_FIRST_BUZZ]) })
+          .miniGames
+      ).toEqual([MINI_GAME_FIRST_BUZZ])
+    })
+
+    it('puts the codes back in the shared order and drops unknown ones', () => {
+      expect(
+        toGameRow({
+          id: '1',
+          seed: '1',
+          miniGames: [MINI_GAME_FIRST_BUZZ, 'retired_game', MINI_GAME_FLASH_BLIND_TEST],
+        }).miniGames
+      ).toEqual([MINI_GAME_FLASH_BLIND_TEST, MINI_GAME_FIRST_BUZZ])
+    })
+
+    it.each([
+      ['null', null],
+      ['undefined', undefined],
+      ['an empty array', []],
+      ['only unknown codes', ['retired_game']],
+      ['an object', { a: 1 }],
+      ['the JSON text null', 'null'],
+      ['an empty JSON array text', '[]'],
+    ])('returns null (= every mini-game) for %s', (_label, value) => {
+      expect(toGameRow({ id: '1', seed: '1', miniGames: value }).miniGames).toBeNull()
+    })
+  })
+
   it('returns bigint ids, seed and counters as numbers (pg sends them as text)', () => {
     const row = toGameRow({
       id: '7',

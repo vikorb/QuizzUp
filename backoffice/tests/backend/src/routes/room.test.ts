@@ -171,6 +171,33 @@ describe('routes/room.ts — current game (US-GAME-08)', () => {
     await app.close()
   })
 
+  it('gives the room PC the mini-games chosen at launch, null meaning every one', async () => {
+    seedRoom()
+    seedGame({ mini_games: ['first_buzz', 'quick_answer'] })
+    const app = await createRouteApp(roomRoutes)
+
+    const restricted = await app.inject({
+      method: 'GET',
+      url: '/room/games/current',
+      headers: authHeaders(roomUser),
+    })
+    dbState.games[0]!.mini_games = null
+    const unrestricted = await app.inject({
+      method: 'GET',
+      url: '/room/games/current',
+      headers: authHeaders(roomUser),
+    })
+
+    // Renvoyés dans l'ordre des codes partagés (quick_answer avant first_buzz).
+    expect(parseJson<CurrentBody>(restricted).game?.miniGames).toEqual([
+      'quick_answer',
+      'first_buzz',
+    ])
+    expect(parseJson<CurrentBody>(unrestricted).game?.miniGames).toBeNull()
+
+    await app.close()
+  })
+
   it('starts the pending game once and ignores finished games', async () => {
     seedRoom()
     seedGame()

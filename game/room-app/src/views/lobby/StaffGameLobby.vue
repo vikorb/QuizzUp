@@ -284,6 +284,8 @@ async function onStart(): Promise<void> {
       seed: current.seed,
       roundsCount: current.roundsCount,
       questionsPerRound: current.questionsPerRound,
+      // Le choix du backoffice prime ; sans lui, le réglage local de la salle, sinon tous.
+      miniGames: current.miniGames ?? undefined,
     }
     // Le moteur valide la partie avant que le backoffice ne la passe « en cours ».
     validateNewGame(options)

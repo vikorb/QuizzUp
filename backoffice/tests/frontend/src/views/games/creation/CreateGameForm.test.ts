@@ -6,7 +6,15 @@ import {
 } from '@frontend-tests/_helpers/gamesServiceMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
-import { GAME_PODIUMS, ROOM_STATUS_ACTIVE, ROOM_STATUS_INACTIVE } from '@quizzup/shared'
+import {
+  GAME_PODIUMS,
+  MINI_GAME_FIRST_BUZZ,
+  MINI_GAME_FLASH_BLIND_TEST,
+  MINI_GAME_QUICK_ANSWER,
+  MINI_GAMES,
+  ROOM_STATUS_ACTIVE,
+  ROOM_STATUS_INACTIVE,
+} from '@quizzup/shared'
 import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -59,6 +67,25 @@ async function fillParticipant(
   }
 }
 
+type CreateResult = Awaited<ReturnType<typeof createGameServiceMock>>
+
+/** Promesse résolue à la main, pour observer le formulaire pendant l'appel à l'API. */
+function createDeferred(): {
+  promise: Promise<CreateResult>
+  resolve: (value: CreateResult) => void
+} {
+  let resolve!: (value: CreateResult) => void
+  const promise = new Promise<CreateResult>((done) => {
+    resolve = done
+  })
+
+  return { promise, resolve }
+}
+
+function miniGameBox(wrapper: VueWrapper, miniGame: string) {
+  return wrapper.get<HTMLInputElement>(`[data-test="game-mini-game-${miniGame}"]`)
+}
+
 async function submit(wrapper: VueWrapper): Promise<void> {
   await wrapper.get('form').trigger('submit')
   await flushPromises()
@@ -78,6 +105,120 @@ describe('views/games/creation/CreateGameForm.vue', () => {
         .findAll('option')
         .map((option) => option.text())
     ).toEqual(['Salle Néon', 'Salle Laser'])
+  })
+
+  describe('mini-jeux', () => {
+    it('shows one ticked box per mini-game, with the help text', () => {
+      const wrapper = mountForm()
+
+      for (const miniGame of MINI_GAMES) {
+        expect(miniGameBox(wrapper, miniGame).element.checked).toBe(true)
+        expect(wrapper.text()).toContain(`games.miniGames.${miniGame}`)
+      }
+
+      expect(wrapper.findAll('input[name="miniGames"]')).toHaveLength(MINI_GAMES.length)
+      expect(wrapper.text()).toContain('games.form.sections.miniGames')
+      expect(wrapper.text()).toContain('games.form.miniGamesHint')
+      expect(wrapper.find('[data-test="game-mini-games-error"]').exists()).toBe(false)
+    })
+
+    it('does not send miniGames while every mini-game stays ticked', async () => {
+      const wrapper = mountForm()
+
+      await roomSelect(wrapper).get('select').setValue('10')
+      await fillParticipant(wrapper, 0, { displayName: 'Team A' })
+      await submit(wrapper)
+
+      expect(createGameServiceMock).toHaveBeenCalledTimes(1)
+      expect(createGameServiceMock.mock.calls[0]?.[1]).not.toHaveProperty('miniGames')
+    })
+
+    it('sends the ticked subset in the shared order', async () => {
+      const wrapper = mountForm()
+
+      await roomSelect(wrapper).get('select').setValue('10')
+      await fillParticipant(wrapper, 0, { displayName: 'Team A' })
+      for (const miniGame of MINI_GAMES) {
+        if (miniGame !== MINI_GAME_FIRST_BUZZ && miniGame !== MINI_GAME_FLASH_BLIND_TEST) {
+          await miniGameBox(wrapper, miniGame).setValue(false)
+        }
+      }
+      await submit(wrapper)
+
+      expect(createGameServiceMock).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({ miniGames: [MINI_GAME_FLASH_BLIND_TEST, MINI_GAME_FIRST_BUZZ] })
+      )
+    })
+
+    it('sends the original order after unticking then re-ticking a box', async () => {
+      const wrapper = mountForm()
+
+      await roomSelect(wrapper).get('select').setValue('10')
+      await fillParticipant(wrapper, 0, { displayName: 'Team A' })
+      await miniGameBox(wrapper, MINI_GAME_FLASH_BLIND_TEST).setValue(false)
+      await miniGameBox(wrapper, MINI_GAME_QUICK_ANSWER).setValue(false)
+      await miniGameBox(wrapper, MINI_GAME_FLASH_BLIND_TEST).setValue(true)
+      await submit(wrapper)
+
+      expect(createGameServiceMock.mock.calls[0]?.[1]).toMatchObject({
+        miniGames: MINI_GAMES.filter((miniGame) => miniGame !== MINI_GAME_QUICK_ANSWER),
+      })
+    })
+
+    it('blocks the submission when no mini-game is ticked, then clears the error', async () => {
+      const wrapper = mountForm()
+
+      await roomSelect(wrapper).get('select').setValue('10')
+      await fillParticipant(wrapper, 0, { displayName: 'Team A' })
+      for (const miniGame of MINI_GAMES) {
+        await miniGameBox(wrapper, miniGame).setValue(false)
+      }
+      await submit(wrapper)
+
+      expect(createGameServiceMock).not.toHaveBeenCalled()
+      expect(wrapper.get('[data-test="game-mini-games-error"]').text()).toBe(
+        'games.form.errors.miniGamesRequired'
+      )
+      expect(wrapper.text()).not.toContain('games.form.miniGamesHint')
+
+      await miniGameBox(wrapper, MINI_GAME_QUICK_ANSWER).setValue(true)
+
+      expect(wrapper.find('[data-test="game-mini-games-error"]').exists()).toBe(false)
+
+      await submit(wrapper)
+
+      expect(createGameServiceMock).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({ miniGames: [MINI_GAME_QUICK_ANSWER] })
+      )
+    })
+
+    it('disables the boxes while the rooms are loading', () => {
+      const wrapper = mountForm([], true)
+
+      for (const miniGame of MINI_GAMES) {
+        expect(miniGameBox(wrapper, miniGame).element.disabled).toBe(true)
+      }
+    })
+
+    it('disables the boxes while the game is being created', async () => {
+      const pending = createDeferred()
+      createGameServiceMock.mockReturnValueOnce(pending.promise)
+      const wrapper = mountForm()
+
+      await roomSelect(wrapper).get('select').setValue('10')
+      await fillParticipant(wrapper, 0, { displayName: 'Team A' })
+      await wrapper.get('form').trigger('submit')
+      await flushPromises()
+
+      expect(miniGameBox(wrapper, MINI_GAME_FIRST_BUZZ).element.disabled).toBe(true)
+
+      pending.resolve({ ok: false, status: 500, error: 'server_error' })
+      await flushPromises()
+
+      expect(miniGameBox(wrapper, MINI_GAME_FIRST_BUZZ).element.disabled).toBe(false)
+    })
   })
 
   it('leaves the GDPR consent unticked and shows its purpose', () => {

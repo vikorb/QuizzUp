@@ -51,9 +51,22 @@
       "subtitle": "Pick the room, the participants and the game format",
       "cardTitle": "New game"
     },
+    "miniGames": {
+      "flash_blind_test": "Flash blind test",
+      "quick_answer": "Quick answer",
+      "first_buzz": "First buzz",
+      "true_false": "Flash true or false",
+      "double_or_nothing": "Double or nothing",
+      "sudden_death": "Sudden death",
+      "point_steal": "Point steal",
+      "streak": "Streak",
+      "estimate": "Estimate",
+      "progressive_reveal": "Progressive reveal"
+    },
     "form": {
       "sections": {
         "room": "Room and format",
+        "miniGames": "Mini-games",
         "participants": "Participants"
       },
       "room": "Room",
@@ -64,6 +77,7 @@
       "roundsHint": "Between 1 and {max}",
       "questionsPerRound": "Questions per round",
       "questionsHint": "Between 1 and {max}",
+      "miniGamesHint": "Drawn at random for each round, with equal probability.",
       "participantsHint": "From 1 to {max} podiums, with 1 or 2 players per podium.",
       "participant": "Participant {index}",
       "podium": "Podium",
@@ -81,6 +95,7 @@
       "submit": "Launch the game",
       "submitting": "Launching...",
       "errors": {
+        "miniGamesRequired": "Pick at least one mini-game.",
         "roomRequired": "Pick a room.",
         "roundsInvalid": "The number of rounds must be a whole number between 1 and {max}.",
         "questionsInvalid": "The number of questions per round must be a whole number between 1 and {max}.",
@@ -109,6 +124,8 @@
         "state": "State",
         "format": "Format",
         "formatValue": "{rounds} rounds × {questions} questions",
+        "miniGames": "Mini-games",
+        "miniGamesAll": "All",
         "createdAt": "Created on",
         "startedAt": "Started on",
         "finishedAt": "Finished on"
