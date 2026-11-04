@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 
 import { createLocalSessionStorage } from '@/game/session'
+import { stopLighting } from '@/hardware/roomHardware'
 import {
   fetchRoomAccount,
   getRoomToken,
@@ -46,6 +47,8 @@ export async function refreshRoomAccount(): Promise<void> {
     // Jeton expiré ou révoqué : retour à la connexion. Une partie interrompue reste
     // reprenable après reconnexion ; elle est effacée à sa fin ou à la déconnexion.
     clearLocalSession({ keepSavedGame: true })
+    // Plus personne aux commandes : lumières éteintes et fumée coupée, comme à la déconnexion.
+    await stopLighting().catch(() => undefined)
     return
   }
   if (fetched) {
@@ -68,6 +71,8 @@ function clearLocalSession(options: { keepSavedGame?: boolean } = {}): void {
 export async function signOut(): Promise<void> {
   const current = token.value
   clearLocalSession()
+  // Plus personne aux commandes : noir complet, fumée coupée, interface DMX libérée.
+  await stopLighting().catch(() => undefined)
   if (current) {
     await logoutApi(current)
   }

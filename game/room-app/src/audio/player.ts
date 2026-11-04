@@ -1,29 +1,11 @@
-/**
- * Port « lecteur d'extraits » de l'écran de salle. L'implémentation Web Audio
- * (décodage en mémoire, coupure précise au palier) est livrée par `game/audio` ;
- * ici on fixe le contrat et on fournit un lecteur silencieux qui respecte les
- * mêmes durées, pour le mode démo et les tests.
- */
-export type PreloadResult = { loaded: string[]; failed: string[] }
-export type PlayOutcome = 'ended' | 'stopped'
+import type { ExtractPlayer, PlayOutcome } from '@quizzup/audio'
 
-export type ExtractPlayer = {
-  /** À appeler dans un geste utilisateur (bouton « Lancer la salle »). */
-  unlock: () => Promise<void>
-  preload: (
-    urls: string[],
-    onProgress?: (done: number, total: number) => void
-  ) => Promise<PreloadResult>
-  /**
-   * Joue `durationMs` depuis `startSec` ; se résout à la fin du palier ou à l'arrêt.
-   * La lecture est engagée dès l'appel : un `pause()` juste après doit être pris en compte.
-   */
-  play: (url: string, startSec: number, durationMs: number) => Promise<PlayOutcome>
-  /** Met en pause et renvoie les millisecondes déjà jouées dans le palier. */
-  pause: () => number
-  resume: () => void
-  stop: () => void
-}
+/**
+ * Port « lecteur d'extraits » de l'écran de salle. Le contrat et le lecteur Web
+ * Audio (décodage en mémoire, coupure précise au palier) viennent de `game/audio` ;
+ * ici on fournit un lecteur silencieux qui respecte les mêmes durées, pour les tests.
+ */
+export type { ExtractPlayer, PlayOutcome, PreloadResult } from '@quizzup/audio'
 
 type Scheduler = {
   now: () => number
@@ -63,10 +45,12 @@ export function createSilentExtractPlayer(scheduler: Scheduler = DEFAULT_SCHEDUL
 
   return {
     unlock: async () => undefined,
-    preload: async (urls, onProgress) => {
-      onProgress?.(urls.length, urls.length)
+    preload: async (urls, options) => {
+      options?.onProgress?.(urls.length, urls.length)
       return { loaded: [...urls], failed: [] }
     },
+    isLoaded: () => true,
+    release: () => undefined,
     play(_url, _startSec, duration) {
       settle('stopped')
       durationMs = duration

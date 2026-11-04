@@ -9,17 +9,18 @@ extraits du blind test et affiche la partie sur l'écran de la salle.
   (dérivées des accents) et une typographie « plateau TV » lisible de loin.
 - **Composants** : `UiButton`, `FormField`, `SectionCard`, `ConfirmModal`… sont repris du
   backoffice à l'identique.
-- **Moteur et constantes** consommés en sources via des alias (`@quizzup/game-engine`,
-  `@quizzup/shared`), sans build.
+- **Moteur, matériel, audio et constantes** consommés en sources via des alias
+  (`@quizzup/game-engine`, `@quizzup/hardware`, `@quizzup/audio`, `@quizzup/shared`), sans build.
 
 ## Parcours
 
-| Écran     | Route    | Rôle                                                                                                                                                                                           |
-| --------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Connexion | `/login` | Compte de salle (rôle `room`, US-ROOM-02) ou **mode démo** sans compte.                                                                                                                        |
-| Lancement | `/`      | « Lancer la salle » : plein écran, écran maintenu allumé, son débloqué, touches système captées. Reprise d'une partie interrompue.                                                             |
-| Lobby     | `/lobby` | Un joueur par pupitre (1 à 4) : pseudo, email facultatif avec **consentement RGPD explicite et horodaté**. Un appui buzzer fait briller son pupitre. Format 10 × 10 ou partie courte 3 × 3.    |
-| Partie    | `/play`  | Annonce du mini-jeu tiré au sort → choix du thème par le joueur désigné (A-D) → blind test éclair (paliers 1 s / 5 s / 20 s, 100 / 50 / 20 pts) → révélation → bilan de manche → podium final. |
+| Écran     | Route       | Rôle                                                                                                                                                                                                                                                   |
+| --------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Connexion | `/login`    | Compte de salle (rôle `room`, US-ROOM-02) ou **mode démo** sans compte.                                                                                                                                                                                |
+| Lancement | `/`         | « Lancer la salle » : plein écran, écran maintenu allumé, son débloqué, touches système captées. Reprise d'une partie interrompue.                                                                                                                     |
+| Lobby     | `/lobby`    | Un joueur par pupitre (1 à 4) : pseudo, email facultatif avec **consentement RGPD explicite et horodaté**. Un appui buzzer fait briller son pupitre. Format 10 × 10 ou partie courte 3 × 3.                                                            |
+| Matériel  | `/hardware` | Association des buzzers (apprentissage pupitre × A-D) et test, lumières (salle simulée, connexion de l'interface DMX, scènes de test, identification), fumée (autorisation par l'opérateur, test), **arrêt d'urgence**, configuration avancée en JSON. |
+| Partie    | `/play`     | Annonce du mini-jeu tiré au sort → choix du thème par le joueur désigné (A-D) → blind test éclair (paliers 1 s / 5 s / 20 s, 100 / 50 / 20 pts) → révélation → bilan de manche → podium final.                                                         |
 
 Une alerte plein écran signale la **perte de focus** (les buzzers clavier ne sont plus reçus).
 
@@ -28,8 +29,8 @@ Une alerte plein écran signale la **perte de focus** (les buzzers clavier ne so
 ```
 src/
 ├─ game/        session de jeu (moteur + sauvegarde/reprise), sélecteurs d'affichage, lobby RGPD
-├─ hardware/    port buzzers + clavier de simulation, plein écran / wake lock / keyboard lock
-├─ audio/       port lecteur d'extraits + lecteur silencieux, pont événements moteur → audio
+├─ hardware/    matériel de la page (roomHardware.ts : config, buzzers, lumières), plein écran / wake lock
+├─ audio/       lecteur silencieux (tests), ponts événements moteur → extraits et sons d'interface
 ├─ views/       écrans (login, lancement, lobby, partie) et sous-écrans de phase (views/game)
 └─ components/  composants de jeu (tableau des scores, réponses A-D, minuteur…) et UI du backoffice
 ```
@@ -41,13 +42,21 @@ src/
   à rouvrir), la partie est rejouée, l'horloge recalée et l'extrait en cours relancé. La
   sauvegarde, qui contient les emails consentis, est effacée dès la fin de la partie et à la
   déconnexion de la salle.
-- **Ports** à brancher quand les paquets voisins seront mergés :
-  - buzzers appris : `setBuzzerInputFactory()` (`hardware/useBuzzers.ts`) ← `game/hardware` ;
-  - lecture Web Audio : `configureRoomGame({ player })` (`game/useRoomGame.ts`) ← `game/audio` ;
-  - contenu de la compagnie : `loadRoomThemes()` (`game/content.ts`) ← API à créer. En attendant,
-    la salle joue un contenu de démonstration « sans tubes » (instruments, bruitages…).
+- **Matériel** (`hardware/roomHardware.ts`) : **une seule** entrée buzzers
+  (`createKeyboardBuzzerInput` de `game/hardware`) et **un seul** contrôleur de lumières pour
+  toute la page. Le contrôleur démarre au clic « Lancer la salle », reçoit tous les événements du
+  moteur (`handleGameEvent`) et s'arrête (noir, fumée coupée) à la déconnexion. Une interface DMX
+  déjà autorisée se reconnecte sans clic. Tant que le backoffice ne sert pas `rooms.config`, la
+  config de salle est gardée dans le navigateur (`quizzup_room_hardware`).
+- **Audio** (`main.ts`) : `WebAudioExtractPlayer` de `game/audio` (extraits préchargés et décodés
+  avant la partie, téléchargés avec le jeton de la salle) et `UiSoundPlayer` sur le même
+  `AudioContext` pour les sons d'interface (buzz, bonne / mauvaise réponse, palier suivant…).
+- **Contenu** : `loadRoomThemes()` (`game/content.ts`) joue encore le contenu de démonstration
+  « sans tubes » ; il passera sur `GET /room/games/current/content` du backoffice.
 
 ### Clavier de simulation
+
+Utilisé tant qu'aucun buzzer n'est associé (écran Matériel).
 
 | Pupitre | A   | B   | C   | D   |
 | ------- | --- | --- | --- | --- |
