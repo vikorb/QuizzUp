@@ -64,7 +64,7 @@ describe('buzzers manette (API Gamepad)', () => {
     const board = createPad()
     current = setup([board.pad])
     expect(current.input.getState().active).toBe(true)
-    expect(current.input.getGamepad()).toEqual({ id: board.pad.id, buttons: 32 })
+    expect(current.input.getGamepad()).toEqual({ index: 0, id: board.pad.id, buttons: 32 })
 
     board.set(5, true, 1_002)
     current.clock.advance(4)
@@ -200,6 +200,56 @@ describe('buzzers manette (API Gamepad)', () => {
     })
     const input = createGamepadBuzzerInput({ keymap, clock: createManualClock() })
     expect(input.getGamepad()?.id).toBe(board.pad.id)
+    input.dispose()
+    if (original) {
+      Object.defineProperty(window.navigator, 'getGamepads', original)
+    } else {
+      delete (window.navigator as { getGamepads?: unknown }).getGamepads
+    }
+  })
+
+  it('fait tourner l’ordre des appuis vus dans la même lecture', () => {
+    const board = createPad()
+    current = setup([board.pad])
+    const firstDesks: number[] = []
+    for (let round = 0; round < 3; round += 1) {
+      current.presses.mockClear()
+      board.set(0, true, 0)
+      board.set(5, true, 0)
+      board.set(23, true, 0)
+      current.clock.advance(4)
+      expect(current.presses).toHaveBeenCalledTimes(3)
+      firstDesks.push(current.presses.mock.calls[0]?.[0].desk)
+      board.set(0, false, 0)
+      board.set(5, false, 0)
+      board.set(23, false, 0)
+      current.clock.advance(4)
+    }
+    expect(new Set(firstDesks)).toEqual(new Set([1, 2, 6]))
+  })
+
+  it('resynchronise quand une autre carte est lue', () => {
+    const operator = createPad('Manette opérateur', 16)
+    const board = createPad()
+    board.pad.index = 1
+    board.set(0, true, 900) // buzzer maintenu sur la carte, pas encore lue
+    const pads: (GamepadLike | null)[] = [operator.pad, board.pad]
+    current = setup(pads)
+    expect(current.input.getGamepad()?.index).toBe(0)
+
+    operator.pad.connected = false
+    current.clock.advance(8)
+    expect(current.input.getGamepad()).toMatchObject({ index: 1, id: board.pad.id })
+    expect(current.presses).not.toHaveBeenCalled()
+  })
+
+  it('ne sonde rien sans API Gamepad', () => {
+    const clock = createManualClock()
+    const original = Object.getOwnPropertyDescriptor(window.navigator, 'getGamepads')
+    Object.defineProperty(window.navigator, 'getGamepads', { configurable: true, value: undefined })
+    const input = createGamepadBuzzerInput({ keymap, clock })
+    expect(clock.pending()).toBe(0)
+    expect(input.getState().active).toBe(false)
     input.dispose()
     if (original) {
       Object.defineProperty(window.navigator, 'getGamepads', original)

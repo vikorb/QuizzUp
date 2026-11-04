@@ -39,7 +39,7 @@ export type GamepadBuzzerInputOptions = {
   match?: (id: string) => boolean
 }
 
-export type GamepadInfo = { id: string; buttons: number }
+export type GamepadInfo = { index: number; id: string; buttons: number }
 
 export type GamepadBuzzerInput = BuzzerInput & {
   setKeymap: (keymap: BuzzerKeymap) => void
@@ -55,7 +55,13 @@ export type GamepadBuzzerInput = BuzzerInput & {
  * du focus clavier. Le navigateur n'expose la carte qu'après un premier appui sur un bouton.
  *
  * L'API Gamepad se lit par sondage : un appui est horodaté avec la mise à jour de la carte
- * (`Gamepad.timestamp`), bornée entre deux lectures, pour départager les buzzs au plus juste.
+ * (`Gamepad.timestamp`), bornée entre deux lectures. Les appuis vus dans la **même lecture** ont
+ * le même horodatage : ils sont émis dans un ordre qui tourne à chaque fois, pour qu'aucun
+ * pupitre ne gagne toujours les égalités à cause de son numéro d'entrée sur la carte.
+ *
+ * `state.active` est faux tant que la carte n'est pas visible (avant le premier appui) : l'écran
+ * doit alors afficher « Appuyez sur un buzzer pour activer la carte ». Le focus clavier n'est pas
+ * nécessaire. Un appui plus court que l'intervalle entre deux lectures (page gelée) est perdu.
  */
 export function createGamepadBuzzerInput(options: GamepadBuzzerInputOptions): GamepadBuzzerInput {
   const target = options.target ?? window
@@ -83,6 +89,7 @@ export function createGamepadBuzzerInput(options: GamepadBuzzerInputOptions): Ga
   let resync = true
   let lastPollAt = clock.now()
   let timer: TimerHandle | null = null
+  let tieRotation = 0
 
   const getState = (): BuzzerInputState => ({
     focused,
@@ -116,8 +123,15 @@ export function createGamepadBuzzerInput(options: GamepadBuzzerInputOptions): Ga
   const poll = () => {
     const now = clock.now()
     const pad = readGamepad()
-    const info = pad ? { id: pad.id, buttons: pad.buttons.length } : null
-    const changed = info?.id !== gamepad?.id || info?.buttons !== gamepad?.buttons
+    const info = pad ? { index: pad.index, id: pad.id, buttons: pad.buttons.length } : null
+    const changed =
+      info?.index !== gamepad?.index ||
+      info?.id !== gamepad?.id ||
+      info?.buttons !== gamepad?.buttons
+    if (changed) {
+      // Autre carte lue (rebranchée, autre index) : ses boutons déjà enfoncés ne comptent pas.
+      resync = true
+    }
     gamepad = info
 
     if (!pad || !visible) {
@@ -157,10 +171,13 @@ export function createGamepadBuzzerInput(options: GamepadBuzzerInputOptions): Ga
           heldChanged = heldChanged || findSlot(keymap, code) !== null
         }
       }
-      for (const code of pressed) {
-        if (heldCodes.has(code)) {
-          continue
-        }
+      const fresh = [...pressed].filter((code) => !heldCodes.has(code))
+      if (fresh.length > 1) {
+        const start = tieRotation % fresh.length
+        fresh.push(...fresh.splice(0, start))
+        tieRotation += 1
+      }
+      for (const code of fresh) {
         heldCodes.add(code)
         const slot = findSlot(keymap, code)
         const press: BuzzerPress | null = slot
@@ -207,8 +224,10 @@ export function createGamepadBuzzerInput(options: GamepadBuzzerInputOptions): Ga
   target.addEventListener('blur', onBlur)
   target.addEventListener('gamepadconnected', poll)
   target.addEventListener('gamepaddisconnected', poll)
-  timer = clock.setInterval(poll, pollMs)
-  poll()
+  if (source) {
+    timer = clock.setInterval(poll, pollMs)
+    poll()
+  }
 
   return {
     onPress: pressEmitter.on,

@@ -133,6 +133,10 @@ Dans `game/hardware` (`@quizzup/hardware`) :
 3. **Fumée** : débrancher l'Arduino (sa minuterie enverrait de la fumée toutes les 2 minutes, hors
    de tout contrôle du jeu). Câbler le relais DMX sur les mêmes contacts NO / COM de la
    télécommande, l'adresser (par exemple 200) et le chaîner en bout de ligne DMX.
+   **Obligatoire** : une **limite de durée matérielle**. Une interface USB DMX Pro renvoie sans fin
+   la dernière trame reçue : si le PC ou la page plante pendant une émission, le relais reste
+   fermé. Mettre en série un **relais temporisé** (module « monostable », ~10 €, réglé à 10 s
+   maximum) ou choisir un relais DMX qui retombe en cas de perte de signal.
 4. **Arrêt d'urgence physique** : vérifier qu'un interrupteur coupe l'alimentation de la fumée et des
    lumières (déjà le cas si « éteindre les robots lumière » coupe aussi la fumée) ; il est
    **obligatoire** avec QuizzUP.
@@ -141,9 +145,14 @@ Dans `game/hardware` (`@quizzup/hardware`) :
    licence, pas la nôtre).
 6. **Configuration de salle** : choisir le preset « salle 6 pupitres », coller le contenu de
    `SessionConf.txt` pour reprendre le calage, choisir la sortie `usbpro`, puis **apprendre les
-   buzzers en mode manette** (24 appuis) et faire le test des buzzers.
-7. **Vérifications sur place** : couleurs et mouvements de chaque lyre (ordre des canaux), sens des
-   couleurs des rubans (RGB), fumée armée par l'opérateur puis test d'émission courte.
+   buzzers en mode manette** (24 appuis) et faire le test des buzzers. Si une autre manette est
+   branchée sur le PC, filtrer la carte buzzers par son nom (option `match`, par exemple « BBI »
+   ou « Bodnar »). Le navigateur ne voit la carte qu'après un premier appui : cet appui active la
+   carte et ne compte pas comme buzz.
+7. **Vérifications sur place** : couleurs et mouvements de chaque lyre (ordre des canaux), faisceau
+   bien ouvert (sinon remplacer le canal strobe par une valeur fixe « ouvert » de la notice), sens
+   des couleurs des rubans (RGB), fumée armée par l'opérateur puis test d'émission courte, coupure
+   par le relais temporisé.
 
 ## 5. Points à vérifier ou à décider
 
@@ -156,10 +165,15 @@ Dans `game/hardware` (`@quizzup/hardware`) :
 3. **Ordre des entrées de la carte buzzers** : inconnu (il dépend du câblage RJ-45). D'où
    l'apprentissage ; ensuite le mapping est enregistré dans la salle.
 4. **Précision des buzzs en manette** : lecture toutes les 4 ms et horodatage de la carte. Deux
-   appuis dans la même fenêtre de quelques millisecondes sont départagés par le moteur. Le mode
-   clavier reste disponible.
-5. **Produit à 6 pupitres** (décision demandée à Enzo) : l'écran de salle (`game/room-app`, lobby à 4
-   pupitres), le format de partie et la base (`game_participants`, pupitre 1-4) doivent suivre.
+   appuis vus dans la même lecture ont le même horodatage ; le moteur garde le premier reçu, et
+   l'ordre d'émission tourne à chaque égalité pour qu'aucun pupitre ne soit favorisé. Si la page
+   est occupée (rendu, démarrage audio), une lecture peut regrouper plusieurs dizaines de ms. Un
+   appui plus court que l'intervalle réel entre deux lectures est perdu (limite de l'API Gamepad).
+   Le mode clavier reste disponible.
+5. **Produit à 6 pupitres** (décision demandée à Enzo) : seule la couche matériel accepte 6
+   pupitres pour l'instant. Doivent suivre : `GAME_PODIUMS = 4` dans `@quizzup/shared` (le moteur
+   refuse les pupitres 5 et 6), l'écran de salle (`game/room-app`, lobby à 4 pupitres) et la base
+   (`game_participants`, pupitre 1-4).
 6. **Équipes de 2 joueurs par pupitre** : le concurrent l'autorise (prénom + e-mail de chaque
    joueur). À prévoir dans le lobby si on vise ces centres.
 7. **Inscription par QR code depuis un smartphone** et **feuille de résultats imprimable** : ce sont
