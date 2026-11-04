@@ -189,9 +189,8 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
         patch.kind = req.body.kind
       }
 
-      // Le couple type / média est contrôlé avec la valeur en base pour le champ non envoyé.
-      // ponytail: lu hors verrou, deux PATCH simultanés (type puis média) peuvent passer ; relire
-      // la ligne en `forUpdate()` dans la transaction si l'édition concurrente devient réelle.
+      // Refus rapide sur la lecture non verrouillée ; la règle fait foi plus bas, sur la ligne
+      // verrouillée (une course a pu changer le type ou le média entre-temps).
       if (req.body.kind !== undefined || req.body.typeMedia !== undefined) {
         const kindMediaError = getQuestionKindMediaError(
           req.body.kind ?? accessQuestion.kind ?? DEFAULT_QUESTION_KIND,
@@ -207,9 +206,13 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
         patch.media_url = req.body.mediaUrl
       }
 
-      // Quitter le type audio détache le fichier ; le point de départ est validé contre le
-      // fichier courant. Les deux se font ligne verrouillée, dans la transaction de mise à jour.
+      // Le couple type / média (champ non envoyé = valeur en base), le détachement du fichier en
+      // quittant le type audio et le point de départ se contrôlent sur la ligne verrouillée
+      // (`FOR UPDATE`), dans la transaction de mise à jour : deux PATCH simultanés (type puis
+      // média, ou l'inverse) se sérialisent et le second voit l'état du premier.
       const mediaRequest = {
+        kind: req.body.kind,
+        typeMedia: req.body.typeMedia,
         leavesAudio:
           req.body.typeMedia !== undefined && req.body.typeMedia !== QUESTION_MEDIA_TYPE_AUDIO,
         startMs: req.body.mediaStartMs,

@@ -23,8 +23,10 @@ import {
   isValidMediaKey,
 } from '../../storage/mediaStorage'
 import {
+  assertKindMediaAllowed,
   buildClearedMediaPatch,
   lockQuestionMediaRow,
+  QuestionMediaPatchError,
   type QuestionMediaRow,
   removeStoredMediaFile,
 } from './_media'
@@ -225,9 +227,8 @@ const questionMediaRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(access.status).send({ error: access.error })
       }
 
-      // Un extrait audio bascule la question en type audio : refusé hors QCM.
-      // ponytail: contrôle hors transaction, un PATCH du type au même instant peut passer ; le
-      // refaire après `lockQuestionMediaRow` si l'édition concurrente devient réelle.
+      // Refus rapide, avant d'écrire le fichier, sur la lecture non verrouillée : la règle fait
+      // foi sous verrou (plus bas), car un PATCH du type peut passer pendant l'écriture.
       const kindMediaError = getQuestionKindMediaError(
         access.question.kind ?? DEFAULT_QUESTION_KIND,
         QUESTION_MEDIA_TYPE_AUDIO
@@ -274,6 +275,10 @@ const questionMediaRoutes: FastifyPluginAsync = async (app) => {
         replacedKey = await db.transaction(async (trx) => {
           const previous = await lockQuestionMediaRow(trx, access.questionId)
 
+          // Un extrait audio bascule la question en type audio : refusé hors QCM. Contrôle sur
+          // la ligne verrouillée, car un PATCH du type a pu passer pendant l'écriture du fichier.
+          assertKindMediaAllowed(previous, { typeMedia: QUESTION_MEDIA_TYPE_AUDIO })
+
           await trx('questions')
             .where({ id: access.questionId })
             .update({
@@ -294,7 +299,13 @@ const questionMediaRoutes: FastifyPluginAsync = async (app) => {
           return previous?.media_key ?? null
         })
       } catch (error) {
+        // Fichier écrit avant le verrou (pas d'écriture disque dans une transaction) : on le retire.
         await removeStoredMediaFile(req, key)
+
+        if (error instanceof QuestionMediaPatchError) {
+          return reply.code(400).send({ error: error.code })
+        }
+
         throw error
       }
 

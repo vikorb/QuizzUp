@@ -1,6 +1,6 @@
 import '../_helpers/registerRouteMocks'
 
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   ANSWER_STATUS_ACTIVE,
@@ -13,7 +13,7 @@ import {
   QUESTION_MEDIA_TYPE_VIDEO,
 } from '@quizzup/shared'
 import questionsRoutes from '@backend/routes/questions'
-import { dbState } from '../_helpers/mockDb'
+import { db, dbState, lockedTables } from '../_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
 import { authHeaders, companyAdminUser, createRouteApp, parseJson } from '../_helpers/testApp'
 import { seedQuestionsData } from './_fixtures'
@@ -303,5 +303,86 @@ describe('routes/questions/id.ts', () => {
     expect(activeAnswers.map((answer) => answer.response).sort()).toEqual(['A kept', 'Brand new'])
 
     await app.close()
+  })
+
+  describe('concurrent kind / media changes (row lock)', () => {
+    /** Fait jouer une écriture concurrente juste avant que la transaction du PATCH ne démarre. */
+    function concurrentWriteBeforeTransaction(write: () => void) {
+      const realTransaction = db.transaction
+
+      vi.spyOn(db, 'transaction').mockImplementationOnce((callback) => {
+        write()
+
+        return realTransaction(callback)
+      })
+    }
+
+    const estimateAnswers = [
+      { response: 'Moins de 10', isCorrect: false },
+      { response: '10 à 99', isCorrect: true },
+      { response: '100 ou plus', isCorrect: false },
+    ]
+
+    it('locks the question row before checking the kind / media rule', async () => {
+      const app = await createRouteApp(questionsRoutes)
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/questions/2',
+        headers: authHeaders(companyAdminUser),
+        payload: { typeMedia: QUESTION_MEDIA_TYPE_IMAGE },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(lockedTables).toContain('questions')
+
+      await app.close()
+    })
+
+    it('refuses a kind change when an audio excerpt was attached after the unlocked read', async () => {
+      const app = await createRouteApp(questionsRoutes)
+
+      concurrentWriteBeforeTransaction(() => {
+        dbState.questions.find((row) => row.id === 2)!.type_media = QUESTION_MEDIA_TYPE_AUDIO
+      })
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/questions/2',
+        headers: authHeaders(companyAdminUser),
+        payload: { kind: QUESTION_KIND_ESTIMATE, answers: estimateAnswers },
+      })
+      const row = dbState.questions.find((question) => question.id === 2)!
+
+      expect(response.statusCode).toBe(400)
+      expect(parseJson(response)).toEqual({ error: 'question_kind_media_invalid' })
+      expect(row.kind).not.toBe(QUESTION_KIND_ESTIMATE)
+      expect(row.type_media).toBe(QUESTION_MEDIA_TYPE_AUDIO)
+
+      await app.close()
+    })
+
+    it('refuses an audio type when the kind was changed after the unlocked read', async () => {
+      const app = await createRouteApp(questionsRoutes)
+
+      concurrentWriteBeforeTransaction(() => {
+        dbState.questions.find((row) => row.id === 2)!.kind = QUESTION_KIND_ESTIMATE
+      })
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/questions/2',
+        headers: authHeaders(companyAdminUser),
+        payload: { typeMedia: QUESTION_MEDIA_TYPE_AUDIO },
+      })
+
+      expect(response.statusCode).toBe(400)
+      expect(parseJson(response)).toEqual({ error: 'question_kind_media_invalid' })
+      expect(dbState.questions.find((row) => row.id === 2)!.type_media).not.toBe(
+        QUESTION_MEDIA_TYPE_AUDIO
+      )
+
+      await app.close()
+    })
   })
 })

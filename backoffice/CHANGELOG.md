@@ -148,6 +148,13 @@ Format inspiré de Keep a Changelog.
 
 ### Fixed
 
+- Course de concurrence type / média d'une question : deux admins qui changent en même temps le
+  type (`PATCH /questions/:id`) et l'extrait audio (`PUT /questions/:id/media`) ne peuvent plus
+  laisser une question incohérente. La règle `question_kind_media_invalid` est contrôlée sur la
+  ligne relue en `SELECT … FOR UPDATE` dans la transaction ; l'extrait est écrit hors
+  transaction et retiré si le contrôle échoue.
+  US: us-question-kind-race
+
 - Compte de salle : connexion refusée et PC déconnecté si la compagnie n'est plus active ;
   suppression d'une salle atomique (salle, compte et parties actives) ; salles et comptes de
   salle non modifiables dans une compagnie supprimée ; ids des parties renvoyés en nombres ;
