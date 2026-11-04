@@ -169,6 +169,27 @@ describe('buzzers clavier', () => {
     Reflect.deleteProperty(navigator, 'keyboard')
   })
 
+  it('relâche le verrou si la promesse aboutit après la fermeture du lecteur', async () => {
+    current = setup()
+    let grant: () => void = () => undefined
+    const keyboard = {
+      lock: vi.fn(() => new Promise<void>((resolve) => (grant = resolve))),
+      unlock: vi.fn(),
+    }
+    Object.defineProperty(navigator, 'keyboard', { value: keyboard, configurable: true })
+    try {
+      const pending = current.input.lockSystemKeys()
+      current.input.dispose()
+      grant()
+
+      expect(await pending).toBe(false)
+      expect(keyboard.unlock).toHaveBeenCalledTimes(1)
+      expect(current.input.getState().keyboardLocked).toBe(false)
+    } finally {
+      Reflect.deleteProperty(navigator, 'keyboard')
+    }
+  })
+
   it('n’écoute plus rien après dispose', () => {
     current = setup()
     current.input.dispose()

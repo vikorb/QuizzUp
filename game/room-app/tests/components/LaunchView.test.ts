@@ -5,12 +5,27 @@ import { rememberBackofficeGameId, reportFinishedGame } from '@/game/backofficeG
 import { getDemoThemes } from '@/game/demoContent'
 import { createMemorySessionStorage, GameSession } from '@/game/session'
 import { closeGame, configureRoomGame, startNewGame, useRoomGame } from '@/game/useRoomGame'
+import { lockBuzzerSystemKeys } from '@/hardware/roomHardware'
 import { enterDemo, refreshRoomAccount, signIn, syncRoomAuth } from '@/state/roomAuth'
 import * as roomApi from '@/utils/roomApi'
 import LaunchView from '@/views/LaunchView.vue'
 
 import { REGISTRATIONS } from '../_helpers/fixtures'
 import { mountWithApp } from '../_helpers/mount'
+
+vi.mock('@/hardware/roomHardware', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  lockBuzzerSystemKeys: vi.fn(async () => true),
+}))
+
+async function launch() {
+  const { wrapper, router } = await mountWithApp(LaunchView)
+  const start = wrapper
+    .findAll('button')
+    .find((button) => button.text().includes('Lancer la salle'))
+  await start?.trigger('click')
+  await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('lobby'))
+}
 
 function fakePlayer(): ExtractPlayer {
   return {
@@ -63,6 +78,30 @@ describe('LaunchView', () => {
     await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('lobby'))
     expect(player.unlock).toHaveBeenCalled()
     expect(requestFullscreen).toHaveBeenCalled()
+  })
+
+  it('ne pose le verrou clavier que si le plein écran est effectivement actif', async () => {
+    const lock = vi.mocked(lockBuzzerSystemKeys)
+    lock.mockClear()
+    // Plein écran refusé : pas de verrou.
+    document.documentElement.requestFullscreen = vi.fn(async () => undefined)
+    await launch()
+    expect(lock).not.toHaveBeenCalled()
+
+    // Plein écran obtenu : verrou posé.
+    Object.defineProperty(document, 'fullscreenElement', { configurable: true, value: null })
+    document.documentElement.requestFullscreen = vi.fn(async () => {
+      Object.defineProperty(document, 'fullscreenElement', {
+        configurable: true,
+        value: document.documentElement,
+      })
+    })
+    try {
+      await launch()
+      expect(lock).toHaveBeenCalledTimes(1)
+    } finally {
+      Reflect.deleteProperty(document, 'fullscreenElement')
+    }
   })
 
   it('propose de reprendre une partie sauvegardée', async () => {
