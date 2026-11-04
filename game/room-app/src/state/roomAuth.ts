@@ -10,6 +10,7 @@ import {
   logoutApi,
   type RoomAccount,
   setDemoMode,
+  setRoomAccountId,
   setRoomToken,
 } from '@/utils/auth'
 
@@ -26,6 +27,7 @@ export function signIn(nextToken: string, nextAccount: RoomAccount): void {
   setDemoMode(false)
   demo.value = false
   setRoomToken(nextToken)
+  setRoomAccountId(nextAccount.id)
   token.value = nextToken
   account.value = nextAccount
   // Des résultats de partie attendaient peut-être un jeton valide.
@@ -56,6 +58,7 @@ export async function refreshRoomAccount(): Promise<void> {
   }
   if (fetched) {
     account.value = fetched
+    setRoomAccountId(fetched.id)
   }
 }
 
@@ -63,6 +66,7 @@ function clearLocalSession(options: { keepSavedGame?: boolean } = {}): void {
   // Plus de compte : la config matérielle n'est plus enregistrée côté backoffice.
   setHardwareRemoteSaver(null)
   setRoomToken(null)
+  setRoomAccountId(null)
   setDemoMode(false)
   token.value = null
   account.value = null
