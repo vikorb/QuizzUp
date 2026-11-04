@@ -1,0 +1,24 @@
+# Trois sous-domaines, certificats HTTPS obtenus automatiquement par Caddy.
+# DOMAIN vient du fichier .env (ex. 51-15-12-34.sslip.io : aucun nom de domaine à acheter).
+{
+	email {$ACME_EMAIL}
+}
+
+api.{$DOMAIN} {
+	encode gzip
+	reverse_proxy backend:3001
+}
+
+bo.{$DOMAIN} {
+	encode gzip
+	root * /srv/backoffice
+	try_files {path} /index.html
+	file_server
+}
+
+salle.{$DOMAIN} {
+	encode gzip
+	root * /srv/salle
+	try_files {path} /index.html
+	file_server
+}

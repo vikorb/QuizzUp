@@ -1,0 +1,33 @@
+# Recette : construit le backoffice (backoffice/frontend) et l'écran de salle (game/room-app)
+# en fichiers statiques, puis les sert avec Caddy (HTTPS automatique Let's Encrypt).
+# Contexte de build : la racine du dépôt.
+
+FROM node:22-alpine AS build
+ARG API_URL
+ENV VITE_API_URL=${API_URL}
+WORKDIR /repo
+
+# Constantes partagées (consommées construites par le backoffice, en sources par la salle).
+COPY backoffice/shared backoffice/shared
+RUN npm --prefix backoffice/shared ci && npm --prefix backoffice/shared run build
+
+# Backoffice
+COPY backoffice/frontend/package*.json backoffice/frontend/
+RUN npm --prefix backoffice/frontend ci
+COPY backoffice/frontend backoffice/frontend
+COPY backoffice/tsconfig*.json backoffice/
+RUN npm --prefix backoffice/frontend run build-only
+
+# Écran de salle (moteur, matériel et audio en sources via les alias Vite)
+COPY game/room-app/package*.json game/room-app/.npmrc game/room-app/
+RUN npm --prefix game/room-app ci
+COPY game/engine/src game/engine/src
+COPY game/hardware/src game/hardware/src
+COPY game/audio/src game/audio/src
+COPY game/room-app game/room-app
+RUN npm --prefix game/room-app run build
+
+FROM caddy:2-alpine
+COPY --from=build /repo/backoffice/frontend/dist /srv/backoffice
+COPY --from=build /repo/game/room-app/dist /srv/salle
+COPY deploy/recette/Caddyfile /etc/caddy/Caddyfile

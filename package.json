@@ -4,7 +4,11 @@
   "private": true,
   "description": "QuizzUp monorepo root — git hooks (husky + commitlint) partagés entre les apps",
   "scripts": {
-    "prepare": "husky"
+    "prepare": "husky",
+    "demo": "docker compose -f backoffice/docker-compose.yml up --build -d postgres backend frontend room-app",
+    "demo:logs": "docker compose -f backoffice/docker-compose.yml logs -f backend frontend room-app",
+    "demo:stop": "docker compose -f backoffice/docker-compose.yml stop",
+    "demo:reset": "docker compose -f backoffice/docker-compose.yml down -v"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.4.2",

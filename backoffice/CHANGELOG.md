@@ -8,6 +8,12 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Version testable : `npm run demo` à la racine (base, API, backoffice, écran de salle), seed de
+  démo (compagnie « QuizzUP Démo », `demo-admin`, salle « Salle 1 » et son compte de salle
+  `salle1-demo`, mot de passe `DEMO_SEED_PASSWORD`, `DEMO_SEED=false` pour le couper, 2 thèmes
+  blind test de 10 extraits générés libres de droits), recette VPS en
+  HTTPS (`deploy/recette/`) et guide de test (`docs/recette/guide-de-test.md`).
+
 - Règles de réponses selon le type de question, partagées par l'API et le formulaire
   (`getQuestionKindAnswersError` dans `@quizzup/shared`) : vrai/faux = « Vrai » et « Faux », une
   seule juste ; estimation = 3 ou 4 fourchettes commençant par un nombre, une seule juste. Les
@@ -104,6 +110,10 @@ Format inspiré de Keep a Changelog.
   US: US-MEDIA-01 (#59)
 
 ### Changed
+
+- Docker Compose : seeds complets seulement sur une base vide (`SEED_ON_START=always` pour
+  l'ancien comportement), seul le seed de démo est rejoué ensuite ; ports publiés sur
+  `127.0.0.1` uniquement.
 
 - La création de thèmes, questions et réponses est réservée au superadmin et à l'admin ; le rôle `user` passe en lecture seule (API, boutons et routes de création du backoffice).
   US: US-PERM-01

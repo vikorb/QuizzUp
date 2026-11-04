@@ -1,0 +1,10 @@
+# Contexte de build de Dockerfile.web (racine du dépôt) : rien de local ni de secret.
+.git
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+!**/.env.example
+**/coverage
+**/playwright-report
+**/test-results
