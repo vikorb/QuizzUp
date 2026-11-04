@@ -2,6 +2,7 @@ import {
   BUZZER_BUTTONS,
   type BuzzerKeymap,
   createDefaultKeymap,
+  DEFAULT_DESKS,
   type Desk,
   findCode,
 } from '@quizzup/hardware'
@@ -17,7 +18,13 @@ export type {
   BuzzerKeymap,
   BuzzerPress,
 } from '@quizzup/hardware'
-export { BUZZER_BUTTONS, DESKS } from '@quizzup/hardware'
+export { BUZZER_BUTTONS } from '@quizzup/hardware'
+
+/**
+ * Pupitres gérés par l'écran de salle : 4 en V1 (couleurs, lobby, test). Le paquet
+ * matériel en connaît jusqu'à 6, en attente de décision.
+ */
+export const DESKS: readonly Desk[] = DEFAULT_DESKS
 
 export type DeskNumber = Desk
 

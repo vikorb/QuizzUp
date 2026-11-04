@@ -96,7 +96,7 @@ describe('LobbyView — échec au démarrage', () => {
 
   it('affiche un message si le contenu ne peut pas être chargé', async () => {
     const content = await import('@/game/content')
-    vi.spyOn(content, 'loadRoomThemes').mockRejectedValueOnce(new Error('api down'))
+    vi.spyOn(content, 'loadDemoThemes').mockRejectedValueOnce(new Error('api down'))
     const { wrapper, router } = await mountWithApp(LobbyView, { route: '/lobby' })
 
     await wrapper.find('input[name=desk-1-name]').setValue('Léa')
