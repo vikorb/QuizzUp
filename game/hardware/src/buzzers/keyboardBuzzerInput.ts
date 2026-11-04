@@ -33,6 +33,10 @@ export type KeyboardBuzzerInput = BuzzerInput & {
  * base que `performance.now()`), donc insensible au retard du thread principal. Repli sur
  * `now` si la valeur est absente, nulle, non finie ou dans le futur (base d'horloge différente).
  */
+// ponytail: le moteur (`reduceGame`) ramène tout appui en retard sur le dernier instant connu
+// (`max(at, lastAt)`). Si un tick ou un appui manette passe avant ce handler, l'appui clavier
+// antérieur perd son avance (palier ou ordre faussés). Piste : trier les appuis d'une même tâche
+// par `at` avant de les envoyer au moteur.
 export function eventTime(timeStamp: number | undefined, now: number): number {
   return typeof timeStamp === 'number' &&
     Number.isFinite(timeStamp) &&

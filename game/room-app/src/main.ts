@@ -13,7 +13,7 @@ import { createAppI18n } from '@/plugins/i18n'
 import { createRoomRouter } from '@/router'
 import { isRoomReady, refreshRoomAccount } from '@/state/roomAuth'
 import { authHeaders, getRoomToken } from '@/utils/auth'
-import { acquireSingleInstance } from '@/utils/singleInstance'
+import { guardSingleInstance } from '@/utils/singleInstance'
 import AlreadyOpenView from '@/views/AlreadyOpenView.vue'
 
 function startRoom(): void {
@@ -53,11 +53,9 @@ function startRoom(): void {
   createApp(App).use(router).use(createAppI18n()).mount('#app')
 }
 
-// Un second onglet n'affiche qu'un message : ni moteur, ni buzzers, ni lumières.
-void acquireSingleInstance().then((first) => {
-  if (first) {
-    startRoom()
-  } else {
-    createApp(AlreadyOpenView).use(createAppI18n()).mount('#app')
-  }
+// Un second onglet n'affiche qu'un message (ni moteur, ni buzzers, ni lumières) puis démarre
+// tout seul quand le premier se ferme.
+guardSingleInstance({
+  start: startRoom,
+  showBlocked: () => createApp(AlreadyOpenView).use(createAppI18n()).mount('#app'),
 })

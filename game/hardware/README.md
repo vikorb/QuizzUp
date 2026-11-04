@@ -55,7 +55,10 @@ await buzzers.lockSystemKeys() // après requestFullscreen() : capte Échap, Alt
   (posé par le navigateur à la réception de la touche), donc un thread principal ralenti (rendu,
   décodage audio) ne décale pas l'appui ni le palier attribué. Repli sur `clock.now()` si la valeur
   est absente, nulle, non finie ou dans le futur (`eventTime`). Reste la gigue de l'encodeur USB
-  (environ 8 ms, sondage à 125 Hz), hors de portée du logiciel.
+  (environ 8 ms, sondage à 125 Hz), hors de portée du logiciel. Limite : le moteur ramène un appui
+  en retard sur le dernier instant connu (`max(at, lastAt)`) ; si un tick ou un appui manette passe
+  avant le handler clavier, l'appui antérieur perd son avance (piste : trier les appuis d'une même
+  tâche avant le moteur).
 - **Perte de focus** : `state.focused` / `state.visible` / `state.active`. Quand la page perd le
   focus, plus aucun appui n'arrive : l'écran de salle doit l'afficher en grand.
 

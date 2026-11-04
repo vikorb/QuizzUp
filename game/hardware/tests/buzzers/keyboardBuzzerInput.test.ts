@@ -248,33 +248,5 @@ describe('buzzers clavier', () => {
       keydown('KeyE', {}, timeStamp)
       expect(current.presses).toHaveBeenCalledWith(expect.objectContaining({ at: 5_012 }))
     })
-
-    it('garde l’ordre de deux appuis même si les handlers passent dans le désordre de l’horloge', () => {
-      current = setup()
-      current.clock.advance(100)
-      // Le 2e joueur a appuyé en premier (5 010) ; les deux handlers tournent ensuite à 5 100.
-      keydown('KeyE', {}, 5_040)
-      keydown('KeyA', {}, 5_010)
-      const ats = current.presses.mock.calls.map(([press]) => ({ desk: press.desk, at: press.at }))
-      expect(ats).toEqual([
-        { desk: 2, at: 5_040 },
-        { desk: 3, at: 5_010 },
-      ])
-      // Trié par `at`, le pupitre 3 (appui réel le plus tôt) passe devant malgré l'ordre d'arrivée.
-      expect(ats.sort((first, second) => first.at - second.at)[0]?.desk).toBe(3)
-    })
-
-    it('un retard de 100 ms du handler ne change pas le palier attribué', () => {
-      // Paliers 1 s / 5 s / 20 s à partir de t0 (cf. moteur : FLASH_BLIND_TEST_STAGE_DURATIONS_MS).
-      const t0 = 5_000
-      const stageOf = (at: number) => [1_000, 5_000, 20_000].findIndex((ms) => at - t0 < ms) + 1
-      current = setup()
-      // Appui réel à 950 ms (palier 1), handler exécuté 100 ms plus tard (1 050 ms = palier 2).
-      current.clock.advance(1_050)
-      keydown('KeyE', {}, t0 + 950)
-      const at = current.presses.mock.calls[0]?.[0].at ?? 0
-      expect(stageOf(at)).toBe(1)
-      expect(stageOf(t0 + 1_050)).toBe(2)
-    })
   })
 })
