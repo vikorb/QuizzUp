@@ -1,14 +1,32 @@
-import { createKeyboardBuzzerInput } from '@hardware/buzzers/keyboardBuzzerInput'
+import { createKeyboardBuzzerInput, eventTime } from '@hardware/buzzers/keyboardBuzzerInput'
 import { createDefaultKeymap } from '@hardware/buzzers/keymap'
 
 import { createManualClock } from '../_helpers/manualClock'
 
-const keydown = (code: string, init: KeyboardEventInit = {}) => {
+/** `timeStamp` imposé (le navigateur le pose à la réception de la touche, pas dans le handler). */
+const keydown = (code: string, init: KeyboardEventInit = {}, timeStamp: number | null = 0) => {
   const event = new KeyboardEvent('keydown', { code, cancelable: true, ...init })
+  if (timeStamp !== null) {
+    Object.defineProperty(event, 'timeStamp', { value: timeStamp })
+  }
   window.dispatchEvent(event)
   return event
 }
 const keyup = (code: string) => window.dispatchEvent(new KeyboardEvent('keyup', { code }))
+
+describe('eventTime', () => {
+  it.each([
+    ['valide et passé', 4_900, 5_000, 4_900],
+    ['égal à maintenant', 5_000, 5_000, 5_000],
+    ['nul', 0, 5_000, 5_000],
+    ['absent', undefined, 5_000, 5_000],
+    ['non fini', Number.NaN, 5_000, 5_000],
+    ['négatif', -3, 5_000, 5_000],
+    ['dans le futur (autre base d’horloge)', 1_700_000_000_000, 5_000, 5_000],
+  ])('%s', (_label, timeStamp, now, expected) => {
+    expect(eventTime(timeStamp, now)).toBe(expected)
+  })
+})
 
 describe('buzzers clavier', () => {
   const setup = () => {
@@ -212,5 +230,23 @@ describe('buzzers clavier', () => {
     expect(current.presses).toHaveBeenCalledTimes(1)
     expect(after).toHaveBeenCalledTimes(1)
     expect(consoleError).toHaveBeenCalled()
+  })
+  describe('horodatage par event.timeStamp', () => {
+    it('horodate au timeStamp de l’événement quand le handler est en retard', () => {
+      current = setup()
+      current.clock.advance(100)
+      keydown('KeyE', {}, 5_010)
+      expect(current.presses).toHaveBeenCalledWith(expect.objectContaining({ at: 5_010 }))
+    })
+
+    it.each([
+      ['nul', 0],
+      ['dans le futur', 9_999],
+    ])('se replie sur l’horloge quand le timeStamp est %s', (_label, timeStamp) => {
+      current = setup()
+      current.clock.advance(12)
+      keydown('KeyE', {}, timeStamp)
+      expect(current.presses).toHaveBeenCalledWith(expect.objectContaining({ at: 5_012 }))
+    })
   })
 })
