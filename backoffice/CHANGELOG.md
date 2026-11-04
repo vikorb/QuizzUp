@@ -14,6 +14,12 @@ Format inspiré de Keep a Changelog.
   blind test de 10 extraits générés libres de droits), recette VPS en
   HTTPS (`deploy/recette/`) et guide de test (`docs/recette/guide-de-test.md`).
 
+- Média selon le type de question (`getQuestionKindMediaError` dans `@quizzup/shared`) : une
+  question vrai/faux ou estimation n'accepte qu'un texte ou une image, comme le moteur de jeu.
+  Refus `question_kind_media_invalid` en création, en modification (type ou média changé, l'autre
+  champ pris en base), à l'envoi d'un extrait audio, et message dans le formulaire.
+  US: us-minigame-01
+
 - Règles de réponses selon le type de question, partagées par l'API et le formulaire
   (`getQuestionKindAnswersError` dans `@quizzup/shared`) : vrai/faux = « Vrai » et « Faux », une
   seule juste ; estimation = 3 ou 4 fourchettes commençant par un nombre, une seule juste. Les

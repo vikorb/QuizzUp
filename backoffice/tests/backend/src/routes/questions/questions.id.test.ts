@@ -8,6 +8,9 @@ import {
   ANSWER_STATUS_INACTIVE,
   QUESTION_KIND_ESTIMATE,
   QUESTION_KIND_TRUE_FALSE,
+  QUESTION_MEDIA_TYPE_AUDIO,
+  QUESTION_MEDIA_TYPE_IMAGE,
+  QUESTION_MEDIA_TYPE_VIDEO,
 } from '@quizzup/shared'
 import questionsRoutes from '@backend/routes/questions'
 import { dbState } from '../_helpers/mockDb'
@@ -108,6 +111,48 @@ describe('routes/questions/id.ts', () => {
     expect(parseJson(kindOnly)).toEqual({ error: 'question_true_false_answers_invalid' })
     expect(invalid.statusCode).toBe(400)
     expect(parseJson(invalid)).toEqual({ error: 'question_kind_invalid' })
+
+    await app.close()
+  })
+
+  it('refuses audio or video for a true / false or estimate question on update', async () => {
+    const app = await createRouteApp(questionsRoutes)
+    const patch = (payload: Record<string, unknown>) =>
+      app.inject({
+        method: 'PATCH',
+        url: '/questions/2',
+        headers: authHeaders(companyAdminUser),
+        payload,
+      })
+    const question = () => dbState.questions.find((row) => row.id === 2)!
+    const trueFalseAnswers = [
+      { response: 'Vrai', isCorrect: true },
+      { response: 'Faux', isCorrect: false },
+    ]
+
+    // QCM vidéo en base : passer en vrai/faux sans changer le média est refusé.
+    question().type_media = QUESTION_MEDIA_TYPE_VIDEO
+    const kindOnly = await patch({ kind: QUESTION_KIND_TRUE_FALSE, answers: trueFalseAnswers })
+
+    expect(kindOnly.statusCode).toBe(400)
+    expect(parseJson(kindOnly)).toEqual({ error: 'question_kind_media_invalid' })
+    expect(question().kind).not.toBe(QUESTION_KIND_TRUE_FALSE)
+
+    // Les deux changés ensemble vers un couple valide : accepté.
+    const both = await patch({
+      kind: QUESTION_KIND_TRUE_FALSE,
+      typeMedia: QUESTION_MEDIA_TYPE_IMAGE,
+      answers: trueFalseAnswers,
+    })
+
+    expect(both.statusCode).toBe(200)
+
+    // Vrai/faux en base : passer le média en audio est refusé.
+    const mediaOnly = await patch({ typeMedia: QUESTION_MEDIA_TYPE_AUDIO })
+
+    expect(mediaOnly.statusCode).toBe(400)
+    expect(parseJson(mediaOnly)).toEqual({ error: 'question_kind_media_invalid' })
+    expect(question().type_media).toBe(QUESTION_MEDIA_TYPE_IMAGE)
 
     await app.close()
   })

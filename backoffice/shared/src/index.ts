@@ -227,6 +227,22 @@ export function getQuestionKindAnswersError(
   return null
 }
 
+export const QUESTION_KIND_MEDIA_ERROR = 'question_kind_media_invalid' as const
+
+/**
+ * Le moteur de jeu ne tire une question vrai/faux ou estimation que si son média est un texte
+ * ou une image : l'audio et la vidéo n'y sont acceptés que pour un QCM.
+ */
+export function getQuestionKindMediaError(
+  kind: QuestionKind,
+  typeMedia: QuestionMediaType
+): typeof QUESTION_KIND_MEDIA_ERROR | null {
+  const isPlayableMedia =
+    typeMedia === QUESTION_MEDIA_TYPE_NONE || typeMedia === QUESTION_MEDIA_TYPE_IMAGE
+
+  return kind === QUESTION_KIND_QCM || isPlayableMedia ? null : QUESTION_KIND_MEDIA_ERROR
+}
+
 export const ANSWER_STATUS_INACTIVE = 0 as const
 export const ANSWER_STATUS_ACTIVE = 1 as const
 export const ANSWER_STATUS_DELETED = 2 as const

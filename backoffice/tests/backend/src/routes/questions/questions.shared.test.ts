@@ -8,6 +8,8 @@ import {
   QUESTION_KIND_ESTIMATE,
   QUESTION_KIND_QCM,
   QUESTION_KIND_TRUE_FALSE,
+  QUESTION_MEDIA_TYPES,
+  getQuestionKindMediaError,
   THEME_SCOPE_COMPANY,
   THEME_SCOPE_GLOBAL,
 } from '@quizzup/shared'
@@ -30,6 +32,23 @@ function asRequest(user: TestUser): Parameters<typeof getQuestionScope>[0] {
 }
 
 describe('routes/questions/_shared.ts', () => {
+  describe('getQuestionKindMediaError (@quizzup/shared)', () => {
+    it('allows every media for a multiple-choice question', () => {
+      for (const typeMedia of QUESTION_MEDIA_TYPES) {
+        expect(getQuestionKindMediaError(QUESTION_KIND_QCM, typeMedia)).toBeNull()
+      }
+    })
+
+    it('only allows text or an image for true / false and estimate questions', () => {
+      for (const kind of [QUESTION_KIND_TRUE_FALSE, QUESTION_KIND_ESTIMATE]) {
+        expect(getQuestionKindMediaError(kind, 'none')).toBeNull()
+        expect(getQuestionKindMediaError(kind, 'image')).toBeNull()
+        expect(getQuestionKindMediaError(kind, 'audio')).toBe('question_kind_media_invalid')
+        expect(getQuestionKindMediaError(kind, 'video')).toBe('question_kind_media_invalid')
+      }
+    })
+  })
+
   describe('validateAnswers', () => {
     it('requires at least two answers', () => {
       expect(validateAnswers(normalizeAnswers([{ response: 'a', isCorrect: true }]))).toBe(

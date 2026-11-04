@@ -3,6 +3,7 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import {
   ANSWER_STATUS_DELETED,
   DEFAULT_QUESTION_KIND,
+  getQuestionKindMediaError,
   QUESTION_MEDIA_TYPE_AUDIO,
   QUESTION_STATUS_DELETED,
 } from '@quizzup/shared'
@@ -13,6 +14,7 @@ import {
   buildQuestionStatusPatch,
   canEditQuestion,
   canReadQuestion,
+  DEFAULT_QUESTION_MEDIA_TYPE,
   ensureThemesAreUsable,
   getAnswerStatusFromQuestionStatus,
   getCurrentAdminId,
@@ -185,6 +187,18 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
         }
 
         patch.kind = req.body.kind
+      }
+
+      // Le couple type / média est contrôlé avec la valeur en base pour le champ non envoyé.
+      if (req.body.kind !== undefined || req.body.typeMedia !== undefined) {
+        const kindMediaError = getQuestionKindMediaError(
+          req.body.kind ?? accessQuestion.kind ?? DEFAULT_QUESTION_KIND,
+          req.body.typeMedia ?? accessQuestion.type_media ?? DEFAULT_QUESTION_MEDIA_TYPE
+        )
+
+        if (kindMediaError) {
+          return reply.code(400).send({ error: kindMediaError })
+        }
       }
 
       if (req.body.mediaUrl !== undefined) {

@@ -6,6 +6,7 @@ import {
   QUESTION_STATUS_DELETED,
   THEME_SCOPE_COMPANY,
   THEME_SCOPE_GLOBAL,
+  getQuestionKindMediaError,
 } from '@quizzup/shared'
 import db from '../db'
 import { API_ACTION, API_RESOURCE } from '../security/permissions'
@@ -164,6 +165,12 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
 
       if (!isValidQuestionKind(kind)) {
         return reply.code(400).send({ error: 'question_kind_invalid' })
+      }
+
+      const kindMediaError = getQuestionKindMediaError(kind, typeMedia)
+
+      if (kindMediaError) {
+        return reply.code(400).send({ error: kindMediaError })
       }
 
       const answersError = validateAnswers(answers) ?? validateAnswersForKind(kind, answers)

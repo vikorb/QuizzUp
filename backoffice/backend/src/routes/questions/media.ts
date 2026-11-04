@@ -1,6 +1,8 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 
 import {
+  DEFAULT_QUESTION_KIND,
+  getQuestionKindMediaError,
   QUESTION_AUDIO_EXTENSIONS,
   QUESTION_AUDIO_MIME_TYPE_ALIASES,
   QUESTION_MEDIA_TYPE_AUDIO,
@@ -221,6 +223,16 @@ const questionMediaRoutes: FastifyPluginAsync = async (app) => {
 
       if (!access.ok) {
         return reply.code(access.status).send({ error: access.error })
+      }
+
+      // Un extrait audio bascule la question en type audio : refusé hors QCM.
+      const kindMediaError = getQuestionKindMediaError(
+        access.question.kind ?? DEFAULT_QUESTION_KIND,
+        QUESTION_MEDIA_TYPE_AUDIO
+      )
+
+      if (kindMediaError) {
+        return reply.code(400).send({ error: kindMediaError })
       }
 
       const mimeType = normalizeAudioMimeType(req.headers['content-type'])
