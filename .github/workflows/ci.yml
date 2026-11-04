@@ -187,3 +187,52 @@ jobs:
 
       - name: Tests et couverture
         run: npm run test:coverage
+
+  e2e:
+    name: Tests de bout en bout (Playwright, Chromium)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: game/e2e
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            game/e2e/package-lock.json
+            game/room-app/package-lock.json
+
+      # L'écran de salle tourne en serveur Vite : ses dépendances sont nécessaires. Moteur,
+      # audio, matériel et `@quizzup/shared` sont consommés en sources (alias), sans installation.
+      - name: Installer les dépendances
+        run: |
+          npm ci
+          npm --prefix ../room-app ci
+
+      - name: Installer Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format
+        run: npm run format:check
+
+      - name: Type-check
+        run: npm run type-check
+
+      - name: Tests de bout en bout
+        run: npm test
+
+      - name: Rapport Playwright (en cas d'échec)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            game/e2e/playwright-report
+            game/e2e/test-results
+          retention-days: 7
