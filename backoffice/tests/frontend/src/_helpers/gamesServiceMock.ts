@@ -29,7 +29,9 @@ export function createParticipantFixture(
     podium: 1,
     displayName: 'Les Quizzeurs',
     email: null,
+    hasEmail: false,
     consentAt: null,
+    secondPlayer: null,
     score: 0,
     ...overrides,
   }
@@ -163,6 +165,7 @@ export function resetGamesServiceMock(): void {
             podium: 1,
             displayName: 'Team A',
             email: 'a@quizzup.test',
+            hasEmail: true,
             consentAt: '2026-11-03T10:00:00.000Z',
             score: 12,
           }),

@@ -6,6 +6,7 @@ import {
   ANSWER_STATUS_DELETED,
   ANSWER_STATUS_DRAFT,
   ANSWER_STATUS_INACTIVE,
+  QUESTION_KINDS,
   QUESTION_MEDIA_TYPE_NONE,
   QUESTION_MEDIA_TYPES,
   QUESTION_STATUS_ACTIVE,
@@ -16,6 +17,7 @@ import {
   THEME_SCOPE_GLOBAL,
   THEME_STATUS_DELETED,
   type AnswerStatus,
+  type QuestionKind,
   type QuestionMediaType,
   type QuestionStatus,
   type ThemeScope,
@@ -53,6 +55,7 @@ export type QuestionBody = {
   scope?: ThemeScope
   companyId?: number | null
   typeMedia?: QuestionMediaType
+  kind?: QuestionKind
   mediaUrl?: string | null
   mediaStartMs?: number
   status?: QuestionStatus
@@ -80,6 +83,7 @@ export type QuestionQuery = {
   themeId?: string
   status?: string
   typeMedia?: string
+  kind?: string
   scope?: string
 }
 
@@ -116,6 +120,7 @@ export const questionSelect = [
   'questions.scope',
   'questions.question',
   'questions.type_media as typeMedia',
+  'questions.kind',
   'questions.media_url as mediaUrl',
   'questions.media_key as mediaKey',
   'questions.media_mime_type as mediaMimeType',
@@ -253,6 +258,10 @@ export function buildAnswerStatusPatch(status: AnswerStatus) {
 
 export function isValidQuestionScope(value: unknown): value is ThemeScope {
   return value === THEME_SCOPE_GLOBAL || value === THEME_SCOPE_COMPANY
+}
+
+export function isValidQuestionKind(value: unknown): value is QuestionKind {
+  return typeof value === 'string' && QUESTION_KINDS.includes(value as QuestionKind)
 }
 
 export function isValidQuestionMediaType(value: unknown): value is QuestionMediaType {

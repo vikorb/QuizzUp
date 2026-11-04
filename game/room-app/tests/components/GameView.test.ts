@@ -1,4 +1,4 @@
-import { DEFAULT_GAME_TIMINGS } from '@quizzup/game-engine'
+import { DEFAULT_GAME_TIMINGS, getMiniGameQuestion } from '@quizzup/game-engine'
 import { flushPromises } from '@vue/test-utils'
 
 import { getDemoThemes } from '@/game/demoContent'
@@ -92,7 +92,8 @@ describe('GameView', () => {
 
     // 5. Bonne réponse : révélation et points.
     const phase = state.value?.phase
-    const answers = phase?.name === 'question' ? phase.miniGameState.question.answers : []
+    const answers =
+      phase?.name === 'question' ? getMiniGameQuestion(phase.miniGameState).answers : []
     const correct = answers.findIndex((answer) => answer.isCorrect)
     press(['Digit1', 'Digit2', 'Digit3', 'Digit4'][correct] ?? 'Digit1')
     await flushPromises()
@@ -134,7 +135,8 @@ describe('GameView', () => {
 
     press('KeyA') // Inès buzze
     const phase = state.value?.phase
-    const answers = phase?.name === 'question' ? phase.miniGameState.question.answers : []
+    const answers =
+      phase?.name === 'question' ? getMiniGameQuestion(phase.miniGameState).answers : []
     const wrong = answers.findIndex((answer) => !answer.isCorrect)
     press(['KeyA', 'KeyS', 'KeyD', 'KeyF'][wrong] ?? 'KeyS')
     await flushPromises()

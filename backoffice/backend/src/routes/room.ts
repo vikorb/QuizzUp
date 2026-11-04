@@ -13,7 +13,7 @@ import {
 import db from '../db'
 import { getMediaStorage, isValidMediaKey } from '../storage/mediaStorage'
 import type { RoomRow } from '../types/room'
-import { roomConfigSchema } from './companies/rooms/_schemas'
+import { ROOM_CONFIG_MAX_LENGTH, roomConfigSchema } from './companies/rooms/_schemas'
 import { roomSelect } from './companies/rooms/_shared'
 import { findGameInCompany } from './games/_shared'
 import { getMediaVersion } from './questions/_shared'
@@ -22,6 +22,8 @@ import { isInPlayableTheme, isReadableByCompany, loadRoomContent } from './room/
 const roomGameParamsSchema = z.object({
   gameId: z.coerce.number().int().positive(),
 })
+
+const roomConfigBodySchema = z.object({ config: roomConfigSchema })
 
 const roomQuestionParamsSchema = z.object({
   questionId: z.coerce.number().int().positive(),
@@ -61,12 +63,16 @@ async function findCurrentRoomGame(req: FastifyRequest) {
 
   return {
     ...game,
-    participants: (game.participants ?? []).map(({ id, podium, displayName, score }) => ({
-      id,
-      podium,
-      displayName,
-      score,
-    })),
+    // Un participant = un pupitre ; le 2e joueur facultatif partage son score.
+    participants: (game.participants ?? []).map(
+      ({ id, podium, displayName, secondPlayer, score }) => ({
+        id,
+        podium,
+        displayName,
+        secondDisplayName: secondPlayer?.displayName ?? null,
+        score,
+      })
+    ),
   }
 }
 
@@ -94,33 +100,45 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
     return { room, company: company ?? null }
   })
 
-  // Configuration matérielle de la salle (buzzers appris, appareils DMX), réglée sur place.
+  // Le PC de la salle enregistre sa configuration matérielle (buzzers appris, lumières…) dans
+  // `rooms.config` (décision d'Enzo, 2026-11-04) ; il la relit avec `GET /room/me`. Les sections
+  // envoyées remplacent celles du même nom, les autres sont gardées.
   app.put('/room/config', { preHandler: [app.authenticate] }, async (req, reply) => {
     if (!isRoomAccount(req)) {
       return reply.code(403).send({ error: 'forbidden' })
     }
 
-    const parsedBody = z.object({ config: roomConfigSchema }).safeParse(req.body)
+    const parsedBody = roomConfigBodySchema.safeParse(req.body)
 
     if (!parsedBody.success) {
       return reply.code(400).send({ error: 'invalid_body', details: parsedBody.error.flatten() })
     }
 
-    const room = (await db('rooms')
+    const current = await db('rooms')
       .where('id', req.user.room_id)
       .where('company_id', req.user.company_id)
-      .first(roomSelect)) as RoomRow | undefined
+      .whereNot('status', ROOM_STATUS_DELETED)
+      .first('config')
 
-    if (!room || room.status === ROOM_STATUS_DELETED) {
+    if (!current) {
       return reply.code(404).send({ error: 'not_found' })
     }
 
-    const updated = await db('rooms')
-      .where('id', room.id)
-      .update({ config: parsedBody.data.config, updated_at: db.fn.now() })
-      .returning(roomSelect)
+    // Fusion des clés de premier niveau : le PC envoie ses sections (ex. `buzzers`) sans
+    // effacer celles réglées depuis le backoffice.
+    const config = { ...(current.config ?? {}), ...parsedBody.data.config }
 
-    return { room: (Array.isArray(updated) ? updated[0] : updated) as RoomRow }
+    if (JSON.stringify(config).length > ROOM_CONFIG_MAX_LENGTH) {
+      return reply.code(400).send({ error: 'room_config_too_large' })
+    }
+    const updated = await db('rooms')
+      .where('id', req.user.room_id)
+      .where('company_id', req.user.company_id)
+      .update({ config, updated_at: db.fn.now() })
+      .returning(roomSelect)
+    const room = Array.isArray(updated) ? updated[0] : updated
+
+    return { room: room as RoomRow }
   })
 
   // US-GAME-08 : la salle récupère la partie lancée par l'opérateur…

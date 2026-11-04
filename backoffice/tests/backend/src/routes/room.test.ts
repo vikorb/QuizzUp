@@ -163,7 +163,9 @@ describe('routes/room.ts — current game (US-GAME-08)', () => {
       state: GAME_STATE_PENDING,
       roomName: 'Salle Néon',
     })
-    expect(game?.participants).toEqual([{ id: 1, podium: 1, displayName: 'Léa', score: 0 }])
+    expect(game?.participants).toEqual([
+      { id: 1, podium: 1, displayName: 'Léa', secondDisplayName: null, score: 0 },
+    ])
 
     await app.close()
   })
@@ -226,60 +228,88 @@ describe('routes/room.ts — current game (US-GAME-08)', () => {
 })
 
 describe('routes/room.ts — hardware config', () => {
-  const config = { version: 1, buzzers: { keymap: { KeyB: { desk: 1, button: 'A' } } } }
-
-  it('saves the hardware config of the room account', async () => {
+  it('lets the room PC save its hardware config, read back by /room/me', async () => {
     seedRoom()
     const app = await createRouteApp(roomRoutes)
+    const config = {
+      buzzers: { podiums: 4, keys: { '1': ['a', 'z', 'e', 'r'] } },
+      dmx: { universe: 1 },
+    }
 
-    const response = await app.inject({
+    const saved = await app.inject({
       method: 'PUT',
       url: '/room/config',
       headers: authHeaders(roomUser),
       payload: { config },
     })
+    const me = await app.inject({ method: 'GET', url: '/room/me', headers: authHeaders(roomUser) })
 
-    expect(response.statusCode).toBe(200)
-    expect(parseJson(response)).toMatchObject({ room: { id: 1, config } })
-    expect(dbState.rooms[0]?.config).toEqual(config)
+    expect(saved.statusCode).toBe(200)
+    expect(parseJson<{ room: { config: unknown } }>(saved).room.config).toEqual(config)
+    expect(parseJson<{ room: { config: unknown } }>(me).room.config).toEqual(config)
 
     await app.close()
   })
 
-  it('rejects an invalid or oversized config', async () => {
+  it('keeps the sections the PC does not send, like the backoffice lights', async () => {
+    seedRoom({ config: { lights: { profile: 'par-led' }, buzzers: { podiums: 2 } } })
+    const app = await createRouteApp(roomRoutes)
+
+    const saved = await app.inject({
+      method: 'PUT',
+      url: '/room/config',
+      headers: authHeaders(roomUser),
+      payload: { config: { buzzers: { podiums: 4 } } },
+    })
+    const tooLarge = await app.inject({
+      method: 'PUT',
+      url: '/room/config',
+      headers: authHeaders(roomUser),
+      payload: { config: { smoke: 'x'.repeat(19_960) } },
+    })
+
+    expect(parseJson<{ room: { config: unknown } }>(saved).room.config).toEqual({
+      lights: { profile: 'par-led' },
+      buzzers: { podiums: 4 },
+    })
+    expect(tooLarge.statusCode).toBe(400)
+    expect(parseJson(tooLarge)).toEqual({ error: 'room_config_too_large' })
+
+    await app.close()
+  })
+
+  it('validates the config and is reserved to a non deleted room', async () => {
     seedRoom()
     const app = await createRouteApp(roomRoutes)
 
-    for (const payload of [{ config: [1, 2] }, { config: { blob: 'x'.repeat(25_000) } }, {}]) {
-      const response = await app.inject({
-        method: 'PUT',
-        url: '/room/config',
-        headers: authHeaders(roomUser),
-        payload,
-      })
-      expect(response.statusCode).toBe(400)
-    }
-
-    await app.close()
-  })
-
-  it('is reserved to the room account of a live room', async () => {
-    seedRoom({ status: ROOM_STATUS_DELETED })
-    const app = await createRouteApp(roomRoutes)
-
+    const invalid = await app.inject({
+      method: 'PUT',
+      url: '/room/config',
+      headers: authHeaders(roomUser),
+      payload: { config: 'texte' },
+    })
+    const tooLarge = await app.inject({
+      method: 'PUT',
+      url: '/room/config',
+      headers: authHeaders(roomUser),
+      payload: { config: { blob: 'x'.repeat(20_001) } },
+    })
     const staff = await app.inject({
       method: 'PUT',
       url: '/room/config',
       headers: authHeaders(companyAdminUser),
-      payload: { config },
+      payload: { config: {} },
     })
+    dbState.rooms[0]!.status = ROOM_STATUS_DELETED
     const deleted = await app.inject({
       method: 'PUT',
       url: '/room/config',
       headers: authHeaders(roomUser),
-      payload: { config },
+      payload: { config: {} },
     })
 
+    expect(invalid.statusCode).toBe(400)
+    expect(tooLarge.statusCode).toBe(400)
     expect(staff.statusCode).toBe(403)
     expect(deleted.statusCode).toBe(404)
 

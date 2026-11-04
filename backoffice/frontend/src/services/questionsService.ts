@@ -5,6 +5,7 @@ import type {
   Answer,
   Question,
   QuestionFilters,
+  QuestionKind,
   QuestionMediaType,
   QuestionPayload,
   Theme,
@@ -46,6 +47,7 @@ export type UpdateQuestionPayload = {
   themeIds?: number[]
   themeId?: number
   question?: string
+  kind?: QuestionKind
   typeMedia?: QuestionMediaType
   mediaUrl?: string | null
   mediaStartMs?: number
@@ -94,6 +96,10 @@ function buildQuestionBody(
 
   if (payload.question !== undefined) {
     body.question = payload.question
+  }
+
+  if (payload.kind !== undefined) {
+    body.kind = payload.kind
   }
 
   if (payload.typeMedia !== undefined) {

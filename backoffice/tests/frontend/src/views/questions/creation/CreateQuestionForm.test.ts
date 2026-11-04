@@ -4,11 +4,18 @@ import {
   updateQuestionServiceMock,
 } from '@frontend-tests/_helpers/questionsServiceMock'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
-import { QUESTION_STATUS_ACTIVE, THEME_SCOPE_GLOBAL } from '@quizzup/shared'
+import {
+  QUESTION_KIND_ESTIMATE,
+  QUESTION_KIND_QCM,
+  QUESTION_KIND_TRUE_FALSE,
+  QUESTION_STATUS_ACTIVE,
+  THEME_SCOPE_GLOBAL,
+} from '@quizzup/shared'
 import { type DOMWrapper, flushPromises } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 
+import SelectField from '@/components/ui/form/SelectField.vue'
 import type { Question, Theme } from '@/types/question'
 import CreateQuestionForm from '@/views/questions/creation/CreateQuestionForm.vue'
 
@@ -103,9 +110,48 @@ describe('views/questions/creation/CreateQuestionForm.vue', () => {
       expect.objectContaining({
         question: 'What is 2 + 2 ?',
         themeIds: [1],
+        kind: QUESTION_KIND_QCM,
       })
     )
     expect(wrapper.emitted('saved')?.[0]?.[0]).toMatchObject({ id: 99 })
+  })
+
+  it('sends the chosen question kind and loads it back when editing', async () => {
+    createQuestionServiceMock.mockResolvedValue(savedQuestion())
+
+    const wrapper = mountWithFrontendMocks(CreateQuestionForm, {
+      props: { question: null, themes, mode: 'create', initialThemeIds: [1] },
+    })
+
+    wrapper
+      .findAllComponents(SelectField)
+      .find((field) => field.attributes('id') === 'question-kind')
+      ?.vm.$emit('update:modelValue', QUESTION_KIND_TRUE_FALSE)
+    await nextTick()
+    await findInput(wrapper, 'question').setValue('La Terre est ronde ?')
+    await findInput(wrapper, 'answer-0').setValue('Vrai')
+    await findInput(wrapper, 'answer-1').setValue('Faux')
+    await submitForm(wrapper)
+
+    expect(createQuestionServiceMock).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: QUESTION_KIND_TRUE_FALSE })
+    )
+
+    const editing = mountWithFrontendMocks(CreateQuestionForm, {
+      props: {
+        question: savedQuestion({ kind: QUESTION_KIND_ESTIMATE }),
+        themes,
+        mode: 'edit',
+      },
+    })
+    await nextTick()
+
+    expect(
+      editing
+        .findAllComponents(SelectField)
+        .find((field) => field.attributes('id') === 'question-kind')
+        ?.props('modelValue')
+    ).toBe(QUESTION_KIND_ESTIMATE)
   })
 
   it('keeps existing answer ids when updating a question (B3)', async () => {
