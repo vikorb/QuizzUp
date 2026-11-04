@@ -46,6 +46,7 @@ export {
   gamepadMatcher,
   parseRoomHardwareConfig,
   ROOM_HARDWARE_CONFIG_VERSION,
+  withDesksCount,
 } from './config'
 export type {
   BridgeOutput,

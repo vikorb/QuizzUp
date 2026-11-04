@@ -72,6 +72,11 @@
       "room": "Salle",
       "roomPlaceholder": "Choisir une salle",
       "roomsLoading": "Chargement des salles...",
+      "roomChange": {
+        "moved": "Cette salle n'a que {max} pupitres : pupitre changé pour {list}.",
+        "removed": "Retirés faute de pupitre libre dans cette salle : {list}.",
+        "participant": "Participant {n}"
+      },
       "noActiveRoom": "Aucune salle active dans cette compagnie : activez une salle avant de lancer une partie.",
       "roundsCount": "Manches",
       "roundsHint": "Entre 1 et {max}",

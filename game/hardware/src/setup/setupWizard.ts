@@ -1,7 +1,7 @@
 import type { BuzzerKeymap } from '../buzzers/keymap'
 import { missingSlots } from '../buzzers/keymap'
 import type { BuzzerSource, RoomHardwareConfig } from '../config'
-import { parseRoomHardwareConfig } from '../config'
+import { parseRoomHardwareConfig, withDesksCount } from '../config'
 import type { FixtureConfig, PanTilt } from '../dmx/fixtures'
 import { parseRig } from '../dmx/fixtures'
 import type { DmxDriver } from '../dmx/output'
@@ -13,7 +13,7 @@ import { normalizeSmokeSafety } from '../lighting/smoke'
 import type { PanTiltCalibration, SixDeskRigOptions } from '../presets/sixDeskRoom'
 import { createSixDeskRoomRig } from '../presets/sixDeskRoom'
 import type { Desk } from '../types'
-import { clampDeskCount, DESKS, desksForCount } from '../types'
+import { DESKS, desksForCount } from '../types'
 
 /**
  * Assistant d'installation pas à pas, pensé pour un centre qui n'a aucune connaissance DMX.
@@ -234,17 +234,8 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
   let desks: Desk[] = desksForCount(config.desksCount)
   let fixtureTests: Record<string, FixtureTestResult> = {}
   let smokeChecks = allChecks(false)
-  const highestDesk = Math.max(
-    ...Object.values(config.buzzers.keymap).map((slot) => slot.desk),
-    ...config.lighting.fixtures.map((fixture) => fixture.desk ?? 0),
-    0
-  )
-  // Un mapping ou un appareil sur un pupitre au-delà du nombre enregistré (salle équipée avant
-  // le réglage du nombre de pupitres) : on élargit au plus haut pupitre utilisé.
-  if (highestDesk > desks.length) {
-    desks = desksForCount(highestDesk)
-    config = { ...config, desksCount: desks.length }
-  }
+  // Pas d'élargissement ici : une salle équipée avant le réglage du nombre de pupitres est déjà
+  // élargie à la relecture (`parseRoomHardwareConfig`, seulement sans `desksCount`).
 
   const profileOf = (fixture: FixtureConfig): FixtureProfile | null =>
     findProfile(fixture.profileId, config.lighting.customProfiles)
@@ -457,12 +448,12 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
       if (valid.length > 0) {
         desks = valid
         // Le nombre enregistré suit : les pupitres sont toujours 1 à N dans la config de salle.
-        config = { ...config, desksCount: clampDeskCount(Math.max(...valid)) }
+        config = withDesksCount(config, Math.max(...valid))
       }
     },
     setDesksCount: (count) => {
       desks = desksForCount(count)
-      config = { ...config, desksCount: desks.length }
+      config = withDesksCount(config, desks.length)
     },
     setBuzzerSource: (source) => {
       config = {

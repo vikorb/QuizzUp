@@ -43,9 +43,6 @@ export function createSimulationKeymap(desksCount: number): BuzzerKeymap {
   return createDefaultKeymap(desksForCount(desksCount))
 }
 
-/** Mapping de simulation d'une salle de 4 pupitres (la valeur par défaut). */
-export const SIMULATION_KEYMAP: Readonly<BuzzerKeymap> = Object.freeze(createSimulationKeymap(4))
-
 type KeyboardLayout = { get: (code: string) => string | undefined }
 type LayoutNavigator = { keyboard?: { getLayoutMap?: () => Promise<KeyboardLayout> } }
 

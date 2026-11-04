@@ -69,7 +69,7 @@
         "rules": [
           "Everyone answers at the same time: 50 points per right answer.",
           "The fastest right player picks an opponent with their buzzers (A = desk 1, B = desk 2…).",
-          "With 5 or 6 desks: A moves the target back, B moves it forward, C or D confirms it.",
+          "If a player is at desk 5 or 6: A moves the target back, B moves it forward, C or D confirms it.",
           "They steal up to 100 points.",
           "Without a choice, the steal targets the player with the most points."
         ]

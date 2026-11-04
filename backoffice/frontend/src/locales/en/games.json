@@ -72,6 +72,11 @@
       "room": "Room",
       "roomPlaceholder": "Pick a room",
       "roomsLoading": "Loading rooms...",
+      "roomChange": {
+        "moved": "This room only has {max} podiums: podium changed for {list}.",
+        "removed": "Removed for lack of a free podium in this room: {list}.",
+        "participant": "Participant {n}"
+      },
       "noActiveRoom": "No active room in this company: activate a room before launching a game.",
       "roundsCount": "Rounds",
       "roundsHint": "Between 1 and {max}",

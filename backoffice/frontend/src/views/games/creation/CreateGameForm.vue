@@ -8,6 +8,25 @@
         {{ $t('games.form.noActiveRoom') }}
       </p>
 
+      <div
+        v-if="roomChangeNotice"
+        class="game-form__notice game-form__notice--warn"
+        role="status"
+        data-test="game-room-change-notice"
+      >
+        <p v-if="roomChangeNotice.moved.length > 0">
+          {{
+            $t('games.form.roomChange.moved', {
+              max: desksCount,
+              list: roomChangeNotice.moved.join(', '),
+            })
+          }}
+        </p>
+        <p v-if="roomChangeNotice.removed.length > 0">
+          {{ $t('games.form.roomChange.removed', { list: roomChangeNotice.removed.join(', ') }) }}
+        </p>
+      </div>
+
       <div class="game-form__grid game-form__grid--room">
         <SelectField
           id="game-room"
@@ -135,6 +154,7 @@ import type {
   GameFormValues,
   GameParticipantField,
   GameParticipantFieldErrors,
+  GameParticipantFormValues,
   GameRoom,
 } from '@/types/game'
 import { getGameErrorKey } from '@/utils/game/errors'
@@ -185,6 +205,8 @@ const form = reactive<GameFormValues>(createDefaultGameFormValues())
 const fieldErrors = reactive<GameFieldErrors>(createGameFieldErrors())
 const saving = ref(false)
 const formError = ref<string | null>(null)
+/** Avertissement après un changement de salle qui a déplacé ou retiré des participants. */
+const roomChangeNotice = ref<{ moved: string[]; removed: string[] } | null>(null)
 
 const isBusy = computed(() => saving.value || props.roomsLoading)
 const activeRooms = computed(() => getActiveGameRooms(props.rooms))
@@ -212,13 +234,39 @@ watch(
   { immediate: true }
 )
 
+function describeParticipant(participant: GameParticipantFormValues, index: number): string {
+  const name =
+    participant.displayName.trim() || t('games.form.roomChange.participant', { n: index + 1 })
+
+  return `${name} (${t('games.form.podiumOption', { podium: participant.podium })})`
+}
+
 // Autre salle, autres pupitres : les participants hors de la nouvelle salle changent de pupitre
-// (premier libre) ; s'il n'y a plus de place, les derniers sont retirés.
+// (premier libre) ; s'il n'y a plus de place, les derniers sont retirés. Rien n'est fait en
+// silence : un avertissement nomme les participants déplacés (avec leur nouveau pupitre) et retirés.
 watch(desksCount, (count) => {
-  for (const index of fitGameParticipantsToDesks(form.participants, count)) {
+  const before = form.participants.map((participant) => ({
+    key: participant.key,
+    podium: participant.podium,
+  }))
+  const removedIndexes = fitGameParticipantsToDesks(form.participants, count)
+  const removed = removedIndexes
+    .map((index) => {
+      return describeParticipant(form.participants[index], index)
+    })
+    .reverse()
+  const moved = form.participants
+    .map((participant, index) => ({ participant, index }))
+    .filter(({ participant, index }) => participant.podium !== before[index].podium)
+    .filter(({ index }) => !removedIndexes.includes(index))
+    .map(({ participant, index }) => describeParticipant(participant, index))
+
+  for (const index of removedIndexes) {
     form.participants.splice(index, 1)
     fieldErrors.participants.splice(index, 1)
   }
+
+  roomChangeNotice.value = moved.length > 0 || removed.length > 0 ? { moved, removed } : null
 
   fieldErrors.participants.forEach((errors) => {
     Object.assign(errors, { podium: '' })

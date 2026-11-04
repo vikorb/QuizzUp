@@ -69,7 +69,7 @@
         "rules": [
           "Tout le monde répond en même temps : 50 points par bonne réponse.",
           "Le plus rapide des bons choisit un adversaire avec ses buzzers (A = pupitre 1, B = pupitre 2…).",
-          "À 5 ou 6 pupitres : A fait reculer la cible, B la fait avancer, C ou D la valide.",
+          "Si un joueur est au pupitre 5 ou 6 : A fait reculer la cible, B la fait avancer, C ou D la valide.",
           "Il lui vole jusqu’à 100 points.",
           "Sans choix, le vol vise le joueur qui a le plus de points."
         ]

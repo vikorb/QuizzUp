@@ -116,6 +116,35 @@ describe('LobbyView — nombre de pupitres de la salle', () => {
     wrapper.unmount()
   })
 
+  it('annonce le nombre de pupitres dans le sous-titre', async () => {
+    const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+    expect(wrapper.text()).toContain('de 1 à 4')
+
+    await saveRoomDesksCount(6)
+    await flushPromises()
+    expect(wrapper.text()).toContain('de 1 à 6')
+    wrapper.unmount()
+  })
+
+  it('refait la liste des pupitres si la config arrive après, sans perdre les saisies', async () => {
+    const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+    await wrapper.find('input[name=desk-2-name]').setValue('Hugo')
+    expect(wrapper.findAll('article.desk')).toHaveLength(4)
+
+    await saveRoomDesksCount(6)
+    await flushPromises()
+    expect(wrapper.findAll('article.desk')).toHaveLength(6)
+    expect(wrapper.find<HTMLInputElement>('input[name=desk-2-name]').element.value).toBe('Hugo')
+    await wrapper.find('input[name=desk-6-name]').setValue('Zoé')
+
+    await saveRoomDesksCount(3)
+    await flushPromises()
+    expect(wrapper.findAll('article.desk')).toHaveLength(3)
+    expect(wrapper.find<HTMLInputElement>('input[name=desk-2-name]').element.value).toBe('Hugo')
+    expect(wrapper.find('input[name=desk-6-name]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
   it('démarre une partie à 6 joueurs et fait briller les pupitres 5 et 6', async () => {
     await saveRoomDesksCount(6)
     const { wrapper, router } = await mountWithApp(LobbyView, { route: '/lobby' })

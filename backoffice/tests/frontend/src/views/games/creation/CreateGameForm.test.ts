@@ -344,6 +344,10 @@ describe('views/games/creation/CreateGameForm.vue', () => {
       // 4 pupitres : 5 et 6 ne sont plus possibles, et il ne reste aucun pupitre libre.
       expect(podiumValues(wrapper)).toEqual(['1', '2', '3', '4'])
       expect(participants(wrapper)).toHaveLength(4)
+      // Rien n'est retiré en silence : l'avertissement nomme les participants retirés.
+      const notice = wrapper.get('[data-test="game-room-change-notice"]')
+      expect(notice.text()).toContain('games.form.roomChange.removed')
+      expect(notice.text()).not.toContain('games.form.roomChange.moved')
     })
 
     it('reassigns a participant of podium 6 to the first free podium of a smaller room', async () => {
@@ -362,6 +366,34 @@ describe('views/games/creation/CreateGameForm.vue', () => {
       expect(
         wrapper.get<HTMLInputElement>('input[name="participants.3.displayName"]').element.value
       ).toBe('Six')
+      // Le participant déplacé est signalé ; personne n'est retiré.
+      const notice = wrapper.get('[data-test="game-room-change-notice"]')
+      expect(notice.text()).toContain('games.form.roomChange.moved')
+      expect(notice.text()).not.toContain('games.form.roomChange.removed')
+    })
+
+    it('shows no warning when nobody has to move', async () => {
+      const wrapper = mountForm()
+      const select = roomSelect(wrapper).get('select')
+      await select.setValue('11')
+      await addParticipants(wrapper, 2)
+      await select.setValue('10')
+
+      expect(podiumValues(wrapper)).toEqual(['1', '2', '3'])
+      expect(wrapper.find('[data-test="game-room-change-notice"]').exists()).toBe(false)
+    })
+
+    it('clears the warning once the room change no longer affects anyone', async () => {
+      const wrapper = mountForm()
+      const select = roomSelect(wrapper).get('select')
+      await select.setValue('11')
+      await addParticipants(wrapper, 5)
+      await select.setValue('10')
+      expect(wrapper.find('[data-test="game-room-change-notice"]').exists()).toBe(true)
+
+      await select.setValue('11')
+
+      expect(wrapper.find('[data-test="game-room-change-notice"]').exists()).toBe(false)
     })
 
     it('sends a 6-podium game to a 6-podium room', async () => {

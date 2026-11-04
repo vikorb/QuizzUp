@@ -1,6 +1,11 @@
 import { flushPromises } from '@vue/test-utils'
 
-import { HARDWARE_STORAGE_KEY, useRoomHardware } from '@/hardware/roomHardware'
+import {
+  HARDWARE_STORAGE_KEY,
+  saveBuzzerKeymap,
+  saveRoomDesksCount,
+  useRoomHardware,
+} from '@/hardware/roomHardware'
 import { enterDemo, syncRoomAuth } from '@/state/roomAuth'
 import HardwareView from '@/views/hardware/HardwareView.vue'
 
@@ -263,6 +268,26 @@ describe('HardwareView — nombre de pupitres', () => {
       .trigger('click')
     expect(smaller.wrapper.find('[data-test="learning"]').text()).toContain('Buzzer 1 sur 8')
     smaller.wrapper.unmount()
+  })
+
+  it('garde 4 pupitres à la réouverture de l’assistant après avoir réduit depuis l’onglet Buzzers', async () => {
+    await saveRoomDesksCount(6)
+    await saveBuzzerKeymap(
+      Object.fromEntries([
+        ['KeyT', { desk: 6, button: 'A' } as const],
+        ['KeyP', { desk: 1, button: 'D' } as const],
+      ])
+    )
+    const { wrapper } = await mountWithApp(HardwareView, { route: '/hardware' })
+
+    await wrapper.find('[data-test="desks-count"]').setValue('4')
+    await flushPromises()
+    await openTab(wrapper, 'assistant')
+    await wrapper.find('[data-test="assistant-next"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find<HTMLSelectElement>('[data-test="desk-count"]').element.value).toBe('4')
+    expect(useRoomHardware().hardware.value.config.desksCount).toBe(4)
   })
 
   it('règle aussi le nombre de pupitres depuis l’assistant d’installation', async () => {

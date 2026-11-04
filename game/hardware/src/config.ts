@@ -108,6 +108,37 @@ function parseBuzzerSource(input: unknown): BuzzerSource | undefined {
   return undefined
 }
 
+/**
+ * Change le nombre de pupitres de la salle et nettoie ce qui visait les pupitres au-delà : buzzers
+ * appris retirés, appareils lumière conservés mais détachés du pupitre (`desk` et positions de
+ * lyre en trop supprimés). La config ne mentionne ainsi jamais un pupitre qui n'existe plus ;
+ * en réaugmentant le nombre, il faut réapprendre ces buzzers.
+ */
+export function withDesksCount(config: RoomHardwareConfig, count: number): RoomHardwareConfig {
+  const desksCount = clampDeskCount(count)
+  const keymap = Object.fromEntries(
+    Object.entries(config.buzzers.keymap).filter(([, slot]) => slot.desk <= desksCount)
+  )
+  const fixtures = config.lighting.fixtures.map((fixture) => {
+    const { desk, deskPositions, ...rest } = fixture
+    const kept = Object.fromEntries(
+      Object.entries(deskPositions ?? {}).filter(([key]) => Number(key) <= desksCount)
+    ) as FixtureConfig['deskPositions']
+    return {
+      ...rest,
+      ...(desk !== undefined && desk <= desksCount ? { desk } : {}),
+      ...(kept && Object.keys(kept).length > 0 ? { deskPositions: kept } : {}),
+    }
+  })
+
+  return {
+    ...config,
+    desksCount,
+    buzzers: { ...config.buzzers, keymap },
+    lighting: { ...config.lighting, fixtures },
+  }
+}
+
 /** Filtre `match` de `createGamepadBuzzerInput` correspondant à la source enregistrée. */
 export function gamepadMatcher(
   source: BuzzerSource | undefined
@@ -147,15 +178,23 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
     problems.push('Origine des buzzers inconnue (clavier utilisé)')
   }
 
-  const desksCount = clampDeskCount(raw.desksCount)
-  if (raw.desksCount !== undefined && raw.desksCount !== desksCount) {
+  const rig = parseRig(lighting.fixtures, lighting.customProfiles)
+  problems.push(...rig.problems)
+
+  let desksCount = clampDeskCount(raw.desksCount)
+  if (raw.desksCount === undefined) {
+    // Salle équipée avant le réglage du nombre de pupitres : sans le champ, on élargit au plus
+    // haut pupitre déjà appris ou équipé (jamais quand le champ est présent, même à 4).
+    const highestDesk = Math.max(
+      ...Object.values(keymap).map((slot) => slot.desk),
+      ...rig.fixtures.map((fixture) => fixture.desk ?? 0)
+    )
+    desksCount = clampDeskCount(Math.max(desksCount, highestDesk))
+  } else if (raw.desksCount !== desksCount) {
     problems.push(
       `Nombre de pupitres invalide : ${String(raw.desksCount)} (${desksCount} utilisé, de 1 à ${DESKS.length})`
     )
   }
-
-  const rig = parseRig(lighting.fixtures, lighting.customProfiles)
-  problems.push(...rig.problems)
 
   let driver: DmxDriver = 'simulation'
   if (lighting.driver !== undefined) {

@@ -205,6 +205,35 @@ describe('assistant d’installation : appareils', () => {
     expect(wizard.summary().config.desksCount).toBe(6)
   })
 
+  it('ne remonte pas à 6 après avoir réduit le nombre de pupitres', () => {
+    const calibration = parsePanTiltCalibration('Pupitre1:150-77;\nPupitre6:10-20;\nHead1:10-20;')
+    const wizard = createSetupWizard()
+    wizard.importSixDeskPreset({ calibration })
+    wizard.setKeymap(createDefaultKeymap([1, 2, 3, 4, 5, 6]))
+    const fixturesCount = wizard.getState().config.lighting.fixtures.length
+
+    wizard.setDesksCount(4)
+    const saved = wizard.summary().config
+
+    expect(saved.desksCount).toBe(4)
+    expect(Object.values(saved.buzzers.keymap).every((slot) => slot.desk <= 4)).toBe(true)
+    expect(Object.keys(saved.buzzers.keymap)).toHaveLength(16)
+    expect(saved.lighting.fixtures).toHaveLength(fixturesCount)
+    for (const fixture of saved.lighting.fixtures) {
+      expect(fixture.desk ?? 1).toBeLessThanOrEqual(4)
+      expect(Object.keys(fixture.deskPositions ?? {}).every((desk) => Number(desk) <= 4)).toBe(true)
+    }
+
+    // Rouvrir l'assistant avec cette config garde 4 pupitres.
+    const reopened = createSetupWizard(saved)
+    expect(reopened.getState().desks).toEqual([1, 2, 3, 4])
+    expect(reopened.summary().config.desksCount).toBe(4)
+    // Aussi avec le préréglage 6 pupitres réimporté puis réduit.
+    reopened.importSixDeskPreset()
+    reopened.setDesksCount(4)
+    expect(createSetupWizard(reopened.summary().config).getState().desks).toEqual([1, 2, 3, 4])
+  })
+
   it('met le nombre de pupitres à 6 en important la salle 6 pupitres', () => {
     const wizard = createSetupWizard()
     wizard.importSixDeskPreset()

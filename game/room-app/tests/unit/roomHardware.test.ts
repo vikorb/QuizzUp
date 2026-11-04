@@ -5,7 +5,6 @@ import {
   connectDmxInterface,
   getBuzzerInput,
   getLighting,
-  getRoomDesks,
   HARDWARE_STORAGE_KEY,
   isDefaultHardwareConfig,
   saveBuzzerKeymap,
@@ -47,7 +46,6 @@ describe('matériel de la salle', () => {
     it('vaut 4 par défaut, avec ou sans le champ dans la config', async () => {
       const { desks } = useRoomHardware()
       expect(desks.value).toEqual([1, 2, 3, 4])
-      expect(getRoomDesks()).toEqual([1, 2, 3, 4])
 
       // Une ancienne config (sans `desksCount`) donne aussi 4 pupitres.
       await saveRoomHardwareConfig({ buzzers: { keymap: LEARNED_KEYMAP } })
@@ -67,7 +65,6 @@ describe('matériel de la salle', () => {
       await saveRoomDesksCount(6)
 
       expect(desks.value).toEqual([1, 2, 3, 4, 5, 6])
-      expect(getRoomDesks()).toHaveLength(6)
       expect(JSON.parse(localStorage.getItem(HARDWARE_STORAGE_KEY) ?? '{}').desksCount).toBe(6)
       expect(sent).toEqual([expect.objectContaining({ desksCount: 6 })])
 
@@ -77,6 +74,26 @@ describe('matériel de la salle', () => {
       expect(desks.value).toHaveLength(6)
       await saveRoomDesksCount(0)
       expect(desks.value).toEqual([1])
+    })
+
+    it('retire les buzzers appris des pupitres en trop et ne remonte pas tout seul', async () => {
+      await saveRoomDesksCount(6)
+      await saveBuzzerKeymap(
+        Object.fromEntries([
+          ['KeyP', { desk: 1, button: 'D' } as const],
+          ['KeyT', { desk: 5, button: 'A' } as const],
+          ['KeyY', { desk: 6, button: 'B' } as const],
+        ])
+      )
+
+      await saveRoomDesksCount(4)
+
+      const { hardware, desks } = useRoomHardware()
+      expect(desks.value).toEqual([1, 2, 3, 4])
+      expect(hardware.value.config.buzzers.keymap).toEqual(LEARNED_KEYMAP)
+      expect(JSON.parse(localStorage.getItem(HARDWARE_STORAGE_KEY) ?? '{}').buzzers.keymap).toEqual(
+        LEARNED_KEYMAP
+      )
     })
 
     it('n’est plus une config de salle neuve dès qu’il change', async () => {
