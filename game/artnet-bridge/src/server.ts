@@ -16,6 +16,7 @@ import {
   ackMessage,
   BRIDGE_FRAME_BYTES,
   BRIDGE_PROTOCOL_VERSION,
+  BUSY_MESSAGE,
   CLOSE_CODES,
   decodeFrame,
   errorMessage,
@@ -72,6 +73,19 @@ export function normalizeOrigin(input: string): string | null {
   }
 }
 
+/**
+ * Valeurs acceptées pour l'en-tête `Host` (protection contre le « DNS rebinding »). Le navigateur
+ * omet le port quand c'est celui par défaut de `ws://` (80) : on accepte alors l'hôte seul.
+ */
+export function allowedHostHeaders(port: number): Set<string> {
+  const hosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`])
+  if (port === 80) {
+    hosts.add('127.0.0.1')
+    hosts.add('localhost')
+  }
+  return hosts
+}
+
 export function createBridgeServer(options: BridgeServerOptions): BridgeServer {
   const clock = options.clock ?? systemClock
   const log = options.log ?? (() => undefined)
@@ -119,11 +133,9 @@ export function createBridgeServer(options: BridgeServerOptions): BridgeServer {
   let listeningPort = options.port
   let client: { connection: WsConnection; socket: Duplex } | null = null
 
-  const allowedHosts = () => new Set([`127.0.0.1:${listeningPort}`, `localhost:${listeningPort}`])
-
   const handleUpgrade = (request: IncomingMessage, socket: Duplex, head: Buffer) => {
     const host = request.headers.host?.toLowerCase()
-    if (!host || !allowedHosts().has(host)) {
+    if (!host || !allowedHostHeaders(listeningPort).has(host)) {
       // Protection contre le « DNS rebinding » : seul 127.0.0.1 / localhost est accepté.
       log(`Connexion refusée : hôte inattendu « ${host ?? '(absent)'} »`)
       rejectUpgrade(socket, 403, 'Hôte refusé')
@@ -139,16 +151,18 @@ export function createBridgeServer(options: BridgeServerOptions): BridgeServer {
       rejectUpgrade(socket, 403, 'Origine non autorisée')
       return
     }
-    if (client) {
-      log(`Connexion refusée depuis ${origin} : un écran de salle est déjà connecté`)
-      rejectUpgrade(socket, 409, 'Un écran de salle est déjà connecté au pont')
-      return
-    }
     const connection = acceptUpgrade(request, socket, head, {
       maxPayload: BRIDGE_FRAME_BYTES,
       setTimeout: clock.setTimeout,
     })
     if (!connection) {
+      return
+    }
+    if (client) {
+      // Connexion acceptée puis refusée par message : le navigateur affiche la raison (cf. BUSY_MESSAGE).
+      log(`Connexion refusée depuis ${origin} : un écran de salle est déjà connecté`)
+      connection.sendText(errorMessage('busy', BUSY_MESSAGE))
+      connection.close(CLOSE_CODES.busy, BUSY_MESSAGE)
       return
     }
     const current = { connection, socket }

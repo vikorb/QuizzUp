@@ -28,6 +28,9 @@ export const WRITE_TIMEOUT_MS = 500
 const REFRESH_LIMITS = { min: 10, max: 40, fallback: 30 } as const
 
 /** Durée maximale d'un gel volontaire des trames (test de perte de signal). */
+/** Trames noires acceptées d'affilée pour sortir de l'état d'erreur (environ 1 s à 30 Hz). */
+export const OUTPUT_RECOVERY_WRITES = 30
+
 export const MAX_FREEZE_MS = 15_000
 
 /** Sans action de l'opérateur pendant ce délai, le diagnostic se termine tout seul. */
@@ -46,6 +49,7 @@ export type LightingWarning =
   | { kind: 'smoke_refused'; reason: Exclude<SmokeFireResult, { ok: true }>['reason']; at: number }
   | { kind: 'watchdog'; stalledMs: number; at: number }
   | { kind: 'output_error'; message: string; at: number }
+  | { kind: 'output_recovered'; at: number }
   | { kind: 'page_hidden'; at: number }
   | { kind: 'unknown_scene'; sceneId: string; at: number }
 
@@ -219,6 +223,7 @@ export function createLightingController(options: LightingControllerOptions): Li
   let allowUnknownChannels = false
   let diagnosticsTouchedAt = 0
   let frozenUntil: number | null = null
+  let recoveredWrites = 0
   let manualChannels = createUniverse()
   const manualFixtures = new Map<string, FixtureState>()
   const fixtureChannels = new Set<number>()
@@ -295,13 +300,23 @@ export function createLightingController(options: LightingControllerOptions): Li
     const owner = session
     // Sortie en erreur : on continue d'essayer d'envoyer du noir, au cas où elle répond encore.
     const universe = degraded ? createUniverse() : frame
-    const write = output.write(universe).catch((error: unknown) => {
-      if (owner === session) {
+    const write = output.write(universe).then(
+      () => {
+        if (owner === session && outputStatus === 'error') {
+          noteRecoveredWrite()
+        }
+      },
+      (error: unknown) => {
+        if (owner !== session) {
+          return
+        }
+        recoveredWrites = 0
         handleOutputError(error)
       }
-    })
+    )
     const current = within(write, WRITE_TIMEOUT_MS).then((done) => {
       if (!done && owner === session) {
+        recoveredWrites = 0
         handleOutputError(new Error('Interface DMX bloquée : aucune trame acceptée'))
       }
     })
@@ -312,6 +327,23 @@ export function createLightingController(options: LightingControllerOptions): Li
       }
       flush()
     })
+  }
+
+  /**
+   * Sortie en erreur qui accepte de nouveau les trames (écriture lente passagère, onglet
+   * ralenti…) : après `OUTPUT_RECOVERY_WRITES` trames noires acceptées d'affilée, on reprend.
+   * La fumée, coupée à l'erreur, n'est pas relancée.
+   */
+  function noteRecoveredWrite() {
+    recoveredWrites += 1
+    if (recoveredWrites < OUTPUT_RECOVERY_WRITES) {
+      return
+    }
+    recoveredWrites = 0
+    outputStatus = 'open'
+    outputError = null
+    warn({ kind: 'output_recovered', at: clock.now() })
+    notify()
   }
 
   function handleOutputError(error: unknown) {
@@ -348,6 +380,8 @@ export function createLightingController(options: LightingControllerOptions): Li
         return
       }
       frozenUntil = null
+      // Fin d'un test de coupure : la fumée doit être réautorisée par un humain.
+      smoke.disarm()
       notify()
     }
     if (diagnosticsActive) {
@@ -483,6 +517,9 @@ export function createLightingController(options: LightingControllerOptions): Li
       if (!Number.isFinite(durationMs) || durationMs <= 0 || durationMs > MAX_FREEZE_MS) {
         return { ok: false, reason: 'invalid_duration' }
       }
+      // La trame en cours (fumée comprise) part avant le gel : c'est elle que l'interface
+      // répétera. Sans cela, le gel figerait l'avant-dernière trame.
+      send(renderDiagnostics(clock.now()))
       frozenUntil = clock.now() + durationMs
       // Le chien de garde ne doit pas compter le gel comme un plantage.
       lastFrameAt = null
@@ -528,7 +565,8 @@ export function createLightingController(options: LightingControllerOptions): Li
       await within(output.write(black), CLOSE_TIMEOUT_MS)
     }
     try {
-      await output.close()
+      // Une interface figée peut ne jamais rendre la main : on n'attend pas indéfiniment.
+      await within(output.close(), CLOSE_TIMEOUT_MS)
     } catch {
       // Sortie déjà fermée ou débranchée.
     }
@@ -701,6 +739,8 @@ export function createLightingController(options: LightingControllerOptions): Li
       },
       disarm() {
         smoke.disarm()
+        // Couper la fumée pendant un gel doit agir tout de suite : on reprend l'envoi.
+        frozenUntil = null
         notify()
       },
       fire(durationMs) {
@@ -710,6 +750,7 @@ export function createLightingController(options: LightingControllerOptions): Li
       },
       stop() {
         smoke.stop('manual')
+        frozenUntil = null
         notify()
       },
     },

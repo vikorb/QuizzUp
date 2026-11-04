@@ -5,8 +5,12 @@ import { systemClock } from './clock.js'
 import type { OutputPlan } from './mapping.js'
 import { renderOutputs } from './mapping.js'
 
-/** Silence du navigateur au-delà duquel le pont envoie du noir (onglet planté, PC gelé). */
-export const SILENCE_TIMEOUT_MS = 1000
+/**
+ * Silence du navigateur au-delà duquel le pont envoie du noir (onglet planté, PC gelé). Chrome
+ * bride les minuteurs d'un onglet masqué à environ 1 Hz : avec 1000 ms, l'éclairage clignoterait
+ * dès que l'opérateur change d'onglet. 2500 ms laisse passer deux réveils bridés.
+ */
+export const SILENCE_TIMEOUT_MS = 2500
 /** Durée pendant laquelle les trames à zéro sont répétées après une coupure. */
 export const BLACKOUT_MS = 3000
 /** Cadence des trames à zéro pendant cette période (10 Hz). */

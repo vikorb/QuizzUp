@@ -51,23 +51,50 @@ export async function requestDmxPort(
   })
 }
 
-/** Interface déjà autorisée lors d'une visite précédente : reconnexion sans clic après rechargement. */
+const isDmxVendor = (port: SerialPortLike) => {
+  const vendorId = port.getInfo?.().usbVendorId
+  return vendorId !== undefined && (DMX_USB_VENDOR_IDS as readonly number[]).includes(vendorId)
+}
+
+/**
+ * Interface déjà autorisée lors d'une visite précédente : reconnexion sans clic après rechargement.
+ * Le navigateur peut avoir autorisé plusieurs ports (adaptateur série, Arduino des buzzers…) :
+ *
+ * - avec `match` (l'interface utilisée jusqu'ici), on préfère le même objet port, puis une
+ *   interface du même modèle (fabricant + produit USB), puis une puce USB-série DMX connue, sinon
+ *   rien : on ne rouvre jamais un port quelconque à la place de l'interface DMX ;
+ * - sans `match`, on préfère une puce USB-série DMX connue, sinon le premier port autorisé.
+ */
 export async function getGrantedDmxPort(
-  serial: SerialLike | null = getWebSerial()
+  serial: SerialLike | null = getWebSerial(),
+  options: { match?: SerialPortLike } = {}
 ): Promise<SerialPortLike | null> {
   if (!serial) {
     return null
   }
   const ports = await serial.getPorts()
-  return ports[0] ?? null
+  const { match } = options
+  if (!match) {
+    return ports.find(isDmxVendor) ?? ports[0] ?? null
+  }
+  return (
+    ports.find((port) => port === match) ??
+    ports.find((port) => samePort(port, match)) ??
+    ports.find(isDmxVendor) ??
+    null
+  )
 }
 
 type SerialOutputOptions = {
   port: SerialPortLike
   driver: 'usbpro' | 'opendmx'
   serial?: SerialLike | null
-  /** Attente en millisecondes (break Open DMX, fin d'émission d'une trame). Injectable en test. */
+  /** Attente en millisecondes (fin d'émission d'une trame Open DMX). Injectable en test. */
   sleep?: (ms: number) => Promise<void>
+  /** Horloge monotone en millisecondes (`performance.now` par défaut). Injectable en test. */
+  now?: () => number
+  /** Durée maximale laissée à `port.close()` (interface figée) avant d'abandonner. */
+  closeTimeoutMs?: number
 }
 
 const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
@@ -75,24 +102,80 @@ const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(r
 /**
  * Durée d'émission d'une trame Open DMX à 250 kbauds : 513 octets × 11 bits (start, 8 données,
  * 2 stop) = 22,6 ms. `write()` rend la main dès que l'octet est confié au système, pas quand il
- * est parti sur le câble : sans cette attente, le break suivant tronquerait la trame en cours.
+ * est parti sur le câble : le break suivant ne doit pas partir avant, sinon il tronquerait la
+ * trame en cours.
  */
 export const OPEN_DMX_FRAME_MS = Math.ceil((513 * 11) / 250)
 
-/** Break DMX : le standard exige au moins 88 µs ; une milliseconde est la plus petite attente fiable. */
-export const OPEN_DMX_BREAK_MS = 1
+/** Au-delà, `close()` abandonne la fermeture du port (interface USB figée) sans rejeter. */
+export const SERIAL_CLOSE_TIMEOUT_MS = 1000
 
-/** Sortie DMX sur port série Web Serial (« DMX USB Pro » ou « Open DMX »). */
+/**
+ * Libère le flux d'écriture : `abort()` jette les octets encore en file (une interface figée ne
+ * les enverra jamais), puis `releaseLock()` déverrouille le flux. Sans cela, `port.close()` est
+ * rejeté (« flux verrouillé ») et le même port ne peut plus être rouvert. On n'attend pas
+ * `abort()` : il peut ne jamais aboutir sur une interface figée.
+ */
+function discardWriter(writer: WritableStreamDefaultWriter<Uint8Array>) {
+  writer.abort().catch(() => undefined)
+  try {
+    writer.releaseLock()
+  } catch {
+    // Verrou déjà rendu.
+  }
+}
+
+/**
+ * Sortie DMX sur port série Web Serial (« DMX USB Pro » ou « Open DMX »).
+ *
+ * Open DMX : le navigateur doit fabriquer lui-même le break DMX et le rythme des trames. Chrome
+ * bride les minuteurs d'un onglet masqué à environ 1 s : une attente par `setTimeout` dans
+ * chaque trame (break, fin d'émission) la ferait durer plus de 2 s et le contrôleur lumières
+ * déclarerait la sortie en erreur (délai d'écriture dépassé). Donc :
+ *
+ * - le break n'utilise aucun minuteur : l'aller-retour USB de `await setSignals()` (break posé,
+ *   puis relâché) dure bien plus que les 88 µs exigées par le standard ;
+ * - on ne dort plus après la trame : avant la trame suivante, on n'attend que le reste de
+ *   `OPEN_DMX_FRAME_MS` depuis la fin de l'écriture précédente, et rien s'il est déjà écoulé
+ *   (cas normal à 30 Hz, et toujours le cas quand l'onglet masqué espace les trames).
+ */
 export function createSerialOutput(options: SerialOutputOptions): DmxOutput {
   const { port, driver } = options
   const serial = options.serial === undefined ? getWebSerial() : options.serial
   const sleep = options.sleep ?? defaultSleep
+  const now = options.now ?? (() => performance.now())
+  const closeTimeoutMs = options.closeTimeoutMs ?? SERIAL_CLOSE_TIMEOUT_MS
   const disconnectEmitter = createEmitter<unknown>()
   let writer: WritableStreamDefaultWriter<Uint8Array> | null = null
+  /** Instant où la dernière trame Open DMX aura fini de partir sur le câble. */
+  let frameEndsAt = Number.NEGATIVE_INFINITY
+
+  /** Abandonne le writer courant (erreur, débranchement, fermeture) ; renvoie s'il y en avait un. */
+  const dropWriter = () => {
+    const current = writer
+    writer = null
+    if (current) {
+      discardWriter(current)
+    }
+    return current !== null
+  }
+
+  /** `port.close()` borné : une interface figée peut ne jamais rendre la main. Ne rejette pas. */
+  const closePort = async () => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    await Promise.race([
+      port.close().catch(() => {
+        // Port déjà fermé ou débranché : rien à faire.
+      }),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, closeTimeoutMs)
+      }),
+    ])
+    clearTimeout(timer)
+  }
 
   const onSerialDisconnect = (event: Event) => {
-    if ((event.target as unknown) === port && writer) {
-      writer = null
+    if ((event.target as unknown) === port && dropWriter()) {
       disconnectEmitter.emit(new Error('Interface DMX débranchée'))
     }
   }
@@ -118,16 +201,19 @@ export function createSerialOutput(options: SerialOutputOptions): DmxOutput {
           throw new Error(describeSerialError(error).message, { cause: error })
         }
         try {
-          await port.close()
+          await closePort()
           await openPort()
         } catch (retryError) {
           throw new Error(describeSerialError(retryError).message, { cause: retryError })
         }
       }
       if (!port.writable) {
+        // On ne laisse pas le port ouvert : la prochaine tentative échouerait (« déjà ouvert »).
+        await closePort()
         throw new Error('Interface DMX ouverte sans flux d’écriture')
       }
       writer = port.writable.getWriter()
+      frameEndsAt = Number.NEGATIVE_INFINITY
       serial?.addEventListener?.('disconnect', onSerialDisconnect)
     },
     async write(universe) {
@@ -143,14 +229,18 @@ export function createSerialOutput(options: SerialOutputOptions): DmxOutput {
         if (!port.setSignals) {
           throw new Error('Ce navigateur ne permet pas le break DMX (Open DMX)')
         }
+        const remaining = frameEndsAt - now()
+        if (remaining > 0) {
+          await sleep(remaining)
+        }
+        // Break sans minuteur : l'aller-retour USB de chaque `setSignals` dépasse les 88 µs.
         await port.setSignals({ break: true })
-        await sleep(OPEN_DMX_BREAK_MS)
         await port.setSignals({ break: false })
         await current.write(encodeRawDmxFrame(universe))
-        await sleep(OPEN_DMX_FRAME_MS)
+        frameEndsAt = now() + OPEN_DMX_FRAME_MS
       } catch (error) {
         if (writer === current) {
-          writer = null
+          dropWriter()
           disconnectEmitter.emit(error)
         }
         throw error
@@ -158,14 +248,8 @@ export function createSerialOutput(options: SerialOutputOptions): DmxOutput {
     },
     async close() {
       serial?.removeEventListener?.('disconnect', onSerialDisconnect)
-      const current = writer
-      writer = null
-      try {
-        current?.releaseLock()
-        await port.close()
-      } catch {
-        // Port déjà fermé ou débranché : rien à faire.
-      }
+      dropWriter()
+      await closePort()
     },
     onDisconnect: disconnectEmitter.on,
   }

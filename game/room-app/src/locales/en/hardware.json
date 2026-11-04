@@ -79,7 +79,8 @@
         "watchdog": "The page froze: smoke cut for safety.",
         "output_error": "The DMX interface stopped responding.",
         "page_hidden": "Tab hidden: smoke cut for safety.",
-        "unknown_scene": "Unknown scene in the configuration."
+        "unknown_scene": "Unknown scene in the configuration.",
+        "output_recovered": "The DMX interface responds again: lights resumed (smoke still off)."
       }
     },
     "scenes": {
@@ -186,7 +187,8 @@
         "forbidden": "The browser denied access to the interface.",
         "disconnected": "The interface was unplugged.",
         "unknown": "Could not open the DMX interface."
-      }
+      },
+      "freezeBridge": "With the Art-Net bridge, the bridge itself cuts the smoke when the browser goes quiet: this test would not check the timed relay. Run it with the USB interface, or stop the bridge program during a burst."
     },
     "assistant": {
       "title": "Setup wizard",
@@ -303,7 +305,9 @@
         "freezeQuestion": "Did the smoke stop on its own within 10 seconds?",
         "freezeYes": "Yes, it stopped",
         "freezeNo": "No",
-        "freezeFailed": "Do not use the smoke: check the wiring and the timed relay setting, then run the test again."
+        "freezeFailed": "Do not use the smoke: check the wiring and the timed relay setting, then run the test again.",
+        "freezeRunning": "No frames are sent for 15 s. Watch the machine: the smoke must stop on its own within 10 s.",
+        "freezeAbort": "The smoke does not stop: cut everything"
       },
       "summary": {
         "ready": "Everything is ready.",

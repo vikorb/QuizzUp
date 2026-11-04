@@ -1,5 +1,6 @@
 import { parseRoomHardwareConfig } from '@hardware/config'
 import {
+  BRIDGE_CLOSE_TIMEOUT_MS,
   BRIDGE_FRAME_BYTES,
   BRIDGE_MAX_SKIPPED_FRAMES,
   BRIDGE_OPEN_TIMEOUT_MS,
@@ -12,6 +13,7 @@ import { DMX_DRIVERS } from '@hardware/dmx/output'
 import { createUniverse } from '@hardware/dmx/universe'
 import { createLightingController } from '@hardware/lighting/lightingController'
 
+import type { FakeWebSocket } from '../_helpers/fakeWebSocket'
 import { createFakeWebSocketClass } from '../_helpers/fakeWebSocket'
 import { advanceAsync, createManualClock, flushPromises } from '../_helpers/manualClock'
 import { lightingConfig } from '../_helpers/rig'
@@ -38,6 +40,16 @@ async function openWithAck(context: ReturnType<typeof setup>) {
   socket.serverSend(ACK)
   await opening
   return socket
+}
+
+/** Comme un vrai navigateur : `close()` laisse la socket « en fermeture » jusqu'à `onclose`. */
+function closeLikeBrowser(socket: FakeWebSocket) {
+  Object.assign(socket, {
+    close: (code?: number, reason?: string) => {
+      Object.assign(socket, { closedWith: { code, reason } })
+      Object.defineProperty(socket, 'readyState', { value: 2, configurable: true })
+    },
+  })
 }
 
 describe('format des trames du pont', () => {
@@ -273,6 +285,27 @@ describe('sortie pont Art-Net : écriture', () => {
     expect(socket.sent).toHaveLength(2)
   })
 
+  it('compte toutes les trames sautées sans casser la détection de saturation', async () => {
+    const context = setup()
+    const socket = await openWithAck(context)
+    const onDisconnect = vi.fn()
+    context.output.onDisconnect(onDisconnect)
+    const skipRun = async () => {
+      socket.setBufferedAmount(1_000_000)
+      for (let index = 1; index < BRIDGE_MAX_SKIPPED_FRAMES; index += 1) {
+        // Un saut isolé n'est pas une erreur : `write` se résout, le compteur l'enregistre.
+        await expect(context.output.write(createUniverse())).resolves.toBeUndefined()
+      }
+      socket.setBufferedAmount(0)
+      await context.output.write(createUniverse())
+    }
+    await skipRun()
+    await skipRun()
+    expect(context.output.skippedFrames()).toBe(2 * (BRIDGE_MAX_SKIPPED_FRAMES - 1))
+    expect(socket.sent).toHaveLength(3)
+    expect(onDisconnect).not.toHaveBeenCalled()
+  })
+
   it('déclare le pont saturé après trop de trames sautées d’affilée', async () => {
     const context = setup()
     const socket = await openWithAck(context)
@@ -365,6 +398,97 @@ describe('sortie pont Art-Net : coupure et fermeture', () => {
     first.serverClose(1006)
     expect(onDisconnect).not.toHaveBeenCalled()
     await expect(context.output.write(createUniverse())).resolves.toBeUndefined()
+  })
+})
+
+describe('sortie pont Art-Net : fin de fermeture et reconnexion', () => {
+  it('close attend que la socket soit réellement fermée', async () => {
+    const context = setup()
+    const socket = await openWithAck(context)
+    closeLikeBrowser(socket)
+    const onDisconnect = vi.fn()
+    context.output.onDisconnect(onDisconnect)
+    let done = false
+    const closing = context.output.close().then(() => {
+      done = true
+    })
+    await flushPromises()
+    expect(done).toBe(false)
+    socket.serverClose(1000)
+    await closing
+    expect(done).toBe(true)
+    expect(onDisconnect).not.toHaveBeenCalled()
+    expect(context.clock.pending()).toBe(0)
+  })
+
+  it('close abandonne l’attente au bout d’une seconde', async () => {
+    const context = setup()
+    const socket = await openWithAck(context)
+    closeLikeBrowser(socket)
+    let done = false
+    const closing = context.output.close().then(() => {
+      done = true
+    })
+    context.clock.advance(BRIDGE_CLOSE_TIMEOUT_MS - 1)
+    await flushPromises()
+    expect(done).toBe(false)
+    context.clock.advance(1)
+    await closing
+    expect(done).toBe(true)
+    // Un onclose tardif ne fait plus rien.
+    socket.serverClose(1000)
+  })
+
+  it('une reconnexion attend la fin de la fermeture précédente (sinon le pont la refuse)', async () => {
+    const context = setup()
+    const first = await openWithAck(context)
+    closeLikeBrowser(first)
+    void context.output.close()
+    const reopening = context.output.open()
+    await flushPromises()
+    expect(context.sockets).toHaveLength(1)
+    // Un second close pendant la fermeture attend la même fin.
+    const again = context.output.close()
+    first.serverClose(1000)
+    await again
+    await flushPromises()
+    expect(context.sockets).toHaveLength(2)
+    context.sockets[1]!.serverOpen()
+    context.sockets[1]!.serverSend(ACK)
+    await expect(reopening).resolves.toBeUndefined()
+    await expect(context.output.write(createUniverse())).resolves.toBeUndefined()
+  })
+
+  it('une reconnexion après saturation attend aussi la fermeture de l’ancienne socket', async () => {
+    const context = setup({ maxSkippedFrames: 1 })
+    const first = await openWithAck(context)
+    closeLikeBrowser(first)
+    first.setBufferedAmount(1_000_000)
+    await expect(context.output.write(createUniverse())).rejects.toThrow('saturé')
+    const reopening = context.output.open()
+    await flushPromises()
+    expect(context.sockets).toHaveLength(1)
+    context.clock.advance(BRIDGE_CLOSE_TIMEOUT_MS)
+    await flushPromises()
+    expect(context.sockets).toHaveLength(2)
+    context.sockets[1]!.serverOpen()
+    context.sockets[1]!.serverSend(ACK)
+    await expect(reopening).resolves.toBeUndefined()
+  })
+
+  it('explique le refus quand un autre onglet est déjà connecté', async () => {
+    const byMessage = setup()
+    const opening = byMessage.output.open()
+    byMessage.sockets[0]!.serverOpen()
+    byMessage.sockets[0]!.serverSend({ type: 'error', code: 'busy', message: 'occupé' })
+    await expect(opening).rejects.toThrow(
+      'Pont Art-Net : un autre onglet est déjà connecté au pont'
+    )
+
+    const byCloseCode = setup()
+    const second = byCloseCode.output.open()
+    byCloseCode.sockets[0]!.serverClose(4004, '')
+    await expect(second).rejects.toThrow('un autre onglet est déjà connecté au pont')
   })
 })
 

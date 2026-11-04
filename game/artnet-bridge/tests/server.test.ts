@@ -2,7 +2,12 @@ import { request } from 'node:http'
 
 import { buildOutputPlan, defaultMappings, parseMappingSpec } from '@bridge/mapping'
 import type { BridgeServer } from '@bridge/server'
-import { createBridgeServer, LISTEN_HOST, normalizeOrigin } from '@bridge/server'
+import {
+  allowedHostHeaders,
+  createBridgeServer,
+  LISTEN_HOST,
+  normalizeOrigin,
+} from '@bridge/server'
 
 import type { RawClient, UdpReceiver } from './_helpers/rawClient'
 import { encodeClientFrame, OPCODE, openRawClient, openUdpReceiver } from './_helpers/rawClient'
@@ -113,8 +118,21 @@ describe('pont : poignée de main et sécurité', () => {
     expect(rebinding.status).toBe(403)
     const missing = await openRawClient(port, { Host: undefined })
     expect(missing.status).toBe(403)
+    // Sans port explicite, l'hôte seul n'est accepté que si le pont écoute sur le port 80.
+    const portless = await openRawClient(port, { Host: 'localhost' })
+    expect(portless.status).toBe(403)
     const local = await openRawClient(port, { Host: `localhost:${port}` })
     expect(local.status).toBe(101)
+  })
+
+  it('accepte l’hôte sans port quand le pont écoute sur le port 80 (port par défaut de ws://)', () => {
+    expect([...allowedHostHeaders(80)].sort()).toEqual([
+      '127.0.0.1',
+      '127.0.0.1:80',
+      'localhost',
+      'localhost:80',
+    ])
+    expect([...allowedHostHeaders(7654)].sort()).toEqual(['127.0.0.1:7654', 'localhost:7654'])
   })
 
   it('refuse une requête WebSocket mal formée', async () => {
@@ -128,8 +146,18 @@ describe('pont : poignée de main et sécurité', () => {
   it('accepte un seul écran de salle à la fois', async () => {
     await startBridge()
     const first = await connectReady()
+    // Le navigateur ne lit pas un statut 409 : le refus passe par un message d'erreur explicite.
     const second = await openRawClient(port)
-    expect(second.status).toBe(409)
+    expect(second.status).toBe(101)
+    expect(JSON.parse((await second.next()).payload.toString('utf8'))).toEqual({
+      type: 'error',
+      code: 'busy',
+      message: 'un autre onglet est déjà connecté au pont',
+    })
+    const busyClose = await second.next()
+    expect(busyClose.opcode).toBe(OPCODE.close)
+    expect(busyClose.payload.readUInt16BE(0)).toBe(4004)
+    expect(bridge.hasClient()).toBe(true)
     first.send(OPCODE.close, Buffer.from([0x03, 0xe8]))
     await first.closed()
     await vi.waitFor(() => expect(bridge.hasClient()).toBe(false))

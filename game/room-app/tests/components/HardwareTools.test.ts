@@ -1,7 +1,13 @@
+import { MAX_FREEZE_MS } from '@quizzup/hardware'
 import { flushPromises } from '@vue/test-utils'
 
 import { useConfirm } from '@/composables/useConfirm'
-import { getLighting, saveBuzzerKeymap, useRoomHardware } from '@/hardware/roomHardware'
+import {
+  getLighting,
+  HARDWARE_STORAGE_KEY,
+  saveBuzzerKeymap,
+  useRoomHardware,
+} from '@/hardware/roomHardware'
 import { enterDemo, syncRoomAuth } from '@/state/roomAuth'
 import HardwareView from '@/views/hardware/HardwareView.vue'
 
@@ -164,13 +170,22 @@ describe('onglet Assistant', () => {
     await sel(wrapper, 'check-siteRules').setValue(true)
 
     // Plantage simulé, deux confirmations : la fumée part puis les trames s'arrêtent.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const freeze = sel(wrapper, 'assistant-freeze').trigger('click')
     await acceptConfirmations(2)
     await freeze
     await flushPromises()
-    await vi.waitFor(() => expect(sel(wrapper, 'freeze-question').exists()).toBe(true))
+    // La trame figée contient bien la fumée : c'est elle que l'interface répète.
     expect(getLighting()?.diagnostics.getState().frozenUntil).not.toBeNull()
+    expect(getLighting()?.getFrame()[3]).toBeGreaterThan(0)
+    expect(sel(wrapper, 'freeze-running').exists()).toBe(true)
+    // La config de test (fumée active avant le test) n'est jamais enregistrée.
     expect(useRoomHardware().hardware.value.config.lighting.smoke.enabled).toBe(true)
+    expect(localStorage.getItem(HARDWARE_STORAGE_KEY) ?? '').not.toContain('"enabled":true')
+    await vi.advanceTimersByTimeAsync(MAX_FREEZE_MS)
+    vi.useRealTimers()
+    await flushPromises()
+    expect(sel(wrapper, 'freeze-question').exists()).toBe(true)
     await click(wrapper, 'freeze-ok')
     expect(sel(wrapper, 'blockers').exists()).toBe(false)
 
@@ -202,16 +217,32 @@ describe('onglet Assistant', () => {
     expect(sel(wrapper, 'step-smoke').exists()).toBe(true)
     await sel(wrapper, 'check-physicalStop').setValue(true)
     await sel(wrapper, 'check-timedRelay').setValue(true)
+    // Sans « Utiliser la fumée », pas de test de gel.
+    expect(sel(wrapper, 'assistant-freeze').attributes('disabled')).toBeDefined()
+    await sel(wrapper, 'smoke-enable').setValue(true)
 
-    const freeze = sel(wrapper, 'assistant-freeze').trigger('click')
+    const cancelled = sel(wrapper, 'assistant-freeze').trigger('click')
     await acceptConfirmations(1)
     // Seconde confirmation refusée : rien ne part.
     await vi.waitFor(() => expect(useConfirm().state.open).toBe(true))
     useConfirm().cancel()
+    await cancelled
+    await flushPromises()
+    expect(sel(wrapper, 'freeze-running').exists()).toBe(false)
+    expect(getLighting()?.getState().smoke.armed).toBe(false)
+
+    // La fumée ne s'arrête pas seule : « tout couper » déclenche l'arrêt d'urgence.
+    const freeze = sel(wrapper, 'assistant-freeze').trigger('click')
+    await acceptConfirmations(2)
     await freeze
     await flushPromises()
-    expect(sel(wrapper, 'freeze-question').exists()).toBe(false)
+    expect(sel(wrapper, 'freeze-running').exists()).toBe(true)
+    await click(wrapper, 'freeze-abort')
+    expect(getLighting()?.getState().emergency).toBe(true)
+    expect(getLighting()?.diagnostics.getState().frozenUntil).toBeNull()
+    expect(wrapper.text()).toContain('La fumée ne doit pas être utilisée')
     expect(useRoomHardware().hardware.value.config.lighting.smoke.enabled).toBe(true)
+    expect(localStorage.getItem(HARDWARE_STORAGE_KEY) ?? '').not.toContain('"enabled":true')
 
     await openTab(wrapper, 'buzzers')
     await vi.waitFor(() =>

@@ -85,7 +85,6 @@ export {
   getGrantedDmxPort,
   getWebSerial,
   isWebSerialSupported,
-  OPEN_DMX_BREAK_MS,
   OPEN_DMX_FRAME_MS,
   requestDmxPort,
   watchDmxPortReconnection,
@@ -110,6 +109,7 @@ export {
   createLightingController,
   DIAGNOSTICS_IDLE_MS,
   MAX_FREEZE_MS,
+  OUTPUT_RECOVERY_WRITES,
   WATCHDOG_STALL_MS,
 } from './lighting/lightingController'
 export type {

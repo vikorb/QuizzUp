@@ -24,7 +24,15 @@ export const CLOSE_CODES = {
   protocol: 4001,
   universe: 4002,
   badFrame: 4003,
+  busy: 4004,
 } as const
+
+/**
+ * Refus d'un second écran de salle. Un navigateur ne voit pas le statut HTTP d'une poignée de main
+ * refusée (409 apparaîtrait comme « pont injoignable ») : le pont accepte donc la connexion, envoie
+ * ce message d'erreur puis ferme, pour que l'écran l'affiche tel quel.
+ */
+export const BUSY_MESSAGE = 'un autre onglet est déjà connecté au pont'
 
 export type DecodedFrame =
   { ok: true; universe: number; data: Uint8Array } | { ok: false; reason: string }

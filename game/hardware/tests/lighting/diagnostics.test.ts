@@ -163,6 +163,40 @@ describe('diagnostic matériel', () => {
     await controller.stop()
   })
 
+  it('fige la trame de fumée même quand le gel suit immédiatement l’émission', async () => {
+    const { controller, clock, frame } = await setup()
+    controller.diagnostics.begin()
+    controller.smoke.arm()
+    // Même enchaînement que l'écran : émission puis gel, sans tick entre les deux.
+    controller.smoke.fire(3_000)
+    expect(controller.diagnostics.freezeOutput(2_000, { confirm: true })).toEqual({ ok: true })
+    await advanceAsync(clock, 500)
+    expect(frame()[SMOKE - 1]).toBe(180)
+
+    // Fin du gel : la fumée est désarmée, un humain doit la réautoriser.
+    await advanceAsync(clock, 2_000)
+    expect(frame()[SMOKE - 1]).toBe(0)
+    expect(controller.getState().smoke.armed).toBe(false)
+    await controller.stop()
+  })
+
+  it('arrêter ou désarmer la fumée pendant un gel coupe tout de suite', async () => {
+    for (const action of ['stop', 'disarm'] as const) {
+      const { controller, clock, frame } = await setup()
+      controller.diagnostics.begin()
+      controller.smoke.arm()
+      controller.smoke.fire(3_000)
+      controller.diagnostics.freezeOutput(10_000, { confirm: true })
+      await advanceAsync(clock, 300)
+      expect(frame()[SMOKE - 1]).toBe(180)
+      controller.smoke[action]()
+      await advanceAsync(clock, 100)
+      expect(controller.diagnostics.getState().frozenUntil).toBeNull()
+      expect(frame()[SMOKE - 1]).toBe(0)
+      await controller.stop()
+    }
+  })
+
   it('l’arrêt d’urgence annule le gel et bloque le diagnostic', async () => {
     const { controller, clock, output, frame } = await setup()
     controller.diagnostics.begin()

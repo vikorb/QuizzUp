@@ -2,6 +2,7 @@ import type { DmxOutput } from '@hardware/dmx/output'
 import { createSimulationOutput } from '@hardware/dmx/simulationOutput'
 import {
   createLightingController,
+  OUTPUT_RECOVERY_WRITES,
   WATCHDOG_STALL_MS,
   WRITE_TIMEOUT_MS,
 } from '@hardware/lighting/lightingController'
@@ -488,6 +489,38 @@ describe('contrôleur lumières et fumée', () => {
     const stopping = controller.stop()
     await advanceAsync(clock, 600)
     await stopping
+  })
+
+  it('reprend après une écriture lente passagère, sans relancer la fumée', async () => {
+    const clock = createManualClock()
+    let hang = true
+    const slow: DmxOutput = {
+      driver: 'opendmx',
+      open: async () => undefined,
+      // Une première écriture bloquée (onglet ralenti), puis l'interface répond de nouveau.
+      write: () => (hang ? new Promise<void>(() => undefined) : Promise.resolve()),
+      close: async () => undefined,
+      onDisconnect: () => () => undefined,
+    }
+    const controller = createLightingController({
+      config: lightingConfig(),
+      output: slow,
+      clock,
+      doc: null,
+    })
+    const warnings = vi.fn()
+    controller.onWarning(warnings)
+    await controller.start()
+    controller.smoke.arm()
+    controller.smoke.fire(3_000)
+    await advanceAsync(clock, WRITE_TIMEOUT_MS + 50)
+    expect(controller.getState().outputStatus).toBe('error')
+    hang = false
+    await advanceAsync(clock, (OUTPUT_RECOVERY_WRITES + 5) * 40)
+    expect(controller.getState()).toMatchObject({ outputStatus: 'open', outputError: null })
+    expect(warnings).toHaveBeenCalledWith(expect.objectContaining({ kind: 'output_recovered' }))
+    expect(controller.getState().smoke.status).not.toBe('firing')
+    await controller.stop()
   })
 
   it('pas de victoire ni de fumée pour une partie terminée faute de contenu', async () => {

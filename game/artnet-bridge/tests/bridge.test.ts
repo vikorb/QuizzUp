@@ -127,7 +127,7 @@ describe('cœur du pont : envoi', () => {
 })
 
 describe('cœur du pont : chien de garde', () => {
-  it('envoie du noir si le navigateur se tait plus de 1 s, puis s’arrête', () => {
+  it('envoie du noir si le navigateur se tait trop longtemps, puis s’arrête', () => {
     const { clock, sent, core, log } = setup()
     core.start()
     core.frame(universeWith(200))

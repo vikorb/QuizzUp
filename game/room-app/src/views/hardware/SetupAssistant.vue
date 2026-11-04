@@ -300,14 +300,32 @@
       <div class="hw-actions">
         <UiButton
           variant="danger"
-          :disabled="!canFreezeTest || freezePending"
+          :disabled="!canFreezeTest || freezeStage !== 'idle'"
           data-test="assistant-freeze"
           @click="onFreezeTest"
         >
           {{ $t('hardware.diagnostic.freeze') }}
         </UiButton>
       </div>
-      <div v-if="freezePending" class="hw-alert" role="status" data-test="freeze-question">
+      <div
+        v-if="freezeStage === 'running'"
+        class="hw-alert"
+        role="status"
+        data-test="freeze-running"
+      >
+        {{ $t('hardware.assistant.smoke.freezeRunning') }}
+        <div class="hw-actions">
+          <UiButton variant="danger" data-test="freeze-abort" @click="onFreezeAnswer(false)">
+            {{ $t('hardware.assistant.smoke.freezeAbort') }}
+          </UiButton>
+        </div>
+      </div>
+      <div
+        v-else-if="freezeStage === 'question'"
+        class="hw-alert"
+        role="status"
+        data-test="freeze-question"
+      >
         {{ $t('hardware.assistant.smoke.freezeQuestion') }}
         <div class="hw-actions">
           <UiButton variant="primary" data-test="freeze-ok" @click="onFreezeAnswer(true)">
@@ -381,6 +399,7 @@ import {
   findProfile,
   GENERIC_PROFILES,
   INTERFACE_CHOICES,
+  MAX_FREEZE_MS,
   type PanTilt,
   parsePanTiltCalibration,
   type SerialErrorDescription,
@@ -398,6 +417,7 @@ import {
   getLighting,
   saveRoomHardwareConfig,
   startLighting,
+  triggerEmergencyStop,
   useRoomHardware,
 } from '@/hardware/roomHardware'
 import { useFreezeTest } from '@/hardware/useFreezeTest'
@@ -411,7 +431,7 @@ const BROWSER_KEYS = [
 const CENTER: PanTilt = { pan: 32_768, tilt: 32_768 }
 
 const { t } = useI18n()
-const { hardware } = useRoomHardware()
+const { hardware, lightingState } = useRoomHardware()
 const { run: runFreezeTest, refusal: freezeRefusal } = useFreezeTest()
 
 const wizard = createSetupWizard(hardware.value.config)
@@ -428,9 +448,13 @@ const draft = reactive<{
 const fixtureError = ref<string | null>(null)
 const calibrationNote = ref<string | null>(null)
 const connecting = ref(false)
-const connected = ref(false)
+const connected = computed(
+  () => lightingState.value?.simulation === false && lightingState.value.outputStatus === 'open'
+)
 const connectError = ref<SerialErrorDescription | null>(null)
-const freezePending = ref(false)
+/** idle → running (trames gelées) → question (la fumée s'est-elle arrêtée seule ?). */
+const freezeStage = ref<'idle' | 'running' | 'question'>('idle')
+let freezeTimer: ReturnType<typeof setTimeout> | null = null
 const freezeFailed = ref(false)
 const saving = ref(false)
 const saved = ref(false)
@@ -478,7 +502,10 @@ const movingHeads = computed(() =>
     }))
 )
 const canFreezeTest = computed(
-  () => view.value.smokeChecks.physicalStop && view.value.smokeChecks.timedRelay
+  () =>
+    view.value.config.lighting.smoke.enabled &&
+    view.value.smokeChecks.physicalStop &&
+    view.value.smokeChecks.timedRelay
 )
 
 const isBefore = (id: SetupStepId) =>
@@ -493,7 +520,11 @@ watch(
 /** Applique la config en cours au contrôleur de lumières (nécessaire pour tester). */
 async function apply(options: { forFreezeTest?: boolean } = {}): Promise<void> {
   savedForFreezeTest = options.forFreezeTest === true
-  await saveRoomHardwareConfig(wizard.summary(options).config)
+  // La variante « test de gel » (fumée active avant toutes les vérifications) n'est jamais
+  // enregistrée : un rechargement de page repart de la dernière config sûre.
+  await saveRoomHardwareConfig(wizard.summary(options).config, {
+    persist: !savedForFreezeTest,
+  })
   await startLighting()
 }
 
@@ -513,7 +544,6 @@ function onGamepadMatch(event: Event): void {
 }
 
 function onDriver(driver: DmxDriver): void {
-  connected.value = false
   connectError.value = null
   run(() => wizard.setDriver(driver))
 }
@@ -524,7 +554,6 @@ async function onConnect(): Promise<void> {
   try {
     // Le choix du port s'ouvre dans le clic ; la config suit ensuite.
     await connectDmxInterface(view.value.config.lighting.driver)
-    connected.value = true
   } catch (error) {
     const described = describeSerialError(error)
     connectError.value = described.code === 'cancelled' ? null : described
@@ -607,14 +636,28 @@ function onCheck(check: SmokeCheckId, event: Event): void {
 
 async function onFreezeTest(): Promise<void> {
   freezeFailed.value = false
-  run(() => wizard.setSmoke({ enabled: true }))
   await apply({ forFreezeTest: true })
-  freezePending.value = await runFreezeTest()
+  if (!(await runFreezeTest())) {
+    return
+  }
+  freezeStage.value = 'running'
+  freezeTimer = setTimeout(() => {
+    freezeTimer = null
+    freezeStage.value = 'question'
+  }, MAX_FREEZE_MS)
 }
 
 function onFreezeAnswer(ok: boolean): void {
-  freezePending.value = false
+  if (freezeTimer !== null) {
+    clearTimeout(freezeTimer)
+    freezeTimer = null
+  }
+  freezeStage.value = 'idle'
   freezeFailed.value = !ok
+  if (!ok) {
+    // La fumée continue : on coupe tout, sans attendre la fin du gel.
+    triggerEmergencyStop('freeze_test_failed')
+  }
   run(() => wizard.checkSmoke('freezeTest', ok))
 }
 
@@ -657,6 +700,9 @@ async function onSave(): Promise<void> {
 }
 
 onBeforeUnmount(() => {
+  if (freezeTimer !== null) {
+    clearTimeout(freezeTimer)
+  }
   getLighting()?.diagnostics.end()
   // Jamais de fumée laissée active sans toutes les vérifications.
   if (savedForFreezeTest) {

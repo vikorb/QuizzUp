@@ -322,6 +322,13 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
     return id
   }
 
+  /** Toucher à la machine à fumée (ajout, adresse, retrait) oblige à refaire le test de gel. */
+  const resetFreezeTestIf = (...touched: (FixtureConfig | undefined)[]) => {
+    if (touched.some((fixture) => fixture && kindOf(fixture) === 'smoke')) {
+      smokeChecks = { ...smokeChecks, freezeTest: false }
+    }
+  }
+
   const smokeReady = () => SMOKE_CHECKS.every((check) => smokeChecks[check])
 
   const stepBlockers = (id: SetupStepId): string[] => {
@@ -503,6 +510,7 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
         ...(input.desk === undefined ? {} : { desk: input.desk }),
       }
       setFixtures([...config.lighting.fixtures, fixture])
+      resetFreezeTestIf(fixture)
       return { ok: true, fixture: { ...fixture } }
     },
     updateFixture: (id, patch) => {
@@ -529,12 +537,14 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
       }
       setFixtures(config.lighting.fixtures.map((fixture) => (fixture.id === id ? next : fixture)))
       if (next.address !== current.address || next.profileId !== current.profileId) {
+        resetFreezeTestIf(current, next)
         const { [id]: _dropped, ...rest } = fixtureTests
         fixtureTests = rest
       }
       return { ok: true }
     },
     removeFixture: (id) => {
+      resetFreezeTestIf(config.lighting.fixtures.find((fixture) => fixture.id === id))
       setFixtures(config.lighting.fixtures.filter((fixture) => fixture.id !== id))
       const { [id]: _dropped, ...rest } = fixtureTests
       fixtureTests = rest
@@ -555,6 +565,7 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
       }
       desks = [...DESKS]
       fixtureTests = {}
+      smokeChecks = { ...smokeChecks, freezeTest: false }
     },
     suggestAddress,
 

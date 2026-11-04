@@ -5,6 +5,7 @@ import {
   getDmxPort,
   getDmxStats,
   getLighting,
+  HARDWARE_STORAGE_KEY,
   saveRoomHardwareConfig,
   startLighting,
   switchToSimulatedLights,
@@ -25,6 +26,7 @@ function createFakePort(): SerialPortLike & { frames: number } {
           port.frames += 1
         },
         releaseLock: () => undefined,
+        abort: async () => undefined,
       }),
     } as unknown as WritableStream<Uint8Array>,
   }
@@ -152,6 +154,7 @@ class FakeBridgeSocket {
 describe('pont Art-Net de la salle', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
+    FakeBridgeSocket.last = null
   })
 
   it('se connecte au pont local au clic et mesure les trames', async () => {
@@ -169,5 +172,29 @@ describe('pont Art-Net de la salle', () => {
     expect(getLighting()?.getState().simulation).toBe(false)
     await vi.waitFor(() => expect(getDmxStats()?.framesSent).toBeGreaterThan(0))
     expect(getDmxPort()).toBeNull()
+
+    // L'assistant change d'appareils : les lumières redémarrent et reprennent le pont.
+    const first = FakeBridgeSocket.last
+    await saveRoomHardwareConfig({
+      lighting: {
+        driver: 'artnet-bridge',
+        bridgeUrl: 'ws://127.0.0.1:7700',
+        fixtures: [{ id: 'par1', name: 'PAR', profileId: 'par-rgb', address: 1 }],
+      },
+    })
+    await vi.waitFor(() => expect(getLighting()?.getState().simulation).toBe(false))
+    expect(FakeBridgeSocket.last).not.toBe(first)
+  })
+
+  it('applique une config sans l’enregistrer (test de coupure de la fumée)', async () => {
+    await saveRoomHardwareConfig({ lighting: { refreshHz: 20 } })
+    await saveRoomHardwareConfig(
+      { lighting: { refreshHz: 25, smoke: { enabled: true } } },
+      { persist: false }
+    )
+    expect(getLighting()).toBeNull()
+    const stored = JSON.parse(localStorage.getItem(HARDWARE_STORAGE_KEY) ?? '{}')
+    expect(stored.lighting.refreshHz).toBe(20)
+    expect(stored.lighting.smoke.enabled).toBe(false)
   })
 })

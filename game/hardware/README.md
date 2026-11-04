@@ -165,7 +165,7 @@ await lights.setOutput(createBridgeOutput({ url: config.lighting.bridgeUrl ?? DE
 `openTimeoutMs`), envoie chaque univers en trame binaire de 515 octets (version, univers, 512
 canaux), saute une trame si la socket est encore pleine (`bufferedAmount`, jamais de retard
 accumulé) et signale une coupure par `onDisconnect` (le contrôleur coupe alors la fumée). Côté
-pont, un chien de garde envoie du noir si le navigateur se tait plus de 1 s.
+pont, un chien de garde envoie du noir si le navigateur se tait plus de 2,5 s.
 
 ### Profils d'appareils
 
@@ -235,13 +235,26 @@ Le contrôleur de fumée applique, quoi que dise la configuration :
 - **DMX USB Pro** : l'interface fabrique elle-même le signal DMX, le PC lui envoie un paquet
   par trame. C'est le choix recommandé : timing stable sous Windows comme sous macOS.
 - **Open DMX** (FTDI sans microcontrôleur) : le navigateur fabrique le signal. Chaque trame
-  envoie un _break_ (`setSignals({ break })`, `OPEN_DMX_BREAK_MS`) puis attend la durée de
-  transmission (`OPEN_DMX_FRAME_MS` = 23 ms à 250 kbit/s) avant la suivante, pour ne jamais
-  tronquer une trame. Le timing dépend du PC et du pilote : **expérimental**, scintillements
-  possibles.
+  envoie un _break_ (`setSignals({ break: true })` puis `{ break: false }`) puis les 513 octets.
+  Aucune attente par minuteur dans la trame : Chrome bride les minuteurs d'un onglet masqué à
+  environ 1 s, et une trame qui dormirait pour le break puis après l'envoi durerait plus de 2 s
+  (le contrôleur, qui laisse 500 ms à une écriture, passerait la sortie en erreur). Le break
+  tient donc dans l'aller-retour USB des deux `await setSignals()`, bien plus long que les
+  88 µs exigées par le standard ; et avant la trame suivante, on n'attend que le **reste** de
+  la durée de transmission (`OPEN_DMX_FRAME_MS` = 23 ms à 250 kbit/s) depuis la fin de
+  l'écriture précédente, rien si elle est écoulée (horloge injectable : option `now`). Le
+  timing dépend du PC et du pilote : **expérimental**, scintillements possibles.
 - Un port resté ouvert (rechargement de page) est refermé puis rouvert automatiquement.
   `describeSerialError(error)` traduit les erreurs Web Serial (`busy` : port pris par QLC+ ou
   le logiciel Enttec, `forbidden`, `disconnected`…) avec un conseil à afficher.
+- Après une erreur d'écriture, un débranchement ou à la fermeture, le flux d'écriture est
+  libéré (`writer.abort()` jette les octets en file, puis `releaseLock()`) avant
+  `port.close()` : sinon la fermeture est refusée (flux verrouillé) et le même port ne peut
+  plus être rouvert. `close()` est borné à 1 s (`SERIAL_CLOSE_TIMEOUT_MS`) : une interface
+  figée ne bloque pas l'écran. Un port ouvert sans flux d'écriture est refermé aussitôt.
+- `getGrantedDmxPort(serial, { match })` retrouve sans clic l'interface déjà autorisée : le même
+  port, sinon le même modèle USB, sinon une puce USB-série DMX connue (`DMX_USB_VENDOR_IDS`),
+  sinon rien ; jamais un autre port série (Arduino des buzzers…) quand `match` est donné.
 - `watchDmxPortReconnection({ onReconnect })` prévient quand l'interface est rebranchée (même
   port ou même modèle USB) : l'écran peut relancer `setOutput` sans redemander le port.
 - `createMeteredOutput(output)` mesure les trames réellement envoyées (Hz mesurés, durée
@@ -259,9 +272,16 @@ Pendant un diagnostic, les scènes et les événements de jeu sont suspendus :
   `lights.smoke` (armement, durée max, pause) ;
 - `freezeOutput(ms, { confirm: true })` arrête l'envoi des trames (15 s max) pour simuler un
   plantage : l'interface répète la dernière trame et **le relais temporisé doit couper la
-  fumée tout seul**. Réservé à l'admin, avec double confirmation dans l'écran ;
-- l'arrêt d'urgence annule le gel et bloque le diagnostic ; sans action pendant 10 minutes, le
-  diagnostic se termine et l'ambiance revient.
+  fumée tout seul**. La trame courante (fumée comprise) part juste avant le gel. Double
+  confirmation dans l'écran. À la fin du gel, la fumée est **désarmée** ;
+- `smoke.stop()`, `smoke.disarm()`, `diagnostics.end()` et l'arrêt d'urgence annulent le gel
+  tout de suite ; sans action pendant 10 minutes, le diagnostic se termine et l'ambiance revient ;
+- avec le pont Art-Net, le test de gel est refusé par l'écran : le pont envoie lui-même du noir
+  quand le navigateur se tait, le relais ne serait pas vérifié.
+
+Une sortie passée en erreur (écriture bloquée plus de 500 ms) reprend toute seule après
+`OUTPUT_RECOVERY_WRITES` trames noires acceptées d'affilée (avertissement `output_recovered`) ;
+la fumée coupée par l'erreur n'est pas relancée.
 
 ## Assistant d'installation (`createSetupWizard`)
 

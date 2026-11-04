@@ -307,6 +307,22 @@ describe('assistant d’installation : fumée', () => {
     expect(wizard.summary().config.lighting.smoke.enabled).toBe(false)
   })
 
+  it('refait le test de gel quand la machine à fumée change', () => {
+    const wizard = withSmoke()
+    const redo = (action: () => void) => {
+      wizard.checkSmoke('freezeTest', true)
+      action()
+      return wizard.getState().smokeChecks.freezeTest
+    }
+    expect(redo(() => wizard.addFixture({ profileId: 'par-rgb', name: 'PAR' }))).toBe(true)
+    expect(redo(() => wizard.updateFixture('fumee', { address: 200 }))).toBe(false)
+    expect(redo(() => wizard.updateFixture('fumee', { name: 'Machine' }))).toBe(true)
+    expect(redo(() => wizard.addFixture({ profileId: 'smoke-dmx', name: 'Fumée 2' }))).toBe(false)
+    expect(redo(() => wizard.removeFixture('par'))).toBe(true)
+    expect(redo(() => wizard.removeFixture('fumee-2'))).toBe(false)
+    expect(redo(() => wizard.importSixDeskPreset())).toBe(false)
+  })
+
   it('borne les réglages et prévient si l’émission dépasse le relais temporisé', () => {
     const wizard = withSmoke()
     for (const check of SMOKE_CHECKS) {

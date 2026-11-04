@@ -68,7 +68,7 @@ npx quizzup-artnet-bridge --target 192.168.1.50 --universe 0 --port 7654 --origi
 | `--config <fichier>`          | réglages dans un fichier JSON ; la ligne de commande reste prioritaire            |
 | `--port <n>`                  | port WebSocket sur 127.0.0.1 (7654)                                               |
 | `--bind <ip>`                 | IP locale d'émission (PC avec Wi-Fi + Ethernet : choisir la carte du nœud)        |
-| `--timeout <ms>`              | silence du navigateur avant le noir de sécurité (1000)                            |
+| `--timeout <ms>`              | silence du navigateur avant le noir de sécurité (2500)                            |
 | `--blackout <ms>`             | durée des trames à zéro après une coupure (3000)                                  |
 | `--artnet-port <n>`           | port UDP Art-Net (6454, à ne changer que pour un test)                            |
 | `-h, --help`, `-v, --version` | aide en français, version                                                         |
@@ -176,15 +176,20 @@ puis `launchctl load ~/Library/LaunchAgents/fr.quizzup.artnet-bridge.plist` (che
 - **Origine vérifiée** : seules les pages des origines `--origin` peuvent se connecter (en-tête
   `Origin`, envoyé par le navigateur et non falsifiable par une page). Une connexion sans
   `Origin` est refusée. L'en-tête `Host` doit être `127.0.0.1:<port>` ou `localhost:<port>`
-  (protection contre le « DNS rebinding »).
-- **Un seul écran de salle à la fois** : une deuxième connexion reçoit `409`.
+  (protection contre le « DNS rebinding ») ; sur le port 80, le navigateur omet le port et
+  `127.0.0.1` / `localhost` seuls sont aussi acceptés.
+- **Un seul écran de salle à la fois** : une deuxième connexion reçoit le message d'erreur
+  `busy` puis est fermée (code 4004) ; l'écran affiche « un autre onglet est déjà connecté au
+  pont ». (Un refus HTTP `409` serait vu par le navigateur comme un pont injoignable.)
 - **Présentation obligatoire** : le navigateur envoie `hello` (version du protocole) et le pont
   répond `ack` ; sans cela, la connexion est fermée au bout de 2 s. Trames de taille, de version
   ou d'univers inattendus : connexion fermée.
-- **Chien de garde fumée** : si le navigateur se tait plus de **1 s** (onglet planté, PC gelé)
+- **Chien de garde fumée** : si le navigateur se tait plus de **2,5 s** (onglet planté, PC gelé)
   ou si la connexion se ferme, le pont envoie des trames **à zéro** sur **tous** les univers de
   sortie pendant 3 s (10 par seconde). C'est ce qui coupe la machine à fumée si l'onglet plante.
-  Le noir est aussi envoyé à l'arrêt du pont (Ctrl+C, arrêt du service).
+  Le noir est aussi envoyé à l'arrêt du pont (Ctrl+C, arrêt du service). Le délai n'est pas plus
+  court car Chrome bride les minuteurs d'un onglet masqué à environ 1 par seconde : à 1 s, la
+  lumière clignoterait au noir dès que l'opérateur change d'onglet.
 - **Maintien des nœuds** : la dernière trame est renvoyée au moins toutes les 800 ms ; débit
   limité à ~44 trames/s par univers.
 - Après le noir de sécurité, le pont **n'envoie plus rien** tant que l'écran de salle ne parle
@@ -210,7 +215,7 @@ et il est testé avec un client brut et avec le client WebSocket intégré à No
 1. Message texte du navigateur : `{"type":"hello","protocol":1,"universe":0}`.
 2. Réponse du pont : `{"type":"ack","protocol":1,"bridge":"quizzup-artnet-bridge","version":"0.1.0"}`
    ou `{"type":"error","code":"…","message":"…"}` suivi d'une fermeture (codes 4000 hello
-   attendu, 4001 protocole, 4002 univers, 4003 trame invalide).
+   attendu, 4001 protocole, 4002 univers, 4003 trame invalide, 4004 écran déjà connecté).
 3. Trames binaires de **515 octets** : octet 0 = version (1), octets 1-2 = univers interne
    (gros-boutiste, 0 en v1), octets 3-514 = canaux 1 à 512.
 

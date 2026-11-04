@@ -155,6 +155,18 @@ function resolveDesk(participantId: number) {
 let meteredOutput: MeteredOutput | null = null
 let dmxPort: SerialPortLike | null = null
 let stopReconnectWatch: (() => void) | null = null
+/** Le pont Art-Net a été connecté par un clic : on le reprend après un redémarrage des lumières. */
+let bridgeConnected = false
+
+async function useBridge(controller: LightingController): Promise<void> {
+  const output = createMeteredOutput(
+    createBridgeOutput({ url: parsed.value.config.lighting.bridgeUrl ?? DEFAULT_BRIDGE_URL })
+  )
+  meteredOutput = output
+  dmxPort = null
+  await controller.setOutput(output)
+  bridgeConnected = true
+}
 
 async function useSerialPort(
   controller: LightingController,
@@ -180,16 +192,22 @@ export function getDmxPort(): SerialPortLike | null {
 
 async function reconnectGrantedPort(controller: LightingController): Promise<void> {
   const { driver } = parsed.value.config.lighting
-  // Le pont Art-Net se connecte au clic : Chrome peut demander l'accès au réseau local.
-  if (
-    driver === 'simulation' ||
-    driver === 'artnet-bridge' ||
-    preferSimulation ||
-    !isWebSerialSupported()
-  ) {
+  if (driver === 'simulation' || preferSimulation) {
     return
   }
-  const port = await getGrantedDmxPort().catch(() => null)
+  // Le pont se connecte la première fois au clic (Chrome peut demander l'accès au réseau
+  // local), puis il est repris sans clic à chaque redémarrage des lumières.
+  if (driver === 'artnet-bridge') {
+    if (bridgeConnected && controller === lighting) {
+      await useBridge(controller)
+    }
+    return
+  }
+  if (!isWebSerialSupported()) {
+    return
+  }
+  // On reprend la même interface (jamais un autre appareil USB autorisé, Arduino…).
+  const port = await getGrantedDmxPort(undefined, { match: dmxPort ?? undefined }).catch(() => null)
   if (port && controller === lighting) {
     await useSerialPort(controller, port, driver)
   }
@@ -335,12 +353,7 @@ export async function connectDmxInterface(
   if (driver === 'artnet-bridge') {
     const controller = await startLighting()
     preferSimulation = false
-    const output = createMeteredOutput(
-      createBridgeOutput({ url: parsed.value.config.lighting.bridgeUrl ?? DEFAULT_BRIDGE_URL })
-    )
-    meteredOutput = output
-    dmxPort = null
-    await controller.setOutput(output)
+    await useBridge(controller)
     return
   }
   // La fenêtre de choix doit s'ouvrir dans le clic, avant toute autre attente.
@@ -356,6 +369,7 @@ export async function switchToSimulatedLights(
   output: DmxOutput = createSimulationOutput()
 ): Promise<void> {
   preferSimulation = true
+  bridgeConnected = false
   await lighting?.setOutput(output)
 }
 
@@ -365,15 +379,21 @@ export async function switchToSimulatedLights(
  * Enregistre la config de salle (normalisée) et l'applique : nouveau mapping des
  * buzzers, et contrôleur de lumières relancé seulement si la partie lumières a changé.
  */
-export async function saveRoomHardwareConfig(input: unknown): Promise<ParsedRoomHardwareConfig> {
+export async function saveRoomHardwareConfig(
+  input: unknown,
+  options: { persist?: boolean } = {}
+): Promise<ParsedRoomHardwareConfig> {
   const previousLighting = JSON.stringify(parsed.value.config.lighting)
   const next = parseRoomHardwareConfig(input)
   parsed.value = next
 
-  try {
-    getStorage()?.setItem(HARDWARE_STORAGE_KEY, JSON.stringify(next.config))
-  } catch {
-    // Stockage indisponible : la config vaut jusqu'au rechargement.
+  // `persist: false` : config appliquée à la page seulement (test de coupure de la fumée).
+  if (options.persist !== false) {
+    try {
+      getStorage()?.setItem(HARDWARE_STORAGE_KEY, JSON.stringify(next.config))
+    } catch {
+      // Stockage indisponible : la config vaut jusqu'au rechargement.
+    }
   }
 
   keyboardInput?.setKeymap(effectiveKeymap(next.config))
@@ -399,6 +419,7 @@ export async function resetRoomHardware(options: { storage?: HardwareStorage | n
   preferSimulation = false
   pendingEmergency = null
   dmxPort = null
+  bridgeConnected = false
   storage = options.storage ?? null
   parsed.value = parseRoomHardwareConfig(loadStoredConfig())
 }
