@@ -63,7 +63,6 @@ document.querySelector('#unlock')?.addEventListener('click', () => {
     })
 })
 
-
 const harness = {
   preload: () => preload,
   contextState: () => player.getContext()?.state ?? null,

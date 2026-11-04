@@ -14,7 +14,8 @@ export default [
       '**/dist/**',
       '**/coverage/**',
       '**/test-results/**',
-      '**/playwright-report/**', '**/blob-report/**',
+      '**/playwright-report/**',
+      '**/blob-report/**',
     ],
   },
 

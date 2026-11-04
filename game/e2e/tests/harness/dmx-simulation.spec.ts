@@ -6,7 +6,6 @@ import { expect, type Page, test } from '@playwright/test'
  */
 type Rgb = [number, number, number]
 
-
 async function lastEvent(page: Page, type: string) {
   return page.evaluate(
     (name) => window.dmxHarness.events().findLast((event) => event.type === name) ?? null,
