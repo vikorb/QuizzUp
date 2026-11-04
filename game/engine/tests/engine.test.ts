@@ -7,9 +7,11 @@ import {
   reduceGame,
   replayGame,
 } from '@engine/engine'
+import { getMiniGameQuestion } from '@engine/miniGames'
 import type { ButtonIndex, GameCommand, GameEvent, GameSetup } from '@engine/types'
 import {
   MINI_GAME_FLASH_BLIND_TEST,
+  MINI_GAMES,
   ROUND_CHOOSER_REASON_FIRST_ROUND_RANDOM,
 } from '@quizzup/shared'
 import { describe, expect, it } from 'vitest'
@@ -56,7 +58,7 @@ function correctButton(state: GameState): ButtonIndex {
     throw new Error(`not in a question: ${state.phase.name}`)
   }
 
-  return state.phase.miniGameState.question.answers.findIndex(
+  return getMiniGameQuestion(state.phase.miniGameState).answers.findIndex(
     (answer) => answer.isCorrect
   ) as ButtonIndex
 }
@@ -115,7 +117,7 @@ describe('createGame', () => {
 
     expect(state.setup.roundsCount).toBe(10)
     expect(state.setup.questionsPerRound).toBe(10)
-    expect(state.setup.miniGames).toEqual([MINI_GAME_FLASH_BLIND_TEST])
+    expect(state.setup.miniGames).toEqual([...MINI_GAMES])
   })
 
   it.each([
@@ -355,7 +357,9 @@ describe('reduceGame — full game', () => {
 
   it('ends with "no_content" when no theme has a playable question', () => {
     const driver = createDriver(
-      baseSetup({ themes: [{ id: 1, name: 'Texte', questions: [textQuestion(1)] }] })
+      baseSetup({
+        themes: [{ id: 1, name: 'Vide', questions: [{ ...textQuestion(1), answers: [] }] }],
+      })
     )
     const step = driver.send({ type: 'start', at: 0 })
 
