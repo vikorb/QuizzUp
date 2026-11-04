@@ -8,6 +8,13 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Choix des mini-jeux au lancement d'une partie : le formulaire « Lancer une partie » propose une
+  case par mini-jeu (tous cochés par défaut, au moins un requis) ; `POST /companies/:id/games`
+  accepte `miniGames` (facultatif, stocké dans `games.mini_games`, `null` = tous) et le détail de
+  la partie l'affiche. L'écran de salle le reçoit via `GET /room/games/current` et tire au sort
+  parmi ces mini-jeux (à défaut, le réglage local de la salle, sinon tous).
+  US: us-game-minigames
+
 - Version testable : `npm run demo` à la racine (base, API, backoffice, écran de salle), seed de
   démo (compagnie « QuizzUP Démo », `demo-admin`, salle « Salle 1 » et son compte de salle
   `salle1-demo`, mot de passe `DEMO_SEED_PASSWORD`, `DEMO_SEED=false` pour le couper, 2 thèmes

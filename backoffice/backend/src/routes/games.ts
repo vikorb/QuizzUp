@@ -85,7 +85,7 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const { companyId } = parsedParams.data
-      const { roomId, roundsCount, questionsPerRound, participants } = parsedBody.data
+      const { roomId, roundsCount, questionsPerRound, participants, miniGames } = parsedBody.data
 
       if (!canAccessCompanyContext(req, companyId)) {
         return reply.code(403).send({ error: 'forbidden' })
@@ -138,6 +138,7 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
               admin_id: getCurrentAdminId(req),
               rounds_count: roundsCount,
               questions_per_round: questionsPerRound,
+              mini_games: miniGames ? JSON.stringify(miniGames) : null,
               seed: drawGameSeed(),
               state: GAME_STATE_PENDING,
               status: GAME_STATUS_ACTIVE,

@@ -7,6 +7,8 @@ import {
   GAME_STATE_FINISHED,
   GAME_STATE_PENDING,
   GAME_STATE_RUNNING,
+  MINI_GAME_FIRST_BUZZ,
+  MINI_GAMES,
 } from '@quizzup/shared'
 import { describe, expect, it } from 'vitest'
 
@@ -17,6 +19,7 @@ import { getGameErrorKey, isGameApiErrorCode, readGameApiError } from '@/utils/g
 import {
   formatGameDate,
   formatGameParticipantsCount,
+  getGameMiniGameLabelKey,
   getGamePlayerEmailDisplay,
   getGameRoomName,
 } from '@/utils/game/format'
@@ -162,6 +165,24 @@ describe('utils/game/format', () => {
 function t(key: string, params?: Record<string, string | number>): string {
   return params ? `${key}:${JSON.stringify(params)}` : key
 }
+
+describe('getGameMiniGameLabelKey', () => {
+  it('points to the games.miniGames i18n namespace', () => {
+    expect(getGameMiniGameLabelKey(MINI_GAME_FIRST_BUZZ)).toBe('games.miniGames.first_buzz')
+  })
+
+  it('has a French and an English label for every shared mini-game', async () => {
+    const [fr, en] = await Promise.all([
+      import('@/locales/fr/games.json'),
+      import('@/locales/en/games.json'),
+    ])
+
+    for (const miniGame of MINI_GAMES) {
+      expect(fr.default.games.miniGames[miniGame]).toBeTruthy()
+      expect(en.default.games.miniGames[miniGame]).toBeTruthy()
+    }
+  })
+})
 
 describe('utils/game/banner', () => {
   it('reads success messages from games.banners', () => {

@@ -11,7 +11,12 @@ import {
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { currentRouteMock, pushMock } from '@frontend-tests/_helpers/routerMock'
-import { GAME_STATE_FINISHED, GAME_STATE_RUNNING } from '@quizzup/shared'
+import {
+  GAME_STATE_FINISHED,
+  GAME_STATE_RUNNING,
+  MINI_GAME_ESTIMATE,
+  MINI_GAME_FIRST_BUZZ,
+} from '@quizzup/shared'
 import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -55,6 +60,43 @@ describe('views/games/GameDetailView.vue', () => {
     expect(wrapper.text()).toContain('Salle Néon')
     expect(wrapper.text()).toContain('games.state.pending')
     expect(wrapper.text()).toContain('games.detail.fields.formatValue')
+  })
+
+  it('shows « all » mini-games when the game has no restriction', async () => {
+    const wrapper = await mountView()
+
+    expect(wrapper.text()).toContain('games.detail.fields.miniGames')
+    expect(wrapper.get('[data-test="game-detail-mini-games"]').text()).toBe(
+      'games.detail.fields.miniGamesAll'
+    )
+  })
+
+  it.each([[null], [[]]])('shows « all » mini-games for %j', async (miniGames) => {
+    loadGameServiceMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: { game: createGameFixture({ id: 4, miniGames }) },
+    })
+    const wrapper = await mountView()
+
+    expect(wrapper.get('[data-test="game-detail-mini-games"]').text()).toBe(
+      'games.detail.fields.miniGamesAll'
+    )
+  })
+
+  it('lists the names of the chosen mini-games', async () => {
+    loadGameServiceMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        game: createGameFixture({ id: 4, miniGames: [MINI_GAME_FIRST_BUZZ, MINI_GAME_ESTIMATE] }),
+      },
+    })
+    const wrapper = await mountView()
+
+    expect(wrapper.get('[data-test="game-detail-mini-games"]').text()).toBe(
+      `games.miniGames.${MINI_GAME_FIRST_BUZZ}, games.miniGames.${MINI_GAME_ESTIMATE}`
+    )
   })
 
   it('lists the participants by podium with score and email', async () => {

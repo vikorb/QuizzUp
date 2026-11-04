@@ -181,6 +181,7 @@ Table games {
   questions_per_round smallint [not null, default: 10, note: '1 à 20']
   seed bigint [not null, note: 'Graine des tirages : rejouer la partie à l’identique']
   state varchar(50) [not null, default: 'pending', note: 'pending, running, finished, aborted']
+  mini_games jsonb [note: 'Mini-jeux choisis au lancement (MINI_GAMES) ; null = tous']
 
   started_at timestamptz
   finished_at timestamptz

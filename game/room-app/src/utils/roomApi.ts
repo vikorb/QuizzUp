@@ -1,4 +1,5 @@
 import type { EngineTheme } from '@quizzup/game-engine'
+import type { MiniGame } from '@quizzup/shared'
 
 import { authHeaders, getApiBase } from '@/utils/auth'
 
@@ -20,6 +21,8 @@ export type RoomGame = {
   seed: number
   roundsCount: number
   questionsPerRound: number
+  /** Mini-jeux choisis au lancement ; `null` : aucun choix, tous peuvent être tirés. */
+  miniGames: MiniGame[] | null
   state: string
   participants: RoomGameParticipant[]
 }
