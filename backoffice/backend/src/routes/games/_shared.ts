@@ -1,6 +1,13 @@
 import { randomInt } from 'node:crypto'
 
-import { GAME_SEED_MAX, GAME_STATUS_DELETED } from '@quizzup/shared'
+import type { FastifyRequest } from 'fastify'
+
+import {
+  ADMIN_ROLE_ADMIN,
+  ADMIN_ROLE_SUPERADMIN,
+  GAME_SEED_MAX,
+  GAME_STATUS_DELETED,
+} from '@quizzup/shared'
 
 import db from '../../db'
 import type { GameParticipantRow, GameRow } from '../../types/game'
@@ -28,8 +35,23 @@ export const participantSelect = [
   'display_name as displayName',
   'email',
   'consent_at as consentAt',
+  'second_display_name as secondDisplayName',
+  'second_email as secondEmail',
+  'second_consent_at as secondConsentAt',
   'score',
 ]
+
+type ParticipantDbRow = {
+  id: number | string
+  podium: number | string
+  displayName: string
+  email: string | null
+  consentAt: string | null
+  secondDisplayName: string | null
+  secondEmail: string | null
+  secondConsentAt: string | null
+  score: number | string
+}
 
 /** Graine du moteur de jeu (0 à 2³² − 1), tirée côté serveur. */
 export function drawGameSeed(): number {
@@ -80,15 +102,60 @@ export function toGameRow(row: Record<string, unknown>): GameRow {
 }
 
 export async function findGameParticipants(gameId: number): Promise<GameParticipantRow[]> {
-  const participants = await db('game_participants')
+  const participants = (await db('game_participants')
     .where('game_id', gameId)
     .select(participantSelect)
-    .orderBy('podium', 'asc')
+    .orderBy('podium', 'asc')) as ParticipantDbRow[]
 
-  return (participants as GameParticipantRow[]).map((participant) => ({
-    ...participant,
+  return participants.map((participant) => ({
     id: Number(participant.id),
     podium: Number(participant.podium),
+    displayName: participant.displayName,
+    email: participant.email ?? null,
+    hasEmail: Boolean(participant.email),
+    consentAt: participant.consentAt ?? null,
+    secondPlayer: participant.secondDisplayName
+      ? {
+          displayName: participant.secondDisplayName,
+          email: participant.secondEmail ?? null,
+          hasEmail: Boolean(participant.secondEmail),
+          consentAt: participant.secondConsentAt ?? null,
+        }
+      : null,
     score: Number(participant.score),
   }))
+}
+
+/**
+ * RGPD (décision d'Enzo, 2026-11-04) : seuls l'admin et le superadmin relisent les emails
+ * des joueurs. Le staff (`user`) les saisit à l'inscription, mais ne les voit plus ensuite.
+ */
+export function canReadPlayerEmails(req: FastifyRequest): boolean {
+  return req.user.role === ADMIN_ROLE_SUPERADMIN || req.user.role === ADMIN_ROLE_ADMIN
+}
+
+export function maskPlayerEmails(game: GameRow, req: FastifyRequest): GameRow {
+  if (canReadPlayerEmails(req) || !game.participants) {
+    return game
+  }
+
+  return {
+    ...game,
+    participants: game.participants.map((participant) => ({
+      ...participant,
+      email: null,
+      secondPlayer: participant.secondPlayer ? { ...participant.secondPlayer, email: null } : null,
+    })),
+  }
+}
+
+/** Partie vue par le staff du backoffice, emails masqués selon le rôle. */
+export async function findStaffGame(
+  req: FastifyRequest,
+  companyId: number,
+  gameId: number
+): Promise<GameRow | undefined> {
+  const game = await findGameInCompany(companyId, gameId)
+
+  return game ? maskPlayerEmails(game, req) : undefined
 }

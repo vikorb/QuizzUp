@@ -17,7 +17,7 @@ export const roomParamsSchema = z.object({
 
 const roomNameSchema = z.string().trim().min(1).max(ROOM_NAME_MAX_LENGTH)
 
-const roomConfigSchema = z
+export const roomConfigSchema = z
   .record(z.string(), z.unknown())
   .refine((config) => JSON.stringify(config).length <= ROOM_CONFIG_MAX_LENGTH, {
     message: 'room_config_too_large',

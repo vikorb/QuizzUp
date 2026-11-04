@@ -1,11 +1,24 @@
 import type { GameState, GameStatus } from '@quizzup/shared'
 
+/** 2e joueur facultatif d'un pupitre. */
+export type GameSecondPlayerRow = {
+  displayName: string
+  /** `null` si absent, ou masqué pour le rôle `user` (voir `hasEmail`). */
+  email: string | null
+  hasEmail: boolean
+  consentAt: string | null
+}
+
 export type GameParticipantRow = {
   id: number
   podium: number
   displayName: string
+  /** `null` si absent, ou masqué pour le rôle `user` (voir `hasEmail`). */
   email: string | null
+  hasEmail: boolean
   consentAt: string | null
+  secondPlayer: GameSecondPlayerRow | null
+  /** Score du pupitre, partagé par ses joueurs. */
   score: number
 }
 
