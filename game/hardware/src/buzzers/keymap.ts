@@ -1,5 +1,5 @@
 import type { BuzzerButton, Desk } from '../types'
-import { BUZZER_BUTTONS, DESKS, isBuzzerButton, isDesk } from '../types'
+import { BUZZER_BUTTONS, DEFAULT_DESKS, isBuzzerButton, isDesk } from '../types'
 
 /** Buzzer physique identifié par son pupitre et sa lettre. */
 export type BuzzerSlot = { desk: Desk; button: BuzzerButton }
@@ -67,11 +67,14 @@ export function findCode(keymap: BuzzerKeymap, desk: Desk, button: BuzzerButton)
 }
 
 /** Tous les buzzers attendus, dans l'ordre de l'apprentissage : pupitre 1 A-D, puis pupitre 2… */
-export function listSlots(desks: readonly Desk[] = DESKS): BuzzerSlot[] {
+export function listSlots(desks: readonly Desk[] = DEFAULT_DESKS): BuzzerSlot[] {
   return desks.flatMap((desk) => BUZZER_BUTTONS.map((button) => ({ desk, button })))
 }
 
-export function missingSlots(keymap: BuzzerKeymap, desks: readonly Desk[] = DESKS): BuzzerSlot[] {
+export function missingSlots(
+  keymap: BuzzerKeymap,
+  desks: readonly Desk[] = DEFAULT_DESKS
+): BuzzerSlot[] {
   return listSlots(desks).filter((slot) => findCode(keymap, slot.desk, slot.button) === null)
 }
 
@@ -87,7 +90,7 @@ export function createDefaultKeymap(): BuzzerKeymap {
     ['KeyZ', 'KeyX', 'KeyC', 'KeyV'],
   ]
   const keymap: BuzzerKeymap = {}
-  DESKS.forEach((desk, deskIndex) => {
+  DEFAULT_DESKS.forEach((desk, deskIndex) => {
     BUZZER_BUTTONS.forEach((button, buttonIndex) => {
       const code = rows[deskIndex]?.[buttonIndex]
       if (code) {
