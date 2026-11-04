@@ -3,6 +3,7 @@ import { flushPromises } from '@vue/test-utils'
 import type { ExtractPlayer } from '@/audio/player'
 import { rememberBackofficeGameId, reportFinishedGame } from '@/game/backofficeGame'
 import { getDemoThemes } from '@/game/demoContent'
+import { readPendingFinishes } from '@/game/pendingFinishes'
 import { createMemorySessionStorage, GameSession } from '@/game/session'
 import { closeGame, configureRoomGame, startNewGame, useRoomGame } from '@/game/useRoomGame'
 import { lockBuzzerSystemKeys } from '@/hardware/roomHardware'
@@ -294,7 +295,8 @@ describe('LaunchView', () => {
       signIn('jeton-autre-salle', OTHER_ACCOUNT)
       const finish = vi.spyOn(roomApi, 'finishRoomGame')
 
-      expect(await reportFinishedGame(session.state)).toBe(false)
+      expect(reportFinishedGame(session.state)).toBeNull()
+      expect(readPendingFinishes()).toEqual([])
       expect(finish).not.toHaveBeenCalled()
     })
 
@@ -302,7 +304,7 @@ describe('LaunchView', () => {
       const session = saveRoomGame()
       vi.spyOn(roomApi, 'finishRoomGame').mockResolvedValue({ id: 5 } as never)
 
-      expect(await reportFinishedGame(session.state)).toBe(true)
+      expect(reportFinishedGame(session.state)).toBe(5)
       const { wrapper } = await mountWithApp(LaunchView)
 
       expect(wrapper.text()).not.toContain('Une partie est en cours')
