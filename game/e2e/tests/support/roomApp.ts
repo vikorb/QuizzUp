@@ -46,7 +46,22 @@ export async function advance(page: Page, ms: number): Promise<void> {
   await page.clock.runFor(ms)
 }
 
-export async function enterDemo(page: Page): Promise<void> {
+/** Réglage de salle (`game/room-app`, `miniGamesSetting.ts`) : mini-jeux tirés au sort. */
+export const MINI_GAMES_STORAGE_KEY = 'quizzup_room_mini_games'
+
+/**
+ * Entre en mode démo. Par défaut la salle ne tire que le blind test éclair, dont ces
+ * scénarios vérifient les règles ; `miniGames: 'all'` garde le tirage de tous les mini-jeux.
+ */
+export async function enterDemo(
+  page: Page,
+  options: { miniGames?: 'blind_test' | 'all' } = {}
+): Promise<void> {
+  if ((options.miniGames ?? 'blind_test') === 'blind_test') {
+    await page.addInitScript((key) => {
+      localStorage.setItem(key, JSON.stringify(['flash_blind_test']))
+    }, MINI_GAMES_STORAGE_KEY)
+  }
   await page.goto('/login')
   await page.getByRole('button', { name: 'Essayer en mode démo (sans compte)' }).click()
   await expect(page.getByRole('heading', { name: 'Prêt à jouer' })).toBeVisible()

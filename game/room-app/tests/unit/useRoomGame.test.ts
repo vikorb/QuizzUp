@@ -1,7 +1,9 @@
 import { DEFAULT_GAME_TIMINGS } from '@quizzup/game-engine'
+import { MINI_GAME_FLASH_BLIND_TEST } from '@quizzup/shared'
 
 import { createSilentExtractPlayer, type ExtractPlayer } from '@/audio/player'
 import { getDemoThemes } from '@/game/demoContent'
+import { MINI_GAMES_STORAGE_KEY } from '@/game/miniGamesSetting'
 import { createMemorySessionStorage } from '@/game/session'
 import {
   abortGame,
@@ -20,6 +22,8 @@ import {
 } from '@/game/useRoomGame'
 
 import { createManualClock, getPlayableThemes, REGISTRATIONS } from '../_helpers/fixtures'
+
+const BLIND_TEST_ONLY = [MINI_GAME_FLASH_BLIND_TEST]
 
 function fakePlayer(): ExtractPlayer {
   return {
@@ -64,7 +68,12 @@ describe('useRoomGame', () => {
     const off = onGameEvents(listener)
     const { state, now } = useRoomGame()
 
-    startNewGame({ registrations: REGISTRATIONS, themes: getDemoThemes(), seed: 7 })
+    startNewGame({
+      registrations: REGISTRATIONS,
+      themes: getDemoThemes(),
+      seed: 7,
+      miniGames: BLIND_TEST_ONLY,
+    })
 
     expect(getExtractPlayer()).toBe(player)
     expect(state.value?.phase.name).toBe('round_intro')
@@ -86,7 +95,12 @@ describe('useRoomGame', () => {
 
   it('transmet les appuis buzzers au moteur et l’audio suit', () => {
     const { state } = useRoomGame()
-    startNewGame({ registrations: REGISTRATIONS, themes: getPlayableThemes(), seed: 7 })
+    startNewGame({
+      registrations: REGISTRATIONS,
+      themes: getPlayableThemes(),
+      seed: 7,
+      miniGames: BLIND_TEST_ONLY,
+    })
     clock.advance(DEFAULT_GAME_TIMINGS.roundIntroMs + 10)
     vi.advanceTimersByTime(50)
 
@@ -97,9 +111,29 @@ describe('useRoomGame', () => {
     expect(player.play).toHaveBeenCalledTimes(1)
   })
 
+  it('tire les mini-jeux du réglage de la salle, sinon tous', () => {
+    const { state } = useRoomGame()
+    startNewGame({ registrations: REGISTRATIONS, themes: getDemoThemes(), seed: 7 })
+    expect(state.value?.setup.miniGames.length).toBeGreaterThan(1)
+    closeGame()
+
+    localStorage.setItem(MINI_GAMES_STORAGE_KEY, JSON.stringify(BLIND_TEST_ONLY))
+    try {
+      startNewGame({ registrations: REGISTRATIONS, themes: getDemoThemes(), seed: 7 })
+      expect(state.value?.setup.miniGames).toEqual(BLIND_TEST_ONLY)
+    } finally {
+      localStorage.removeItem(MINI_GAMES_STORAGE_KEY)
+    }
+  })
+
   it('arrête la partie puis la ferme sans laisser de sauvegarde', () => {
     const { state, session } = useRoomGame()
-    startNewGame({ registrations: REGISTRATIONS, themes: getDemoThemes(), seed: 7 })
+    startNewGame({
+      registrations: REGISTRATIONS,
+      themes: getDemoThemes(),
+      seed: 7,
+      miniGames: BLIND_TEST_ONLY,
+    })
 
     abortGame()
     expect(state.value?.phase.name).toBe('aborted')
@@ -112,7 +146,12 @@ describe('useRoomGame', () => {
 
   it('reprend une partie sauvegardée après avoir rechargé les extraits', async () => {
     const { state } = useRoomGame()
-    startNewGame({ registrations: REGISTRATIONS, themes: getDemoThemes(), seed: 7 })
+    startNewGame({
+      registrations: REGISTRATIONS,
+      themes: getDemoThemes(),
+      seed: 7,
+      miniGames: BLIND_TEST_ONLY,
+    })
     const phase = state.value?.phase.name
 
     expect(await resumeSavedGame()).toBe(true)
@@ -127,7 +166,12 @@ describe('useRoomGame', () => {
 
   it('relance l’extrait du palier en cours à la reprise', async () => {
     const { state } = useRoomGame()
-    startNewGame({ registrations: REGISTRATIONS, themes: getPlayableThemes(), seed: 7 })
+    startNewGame({
+      registrations: REGISTRATIONS,
+      themes: getPlayableThemes(),
+      seed: 7,
+      miniGames: BLIND_TEST_ONLY,
+    })
     clock.advance(DEFAULT_GAME_TIMINGS.roundIntroMs + 10)
     vi.advanceTimersByTime(50)
     const chooser = state.value?.rounds[0]?.chooserParticipantId as 1 | 2 | 3

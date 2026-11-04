@@ -13,6 +13,94 @@
           "The sooner you find it, the more you score: 100, 50 or 20 points.",
           "A mistake costs nothing, but you cannot buzz again until the next stage."
         ]
+      },
+      "quick_answer": {
+        "name": "Quick answer",
+        "pitch": "Everyone answers, the fastest scores most!",
+        "rules": [
+          "Everyone answers at the same time with A, B, C or D.",
+          "Only your first answer counts.",
+          "A right answer is worth 100 points (right away) down to 20 points (at the end).",
+          "A mistake costs nothing."
+        ]
+      },
+      "first_buzz": {
+        "name": "First buzz",
+        "pitch": "Buzz first and answer alone!",
+        "rules": [
+          "Read the question, then buzz with any button.",
+          "The first to buzz answers alone with A, B, C or D.",
+          "Right answer: 100 points.",
+          "Wrong answer: 25 points penalty and the hand passes."
+        ]
+      },
+      "true_false": {
+        "name": "Flash true or false",
+        "pitch": "A burst of statements: make the call!",
+        "rules": [
+          "A = True, B = False.",
+          "Everyone answers at the same time, in a few seconds.",
+          "Each right answer is worth 50 points."
+        ]
+      },
+      "double_or_nothing": {
+        "name": "Double or nothing",
+        "pitch": "Bet before you see the question!",
+        "rules": [
+          "Before the question, bet with your buzzers: A = pass, B = 100, C = 200, D = all in.",
+          "All in puts your whole score at stake (at least 300 points).",
+          "Right answer: you win your stake. Wrong answer or silence: you lose it.",
+          "Without a bet, you play for 100 points."
+        ]
+      },
+      "sudden_death": {
+        "name": "Sudden death",
+        "pitch": "One mistake and you are out!",
+        "rules": [
+          "Everyone answers at the same time: 50 points per right answer.",
+          "A mistake or no answer: out until the end of the round.",
+          "If every survivor is wrong, nobody is out.",
+          "The last one standing grabs a 200 points bonus."
+        ]
+      },
+      "point_steal": {
+        "name": "Point steal",
+        "pitch": "The fastest steals from an opponent!",
+        "rules": [
+          "Everyone answers at the same time: 50 points per right answer.",
+          "The fastest right player picks an opponent with their buzzers (A = desk 1, B = desk 2…).",
+          "They steal up to 100 points.",
+          "Without a choice, the steal targets the player with the most points."
+        ]
+      },
+      "streak": {
+        "name": "Streak",
+        "pitch": "Chain right answers to raise your multiplier!",
+        "rules": [
+          "Everyone answers at the same time with A, B, C or D.",
+          "A right answer is worth 25 points × your multiplier.",
+          "Each right answer in a row raises the multiplier, up to ×5.",
+          "A mistake or silence drops it back to ×1."
+        ]
+      },
+      "estimate": {
+        "name": "Estimate",
+        "pitch": "Find the right range!",
+        "rules": [
+          "Ranges go from the smallest (A) to the largest.",
+          "Everyone answers at the same time.",
+          "Right range: 100 points. Neighbouring range: 30 points."
+        ]
+      },
+      "progressive_reveal": {
+        "name": "Progressive reveal",
+        "pitch": "The picture shows up bit by bit: find it first!",
+        "rules": [
+          "The blurred picture sharpens for 20 seconds.",
+          "The first to buzz freezes it and answers alone with A, B, C or D.",
+          "The sooner you find it, the more you score: 100 down to 20 points.",
+          "A mistake costs nothing, but you can no longer buzz on this picture."
+        ]
       }
     },
     "intro": {
@@ -51,7 +139,7 @@
       "title": "Game over",
       "winner": "{name} wins the game!",
       "tie": "Tie at the top!",
-      "noContent": "Not enough audio questions left to go on.",
+      "noContent": "Not enough questions left to continue the game.",
       "newGame": "New game",
       "home": "Back to home"
     },
@@ -59,7 +147,48 @@
       "title": "Game stopped"
     },
     "scoreboard": {
-      "label": "Scores"
+      "label": "Scores",
+      "answered": "Answered",
+      "bet": "Bet placed",
+      "eliminated": "Out",
+      "multiplier": "×{n}",
+      "stake": "Bet {n}",
+      "all_in": "All in {n}",
+      "pass": "Pass"
+    },
+    "answerAll": {
+      "answered": "{n} / {total} answered",
+      "hint": "Everyone answers: A, B, C or D",
+      "hintTrueFalse": "A = True · B = False",
+      "hintEstimate": "Pick the right range",
+      "hintStreak": "Keep your streak!",
+      "hintSuddenDeath": "No room for mistakes",
+      "hintDoubleOrNothing": "Your stake is on the line"
+    },
+    "buzz": {
+      "open": "Buzz!",
+      "answering": "{name} answers!",
+      "atStake": "At stake: {n} pts",
+      "hintFirstBuzz": "First buzz",
+      "hintReveal": "What is hiding here?"
+    },
+    "bet": {
+      "label": "Double or nothing",
+      "title": "Place your bets!",
+      "hint": "Bet with your buzzers before seeing the question",
+      "count": "{n} / {total} have bet",
+      "allInDetail": "your whole score (min. {n})",
+      "options": {
+        "pass": "Pass",
+        "single": "Single bet",
+        "double": "Double bet",
+        "allIn": "All in"
+      }
+    },
+    "steal": {
+      "title": "{name} picks who to rob",
+      "hint": "Press the letter of the target desk: up to {n} points stolen",
+      "auto": "Without a choice, the steal targets the player with the most points"
     }
   }
 }
