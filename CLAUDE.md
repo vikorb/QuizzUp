@@ -44,8 +44,10 @@ game/
 ├─ engine/     @quizzup/game-engine — moteur pur et déterministe (npm séparé, tests dans engine/tests)
 ├─ hardware/   @quizzup/hardware — buzzers clavier, DMX Web Serial, fumée sécurisée, simulation
 ├─ audio/      @quizzup/audio — lecteur d'extraits Web Audio + sons d'interface synthétisés
-└─ room-app/   @quizzup/room-app — écran de salle Vue 3, 100 % navigateur (npm séparé, port 4174),
-               charte importée du backoffice, consomme moteur, matériel et audio en sources (cf. son README)
+├─ room-app/   @quizzup/room-app — écran de salle Vue 3, 100 % navigateur (npm séparé, port 4174),
+│              charte importée du backoffice, consomme moteur, matériel et audio en sources (cf. son README)
+└─ e2e/        @quizzup/e2e — tests de bout en bout Playwright (Chromium) : partie complète sur
+               l'écran de salle, audio réel aux paliers, simulation DMX (npm séparé, cf. son README)
 ```
 
 ## 3. Remotes & CI — IMPORTANT
@@ -141,6 +143,9 @@ npm run knip      # code mort
 
 **Moteur de jeu — depuis `game/engine/`** : `npm install`, puis `npm run lint`,
 `npm run format:check`, `npm run type-check`, `npm test` (`npm run test:coverage` pour les seuils).
+
+**Tests de bout en bout — depuis `game/e2e/`** : `npm install`, `npm --prefix ../room-app install`,
+`npx playwright install chromium`, puis `npm test` (démarre room-app :4174 et le banc d'essai :4175).
 
 **Docker** (depuis `backoffice/`) : `docker compose up --build`
 → backend `:3001`, frontend `:4173`, Swagger `:3001/docs`, Postgres `:5434`.
