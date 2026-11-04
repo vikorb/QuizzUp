@@ -5,7 +5,11 @@ import {
 } from '@quizzup/shared'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { MINI_GAMES_STORAGE_KEY, readMiniGamesSetting } from '@/game/miniGamesSetting'
+import {
+  MINI_GAMES_STORAGE_KEY,
+  readMiniGamesSetting,
+  sanitizeMiniGames,
+} from '@/game/miniGamesSetting'
 
 describe('readMiniGamesSetting', () => {
   afterEach(() => {
@@ -44,4 +48,24 @@ describe('readMiniGamesSetting', () => {
     localStorage.setItem(MINI_GAMES_STORAGE_KEY, JSON.stringify([MINI_GAME_QUICK_ANSWER]))
     expect(readMiniGamesSetting()).toEqual([MINI_GAME_QUICK_ANSWER])
   })
+})
+
+describe('sanitizeMiniGames', () => {
+  it('keeps the known mini-games, in the engine order and without duplicates', () => {
+    expect(
+      sanitizeMiniGames([
+        MINI_GAME_ESTIMATE,
+        'unknown',
+        MINI_GAME_FLASH_BLIND_TEST,
+        MINI_GAME_ESTIMATE,
+      ])
+    ).toEqual([MINI_GAME_FLASH_BLIND_TEST, MINI_GAME_ESTIMATE])
+  })
+
+  it.each([[undefined], [null], [[]], [['unknown']], ['quick_answer'], [{}], [42]])(
+    'returns undefined (every mini-game) for %j',
+    (value) => {
+      expect(sanitizeMiniGames(value)).toBeUndefined()
+    }
+  )
 })

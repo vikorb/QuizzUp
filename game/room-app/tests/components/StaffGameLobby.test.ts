@@ -1,7 +1,16 @@
+import {
+  MINI_GAME_FIRST_BUZZ,
+  MINI_GAME_FLASH_BLIND_TEST,
+  MINI_GAME_POINT_STEAL,
+  MINI_GAME_QUICK_ANSWER,
+  type MiniGame,
+  QUESTION_MEDIA_TYPE_NONE,
+} from '@quizzup/shared'
 import { flushPromises } from '@vue/test-utils'
 
 import type { ExtractPlayer } from '@/audio/player'
 import { useConfirm } from '@/composables/useConfirm'
+import { MINI_GAMES_STORAGE_KEY } from '@/game/miniGamesSetting'
 import { createMemorySessionStorage, GameSession, type SessionStorage } from '@/game/session'
 import { closeGame, configureRoomGame, useRoomGame } from '@/game/useRoomGame'
 import { signIn, syncRoomAuth } from '@/state/roomAuth'
@@ -17,6 +26,7 @@ const GAME: roomApi.RoomGame = {
   seed: 123_456,
   roundsCount: 3,
   questionsPerRound: 2,
+  miniGames: null,
   state: 'pending',
   participants: [
     { id: 7, podium: 3, displayName: 'Inès', score: 0 },
@@ -35,6 +45,33 @@ function fakePlayer(): ExtractPlayer {
     isLoaded: vi.fn(() => true),
     release: vi.fn(),
   }
+}
+
+async function startWith(miniGames: roomApi.RoomGame['miniGames']): Promise<void> {
+  vi.spyOn(roomApi, 'fetchCurrentGame').mockResolvedValue({ ...GAME, miniGames })
+  vi.spyOn(roomApi, 'fetchCurrentContent').mockResolvedValue(getPlayableThemes())
+  vi.spyOn(roomApi, 'startRoomGame').mockResolvedValue({ ...GAME, state: 'running' })
+  const { wrapper, router } = await mountWithApp(LobbyView, { route: '/lobby' })
+  await flushPromises()
+
+  await wrapper.find('[data-test="start-game"]').trigger('click')
+  await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('play'))
+}
+
+async function clickStart(
+  miniGames: roomApi.RoomGame['miniGames'],
+  game: Partial<roomApi.RoomGame>,
+  themes = getPlayableThemes()
+) {
+  vi.spyOn(roomApi, 'fetchCurrentGame').mockResolvedValue({ ...GAME, miniGames, ...game })
+  vi.spyOn(roomApi, 'fetchCurrentContent').mockResolvedValue(themes)
+  const start = vi.spyOn(roomApi, 'startRoomGame')
+  const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+  await flushPromises()
+
+  await wrapper.find('[data-test="start-game"]').trigger('click')
+  await flushPromises()
+  return { wrapper, start }
 }
 
 describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
@@ -101,6 +138,95 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
     expect(state.value?.setup.participants.map((participant) => participant.podium).sort()).toEqual(
       [1, 3]
     )
+  })
+
+  describe('mini-jeux de la partie', () => {
+    afterEach(() => {
+      localStorage.removeItem(MINI_GAMES_STORAGE_KEY)
+    })
+
+    it('transmet au moteur les mini-jeux choisis au lancement', async () => {
+      await startWith([MINI_GAME_QUICK_ANSWER, MINI_GAME_FIRST_BUZZ])
+
+      expect(useRoomGame().state.value?.setup.miniGames).toEqual([
+        MINI_GAME_QUICK_ANSWER,
+        MINI_GAME_FIRST_BUZZ,
+      ])
+    })
+
+    it('préfère le choix du backoffice au réglage local de la salle', async () => {
+      localStorage.setItem(MINI_GAMES_STORAGE_KEY, JSON.stringify([MINI_GAME_FIRST_BUZZ]))
+
+      await startWith([MINI_GAME_QUICK_ANSWER])
+
+      expect(useRoomGame().state.value?.setup.miniGames).toEqual([MINI_GAME_QUICK_ANSWER])
+    })
+
+    it('retombe sur le réglage local de la salle quand le backoffice n’impose rien', async () => {
+      localStorage.setItem(MINI_GAMES_STORAGE_KEY, JSON.stringify([MINI_GAME_FIRST_BUZZ]))
+
+      await startWith(null)
+
+      expect(useRoomGame().state.value?.setup.miniGames).toEqual([MINI_GAME_FIRST_BUZZ])
+    })
+
+    it('ignore les codes inconnus du choix du backoffice', async () => {
+      await startWith(['retired_game', MINI_GAME_QUICK_ANSWER] as unknown as MiniGame[])
+
+      expect(useRoomGame().state.value?.setup.miniGames).toEqual([MINI_GAME_QUICK_ANSWER])
+    })
+
+    it('traite un choix vide ou entièrement inconnu comme « aucun choix »', async () => {
+      localStorage.setItem(MINI_GAMES_STORAGE_KEY, JSON.stringify([MINI_GAME_FIRST_BUZZ]))
+
+      await startWith(['retired_game'] as unknown as MiniGame[])
+
+      expect(useRoomGame().state.value?.setup.miniGames).toEqual([MINI_GAME_FIRST_BUZZ])
+    })
+
+    describe('sélection injouable', () => {
+      it('n’appelle pas startRoomGame quand le mini-jeu exige plus de joueurs', async () => {
+        const { wrapper, start } = await clickStart([MINI_GAME_POINT_STEAL], {
+          participants: [GAME.participants[0]!],
+        })
+
+        expect(start).not.toHaveBeenCalled()
+        expect(wrapper.text()).toContain('Aucun mini-jeu choisi n’est jouable')
+        expect(useRoomGame().state.value).toBeNull()
+      })
+
+      it('n’appelle pas startRoomGame pour un blind test sans extrait éligible', async () => {
+        const textOnly = getPlayableThemes().map((theme) => ({
+          ...theme,
+          questions: theme.questions.map((question) => ({
+            ...question,
+            mediaType: QUESTION_MEDIA_TYPE_NONE,
+            mediaUrl: null,
+          })),
+        }))
+        const { wrapper, start } = await clickStart([MINI_GAME_FLASH_BLIND_TEST], {}, textOnly)
+
+        expect(start).not.toHaveBeenCalled()
+        expect(wrapper.text()).toContain('Aucun mini-jeu choisi n’est jouable')
+        expect(useRoomGame().state.value).toBeNull()
+      })
+
+      it('démarre dès qu’un mini-jeu choisi est jouable', async () => {
+        const { wrapper, start } = await clickStart(
+          [MINI_GAME_POINT_STEAL, MINI_GAME_QUICK_ANSWER],
+          { participants: [GAME.participants[0]!] }
+        )
+
+        expect(start).toHaveBeenCalledWith('token-salle', 42)
+        expect(wrapper.text()).not.toContain('Aucun mini-jeu choisi n’est jouable')
+      })
+    })
+
+    it('tire tous les mini-jeux sans choix du backoffice ni réglage local', async () => {
+      await startWith(null)
+
+      expect(useRoomGame().state.value?.setup.miniGames.length).toBeGreaterThan(1)
+    })
   })
 
   it('explique pourquoi la partie ne démarre pas', async () => {

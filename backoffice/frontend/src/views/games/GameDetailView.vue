@@ -67,6 +67,11 @@
         </div>
 
         <div class="game-details__item">
+          <dt>{{ $t('games.detail.fields.miniGames') }}</dt>
+          <dd data-test="game-detail-mini-games">{{ miniGamesLabel }}</dd>
+        </div>
+
+        <div class="game-details__item">
           <dt>{{ $t('games.detail.fields.createdAt') }}</dt>
           <dd>{{ formatGameDate(game.createdAt, locale) }}</dd>
         </div>
@@ -109,7 +114,7 @@ import { createErrorBanner, createSuccessBanner, getBannerVariant } from '@/util
 import { isSuperadminRole } from '@/utils/company/details/permissions'
 import { GAME_BANNER_ABORTED, getGameBannerMessage } from '@/utils/game/banner'
 import { parseGameId, resolveGameCompanyId } from '@/utils/game/company'
-import { formatGameDate, getGameRoomName } from '@/utils/game/format'
+import { formatGameDate, getGameMiniGameLabelKey, getGameRoomName } from '@/utils/game/format'
 import { canAbortGame, getGameStateLabelKey, getGameStateTone } from '@/utils/game/state'
 
 import GameParticipantsTable from './detail/GameParticipantsTable.vue'
@@ -136,6 +141,15 @@ const cardTitle = computed(() =>
     ? t('games.detail.title')
     : t('games.detail.infoTitle', { id: gameId.value })
 )
+
+// « Tous » quand la partie n'a pas de restriction (null ou absent), sinon les noms choisis.
+const miniGamesLabel = computed(() => {
+  const miniGames = game.value?.miniGames
+
+  return miniGames?.length
+    ? miniGames.map((miniGame) => t(getGameMiniGameLabelKey(miniGame))).join(', ')
+    : t('games.detail.fields.miniGamesAll')
+})
 
 const actionBannerVariant = computed(() => getBannerVariant(actionBanner.value))
 const actionBannerMessage = computed(() => getGameBannerMessage(actionBanner.value, t))

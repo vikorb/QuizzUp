@@ -49,6 +49,15 @@
     </section>
 
     <section class="game-form__section">
+      <GameMiniGamesField
+        :model-value="form.miniGames"
+        :disabled="isBusy"
+        :error="errorLabel(fieldErrors.miniGames)"
+        @update:model-value="updateMiniGames"
+      />
+    </section>
+
+    <section class="game-form__section">
       <div class="game-form__section-head">
         <div>
           <h3 class="game-form__section-title">{{ $t('games.form.sections.participants') }}</h3>
@@ -107,6 +116,7 @@
 
 <script setup lang="ts">
 import { mdiAccountPlusOutline } from '@mdi/js'
+import type { MiniGame } from '@quizzup/shared'
 import { GAME_MAX_QUESTIONS_PER_ROUND, GAME_MAX_ROUNDS, GAME_PODIUMS } from '@quizzup/shared'
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -145,6 +155,7 @@ import {
   validateGameForm,
 } from '@/utils/game/form'
 
+import GameMiniGamesField from './GameMiniGamesField.vue'
 import GameParticipantFields from './GameParticipantFields.vue'
 
 /** Erreurs de l'API qui concernent le choix de la salle. */
@@ -305,6 +316,12 @@ function updateParticipant(
       errors.secondEmailConsent = ''
     }
   }
+}
+
+function updateMiniGames(miniGames: MiniGame[]): void {
+  form.miniGames = miniGames
+  // Recocher un mini-jeu lève l'erreur « aucun mini-jeu ».
+  fieldErrors.miniGames = ''
 }
 
 function applyApiError(code: string): void {
