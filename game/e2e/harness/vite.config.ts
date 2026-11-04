@@ -20,6 +20,8 @@ export default defineConfig({
       '@quizzup/hardware': fromHere('../../hardware/src/index.ts'),
       '@quizzup/shared': fromHere('../../../backoffice/shared/src/index.ts'),
       '@room-app': fromHere('../../room-app/src'),
+      // Imports internes du pont audio de l'écran de salle (`@/audio/player`).
+      '@': fromHere('../../room-app/src'),
     },
   },
   server: {

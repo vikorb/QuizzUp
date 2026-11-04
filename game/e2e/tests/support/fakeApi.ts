@@ -1,11 +1,11 @@
 import type { Page, Route } from '@playwright/test'
 
+import { API_URL, ROOM_APP_URL } from './urls'
+
 /**
  * API du backoffice simulée (`VITE_API_URL=http://api.quizzup.test`, cf. playwright.config) :
  * mêmes routes et mêmes réponses que le backend Fastify pour la connexion de la salle.
  */
-export const API_URL = 'http://api.quizzup.test'
-const ROOM_ORIGIN = 'http://localhost:4174'
 
 export type FakeAccount = { id: number; companyId: number; role: string; username: string }
 
@@ -18,7 +18,7 @@ function cors(route: Route, status: number, body?: unknown): Promise<void> {
     status,
     contentType: 'application/json',
     headers: {
-      'Access-Control-Allow-Origin': ROOM_ORIGIN,
+      'Access-Control-Allow-Origin': ROOM_APP_URL,
       'Access-Control-Allow-Credentials': 'true',
       'Access-Control-Allow-Headers': 'Authorization, Content-Type',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',

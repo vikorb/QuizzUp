@@ -213,7 +213,7 @@ jobs:
           npm --prefix ../room-app ci
 
       - name: Installer Chromium
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps --only-shell chromium
 
       - name: Lint
         run: npm run lint

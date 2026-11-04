@@ -10,6 +10,21 @@ import {
   reduceGame,
 } from '@quizzup/game-engine'
 
+/** Bonne réponse et une mauvaise réponse de la question en cours, dans l'ordre A-D du moteur. */
+export function answerButtons(state: GameState): { correct: ButtonIndex; wrong: ButtonIndex } {
+  const { phase } = state
+  if (phase.name !== 'question') {
+    throw new Error(`Pas de question en cours (phase ${phase.name})`)
+  }
+  const { answers } = phase.miniGameState.question
+  const correct = answers.findIndex((answer) => answer.isCorrect)
+  const wrong = answers.findIndex((answer) => !answer.isCorrect)
+  if (correct < 0 || wrong < 0) {
+    throw new Error('La question doit avoir une bonne et une mauvaise réponse')
+  }
+  return { correct: correct as ButtonIndex, wrong: wrong as ButtonIndex }
+}
+
 /** Fréquence des ticks envoyés au moteur (l'écran de salle en envoie un toutes les 50 ms). */
 const TICK_INTERVAL_MS = 20
 

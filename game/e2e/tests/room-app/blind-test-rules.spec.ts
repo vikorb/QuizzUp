@@ -13,6 +13,7 @@ import {
   pressBuzzer,
   scoreOf,
   startShortGame,
+  TICK_MARGIN_MS,
 } from '../support/roomApp'
 
 /**
@@ -38,7 +39,7 @@ async function openFirstQuestion(page: Page): Promise<void> {
   await enterDemo(page)
   await startShortGame(page, PLAYERS)
   await expectScreen(page, 'intro')
-  await advance(page, 4000)
+  await advance(page, 4000 + TICK_MARGIN_MS)
   await chooseFirstTheme(page)
   expect(await currentStage(page)).toBe(1)
 }
@@ -51,7 +52,7 @@ test.describe('Blind test éclair — règles des paliers', () => {
     await expect(lockOf(page, 'Bob')).toBeVisible()
 
     // Alice ne buzze pas : palier 2 au bout de l'écoute (1 s) + la fenêtre de buzz (3 s).
-    await advance(page, 4000)
+    await advance(page, 4000 + TICK_MARGIN_MS)
     expect(await currentStage(page)).toBe(2)
     await expect(lockOf(page, 'Bob')).toHaveCount(0)
 

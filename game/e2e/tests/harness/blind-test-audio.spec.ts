@@ -18,6 +18,9 @@ import {
 const TOLERANCE_MS = 150
 
 test.describe('Blind test éclair — audio réel', () => {
+  // Mesures au son réel (± 150 ms) : on ne les fait pas tourner en même temps l'une que l'autre.
+  test.describe.configure({ mode: 'serial' })
+
   test('le son démarre et s’arrête à chaque palier, se coupe au buzz et reprend après une erreur', async ({
     page,
   }) => {
@@ -99,7 +102,9 @@ test.describe('Blind test éclair — audio réel', () => {
       (event) => event.payload.stage === 1
     )
     await page.waitForFunction((at) => performance.now() >= at + 500, stage1.at)
-    await expect.poll(() => page.evaluate(() => window.audioHarness.isAudible())).toBe(true)
+    await expect
+      .poll(() => page.evaluate(() => window.audioHarness.isAudible()), { intervals: [20] })
+      .toBe(true)
 
     // Bob buzze pendant l'écoute du palier 1, puis donne la bonne réponse.
     await page.evaluate(() => window.audioHarness.press(2, 3))

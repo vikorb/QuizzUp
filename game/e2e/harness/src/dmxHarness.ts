@@ -9,7 +9,7 @@ import {
 } from '@quizzup/hardware'
 import { QUESTION_MEDIA_TYPE_AUDIO } from '@quizzup/shared'
 
-import { createGameDriver } from './gameDriver'
+import { answerButtons, createGameDriver } from './gameDriver'
 
 /**
  * Banc lumières : vrai moteur + vrais buzzers clavier + vrai contrôleur de lumières de
@@ -81,6 +81,13 @@ const driver = createGameDriver({
 const buzzers = createKeyboardBuzzerInput({ keymap: createDefaultKeymap() })
 buzzers.onPress((press) => driver.press(press.desk, press.buttonIndex as ButtonIndex, press.at))
 
+const smokeRefusals: string[] = []
+lights.onWarning((warning) => {
+  if (warning.kind === 'smoke_refused') {
+    smokeRefusals.push(warning.reason)
+  }
+})
+
 let started = false
 document.querySelector('#start')?.addEventListener('click', () => {
   void lights.start().then(() => {
@@ -110,17 +117,15 @@ const harness = {
   parColor,
   frameMax: () => Math.max(...output.lastFrame()),
   smokeMax: () => smokeMax,
+  smokeRefusals: () => [...smokeRefusals],
+  deskColor: (desk: Desk): [number, number, number] => {
+    const { r, g, b } = config.deskColors[desk]
+    return [r, g, b]
+  },
   fixtures: () => lights.getFixtureViews(),
   emergencyStop: () => lights.emergencyStop('test e2e'),
   resetEmergency: () => lights.resetEmergency(),
-  correctButton: (): ButtonIndex => {
-    const { phase } = driver.state()
-    const answers = phase.name === 'question' ? phase.miniGameState.question.answers : []
-    return Math.max(
-      0,
-      answers.findIndex((answer) => answer.isCorrect)
-    ) as ButtonIndex
-  },
+  correctButton: () => answerButtons(driver.state()).correct,
 }
 
 declare global {

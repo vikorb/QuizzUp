@@ -14,6 +14,7 @@ import {
   pressBuzzer,
   scoreOf,
   startShortGame,
+  TICK_MARGIN_MS,
 } from '../support/roomApp'
 
 /**
@@ -41,7 +42,7 @@ async function buzzAndAnswer(page: Page, desk: Desk, outcome: 'correct' | 'wrong
 /** Laisse filer les paliers sans buzz jusqu'au palier voulu. */
 async function skipToStage(page: Page, stage: number): Promise<void> {
   for (let index = 0; index < stage - 1; index += 1) {
-    await advance(page, STAGE_TOTAL_MS[index] ?? 0)
+    await advance(page, (STAGE_TOTAL_MS[index] ?? 0) + TICK_MARGIN_MS)
   }
   expect(await currentStage(page)).toBe(stage)
 }
@@ -72,7 +73,7 @@ async function startRound(page: Page, position: number): Promise<void> {
   await expectScreen(page, 'intro')
   await expect(page.locator('.intro__round')).toHaveText(`Manche ${position} / 3`)
   await expect(page.locator('.intro__name')).toHaveText('Blind test éclair')
-  await advance(page, 4000)
+  await advance(page, 4000 + TICK_MARGIN_MS)
   await chooseFirstTheme(page)
   await expect(page.locator('.topbar')).toContainText(`Question 1 / 3`)
 }
@@ -135,7 +136,7 @@ test.describe('Écran de salle — partie complète', () => {
     await nextQuestion(page)
     await advance(page, 1000)
     await expect(page.locator('.blind__status')).toHaveText('Buzzez !')
-    await advance(page, 3000)
+    await advance(page, 3000 + TICK_MARGIN_MS)
     expect(await currentStage(page)).toBe(2)
     await buzzAndAnswer(page, 3, 'correct')
     await expectWinner(page, 3, 2, 50)
@@ -144,7 +145,7 @@ test.describe('Écran de salle — partie complète', () => {
     // Q3 — personne au bout du palier 3 : perdu pour tout le monde.
     await nextQuestion(page)
     await skipToStage(page, 3)
-    await advance(page, STAGE_TOTAL_MS[2]!)
+    await advance(page, STAGE_TOTAL_MS[2]! + TICK_MARGIN_MS)
     await expectScreen(page, 'reveal')
     await expect(page.locator('.reveal__title')).toHaveText('Personne n’a trouvé')
     await expectScores(page, { Alice: 100, Bob: 0, Chloé: 50 })

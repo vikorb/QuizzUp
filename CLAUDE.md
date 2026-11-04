@@ -39,8 +39,8 @@ backoffice/
 ```
 game/
 ├─ engine/     @quizzup/game-engine — moteur pur et déterministe (npm séparé, tests dans engine/tests)
-└─ room-app/   @quizzup/room-app — écran de salle Vue 3, 100 % navigateur (npm séparé, port 4174),
-               charte importée du backoffice, consomme le moteur en sources (cf. son README)
+├─ room-app/   @quizzup/room-app — écran de salle Vue 3, 100 % navigateur (npm séparé, port 4174),
+│              charte importée du backoffice, consomme le moteur en sources (cf. son README)
 └─ e2e/        @quizzup/e2e — tests de bout en bout Playwright (Chromium) : partie complète sur
                l'écran de salle, audio réel aux paliers, simulation DMX (npm séparé, cf. son README)
 ```

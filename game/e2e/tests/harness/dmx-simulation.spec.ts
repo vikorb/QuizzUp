@@ -6,7 +6,6 @@ import { expect, type Page, test } from '@playwright/test'
  */
 type Rgb = [number, number, number]
 
-const DESK_2_VIOLET: Rgb = [139, 116, 255]
 
 async function lastEvent(page: Page, type: string) {
   return page.evaluate(
@@ -67,7 +66,8 @@ test.describe('Lumières — simulation DMX', () => {
     await waitForEvent(page, 'buzzer_pressed')
     expect((await lastEvent(page, 'buzzer_pressed'))?.payload.participantId).toBe(2)
     await expect.poll(() => page.evaluate(() => window.dmxHarness.scene())).toBe('buzz')
-    await expect.poll(() => parColor(page, 2)).toEqual(DESK_2_VIOLET)
+    const desk2Color = await page.evaluate(() => window.dmxHarness.deskColor(2))
+    await expect.poll(() => parColor(page, 2)).toEqual(desk2Color)
     expect(Math.max(...(await parColor(page, 1)))).toBeLessThan(40)
 
     // Bonne réponse de Bob : scène « bonne réponse ».
@@ -96,14 +96,20 @@ test.describe('Lumières — simulation DMX', () => {
 
     // Réarmement : les lumières reprennent avec l'événement suivant.
     await page.evaluate(() => window.dmxHarness.resetEmergency())
+    await expect.poll(() => page.evaluate(() => window.dmxHarness.scene())).toBe('idle')
     const correct3 = await page.evaluate(() => window.dmxHarness.correctButton())
     await press(page, 2, correct3)
     await waitForEvent(page, 'answer_correct', 2)
+    await expect.poll(() => page.evaluate(() => window.dmxHarness.scene())).toBe('answer-correct')
     await expect.poll(() => page.evaluate(() => window.dmxHarness.frameMax())).toBeGreaterThan(0)
 
     // Fin de partie : scène de victoire ; fumée jamais déclenchée (non armée par défaut).
     await waitForEvent(page, 'game_ended')
     await expect.poll(() => page.evaluate(() => window.dmxHarness.scene())).toBe('victory')
+    // L'étape fumée de la victoire est refusée (non armée) : rien n'est envoyé à la machine.
+    await expect
+      .poll(() => page.evaluate(() => window.dmxHarness.smokeRefusals()))
+      .not.toHaveLength(0)
     expect(await page.evaluate(() => window.dmxHarness.smokeMax())).toBe(0)
   })
 })

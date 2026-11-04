@@ -3,7 +3,7 @@ import type { ButtonIndex, EngineTheme } from '@quizzup/game-engine'
 import { QUESTION_MEDIA_TYPE_AUDIO } from '@quizzup/shared'
 import { createAudioBridge } from '@room-app/audio/audioBridge'
 
-import { createGameDriver } from './gameDriver'
+import { answerButtons, createGameDriver } from './gameDriver'
 import { installSoundMonitor } from './soundMonitor'
 
 /**
@@ -63,20 +63,13 @@ document.querySelector('#unlock')?.addEventListener('click', () => {
     })
 })
 
-/** Bonne réponse et mauvaise réponse dans l'ordre A-D tiré par le moteur. */
-function answerButtons(): { correct: ButtonIndex; wrong: ButtonIndex } {
-  const answers = driver.state().rounds[0]?.questions[0]?.answers ?? []
-  const correct = answers.findIndex((answer) => answer.isCorrect)
-  const wrong = answers.findIndex((answer) => !answer.isCorrect)
-  return { correct: correct as ButtonIndex, wrong: wrong as ButtonIndex }
-}
 
 const harness = {
   preload: () => preload,
   contextState: () => player.getContext()?.state ?? null,
   start: () => driver.start(),
   press: (podium: number, button: ButtonIndex) => driver.press(podium, button),
-  answerButtons,
+  answerButtons: () => answerButtons(driver.state()),
   phase: () => driver.state().phase.name,
   events: () => driver.events(),
   segments: () => monitor.segments(),

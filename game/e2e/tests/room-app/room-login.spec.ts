@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { mockBackofficeApi } from '../support/fakeApi'
+import { API_URL } from '../support/urls'
 
 /** Connexion du PC de la salle avec le compte de salle créé dans le backoffice (US-ROOM-02). */
 const ROOM_ACCOUNT = { id: 7, companyId: 3, role: 'room', username: 'salle-1' }
@@ -59,7 +60,7 @@ test.describe('Écran de salle — connexion du compte de salle', () => {
   })
 
   test('signale une API injoignable', async ({ page }) => {
-    await page.route('http://api.quizzup.test/**', (route) => route.abort('connectionrefused'))
+    await page.route(`${API_URL}/**`, (route) => route.abort('connectionrefused'))
     await page.goto('/login')
     await page.locator('input[name="identifier"]').fill('salle-1')
     await page.locator('input[name="password"]').fill(PASSWORD)

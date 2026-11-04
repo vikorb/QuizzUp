@@ -35,6 +35,12 @@ export async function freezeClock(page: Page): Promise<void> {
   await page.clock.pauseAt(new Date(start.getTime() + 1000))
 }
 
+/**
+ * Marge ajoutée quand on veut franchir une échéance du moteur (fin de palier, de fenêtre) :
+ * le moteur n'avance qu'au tick de la salle, qui doit tomber après l'échéance.
+ */
+export const TICK_MARGIN_MS = 100
+
 /** Fait avancer le temps de jeu (ticks, délais, minuteurs). */
 export async function advance(page: Page, ms: number): Promise<void> {
   await page.clock.runFor(ms)
