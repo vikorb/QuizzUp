@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   COMPANY_STATUS_DELETED,
+  COMPANY_STATUS_INACTIVE,
   GAME_DEFAULT_QUESTIONS_PER_ROUND,
   GAME_DEFAULT_ROUNDS,
   GAME_SEED_MAX,
@@ -219,6 +220,25 @@ describe('routes/games.ts (US-GAME-08)', () => {
 
       expect(response.statusCode).toBe(409)
       expect(parseJson(response)).toEqual({ error: 'company_deleted' })
+
+      await app.close()
+    })
+
+    it('refuses to launch a game in an inactive company', async () => {
+      seedRoom()
+      dbState.companies[0]!.status = COMPANY_STATUS_INACTIVE
+      const app = await createRouteApp(gamesRoutes)
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/companies/1/games',
+        headers: authHeaders(superadminUser),
+        payload: { roomId: 1, participants: PARTICIPANTS },
+      })
+
+      expect(response.statusCode).toBe(409)
+      expect(parseJson(response)).toEqual({ error: 'company_inactive' })
+      expect(dbState.games).toHaveLength(0)
 
       await app.close()
     })

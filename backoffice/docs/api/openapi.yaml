@@ -1363,7 +1363,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: Compagnie supprimée (`company_deleted`), salle inactive (`room_inactive`) ou partie déjà en attente / en cours (`room_busy`)
+          description: Compagnie supprimée (`company_deleted`) ou inactive (`company_inactive`), salle inactive (`room_inactive`) ou partie déjà en attente / en cours (`room_busy`)
           content:
             application/json:
               schema:

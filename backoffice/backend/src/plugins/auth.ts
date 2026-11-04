@@ -4,7 +4,7 @@ import jwt from '@fastify/jwt'
 
 import { ADMIN_ROLE_ROOM, ADMIN_STATUS_ACTIVE } from '@quizzup/shared'
 import db from '../db'
-import { isRoomCompanyActive } from '../security/roomCompany'
+import { isRoomAccountUsable } from '../security/roomCompany'
 
 type JwtPayload = {
   sub: string
@@ -93,7 +93,8 @@ const authPlugin: FastifyPluginAsync = async (app) => {
     const roleChanged = isRoomSession !== (admin?.role === ADMIN_ROLE_ROOM)
 
     const roomCompanyInactive =
-      admin?.role === ADMIN_ROLE_ROOM && !(await isRoomCompanyActive(admin.company_id))
+      admin?.role === ADMIN_ROLE_ROOM &&
+      !(await isRoomAccountUsable(admin.company_id, admin.room_id))
 
     if (!admin || admin.status !== ADMIN_STATUS_ACTIVE || roleChanged || roomCompanyInactive) {
       // Compte inactif/supprimé/inexistant : on invalide aussi la session en base.

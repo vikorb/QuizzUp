@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { randomUUID } from 'node:crypto'
 import { ADMIN_ROLE_ROOM } from '@quizzup/shared'
 import db from '../db'
-import { isRoomCompanyActive } from '../security/roomCompany'
+import { isRoomAccountUsable } from '../security/roomCompany'
 
 /** Jeton d'un compte de salle (appareil fixe) : la révocation se fait en base. */
 const ROOM_TOKEN_EXPIRES_IN = '365d'
@@ -12,6 +12,7 @@ const ROOM_TOKEN_EXPIRES_IN = '365d'
 type AdminRow = {
   id: number
   company_id: number
+  room_id: number | null
   role: string
   firstname: string
   lastname: string
@@ -65,6 +66,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
         .select(
           'id',
           'company_id',
+          'room_id',
           'role',
           'firstname',
           'lastname',
@@ -85,7 +87,10 @@ const authRoutes: FastifyPluginAsync = async (app) => {
       if (!ok) return reply.code(401).send({ error: 'invalid_credentials' })
 
       // Compte de salle d'une compagnie désactivée ou supprimée : connexion refusée.
-      if (admin.role === ADMIN_ROLE_ROOM && !(await isRoomCompanyActive(admin.company_id))) {
+      if (
+        admin.role === ADMIN_ROLE_ROOM &&
+        !(await isRoomAccountUsable(admin.company_id, admin.room_id))
+      ) {
         return reply.code(401).send({ error: 'invalid_credentials' })
       }
 

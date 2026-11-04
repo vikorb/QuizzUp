@@ -67,6 +67,39 @@ function resolvePlayableMediaUrl(row: MediaRow): string | null | undefined {
   }
 }
 
+/** Thèmes actifs lisibles par la compagnie (tous, ou parmi `themeIds`). */
+async function loadReadableThemes(companyId: number, themeIds?: Array<number | string>) {
+  const query = db('themes')
+    .where('status', THEME_STATUS_ACTIVE)
+    .select('id', 'name', 'scope', 'company_id')
+    .orderBy('id', 'asc')
+
+  if (themeIds) {
+    query.whereIn('id', themeIds)
+  }
+
+  return (await query).filter((theme) => isReadableByCompany(theme as ScopedRow, companyId))
+}
+
+/**
+ * Une question n'est jouable par la salle que si elle appartient à au moins un thème actif
+ * lisible par sa compagnie : même règle que le catalogue, pour la route média.
+ */
+export async function isInPlayableTheme(questionId: number, companyId: number): Promise<boolean> {
+  const links = await db('question_themes').where('question_id', questionId).select('theme_id')
+
+  if (links.length === 0) {
+    return false
+  }
+
+  const themes = await loadReadableThemes(
+    companyId,
+    links.map((link) => link.theme_id)
+  )
+
+  return themes.length > 0
+}
+
 /**
  * Catalogue de la salle : thèmes actifs lisibles par la compagnie et leurs questions
  * actives de tous types, avec leurs réponses actives. Une question audio n'est retenue
@@ -74,12 +107,7 @@ function resolvePlayableMediaUrl(row: MediaRow): string | null | undefined {
  * Le moteur trie ensuite par éligibilité de chaque mini-jeu. Les thèmes vides sont écartés.
  */
 export async function loadRoomContent(companyId: number): Promise<RoomContentTheme[]> {
-  const themes = (
-    await db('themes')
-      .where('status', THEME_STATUS_ACTIVE)
-      .select('id', 'name', 'scope', 'company_id')
-      .orderBy('id', 'asc')
-  ).filter((theme) => isReadableByCompany(theme as ScopedRow, companyId))
+  const themes = await loadReadableThemes(companyId)
 
   if (themes.length === 0) {
     return []

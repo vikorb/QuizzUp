@@ -11,6 +11,8 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   ADMIN_ROLE_ROOM,
   COMPANY_STATUS_DELETED,
+  ROOM_STATUS_ACTIVE,
+  ROOM_STATUS_DELETED,
   ADMIN_ROLE_SUPERADMIN,
   ADMIN_STATUS_ACTIVE,
   ADMIN_STATUS_DELETED,
@@ -207,6 +209,9 @@ describe('plugins/auth.ts (authenticate)', () => {
 
   describe('room accounts (US-ROOM-02)', () => {
     function seedRoomAccount(): void {
+      if (!dbState.rooms.some((room) => Number(room.id) === 7)) {
+        dbState.rooms.push({ id: 7, company_id: 1, name: 'Salle Néon', status: ROOM_STATUS_ACTIVE })
+      }
       dbState.admins.push({
         id: 10,
         company_id: 1,
@@ -270,6 +275,31 @@ describe('plugins/auth.ts (authenticate)', () => {
 
       expect(response.statusCode).toBe(401)
       expect(response.json()).toEqual({ error: 'account_inactive' })
+      expect(findSession('sid-room')?.revoked_at).toBe(MOCK_NOW)
+
+      await app.close()
+    })
+
+    it('disconnects a room PC whose room was deleted', async () => {
+      seedRoomAccount()
+      seedSession({ id: 'sid-room', admin_id: 10 })
+      dbState.rooms[0]!.status = ROOM_STATUS_DELETED
+
+      const app = await buildApp()
+      const token = signToken(app, {
+        sub: '10',
+        company_id: 1,
+        role: ADMIN_ROLE_ROOM,
+        sid: 'sid-room',
+      })
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/protected',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(response.statusCode).toBe(401)
       expect(findSession('sid-room')?.revoked_at).toBe(MOCK_NOW)
 
       await app.close()

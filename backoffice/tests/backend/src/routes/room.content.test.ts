@@ -336,6 +336,23 @@ describe('routes/room.ts — question media', () => {
     expect(parseJson(response)).toEqual({ error: 'question_media_not_found' })
   })
 
+  it('answers 404 when the question belongs to no playable theme', async () => {
+    seedRoomAndGame()
+    theme(1, { status: THEME_STATUS_INACTIVE })
+    question(11, 1)
+    theme(2, { scope: THEME_SCOPE_COMPANY, company_id: 2 })
+    question(12, 2)
+    question(13, 1)
+    dbState.question_themes = dbState.question_themes.filter((link) => link.question_id !== 13)
+
+    for (const id of [11, 12, 13]) {
+      const response = await read(id)
+
+      expect(response.statusCode).toBe(404)
+      expect(parseJson(response)).toEqual({ error: 'question_media_not_found' })
+    }
+  })
+
   it('answers 404 for an unknown question or a file missing from storage', async () => {
     seedRoomAndGame()
     theme(1)

@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify'
 
 import {
+  COMPANY_STATUS_ACTIVE,
   COMPANY_STATUS_DELETED,
   GAME_STATE_PENDING,
   GAME_STATE_RUNNING,
@@ -98,6 +99,11 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
 
       if (Number(company.status) === COMPANY_STATUS_DELETED) {
         return reply.code(409).send({ error: 'company_deleted' })
+      }
+
+      // Le PC d'une salle d'une compagnie inactive est déconnecté : la partie resterait en attente.
+      if (Number(company.status) !== COMPANY_STATUS_ACTIVE) {
+        return reply.code(409).send({ error: 'company_inactive' })
       }
 
       const room = await findRoomInCompany(companyId, roomId)

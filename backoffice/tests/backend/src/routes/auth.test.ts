@@ -7,6 +7,7 @@ import {
   ADMIN_ROLE_SUPERADMIN,
   ADMIN_STATUS_ACTIVE,
   COMPANY_STATUS_INACTIVE,
+  ROOM_STATUS_ACTIVE,
 } from '@quizzup/shared'
 import bcrypt from 'bcryptjs'
 
@@ -142,6 +143,7 @@ describe('routes/auth.ts', () => {
   })
 
   it('gives a room account a long-lived token (US-ROOM-02)', async () => {
+    dbState.rooms.push({ id: 1, company_id: 1, name: 'Salle Néon', status: ROOM_STATUS_ACTIVE })
     dbState.admins.push({
       id: 10,
       company_id: 1,

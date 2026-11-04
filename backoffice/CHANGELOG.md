@@ -114,7 +114,9 @@ Format inspiré de Keep a Changelog.
 
 - Compte de salle : connexion refusée et PC déconnecté si la compagnie n'est plus active ;
   suppression d'une salle atomique (salle, compte et parties actives) ; salles et comptes de
-  salle non modifiables dans une compagnie supprimée ; ids des parties renvoyés en nombres.
+  salle non modifiables dans une compagnie supprimée ; ids des parties renvoyés en nombres ;
+  pas de partie dans une compagnie inactive ; extrait servi seulement pour une question d'un
+  thème jouable ; compte d'une salle supprimée refusé.
   US: us-room-02, us-game-08
 
 - Une question peut avoir plusieurs bonnes réponses côté API et base (le formulaire le permettait déjà, l'API n'en acceptait qu'une) ; au moins une bonne réponse reste obligatoire.

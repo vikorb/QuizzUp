@@ -72,6 +72,11 @@ const companyRoomIdStatusRoutes: FastifyPluginAsync = async (app) => {
 
       // Une salle supprimée ne doit plus pouvoir se connecter ni garder de partie active.
       if (status === ROOM_STATUS_DELETED) {
+        // Déjà supprimée : on garde la date de suppression d'origine.
+        if (room.status === ROOM_STATUS_DELETED) {
+          return { room }
+        }
+
         return { room: (await softDeleteRoom(roomId, roomSelect)) as RoomRow }
       }
 

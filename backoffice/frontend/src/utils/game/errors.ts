@@ -14,6 +14,8 @@ const GAME_API_ERROR_CODES: GameApiErrorCode[] = [
   'room_not_found',
   'room_inactive',
   'room_busy',
+  'company_deleted',
+  'company_inactive',
   'game_already_over',
   GAME_EMAIL_CONSENT_REQUIRED,
   'conflict',

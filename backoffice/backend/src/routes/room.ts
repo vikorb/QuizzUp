@@ -16,7 +16,7 @@ import type { RoomRow } from '../types/room'
 import { roomSelect } from './companies/rooms/_shared'
 import { findGameInCompany } from './games/_shared'
 import { getMediaVersion } from './questions/_shared'
-import { isReadableByCompany, loadRoomContent } from './room/_content'
+import { isInPlayableTheme, isReadableByCompany, loadRoomContent } from './room/_content'
 
 const roomGameParamsSchema = z.object({
   gameId: z.coerce.number().int().positive(),
@@ -143,7 +143,8 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
         question.status !== QUESTION_STATUS_ACTIVE ||
         question.type_media !== QUESTION_MEDIA_TYPE_AUDIO ||
         !isReadableByCompany(question, req.user.company_id) ||
-        !isValidMediaKey(question.media_key)
+        !isValidMediaKey(question.media_key) ||
+        !(await isInPlayableTheme(Number(question.id), req.user.company_id))
       ) {
         return reply.code(404).send({ error: 'question_media_not_found' })
       }

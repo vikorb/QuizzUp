@@ -96,6 +96,8 @@ export type GameApiErrorCode =
   | 'room_not_found'
   | 'room_inactive'
   | 'room_busy'
+  | 'company_deleted'
+  | 'company_inactive'
   | 'game_already_over'
   | 'email_consent_required'
   | 'conflict'
