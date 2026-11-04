@@ -6,7 +6,7 @@
     :active-filters="activeFilters"
     :primary-label="$t('questions.table.create')"
     :primary-icon="mdiPlus"
-    :show-primary="true"
+    :show-primary="canCreate"
     @reset="resetFilters"
     @primary="handleCreateQuestion"
   >
@@ -75,8 +75,10 @@ import { useRouter } from 'vue-router'
 import BaseToolBar, { type ActiveFilter } from '@/components/ui/BaseToolBar.vue'
 import FormField from '@/components/ui/form/FormField.vue'
 import SelectField from '@/components/ui/form/SelectField.vue'
+import { me } from '@/state/authState'
 import type { SelectFieldOption } from '@/types/form'
 import type { Theme } from '@/types/question'
+import { canCreateQuestion } from '@/utils/question/permissions'
 
 const props = withDefaults(
   defineProps<{
@@ -106,6 +108,8 @@ const emit = defineEmits<{
 }>()
 
 const router = useRouter()
+
+const canCreate = computed(() => canCreateQuestion(me.value?.role))
 const { t } = useI18n()
 
 const hasActiveFilters = computed(

@@ -1,7 +1,6 @@
 import {
   ADMIN_ROLE_ADMIN,
   ADMIN_ROLE_SUPERADMIN,
-  ADMIN_ROLE_USER,
   THEME_SCOPE_COMPANY,
   THEME_STATUS_DELETED,
 } from '@quizzup/shared'
@@ -9,7 +8,8 @@ import {
 import type { Theme } from '@/types/theme'
 
 export function canCreateTheme(role: string | null | undefined): boolean {
-  return role === ADMIN_ROLE_SUPERADMIN || role === ADMIN_ROLE_ADMIN || role === ADMIN_ROLE_USER
+  // US-PERM-01 : le rôle user garde la lecture seule.
+  return role === ADMIN_ROLE_SUPERADMIN || role === ADMIN_ROLE_ADMIN
 }
 
 export function canUpdateTheme(theme: Theme, role: string | null | undefined): boolean {

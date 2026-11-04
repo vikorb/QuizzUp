@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 
 import {
   ADMIN_ROLE_ADMIN,
+  ADMIN_ROLE_ROOM,
   ADMIN_ROLE_SUPERADMIN,
   ADMIN_ROLE_USER,
   ADMIN_STATUS_ACTIVE,
@@ -19,12 +20,7 @@ import {
 import type { AdminRow } from '../../../types/admin'
 
 import { companyAdminParamsSchema, createAdminSchema } from '../_schemas'
-import {
-  adminSelect,
-  findCompanyById,
-  getAdminRow,
-  normalizeNullableString,
-} from '../_shared'
+import { adminSelect, findCompanyById, getAdminRow, normalizeNullableString } from '../_shared'
 
 type AuthenticatedAdmin = {
   id?: number
@@ -62,7 +58,7 @@ const companyAdminsRoutes: FastifyPluginAsync = async (app) => {
         req,
         reply,
         API_RESOURCE.COMPANY_ACCOUNT,
-        API_ACTION.LIST,
+        API_ACTION.LIST
       )
 
       if (!hasPermission) {
@@ -89,13 +85,14 @@ const companyAdminsRoutes: FastifyPluginAsync = async (app) => {
 
       const accounts = await db('admins')
         .where('company_id', companyId)
+        .whereNot('role', ADMIN_ROLE_ROOM)
         .select(adminSelect)
         .orderBy('id', 'asc')
 
       return {
         accounts: accounts as AdminRow[],
       }
-    },
+    }
   )
 
   app.post(
@@ -106,7 +103,7 @@ const companyAdminsRoutes: FastifyPluginAsync = async (app) => {
         req,
         reply,
         API_RESOURCE.COMPANY_ACCOUNT,
-        API_ACTION.CREATE,
+        API_ACTION.CREATE
       )
 
       if (!hasPermission) {
@@ -188,7 +185,7 @@ const companyAdminsRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(201).send({
         account,
       })
-    },
+    }
   )
 }
 

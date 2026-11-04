@@ -1,0 +1,142 @@
+{
+  "games": {
+    "title": "Games",
+    "subtitle": "Launch and follow the games played in the rooms",
+    "stats": {
+      "total": "Games",
+      "pending": "Pending",
+      "running": "Running",
+      "finished": "Finished"
+    },
+    "state": {
+      "pending": "Pending",
+      "running": "Running",
+      "finished": "Finished",
+      "aborted": "Stopped",
+      "unknown": "Unknown"
+    },
+    "filters": {
+      "title": "Filters",
+      "company": "Company",
+      "state": "State",
+      "allStates": "All states"
+    },
+    "table": {
+      "title": "Games",
+      "create": "Launch a game",
+      "loading": "Loading games...",
+      "empty": "No game found",
+      "retry": "Retry",
+      "columns": {
+        "room": "Room",
+        "state": "State",
+        "participants": "Participants",
+        "date": "Date",
+        "actions": "Actions"
+      }
+    },
+    "actions": {
+      "view": "View details",
+      "abort": "Stop",
+      "abortTitle": "Stop the game",
+      "abortConfirm": "Stop the game in room \"{room}\"? It cannot be resumed and the room will be freed.",
+      "back": "Back to games"
+    },
+    "banners": {
+      "created": "The game has been launched in room \"{room}\".",
+      "aborted": "The game in room \"{room}\" has been stopped."
+    },
+    "create": {
+      "title": "Launch a game",
+      "subtitle": "Pick the room, the participants and the game format",
+      "cardTitle": "New game"
+    },
+    "form": {
+      "sections": {
+        "room": "Room and format",
+        "participants": "Participants"
+      },
+      "room": "Room",
+      "roomPlaceholder": "Pick a room",
+      "roomsLoading": "Loading rooms...",
+      "noActiveRoom": "No active room in this company: activate a room before launching a game.",
+      "roundsCount": "Rounds",
+      "roundsHint": "Between 1 and {max}",
+      "questionsPerRound": "Questions per round",
+      "questionsHint": "Between 1 and {max}",
+      "participantsHint": "From 1 to {max} participants, one per podium.",
+      "participant": "Participant {index}",
+      "podium": "Podium",
+      "podiumOption": "Podium {podium}",
+      "displayName": "Display name",
+      "displayNamePlaceholder": "e.g. The Quizzers",
+      "email": "Email",
+      "emailPlaceholder": "e.g. player@example.com (optional)",
+      "emailHint": "Optional.",
+      "consent": "I agree that my email address may be used to receive the game results and offers from the centre.",
+      "consentHint": "Required when an email is entered. The player can withdraw consent at any time.",
+      "addParticipant": "Add a participant",
+      "removeParticipant": "Remove participant {index}",
+      "cancel": "Cancel",
+      "submit": "Launch the game",
+      "submitting": "Launching...",
+      "errors": {
+        "roomRequired": "Pick a room.",
+        "roundsInvalid": "The number of rounds must be a whole number between 1 and {max}.",
+        "questionsInvalid": "The number of questions per round must be a whole number between 1 and {max}.",
+        "podiumInvalid": "Pick a podium.",
+        "podiumDuplicated": "This podium is already assigned to another participant.",
+        "displayNameRequired": "The display name is required.",
+        "displayNameTooLong": "The display name is too long.",
+        "emailInvalid": "The email address is invalid.",
+        "consentRequired": "Tick the consent box to keep this email, or remove the email."
+      }
+    },
+    "detail": {
+      "title": "Game details",
+      "subtitle": "State, format and participants of the game",
+      "infoTitle": "Game #{id}",
+      "participantsTitle": "Participants",
+      "loading": "Loading the game...",
+      "notFound": "This game cannot be found.",
+      "noParticipant": "No participant.",
+      "fields": {
+        "room": "Room",
+        "state": "State",
+        "format": "Format",
+        "formatValue": "{rounds} rounds × {questions} questions",
+        "createdAt": "Created on",
+        "startedAt": "Started on",
+        "finishedAt": "Finished on"
+      },
+      "columns": {
+        "podium": "Podium",
+        "displayName": "Name",
+        "score": "Score",
+        "email": "Email"
+      }
+    },
+    "errors": {
+      "missingToken": "You must be signed in.",
+      "unauthorized": "You must be signed in to do this.",
+      "forbidden": "You do not have the required permissions.",
+      "apiUnreachable": "The API cannot be reached.",
+      "invalidJson": "The API response is invalid.",
+      "invalidBody": "The request is invalid. Check the information and try again.",
+      "invalidParams": "Invalid parameters.",
+      "invalidEmail": "The email address is invalid.",
+      "emailAlreadyExists": "This email address is already used.",
+      "nameAlreadyExists": "This name is already used.",
+      "notFound": "This game cannot be found.",
+      "roomNotFound": "This room cannot be found.",
+      "roomInactive": "This room is inactive: activate it before launching a game in it.",
+      "roomBusy": "A game is already pending or running in this room.",
+      "companyDeleted": "This company is deleted: no game can be launched in it.",
+      "companyInactive": "This company is inactive: reactivate it before launching a game.",
+      "gameAlreadyOver": "This game is already finished or stopped.",
+      "emailConsentRequired": "An email can only be kept with the player's explicit consent.",
+      "conflict": "Conflict with the current data. Reload the page.",
+      "serverError": "Server error. Try again in a moment."
+    }
+  }
+}

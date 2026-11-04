@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 
-import { ADMIN_STATUS_DELETED, COMPANY_STATUS_ACTIVE } from '@quizzup/shared'
+import { ADMIN_ROLE_ROOM, ADMIN_STATUS_DELETED, COMPANY_STATUS_ACTIVE } from '@quizzup/shared'
 import db from '../db'
 import { API_ACTION, API_RESOURCE } from '../security/permissions'
 import { requireApiPermission } from '../security/requireApiPermission'
@@ -12,6 +12,10 @@ import companiesIdPermanentRoutes from './companies/idPermanent'
 import companyAdminsRoutes from './companies/admins'
 import companyAdminIdRoutes from './companies/admins/id'
 import companyAdminIdStatusRoutes from './companies/admins/idStatus'
+import companyRoomsRoutes from './companies/rooms'
+import companyRoomAccountRoutes from './companies/rooms/account'
+import companyRoomIdRoutes from './companies/rooms/id'
+import companyRoomIdStatusRoutes from './companies/rooms/idStatus'
 import { companySelect } from './companies/_shared'
 import { createCompanySchema } from './companies/_schemas'
 
@@ -22,17 +26,16 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
   app.register(companyAdminsRoutes)
   app.register(companyAdminIdRoutes)
   app.register(companyAdminIdStatusRoutes)
+  app.register(companyRoomsRoutes)
+  app.register(companyRoomAccountRoutes)
+  app.register(companyRoomIdRoutes)
+  app.register(companyRoomIdStatusRoutes)
 
   app.get(
     '/companies',
     { preHandler: [app.authenticate] },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const hasPermission = requireApiPermission(
-        req,
-        reply,
-        API_RESOURCE.COMPANY,
-        API_ACTION.LIST,
-      )
+      const hasPermission = requireApiPermission(req, reply, API_RESOURCE.COMPANY, API_ACTION.LIST)
 
       if (!hasPermission) {
         return
@@ -43,16 +46,17 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
       const baseQuery = db('companies')
         .leftJoin('admins', function joinAdmins() {
           this.on('admins.company_id', '=', 'companies.id').andOn(
-            db.raw('admins.status <> ?', [ADMIN_STATUS_DELETED]),
+            db.raw('admins.status <> ? AND admins.role <> ?', [
+              ADMIN_STATUS_DELETED,
+              ADMIN_ROLE_ROOM,
+            ])
           )
         })
         .groupBy('companies.id')
         .select(companySelect)
 
       if (!isSuperadmin(req)) {
-        const company = await baseQuery
-          .where('companies.id', myCompanyId)
-          .first()
+        const company = await baseQuery.where('companies.id', myCompanyId).first()
 
         if (!company) {
           return { companies: [] }
@@ -64,7 +68,7 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
       const companies = await baseQuery.orderBy('companies.id', 'asc')
 
       return { companies: companies as CompanyRow[] }
-    },
+    }
   )
 
   app.post<{ Body: CompanyCreateBody }>(
@@ -75,7 +79,7 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
         req,
         reply,
         API_RESOURCE.COMPANY,
-        API_ACTION.CREATE,
+        API_ACTION.CREATE
       )
 
       if (!hasPermission) {
@@ -134,7 +138,7 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
           accountsCount: 0,
         } satisfies CompanyRow,
       })
-    },
+    }
   )
 }
 

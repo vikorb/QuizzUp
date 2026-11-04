@@ -1,4 +1,8 @@
-import { setAuthenticatedSuperadmin, setAuthenticatedUser } from '@frontend-tests/_helpers/authStateMock'
+import {
+  setAuthenticatedAdmin,
+  setAuthenticatedSuperadmin,
+  setAuthenticatedUser,
+} from '@frontend-tests/_helpers/authStateMock'
 import {
   mockLoadCompanyDetailsFailure,
   mockLoadCompanyDetailsSuccess,
@@ -52,6 +56,26 @@ const accountsSectionStub = defineComponent({
   },
 })
 
+const roomsSectionStub = defineComponent({
+  name: 'ClientDetailRoomsSection',
+  props: {
+    companyId: Number,
+    canShowRoomsSection: Boolean,
+    canManageRooms: Boolean,
+    canSeeDeletedRooms: Boolean,
+  },
+  setup(props) {
+    return () =>
+      h('section', {
+        'data-test': 'rooms-section-stub',
+        'data-company-id': String(props.companyId),
+        'data-can-show': String(props.canShowRoomsSection),
+        'data-can-manage': String(props.canManageRooms),
+        'data-can-see-deleted': String(props.canSeeDeletedRooms),
+      })
+  },
+})
+
 async function mountClientDetailsView() {
   currentRouteMock.params = {
     id: '1',
@@ -62,6 +86,7 @@ async function mountClientDetailsView() {
       stubs: {
         clientDetailForm: clientDetailFormStub,
         clientDetailAccountsSection: accountsSectionStub,
+        clientDetailRoomsSection: roomsSectionStub,
       },
     },
   })
@@ -86,9 +111,13 @@ describe('views/clients/ClientDetailsView.vue', () => {
     const wrapper = await mountClientDetailsView()
 
     expect(wrapper.find('[data-test="section-layout-title"]').text()).toBe('clients.details.title')
-    expect(wrapper.find('[data-test="base-card"]').attributes('data-title')).toBe('clients.details.card.title')
+    expect(wrapper.find('[data-test="base-card"]').attributes('data-title')).toBe(
+      'clients.details.card.title'
+    )
     expect(wrapper.find('[data-test="client-detail-name"]').text()).toBe('Acme Corp')
-    expect(wrapper.find('[data-test="accounts-section-stub"]').attributes('data-can-show')).toBe('true')
+    expect(wrapper.find('[data-test="accounts-section-stub"]').attributes('data-can-show')).toBe(
+      'true'
+    )
   })
 
   it('renders load errors and hides the form when details cannot be loaded', async () => {
@@ -116,16 +145,40 @@ describe('views/clients/ClientDetailsView.vue', () => {
     setAuthenticatedSuperadmin()
     const superadminWrapper = await mountClientDetailsView()
 
-    await superadminWrapper.find('[data-test="base-card-actions"] [data-test="ui-button"]').trigger('click')
+    await superadminWrapper
+      .find('[data-test="base-card-actions"] [data-test="ui-button"]')
+      .trigger('click')
 
     expect(pushMock).toHaveBeenLastCalledWith('/clients')
 
     setAuthenticatedUser()
     const userWrapper = await mountClientDetailsView()
 
-    await userWrapper.find('[data-test="base-card-actions"] [data-test="ui-button"]').trigger('click')
+    await userWrapper
+      .find('[data-test="base-card-actions"] [data-test="ui-button"]')
+      .trigger('click')
 
     expect(pushMock).toHaveBeenLastCalledWith('/')
+  })
+
+  it('passes the rooms section rights according to the role (US-ROOM-01)', async () => {
+    const expectations = [
+      { login: setAuthenticatedSuperadmin, manage: 'true', deleted: 'true' },
+      { login: setAuthenticatedAdmin, manage: 'true', deleted: 'false' },
+      { login: setAuthenticatedUser, manage: 'false', deleted: 'false' },
+    ]
+
+    for (const { login, manage, deleted } of expectations) {
+      login()
+
+      const wrapper = await mountClientDetailsView()
+      const section = wrapper.find('[data-test="rooms-section-stub"]')
+
+      expect(section.attributes('data-company-id')).toBe('1')
+      expect(section.attributes('data-can-show')).toBe('true')
+      expect(section.attributes('data-can-manage')).toBe(manage)
+      expect(section.attributes('data-can-see-deleted')).toBe(deleted)
+    }
   })
 
   it('does not call the service when route id is invalid', async () => {
@@ -138,6 +191,7 @@ describe('views/clients/ClientDetailsView.vue', () => {
         stubs: {
           clientDetailForm: clientDetailFormStub,
           clientDetailAccountsSection: accountsSectionStub,
+          clientDetailRoomsSection: roomsSectionStub,
         },
       },
     })

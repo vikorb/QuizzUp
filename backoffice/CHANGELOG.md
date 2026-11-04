@@ -8,6 +8,11 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Catalogue de la salle (`GET /room/games/current/content`) : questions actives de tous types,
+  l'audio seulement avec un fichier uploadé, et lecture des extraits par le compte de salle
+  (`GET /room/questions/{questionId}/media`) pendant une partie.
+  US: us-game-08, us-media-01
+
 - Mise en place de l'authentification administrateur.
   US: us-auth-01
 
@@ -47,6 +52,20 @@ Format inspiré de Keep a Changelog.
 - Ajout de la table `rooms` (salles de jeu d'une compagnie, configuration matérielle en JSON).
   US: US-ROOM-01
 
+- Ajout de l'API de gestion des salles d'une compagnie : liste, création, lecture, modification (nom, configuration matérielle JSON), changement de statut et suppression logique. Le rôle `user` les consulte en lecture.
+  US: US-ROOM-01
+
+- Ajout du compte de salle : création et suppression depuis la salle (un compte actif par salle, sessions révoquées à la suppression, y compris avec la salle), connexion sans expiration par inactivité, route `GET /room/me` pour le PC de la salle. Les comptes de salle n'apparaissent plus dans la gestion des comptes du staff.
+  US: US-ROOM-02
+
+- Ajout du lancement de partie par l'opérateur : choix d'une salle active et libre, 1 à 4 participants (email seulement avec consentement RGPD horodaté), format 10 × 10 par défaut, graine tirée par le serveur ; liste, détail et arrêt des parties ; côté salle, récupération de la partie courante et accusé de réception (`pending` → `running`).
+  US: US-GAME-08
+
+- Ajout de la section « Salles » sur la fiche compagnie du backoffice : recherche, filtre par statut, activation/désactivation, suppression avec confirmation, création et renommage dans un formulaire inline, indicateur de configuration matérielle. Lecture seule pour le rôle `user`, salles supprimées réservées au superadmin.
+  US: US-ROOM-01
+- Ajout de l'écran « Parties » du backoffice : liste filtrable par état avec arrêt confirmé, page de lancement (salle active, 1 à 4 participants par pupitre, case de consentement RGPD non cochée et obligatoire si un email est saisi, format modifiable), détail d'une partie (participants, scores, dates). Le superadmin choisit la compagnie.
+  US: US-GAME-08
+
 - Ajout du rôle `room` (compte de salle rattaché à une salle, un seul compte actif par salle).
   US: US-ROOM-02
 
@@ -70,6 +89,9 @@ Format inspiré de Keep a Changelog.
 
 ### Changed
 
+- La création de thèmes, questions et réponses est réservée au superadmin et à l'admin ; le rôle `user` passe en lecture seule (API, boutons et routes de création du backoffice).
+  US: US-PERM-01
+
 - Harmonisation des statuts entre le backend, le frontend et le package shared.
   US: us-shared-02
 
@@ -89,6 +111,13 @@ Format inspiré de Keep a Changelog.
   US: us-front-design-01
 
 ### Fixed
+
+- Compte de salle : connexion refusée et PC déconnecté si la compagnie n'est plus active ;
+  suppression d'une salle atomique (salle, compte et parties actives) ; salles et comptes de
+  salle non modifiables dans une compagnie supprimée ; ids des parties renvoyés en nombres ;
+  pas de partie dans une compagnie inactive ; extrait servi seulement pour une question d'un
+  thème jouable ; compte d'une salle supprimée refusé.
+  US: us-room-02, us-game-08
 
 - Une question peut avoir plusieurs bonnes réponses côté API et base (le formulaire le permettait déjà, l'API n'en acceptait qu'une) ; au moins une bonne réponse reste obligatoire.
   US: us-qr-multi-correct

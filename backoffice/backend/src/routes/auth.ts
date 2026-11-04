@@ -2,11 +2,17 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 import { randomUUID } from 'node:crypto'
+import { ADMIN_ROLE_ROOM } from '@quizzup/shared'
 import db from '../db'
+import { isRoomAccountUsable } from '../security/roomCompany'
+
+/** Jeton d'un compte de salle (appareil fixe) : la révocation se fait en base. */
+const ROOM_TOKEN_EXPIRES_IN = '365d'
 
 type AdminRow = {
   id: number
   company_id: number
+  room_id: number | null
   role: string
   firstname: string
   lastname: string
@@ -60,6 +66,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
         .select(
           'id',
           'company_id',
+          'room_id',
           'role',
           'firstname',
           'lastname',
@@ -79,6 +86,14 @@ const authRoutes: FastifyPluginAsync = async (app) => {
       const ok = await bcrypt.compare(password, admin.mdp_hash)
       if (!ok) return reply.code(401).send({ error: 'invalid_credentials' })
 
+      // Compte de salle d'une compagnie désactivée ou supprimée : connexion refusée.
+      if (
+        admin.role === ADMIN_ROLE_ROOM &&
+        !(await isRoomAccountUsable(admin.company_id, admin.room_id))
+      ) {
+        return reply.code(401).send({ error: 'invalid_credentials' })
+      }
+
       const sid = randomUUID()
 
       await db<AdminSessionRow>('admin_sessions').insert({
@@ -89,7 +104,9 @@ const authRoutes: FastifyPluginAsync = async (app) => {
       // expiresIn peut être large (ex 7j) car l’inactivité est gérée par la session DB
       const token = app.jwt.sign(
         { sub: String(admin.id), company_id: admin.company_id, role: admin.role, sid },
-        { expiresIn: '7d' }
+        // US-ROOM-02 : le PC d'une salle reste connecté ; l'admin coupe l'accès en
+        // supprimant le compte (sessions révoquées en base).
+        { expiresIn: admin.role === ADMIN_ROLE_ROOM ? ROOM_TOKEN_EXPIRES_IN : '7d' }
       )
 
       return {

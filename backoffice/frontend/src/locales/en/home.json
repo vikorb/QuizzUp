@@ -19,6 +19,9 @@
   },
   "auth": {
     "login": "Sign in",
-    "logout": "Sign out"
+    "logout": "Sign out",
+    "errors": {
+      "roomAccount": "This is a room account: use it on the room screen, not in the backoffice."
+    }
   }
 }
