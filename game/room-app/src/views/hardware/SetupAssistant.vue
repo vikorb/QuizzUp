@@ -165,7 +165,14 @@
             <strong>{{ fixture.name }}</strong>
             <small>
               {{ $t('hardware.diagnostic.address', { n: fixture.address }) }}
-              <template v-if="fixture.desk"> · {{ $t('room.desk', { n: fixture.desk }) }}</template>
+              <template v-if="fixture.desk">
+                ·
+                {{
+                  fixture.desk > view.config.desksCount
+                    ? $t('hardware.assistant.fixtures.deskReserve', { n: fixture.desk })
+                    : $t('room.desk', { n: fixture.desk })
+                }}
+              </template>
             </small>
           </span>
           <UiButton
@@ -389,6 +396,7 @@
 <script setup lang="ts">
 import { mdiDeleteOutline, mdiUsb } from '@mdi/js'
 import {
+  activeLightingConfig,
   type BrowserCheck,
   type BuzzerSource,
   checkBrowser,
@@ -493,8 +501,10 @@ const kindOf = (profileId: string) =>
 const testableFixtures = computed(() =>
   view.value.config.lighting.fixtures.filter((fixture) => kindOf(fixture.profileId) !== 'smoke')
 )
+// Un appareil affecté à un pupitre retiré (en réserve) est vu comme non affecté.
+const activeFixtures = computed(() => activeLightingConfig(view.value.config).fixtures)
 const movingHeads = computed(() =>
-  view.value.config.lighting.fixtures
+  activeFixtures.value
     .filter((fixture) => kindOf(fixture.profileId) === 'movingHead')
     .map((fixture) => ({
       id: fixture.id,

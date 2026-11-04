@@ -41,12 +41,15 @@ export type {
   RoomHardwareConfig,
 } from './config'
 export {
+  activeKeymap,
+  activeLightingConfig,
   defaultRoomHardwareConfig,
   DMX_REFRESH_LIMITS,
   gamepadMatcher,
   parseRoomHardwareConfig,
   ROOM_HARDWARE_CONFIG_VERSION,
   withDesksCount,
+  withLearnedKeymap,
 } from './config'
 export type {
   BridgeOutput,

@@ -109,16 +109,45 @@ function parseBuzzerSource(input: unknown): BuzzerSource | undefined {
 }
 
 /**
- * Change le nombre de pupitres de la salle et nettoie ce qui visait les pupitres au-delà : buzzers
- * appris retirés, appareils lumière conservés mais détachés du pupitre (`desk` et positions de
- * lyre en trop supprimés). La config ne mentionne ainsi jamais un pupitre qui n'existe plus ;
- * en réaugmentant le nombre, il faut réapprendre ces buzzers.
+ * Change le nombre de pupitres de la salle, sans rien effacer : les buzzers appris et l'affectation
+ * des lumières des pupitres au-delà restent « en réserve » dans la config. Ils sont ignorés à
+ * l'usage (`activeKeymap`, `activeLightingConfig`) et reviennent tels quels si on remonte le nombre.
  */
 export function withDesksCount(config: RoomHardwareConfig, count: number): RoomHardwareConfig {
-  const desksCount = clampDeskCount(count)
-  const keymap = Object.fromEntries(
-    Object.entries(config.buzzers.keymap).filter(([, slot]) => slot.desk <= desksCount)
+  return { ...config, desksCount: clampDeskCount(count) }
+}
+
+/** Buzzers des pupitres de la salle : ceux des pupitres au-delà de `desksCount` (réserve) sont ignorés. */
+export function activeKeymap(config: RoomHardwareConfig): BuzzerKeymap {
+  return Object.fromEntries(
+    Object.entries(config.buzzers.keymap).filter(([, slot]) => slot.desk <= config.desksCount)
   )
+}
+
+/**
+ * Enregistre les buzzers appris sur les pupitres de la salle. La réserve (pupitres retirés) est
+ * gardée, sauf une touche réapprise sur un pupitre actif : son doublon de réserve disparaît, sinon
+ * deux pupitres se disputeraient la touche au remontage du nombre de pupitres.
+ */
+export function withLearnedKeymap(
+  config: RoomHardwareConfig,
+  learned: BuzzerKeymap
+): RoomHardwareConfig {
+  const reserve = Object.entries(config.buzzers.keymap).filter(
+    ([code, slot]) => slot.desk > config.desksCount && !Object.hasOwn(learned, code)
+  )
+  return {
+    ...config,
+    buzzers: { ...config.buzzers, keymap: { ...Object.fromEntries(reserve), ...learned } },
+  }
+}
+
+/**
+ * Config lumières vue par le contrôleur : un appareil affecté à un pupitre retiré est détaché de ce
+ * pupitre (`desk` et positions de lyre au-delà ignorés), sans toucher à la config enregistrée.
+ */
+export function activeLightingConfig(config: RoomHardwareConfig): LightingConfig {
+  const { desksCount } = config
   const fixtures = config.lighting.fixtures.map((fixture) => {
     const { desk, deskPositions, ...rest } = fixture
     const kept = Object.fromEntries(
@@ -130,13 +159,7 @@ export function withDesksCount(config: RoomHardwareConfig, count: number): RoomH
       ...(kept && Object.keys(kept).length > 0 ? { deskPositions: kept } : {}),
     }
   })
-
-  return {
-    ...config,
-    desksCount,
-    buzzers: { ...config.buzzers, keymap },
-    lighting: { ...config.lighting, fixtures },
-  }
+  return { ...config.lighting, fixtures }
 }
 
 /** Filtre `match` de `createGamepadBuzzerInput` correspondant à la source enregistrée. */

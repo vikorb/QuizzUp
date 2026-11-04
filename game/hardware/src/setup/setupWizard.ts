@@ -1,7 +1,7 @@
 import type { BuzzerKeymap } from '../buzzers/keymap'
 import { missingSlots } from '../buzzers/keymap'
 import type { BuzzerSource, RoomHardwareConfig } from '../config'
-import { parseRoomHardwareConfig, withDesksCount } from '../config'
+import { activeLightingConfig, parseRoomHardwareConfig, withDesksCount } from '../config'
 import type { FixtureConfig, PanTilt } from '../dmx/fixtures'
 import { parseRig } from '../dmx/fixtures'
 import type { DmxDriver } from '../dmx/output'
@@ -360,8 +360,11 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
         )
       }
       case 'positions': {
-        return config.lighting.fixtures
-          .filter((fixture) => kindOf(fixture) === 'movingHead' && fixture.desk === undefined)
+        // Un appareil affecté à un pupitre retiré compte comme détaché (voir `activeLightingConfig`).
+        return activeLightingConfig(config)
+          .fixtures.filter(
+            (fixture) => kindOf(fixture) === 'movingHead' && fixture.desk === undefined
+          )
           .filter((fixture) => desks.some((desk) => !fixture.deskPositions?.[desk]))
           .map((fixture) => `« ${fixture.name} » : position manquante pour certains pupitres`)
       }

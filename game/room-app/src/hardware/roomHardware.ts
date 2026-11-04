@@ -1,5 +1,7 @@
 import type { GameEvent } from '@quizzup/game-engine'
 import {
+  activeKeymap,
+  activeLightingConfig,
   type BuzzerInput,
   type BuzzerInputState,
   type BuzzerKeymap,
@@ -35,6 +37,7 @@ import {
   type SerialPortLike,
   watchDmxPortReconnection,
   withDesksCount,
+  withLearnedKeymap,
 } from '@quizzup/hardware'
 import { computed, shallowRef } from 'vue'
 
@@ -79,11 +82,13 @@ function loadStoredConfig(): unknown {
 
 const parsed = shallowRef<ParsedRoomHardwareConfig>(parseRoomHardwareConfig(loadStoredConfig()))
 
-/** Aucun buzzer associé : on joue avec le clavier de simulation. */
+/**
+ * Buzzers des pupitres de la salle (la réserve des pupitres retirés est ignorée). Aucun buzzer
+ * associé : on joue avec le clavier de simulation.
+ */
 function effectiveKeymap(config: RoomHardwareConfig): BuzzerKeymap {
-  return Object.keys(config.buzzers.keymap).length > 0
-    ? config.buzzers.keymap
-    : createSimulationKeymap(config.desksCount)
+  const active = activeKeymap(config)
+  return Object.keys(active).length > 0 ? active : createSimulationKeymap(config.desksCount)
 }
 
 // ── Buzzers ────────────────────────────────────────────────────────────────
@@ -353,7 +358,7 @@ async function createLighting(
   options: { emergencyReason?: string | null; disarmSmoke?: boolean } = {}
 ) {
   const controller = createLightingController({
-    config: parsed.value.config.lighting,
+    config: activeLightingConfig(parsed.value.config),
     output: createSimulationOutput(),
     resolveDesk,
   })
@@ -600,7 +605,7 @@ async function applyConfig(
   input: unknown,
   options: { persist?: boolean } = {}
 ): Promise<ParsedRoomHardwareConfig> {
-  const previousLighting = stableStringify(parsed.value.config.lighting)
+  const previousLighting = stableStringify(activeLightingConfig(parsed.value.config))
   const next = parseRoomHardwareConfig(input)
   parsed.value = next
 
@@ -615,7 +620,7 @@ async function applyConfig(
 
   applyBuzzerConfig(next.config)
 
-  if (stableStringify(next.config.lighting) !== previousLighting) {
+  if (stableStringify(activeLightingConfig(next.config)) !== previousLighting) {
     await restartLighting()
   }
   return next
@@ -725,11 +730,17 @@ export async function saveBuzzerKeymap(keymap: BuzzerKeymap): Promise<ParsedRoom
   })
 }
 
+/** Enregistre les buzzers appris sur les pupitres de la salle (la réserve est gardée, cf. `withLearnedKeymap`). */
+export async function saveLearnedBuzzers(learned: BuzzerKeymap): Promise<ParsedRoomHardwareConfig> {
+  return saveRoomHardwareConfig(withLearnedKeymap(parsed.value.config, learned))
+}
+
 /**
  * Enregistre le nombre de pupitres de la salle (1 à 6, 4 par défaut) : lobby, apprentissage des
- * buzzers, test et mapping de simulation suivent. Les buzzers appris et les positions de lyres
- * des pupitres au-delà sont retirés de la config (voir `withDesksCount`). Le backoffice relit le
- * nombre pour ne proposer que ces pupitres au lancement d'une partie.
+ * buzzers, test, lumières et mapping de simulation suivent. Les buzzers appris et l'affectation des
+ * lumières des pupitres au-delà restent en réserve dans la config, sans effet, et reviennent si
+ * on remonte le nombre (voir `withDesksCount`). Le backoffice relit le nombre pour ne proposer que
+ * ces pupitres au lancement d'une partie.
  */
 export async function saveRoomDesksCount(count: number): Promise<ParsedRoomHardwareConfig> {
   return saveRoomHardwareConfig(withDesksCount(parsed.value.config, count))
@@ -763,7 +774,7 @@ export function useRoomHardware() {
     // La carte manette ne lit pas le clavier : pas de touches de simulation avec elle.
     usesSimulationKeys: computed(
       () =>
-        Object.keys(parsed.value.config.buzzers.keymap).length === 0 &&
+        Object.keys(activeKeymap(parsed.value.config)).length === 0 &&
         parsed.value.config.buzzers.source?.kind !== 'gamepad'
     ),
     buzzerState: computed(() => buzzerState.value),
