@@ -1,6 +1,12 @@
 import { expect, type Page, test } from '@playwright/test'
 
-import { freePort, isBlackPacket, startBridge, startFakeNode } from '../support/artnetBridge'
+import {
+  freePort,
+  isBlackPacket,
+  type RunningBridge,
+  startBridge,
+  startFakeNode,
+} from '../support/artnetBridge'
 import { enterDemo } from '../support/roomApp'
 
 /**
@@ -34,6 +40,21 @@ async function openLights(page: Page): Promise<void> {
   await page.locator('[data-test="tab-lights"]').click()
 }
 
+/**
+ * Recharge la page comme un redémarrage du poste : on la quitte, on attend que le pont ait vu la
+ * déconnexion (il n'accepte qu'un écran, sinon l'écran suivant le trouverait « occupé » et
+ * attendrait son nouvel essai), puis on revient sur la même adresse.
+ */
+async function reloadAfterBridgeSeesDisconnect(
+  page: Page,
+  bridge: Pick<RunningBridge, 'hasClient'>
+): Promise<void> {
+  const url = page.url()
+  await page.goto('about:blank')
+  await expect.poll(() => bridge.hasClient()).toBe(false)
+  await page.goto(url)
+}
+
 const emergencyBanner = (page: Page) => page.getByText('Arrêt d’urgence actif', { exact: false })
 
 test.describe('Écran de salle — pont Art-Net réel', () => {
@@ -53,11 +74,11 @@ test.describe('Écran de salle — pont Art-Net réel', () => {
         .toBe(true)
 
       // Redémarrage du poste (rechargement) : même chose, toujours sans clic.
-      await page.reload()
+      await reloadAfterBridgeSeesDisconnect(page, bridge)
       await page.locator('[data-test="tab-lights"]').click()
       const before = node.packets.length
       await expect(page.locator('[data-test="lights-status"]')).toContainText('connectée', {
-        timeout: 15_000,
+        timeout: 25_000,
       })
       await expect(page.locator('[data-test="bridge-banner"]')).toHaveCount(0)
       await expect.poll(() => node.packets.length).toBeGreaterThan(before + 5)
@@ -113,16 +134,28 @@ test.describe('Écran de salle — pont Art-Net réel', () => {
 
       await page.locator('[data-test="emergency-stop"]').click()
       await expect(emergencyBanner(page)).toBeVisible()
+      // La dernière trame est noire : tout ce qui part ensuite doit l'être aussi.
+      await expect
+        .poll(
+          () => {
+            const last = node.packets.at(-1)
+            return last !== undefined && isBlackPacket(last)
+          },
+          { timeout: 5_000 }
+        )
+        .toBe(true)
+      const marker = node.packets.length
 
       // Rechargement : la salle repart, l'arrêt d'urgence est toujours là.
-      await page.reload()
+      await reloadAfterBridgeSeesDisconnect(page, bridge)
       await page.locator('[data-test="tab-lights"]').click()
-      await expect(emergencyBanner(page)).toBeVisible({ timeout: 15_000 })
-      await expect(page.locator('[data-test="lights-status"]')).toContainText('connectée')
-      const marker = node.packets.length
+      await expect(emergencyBanner(page)).toBeVisible({ timeout: 25_000 })
+      await expect(page.locator('[data-test="lights-status"]')).toContainText('connectée', {
+        timeout: 25_000,
+      })
       await expect.poll(() => node.packets.length).toBeGreaterThan(marker + 10)
 
-      // Depuis la reconnexion, rien n'est parti d'autre que du noir (pas même la salle au repos).
+      // Depuis avant le rechargement, rien n'est parti d'autre que du noir (pas même la salle au repos).
       expect(node.packets.slice(marker).every((packet) => isBlackPacket(packet))).toBe(true)
       await expect(page.locator('[data-test="scene-buzz"]')).toBeDisabled()
 

@@ -20,16 +20,18 @@ import {
 type Listener = (event: Event) => void
 
 /** Interface USB factice : accepte toutes les trames, se débranche à la demande. */
-function createFakePort(): SerialPortLike & { frames: number } {
+function createFakePort(): SerialPortLike & { frames: number; written: Uint8Array[] } {
   const port = {
     frames: 0,
+    written: [] as Uint8Array[],
     open: async () => undefined,
     close: async () => undefined,
     getInfo: () => ({ usbVendorId: 0x04_03, usbProductId: 0x60_01 }),
     writable: {
       getWriter: () => ({
-        write: async () => {
+        write: async (data: Uint8Array) => {
           port.frames += 1
+          port.written.push(new Uint8Array(data))
         },
         releaseLock: () => undefined,
         abort: async () => undefined,
@@ -38,6 +40,9 @@ function createFakePort(): SerialPortLike & { frames: number } {
   }
   return port
 }
+
+/** Paquet USB Pro : 4 octets d'en-tête + start code, données DMX, 0xE7 : tout le reste est à 0. */
+const dmxIsBlack = (packet: Uint8Array) => packet.subarray(5, -1).every((value) => value === 0)
 
 function installSerial(port: SerialPortLike) {
   const listeners = new Map<string, Set<Listener>>()
@@ -104,6 +109,30 @@ describe('interface USB DMX de la salle', () => {
     expect(getDmxPort()).toBe(replugged)
   })
 
+  it('ne sort que du noir sur l’interface rebranchée quand l’arrêt d’urgence est posé', async () => {
+    const port = createFakePort()
+    const serial = installSerial(port)
+    localStorage.setItem(EMERGENCY_STORAGE_KEY, 'operator')
+    await saveRoomHardwareConfig({ lighting: { driver: 'usbpro' } })
+    await startLighting()
+    await connectDmxInterface()
+    const controller = getLighting()!
+    expect(controller.getState().emergency).toBe(true)
+
+    serial.emit('disconnect', port)
+    await vi.waitFor(() => expect(controller.getState().outputStatus).toBe('error'))
+    const replugged = createFakePort()
+    serial.emit('connect', replugged)
+    await vi.waitFor(() => expect(controller.getState().outputStatus).toBe('open'))
+    await vi.waitFor(() => expect(replugged.frames).toBeGreaterThan(0))
+    await new Promise((resolve) => setTimeout(resolve, 100))
+
+    expect(port.written.length).toBeGreaterThan(0)
+    expect([...port.written, ...replugged.written].every(dmxIsBlack)).toBe(true)
+    expect(controller.getState().emergency).toBe(true)
+    expect(localStorage.getItem(EMERGENCY_STORAGE_KEY)).toBe('operator')
+  })
+
   it('ne prend pas un autre appareil USB qui apparaît', async () => {
     const port = createFakePort()
     const serial = installSerial(port)
@@ -120,9 +149,12 @@ describe('interface USB DMX de la salle', () => {
   })
 })
 
-type BridgeMode = 'ready' | 'absent' | 'busy'
+type BridgeMode = 'ready' | 'absent' | 'busy' | 'hang'
 
-/** Pont Art-Net factice : répond à `hello`, refuse (`busy`) ou reste injoignable, garde les trames. */
+/**
+ * Pont Art-Net factice : répond à `hello`, refuse (`busy`), reste injoignable (`absent`) ou ne
+ * répond jamais (`hang`, l'essai dure jusqu'au délai de connexion), garde les trames.
+ */
 class FakeBridgeSocket {
   static last: FakeBridgeSocket | null = null
   static instances: FakeBridgeSocket[] = []
@@ -139,6 +171,9 @@ class FakeBridgeSocket {
   constructor(readonly url: string) {
     FakeBridgeSocket.last = this
     FakeBridgeSocket.instances.push(this)
+    if (FakeBridgeSocket.mode === 'hang') {
+      return
+    }
     queueMicrotask(() => {
       if (FakeBridgeSocket.mode === 'absent') {
         this.readyState = 3
@@ -266,6 +301,54 @@ describe('pont Art-Net de la salle', () => {
     expect(bridgeError.value).toBeNull()
   })
 
+  it('un clic « Connecter » qui échoue repasse en simulation et repose l’essai automatique', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    FakeBridgeSocket.mode = 'absent'
+    await saveRoomHardwareConfig(BRIDGE_CONFIG)
+    const { bridgeError } = useRoomHardware()
+    await startLighting()
+    // Le premier essai automatique échoue ; le clic échoue aussi, sans lever d'erreur.
+    await connectDmxInterface()
+    expect(FakeBridgeSocket.instances).toHaveLength(2)
+    expect(getLighting()?.getState().simulation).toBe(true)
+    expect(getDmxStats()).toBeNull()
+    expect(bridgeError.value).toContain('injoignable')
+
+    // Un seul minuteur (celui du clic) : le pont lancé est repris 10 s plus tard, sans clic.
+    FakeBridgeSocket.mode = 'ready'
+    await vi.advanceTimersByTimeAsync(BRIDGE_RETRY_MS)
+    expect(FakeBridgeSocket.instances).toHaveLength(3)
+    expect(getLighting()?.getState().simulation).toBe(false)
+    expect(bridgeError.value).toBeNull()
+  })
+
+  it('un clic pendant un essai en cours n’est pas écrasé par l’échec de cet essai', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    FakeBridgeSocket.mode = 'absent'
+    await saveRoomHardwareConfig(BRIDGE_CONFIG)
+    const { bridgeError } = useRoomHardware()
+    await startLighting()
+
+    // Deuxième essai automatique : le pont ne répond pas, l'essai reste en cours.
+    FakeBridgeSocket.mode = 'hang'
+    await vi.advanceTimersByTimeAsync(BRIDGE_RETRY_MS)
+    expect(FakeBridgeSocket.instances).toHaveLength(2)
+
+    // Clic pendant l'essai, le pont est maintenant disponible ; l'essai en cours finit par échouer.
+    FakeBridgeSocket.mode = 'ready'
+    const click = connectDmxInterface()
+    await vi.advanceTimersByTimeAsync(30_000)
+    await click
+
+    expect(getLighting()?.getState().simulation).toBe(false)
+    expect(getLighting()?.getState().outputStatus).toBe('open')
+    expect(bridgeError.value).toBeNull()
+    // Connecté par le clic : aucun minuteur de reprise ne reste armé.
+    const count = FakeBridgeSocket.instances.length
+    await vi.advanceTimersByTimeAsync(BRIDGE_RETRY_MS * 3)
+    expect(FakeBridgeSocket.instances).toHaveLength(count)
+  })
+
   it('n’essaie plus le pont une fois la simulation choisie, ni après l’arrêt des lumières', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     FakeBridgeSocket.mode = 'absent'
@@ -315,6 +398,28 @@ describe('pont Art-Net de la salle', () => {
       expect(localStorage.getItem(EMERGENCY_STORAGE_KEY)).toBeNull()
       await resetRoomHardware()
       expect((await startLighting()).getState().emergency).toBe(false)
+    })
+
+    it('reprend le pont après 10 s pendant un arrêt d’urgence : seul du noir sort', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      FakeBridgeSocket.mode = 'absent'
+      await saveRoomHardwareConfig(BRIDGE_CONFIG)
+      localStorage.setItem(EMERGENCY_STORAGE_KEY, 'operator')
+      const controller = await startLighting()
+      expect(controller.getState().emergency).toBe(true)
+      expect(controller.getState().simulation).toBe(true)
+
+      FakeBridgeSocket.mode = 'ready'
+      await vi.advanceTimersByTimeAsync(BRIDGE_RETRY_MS)
+      expect(controller.getState().simulation).toBe(false)
+      vi.useRealTimers()
+      await vi.waitFor(() => expect(FakeBridgeSocket.last?.frames.length).toBeGreaterThan(0))
+      await new Promise((resolve) => setTimeout(resolve, 100))
+
+      const frames = FakeBridgeSocket.instances.flatMap((socket) => socket.frames)
+      expect(frames.every(isBlack)).toBe(true)
+      expect(controller.getState().emergency).toBe(true)
+      expect(localStorage.getItem(EMERGENCY_STORAGE_KEY)).toBe('operator')
     })
 
     it('garde l’arrêt d’urgence si le pont est absent au rechargement', async () => {

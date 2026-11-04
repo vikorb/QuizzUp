@@ -540,7 +540,8 @@ export async function connectDmxInterface(
   if (driver === 'artnet-bridge') {
     const controller = await startLighting()
     preferSimulation = false
-    await useBridge(controller)
+    // Même file que l'essai automatique : pas de course, et un échec repose le nouvel essai.
+    await serializeLighting(() => autoConnectBridge(controller))
     return
   }
   // La fenêtre de choix doit s'ouvrir dans le clic, avant toute autre attente.

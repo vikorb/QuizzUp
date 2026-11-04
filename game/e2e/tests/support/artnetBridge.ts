@@ -22,6 +22,8 @@ export type RunningBridge = {
   /** Port WebSocket du pont (`ws://127.0.0.1:<port>`). */
   port: number
   url: string
+  /** Vrai tant qu'un écran de salle est connecté (le pont n'en accepte qu'un). */
+  hasClient: () => boolean
   stop: () => Promise<void>
 }
 
@@ -72,6 +74,7 @@ export async function startBridge(node: FakeNode, port = 0): Promise<RunningBrid
   return {
     port: listening,
     url: `ws://127.0.0.1:${listening}`,
+    hasClient: () => bridge.hasClient(),
     stop: () => bridge.close(),
   }
 }
