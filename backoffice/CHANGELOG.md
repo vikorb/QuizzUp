@@ -8,6 +8,18 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- 6 pupitres au maximum, 4 par défaut (décision d'Enzo du 2026-11-04). `GAME_PODIUMS` passe de 4 à
+  6 dans `@quizzup/shared` (avec `ROOM_DEFAULT_DESKS` et `getRoomDesksCount`) ; le nombre de
+  pupitres d'une salle est `rooms.config.desksCount` (1 à 6, absent = 4), réglable depuis l'écran
+  Matériel de la salle. `GET /companies/:id/rooms` renvoie `desksCount` ; le formulaire « Lancer
+  une partie » ne propose que les pupitres de la salle choisie et `POST /companies/:id/games`
+  refuse un pupitre au-delà (`400 podium_not_in_room`). Nouvelle migration : CHECK
+  `game_participants.podium` 1..6 (le retour arrière à 4 est refusé si un pupitre 5 ou 6 est
+  utilisé). Écran de salle : lobby, apprentissage des buzzers, lumières, classement et clavier de
+  simulation jusqu'à 6 pupitres ; vol de points à 5 ou 6 joueurs : A et B font défiler la cible,
+  C ou D la valide (jusqu'à 4 pupitres, les boutons A à D désignent toujours un pupitre).
+  US: us-six-podiums
+
 - Choix des mini-jeux au lancement d'une partie : le formulaire « Lancer une partie » propose une
   case par mini-jeu (tous cochés par défaut, au moins un requis) ; `POST /companies/:id/games`
   accepte `miniGames` (facultatif, stocké dans `games.mini_games`, `null` = tous) et le détail de
