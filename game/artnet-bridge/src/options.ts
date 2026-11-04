@@ -14,7 +14,8 @@ export const DEFAULT_PORT = 7654
 export const ORIGINS_ENV = 'QUIZZUP_BRIDGE_ORIGINS'
 
 export type BridgeOptions = {
-  target: string
+  /** Absente : la cible vient de l'écran de salle (réglage Matériel, `rooms.config`). */
+  target?: string
   port: number
   artnetPort: number
   bind?: string
@@ -34,10 +35,12 @@ export class OptionsError extends Error {}
 export const HELP_TEXT = `quizzup-artnet-bridge — pont local QuizzUp : écran de salle (navigateur) → Art-Net (réseau)
 
 Utilisation :
-  quizzup-artnet-bridge --target <ip> --origin <url> [options]
+  quizzup-artnet-bridge --origin <url> [options]
 
 Options :
-  --target <ip>        IP du nœud Art-Net (ex. 192.168.1.50) ou de diffusion (ex. 192.168.1.255)
+  --target <ip>        IP du nœud Art-Net (ex. 192.168.1.50) ou de diffusion (ex. 192.168.1.255).
+                       Facultatif : sans lui, l'IP se règle dans l'écran Matériel de la salle
+                       (réseaux locaux uniquement). Donné ici, il est prioritaire sur l'écran de salle.
   --origin <url>       origine de l'écran de salle autorisée à se connecter
                        (ex. https://salle.quizzup.fr) ; répétable, ou séparée par des virgules ;
                        à défaut : variable d'environnement ${ORIGINS_ENV}
@@ -62,7 +65,8 @@ Sécurité : le pont n'écoute que sur 127.0.0.1, n'accepte qu'un écran de sall
 uniquement depuis les origines autorisées. Si le navigateur se tait plus de ${SILENCE_TIMEOUT_MS} ms ou se
 déconnecte, le pont envoie du noir (fumée coupée) sur tous les univers.
 
-Exemple :
+Exemples :
+  quizzup-artnet-bridge --origin https://salle.quizzup.fr
   quizzup-artnet-bridge --target 192.168.1.50 --universe 0 --port ${DEFAULT_PORT} --origin https://salle.quizzup.fr`
 
 const CLI_OPTIONS = {
@@ -208,10 +212,7 @@ export function parseCliArgs(argv: readonly string[], deps: ParseDeps = {}): Cli
   }
 
   const targetValue = values.target ?? file.target
-  if (targetValue === undefined) {
-    throw new OptionsError('--target est obligatoire : IP du nœud Art-Net (ex. 192.168.1.50)')
-  }
-  const target = parseIp('--target', targetValue)
+  const target = targetValue === undefined ? undefined : parseIp('--target', targetValue)
 
   const originValues =
     values.origin && values.origin.length > 0
@@ -263,7 +264,7 @@ export function parseCliArgs(argv: readonly string[], deps: ParseDeps = {}): Cli
     return {
       kind: 'run',
       options: {
-        target,
+        ...(target === undefined ? {} : { target }),
         port: parseIntegerOption('--port', values.port ?? file.port ?? DEFAULT_PORT, 1, 65_535),
         artnetPort: parseIntegerOption(
           '--artnet-port',

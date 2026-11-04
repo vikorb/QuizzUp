@@ -61,8 +61,8 @@ describe('ligne de commande quizzup-artnet-bridge', () => {
 
   it('explique une erreur de configuration et renvoie 1', async () => {
     const context = io()
-    expect(await runCli(['--origin', 'https://a.fr'], context.io)).toBe(1)
-    expect(context.err[0]).toContain('--target est obligatoire')
+    expect(await runCli(['--target', 'pas-une-ip', '--origin', 'https://a.fr'], context.io)).toBe(1)
+    expect(context.err[0]).toContain("n'est pas une adresse IPv4")
     expect(context.err[1]).toContain('--help')
   })
 
