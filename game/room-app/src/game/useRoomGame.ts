@@ -1,12 +1,13 @@
 import type { EngineTheme, GameEvent, GameSetup, GameState } from '@quizzup/game-engine'
 import { createGame, FLASH_BLIND_TEST_STAGE_DURATIONS_MS, MAX_SEED } from '@quizzup/game-engine'
-import { MINI_GAME_FLASH_BLIND_TEST } from '@quizzup/shared'
+import { MINI_GAME_FLASH_BLIND_TEST, type MiniGame } from '@quizzup/shared'
 import { computed, ref, shallowRef } from 'vue'
 
 import { createAudioBridge } from '@/audio/audioBridge'
 import { createSilentExtractPlayer, type ExtractPlayer } from '@/audio/player'
 import { createUiSoundBridge, type UiSoundOutput } from '@/audio/uiSoundBridge'
 import { collectMediaUrls } from '@/game/content'
+import { readMiniGamesSetting } from '@/game/miniGamesSetting'
 import {
   finalizeRegistrations,
   type Registration,
@@ -156,6 +157,8 @@ export type NewGameOptions = {
   themes: EngineTheme[]
   roundsCount?: number
   questionsPerRound?: number
+  /** Mini-jeux tirés au sort (réglage de la salle, sinon tous). */
+  miniGames?: MiniGame[]
   seed?: number
 }
 
@@ -166,9 +169,8 @@ function buildSetup(options: NewGameOptions, registrations: Registration[]): Gam
     themes: options.themes,
     roundsCount: options.roundsCount,
     questionsPerRound: options.questionsPerRound,
-    // L'écran de salle n'affiche encore que le blind test éclair : les autres
-    // mini-jeux du moteur arrivent avec leurs écrans.
-    miniGames: [MINI_GAME_FLASH_BLIND_TEST],
+    // Tous les mini-jeux par défaut, ou le réglage de la salle.
+    miniGames: options.miniGames ?? readMiniGamesSetting(),
   }
 }
 

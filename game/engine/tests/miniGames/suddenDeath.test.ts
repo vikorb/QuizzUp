@@ -114,7 +114,7 @@ describe('suddenDeath.isQuestionEligible', () => {
   it('accepts multiple choice questions only', () => {
     expect(suddenDeath.id).toBe(MINI_GAME_SUDDEN_DEATH)
     expect(suddenDeath.isQuestionEligible(ROUND[0]!)).toBe(true)
-    expect(suddenDeath.isQuestionEligible(imageQuestion(1))).toBe(true)
+    expect(suddenDeath.isQuestionEligible(imageQuestion(1))).toBe(false)
     expect(suddenDeath.isQuestionEligible(audioQuestion(1))).toBe(false)
     expect(suddenDeath.isQuestionEligible(qcmQuestion(1, 7))).toBe(false)
   })

@@ -54,7 +54,7 @@ describe('firstBuzz definition', () => {
 
   it('accepts readable multiple choice questions only', () => {
     expect(firstBuzz.isQuestionEligible(question)).toBe(true)
-    expect(firstBuzz.isQuestionEligible(imageQuestion(1))).toBe(true)
+    expect(firstBuzz.isQuestionEligible(imageQuestion(1))).toBe(false)
     expect(firstBuzz.isQuestionEligible(trueFalseQuestion(2, true))).toBe(true)
     expect(firstBuzz.isQuestionEligible(audioQuestion(3))).toBe(false)
     expect(firstBuzz.isQuestionEligible(qcmQuestion(4, 0, 1))).toBe(false)
