@@ -306,8 +306,38 @@ describe('HardwareView — nombre de pupitres', () => {
 
     await wrapper.find('[data-test="desks-count"]').setValue('6')
     await flushPromises()
-    expect(wrapper.find('[data-test="buzzer-6A"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="buzzer-6A"]').text()).toContain('T')
     expect(useRoomHardware().hardware.value.config.buzzers.keymap).toEqual(reserve)
+  })
+
+  it('garde la réserve des pupitres 5 et 6 quand on réapprend les buzzers à 4 pupitres', async () => {
+    const reserve = Object.fromEntries([
+      ['KeyV', { desk: 5, button: 'A' } as const],
+      ['KeyX', { desk: 6, button: 'B' } as const],
+    ])
+    await saveRoomDesksCount(6)
+    await saveBuzzerKeymap(reserve)
+    await saveRoomDesksCount(4)
+    const { wrapper } = await mountWithApp(HardwareView, { route: '/hardware' })
+
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Associer'))!
+      .trigger('click')
+    for (const code of LEARN_CODES) {
+      pressKey(code)
+    }
+    await flushPromises()
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Enregistrer'))!
+      .trigger('click')
+    await flushPromises()
+
+    const { keymap } = useRoomHardware().hardware.value.config.buzzers
+    expect(Object.keys(keymap)).toHaveLength(18)
+    expect(keymap['KeyV']).toEqual({ desk: 5, button: 'A' })
+    expect(keymap['KeyX']).toEqual({ desk: 6, button: 'B' })
   })
 
   it('règle aussi le nombre de pupitres depuis l’assistant d’installation', async () => {

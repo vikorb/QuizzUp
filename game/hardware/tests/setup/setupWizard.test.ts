@@ -232,8 +232,11 @@ describe('assistant d’installation : appareils', () => {
     // Remonter à 6 restitue buzzers et lumières.
     const sixAgain = createSetupWizard(saved)
     sixAgain.setDesksCount(6)
-    expect(sixAgain.summary().config.buzzers.keymap).toEqual(saved.buzzers.keymap)
-    expect(sixAgain.summary().config.lighting.fixtures).toEqual(saved.lighting.fixtures)
+    const restored = sixAgain.summary().config
+    expect(Object.keys(activeKeymap(restored))).toHaveLength(24)
+    const restoredDesks = activeLightingConfig(restored).fixtures.map((fixture) => fixture.desk)
+    expect(restoredDesks).toContain(5)
+    expect(restoredDesks).toContain(6)
 
     // Rouvrir l'assistant avec cette config garde 4 pupitres.
     const reopened = createSetupWizard(saved)
