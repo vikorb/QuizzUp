@@ -77,26 +77,20 @@ export function now(page: Page): Promise<number> {
 /** Le son a-t-il été audible à un moment entre `from` et `to` ? */
 export async function heardBetween(page: Page, from: number, to: number): Promise<boolean> {
   const samples = await page.evaluate(() => window.soundProbe.samples())
-  let audible = false
-  for (const sample of samples) {
-    if (sample.at > to) {
-      break
-    }
-    if (sample.at >= from && sample.audible) {
-      return true
-    }
-    audible = sample.audible
+  // État au début de la plage : celui du dernier changement avant `from`.
+  const before = samples.filter((sample) => sample.at < from).at(-1)
+  if (before?.audible) {
+    return true
   }
-  // Son déjà en cours au début de la plage.
-  return audible && samples.some((sample) => sample.at <= from)
+  return samples.some((sample) => sample.audible && sample.at >= from && sample.at <= to)
 }
 
-/** Premier instant audible après `from`. */
-export async function firstSoundAfter(page: Page, from: number): Promise<number> {
+/** Dernier instant où le son s'est tu avant `before`. */
+export async function lastSilenceBefore(page: Page, before: number): Promise<number> {
   const samples = await page.evaluate(() => window.soundProbe.samples())
-  const found = samples.find((sample) => sample.audible && sample.at >= from)
+  const found = samples.filter((sample) => !sample.audible && sample.at <= before).at(-1)
   if (!found) {
-    throw new Error('Aucun son entendu')
+    throw new Error('Aucune fin de son entendue')
   }
   return found.at
 }
