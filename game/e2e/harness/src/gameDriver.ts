@@ -16,7 +16,12 @@ export function answerButtons(state: GameState): { correct: ButtonIndex; wrong: 
   if (phase.name !== 'question') {
     throw new Error(`Pas de question en cours (phase ${phase.name})`)
   }
-  const { answers } = phase.miniGameState.question
+  const { miniGameState } = phase
+  // Tous les mini-jeux n'ont pas une question unique (paris du quitte ou double…).
+  if (!('question' in miniGameState)) {
+    throw new Error(`Mini-jeu sans question à choix : ${miniGameState.kind}`)
+  }
+  const { answers } = miniGameState.question
   const correct = answers.findIndex((answer) => answer.isCorrect)
   const wrong = answers.findIndex((answer) => !answer.isCorrect)
   if (correct < 0 || wrong < 0) {
