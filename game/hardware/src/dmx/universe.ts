@@ -1,6 +1,9 @@
 /** Un univers DMX : 512 canaux (adresses 1 à 512), valeurs 0-255. */
 export const DMX_CHANNELS = 512
 
+/** Nombre maximal d'univers adressables (numéros 0 à 15) : un appareil porte `universe` 0-15. */
+export const MAX_UNIVERSES = 16
+
 export function createUniverse(): Uint8Array {
   return new Uint8Array(DMX_CHANNELS)
 }

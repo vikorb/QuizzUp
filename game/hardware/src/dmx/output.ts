@@ -11,13 +11,25 @@ export const DMX_DRIVERS = ['simulation', 'usbpro', 'opendmx', 'artnet-bridge'] 
  */
 export type DmxDriver = (typeof DMX_DRIVERS)[number]
 
+/**
+ * Nombre d'univers (numérotés depuis 0) que chaque sortie sait émettre. Les interfaces USB n'en ont
+ * qu'un : un appareil placé sur un autre univers y est signalé comme problème, jamais envoyé.
+ */
+export const DMX_DRIVER_UNIVERSES: Record<DmxDriver, number> = {
+  simulation: 16,
+  usbpro: 1,
+  opendmx: 1,
+  'artnet-bridge': 16,
+}
+
 export type DmxOutputStatus = 'closed' | 'opening' | 'open' | 'closing' | 'error'
 
-/** Sortie DMX : reçoit l'univers complet à chaque trame. */
+/** Sortie DMX : reçoit chaque univers complet (512 canaux) à chaque trame. */
 export type DmxOutput = {
   readonly driver: DmxDriver
   open: () => Promise<void>
-  write: (universe: Uint8Array) => Promise<void>
+  /** `universe` : numéro de l'univers (0 par défaut) ; une sortie qui n'en a qu'un ignore les autres. */
+  write: (data: Uint8Array, universe?: number) => Promise<void>
   close: () => Promise<void>
   /** Prévenu quand la sortie tombe (interface débranchée, erreur USB). */
   onDisconnect: (listener: (error: unknown) => void) => Unsubscribe

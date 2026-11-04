@@ -222,14 +222,18 @@ export function createSerialOutput(options: SerialOutputOptions): DmxOutput {
       frameEndsAt = Number.NEGATIVE_INFINITY
       serial?.addEventListener?.('disconnect', onSerialDisconnect)
     },
-    async write(universe) {
+    async write(data, universe = 0) {
+      if (universe !== 0) {
+        // Une interface USB n'a qu'un univers : le contrôleur signale le problème, rien ne part.
+        return
+      }
       if (!writer) {
         throw new Error('Interface DMX non ouverte')
       }
       const current = writer
       try {
         if (driver === 'usbpro') {
-          await current.write(encodeUsbProFrame(universe))
+          await current.write(encodeUsbProFrame(data))
           return
         }
         if (!port.setSignals) {
@@ -242,7 +246,7 @@ export function createSerialOutput(options: SerialOutputOptions): DmxOutput {
         // Break sans minuteur : l'aller-retour USB de chaque `setSignals` dépasse les 88 µs.
         await port.setSignals({ break: true })
         await port.setSignals({ break: false })
-        await current.write(encodeRawDmxFrame(universe))
+        await current.write(encodeRawDmxFrame(data))
         frameEndsAt = now() + OPEN_DMX_FRAME_MS
       } catch (error) {
         if (writer === current) {

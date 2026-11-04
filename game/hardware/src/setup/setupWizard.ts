@@ -3,11 +3,11 @@ import { missingSlots } from '../buzzers/keymap'
 import type { BuzzerSource, RoomHardwareConfig } from '../config'
 import { activeLightingConfig, parseRoomHardwareConfig, withDesksCount } from '../config'
 import type { FixtureConfig, PanTilt } from '../dmx/fixtures'
-import { parseRig } from '../dmx/fixtures'
+import { fixtureUniverse, parseRig, unsupportedUniverseProblems } from '../dmx/fixtures'
 import type { DmxDriver } from '../dmx/output'
 import type { FixtureProfile } from '../dmx/profiles'
 import { findProfile } from '../dmx/profiles'
-import { DMX_CHANNELS } from '../dmx/universe'
+import { DMX_CHANNELS, MAX_UNIVERSES } from '../dmx/universe'
 import type { SmokeSafetyConfig } from '../lighting/smoke'
 import { normalizeSmokeSafety } from '../lighting/smoke'
 import type { PanTiltCalibration, SixDeskRigOptions } from '../presets/sixDeskRoom'
@@ -149,8 +149,10 @@ export type WizardResult = { ok: true } | { ok: false; reason: string }
 export type AddFixtureInput = {
   profileId: string
   name?: string
-  /** Adresse imposée ; sinon la première plage libre est proposée. */
+  /** Adresse imposée ; sinon la première plage libre (de l'univers choisi) est proposée. */
   address?: number
+  /** Univers 0-15 ; 0 par défaut (et alors non enregistré, comme avant les univers multiples). */
+  universe?: number
   desk?: Desk
 }
 
@@ -158,7 +160,7 @@ export type AddFixtureResult =
   | { ok: true; fixture: FixtureConfig }
   | {
       ok: false
-      reason: 'unknown_profile' | 'no_room' | 'invalid_address' | 'conflict'
+      reason: 'unknown_profile' | 'no_room' | 'invalid_address' | 'invalid_universe' | 'conflict'
       detail?: string
     }
 
@@ -192,8 +194,8 @@ export type SetupWizard = {
   removeFixture: (id: string) => void
   /** Remplace les appareils par ceux d'une salle 6 pupitres (positions reprises si fournies). */
   importSixDeskPreset: (options?: SixDeskRigOptions) => void
-  /** Première adresse libre pour un appareil de `footprint` canaux, `null` si l'univers est plein. */
-  suggestAddress: (footprint: number) => number | null
+  /** Première adresse libre pour un appareil de `footprint` canaux, `null` si l'univers (0 par défaut) est plein. */
+  suggestAddress: (footprint: number, universe?: number) => number | null
 
   markFixtureTest: (id: string, result: FixtureTestResult) => WizardResult
 
@@ -225,6 +227,8 @@ const slug = (text: string) =>
     .toLowerCase()
     .replaceAll(/[^a-z0-9]+/g, '-')
     .replaceAll(/^-|-$/g, '') || 'appareil'
+
+const isUniverse = (value: number) => Number.isInteger(value) && value >= 0 && value < MAX_UNIVERSES
 
 export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
   const parsed = parseRoomHardwareConfig(initial ?? {})
@@ -261,10 +265,10 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
     config = { ...config, lighting: { ...config.lighting, fixtures } }
   }
 
-  const usedChannels = (exceptId?: string) => {
+  const usedChannels = (universe: number, exceptId?: string) => {
     const used = new Map<number, string>()
     for (const fixture of config.lighting.fixtures) {
-      if (fixture.id === exceptId) {
+      if (fixture.id === exceptId || fixtureUniverse(fixture) !== universe) {
         continue
       }
       const footprint = profileOf(fixture)?.channels.length ?? 0
@@ -275,8 +279,13 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
     return used
   }
 
-  const findConflict = (address: number, footprint: number, exceptId?: string) => {
-    const used = usedChannels(exceptId)
+  const findConflict = (
+    address: number,
+    footprint: number,
+    universe: number,
+    exceptId?: string
+  ) => {
+    const used = usedChannels(universe, exceptId)
     for (let offset = 0; offset < footprint; offset += 1) {
       const owner = used.get(address + offset)
       if (owner !== undefined) {
@@ -286,11 +295,11 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
     return null
   }
 
-  const suggestAddress = (footprint: number): number | null => {
-    if (footprint < 1 || footprint > DMX_CHANNELS) {
+  const suggestAddress = (footprint: number, universe = 0): number | null => {
+    if (footprint < 1 || footprint > DMX_CHANNELS || !isUniverse(universe)) {
       return null
     }
-    const used = usedChannels()
+    const used = usedChannels(universe)
     for (let address = 1; address + footprint - 1 <= DMX_CHANNELS; address += 1) {
       let free = true
       for (let offset = 0; offset < footprint; offset += 1) {
@@ -347,7 +356,11 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
         return []
       }
       case 'fixtures': {
-        return parseRig(config.lighting.fixtures, config.lighting.customProfiles).problems
+        const rig = parseRig(config.lighting.fixtures, config.lighting.customProfiles)
+        return [
+          ...rig.problems,
+          ...unsupportedUniverseProblems(rig.fixtures, config.lighting.driver),
+        ]
       }
       case 'fixtureTest': {
         const untested = config.lighting.fixtures.filter(
@@ -490,10 +503,14 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
       if (!profile) {
         return { ok: false, reason: 'unknown_profile' }
       }
+      const universe = input.universe ?? 0
+      if (!isUniverse(universe)) {
+        return { ok: false, reason: 'invalid_universe' }
+      }
       const footprint = profile.channels.length
       let address = input.address
       if (address === undefined) {
-        const suggested = suggestAddress(footprint)
+        const suggested = suggestAddress(footprint, universe)
         if (suggested === null) {
           return { ok: false, reason: 'no_room' }
         }
@@ -502,7 +519,7 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
       if (!Number.isInteger(address) || address < 1 || address + footprint - 1 > DMX_CHANNELS) {
         return { ok: false, reason: 'invalid_address' }
       }
-      const conflict = findConflict(address, footprint)
+      const conflict = findConflict(address, footprint, universe)
       if (conflict) {
         return { ok: false, reason: 'conflict', detail: conflict }
       }
@@ -512,6 +529,7 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
         name,
         profileId: profile.id,
         address,
+        ...(universe === 0 ? {} : { universe }),
         ...(input.desk === undefined ? {} : { desk: input.desk }),
       }
       setFixtures([...config.lighting.fixtures, fixture])
@@ -528,6 +546,9 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
       if (!profile) {
         return { ok: false, reason: 'unknown_profile' }
       }
+      if (!isUniverse(fixtureUniverse(next))) {
+        return { ok: false, reason: 'invalid_universe' }
+      }
       const footprint = profile.channels.length
       if (
         !Number.isInteger(next.address) ||
@@ -536,12 +557,16 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
       ) {
         return { ok: false, reason: 'invalid_address' }
       }
-      const conflict = findConflict(next.address, footprint, id)
+      const conflict = findConflict(next.address, footprint, fixtureUniverse(next), id)
       if (conflict) {
         return { ok: false, reason: conflict }
       }
       setFixtures(config.lighting.fixtures.map((fixture) => (fixture.id === id ? next : fixture)))
-      if (next.address !== current.address || next.profileId !== current.profileId) {
+      if (
+        next.address !== current.address ||
+        next.profileId !== current.profileId ||
+        fixtureUniverse(next) !== fixtureUniverse(current)
+      ) {
         resetFreezeTestIf(current, next)
         const { [id]: _dropped, ...rest } = fixtureTests
         fixtureTests = rest
@@ -637,7 +662,10 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
       const problems: string[] = []
       const warnings: string[] = []
       const rig = parseRig(config.lighting.fixtures, config.lighting.customProfiles)
-      problems.push(...rig.problems)
+      problems.push(
+        ...rig.problems,
+        ...unsupportedUniverseProblems(rig.fixtures, config.lighting.driver)
+      )
       const missing = missingSlots(config.buzzers.keymap, desks)
       if (missing.length > 0) {
         problems.push(`${missing.length} bouton(s) de buzzer pas encore appris`)

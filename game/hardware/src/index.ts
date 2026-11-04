@@ -69,11 +69,18 @@ export {
   parseBridgeUrl,
 } from './dmx/bridgeOutput'
 export type { FixtureConfig, FixtureState, PanTilt, ResolvedFixture } from './dmx/fixtures'
-export { parseRig, renderUniverse } from './dmx/fixtures'
+export {
+  fixtureUniverse,
+  parseRig,
+  renderUniverse,
+  renderUniverses,
+  unsupportedUniverseProblems,
+  usedUniverses,
+} from './dmx/fixtures'
 export type { MeteredOutput, OutputStats } from './dmx/meteredOutput'
 export { createMeteredOutput } from './dmx/meteredOutput'
 export type { DmxDriver, DmxOutput, DmxOutputStatus } from './dmx/output'
-export { DMX_DRIVERS } from './dmx/output'
+export { DMX_DRIVER_UNIVERSES, DMX_DRIVERS } from './dmx/output'
 export type { ChannelRole, ChannelSpec, FixtureKind, FixtureProfile } from './dmx/profiles'
 export { CHANNEL_ROLES, findProfile, FIXTURE_KINDS, GENERIC_PROFILES } from './dmx/profiles'
 export type {
@@ -95,7 +102,7 @@ export {
 } from './dmx/serialOutput'
 export type { SimulationOutput } from './dmx/simulationOutput'
 export { createSimulationOutput } from './dmx/simulationOutput'
-export { DMX_CHANNELS, encodeRawDmxFrame, encodeUsbProFrame } from './dmx/universe'
+export { DMX_CHANNELS, encodeRawDmxFrame, encodeUsbProFrame, MAX_UNIVERSES } from './dmx/universe'
 export type {
   DeskResolver,
   DiagnosticRefusal,

@@ -1,8 +1,10 @@
 import type { Desk, Rgbw } from '../types'
 import { clampByte, DESKS, isDesk } from '../types'
+import type { DmxDriver } from './output'
+import { DMX_DRIVER_UNIVERSES } from './output'
 import type { ChannelSpec, FixtureProfile } from './profiles'
 import { CHANNEL_ROLES, findProfile, FIXTURE_KINDS } from './profiles'
-import { DMX_CHANNELS } from './universe'
+import { DMX_CHANNELS, MAX_UNIVERSES } from './universe'
 
 /** Position d'une lyre : pan et tilt sur 16 bits (0-65535). */
 export type PanTilt = { pan: number; tilt: number }
@@ -12,8 +14,10 @@ export type FixtureConfig = {
   id: string
   name: string
   profileId: string
-  /** Adresse DMX de départ, 1 à 512. */
+  /** Adresse DMX de départ, 1 à 512 (dans l'univers de l'appareil). */
   address: number
+  /** Univers DMX 0 à 15 ; absent = univers 0 (config d'avant les univers multiples, relue telle quelle). */
+  universe?: number
   /** Appareil dédié à un pupitre (PAR au-dessus du pupitre 3…) : s'allume pour ce joueur. */
   desk?: Desk
   /** Lyres : position enregistrée pour chaque pupitre (« spot sur le pupitre qui a buzzé »). */
@@ -41,6 +45,10 @@ export const BLACK: Rgbw = { r: 0, g: 0, b: 0, w: 0 }
 export function darkState(): FixtureState {
   return { color: { ...BLACK }, intensity: 0, position: null, strobe: 0 }
 }
+
+/** Univers d'un appareil (0 si non précisé). */
+export const fixtureUniverse = (fixture: Pick<FixtureConfig, 'universe'>): number =>
+  fixture.universe ?? 0
 
 export function fixtureFootprint(fixture: ResolvedFixture): number {
   return fixture.profile.channels.length
@@ -98,16 +106,21 @@ function channelValue(
 }
 
 /**
- * Construit l'univers DMX complet à partir de l'état des appareils. Le niveau de fumée vient
- * **uniquement** du contrôleur de fumée sécurisé, jamais directement des scènes.
+ * Construit un univers DMX complet (512 canaux) à partir de l'état des appareils placés sur cet
+ * univers (0 par défaut). Le niveau de fumée vient **uniquement** du contrôleur de fumée sécurisé,
+ * jamais directement des scènes.
  */
 export function renderUniverse(
   fixtures: readonly ResolvedFixture[],
   states: ReadonlyMap<string, FixtureState>,
-  smokeLevel: number
+  smokeLevel: number,
+  universeNumber = 0
 ): Uint8Array {
   const universe = new Uint8Array(DMX_CHANNELS)
   for (const fixture of fixtures) {
+    if (fixtureUniverse(fixture) !== universeNumber) {
+      continue
+    }
     const state = states.get(fixture.id) ?? darkState()
     fixture.profile.channels.forEach((spec, offset) => {
       const index = fixture.address - 1 + offset
@@ -119,11 +132,52 @@ export function renderUniverse(
   return universe
 }
 
+/** Numéros d'univers utilisés, triés ; le 0 y est toujours (il part même sans appareil). */
+export function usedUniverses(fixtures: readonly Pick<FixtureConfig, 'universe'>[]): number[] {
+  return [...new Set([0, ...fixtures.map(fixtureUniverse)])].sort((first, second) => first - second)
+}
+
+/** Tous les univers utilisés, rendus d'un coup (clé = numéro d'univers, 0 d'abord). */
+export function renderUniverses(
+  fixtures: readonly ResolvedFixture[],
+  states: ReadonlyMap<string, FixtureState>,
+  smokeLevel: number
+): Map<number, Uint8Array> {
+  return new Map(
+    usedUniverses(fixtures).map((number) => [
+      number,
+      renderUniverse(fixtures, states, smokeLevel, number),
+    ])
+  )
+}
+
+/**
+ * Appareils placés sur un univers que la sortie ne sait pas émettre (USB : univers 0 seulement).
+ * Ils ne reçoivent aucun signal : à signaler à l'opérateur plutôt qu'à ignorer.
+ */
+export function unsupportedUniverseProblems(
+  fixtures: readonly Pick<FixtureConfig, 'name' | 'universe'>[],
+  driver: DmxDriver
+): string[] {
+  const count = DMX_DRIVER_UNIVERSES[driver]
+  const range = count === 1 ? 'univers 0 seulement' : `univers 0 à ${count - 1}`
+  return fixtures
+    .filter((fixture) => fixtureUniverse(fixture) >= count)
+    .map(
+      (fixture) =>
+        `Appareil « ${fixture.name} » : univers ${fixtureUniverse(fixture)} non pris en charge ` +
+        `par la sortie ${driver} (${range})`
+    )
+}
+
 export type RigParseResult = {
   fixtures: ResolvedFixture[]
   customProfiles: FixtureProfile[]
   problems: string[]
 }
+
+/** Clé d'un canal DMX : une même adresse sur deux univers = deux canaux distincts. */
+const channelKey = (universe: number | undefined, channel: number) => `${universe ?? 0}:${channel}`
 
 function parsePanTilt(input: unknown): PanTilt | null {
   const value = input as Partial<Record<'pan' | 'tilt', unknown>> | null
@@ -188,13 +242,14 @@ function parseCustomProfiles(input: unknown, problems: string[]): FixtureProfile
 
 /**
  * Relit la liste des appareils de la config de salle et vérifie la cohérence : profil connu,
- * adresse valide, pas de dépassement de l'univers, pas de chevauchement d'adresses.
+ * adresse et univers valides, pas de dépassement de l'univers, pas de chevauchement d'adresses
+ * (univers par univers).
  */
 export function parseRig(fixturesInput: unknown, customProfilesInput: unknown): RigParseResult {
   const problems: string[] = []
   const customProfiles = parseCustomProfiles(customProfilesInput, problems)
   const fixtures: ResolvedFixture[] = []
-  const usedChannels = new Map<number, string>()
+  const usedChannels = new Map<string, string>()
   const ids = new Set<string>()
 
   if (fixturesInput !== undefined && !Array.isArray(fixturesInput)) {
@@ -219,17 +274,30 @@ export function parseRig(fixturesInput: unknown, customProfilesInput: unknown): 
       problems.push(`Appareil « ${label} » : adresse DMX invalide`)
       continue
     }
+    const universe = raw.universe
+    if (
+      universe !== undefined &&
+      (typeof universe !== 'number' ||
+        !Number.isInteger(universe) ||
+        universe < 0 ||
+        universe >= MAX_UNIVERSES)
+    ) {
+      problems.push(`Appareil « ${label} » : univers invalide (entier de 0 à ${MAX_UNIVERSES - 1})`)
+      continue
+    }
     const last = address + profile.channels.length - 1
     if (last > DMX_CHANNELS) {
       problems.push(`Appareil « ${label} » : canaux ${address}-${last} hors de l'univers (max 512)`)
       continue
     }
+    // Les chevauchements se cherchent univers par univers : même adresse, autre univers = libre.
     const conflict = profile.channels
       .map((_channel, offset) => address + offset)
-      .find((channel) => usedChannels.has(channel))
+      .find((channel) => usedChannels.has(channelKey(universe, channel)))
     if (conflict !== undefined) {
       problems.push(
-        `Appareil « ${label} » : canal ${conflict} déjà utilisé par « ${usedChannels.get(conflict)} »`
+        `Appareil « ${label} » : canal ${conflict} déjà utilisé par « ${usedChannels.get(channelKey(universe, conflict))} »` +
+          (universe ? ` (univers ${universe})` : '')
       )
       continue
     }
@@ -245,12 +313,15 @@ export function parseRig(fixturesInput: unknown, customProfilesInput: unknown): 
     const homePosition = parsePanTilt(raw.homePosition)
 
     ids.add(raw.id)
-    profile.channels.forEach((_channel, offset) => usedChannels.set(address + offset, label))
+    profile.channels.forEach((_channel, offset) =>
+      usedChannels.set(channelKey(universe, address + offset), label)
+    )
     fixtures.push({
       id: raw.id,
       name: label,
       profileId: profile.id,
       address,
+      ...(universe === undefined ? {} : { universe }),
       profile,
       ...(isDesk(raw.desk) ? { desk: raw.desk } : {}),
       ...(Object.keys(deskPositions).length > 0 ? { deskPositions } : {}),

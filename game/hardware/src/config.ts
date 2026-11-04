@@ -2,7 +2,7 @@ import type { BuzzerKeymap } from './buzzers/keymap'
 import { parseKeymap } from './buzzers/keymap'
 import { parseBridgeUrl } from './dmx/bridgeOutput'
 import type { FixtureConfig, ResolvedFixture } from './dmx/fixtures'
-import { parseRig } from './dmx/fixtures'
+import { parseRig, unsupportedUniverseProblems } from './dmx/fixtures'
 import type { DmxDriver } from './dmx/output'
 import { DMX_DRIVERS } from './dmx/output'
 import type { FixtureProfile } from './dmx/profiles'
@@ -227,6 +227,8 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
       problems.push(`Sortie DMX inconnue : ${String(lighting.driver)} (simulation utilisée)`)
     }
   }
+
+  problems.push(...unsupportedUniverseProblems(rig.fixtures, driver))
 
   let bridgeUrl: string | null = null
   if (lighting.bridgeUrl !== undefined) {

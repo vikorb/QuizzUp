@@ -2,10 +2,19 @@ import type { Clock, TimerHandle } from '../clock'
 import { browserClock } from '../clock'
 import type { LightingConfig } from '../config'
 import type { FixtureState, PanTilt } from '../dmx/fixtures'
-import { darkState, parseRig, renderUniverse } from '../dmx/fixtures'
+import {
+  darkState,
+  fixtureUniverse,
+  parseRig,
+  renderUniverse,
+  renderUniverses,
+  unsupportedUniverseProblems,
+  usedUniverses,
+} from '../dmx/fixtures'
 import type { DmxDriver, DmxOutput, DmxOutputStatus } from '../dmx/output'
+import { DMX_DRIVER_UNIVERSES } from '../dmx/output'
 import type { FixtureKind } from '../dmx/profiles'
-import { createUniverse, DMX_CHANNELS } from '../dmx/universe'
+import { createUniverse, DMX_CHANNELS, MAX_UNIVERSES } from '../dmx/universe'
 import { createEmitter } from '../emitter'
 import type { Desk, Rgbw, Unsubscribe } from '../types'
 import { clampByte, isDesk } from '../types'
@@ -103,8 +112,8 @@ export type LightingController = {
   onWarning: (listener: (warning: LightingWarning) => void) => Unsubscribe
   /** État des appareils pour la vue « simulation » de l'écran de salle. */
   getFixtureViews: () => FixtureView[]
-  /** Dernière trame envoyée (copie). */
-  getFrame: () => Uint8Array
+  /** Dernière trame envoyée sur l'univers donné (0 par défaut ; copie). */
+  getFrame: (universe?: number) => Uint8Array
   /** Mode diagnostic : test canal par canal et appareil par appareil (voir `LightingDiagnostics`). */
   diagnostics: LightingDiagnostics
 }
@@ -144,8 +153,8 @@ export type LightingDiagnostics = {
    */
   begin: (options?: { allowUnknownChannels?: boolean }) => DiagnosticResult
   end: () => void
-  /** Adresse 1-512, valeur 0-255. */
-  setChannel: (address: number, value: number) => DiagnosticResult
+  /** Adresse 1-512, valeur 0-255, univers 0-15 (0 par défaut). */
+  setChannel: (address: number, value: number, universe?: number) => DiagnosticResult
   setFixture: (
     fixtureId: string,
     state: Partial<Pick<FixtureState, 'color' | 'intensity' | 'position' | 'strobe'>>
@@ -174,10 +183,17 @@ export type LightingControllerOptions = {
 const participantDesk = (value: unknown, resolveDesk: DeskResolver | undefined): Desk | null =>
   typeof value === 'number' && resolveDesk ? resolveDesk(value) : null
 
+/** Noir complet sur chaque univers de la liste. */
+const blackFramesFor = (universes: readonly number[]) =>
+  new Map(universes.map((number) => [number, createUniverse()]))
+
 /**
  * Pilote lumières et fumée : boucle d'envoi des trames DMX, scènes déclenchées par les
  * événements du moteur, chien de garde, arrêt d'urgence.
  */
+/** Clé `univers:adresse` d'un canal (une même adresse sur deux univers = deux canaux). */
+const channelKey = (universe: number, address: number) => `${universe}:${address}`
+
 export function createLightingController(options: LightingControllerOptions): LightingController {
   const { config } = options
   const clock = options.clock ?? browserClock
@@ -227,23 +243,26 @@ export function createLightingController(options: LightingControllerOptions): Li
   let diagnosticsTouchedAt = 0
   let frozenUntil: number | null = null
   let recoveredWrites = 0
-  let manualChannels = createUniverse()
+  /** Canaux réglés à la main, par numéro d'univers. */
+  let manualChannels = new Map<number, Uint8Array>()
   const manualFixtures = new Map<string, FixtureState>()
-  const fixtureChannels = new Set<number>()
-  const smokeChannels = new Set<number>()
+  const fixtureChannels = new Set<string>()
+  const smokeChannels = new Set<string>()
+  const universes = usedUniverses(fixtures)
+  const blackFrames = () => blackFramesFor(universes)
   for (const fixture of fixtures) {
     fixture.profile.channels.forEach((spec, offset) => {
-      const address = fixture.address + offset
-      fixtureChannels.add(address)
+      const key = channelKey(fixtureUniverse(fixture), fixture.address + offset)
+      fixtureChannels.add(key)
       if (spec.role === 'smoke' || fixture.profile.kind === 'smoke') {
-        smokeChannels.add(address)
+        smokeChannels.add(key)
       }
     })
   }
   let lastFrameAt: number | null = null
   let lastWarning: LightingWarning | null = null
   let lastSceneId: string | null = null
-  let frame = createUniverse()
+  let frame: ReadonlyMap<number, Uint8Array> = blackFrames()
 
   const getState = (): LightingState => ({
     running,
@@ -255,7 +274,8 @@ export function createLightingController(options: LightingControllerOptions): Li
     emergencyReason,
     currentSceneId: player.currentSceneId(),
     smoke: smoke.getState(),
-    problems: [...rig.problems],
+    // Les appareils sur un univers que la sortie ne sait pas émettre dépendent de la sortie courante.
+    problems: [...rig.problems, ...unsupportedUniverseProblems(fixtures, output.driver)],
     lastWarning,
   })
 
@@ -272,10 +292,23 @@ export function createLightingController(options: LightingControllerOptions): Li
    * remplace la précédente en attente (pas d'empilement de retard) et part dès que possible :
    * une trame d'arrêt d'urgence n'est donc jamais perdue.
    */
-  const send = (universe: Uint8Array) => {
-    frame = universe
+  const send = (frames: ReadonlyMap<number, Uint8Array>) => {
+    frame = frames
     pending = true
     flush()
+  }
+
+  /**
+   * Écrit les univers l'un après l'autre (l'univers 0 d'abord). Ceux que la sortie ne sait pas
+   * émettre sont ignorés : ils figurent déjà dans `problems`.
+   */
+  const writeFrames = async (target: DmxOutput, frames: ReadonlyMap<number, Uint8Array>) => {
+    const limit = DMX_DRIVER_UNIVERSES[target.driver]
+    for (const [number, data] of frames) {
+      if (number < limit) {
+        await target.write(data, number)
+      }
+    }
   }
 
   /** Résout `true` si la promesse aboutit avant le délai, `false` sinon. */
@@ -302,8 +335,8 @@ export function createLightingController(options: LightingControllerOptions): Li
     pending = false
     const owner = session
     // Sortie en erreur : on continue d'essayer d'envoyer du noir, au cas où elle répond encore.
-    const universe = degraded ? createUniverse() : frame
-    const write = output.write(universe).then(
+    const frames = degraded ? blackFrames() : frame
+    const write = writeFrames(output, frames).then(
       () => {
         if (owner === session && outputStatus === 'error') {
           noteRecoveredWrite()
@@ -357,7 +390,7 @@ export function createLightingController(options: LightingControllerOptions): Li
     outputStatus = 'error'
     outputError = error instanceof Error ? error.message : String(error)
     // Une trame noire part dès que l'interface accepte de nouveau une écriture.
-    send(createUniverse())
+    send(blackFrames())
     warn({ kind: 'output_error', message: outputError, at: clock.now() })
   }
 
@@ -374,7 +407,7 @@ export function createLightingController(options: LightingControllerOptions): Li
 
     if (emergency || outputStatus === 'error') {
       frozenUntil = null
-      send(createUniverse())
+      send(blackFrames())
       return
     }
     if (frozenUntil !== null) {
@@ -396,7 +429,7 @@ export function createLightingController(options: LightingControllerOptions): Li
       }
     }
     player.update(now)
-    send(renderUniverse(fixtures, player.states(), smoke.level(now)))
+    send(renderUniverses(fixtures, player.states(), smoke.level(now)))
 
     const sceneId = player.currentSceneId()
     if (sceneId !== lastSceneId) {
@@ -406,27 +439,41 @@ export function createLightingController(options: LightingControllerOptions): Li
   }
 
   /** Trame de diagnostic : canaux bruts, puis appareils réglés, puis fumée sécurisée. */
-  function renderDiagnostics(now: number): Uint8Array {
-    const universe = manualChannels.slice()
-    const overlay = renderUniverse(
-      fixtures.filter(
-        (fixture) => manualFixtures.has(fixture.id) || fixture.profile.kind === 'smoke'
-      ),
-      manualFixtures,
-      smoke.level(now)
+  function renderDiagnostics(now: number): Map<number, Uint8Array> {
+    const numbers = [...new Set([...universes, ...manualChannels.keys()])].sort(
+      (first, second) => first - second
     )
-    for (const fixture of fixtures) {
-      if (manualFixtures.has(fixture.id) || fixture.profile.kind === 'smoke') {
-        fixture.profile.channels.forEach((_spec, offset) => {
-          const index = fixture.address - 1 + offset
-          universe[index] = overlay[index] ?? 0
-        })
+    const frames = new Map<number, Uint8Array>()
+    for (const number of numbers) {
+      const universe = manualChannels.get(number)?.slice() ?? createUniverse()
+      const overlay = renderUniverse(
+        fixtures.filter(
+          (fixture) => manualFixtures.has(fixture.id) || fixture.profile.kind === 'smoke'
+        ),
+        manualFixtures,
+        smoke.level(now),
+        number
+      )
+      for (const fixture of fixtures) {
+        if (
+          fixtureUniverse(fixture) === number &&
+          (manualFixtures.has(fixture.id) || fixture.profile.kind === 'smoke')
+        ) {
+          fixture.profile.channels.forEach((_spec, offset) => {
+            const index = fixture.address - 1 + offset
+            universe[index] = overlay[index] ?? 0
+          })
+        }
       }
+      for (const key of smokeChannels) {
+        const [smokeUniverse, address] = key.split(':').map(Number)
+        if (smokeUniverse === number) {
+          universe[address! - 1] = overlay[address! - 1] ?? 0
+        }
+      }
+      frames.set(number, universe)
     }
-    for (const address of smokeChannels) {
-      universe[address - 1] = overlay[address - 1] ?? 0
-    }
-    return universe
+    return frames
   }
 
   function endDiagnostics() {
@@ -441,7 +488,7 @@ export function createLightingController(options: LightingControllerOptions): Li
       smoke.disarm()
     }
     frozenUntil = null
-    manualChannels = createUniverse()
+    manualChannels = new Map()
     manualFixtures.clear()
     player.blackout()
     playScene(SCENE_IDS.IDLE)
@@ -467,28 +514,38 @@ export function createLightingController(options: LightingControllerOptions): Li
       diagnosticsActive = true
       allowUnknownChannels = beginOptions.allowUnknownChannels === true
       diagnosticsTouchedAt = clock.now()
-      manualChannels = createUniverse()
+      manualChannels = new Map()
       manualFixtures.clear()
       player.stop()
       notify()
       return { ok: true }
     },
     end: endDiagnostics,
-    setChannel(address, value) {
+    setChannel(address, value, universe = 0) {
       const refused = touchDiagnostics()
       if (refused) {
         return refused
       }
-      if (!Number.isInteger(address) || address < 1 || address > DMX_CHANNELS) {
+      if (
+        !Number.isInteger(address) ||
+        address < 1 ||
+        address > DMX_CHANNELS ||
+        !Number.isInteger(universe) ||
+        universe < 0 ||
+        universe >= MAX_UNIVERSES
+      ) {
         return { ok: false, reason: 'invalid_address' }
       }
-      if (smokeChannels.has(address)) {
+      const key = channelKey(universe, address)
+      if (smokeChannels.has(key)) {
         return { ok: false, reason: 'smoke_channel' }
       }
-      if (!fixtureChannels.has(address) && !allowUnknownChannels) {
+      if (!fixtureChannels.has(key) && !allowUnknownChannels) {
         return { ok: false, reason: 'unknown_channel' }
       }
-      manualChannels[address - 1] = clampByte(value)
+      const manual = manualChannels.get(universe) ?? createUniverse()
+      manual[address - 1] = clampByte(value)
+      manualChannels.set(universe, manual)
       return { ok: true }
     },
     setFixture(fixtureId, state) {
@@ -510,7 +567,7 @@ export function createLightingController(options: LightingControllerOptions): Li
       return { ok: true }
     },
     clear() {
-      manualChannels = createUniverse()
+      manualChannels = new Map()
       manualFixtures.clear()
       diagnosticsTouchedAt = clock.now()
     },
@@ -564,13 +621,13 @@ export function createLightingController(options: LightingControllerOptions): Li
     const wasOpen = outputStatus === 'open' || outputStatus === 'error'
     outputStatus = 'closing'
     pending = false
-    const black = createUniverse()
+    const black = blackFrames()
     frame = black
     if (wasOpen) {
       if (inFlight) {
         await within(inFlight, CLOSE_TIMEOUT_MS)
       }
-      await within(output.write(black), CLOSE_TIMEOUT_MS)
+      await within(writeFrames(output, black), CLOSE_TIMEOUT_MS)
     }
     try {
       // Une interface figée peut ne jamais rendre la main : on n'attend pas indéfiniment.
@@ -623,7 +680,7 @@ export function createLightingController(options: LightingControllerOptions): Li
   const onPageHide = () => {
     smoke.stop('shutdown')
     if (outputStatus === 'open') {
-      void output.write(createUniverse()).catch(() => undefined)
+      void writeFrames(output, blackFrames()).catch(() => undefined)
     }
   }
 
@@ -774,7 +831,7 @@ export function createLightingController(options: LightingControllerOptions): Li
       emergencyReason = reason
       smoke.emergencyStop()
       player.blackout()
-      send(createUniverse())
+      send(blackFrames())
       notify()
     },
     resetEmergency() {
@@ -803,7 +860,7 @@ export function createLightingController(options: LightingControllerOptions): Li
           position: state?.position ?? null,
         }
       }),
-    getFrame: () => frame.slice(),
+    getFrame: (universe = 0) => (frame.get(universe) ?? createUniverse()).slice(),
     diagnostics,
   }
 }
