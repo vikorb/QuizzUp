@@ -1,9 +1,12 @@
 import { flushPromises } from '@vue/test-utils'
 
 import {
+  EMERGENCY_STORAGE_KEY,
   HARDWARE_STORAGE_KEY,
+  resetRoomHardware,
   saveBuzzerKeymap,
   saveRoomDesksCount,
+  saveRoomHardwareConfig,
   useRoomHardware,
 } from '@/hardware/roomHardware'
 import { enterDemo, syncRoomAuth } from '@/state/roomAuth'
@@ -145,7 +148,6 @@ describe('HardwareView', () => {
         },
       })
     )
-    const { resetRoomHardware } = await import('@/hardware/roomHardware')
     await resetRoomHardware()
 
     const { wrapper } = await mountWithApp(HardwareView, { route: '/hardware' })
@@ -353,5 +355,125 @@ describe('HardwareView — nombre de pupitres', () => {
     await flushPromises()
 
     expect(wrapper.find<HTMLSelectElement>('[data-test="desk-count"]').element.value).toBe('5')
+  })
+})
+
+describe('HardwareView — arrêt d’urgence après un rechargement', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    syncRoomAuth()
+    enterDemo()
+  })
+
+  it('affiche le bandeau d’arrêt d’urgence retenu, et le réarmement l’efface', async () => {
+    // Arrêt pressé avant le rechargement : la clé du PC est restée.
+    localStorage.setItem(EMERGENCY_STORAGE_KEY, 'operator')
+    await resetRoomHardware()
+
+    const { wrapper } = await mountWithApp(HardwareView, { route: '/hardware' })
+    await openTab(wrapper, 'lights')
+    await vi.waitFor(() => expect(useRoomHardware().lighting.value).not.toBeNull())
+    await flushPromises()
+
+    expect(wrapper.find('[role="alert"]').text()).toContain('Arrêt d’urgence actif')
+    expect(wrapper.find('[data-test="emergency-stop"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="scene-victory"]').attributes('disabled')).toBeDefined()
+
+    await wrapper.find('[data-test="emergency-reset"]').trigger('click')
+    const { useConfirm } = await import('@/composables/useConfirm')
+    useConfirm().accept()
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('Arrêt d’urgence actif')
+    expect(wrapper.find('[data-test="emergency-stop"]').exists()).toBe(true)
+    expect(localStorage.getItem(EMERGENCY_STORAGE_KEY)).toBeNull()
+  })
+
+  it('retient l’arrêt d’urgence pressé sur l’écran', async () => {
+    const { wrapper } = await mountWithApp(HardwareView, { route: '/hardware' })
+    await openTab(wrapper, 'lights')
+    await vi.waitFor(() => expect(useRoomHardware().lighting.value).not.toBeNull())
+
+    await wrapper.find('[data-test="emergency-stop"]').trigger('click')
+    await flushPromises()
+
+    expect(localStorage.getItem(EMERGENCY_STORAGE_KEY)).toBe('operator')
+  })
+})
+
+describe('HardwareView — pont Art-Net', () => {
+  /** Pont factice : injoignable tant que `available` est faux, prêt ensuite. */
+  class BridgeSocket {
+    static available = false
+    readyState = 0
+    bufferedAmount = 0
+    binaryType = 'blob'
+    onopen: (() => void) | null = null
+    onmessage: ((event: { data: unknown }) => void) | null = null
+    onerror: (() => void) | null = null
+    onclose: ((event: { code: number; reason: string }) => void) | null = null
+
+    constructor() {
+      queueMicrotask(() => {
+        if (BridgeSocket.available) {
+          this.readyState = 1
+          this.onopen?.()
+        } else {
+          this.readyState = 3
+          this.onerror?.()
+        }
+      })
+    }
+
+    send(data: unknown) {
+      if (typeof data === 'string') {
+        queueMicrotask(() =>
+          this.onmessage?.({ data: JSON.stringify({ type: 'ack', protocol: 1, bridge: 'b' }) })
+        )
+      }
+    }
+
+    close() {
+      this.readyState = 3
+    }
+  }
+
+  beforeEach(() => {
+    localStorage.clear()
+    syncRoomAuth()
+    enterDemo()
+    BridgeSocket.available = false
+    vi.stubGlobal('WebSocket', BridgeSocket)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('propose « Connecter le pont » quand il est absent, puis disparaît une fois connecté', async () => {
+    await saveRoomHardwareConfig({ lighting: { driver: 'artnet-bridge' } })
+    const { wrapper } = await mountWithApp(HardwareView, { route: '/hardware' })
+    await openTab(wrapper, 'lights')
+    await vi.waitFor(() => expect(wrapper.find('[data-test="bridge-banner"]').exists()).toBe(true))
+
+    expect(wrapper.find('[data-test="bridge-banner"]').text()).toContain(
+      'Pont Art-Net non connecté'
+    )
+    expect(wrapper.find('[data-test="bridge-banner"]').text()).toContain('injoignable')
+    // Le démarrage n'est pas bloqué : les lumières tournent, en simulation.
+    expect(useRoomHardware().lightingState.value?.simulation).toBe(true)
+
+    BridgeSocket.available = true
+    await wrapper.find('[data-test="bridge-connect"]').trigger('click')
+    await vi.waitFor(() => expect(wrapper.find('[data-test="bridge-banner"]').exists()).toBe(false))
+    expect(useRoomHardware().lightingState.value?.outputStatus).toBe('open')
+  })
+
+  it('n’affiche pas le bandeau avec un autre pilote', async () => {
+    const { wrapper } = await mountWithApp(HardwareView, { route: '/hardware' })
+    await openTab(wrapper, 'lights')
+    await vi.waitFor(() => expect(useRoomHardware().lighting.value).not.toBeNull())
+    await flushPromises()
+    expect(wrapper.find('[data-test="bridge-banner"]').exists()).toBe(false)
   })
 })

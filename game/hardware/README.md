@@ -168,7 +168,9 @@ déjà un nœud Art-Net (voir `game/artnet-bridge/README.md` ; l'USB-DMX reste r
 ```ts
 import { createBridgeOutput, DEFAULT_BRIDGE_URL } from '@quizzup/hardware'
 
-// Bouton « Connecter le pont Art-Net » (geste utilisateur : Chrome peut demander l'accès au réseau local)
+// Reprise sans clic au démarrage (l'écran de salle réessaie toutes les 10 s si le pont est absent,
+// et propose un bouton « Connecter le pont »). `setOutput` ne lève pas : l'échec se lit dans
+// `lights.getState().outputStatus === 'error'` (message dans `outputError`).
 await lights.setOutput(createBridgeOutput({ url: config.lighting.bridgeUrl ?? DEFAULT_BRIDGE_URL }))
 ```
 
@@ -230,7 +232,9 @@ Le contrôleur de fumée applique, quoi que dise la configuration :
 - pas de célébration ni de fumée sur une partie terminée faute de contenu ;
 - **arrêt d'urgence logiciel** (`lights.emergencyStop()`) : noir complet, fumée coupée et
   verrouillée ; `resetEmergency()` rallume l'ambiance ; la fumée reste désarmée et doit toujours être
-  réarmée à la main, même si la salle n'exige pas de confirmation.
+  réarmée à la main, même si la salle n'exige pas de confirmation. L'application de salle retient
+  l'arrêt d'urgence dans le navigateur (`quizzup_room_emergency`) et crée le contrôleur déjà en
+  arrêt d'urgence après un rechargement (voir le README de `game/room-app`) ;
 
 > ⚠️ **Obligatoire en salle** : un **arrêt d'urgence physique** qui coupe l'alimentation de la
 > machine à fumée et des lumières. Le bouton logiciel ne suffit pas : si le PC ou le navigateur

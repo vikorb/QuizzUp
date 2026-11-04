@@ -59,8 +59,16 @@ src/
   (`createKeyboardBuzzerInput` de `game/hardware`) et **un seul** contrôleur de lumières pour
   toute la page. Le contrôleur démarre au clic « Lancer la salle », reçoit tous les événements du
   moteur (`handleGameEvent`) et s'arrête (noir, fumée coupée) à la déconnexion. Une interface DMX
-  déjà autorisée se reconnecte sans clic. La
-  copie de secours de la config est gardée dans le navigateur (`quizzup_room_hardware`).
+  déjà autorisée se reconnecte sans clic, et le **pont Art-Net** (pilote `artnet-bridge`) est repris
+  tout seul au démarrage des lumières, après un redémarrage du poste comme après un changement de
+  config. S'il est absent ou occupé (autre onglet), les lumières restent en simulation (fumée
+  coupée), l'écran Matériel affiche le bandeau « Connecter le pont » (nouvel essai au clic) et un
+  nouvel essai part seul toutes les 10 s (`BRIDGE_RETRY_MS`), sans jamais retarder la partie.
+  La copie de secours de la config est gardée dans le navigateur (`quizzup_room_hardware`).
+  **Arrêt d'urgence maintenu** : `triggerEmergencyStop` pose la clé `quizzup_room_emergency`
+  (le motif) ; après un plantage ou un rechargement, le contrôleur de lumières est créé déjà en
+  arrêt d'urgence (noir, fumée coupée et désarmée) avant la première trame. Seul le réarmement
+  humain confirmé (« Rallumer les lumières ») efface la clé ; la fumée reste à réarmer à la main.
 - **Audio** (`main.ts`) : `WebAudioExtractPlayer` de `game/audio` (extraits préchargés et décodés
   avant la partie, téléchargés avec le jeton de la salle) et `UiSoundPlayer` sur le même
   `AudioContext` pour les sons d'interface (buzz, bonne / mauvaise réponse, palier suivant…).

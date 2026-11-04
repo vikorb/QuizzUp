@@ -55,6 +55,11 @@ import { RoomApiError } from '@/utils/roomApi'
  */
 export const HARDWARE_STORAGE_KEY = 'quizzup_room_hardware'
 export const HARDWARE_SYNC_STORAGE_KEY = 'quizzup_room_hardware_sync'
+/**
+ * Arrêt d'urgence retenu sur ce PC (valeur = motif). Posé à l'arrêt, effacé seulement par le
+ * réarmement humain : après un plantage ou un rechargement, les lumières repartent éteintes.
+ */
+export const EMERGENCY_STORAGE_KEY = 'quizzup_room_emergency'
 
 type HardwareStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 
@@ -81,6 +86,27 @@ function loadStoredConfig(): unknown {
 }
 
 const parsed = shallowRef<ParsedRoomHardwareConfig>(parseRoomHardwareConfig(loadStoredConfig()))
+
+function readStoredEmergency(): string | null {
+  try {
+    const reason = getStorage()?.getItem(EMERGENCY_STORAGE_KEY)
+    return reason === null || reason === undefined ? null : reason || 'operator'
+  } catch {
+    return null
+  }
+}
+
+function writeStoredEmergency(reason: string | null): void {
+  try {
+    if (reason === null) {
+      getStorage()?.removeItem(EMERGENCY_STORAGE_KEY)
+    } else {
+      getStorage()?.setItem(EMERGENCY_STORAGE_KEY, reason)
+    }
+  } catch {
+    // Stockage indisponible : l'arrêt d'urgence vaut jusqu'au rechargement.
+  }
+}
 
 /**
  * Buzzers des pupitres de la salle (la réserve des pupitres retirés est ignorée). Aucun buzzer
@@ -268,17 +294,56 @@ function resolveDesk(participantId: number) {
 let meteredOutput: MeteredOutput | null = null
 let dmxPort: SerialPortLike | null = null
 let stopReconnectWatch: (() => void) | null = null
-/** Le pont Art-Net a été connecté par un clic : on le reprend après un redémarrage des lumières. */
-let bridgeConnected = false
+/** Délai entre deux essais automatiques du pont Art-Net tant qu'il est injoignable. */
+export const BRIDGE_RETRY_MS = 10_000
+let bridgeRetryTimer: ReturnType<typeof setTimeout> | null = null
+/** Dernier échec de connexion au pont (absent, occupé…) ; `null` si connecté ou jamais essayé. */
+const bridgeError = shallowRef<string | null>(null)
+
+function clearBridgeRetry(): void {
+  if (bridgeRetryTimer !== null) {
+    clearTimeout(bridgeRetryTimer)
+    bridgeRetryTimer = null
+  }
+}
 
 async function useBridge(controller: LightingController): Promise<void> {
+  clearBridgeRetry()
   const output = createMeteredOutput(
     createBridgeOutput({ url: parsed.value.config.lighting.bridgeUrl ?? DEFAULT_BRIDGE_URL })
   )
   meteredOutput = output
   dmxPort = null
   await controller.setOutput(output)
-  bridgeConnected = true
+  const { outputStatus, outputError } = controller.getState()
+  bridgeError.value = outputStatus === 'open' ? null : (outputError ?? 'bridge_unavailable')
+}
+
+/**
+ * Reprise du pont sans clic (démarrage, redémarrage des lumières). Pont absent ou occupé : retour
+ * à la salle simulée (fumée coupée) et nouvel essai plus tard. Ne bloque jamais plus longtemps
+ * que le délai de connexion du pont, et ne lève jamais.
+ */
+async function autoConnectBridge(controller: LightingController): Promise<void> {
+  await useBridge(controller)
+  if (bridgeError.value === null) {
+    return
+  }
+  meteredOutput = null
+  await controller.setOutput(createSimulationOutput())
+  bridgeRetryTimer = setTimeout(() => {
+    bridgeRetryTimer = null
+    void serializeLighting(async () => {
+      // Lumières relancées ou arrêtées, simulation choisie, autre pilote : plus d'essai.
+      if (
+        controller === lighting &&
+        !preferSimulation &&
+        parsed.value.config.lighting.driver === 'artnet-bridge'
+      ) {
+        await autoConnectBridge(controller)
+      }
+    }).catch(() => undefined)
+  }, BRIDGE_RETRY_MS)
 }
 
 async function useSerialPort(
@@ -308,11 +373,10 @@ async function reconnectGrantedPort(controller: LightingController): Promise<voi
   if (driver === 'simulation' || preferSimulation) {
     return
   }
-  // Le pont se connecte la première fois au clic (Chrome peut demander l'accès au réseau
-  // local), puis il est repris sans clic à chaque redémarrage des lumières.
+  // Le pont est repris sans clic. Absent : bandeau « Connecter le pont » + essais espacés.
   if (driver === 'artnet-bridge') {
-    if (bridgeConnected && controller === lighting) {
-      await useBridge(controller)
+    if (controller === lighting) {
+      await autoConnectBridge(controller)
     }
     return
   }
@@ -366,15 +430,23 @@ async function createLighting(
   if (options.disarmSmoke) {
     controller.smoke.disarm()
   }
-  const emergencyReason = options.emergencyReason ?? pendingEmergency
+  // Repris du redémarrage en cours, d'un arrêt pressé sans contrôleur, ou d'un arrêt d'avant
+  // le rechargement de la page (clé locale).
+  const emergencyReason = options.emergencyReason ?? pendingEmergency ?? readStoredEmergency()
   pendingEmergency = null
   if (emergencyReason) {
     controller.emergencyStop(emergencyReason)
   }
   lighting = controller
   lightingRef.value = controller
+  let wasEmergency = controller.getState().emergency
   stopLightingState = controller.onChange((state) => {
     lightingState.value = state
+    // Seul le réarmement (humain, confirmé) efface la mémoire de l'arrêt d'urgence.
+    if (wasEmergency && !state.emergency) {
+      writeStoredEmergency(null)
+    }
+    wasEmergency = state.emergency
   })
   stopLightingEvents = onGameEvents((events: GameEvent[]) => {
     for (const event of events) {
@@ -399,6 +471,7 @@ async function shutdownLighting(): Promise<void> {
   stopLightingState = null
   stopReconnectWatch?.()
   stopReconnectWatch = null
+  clearBridgeRetry()
   meteredOutput = null
   lightingState.value = null
   closingLighting = controller
@@ -414,6 +487,7 @@ async function shutdownLighting(): Promise<void> {
  * qui se ferme, et retenu pour le prochain s'il est pressé pendant un redémarrage.
  */
 export function triggerEmergencyStop(reason = 'operator'): void {
+  writeStoredEmergency(reason)
   closingLighting?.emergencyStop(reason)
   if (lighting) {
     lighting.emergencyStop(reason)
@@ -482,7 +556,8 @@ export async function switchToSimulatedLights(
   output: DmxOutput = createSimulationOutput()
 ): Promise<void> {
   preferSimulation = true
-  bridgeConnected = false
+  clearBridgeRetry()
+  bridgeError.value = null
   await lighting?.setOutput(output)
 }
 
@@ -753,7 +828,7 @@ export async function resetRoomHardware(options: { storage?: HardwareStorage | n
   preferSimulation = false
   pendingEmergency = null
   dmxPort = null
-  bridgeConnected = false
+  bridgeError.value = null
   remoteSaver = null
   binding = null
   foreignCopy = false
@@ -781,5 +856,7 @@ export function useRoomHardware() {
     lightingState: computed(() => lightingState.value),
     lighting: computed(() => lightingRef.value),
     syncStatus: computed(() => syncStatus.value),
+    /** Pourquoi le pont Art-Net n'est pas connecté (`null` : connecté, ou pas essayé). */
+    bridgeError: computed(() => bridgeError.value),
   }
 }
