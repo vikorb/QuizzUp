@@ -442,7 +442,7 @@ Points à trancher :
 - **Stockage** des fichiers (stratégie à poser : disque serveur ou stockage objet compatible S3), formats acceptés (mp3/ogg), taille max.
 - **Salle** : préchargement de tous les extraits avant la partie (pas de blanc pendant le jeu, et marche hors ligne), lecture coupée précisément au palier.
 
-**Décisions d'Enzo** : le premier qui buzze répond seul (faux = bloqué pour cette question, les autres peuvent encore buzzer) ; **pas de pénalité** ; points **100 / 50 / 20** selon le palier.
+**Décisions d'Enzo** : tout le monde joue en même temps, le premier qui buzze répond seul (faux = bloqué pour le reste du palier, les autres peuvent encore buzzer ; précision du 03/11 : on ne passe au palier suivant, verrous remis à zéro, que si personne n'a trouvé) ; **pas de pénalité** ; points **100 / 50 / 20** selon le palier.
 
 ### 12.3 Droits musicaux (SACEM, YouTube, Spotify)
 

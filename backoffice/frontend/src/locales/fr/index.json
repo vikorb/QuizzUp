@@ -24,7 +24,12 @@
     "not_found": "L’élément demandé est introuvable.",
     "network_error": "Impossible de contacter le serveur. Vérifiez votre connexion.",
     "question_theme_last_link": "Impossible de retirer le dernier thème d'une question.",
-    "default": "Une erreur est survenue."
+    "room_name_already_exists": "Une salle porte déjà ce nom dans cette compagnie.",
+    "company_deleted": "Cette compagnie est supprimée : ses salles ne peuvent plus être modifiées.",
+    "default": "Une erreur est survenue.",
+    "room_account_already_exists": "Cette salle a déjà un compte de connexion : il est affiché ci-dessous.",
+    "room_account_not_found": "Cette salle n’a plus de compte de connexion.",
+    "username_already_exists": "Cet identifiant est déjà utilisé par un autre compte."
   },
   "success": {
     "title": "Action confirmée",
@@ -40,6 +45,13 @@
     "questionAttached": "La question \"{question}\" a été ajoutée au thème.",
     "questionDetached": "La question \"{question}\" a été retirée du thème.",
     "themeUpdated": "Le thème \"{theme}\" a bien été mis à jour.",
-    "themeDeleted": "Le thème \"{theme}\" a bien été supprimé."
+    "themeDeleted": "Le thème \"{theme}\" a bien été supprimé.",
+    "roomCreated": "La salle {name} a bien été créée.",
+    "roomRenamed": "La salle {name} a bien été renommée.",
+    "roomActivated": "La salle {name} a bien été activée.",
+    "roomDisabled": "La salle {name} a bien été désactivée.",
+    "roomDeleted": "La salle {name} a bien été supprimée.",
+    "roomAccountCreated": "Le compte de salle {username} a bien été créé pour la salle {name}.",
+    "roomAccountDeleted": "Le compte de salle {username} a bien été supprimé : le PC de la salle {name} est déconnecté."
   }
 }

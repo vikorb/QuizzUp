@@ -13,6 +13,8 @@ en **mode simulation** sans aucun matériel branché.
 | Buzzers clavier, focus, Keyboard Lock                    | `src/buzzers/keyboardBuzzerInput.ts`             | #62, #61 (focus) |
 | Apprentissage pupitre × buzzer                           | `src/buzzers/learning.ts`                        | #62              |
 | Buzzers simulés                                          | `src/buzzers/simulatedBuzzerInput.ts`            | #62, #64         |
+| Buzzers sur carte d'entrées USB vue comme une manette    | `src/buzzers/gamepadBuzzerInput.ts`              | #62              |
+| Preset des salles 6 pupitres déjà équipées               | `src/presets/sixDeskRoom.ts`                     | #62, #64         |
 | Profils d'appareils génériques                           | `src/dmx/profiles.ts`                            | #64              |
 | Appareils de la salle, rendu DMX                         | `src/dmx/fixtures.ts`                            | #64              |
 | Sorties Web Serial / simulation                          | `src/dmx/serialOutput.ts`, `simulationOutput.ts` | #64              |
@@ -52,10 +54,31 @@ await buzzers.lockSystemKeys() // après requestFullscreen() : capte Échap, Alt
 - **Perte de focus** : `state.focused` / `state.visible` / `state.active`. Quand la page perd le
   focus, plus aucun appui n'arrive : l'écran de salle doit l'afficher en grand.
 
+### Buzzers sur une carte manette (API Gamepad)
+
+Certaines salles câblent les buzzers sur une **carte d'entrées USB vue comme une manette**
+(carte 32 boutons pour simulateurs), souvent doublée d'un logiciel qui convertit les boutons en
+touches. `createGamepadBuzzerInput` lit la carte directement avec l'API Gamepad (Chrome / Edge) :
+plus de logiciel à installer, et les appuis arrivent même sans focus clavier.
+
+```ts
+const buzzers = createGamepadBuzzerInput({ keymap: config.buzzers.keymap })
+// codes du mapping : GamepadButton0 … GamepadButton31 ; même interface que le clavier
+buzzers.getGamepad() // { index, id, buttons } ou null : « Appuyez sur un buzzer pour activer la carte »
+```
+
+- Le navigateur n'expose la carte qu'après un **premier appui** sur un de ses boutons.
+- Lecture toutes les 4 ms ; l'appui est horodaté avec la mise à jour de la carte
+  (`Gamepad.timestamp`), bornée entre deux lectures.
+- Appuis vus dans la même lecture : même horodatage, ordre d'émission tournant (aucun pupitre ne
+  gagne toujours les égalités à cause de son numéro d'entrée).
+- Un bouton déjà enfoncé au démarrage, au retour de l'onglet ou quand une autre carte est lue ne
+  compte pas. Option `match(id)` pour choisir la carte si une autre manette est branchée.
+
 ### Apprentissage
 
 ```ts
-const learning = createBuzzerLearning() // 4 pupitres × A-D ; { desks: [1, 2] } pour une petite salle
+const learning = createBuzzerLearning() // 4 pupitres × A-D ; { desks: DESKS } pour 6, [1, 2] pour 2
 const stop = buzzers.onKey(({ code }) => learning.capture(code))
 learning.onChange((state) => {
   // state.current = { desk, button } → « Appuyez sur le buzzer B du pupitre 3 »
@@ -67,6 +90,28 @@ learning.skip() / learning.back() / learning.restart()
 
 L'écran de test se construit avec `onPress` (allumer le buzzer à l'écran) et `state.held`.
 `createSimulatedBuzzerInput()` offre la même interface avec `press(desk, button)` (démo, tests).
+
+Une salle a **4 pupitres par défaut** (`DEFAULT_DESKS`) et jusqu'à **6** (`DESKS`).
+
+### Salles 6 pupitres déjà équipées
+
+`src/presets/sixDeskRoom.ts` décrit le matériel type des salles équipées par un autre système de
+quiz (6 pupitres × 4 buzzers bleu / jaune / vert / rouge, 8 lyres 9 canaux, décodeur LED 8
+sorties) pour y jouer à QuizzUp **sans recâbler** :
+
+```ts
+const calibration = parsePanTiltCalibration(sessionConfText) // calage des lyres déjà fait
+const rig = createSixDeskRoomRig({ calibration, smokeRelayAddress: 200 })
+room.config = {
+  version: 1,
+  buzzers: { keymap: createSixDeskKeyboardKeymap() }, // ou apprentissage en mode manette
+  lighting: { driver: 'usbpro', ...rig },
+}
+```
+
+Les profils de lyres (`SIX_DESK_PROFILES`) suivent la disposition courante en 9 canaux : **à
+vérifier sur la notice** de la lyre. Analyse complète (matériel, réseau, ce qu'il faut acheter ou
+débrancher) : [rapport de compatibilité](../../docs/compatibilite/compatibilite-salles-6-pupitres.md).
 
 ## Lumières, spots et fumée
 

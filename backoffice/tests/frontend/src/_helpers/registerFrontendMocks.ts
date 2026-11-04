@@ -26,9 +26,11 @@ vi.mock('@/state/authState', async () => {
     authState: authState.authStateMock,
     isAuthenticated: authState.isAuthenticatedMock,
     me: authState.meMock,
+    roomAccountRejected: authState.roomAccountRejectedMock,
     login: authState.loginMock,
     logout: authState.logoutMock,
     refreshMe: authState.refreshMeMock,
+    clearRoomAccountRejection: authState.clearRoomAccountRejectionMock,
   }
 })
 
@@ -66,6 +68,22 @@ vi.mock('@/services/accountsService', async () => {
     updateCompanyAccountService: accountsService.updateCompanyAccountServiceMock,
     updateAccountStatusService: accountsService.updateAccountStatusServiceMock,
     deleteAccountService: accountsService.deleteAccountServiceMock,
+  }
+})
+
+vi.mock('@/services/roomsService', async () => {
+  const roomsService = await import('./roomsServiceMock')
+
+  return {
+    loadCompanyRoomsService: roomsService.loadCompanyRoomsServiceMock,
+    loadCompanyRoomService: roomsService.loadCompanyRoomServiceMock,
+    createCompanyRoomService: roomsService.createCompanyRoomServiceMock,
+    updateCompanyRoomService: roomsService.updateCompanyRoomServiceMock,
+    updateRoomStatusService: roomsService.updateRoomStatusServiceMock,
+    deleteRoomService: roomsService.deleteRoomServiceMock,
+    loadRoomAccountService: roomsService.loadRoomAccountServiceMock,
+    createRoomAccountService: roomsService.createRoomAccountServiceMock,
+    deleteRoomAccountService: roomsService.deleteRoomAccountServiceMock,
   }
 })
 

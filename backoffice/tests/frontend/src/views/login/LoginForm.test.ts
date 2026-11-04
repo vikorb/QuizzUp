@@ -4,10 +4,17 @@ import {
   mockLoginSuccess,
   setTokenMock,
 } from '@frontend-tests/_helpers/authApiMock'
+import {
+  clearRoomAccountRejectionMock,
+  mockRefreshMeRejectsRoomAccount,
+  refreshMeMock,
+  roomAccountRejectedMock,
+} from '@frontend-tests/_helpers/authStateMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { replaceMock } from '@frontend-tests/_helpers/routerMock'
 import { getRedirectMock } from '@frontend-tests/_helpers/routerUtilsMock'
+import { flushPromises } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import { nextTick } from 'vue'
 
@@ -19,7 +26,7 @@ import type { DOMWrapper } from '@vue/test-utils'
 
 function findInput(
   wrapper: ReturnType<typeof mountWithFrontendMocks>,
-  name: string,
+  name: string
 ): DOMWrapper<HTMLInputElement> {
   return wrapper.find(`input[name="${name}"]`) as DOMWrapper<HTMLInputElement>
 }
@@ -55,9 +62,11 @@ describe('views/login/LoginForm.vue', () => {
     await nextTick()
 
     expect(findInput(wrapper, 'password').attributes('type')).toBe('text')
-    expect(wrapper.find('[data-test="form-field-right"] [data-test="ui-button"]').attributes('aria-label')).toBe(
-      'auth.login.hidePassword',
-    )
+    expect(
+      wrapper
+        .find('[data-test="form-field-right"] [data-test="ui-button"]')
+        .attributes('aria-label')
+    ).toBe('auth.login.hidePassword')
   })
 
   it('validates required fields locally and does not call the login API', async () => {
@@ -116,7 +125,7 @@ describe('views/login/LoginForm.vue', () => {
       () =>
         new Promise((resolve) => {
           resolveLogin = resolve
-        }),
+        })
     )
 
     const wrapper = mountWithFrontendMocks(LoginForm)
@@ -137,6 +146,49 @@ describe('views/login/LoginForm.vue', () => {
     await nextTick()
 
     expect(setTokenMock).toHaveBeenCalledWith('pending-token')
+  })
+
+  it('refreshes /me before redirecting a backoffice account', async () => {
+    mockLoginSuccess('jwt-token-123')
+
+    const wrapper = mountWithFrontendMocks(LoginForm)
+
+    await submitForm(wrapper)
+    await flushPromises()
+
+    expect(refreshMeMock).toHaveBeenCalledTimes(1)
+    expect(replaceMock).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('.form-error').exists()).toBe(false)
+  })
+
+  it('stays on the login screen with a clear message for a room account', async () => {
+    mockLoginSuccess('room-token')
+    mockRefreshMeRejectsRoomAccount()
+
+    const wrapper = mountWithFrontendMocks(LoginForm)
+
+    await submitForm(wrapper)
+    await flushPromises()
+
+    expect(setTokenMock).toHaveBeenCalledWith('room-token')
+    expect(refreshMeMock).toHaveBeenCalledTimes(1)
+    expect(replaceMock).not.toHaveBeenCalled()
+    expect(wrapper.find('.form-error').text()).toBe('auth.errors.roomAccount')
+  })
+
+  it('explains a room account session closed elsewhere and clears it on a new attempt', async () => {
+    roomAccountRejectedMock.value = true
+    mockLoginFailure('invalid_credentials')
+
+    const wrapper = mountWithFrontendMocks(LoginForm)
+
+    expect(wrapper.find('.form-error').text()).toBe('auth.errors.roomAccount')
+
+    await submitForm(wrapper)
+    await flushPromises()
+
+    expect(clearRoomAccountRejectionMock).toHaveBeenCalled()
+    expect(wrapper.find('.form-error').text()).toBe('auth.errors.invalid_credentials')
   })
 
   it('submits when the password field emits enter', async () => {

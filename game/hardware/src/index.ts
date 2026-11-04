@@ -1,4 +1,16 @@
 export type { BuzzerInput, BuzzerInputState, BuzzerPress, RawKeyPress } from './buzzers/buzzerInput'
+export type {
+  GamepadBuzzerInput,
+  GamepadBuzzerInputOptions,
+  GamepadInfo,
+  GamepadLike,
+  GamepadSource,
+} from './buzzers/gamepadBuzzerInput'
+export {
+  createGamepadBuzzerInput,
+  GAMEPAD_CODE_PREFIX,
+  gamepadButtonCode,
+} from './buzzers/gamepadBuzzerInput'
 export type { KeyboardBuzzerInput, KeyboardBuzzerInputOptions } from './buzzers/keyboardBuzzerInput'
 export { createKeyboardBuzzerInput } from './buzzers/keyboardBuzzerInput'
 export type { BuzzerKeymap, BuzzerSlot, KeymapParseResult } from './buzzers/keymap'
@@ -86,5 +98,21 @@ export {
   normalizeSmokeSafety,
   SMOKE_HARD_LIMITS,
 } from './lighting/smoke'
+export type { PanTiltCalibration, SixDeskRig, SixDeskRigOptions } from './presets/sixDeskRoom'
+export {
+  createSixDeskKeyboardKeymap,
+  createSixDeskRoomRig,
+  parsePanTiltCalibration,
+  SIX_DESK_ADDRESSES,
+  SIX_DESK_BUTTON_COLORS,
+  SIX_DESK_PROFILES,
+} from './presets/sixDeskRoom'
 export type { ButtonIndex, BuzzerButton, Desk, Rgb, Rgbw, Unsubscribe } from './types'
-export { buttonToIndex, BUZZER_BUTTONS, DESKS, isBuzzerButton, isDesk } from './types'
+export {
+  buttonToIndex,
+  BUZZER_BUTTONS,
+  DEFAULT_DESKS,
+  DESKS,
+  isBuzzerButton,
+  isDesk,
+} from './types'

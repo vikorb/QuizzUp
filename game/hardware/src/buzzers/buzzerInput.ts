@@ -15,11 +15,14 @@ export type BuzzerPress = {
 export type RawKeyPress = { code: string; at: number; press: BuzzerPress | null }
 
 export type BuzzerInputState = {
-  /** La page a le focus clavier : sans lui, les buzzers ne sont pas reçus. */
+  /** La page a le focus clavier : sans lui, les buzzers clavier ne sont pas reçus. */
   focused: boolean
   /** L'onglet est visible. */
   visible: boolean
-  /** Les buzzers fonctionnent (focus + onglet visible + entrée non arrêtée). */
+  /**
+   * Les buzzers fonctionnent : onglet visible et entrée non arrêtée, plus le focus pour le clavier
+   * ou une carte détectée pour la manette.
+   */
   active: boolean
   /** Touches système capturées par l'API Keyboard Lock (Chrome/Edge en plein écran). */
   keyboardLocked: boolean
