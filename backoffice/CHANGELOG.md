@@ -8,6 +8,12 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Purge RGPD des emails joueurs : un email (1er ou 2e joueur) est effacé, avec son consentement,
+  3 ans après sa dernière partie (`PLAYER_EMAIL_RETENTION_YEARS` dans `@quizzup/shared`) ; noms et
+  scores restent. Exécutée au démarrage du serveur puis toutes les 24 h
+  (`PLAYER_EMAIL_PURGE_INTERVAL_HOURS`, `0` = désactivée), ou à la main avec `npm run purge:emails`.
+  US: us-rgpd-purge
+
 - Version testable : `npm run demo` à la racine (base, API, backoffice, écran de salle), seed de
   démo (compagnie « QuizzUP Démo », `demo-admin`, salle « Salle 1 » et son compte de salle
   `salle1-demo`, mot de passe `DEMO_SEED_PASSWORD`, `DEMO_SEED=false` pour le couper, 2 thèmes

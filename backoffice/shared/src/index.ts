@@ -442,3 +442,9 @@ export const QUESTION_AUDIO_DEFAULT_MAX_BYTES = 10 * 1024 * 1024
  * éclair (20 s, porté par le moteur de jeu). En dessous, le backoffice avertit seulement.
  */
 export const QUESTION_AUDIO_RECOMMENDED_EXCERPT_MS = 20_000
+
+/**
+ * RGPD : durée de conservation de l'email d'un joueur, en années après sa dernière partie.
+ * Passé ce délai, l'email et son consentement sont effacés (purge côté backend).
+ */
+export const PLAYER_EMAIL_RETENTION_YEARS = 3 as const
