@@ -36,6 +36,8 @@
       </ul>
     </div>
 
+    <ProfileEditor @saved="reload" />
+
     <details class="profiles">
       <summary>{{ $t('hardware.advanced.profiles') }}</summary>
       <ul>
@@ -53,6 +55,7 @@ import { ref, watch } from 'vue'
 
 import UiButton from '@/components/ui/UiButton.vue'
 import { saveRoomHardwareConfig, useRoomHardware } from '@/hardware/roomHardware'
+import ProfileEditor from '@/views/hardware/ProfileEditor.vue'
 
 const { hardware, syncStatus, conflictCount } = useRoomHardware()
 
