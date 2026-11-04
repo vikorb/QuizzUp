@@ -81,8 +81,21 @@ export type { MeteredOutput, OutputStats } from './dmx/meteredOutput'
 export { createMeteredOutput } from './dmx/meteredOutput'
 export type { DmxDriver, DmxOutput, DmxOutputStatus } from './dmx/output'
 export { DMX_DRIVER_UNIVERSES, DMX_DRIVERS } from './dmx/output'
-export type { ChannelRole, ChannelSpec, FixtureKind, FixtureProfile } from './dmx/profiles'
-export { CHANNEL_ROLES, findProfile, FIXTURE_KINDS, GENERIC_PROFILES } from './dmx/profiles'
+export type {
+  ChannelRole,
+  ChannelSpec,
+  ColorSlot,
+  FixtureKind,
+  FixtureProfile,
+} from './dmx/profiles'
+export {
+  CHANNEL_ROLES,
+  defaultColorWheelSlots,
+  findProfile,
+  FIXTURE_KINDS,
+  GENERIC_PROFILES,
+  MAX_COLOR_SLOTS,
+} from './dmx/profiles'
 export type {
   SerialErrorCode,
   SerialErrorDescription,
