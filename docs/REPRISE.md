@@ -76,8 +76,7 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
 7. Plus tard : SACEM, pricing, mode hors ligne (V2).
 
 Petits suivis connus : pas de Keyboard Lock avec la carte manette ; `LaunchView` reprend
-n'importe quelle sauvegarde ; le synthé de démo n'a pas de fondu ; course de concurrence si deux admins changent en même temps le type et le
-média d'une question (noté `ponytail:` dans `routes/questions/id.ts` et `media.ts`) ; migration
+n'importe quelle sauvegarde ; le synthé de démo n'a pas de fondu ; migration
 de données qui typerait l'ancien contenu (le moteur sait déjà déduire le type).
 
 ## 5. Process de travail

@@ -124,7 +124,11 @@ const DEFAULT_ADMINS: Row[] = [
   },
 ]
 
+/** Tables relues avec `forUpdate()` depuis le dernier `resetDb` (le verrou lui-même est simulé). */
+export const lockedTables: string[] = []
+
 export function resetDb(seed?: Partial<DbState>): void {
+  lockedTables.length = 0
   dbState.companies = structuredClone(seed?.companies ?? DEFAULT_COMPANIES)
   dbState.admins = structuredClone(seed?.admins ?? DEFAULT_ADMINS)
   dbState.admin_sessions = structuredClone(seed?.admin_sessions ?? [])
@@ -406,8 +410,11 @@ class QueryBuilder {
     return this
   }
 
-  // Verrou de ligne (SELECT … FOR UPDATE) : sans effet dans la base simulée.
+  // Verrou de ligne (SELECT … FOR UPDATE) : sans effet dans la base simulée, mais tracé dans
+  // `lockedTables` pour vérifier qu'une route verrouille bien avant de contrôler une règle.
   public forUpdate(): this {
+    lockedTables.push(this.table)
+
     return this
   }
 
