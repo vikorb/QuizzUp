@@ -1,6 +1,9 @@
 import {
   ANSWER_STATUS_ACTIVE,
   QUESTION_MEDIA_TYPE_AUDIO,
+  QUESTION_MEDIA_TYPE_IMAGE,
+  QUESTION_MEDIA_TYPE_NONE,
+  QUESTION_MEDIA_TYPE_VIDEO,
   QUESTION_STATUS_ACTIVE,
   THEME_SCOPE_COMPANY,
   THEME_SCOPE_GLOBAL,
@@ -16,8 +19,8 @@ export type RoomContentQuestion = {
   id: number
   text: string
   mediaType: string
-  /** Chemin relatif à l'API, à préfixer par son URL de base. */
-  mediaUrl: string
+  /** Audio : chemin relatif à l'API, à préfixer par son URL de base. Image / vidéo : lien. */
+  mediaUrl: string | null
   mediaStartMs: number
   answers: RoomContentAnswer[]
 }
@@ -38,10 +41,37 @@ export function roomMediaUrl(questionId: number): string {
   return `/room/questions/${questionId}/media`
 }
 
+type MediaRow = { id: number | string; type_media: string; media_key: unknown; media_url: unknown }
+
 /**
- * Catalogue de la salle pour le blind test éclair : thèmes actifs lisibles par la
- * compagnie, et seulement leurs questions audio actives qui ont un fichier uploadé
- * (US-MEDIA-01), avec leurs réponses actives. Les thèmes vides sont écartés.
+ * URL du média jouable, `null` sans média, ou `undefined` si la question n'est pas jouable :
+ * un audio sans fichier uploadé, ou une image / vidéo sans lien.
+ */
+function resolvePlayableMediaUrl(row: MediaRow): string | null | undefined {
+  switch (row.type_media) {
+    case QUESTION_MEDIA_TYPE_NONE: {
+      return null
+    }
+    case QUESTION_MEDIA_TYPE_AUDIO: {
+      return row.media_key ? roomMediaUrl(Number(row.id)) : undefined
+    }
+    case QUESTION_MEDIA_TYPE_IMAGE:
+    case QUESTION_MEDIA_TYPE_VIDEO: {
+      return typeof row.media_url === 'string' && row.media_url.trim() !== ''
+        ? row.media_url
+        : undefined
+    }
+    default: {
+      return undefined
+    }
+  }
+}
+
+/**
+ * Catalogue de la salle : thèmes actifs lisibles par la compagnie et leurs questions
+ * actives de tous types, avec leurs réponses actives. Une question audio n'est retenue
+ * que si son fichier est uploadé (US-MEDIA-01), une image / vidéo que si elle a un lien.
+ * Le moteur trie ensuite par éligibilité de chaque mini-jeu. Les thèmes vides sont écartés.
  */
 export async function loadRoomContent(companyId: number): Promise<RoomContentTheme[]> {
   const themes = (
@@ -70,11 +100,21 @@ export async function loadRoomContent(companyId: number): Promise<RoomContentThe
     await db('questions')
       .whereIn('id', [...new Set(links.map((link) => link.question_id))])
       .where('status', QUESTION_STATUS_ACTIVE)
-      .where('type_media', QUESTION_MEDIA_TYPE_AUDIO)
-      .whereNotNull('media_key')
-      .select('id', 'question', 'scope', 'company_id', 'media_start_ms')
+      .select(
+        'id',
+        'question',
+        'scope',
+        'company_id',
+        'type_media',
+        'media_key',
+        'media_url',
+        'media_start_ms'
+      )
       .orderBy('id', 'asc')
-  ).filter((question) => isReadableByCompany(question as ScopedRow, companyId))
+  )
+    .filter((question) => isReadableByCompany(question as ScopedRow, companyId))
+    .map((question) => ({ ...question, mediaUrl: resolvePlayableMediaUrl(question as MediaRow) }))
+    .filter((question) => question.mediaUrl !== undefined)
 
   const answers =
     questions.length === 0
@@ -110,8 +150,8 @@ export async function loadRoomContent(companyId: number): Promise<RoomContentThe
         {
           id,
           text: question.question,
-          mediaType: QUESTION_MEDIA_TYPE_AUDIO,
-          mediaUrl: roomMediaUrl(id),
+          mediaType: question.type_media,
+          mediaUrl: question.mediaUrl ?? null,
           mediaStartMs: Number(question.media_start_ms ?? 0),
           answers: answersByQuestion.get(id) ?? [],
         },

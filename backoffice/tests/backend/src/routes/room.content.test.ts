@@ -12,7 +12,9 @@ import {
   GAME_STATE_PENDING,
   GAME_STATUS_ACTIVE,
   QUESTION_MEDIA_TYPE_AUDIO,
+  QUESTION_MEDIA_TYPE_IMAGE,
   QUESTION_MEDIA_TYPE_NONE,
+  QUESTION_MEDIA_TYPE_VIDEO,
   QUESTION_STATUS_ACTIVE,
   QUESTION_STATUS_DRAFT,
   ROOM_STATUS_ACTIVE,
@@ -154,19 +156,26 @@ type ContentBody = {
   themes: {
     id: number
     name: string
-    questions: { id: number; mediaUrl: string; mediaStartMs: number; answers: unknown[] }[]
+    questions: { id: number; mediaUrl: string | null; mediaStartMs: number; answers: unknown[] }[]
   }[]
 }
 
 describe('routes/room.ts — content of the current game', () => {
-  it('keeps only active audio questions with a file, readable by the company', async () => {
+  it('keeps active questions of every type, audio only with a file, readable by the company', async () => {
     seedRoomAndGame()
     theme(1)
     question(11, 1)
-    question(12, 1, { media_key: null }) // audio sans fichier
-    question(13, 1, { type_media: QUESTION_MEDIA_TYPE_NONE })
+    question(12, 1, { media_key: null }) // audio sans fichier : écartée
+    question(13, 1, { type_media: QUESTION_MEDIA_TYPE_NONE, media_key: null })
     question(14, 1, { status: QUESTION_STATUS_DRAFT })
     question(15, 1, { scope: THEME_SCOPE_COMPANY, company_id: 2 })
+    question(16, 1, {
+      type_media: QUESTION_MEDIA_TYPE_IMAGE,
+      media_key: null,
+      media_url: 'https://cdn.test/16.jpg',
+    })
+    question(17, 1, { type_media: QUESTION_MEDIA_TYPE_IMAGE, media_key: null, media_url: null })
+    question(18, 1, { type_media: QUESTION_MEDIA_TYPE_VIDEO, media_key: null, media_url: '  ' })
     theme(2, { scope: THEME_SCOPE_COMPANY, company_id: 1 })
     question(21, 2, { scope: THEME_SCOPE_COMPANY, company_id: 1 })
     theme(3, { scope: THEME_SCOPE_COMPANY, company_id: 2 })
@@ -186,7 +195,7 @@ describe('routes/room.ts — content of the current game', () => {
     expect(response.statusCode).toBe(200)
     const body = parseJson<ContentBody>(response)
     expect(body.themes.map((item) => item.id)).toEqual([1, 2])
-    expect(body.themes[0].questions.map((item) => item.id)).toEqual([11])
+    expect(body.themes[0].questions.map((item) => item.id)).toEqual([11, 13, 16])
     expect(body.themes[0].questions[0]).toEqual({
       id: 11,
       text: 'Extrait 11',
@@ -198,6 +207,16 @@ describe('routes/room.ts — content of the current game', () => {
         { id: 111, text: 'Fausse', isCorrect: false },
       ],
     })
+    expect(body.themes[0].questions[1]).toMatchObject({
+      mediaType: QUESTION_MEDIA_TYPE_NONE,
+      mediaUrl: null,
+      mediaStartMs: 1500,
+    })
+    expect(body.themes[0].questions[2]).toMatchObject({
+      mediaType: QUESTION_MEDIA_TYPE_IMAGE,
+      mediaUrl: 'https://cdn.test/16.jpg',
+    })
+    expect(JSON.stringify(body)).not.toContain('questions/11/0b6f')
     expect(body.themes[1].questions.map((item) => item.id)).toEqual([21])
 
     await app.close()

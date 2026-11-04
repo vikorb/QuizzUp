@@ -1499,9 +1499,11 @@ paths:
         Statut : **Disponible**
 
         Thèmes actifs lisibles par la compagnie (global ou company), au format `EngineTheme` du
-        moteur de jeu. Seules les questions **audio actives qui ont un fichier uploadé** sont
-        retenues, avec leurs réponses actives ; les thèmes sans question jouable sont écartés.
-        `mediaUrl` est un chemin relatif à l'API (`/room/questions/{id}/media`).
+        moteur de jeu, avec leurs questions actives de tous types et leurs réponses actives. Une
+        question **audio** n'est retenue que si son fichier est uploadé (`mediaUrl` = chemin relatif
+        à l'API, `/room/questions/{id}/media`) ; une image / vidéo que si elle a un lien
+        (`mediaUrl` = ce lien) ; sans média, `mediaUrl` vaut `null`. Le moteur trie ensuite les
+        questions par éligibilité de chaque mini-jeu. Les thèmes sans question jouable sont écartés.
 
         Accès : réservé au rôle `room`, uniquement pendant une partie en attente ou en cours.
       operationId: getCurrentRoomGameContent
@@ -1530,7 +1532,8 @@ paths:
                               id: { type: integer }
                               text: { type: string }
                               mediaType: { type: string, example: audio }
-                              mediaUrl: { type: string, example: /room/questions/12/media }
+                              mediaUrl:
+                                { type: string, nullable: true, example: /room/questions/12/media }
                               mediaStartMs: { type: integer }
                               answers:
                                 type: array

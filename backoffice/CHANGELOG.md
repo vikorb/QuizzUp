@@ -8,8 +8,8 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
-- Catalogue de la salle (`GET /room/games/current/content`) limité aux questions audio actives
-  avec fichier, et lecture des extraits par le compte de salle
+- Catalogue de la salle (`GET /room/games/current/content`) : questions actives de tous types,
+  l'audio seulement avec un fichier uploadé, et lecture des extraits par le compte de salle
   (`GET /room/questions/{questionId}/media`) pendant une partie.
   US: us-game-08, us-media-01
 
