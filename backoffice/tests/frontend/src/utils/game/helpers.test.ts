@@ -14,7 +14,12 @@ import { createErrorBanner, createSuccessBanner } from '@/utils/banner'
 import { GAME_BANNER_CREATED, getGameBannerMessage } from '@/utils/game/banner'
 import { parseGameId, resolveGameCompanyId } from '@/utils/game/company'
 import { getGameErrorKey, isGameApiErrorCode, readGameApiError } from '@/utils/game/errors'
-import { formatGameDate, formatGameParticipantsCount, getGameRoomName } from '@/utils/game/format'
+import {
+  formatGameDate,
+  formatGameParticipantsCount,
+  getGamePlayerEmailDisplay,
+  getGameRoomName,
+} from '@/utils/game/format'
 import {
   canAbortGame,
   countGamesByState,
@@ -124,6 +129,16 @@ describe('utils/game/errors', () => {
 })
 
 describe('utils/game/format', () => {
+  it('shows the email, a masked mention for the staff, or nothing', () => {
+    expect(getGamePlayerEmailDisplay({ email: 'a@quizzup.test', hasEmail: true })).toEqual({
+      kind: 'value',
+      value: 'a@quizzup.test',
+    })
+    expect(getGamePlayerEmailDisplay({ email: null, hasEmail: true })).toEqual({ kind: 'masked' })
+    expect(getGamePlayerEmailDisplay({ email: null, hasEmail: false })).toEqual({ kind: 'none' })
+    expect(getGamePlayerEmailDisplay({ email: '  ', hasEmail: false })).toEqual({ kind: 'none' })
+  })
+
   it('formats a date with the locale, dash when missing or invalid', () => {
     expect(formatGameDate('2026-11-03T10:00:00.000Z', 'fr')).toMatch(/03\/11\/2026/)
     expect(formatGameDate(null, 'fr')).toBe('—')
