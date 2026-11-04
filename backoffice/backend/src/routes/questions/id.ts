@@ -2,6 +2,7 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 
 import {
   ANSWER_STATUS_DELETED,
+  DEFAULT_QUESTION_KIND,
   QUESTION_MEDIA_TYPE_AUDIO,
   QUESTION_STATUS_DELETED,
 } from '@quizzup/shared'
@@ -25,7 +26,9 @@ import {
   parsePositiveId,
   parseQuestionThemeIds,
   syncQuestionThemes,
+  getQuestionAnswersForValidation,
   validateAnswers,
+  validateAnswersForKind,
   type QuestionBody,
   type QuestionParams,
 } from './_shared'
@@ -196,6 +199,20 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
         startMs: req.body.mediaStartMs,
       }
       let detachedMediaKey: string | null = null
+
+      // Le type et les réponses se valident ensemble : changer l'un revérifie l'autre.
+      if (req.body.kind !== undefined || req.body.answers !== undefined) {
+        const nextKind = req.body.kind ?? accessQuestion.kind ?? DEFAULT_QUESTION_KIND
+        const nextAnswers =
+          req.body.answers === undefined
+            ? await getQuestionAnswersForValidation(questionId)
+            : normalizeAnswers(req.body.answers)
+        const kindError = validateAnswersForKind(nextKind, nextAnswers)
+
+        if (kindError) {
+          return reply.code(400).send({ error: kindError })
+        }
+      }
 
       try {
         if (req.body.answers !== undefined) {

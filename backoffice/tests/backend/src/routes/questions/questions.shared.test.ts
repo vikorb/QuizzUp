@@ -5,6 +5,9 @@ import { describe, expect, it } from 'vitest'
 import {
   ANSWER_STATUS_ACTIVE,
   ANSWER_STATUS_DELETED,
+  QUESTION_KIND_ESTIMATE,
+  QUESTION_KIND_QCM,
+  QUESTION_KIND_TRUE_FALSE,
   THEME_SCOPE_COMPANY,
   THEME_SCOPE_GLOBAL,
 } from '@quizzup/shared'
@@ -15,6 +18,7 @@ import {
   normalizeAnswers,
   parseQuestionThemeIds,
   validateAnswers,
+  validateAnswersForKind,
 } from '@backend/routes/questions/_shared'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
 import { companyAdminUser, superadminUser, type TestUser } from '../_helpers/testApp'
@@ -75,6 +79,58 @@ describe('routes/questions/_shared.ts', () => {
           ])
         )
       ).toBeNull()
+    })
+  })
+
+  describe('validateAnswersForKind (rules of the game engine)', () => {
+    const answer = (response: string, isCorrect = false) => ({ response, isCorrect })
+
+    it('accepts any common answers for a multiple choice question', () => {
+      expect(validateAnswersForKind(QUESTION_KIND_QCM, [answer('A', true), answer('B')])).toBeNull()
+    })
+
+    it('needs exactly « Vrai » and « Faux » with one correct answer for true / false', () => {
+      expect(
+        validateAnswersForKind(QUESTION_KIND_TRUE_FALSE, [answer(' faux '), answer('VRAI', true)])
+      ).toBeNull()
+
+      for (const answers of [
+        [answer('Oui', true), answer('Non')],
+        [answer('Vrai', true), answer('Faux', true)],
+        [answer('Vrai', true), answer('Faux'), answer('Peut-être')],
+      ]) {
+        expect(validateAnswersForKind(QUESTION_KIND_TRUE_FALSE, answers)).toBe(
+          'question_true_false_answers_invalid'
+        )
+      }
+    })
+
+    it('needs 3 or 4 ranges starting with a number and one correct answer for an estimate', () => {
+      expect(
+        validateAnswersForKind(QUESTION_KIND_ESTIMATE, [
+          answer('Moins de 100'),
+          answer('100 à 199', true),
+          answer('Entre 200 et 999'),
+          answer('1 000 ou plus'),
+        ])
+      ).toBeNull()
+      expect(
+        validateAnswersForKind(QUESTION_KIND_ESTIMATE, [
+          answer('≥ 50'),
+          answer('Jusqu’à 10', true),
+          answer('Après 1990'),
+        ])
+      ).toBeNull()
+
+      for (const answers of [
+        [answer('Moins de 100', true), answer('Plus de 100')],
+        [answer('Moins de 100', true), answer('Beaucoup'), answer('Plus de 500')],
+        [answer('1', true), answer('2', true), answer('3')],
+      ]) {
+        expect(validateAnswersForKind(QUESTION_KIND_ESTIMATE, answers)).toBe(
+          'question_estimate_answers_invalid'
+        )
+      }
     })
   })
 

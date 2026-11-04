@@ -8,6 +8,11 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Règles de réponses selon le type de question, partagées par l'API et le formulaire
+  (`getQuestionKindAnswersError` dans `@quizzup/shared`) : vrai/faux = « Vrai » et « Faux », une
+  seule juste ; estimation = 3 ou 4 fourchettes commençant par un nombre, une seule juste.
+  US: us-minigame-01
+
 - Type de question (`kind` : QCM, vrai/faux, estimation ; QCM par défaut) en base, dans l'API
   des questions (création, modification, filtre) et dans le catalogue de la salle.
   US: us-minigame-01

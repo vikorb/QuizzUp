@@ -7,6 +7,7 @@ import {
   ANSWER_STATUS_DRAFT,
   ANSWER_STATUS_INACTIVE,
   QUESTION_KINDS,
+  getQuestionKindAnswersError,
   QUESTION_MEDIA_TYPE_NONE,
   QUESTION_MEDIA_TYPES,
   QUESTION_STATUS_ACTIVE,
@@ -72,6 +73,7 @@ export type QuestionAccessRow = {
   company_id: number | null
   scope: ThemeScope
   status: QuestionStatus
+  kind?: QuestionKind
 }
 
 export type QuestionStatusBody = {
@@ -314,7 +316,7 @@ export function canEditQuestion(question: QuestionAccessRow, req: FastifyRequest
 
 export async function getQuestionAccessRow(questionId: number): Promise<QuestionAccessRow | null> {
   const question = await db('questions')
-    .select('id', 'admin_id', 'company_id', 'scope', 'status')
+    .select('id', 'admin_id', 'company_id', 'scope', 'status', 'kind')
     .where({ id: questionId })
     .first()
 
@@ -361,6 +363,26 @@ export function validateAnswers(answers: NormalizedAnswer[]): string | null {
   }
 
   return null
+}
+
+/** Règles de réponses du type de question : partagées avec le formulaire du backoffice. */
+export function validateAnswersForKind(
+  kind: QuestionKind,
+  answers: NormalizedAnswer[]
+): string | null {
+  return getQuestionKindAnswersError(kind, answers)
+}
+
+/** Réponses non supprimées d'une question, pour revalider ses règles quand son type change. */
+export async function getQuestionAnswersForValidation(
+  questionId: number
+): Promise<NormalizedAnswer[]> {
+  const rows = await db('answers')
+    .where('question_id', questionId)
+    .whereNot('status', ANSWER_STATUS_DELETED)
+    .select('response', 'is_correct')
+
+  return rows.map((row) => ({ response: String(row.response), isCorrect: Boolean(row.is_correct) }))
 }
 
 /**

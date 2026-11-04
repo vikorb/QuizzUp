@@ -31,6 +31,7 @@ import {
   parseQuestionThemeIds,
   questionSelect,
   validateAnswers,
+  validateAnswersForKind,
   type QuestionBody,
   type QuestionQuery,
 } from './questions/_shared'
@@ -165,7 +166,7 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(400).send({ error: 'question_kind_invalid' })
       }
 
-      const answersError = validateAnswers(answers)
+      const answersError = validateAnswers(answers) ?? validateAnswersForKind(kind, answers)
 
       if (answersError) {
         return reply.code(400).send({ error: answersError })

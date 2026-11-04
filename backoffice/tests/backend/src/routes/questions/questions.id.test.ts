@@ -6,6 +6,7 @@ import {
   ANSWER_STATUS_ACTIVE,
   ANSWER_STATUS_DELETED,
   QUESTION_KIND_ESTIMATE,
+  QUESTION_KIND_TRUE_FALSE,
 } from '@quizzup/shared'
 import questionsRoutes from '@backend/routes/questions'
 import { dbState } from '../_helpers/mockDb'
@@ -75,7 +76,21 @@ describe('routes/questions/id.ts', () => {
       method: 'PATCH',
       url: '/questions/2',
       headers: authHeaders(companyAdminUser),
-      payload: { kind: QUESTION_KIND_ESTIMATE },
+      payload: {
+        kind: QUESTION_KIND_ESTIMATE,
+        answers: [
+          { response: 'Moins de 10', isCorrect: false },
+          { response: '10 à 99', isCorrect: true },
+          { response: '100 ou plus', isCorrect: false },
+        ],
+      },
+    })
+    // Repasser en vrai/faux sans changer les réponses : elles ne sont pas « Vrai » / « Faux ».
+    const kindOnly = await app.inject({
+      method: 'PATCH',
+      url: '/questions/2',
+      headers: authHeaders(companyAdminUser),
+      payload: { kind: QUESTION_KIND_TRUE_FALSE },
     })
     const invalid = await app.inject({
       method: 'PATCH',
@@ -88,6 +103,8 @@ describe('routes/questions/id.ts', () => {
     expect(dbState.questions.find((row) => row.id === 2)).toMatchObject({
       kind: QUESTION_KIND_ESTIMATE,
     })
+    expect(kindOnly.statusCode).toBe(400)
+    expect(parseJson(kindOnly)).toEqual({ error: 'question_true_false_answers_invalid' })
     expect(invalid.statusCode).toBe(400)
     expect(parseJson(invalid)).toEqual({ error: 'question_kind_invalid' })
 
