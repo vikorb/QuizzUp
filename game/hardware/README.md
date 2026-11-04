@@ -64,13 +64,16 @@ plus de logiciel à installer, et les appuis arrivent même sans focus clavier.
 ```ts
 const buzzers = createGamepadBuzzerInput({ keymap: config.buzzers.keymap })
 // codes du mapping : GamepadButton0 … GamepadButton31 ; même interface que le clavier
-buzzers.getGamepad() // { id, buttons } ou null : « Appuyez sur un buzzer pour activer la carte »
+buzzers.getGamepad() // { index, id, buttons } ou null : « Appuyez sur un buzzer pour activer la carte »
 ```
 
 - Le navigateur n'expose la carte qu'après un **premier appui** sur un de ses boutons.
 - Lecture toutes les 4 ms ; l'appui est horodaté avec la mise à jour de la carte
   (`Gamepad.timestamp`), bornée entre deux lectures.
-- Un bouton déjà enfoncé au démarrage ou au retour de l'onglet ne compte pas.
+- Appuis vus dans la même lecture : même horodatage, ordre d'émission tournant (aucun pupitre ne
+  gagne toujours les égalités à cause de son numéro d'entrée).
+- Un bouton déjà enfoncé au démarrage, au retour de l'onglet ou quand une autre carte est lue ne
+  compte pas. Option `match(id)` pour choisir la carte si une autre manette est branchée.
 
 ### Apprentissage
 
