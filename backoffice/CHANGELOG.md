@@ -158,6 +158,8 @@ Format inspiré de Keep a Changelog.
 
 - `backend/.env` n'est plus versionné (seul `backend/.env.example` l'est) ; les tests backend
   chargent `backend/.env` s'il existe, sinon `backend/.env.example`.
+  **Avant le pull**, sauvegarder son `backend/.env` local : git le supprime du disque. Le remettre
+  ensuite, ou `cp backend/.env.example backend/.env`.
 - Docker Compose : seeds complets seulement sur une base vide (`SEED_ON_START=always` pour
   l'ancien comportement), seul le seed de démo est rejoué ensuite ; ports publiés sur
   `127.0.0.1` uniquement.
