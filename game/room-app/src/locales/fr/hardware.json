@@ -57,6 +57,7 @@
       "emergencyStop": "Arrêt d’urgence",
       "emergencyActive": "Arrêt d’urgence actif : lumières éteintes, fumée coupée.",
       "emergencyReset": "Rallumer les lumières",
+      "emergencyResetConfirm": "Rallumer les lumières ? Vérifie d’abord que la salle est sûre. La fumée restera désarmée.",
       "physicalStop": "Le bouton logiciel ne remplace pas l’arrêt d’urgence physique, obligatoire en salle.",
       "scenes": "Tester une scène",
       "sceneDesk": "Pupitre",

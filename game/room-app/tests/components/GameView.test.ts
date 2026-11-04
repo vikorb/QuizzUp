@@ -116,6 +116,9 @@ describe('GameView', () => {
     expect(useRoomHardware().lightingState.value?.emergency).toBe(true)
 
     await wrapper.find('[data-test="emergency-reset"]').trigger('click')
+    // Le réarmement est confirmé (la modale n'est pas montée ici).
+    const { useConfirm } = await import('@/composables/useConfirm')
+    useConfirm().accept()
     await flushPromises()
     expect(useRoomHardware().lightingState.value?.emergency).toBe(false)
   })

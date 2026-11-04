@@ -57,6 +57,7 @@
       "emergencyStop": "Emergency stop",
       "emergencyActive": "Emergency stop active: lights off, smoke cut.",
       "emergencyReset": "Turn the lights back on",
+      "emergencyResetConfirm": "Turn the lights back on? Check the room is safe first. Smoke stays disarmed.",
       "physicalStop": "The software button does not replace the physical emergency stop required in the room.",
       "scenes": "Test a scene",
       "sceneDesk": "Desk",

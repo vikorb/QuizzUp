@@ -115,3 +115,45 @@ describe('matériel de la salle', () => {
     expect(useRoomHardware().hardware.value.config.lighting.driver).toBe('simulation')
   })
 })
+
+describe('sécurité des lumières à l’enregistrement', () => {
+  const SMOKE_CONFIG = {
+    lighting: {
+      fixtures: [{ id: 'fumee', name: 'Fumée', profileId: 'smoke-relay', address: 40 }],
+      smoke: { enabled: true, requireConfirmation: false },
+    },
+  }
+
+  it('ne relance pas les lumières pour un simple changement de buzzers', async () => {
+    const before = await startLighting()
+    await saveBuzzerKeymap(LEARNED_KEYMAP)
+    expect(getLighting()).toBe(before)
+  })
+
+  it('garde l’arrêt d’urgence et désarme la fumée quand la config est relancée', async () => {
+    await saveRoomHardwareConfig(SMOKE_CONFIG)
+    const first = await startLighting()
+    first.emergencyStop('operator')
+
+    await saveRoomHardwareConfig({
+      ...SMOKE_CONFIG,
+      lighting: { ...SMOKE_CONFIG.lighting, refreshHz: 20 },
+    })
+    const next = getLighting()
+
+    expect(next).not.toBe(first)
+    expect(next?.getState().emergency).toBe(true)
+    next?.resetEmergency()
+    expect(next?.getState().smoke.armed).toBe(false)
+  })
+
+  it('n’ouvre jamais deux contrôleurs en même temps', async () => {
+    await startLighting()
+    const stopping = stopLighting()
+    const restarted = startLighting()
+    await stopping
+    const controller = await restarted
+    expect(getLighting()).toBe(controller)
+    expect(controller.getState().running).toBe(true)
+  })
+})

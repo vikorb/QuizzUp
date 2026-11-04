@@ -93,12 +93,10 @@ async function prepareRoom(): Promise<void> {
       .catch(() => undefined),
   ])
   fullscreenRefused.value = !fullscreen
-  await Promise.all([
-    keepScreenAwake(),
-    lockBuzzerSystemKeys(),
-    // Lumières en ambiance ; une interface DMX déjà autorisée se reconnecte seule.
-    startLighting().catch(() => undefined),
-  ])
+  // Lumières en ambiance, sans retarder le lancement : une interface DMX déjà
+  // autorisée se reconnecte seule.
+  void startLighting().catch(() => undefined)
+  await Promise.all([keepScreenAwake(), lockBuzzerSystemKeys()])
 }
 
 async function onLaunch(): Promise<void> {

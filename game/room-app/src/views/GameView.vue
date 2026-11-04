@@ -10,18 +10,21 @@
       </span>
       <template #actions>
         <UiButton
-          v-if="lighting && hasFixtures"
-          :variant="lightingState?.emergency ? 'primary' : 'danger'"
-          class="game__emergency"
-          :data-test="lightingState?.emergency ? 'emergency-reset' : 'emergency-stop'"
-          @click="onEmergency"
+          v-if="lighting && hasFixtures && emergencyActive"
+          variant="primary"
+          data-test="emergency-reset"
+          @click="emergency.reset"
+        >
+          {{ $t('hardware.lights.emergencyReset') }}
+        </UiButton>
+        <UiButton
+          v-else-if="lighting && hasFixtures"
+          variant="danger"
+          data-test="emergency-stop"
+          @click="emergency.stop"
         >
           <MdIcon :path="mdiAlertOctagonOutline" :size="18" />
-          {{
-            lightingState?.emergency
-              ? $t('hardware.lights.emergencyReset')
-              : $t('hardware.lights.emergencyStop')
-          }}
+          {{ $t('hardware.lights.emergencyStop') }}
         </UiButton>
         <UiButton
           v-if="!isOver"
@@ -108,6 +111,7 @@ import {
 import { abortGame, closeGame, pressBuzzer, useRoomGame } from '@/game/useRoomGame'
 import { useRoomHardware } from '@/hardware/roomHardware'
 import { useBuzzers } from '@/hardware/useBuzzers'
+import { useEmergencyStop } from '@/hardware/useEmergencyStop'
 import BlindTestScreen from '@/views/game/BlindTestScreen.vue'
 import FinishedScreen from '@/views/game/FinishedScreen.vue'
 import RevealScreen from '@/views/game/RevealScreen.vue'
@@ -119,8 +123,10 @@ const { t } = useI18n()
 const router = useRouter()
 const { confirm } = useConfirm()
 const { state, now } = useRoomGame()
-const { hardware, lighting, lightingState } = useRoomHardware()
+const { hardware, lighting } = useRoomHardware()
 const hasFixtures = computed(() => hardware.value.fixtures.length > 0)
+const emergency = useEmergencyStop()
+const emergencyActive = emergency.active
 
 const phase = computed(() => state.value?.phase ?? { name: 'lobby' as const })
 const round = computed(() => (state.value ? getCurrentRound(state.value) : undefined))
@@ -176,15 +182,6 @@ async function onAbort(): Promise<void> {
   const ok = await confirm({ message: t('room.toolbar.abortConfirm'), variant: 'danger' })
   if (ok) {
     abortGame()
-  }
-}
-
-/** Arrêt d'urgence logiciel, sans confirmation : chaque seconde compte. */
-function onEmergency(): void {
-  if (lightingState.value?.emergency) {
-    lighting.value?.resetEmergency()
-  } else {
-    lighting.value?.emergencyStop('operator')
   }
 }
 

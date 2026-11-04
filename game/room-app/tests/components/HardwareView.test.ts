@@ -120,6 +120,9 @@ describe('HardwareView', () => {
     expect(wrapper.text()).toContain('Arrêt d’urgence actif')
 
     await wrapper.find('[data-test="emergency-reset"]').trigger('click')
+    // Le réarmement est confirmé (la modale n'est pas montée ici).
+    const { useConfirm } = await import('@/composables/useConfirm')
+    useConfirm().accept()
     await flushPromises()
     expect(wrapper.text()).not.toContain('Arrêt d’urgence actif')
 

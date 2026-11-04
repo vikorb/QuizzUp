@@ -115,11 +115,24 @@ export async function lockBuzzerSystemKeys(): Promise<boolean> {
 // ── Lumières ───────────────────────────────────────────────────────────────
 
 let lighting: LightingController | null = null
-let lightingStarting: Promise<LightingController> | null = null
 let stopLightingState: (() => void) | null = null
 let stopLightingEvents: (() => void) | null = null
+/** L'opérateur a choisi la simulation : pas de reconnexion automatique de l'interface. */
+let preferSimulation = false
 const lightingState = shallowRef<LightingState | null>(null)
 const lightingRef = shallowRef<LightingController | null>(null)
+
+/**
+ * Démarrages et arrêts passent l'un après l'autre : on ne crée jamais un second
+ * contrôleur (qui rouvrirait le port DMX) tant que le précédent n'est pas fermé.
+ */
+let lightingQueue: Promise<unknown> = Promise.resolve()
+
+function serializeLighting<T>(task: () => Promise<T>): Promise<T> {
+  const run = lightingQueue.then(task, task)
+  lightingQueue = run.catch(() => undefined)
+  return run
+}
 
 /** Le moteur numérote les participants comme les pupitres (cf. `toEngineParticipants`). */
 function resolveDesk(participantId: number) {
@@ -128,7 +141,7 @@ function resolveDesk(participantId: number) {
 
 async function reconnectGrantedPort(controller: LightingController): Promise<void> {
   const { driver } = parsed.value.config.lighting
-  if (driver === 'simulation' || !isWebSerialSupported()) {
+  if (driver === 'simulation' || preferSimulation || !isWebSerialSupported()) {
     return
   }
   const port = await getGrantedDmxPort().catch(() => null)
@@ -137,12 +150,16 @@ async function reconnectGrantedPort(controller: LightingController): Promise<voi
   }
 }
 
-async function createLighting(): Promise<LightingController> {
+async function createLighting(options: { emergencyReason?: string | null } = {}) {
   const controller = createLightingController({
     config: parsed.value.config.lighting,
     output: createSimulationOutput(),
     resolveDesk,
   })
+  // Un arrêt d'urgence en cours survit au redémarrage (noir avant la première trame).
+  if (options.emergencyReason) {
+    controller.emergencyStop(options.emergencyReason)
+  }
   lighting = controller
   lightingRef.value = controller
   stopLightingState = controller.onChange((state) => {
@@ -160,24 +177,7 @@ async function createLighting(): Promise<LightingController> {
   return controller
 }
 
-/** Démarre (une seule fois) le contrôleur de lumières de la page. */
-export async function startLighting(): Promise<LightingController> {
-  if (lighting) {
-    return lighting
-  }
-  lightingStarting ??= createLighting().finally(() => {
-    lightingStarting = null
-  })
-  return lightingStarting
-}
-
-export function getLighting(): LightingController | null {
-  return lighting
-}
-
-/** Arrête les lumières (noir, fumée coupée) et libère l'interface DMX. */
-export async function stopLighting(): Promise<void> {
-  await lightingStarting?.catch(() => undefined)
+async function shutdownLighting(): Promise<void> {
   const controller = lighting
   lighting = null
   lightingRef.value = null
@@ -189,6 +189,38 @@ export async function stopLighting(): Promise<void> {
   await controller?.stop()
 }
 
+/** Démarre (une seule fois) le contrôleur de lumières de la page. */
+export async function startLighting(): Promise<LightingController> {
+  // Toujours dans la file : un arrêt en attente passe avant, puis on redémarre.
+  return serializeLighting(async () => lighting ?? createLighting())
+}
+
+export function getLighting(): LightingController | null {
+  return lighting
+}
+
+/** Arrête les lumières (noir, fumée coupée) et libère l'interface DMX. */
+export async function stopLighting(): Promise<void> {
+  return serializeLighting(shutdownLighting)
+}
+
+/**
+ * Relance le contrôleur avec la nouvelle config. L'arrêt d'urgence est conservé
+ * et la fumée repart désarmée : seul un geste de l'opérateur la réautorise.
+ */
+async function restartLighting(): Promise<void> {
+  return serializeLighting(async () => {
+    if (!lighting) {
+      return
+    }
+    const previous = lighting.getState()
+    const emergencyReason = previous.emergency ? (previous.emergencyReason ?? 'operator') : null
+    await shutdownLighting()
+    const controller = await createLighting({ emergencyReason })
+    controller.smoke.disarm()
+  })
+}
+
 /**
  * Bouton « Connecter l'interface DMX » : doit être appelé dans un clic (le
  * navigateur demande quelle interface USB utiliser).
@@ -198,8 +230,10 @@ export async function connectDmxInterface(): Promise<void> {
   if (driver === 'simulation') {
     throw new Error('simulation_driver')
   }
-  const controller = await startLighting()
+  // La fenêtre de choix doit s'ouvrir dans le clic, avant toute autre attente.
   const port = await requestDmxPort()
+  const controller = await startLighting()
+  preferSimulation = false
   await controller.setOutput(createSerialOutput({ port, driver }))
 }
 
@@ -207,6 +241,7 @@ export async function connectDmxInterface(): Promise<void> {
 export async function switchToSimulatedLights(
   output: DmxOutput = createSimulationOutput()
 ): Promise<void> {
+  preferSimulation = true
   await lighting?.setOutput(output)
 }
 
@@ -214,9 +249,10 @@ export async function switchToSimulatedLights(
 
 /**
  * Enregistre la config de salle (normalisée) et l'applique : nouveau mapping des
- * buzzers, contrôleur de lumières relancé s'il tournait.
+ * buzzers, et contrôleur de lumières relancé seulement si la partie lumières a changé.
  */
 export async function saveRoomHardwareConfig(input: unknown): Promise<ParsedRoomHardwareConfig> {
+  const previousLighting = JSON.stringify(parsed.value.config.lighting)
   const next = parseRoomHardwareConfig(input)
   parsed.value = next
 
@@ -228,9 +264,8 @@ export async function saveRoomHardwareConfig(input: unknown): Promise<ParsedRoom
 
   keyboardInput?.setKeymap(effectiveKeymap(next.config))
 
-  if (lighting || lightingStarting) {
-    await stopLighting()
-    await startLighting()
+  if (JSON.stringify(next.config.lighting) !== previousLighting) {
+    await restartLighting()
   }
   return next
 }
@@ -244,6 +279,7 @@ export async function saveBuzzerKeymap(keymap: BuzzerKeymap): Promise<ParsedRoom
 export async function resetRoomHardware(options: { storage?: HardwareStorage | null } = {}) {
   await stopLighting()
   setBuzzerInput(null)
+  preferSimulation = false
   storage = options.storage ?? null
   parsed.value = parseRoomHardwareConfig(loadStoredConfig())
 }

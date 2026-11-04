@@ -19,7 +19,7 @@ import {
   useRoomGame,
 } from '@/game/useRoomGame'
 
-import { createManualClock, REGISTRATIONS } from '../_helpers/fixtures'
+import { createManualClock, getPlayableThemes, REGISTRATIONS } from '../_helpers/fixtures'
 
 function fakePlayer(): ExtractPlayer {
   return {
@@ -86,7 +86,7 @@ describe('useRoomGame', () => {
 
   it('transmet les appuis buzzers au moteur et l’audio suit', () => {
     const { state } = useRoomGame()
-    startNewGame({ registrations: REGISTRATIONS, themes: getDemoThemes(), seed: 7 })
+    startNewGame({ registrations: REGISTRATIONS, themes: getPlayableThemes(), seed: 7 })
     clock.advance(DEFAULT_GAME_TIMINGS.roundIntroMs + 10)
     vi.advanceTimersByTime(50)
 
@@ -127,7 +127,7 @@ describe('useRoomGame', () => {
 
   it('relance l’extrait du palier en cours à la reprise', async () => {
     const { state } = useRoomGame()
-    startNewGame({ registrations: REGISTRATIONS, themes: getDemoThemes(), seed: 7 })
+    startNewGame({ registrations: REGISTRATIONS, themes: getPlayableThemes(), seed: 7 })
     clock.advance(DEFAULT_GAME_TIMINGS.roundIntroMs + 10)
     vi.advanceTimersByTime(50)
     const chooser = state.value?.rounds[0]?.chooserParticipantId as 1 | 2 | 3

@@ -23,11 +23,11 @@
         v-if="state?.emergency"
         variant="primary"
         data-test="emergency-reset"
-        @click="lighting?.resetEmergency()"
+        @click="emergency.reset"
       >
         {{ $t('hardware.lights.emergencyReset') }}
       </UiButton>
-      <UiButton v-else variant="danger" data-test="emergency-stop" @click="onEmergencyStop">
+      <UiButton v-else variant="danger" data-test="emergency-stop" @click="emergency.stop">
         <MdIcon :path="mdiAlertOctagonOutline" :size="18" />
         {{ $t('hardware.lights.emergencyStop') }}
       </UiButton>
@@ -143,6 +143,7 @@ import {
   switchToSimulatedLights,
   useRoomHardware,
 } from '@/hardware/roomHardware'
+import { useEmergencyStop } from '@/hardware/useEmergencyStop'
 
 /** Rafraîchissement de la salle simulée (les scènes s'animent en fondu). */
 const RIG_REFRESH_MS = 100
@@ -160,6 +161,7 @@ const TEST_SCENES = [
 
 const { t } = useI18n()
 const { hardware, lightingState: state, lighting } = useRoomHardware()
+const emergency = useEmergencyStop()
 
 const fixtures = shallowRef<FixtureView[]>([])
 const sceneDesk = ref<DeskNumber>(1)
@@ -211,10 +213,6 @@ async function onConnect(): Promise<void> {
 
 async function onUseSimulation(): Promise<void> {
   await switchToSimulatedLights()
-}
-
-function onEmergencyStop(): void {
-  lighting.value?.emergencyStop('operator')
 }
 
 function onArm(event: Event): void {

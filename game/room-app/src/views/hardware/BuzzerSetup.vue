@@ -195,6 +195,10 @@ function startLearning(): void {
   })
   // Toute touche autorisée compte, même si elle n'est pas encore associée.
   offKeys = getBuzzerInput().onKey(({ code }) => {
+    // Un buzzer qui envoie Entrée ou Espace ne doit pas cliquer le bouton qui a le focus.
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur()
+    }
     next.capture(code)
   })
 }

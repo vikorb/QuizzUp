@@ -11,7 +11,7 @@
           "The clip plays for 1 second, then 5, then 20.",
           "The first to buzz answers alone with A, B, C or D.",
           "The sooner you find it, the more you score: 100, 50 or 20 points.",
-          "A mistake costs nothing, but you can no longer buzz on this clip."
+          "A mistake costs nothing, but you cannot buzz again until the next stage."
         ]
       }
     },

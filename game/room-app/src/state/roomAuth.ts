@@ -47,6 +47,8 @@ export async function refreshRoomAccount(): Promise<void> {
     // Jeton expiré ou révoqué : retour à la connexion. Une partie interrompue reste
     // reprenable après reconnexion ; elle est effacée à sa fin ou à la déconnexion.
     clearLocalSession({ keepSavedGame: true })
+    // Plus personne aux commandes : lumières éteintes et fumée coupée, comme à la déconnexion.
+    await stopLighting().catch(() => undefined)
     return
   }
   if (fetched) {
