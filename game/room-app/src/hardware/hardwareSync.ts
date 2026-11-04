@@ -6,6 +6,8 @@ import {
   isDefaultHardwareConfig,
   isHardwareCopyForeign,
   pushHardwareConfig,
+  resolveHardwareConflict,
+  setHardwareConfigRevision,
   setHardwareRemoteSaver,
 } from '@/hardware/roomHardware'
 import { roomAccount } from '@/state/roomAuth'
@@ -59,12 +61,14 @@ export async function syncHardwareWithRoom(): Promise<void> {
   }
 
   setHardwareRemoteSaver(
-    async (config) => {
+    async (config, revision) => {
       // Un envoi resté en file ne part jamais vers un autre compte.
       if (getRoomToken() !== token) {
         throw new Error('account_changed')
       }
-      await saveRoomConfig(token, config)
+      // Un 409 (autre poste passé avant nous) est traité par `pushHardwareConfig`.
+      const saved = await saveRoomConfig(token, config, revision)
+      return saved.configRevision ?? null
     },
     { accountId, tokenTag }
   )
@@ -95,8 +99,22 @@ export async function syncHardwareWithRoom(): Promise<void> {
     (getHardwareSyncMeta().pending || isDefaultHardwareConfig(room.config))
 
   if (keepLocal) {
+    const meta = getHardwareSyncMeta()
+    if (
+      meta.pending &&
+      meta.revision !== null &&
+      room.configRevision !== undefined &&
+      meta.revision !== room.configRevision
+    ) {
+      // Le compte a changé depuis la dernière révision connue de ce PC : sa version, la plus
+      // récente, l'emporte sur la modification restée hors ligne, et rien n'est envoyé.
+      await resolveHardwareConflict(room.config, room.configRevision)
+      return
+    }
+    // Copie ancienne (révision inconnue) ou compte inchangé : elle part sur la révision lue.
+    setHardwareConfigRevision(room.configRevision)
     await pushHardwareConfig()
     return
   }
-  await applyRemoteHardwareConfig(room.config)
+  await applyRemoteHardwareConfig(room.config, room.configRevision ?? null)
 }

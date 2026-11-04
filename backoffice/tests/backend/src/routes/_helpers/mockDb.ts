@@ -227,6 +227,18 @@ type RawSql = {
   bindings: unknown[]
 }
 
+/** Applique un UPDATE à une ligne ; comprend seulement l'incrément `db.raw('colonne + 1')`. */
+function applyUpdate(row: Row, payload: Row): void {
+  for (const [column, value] of Object.entries(payload)) {
+    const increment =
+      typeof value === 'object' && value !== null && '__raw' in value
+        ? /^(\w+) \+ 1$/.exec((value as RawSql).sql)
+        : null
+
+    row[column] = increment ? Number(row[increment[1]!] ?? 0) + 1 : value
+  }
+}
+
 type SelectColumn = string | RawSql
 type SortConfig = {
   column: string
@@ -651,7 +663,7 @@ class QueryBuilder {
 
   private executeUpdate(): number {
     const rows = this.filteredRows()
-    rows.forEach((row) => Object.assign(row, this.updatePayload ?? {}))
+    rows.forEach((row) => applyUpdate(row, this.updatePayload ?? {}))
 
     return rows.length
   }
@@ -667,7 +679,7 @@ class QueryBuilder {
       rows = this.executeInsert()
     } else if (this.updatePayload) {
       rows = this.filteredRows()
-      rows.forEach((row) => Object.assign(row, this.updatePayload ?? {}))
+      rows.forEach((row) => applyUpdate(row, this.updatePayload ?? {}))
     }
 
     this.executed = true

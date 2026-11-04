@@ -18,6 +18,9 @@
       {{ $t('hardware.advanced.invalidJson', { message: jsonError }) }}
     </p>
     <p v-else-if="saved" class="hw-ok" role="status">{{ $t('hardware.advanced.saved') }}</p>
+    <p v-if="syncStatus === 'conflict'" class="hw-alert" role="status" data-test="sync-conflict">
+      {{ $t('hardware.sync.conflict') }}
+    </p>
 
     <div class="hw-actions">
       <UiButton variant="primary" :disabled="saving" data-test="config-save" @click="onSave">
@@ -46,12 +49,12 @@
 
 <script setup lang="ts">
 import { GENERIC_PROFILES } from '@quizzup/hardware'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 
 import UiButton from '@/components/ui/UiButton.vue'
 import { saveRoomHardwareConfig, useRoomHardware } from '@/hardware/roomHardware'
 
-const { hardware } = useRoomHardware()
+const { hardware, syncStatus, conflictCount } = useRoomHardware()
 
 const draft = ref('')
 const jsonError = ref<string | null>(null)
@@ -80,11 +83,15 @@ async function onSave(): Promise<void> {
     await saveRoomHardwareConfig(input)
     // On réaffiche la version normalisée (valeurs bornées, entrées invalides écartées).
     reload()
-    saved.value = true
+    // Après un conflit, c'est la config d'un autre poste qui est affichée : rien n'est « enregistré ».
+    saved.value = syncStatus.value !== 'conflict'
   } finally {
     saving.value = false
   }
 }
+
+// Un autre poste a enregistré une autre config : le brouillon repart d'elle.
+watch(conflictCount, reload)
 
 reload()
 </script>

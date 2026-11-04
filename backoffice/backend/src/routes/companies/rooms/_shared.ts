@@ -8,6 +8,7 @@ export const roomSelect = [
   'company_id as companyId',
   'name',
   'config',
+  'config_revision as configRevision',
   'status',
   'created_at as createdAt',
   'updated_at as updatedAt',

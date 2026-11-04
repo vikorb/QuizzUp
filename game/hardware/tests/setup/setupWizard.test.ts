@@ -386,7 +386,7 @@ describe('assistant d’installation : fumée', () => {
 
     const blocked = wizard.summary()
     expect(blocked.config.lighting.smoke.enabled).toBe(false)
-    expect(blocked.warnings.join(' ')).toContain('vérifications de sécurité')
+    expect(blocked.smokeDisabled).toBe('checks_incomplete')
 
     // Test de gel : la fumée doit pouvoir partir une fois l'arrêt physique et le relais cochés.
     expect(wizard.summary({ forFreezeTest: true }).config.lighting.smoke.enabled).toBe(false)
@@ -402,6 +402,7 @@ describe('assistant d’installation : fumée', () => {
     expect(wizard.next()).toEqual({ ok: true })
     const ready = wizard.summary()
     expect(ready.config.lighting.smoke).toMatchObject({ enabled: true, maxDurationMs: 4000 })
+    expect(ready.smokeDisabled).toBeNull()
 
     // Changer d'interface oblige à refaire le test de gel.
     wizard.setDriver('usbpro')
@@ -445,7 +446,7 @@ describe('assistant d’installation : fumée', () => {
     wizard.removeFixture('fumee')
     const summary = wizard.summary()
     expect(summary.config.lighting.smoke.enabled).toBe(false)
-    expect(summary.warnings.join(' ')).toContain('aucune machine à fumée')
+    expect(summary.smokeDisabled).toBe('no_device')
   })
 })
 

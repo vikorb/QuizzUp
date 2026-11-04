@@ -92,7 +92,9 @@ src/
   (`audio/demoSynthPlayer.ts`, libres de droits).
 - **Config matérielle** : gardée sur le compte de la salle (`rooms.config`), relue via
   `GET /room/me` et enregistrée via `PUT /room/config` (`hardware/hardwareSync.ts`) ; le navigateur
-  n'en garde qu'une copie de secours.
+  n'en garde qu'une copie de secours. Chaque enregistrement renvoie la révision lue
+  (`configRevision`) : si un autre poste a écrit entre-temps (409), la config du compte remplace
+  celle de ce PC, l'écran Matériel prévient l'opérateur et rien n'est renvoyé automatiquement.
 
 ### Clavier de simulation
 

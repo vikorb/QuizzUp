@@ -8,6 +8,8 @@ export type RoomRow = {
   companyId: number
   name: string
   config: RoomConfig
+  /** Augmente de 1 à chaque écriture de `config` (détection des écritures concurrentes). */
+  configRevision: number
   status: RoomStatus
   createdAt: string
   updatedAt: string | null
