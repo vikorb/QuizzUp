@@ -1,4 +1,4 @@
-import type { MiniGame, QuestionMediaType, RoundChooserReason } from '@quizzup/shared'
+import type { MiniGame, QuestionKind, QuestionMediaType, RoundChooserReason } from '@quizzup/shared'
 
 /** Index d'un buzzer sur un pupitre : 0 = A, 1 = B, 2 = C, 3 = D. */
 export type ButtonIndex = 0 | 1 | 2 | 3
@@ -16,6 +16,11 @@ export type EngineQuestion = {
   mediaUrl: string | null
   /** Point de départ de l'extrait dans le fichier média, en millisecondes. */
   mediaStartMs: number
+  /**
+   * Type saisi au backoffice (QCM, vrai/faux, estimation). Absent (ancien contenu,
+   * sauvegarde d'avant le champ) : le moteur le déduit des réponses.
+   */
+  kind?: QuestionKind
   answers: EngineAnswer[]
 }
 

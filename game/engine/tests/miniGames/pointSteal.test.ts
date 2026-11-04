@@ -65,7 +65,7 @@ describe('pointSteal definition', () => {
     expect(pointSteal.id).toBe(MINI_GAME_POINT_STEAL)
     expect(pointSteal.minParticipants).toBe(2)
     expect(pointSteal.isQuestionEligible(question)).toBe(true)
-    expect(pointSteal.isQuestionEligible(imageQuestion(1))).toBe(true)
+    expect(pointSteal.isQuestionEligible(imageQuestion(1))).toBe(false)
     expect(pointSteal.isQuestionEligible(audioQuestion(2))).toBe(false)
   })
 

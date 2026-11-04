@@ -67,7 +67,7 @@ describe('streak.isQuestionEligible', () => {
   it('accepts multiple choice questions only', () => {
     expect(streak.id).toBe(MINI_GAME_STREAK)
     expect(streak.isQuestionEligible(qcmQuestion(1))).toBe(true)
-    expect(streak.isQuestionEligible(imageQuestion(1))).toBe(true)
+    expect(streak.isQuestionEligible(imageQuestion(1))).toBe(false)
     expect(streak.isQuestionEligible(audioQuestion(1))).toBe(false)
     expect(streak.isQuestionEligible(qcmQuestion(1, 0, 1))).toBe(false)
   })
