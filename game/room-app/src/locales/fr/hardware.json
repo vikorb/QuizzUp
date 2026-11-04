@@ -332,14 +332,12 @@
     },
     "profiles": {
       "title": "Profils sur mesure et sens des lyres",
-      "hint": "Copie un profil générique pour régler ses canaux : roue de couleurs (valeur DMX et couleur de chaque emplacement), shutter, gobo, vitesse. Valeurs indicatives, à vérifier sur la notice de la lyre.",
+      "hint": "Copie un profil générique pour régler ses canaux : roue de couleurs (valeur DMX et couleur de chaque emplacement), shutter, valeurs fixes. Valeurs indicatives, à vérifier sur la notice de la lyre. Pour utiliser la copie, indique son identifiant dans le champ profileId de l’appareil (JSON ci-dessus).",
       "base": "Profil à copier",
       "copy": "Copier ce profil",
-      "copySuffix": "(copie)",
       "name": "Nom du profil",
       "removeProfile": "Supprimer le profil",
       "role": "Rôle du canal",
-      "removeChannel": "Retirer le canal",
       "addChannel": "Ajouter un canal",
       "slotValue": "Valeur DMX de l’emplacement",
       "slotColor": "Couleur de l’emplacement",
@@ -348,11 +346,32 @@
       "open": "Ouvert",
       "closed": "Fermé",
       "never": "jamais",
-      "openGobo": "Sans gobo",
       "value": "Valeur",
       "fixtures": "Sens des lyres",
       "invertPan": "Inverser le pan",
-      "invertTilt": "Inverser le tilt"
+      "invertTilt": "Inverser le tilt",
+      "copyName": "Copie de {id}",
+      "roleN": "Rôle du canal {n}",
+      "removeChannelN": "Retirer le canal {n}",
+      "inUse": "Profil utilisé par : {names}. Change le profileId de ces appareils (JSON ci-dessus) avant de le supprimer.",
+      "roles": {
+        "dimmer": "Gradateur",
+        "red": "Rouge",
+        "green": "Vert",
+        "blue": "Bleu",
+        "white": "Blanc",
+        "amber": "Ambre",
+        "uv": "UV",
+        "strobe": "Strobe",
+        "pan": "Pan",
+        "panFine": "Pan fin",
+        "tilt": "Tilt",
+        "tiltFine": "Tilt fin",
+        "smoke": "Fumée",
+        "fixed": "Valeur fixe",
+        "colorWheel": "Roue de couleurs",
+        "shutter": "Shutter"
+      }
     }
   }
 }

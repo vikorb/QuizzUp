@@ -94,6 +94,7 @@ export {
   findProfile,
   FIXTURE_KINDS,
   GENERIC_PROFILES,
+  MAX_COLOR_SLOTS,
 } from './dmx/profiles'
 export type {
   SerialErrorCode,

@@ -16,10 +16,11 @@ export const CHANNEL_ROLES = [
   'fixed',
   'colorWheel',
   'shutter',
-  'gobo',
-  'speed',
 ] as const
 export type ChannelRole = (typeof CHANNEL_ROLES)[number]
+
+/** Nombre maximal d'emplacements d'une roue (une valeur DMX par emplacement). */
+export const MAX_COLOR_SLOTS = 256
 
 /** Emplacement d'une roue de couleurs : valeur DMX (0-255) et couleur affichée (RVB 0-255). */
 export type ColorSlot = { value: number; rgb: [number, number, number] }
@@ -27,13 +28,13 @@ export type ColorSlot = { value: number; rgb: [number, number, number] }
 export type ChannelSpec = {
   role: ChannelRole
   /**
-   * Valeur envoyée pour un canal `fixed` (mode, macro…), `speed` (vitesse pan/tilt) ou au repos
-   * pour les autres, ainsi que pour une `colorWheel` sans emplacement.
+   * Valeur envoyée pour un canal `fixed` (mode, macro, vitesse pan/tilt, gobo ouvert…) ou au repos
+   * pour les autres, ainsi que pour une `colorWheel` sans emplacement ou sur du noir.
    */
   value?: number
   /** `colorWheel` : emplacements de la roue ; la couleur demandée prend le plus proche (RVB). */
   slots?: ColorSlot[]
-  /** `shutter` : valeur d'ouverture (défaut 255) ; `gobo` : valeur « pas de gobo » (défaut 0). */
+  /** `shutter` : valeur d'ouverture (défaut 255). */
   open?: number
   /** `shutter` : valeur fermée, envoyée quand l'intensité vaut 0. Absente = toujours ouvert. */
   closed?: number
@@ -86,11 +87,12 @@ const genericSpot = (channelCount: number): FixtureProfile => ({
     ch('panFine'),
     ch('tilt'),
     ch('tiltFine'),
-    ch('speed', { value: 0 }), // 0 = vitesse maximale sur la plupart des modèles
+    ch('fixed', { value: 0 }), // vitesse pan/tilt : 0 = maximale sur la plupart des modèles
     ch('dimmer'),
-    ch('shutter', { open: 255 }),
+    // Fermé quand l'intensité vaut 0. Le strobe n'est pas piloté sur ces profils (shutter ouvert).
+    ch('shutter', { open: 255, closed: 0 }),
     ch('colorWheel', { slots: defaultColorWheelSlots() }),
-    ch('gobo', { open: 0 }),
+    ch('fixed', { value: 0 }), // gobo : ouvert (pas de gobo)
     ...Array.from({ length: channelCount - 9 }, () => ch('fixed', { value: 0 })),
   ],
 })

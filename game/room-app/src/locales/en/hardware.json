@@ -332,14 +332,12 @@
     },
     "profiles": {
       "title": "Custom profiles and moving head direction",
-      "hint": "Copy a generic profile to tune its channels: colour wheel (DMX value and colour of each slot), shutter, gobo, speed. Values are indicative: check the fixture manual.",
+      "hint": "Copy a generic profile to tune its channels: colour wheel (DMX value and colour of each slot), shutter, fixed values. Values are indicative: check the fixture manual. To use the copy, set its id as the fixture's profileId (JSON above).",
       "base": "Profile to copy",
       "copy": "Copy this profile",
-      "copySuffix": "(copy)",
       "name": "Profile name",
       "removeProfile": "Delete profile",
       "role": "Channel role",
-      "removeChannel": "Remove channel",
       "addChannel": "Add channel",
       "slotValue": "Slot DMX value",
       "slotColor": "Slot colour",
@@ -348,11 +346,32 @@
       "open": "Open",
       "closed": "Closed",
       "never": "never",
-      "openGobo": "No gobo",
       "value": "Value",
       "fixtures": "Moving head direction",
       "invertPan": "Invert pan",
-      "invertTilt": "Invert tilt"
+      "invertTilt": "Invert tilt",
+      "copyName": "Copy of {id}",
+      "roleN": "Channel {n} role",
+      "removeChannelN": "Remove channel {n}",
+      "inUse": "Profile used by: {names}. Change the profileId of these fixtures (JSON above) before deleting it.",
+      "roles": {
+        "dimmer": "Dimmer",
+        "red": "Red",
+        "green": "Green",
+        "blue": "Blue",
+        "white": "White",
+        "amber": "Amber",
+        "uv": "UV",
+        "strobe": "Strobe",
+        "pan": "Pan",
+        "panFine": "Pan fine",
+        "tilt": "Tilt",
+        "tiltFine": "Tilt fine",
+        "smoke": "Smoke",
+        "fixed": "Fixed value",
+        "colorWheel": "Colour wheel",
+        "shutter": "Shutter"
+      }
     }
   }
 }

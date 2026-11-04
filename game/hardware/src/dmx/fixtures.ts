@@ -3,7 +3,7 @@ import { clampByte, DESKS, isDesk } from '../types'
 import type { DmxDriver } from './output'
 import { DMX_DRIVER_UNIVERSES } from './output'
 import type { ChannelSpec, ColorSlot, FixtureProfile } from './profiles'
-import { CHANNEL_ROLES, findProfile, FIXTURE_KINDS } from './profiles'
+import { CHANNEL_ROLES, findProfile, FIXTURE_KINDS, MAX_COLOR_SLOTS } from './profiles'
 import { DMX_CHANNELS, MAX_UNIVERSES } from './universe'
 
 /** Position d'une lyre : pan et tilt sur 16 bits (0-65535). */
@@ -70,11 +70,14 @@ export function isLightFixture(fixture: ResolvedFixture): boolean {
 
 const clampWord = (value: number) => Math.min(65_535, Math.max(0, Math.round(value)))
 
-/** Position d'un axe : ramenée dans la plage, puis inversée dans cette même plage. */
+/**
+ * Position physique d'un axe : la position demandée est d'abord inversée si besoin, puis la plage
+ * (butées du matériel, en valeurs DMX réellement envoyées) s'applique à ce résultat.
+ */
 function axisWord(value: number, range: [number, number] | undefined, invert: boolean | undefined) {
   const [min, max] = range ?? [0, 65_535]
-  const word = Math.min(max, Math.max(min, clampWord(value)))
-  return invert ? min + max - word : word
+  const word = invert ? 65_535 - clampWord(value) : clampWord(value)
+  return Math.min(max, Math.max(min, word))
 }
 
 /** Emplacement de roue le plus proche (distance RVB euclidienne) ; à égalité, le premier. */
@@ -124,17 +127,19 @@ function channelValue(
       return axisWord(position.tilt, fixture.tiltRange, fixture.invertTilt) >> 8
     case 'tiltFine':
       return axisWord(position.tilt, fixture.tiltRange, fixture.invertTilt) & 0xff
-    case 'colorWheel':
-      // Roue vide ou absente : valeur fixe du canal, comme un canal `fixed`.
-      return clampByte(nearestSlot(spec.slots ?? [], state.color)?.value ?? spec.value ?? 0)
+    case 'colorWheel': {
+      const slots = spec.slots ?? []
+      const { r, g, b } = state.color
+      // Noir : la roue ne bouge pas (valeur du canal, sinon premier emplacement). Roue vide : valeur du canal.
+      if (r === 0 && g === 0 && b === 0) {
+        return clampByte(spec.value ?? slots[0]?.value ?? 0)
+      }
+      return clampByte(nearestSlot(slots, state.color)?.value ?? spec.value ?? 0)
+    }
     case 'shutter':
       return clampByte(
         spec.closed !== undefined && state.intensity <= 0 ? spec.closed : (spec.open ?? 255)
       )
-    case 'gobo':
-      return clampByte(spec.open ?? 0)
-    case 'speed':
-      return clampByte(spec.value ?? 0)
     case 'smoke':
       if (smokeLevel <= 0) {
         return 0
@@ -239,23 +244,34 @@ function parsePanTilt(input: unknown): PanTilt | null {
 const isByte = (value: unknown): value is number =>
   typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 255
 
-/** Emplacements de roue : `undefined` si absents, `null` si l'un d'eux est invalide. */
-function parseSlots(input: unknown): ColorSlot[] | undefined | null {
+/**
+ * Emplacements de roue valides ; les autres (valeur hors 0-255, rgb mal formé, au-delà de
+ * `MAX_COLOR_SLOTS`) sont écartés et comptés : le profil et ses appareils sont conservés.
+ */
+function parseSlots(input: unknown): { slots: ColorSlot[] | undefined; discarded: number } {
   if (input === undefined) {
-    return undefined
+    return { slots: undefined, discarded: 0 }
   }
-  if (!Array.isArray(input) || input.length > 256) {
-    return null
+  if (!Array.isArray(input)) {
+    return { slots: undefined, discarded: 1 }
   }
   const slots: ColorSlot[] = []
+  let discarded = 0
   for (const raw of input as Record<string, unknown>[]) {
     const rgb = raw?.rgb
-    if (!isByte(raw?.value) || !Array.isArray(rgb) || rgb.length !== 3 || !rgb.every(isByte)) {
-      return null
+    if (
+      slots.length >= MAX_COLOR_SLOTS ||
+      !isByte(raw?.value) ||
+      !Array.isArray(rgb) ||
+      rgb.length !== 3 ||
+      !rgb.every(isByte)
+    ) {
+      discarded += 1
+      continue
     }
-    slots.push({ value: raw.value, rgb: rgb.slice(0, 3) as ColorSlot['rgb'] })
+    slots.push({ value: raw.value, rgb: rgb as ColorSlot['rgb'] })
   }
-  return slots
+  return { slots, discarded }
 }
 
 /** Plage `[min, max]` en mots 16 bits ; `null` si invalide. */
@@ -295,16 +311,15 @@ function parseCustomProfiles(input: unknown, problems: string[]): FixtureProfile
     }
     const specs: ChannelSpec[] = []
     let problem: string | null = null
+    let discardedSlots = 0
     for (const channel of channels as Record<string, unknown>[]) {
       if (!(CHANNEL_ROLES as readonly unknown[]).includes(channel?.role)) {
         problem = 'rôle de canal inconnu'
         break
       }
-      const slots = channel.role === 'colorWheel' ? parseSlots(channel.slots) : undefined
-      if (slots === null) {
-        problem = 'emplacement de roue invalide (valeur entière 0-255, rgb = 3 entiers 0-255)'
-        break
-      }
+      const parsed = channel.role === 'colorWheel' ? parseSlots(channel.slots) : null
+      discardedSlots += parsed?.discarded ?? 0
+      const slots = parsed?.slots
       specs.push({
         role: channel.role as ChannelSpec['role'],
         ...(typeof channel.value === 'number' ? { value: clampByte(channel.value) } : {}),
@@ -317,6 +332,12 @@ function parseCustomProfiles(input: unknown, problems: string[]): FixtureProfile
     if (problem) {
       problems.push(`Profil sur mesure ${raw.id} : ${problem}`)
       continue
+    }
+    if (discardedSlots > 0) {
+      problems.push(
+        `Profil sur mesure ${raw.id} : ${discardedSlots} emplacement(s) de roue invalide(s) écarté(s) ` +
+          `(valeur entière 0-255, rgb = 3 entiers 0-255, ${MAX_COLOR_SLOTS} emplacements au plus)`
+      )
     }
     profiles.push({
       id: raw.id,

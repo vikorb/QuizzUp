@@ -66,10 +66,10 @@ export const SIX_DESK_PROFILES: readonly FixtureProfile[] = [
       { role: 'tilt' },
       // Roue de couleurs : le spot prend la couleur du pupitre (emplacements indicatifs, à régler).
       { role: 'colorWheel', slots: defaultColorWheelSlots() },
-      { role: 'gobo', open: 0 }, // gobo : ouvert
+      { role: 'fixed', value: 0 }, // gobo : ouvert
       { role: 'strobe' },
       { role: 'dimmer' },
-      { role: 'speed', value: 0 }, // vitesse pan/tilt : maximale
+      { role: 'fixed', value: 0 }, // vitesse pan/tilt : maximale
       { role: 'fixed', value: 0 }, // programmes automatiques : désactivés
       { role: 'fixed', value: 0 }, // reset : aucun
     ],
@@ -87,7 +87,7 @@ export const SIX_DESK_PROFILES: readonly FixtureProfile[] = [
       { role: 'blue' },
       { role: 'white' },
       { role: 'strobe' },
-      { role: 'speed', value: 0 }, // vitesse pan/tilt : maximale
+      { role: 'fixed', value: 0 }, // vitesse pan/tilt : maximale
     ],
   },
 ]

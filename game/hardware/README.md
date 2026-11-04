@@ -210,16 +210,20 @@ relais (tout ou rien). Un appareil absent de la liste se décrit avec un **profi
 `smoke`, `fixed` avec une valeur…).
 
 Lyres spot génériques à roue de couleurs : `moving-head-spot-9`, `-11` et `-16` (ordre de canaux
-courant, **à vérifier sur la notice**). Rôles de canal à réglages :
+courant, **à vérifier sur la notice** ; vitesse et gobo sont des canaux `fixed` à 0). Le strobe
+n'est pas piloté sur ces profils : le shutter est simplement ouvert (255), et fermé (0) quand
+l'intensité vaut 0. Rôles de canal à réglages :
 
-- `colorWheel` : `slots: [{ "value": 0-255, "rgb": [r, g, b] }]`. La couleur demandée prend la
-  valeur de l'emplacement le plus proche (distance RVB, premier en cas d'égalité) ; roue vide =
-  `value` du canal. Rendue en plus des canaux RVB si le profil en a.
+- `colorWheel` : `slots: [{ "value": 0-255, "rgb": [r, g, b] }]` (256 emplacements au plus).
+  La couleur demandée prend la valeur de l'emplacement le plus proche (distance RVB, premier en
+  cas d'égalité). Sur du noir (r = g = b = 0), la roue ne bouge pas : `value` du canal, sinon
+  premier emplacement. Roue vide : `value` du canal. Rendue en plus des canaux RVB si le profil
+  en a. Un emplacement invalide est écarté (message dans `problems`), le profil est conservé.
 - `shutter` : `open` (défaut 255) ; `closed` facultatif, envoyé quand l'intensité vaut 0.
-- `gobo` : `open` (défaut 0, pas de gobo). `speed` : `value` fixe (défaut 0).
+- Vitesse pan/tilt, gobo ouvert, prisme… : canal `fixed` avec sa `value`.
 - Sur l'appareil installé : `invertPan`, `invertTilt` (défaut `false`) et `panRange`, `tiltRange`
-  (`[min, max]` en mots 16 bits comme `PanTilt`) : la position est ramenée dans la plage, puis
-  inversée à l'intérieur de celle-ci.
+  (`[min, max]` en mots 16 bits comme `PanTilt`). La position demandée est d'abord inversée
+  (`65535 - valeur`), puis la plage s'applique à cette valeur physique (butées du matériel).
 
 Un appareil peut être **dédié à un pupitre** (`desk`) et une lyre peut avoir une **position
 enregistrée par pupitre** (`deskPositions`) : « spot sur le pupitre qui a buzzé ».

@@ -33,7 +33,7 @@
       </ul>
     </div>
 
-    <ProfileEditor />
+    <ProfileEditor @saved="reload" />
 
     <details class="profiles">
       <summary>{{ $t('hardware.advanced.profiles') }}</summary>

@@ -2,7 +2,12 @@ import { parseRoomHardwareConfig } from '@hardware/config'
 import type { FixtureConfig, FixtureState, ResolvedFixture } from '@hardware/dmx/fixtures'
 import { darkState, parseRig, renderUniverse } from '@hardware/dmx/fixtures'
 import type { ChannelSpec, FixtureProfile } from '@hardware/dmx/profiles'
-import { defaultColorWheelSlots, findProfile, GENERIC_PROFILES } from '@hardware/dmx/profiles'
+import {
+  defaultColorWheelSlots,
+  findProfile,
+  GENERIC_PROFILES,
+  MAX_COLOR_SLOTS,
+} from '@hardware/dmx/profiles'
 import { createSixDeskRoomRig } from '@hardware/presets/sixDeskRoom'
 
 type Slots = NonNullable<ChannelSpec['slots']>
@@ -80,6 +85,16 @@ describe('rôle colorWheel', () => {
     expect(render(wheel([], 5), darkState())).toEqual([5])
   })
 
+  it('ne bouge pas sur du noir : valeur du canal, sinon premier emplacement', () => {
+    const black = lit({ color: color(0, 0, 0), intensity: 0 })
+    const first = [{ value: 5, rgb: [255, 255, 255] as [number, number, number] }, ...slots]
+    expect(render(wheel(first), black)).toEqual([5])
+    expect(render(wheel(first, 9), black)).toEqual([9])
+    expect(render(wheel([]), black)).toEqual([0])
+    // Une couleur non noire, elle, suit l'emplacement le plus proche.
+    expect(render(wheel(first, 9), lit({ color: color(0, 0, 250) }))).toEqual([30])
+  })
+
   it('laisse le gradateur à 0 sans bloquer le rendu de la roue', () => {
     const profile = profileOf({ role: 'dimmer' }, { role: 'colorWheel', slots })
     expect(render(profile, lit({ color: color(0, 0, 255), intensity: 0 }))).toEqual([0, 30])
@@ -99,28 +114,18 @@ describe('rôle colorWheel', () => {
   })
 })
 
-describe('rôles à valeur fixe', () => {
-  it('shutter : ouvert à 255 par défaut, valeur d’ouverture configurable', () => {
+describe('rôle shutter', () => {
+  it('ouvert à 255 par défaut, valeur d’ouverture configurable', () => {
     expect(render(profileOf({ role: 'shutter' }), lit({}))).toEqual([255])
     expect(render(profileOf({ role: 'shutter', open: 8 }), lit({}))).toEqual([8])
   })
 
-  it('shutter : fermé à intensité 0 seulement si le profil fournit closed', () => {
+  it('fermé à intensité 0 seulement si le profil fournit closed', () => {
     const closing = profileOf({ role: 'shutter', open: 255, closed: 0 })
     expect(render(closing, lit({ intensity: 0 }))).toEqual([0])
     expect(render(closing, lit({ intensity: 0.1 }))).toEqual([255])
     expect(render(profileOf({ role: 'shutter', closed: 4 }), darkState())).toEqual([4])
     expect(render(profileOf({ role: 'shutter', open: 255 }), darkState())).toEqual([255])
-  })
-
-  it('gobo : ouvert (0) par défaut, valeur configurable', () => {
-    expect(render(profileOf({ role: 'gobo' }), lit({}))).toEqual([0])
-    expect(render(profileOf({ role: 'gobo', open: 12 }), lit({}))).toEqual([12])
-  })
-
-  it('speed : valeur fixe du profil, 0 par défaut', () => {
-    expect(render(profileOf({ role: 'speed' }), lit({}))).toEqual([0])
-    expect(render(profileOf({ role: 'speed', value: 200 }), lit({}))).toEqual([200])
   })
 })
 
@@ -151,10 +156,14 @@ describe('inversion et plages pan / tilt', () => {
     expect(render(head, at(5000, 100), range)).toEqual([0x07, 0xd0, 0x00, 0x64])
   })
 
-  it('inverse à l’intérieur de la plage', () => {
+  it('applique la plage à la position physique, après l’inversion', () => {
     const options = { panRange: [1000, 2000] as [number, number], invertPan: true }
-    expect(render(head, at(1200, 0), options).slice(0, 2)).toEqual([0x07, 0x08]) // 1000 + 2000 - 1200
-    expect(render(head, at(0, 0), options).slice(0, 2)).toEqual([0x07, 0xd0]) // 2000
+    // 65535 - 64000 = 1535 : dans la plage.
+    expect(render(head, at(64_000, 0), options).slice(0, 2)).toEqual([0x05, 0xff])
+    // 65535 - 1200 = 64335 : au-delà de la butée haute, ramené à 2000.
+    expect(render(head, at(1200, 0), options).slice(0, 2)).toEqual([0x07, 0xd0])
+    // 65535 - 65535 = 0 : ramené à la butée basse, 1000.
+    expect(render(head, at(65_535, 0), options).slice(0, 2)).toEqual([0x03, 0xe8])
   })
 
   it('profil 8 bits (sans fine) : octet de poids fort inversé', () => {
@@ -166,26 +175,29 @@ describe('inversion et plages pan / tilt', () => {
 })
 
 describe('profils génériques de lyres', () => {
-  it.each([9, 11, 16])('lyre spot %i canaux : roue, gobo et vitesse à leur place', (count) => {
-    const profile = findProfile(`moving-head-spot-${count}`)!
-    expect(profile.channels).toHaveLength(count)
-    expect(profile.channels.map((channel) => channel.role).slice(0, 9)).toEqual([
-      'pan',
-      'panFine',
-      'tilt',
-      'tiltFine',
-      'speed',
-      'dimmer',
-      'shutter',
-      'colorWheel',
-      'gobo',
-    ])
-    const frame = render(profile, lit({ color: color(0, 0, 255) }))
-    expect(frame[5]).toBe(255) // gradateur
-    expect(frame[6]).toBe(255) // shutter ouvert
-    expect(frame[7]).toBe(30) // roue : bleu
-    expect(frame.slice(9).every((value) => value === 0)).toBe(true)
-  })
+  it.each([9, 11, 16])(
+    'lyre spot %i canaux : roue, shutter et canaux fixes à leur place',
+    (count) => {
+      const profile = findProfile(`moving-head-spot-${count}`)!
+      expect(profile.channels).toHaveLength(count)
+      expect(profile.channels.map((channel) => channel.role).slice(0, 9)).toEqual([
+        'pan',
+        'panFine',
+        'tilt',
+        'tiltFine',
+        'fixed',
+        'dimmer',
+        'shutter',
+        'colorWheel',
+        'fixed',
+      ])
+      const frame = render(profile, lit({ color: color(0, 0, 255) }))
+      expect(frame[5]).toBe(255) // gradateur
+      expect(frame[6]).toBe(255) // shutter ouvert
+      expect(frame[7]).toBe(30) // roue : bleu
+      expect(frame.slice(9).every((value) => value === 0)).toBe(true)
+    }
+  )
 
   it('ne partage pas le tableau d’emplacements entre profils', () => {
     const first = findProfile('moving-head-spot-9')!
@@ -214,8 +226,6 @@ describe('parse des profils sur mesure', () => {
     const channels = [
       { role: 'colorWheel', slots: [{ value: 5, rgb: [1, 2, 3] }] },
       { role: 'shutter', open: 200, closed: 3 },
-      { role: 'gobo', open: 9 },
-      { role: 'speed', value: 50 },
     ]
     const { customProfiles, problems } = parse(channels)
     expect(problems).toEqual([])
@@ -223,18 +233,56 @@ describe('parse des profils sur mesure', () => {
   })
 
   it.each([
-    ['valeur hors 0-255', [{ value: 256, rgb: [0, 0, 0] }]],
-    ['valeur négative', [{ value: -1, rgb: [0, 0, 0] }]],
-    ['valeur non entière', [{ value: 1.5, rgb: [0, 0, 0] }]],
-    ['rgb trop court', [{ value: 1, rgb: [0, 0] }]],
-    ['rgb hors 0-255', [{ value: 1, rgb: [0, 0, 300] }]],
-    ['rgb non numérique', [{ value: 1, rgb: ['a', 0, 0] }]],
-    ['rgb absent', [{ value: 1 }]],
-    ['emplacements pas une liste', 'rouge'],
-  ])('rejette le profil : %s', (_name, slots) => {
+    ['valeur hors 0-255', { value: 256, rgb: [0, 0, 0] }],
+    ['valeur négative', { value: -1, rgb: [0, 0, 0] }],
+    ['valeur non entière', { value: 1.5, rgb: [0, 0, 0] }],
+    ['rgb trop court', { value: 1, rgb: [0, 0] }],
+    ['rgb hors 0-255', { value: 1, rgb: [0, 0, 300] }],
+    ['rgb non numérique', { value: 1, rgb: ['a', 0, 0] }],
+    ['rgb absent', { value: 1 }],
+  ])('écarte seulement l’emplacement invalide, garde le profil : %s', (_name, invalid) => {
+    const good = { value: 7, rgb: [1, 2, 3] }
+    const { customProfiles, problems } = parse([{ role: 'colorWheel', slots: [good, invalid] }])
+    expect(customProfiles[0]?.channels[0]?.slots).toEqual([good])
+    expect(problems).toEqual([expect.stringContaining('1 emplacement(s) de roue invalide(s)')])
+  })
+
+  it('garde les appareils du profil quand un emplacement est invalide', () => {
+    const { fixtures, problems } = parseRig(
+      [{ id: 'a', name: 'A', profileId: 'mine', address: 1 }],
+      [
+        {
+          id: 'mine',
+          name: 'Mine',
+          kind: 'movingHead',
+          channels: [{ role: 'colorWheel', slots: [{ value: 999, rgb: [0, 0, 0] }] }],
+        },
+      ]
+    )
+    expect(fixtures.map((fixture) => fixture.id)).toEqual(['a'])
+    expect(fixtures[0]?.profile.channels[0]?.slots).toEqual([])
+    expect(problems).toHaveLength(1)
+  })
+
+  it('ignore des emplacements qui ne sont pas une liste, avec un message', () => {
+    const { customProfiles, problems } = parse([{ role: 'colorWheel', slots: 'rouge' }])
+    expect(customProfiles[0]?.channels).toEqual([{ role: 'colorWheel' }])
+    expect(problems).toHaveLength(1)
+  })
+
+  it('limite la roue à MAX_COLOR_SLOTS emplacements', () => {
+    const slots = Array.from({ length: MAX_COLOR_SLOTS + 3 }, (_value, index) => ({
+      value: index % 256,
+      rgb: [0, 0, 0],
+    }))
     const { customProfiles, problems } = parse([{ role: 'colorWheel', slots }])
-    expect(customProfiles).toEqual([])
-    expect(problems).toEqual([expect.stringContaining('emplacement de roue invalide')])
+    expect(customProfiles[0]?.channels[0]?.slots).toHaveLength(MAX_COLOR_SLOTS)
+    expect(problems).toEqual([expect.stringContaining('3 emplacement(s)')])
+  })
+
+  it('rejette les anciens rôles gobo et speed (identiques à fixed)', () => {
+    expect(parse([{ role: 'gobo' }]).customProfiles).toEqual([])
+    expect(parse([{ role: 'speed' }]).customProfiles).toEqual([])
   })
 
   it('rejette toujours un rôle inconnu', () => {

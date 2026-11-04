@@ -24,20 +24,30 @@
       <header class="row">
         <input v-model="profile.name" :aria-label="$t('hardware.profiles.name')" />
         <code>{{ profile.id }}</code>
-        <UiButton variant="danger" @click="removeProfile(profile.id)">
+        <UiButton
+          variant="danger"
+          :disabled="usedBy(profile.id).length > 0"
+          data-test="profile-remove"
+          @click="removeProfile(profile.id)"
+        >
           {{ $t('hardware.profiles.removeProfile') }}
         </UiButton>
       </header>
+      <p v-if="usedBy(profile.id).length > 0" class="hw-hint" data-test="profile-in-use">
+        {{ $t('hardware.profiles.inUse', { names: usedBy(profile.id).join(', ') }) }}
+      </p>
 
       <ol class="channels">
         <li v-for="(channel, index) in profile.channels" :key="index" class="channel">
           <span class="channel__n">{{ index + 1 }}</span>
           <select
             :value="channel.role"
-            :aria-label="$t('hardware.profiles.role')"
+            :aria-label="$t('hardware.profiles.roleN', { n: index + 1 })"
             @change="setRole(profile, index, $event)"
           >
-            <option v-for="role in CHANNEL_ROLES" :key="role" :value="role">{{ role }}</option>
+            <option v-for="role in CHANNEL_ROLES" :key="role" :value="role">
+              {{ $t(`hardware.profiles.roles.${role}`) }}
+            </option>
           </select>
 
           <template v-if="channel.role === 'colorWheel'">
@@ -71,44 +81,43 @@
                   ×
                 </UiButton>
               </div>
-              <UiButton data-test="slot-add" @click="addSlot(profile, index)">
+              <UiButton
+                :disabled="(channel.slots?.length ?? 0) >= MAX_COLOR_SLOTS"
+                data-test="slot-add"
+                @click="addSlot(profile, index)"
+              >
                 {{ $t('hardware.profiles.addSlot') }}
               </UiButton>
             </div>
           </template>
 
-          <label v-else-if="channel.role === 'shutter'" class="row">
-            {{ $t('hardware.profiles.open') }}
-            <input
-              type="number"
-              min="0"
-              max="255"
-              :value="channel.open ?? 255"
-              @input="channel.open = byte($event)"
-            />
-            {{ $t('hardware.profiles.closed') }}
-            <input
-              type="number"
-              min="0"
-              max="255"
-              :value="channel.closed"
-              :placeholder="$t('hardware.profiles.never')"
-              @input="setClosed(profile, index, $event)"
-            />
-          </label>
+          <div v-else-if="channel.role === 'shutter'" class="row">
+            <label class="row">
+              {{ $t('hardware.profiles.open') }}
+              <input
+                type="number"
+                min="0"
+                max="255"
+                :value="channel.open ?? 255"
+                data-test="shutter-open"
+                @input="channel.open = byte($event)"
+              />
+            </label>
+            <label class="row">
+              {{ $t('hardware.profiles.closed') }}
+              <input
+                type="number"
+                min="0"
+                max="255"
+                :value="channel.closed"
+                :placeholder="$t('hardware.profiles.never')"
+                data-test="shutter-closed"
+                @input="setClosed(profile, index, $event)"
+              />
+            </label>
+          </div>
 
-          <label v-else-if="channel.role === 'gobo'" class="row">
-            {{ $t('hardware.profiles.openGobo') }}
-            <input
-              type="number"
-              min="0"
-              max="255"
-              :value="channel.open ?? 0"
-              @input="channel.open = byte($event)"
-            />
-          </label>
-
-          <label v-else-if="channel.role === 'speed' || channel.role === 'fixed'" class="row">
+          <label v-else-if="channel.role === 'fixed'" class="row">
             {{ $t('hardware.profiles.value') }}
             <input
               type="number"
@@ -120,7 +129,7 @@
           </label>
 
           <UiButton
-            :aria-label="$t('hardware.profiles.removeChannel')"
+            :aria-label="$t('hardware.profiles.removeChannelN', { n: index + 1 })"
             @click="profile.channels.splice(index, 1)"
           >
             ×
@@ -130,7 +139,9 @@
 
       <div class="row">
         <select v-model="newRole" :aria-label="$t('hardware.profiles.role')" data-test="new-role">
-          <option v-for="role in CHANNEL_ROLES" :key="role" :value="role">{{ role }}</option>
+          <option v-for="role in CHANNEL_ROLES" :key="role" :value="role">
+            {{ $t(`hardware.profiles.roles.${role}`) }}
+          </option>
         </select>
         <UiButton data-test="channel-add" @click="addChannel(profile)">
           {{ $t('hardware.profiles.addChannel') }}
@@ -169,12 +180,15 @@ import {
   defaultColorWheelSlots,
   findProfile,
   GENERIC_PROFILES,
+  MAX_COLOR_SLOTS,
 } from '@quizzup/hardware'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import UiButton from '@/components/ui/UiButton.vue'
 import { saveRoomHardwareConfig, useRoomHardware } from '@/hardware/roomHardware'
+
+const emit = defineEmits<{ saved: [] }>()
 
 const { hardware } = useRoomHardware()
 const { t } = useI18n()
@@ -188,12 +202,29 @@ const newRole = ref<ChannelRole>('colorWheel')
 const saving = ref(false)
 const saved = ref(false)
 
+/** Copie de travail telle qu'elle a été chargée : sert à savoir si l'éditeur a des modifications. */
+let baseline = ''
+const snapshot = () => JSON.stringify([profiles.value, fixtures.value])
+
 function load(): void {
   profiles.value = clone(hardware.value.config.lighting.customProfiles)
   fixtures.value = clone(hardware.value.config.lighting.fixtures)
+  baseline = snapshot()
 }
 load()
-watch(() => hardware.value.config, load)
+// La config change ailleurs (JSON, synchro) : on recharge, sauf si l'éditeur a des modifications.
+watch(
+  () => hardware.value.config,
+  () => {
+    if (snapshot() === baseline) {
+      load()
+    }
+  }
+)
+
+/** Noms des appareils qui utilisent un profil. */
+const usedBy = (profileId: string) =>
+  fixtures.value.filter((fixture) => fixture.profileId === profileId).map((fixture) => fixture.name)
 
 /** Appareils avec pan et tilt : ce sont les seuls à pouvoir être inversés. */
 const movable = computed(() =>
@@ -233,10 +264,7 @@ function makeChannel(role: ChannelRole): ChannelSpec {
   if (role === 'colorWheel') {
     return { role, slots: defaultColorWheelSlots() }
   }
-  if (role === 'shutter') {
-    return { role, open: 255 }
-  }
-  return role === 'gobo' ? { role, open: 0 } : { role }
+  return role === 'shutter' ? { role, open: 255 } : { role }
 }
 
 /** Changer de rôle repart d'un canal propre : les réglages de l'ancien rôle n'ont plus de sens. */
@@ -255,6 +283,9 @@ function addChannel(profile: FixtureProfile): void {
 function addSlot(profile: FixtureProfile, index: number): void {
   const channel = profile.channels[index] as ChannelSpec
   const slots = channel.slots ?? []
+  if (slots.length >= MAX_COLOR_SLOTS) {
+    return
+  }
   const next = Math.min(255, Math.max(-10, ...slots.map((slot) => slot.value)) + 10)
   replaceChannel(profile, index, {
     ...channel,
@@ -275,11 +306,15 @@ function copyProfile(): void {
   profiles.value.push({
     ...clone(base),
     id,
-    name: `${base.name} ${t('hardware.profiles.copySuffix')}`,
+    name: t('hardware.profiles.copyName', { id: base.id }),
   })
 }
 
 function removeProfile(id: string): void {
+  // Un profil utilisé ne se supprime pas : ses appareils disparaîtraient de la config enregistrée.
+  if (usedBy(id).length > 0) {
+    return
+  }
   profiles.value = profiles.value.filter((profile) => profile.id !== id)
 }
 
@@ -292,7 +327,10 @@ async function save(): Promise<void> {
       ...config,
       lighting: { ...config.lighting, customProfiles: profiles.value, fixtures: fixtures.value },
     })
+    // Repart de la config normalisée (entrées invalides écartées), puis prévient le JSON.
+    load()
     saved.value = true
+    emit('saved')
   } finally {
     saving.value = false
   }
