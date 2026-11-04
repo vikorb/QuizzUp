@@ -193,8 +193,8 @@ describe('preloadExtracts', () => {
       name: 'Thème',
       questions: [
         { mediaType: 'audio', mediaUrl: 'https://api/questions/1/media?v=2' },
-        { mediaType: 'image', mediaUrl: 'https://img.test/2.png' },
         { mediaType: 'audio', mediaUrl: 'demo://1/1' },
+        { mediaType: 'image', mediaUrl: 'https://cdn/x.png' },
         { mediaUrl: null },
       ],
     },

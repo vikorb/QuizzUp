@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 
 import { createLocalSessionStorage } from '@/game/session'
-import { stopLighting } from '@/hardware/roomHardware'
+import { setHardwareRemoteSaver, stopLighting } from '@/hardware/roomHardware'
 import {
   fetchRoomAccount,
   getRoomToken,
@@ -57,6 +57,8 @@ export async function refreshRoomAccount(): Promise<void> {
 }
 
 function clearLocalSession(options: { keepSavedGame?: boolean } = {}): void {
+  // Plus de compte : la config matérielle n'est plus enregistrée côté backoffice.
+  setHardwareRemoteSaver(null)
   setRoomToken(null)
   setDemoMode(false)
   token.value = null

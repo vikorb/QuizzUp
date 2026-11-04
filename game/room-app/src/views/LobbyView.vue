@@ -1,5 +1,8 @@
 <template>
-  <main class="lobby stage-bg">
+  <!-- Compte de salle : la partie et ses joueurs viennent du backoffice. -->
+  <StaffGameLobby v-if="!isDemo" />
+  <!-- Mode démo (sans backoffice) : inscription des joueurs sur place. -->
+  <main v-else class="lobby stage-bg">
     <RoomTopBar>
       <span>{{ $t('room.lobby.title') }}</span>
     </RoomTopBar>
@@ -72,7 +75,7 @@ import { useRouter } from 'vue-router'
 import RoomTopBar from '@/components/game/RoomTopBar.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
-import { loadRoomThemes } from '@/game/content'
+import { loadDemoThemes } from '@/game/content'
 import {
   createEmptyRegistration,
   hasErrors,
@@ -85,6 +88,7 @@ import { type DeskNumber, DESKS } from '@/hardware/buzzers'
 import { useBuzzers } from '@/hardware/useBuzzers'
 import { isDemo } from '@/state/roomAuth'
 import DeskRegistration from '@/views/lobby/DeskRegistration.vue'
+import StaffGameLobby from '@/views/lobby/StaffGameLobby.vue'
 
 const FORMATS = [
   {
@@ -145,7 +149,7 @@ async function onStart(): Promise<void> {
   starting.value = true
   startFailed.value = false
   try {
-    const themes = await loadRoomThemes()
+    const themes = await loadDemoThemes()
     // Un extrait illisible n'empêche pas de jouer : son palier restera muet.
     await preloadExtracts(themes)
     startNewGame({
