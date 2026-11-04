@@ -40,6 +40,7 @@ function seedRoom(overrides: Record<string, unknown> = {}) {
     company_id: 1,
     name: 'Salle Néon',
     config: { buzzers: { podiums: 4 } },
+    config_revision: 0,
     status: ROOM_STATUS_ACTIVE,
     created_at: '2026-11-01T00:00:00.000Z',
     updated_at: null,
@@ -470,6 +471,92 @@ describe('routes/room.ts — hardware config', () => {
     expect(dbState.rooms[0]!.config).toMatchObject({ desksCount: 6 })
 
     await app.close()
+  })
+
+  describe('config revision (writes from two PCs)', () => {
+    type RoomBody = { room: { config: unknown; configRevision: number } }
+    type ConflictBody = { error: string; config: unknown; configRevision: number }
+
+    const put = (app: Awaited<ReturnType<typeof createRouteApp>>, payload: unknown) =>
+      app.inject({
+        method: 'PUT',
+        url: '/room/config',
+        headers: authHeaders(roomUser),
+        payload: payload as Record<string, unknown>,
+      })
+
+    it('returns the revision with /room/me', async () => {
+      seedRoom({ config_revision: 7 })
+      const app = await createRouteApp(roomRoutes)
+
+      const me = await app.inject({
+        method: 'GET',
+        url: '/room/me',
+        headers: authHeaders(roomUser),
+      })
+
+      expect(parseJson<RoomBody>(me).room.configRevision).toBe(7)
+
+      await app.close()
+    })
+
+    it('writes when the revision is current and returns the next one', async () => {
+      seedRoom({ config_revision: 3 })
+      const app = await createRouteApp(roomRoutes)
+
+      const first = await put(app, { config: { desksCount: 5 }, revision: 3 })
+      const second = await put(app, { config: { desksCount: 6 }, revision: 4 })
+
+      expect(first.statusCode).toBe(200)
+      expect(parseJson<RoomBody>(first).room.configRevision).toBe(4)
+      expect(second.statusCode).toBe(200)
+      expect(parseJson<RoomBody>(second).room.configRevision).toBe(5)
+      expect(dbState.rooms[0]).toMatchObject({ config_revision: 5, config: { desksCount: 6 } })
+
+      await app.close()
+    })
+
+    it('answers 409 with the current config on a stale revision, and writes nothing', async () => {
+      const stored = { buzzers: { podiums: 4 }, lights: { profile: 'par-led' } }
+      seedRoom({ config: stored, config_revision: 5 })
+      const app = await createRouteApp(roomRoutes)
+
+      const stale = await put(app, { config: { desksCount: 2 }, revision: 4 })
+
+      expect(stale.statusCode).toBe(409)
+      expect(parseJson<ConflictBody>(stale)).toEqual({
+        error: 'room_config_conflict',
+        config: stored,
+        configRevision: 5,
+      })
+      expect(dbState.rooms[0]).toMatchObject({ config: stored, config_revision: 5 })
+
+      await app.close()
+    })
+
+    it('still overwrites and bumps the revision when the client sends none', async () => {
+      seedRoom({ config_revision: 9 })
+      const app = await createRouteApp(roomRoutes)
+
+      const legacy = await put(app, { config: { desksCount: 3 } })
+
+      expect(legacy.statusCode).toBe(200)
+      expect(parseJson<RoomBody>(legacy).room.configRevision).toBe(10)
+      expect(dbState.rooms[0]).toMatchObject({ config_revision: 10 })
+
+      await app.close()
+    })
+
+    it('refuses a negative or non integer revision', async () => {
+      seedRoom()
+      const app = await createRouteApp(roomRoutes)
+
+      for (const revision of [-1, 1.5, '1']) {
+        expect((await put(app, { config: {}, revision })).statusCode).toBe(400)
+      }
+
+      await app.close()
+    })
   })
 
   it('validates the config and is reserved to a non deleted room', async () => {

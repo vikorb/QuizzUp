@@ -8,6 +8,18 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Révision de la config de salle : deux postes connectés au même compte de salle ne s'écrasent plus
+  `rooms.config` en silence. Nouvelle migration : `rooms.config_revision` (entier, défaut 0, +1 à
+  chaque écriture de `config`). `GET /room/me` renvoie `room.configRevision` ; `PUT /room/config`
+  accepte `revision` (celle lue) et répond `409 room_config_conflict` avec la `config` et la
+  `configRevision` courantes si la config a changé entre-temps (écriture atomique, rien n'est écrit) ;
+  sans `revision`, l'ancien comportement est gardé (on écrase, la révision augmente). Le `PATCH` du
+  backoffice qui modifie `config` incrémente aussi la révision. Écran de salle (`game/room-app`, pas de
+  CHANGELOG propre) : la révision est mémorisée, envoyée à chaque enregistrement et gardée hors
+  ligne ; sur un 409, la config du compte est appliquée et gardée en copie locale, l'écran Matériel
+  prévient l'opérateur (fr / en) et rien n'est renvoyé automatiquement.
+  US: us-room-config-revision
+
 - Retypage de l'ancien contenu : nouvelle migration de données qui remplace le type `qcm` posé par
   défaut par `true_false` ou `estimate` sur les questions texte non supprimées (toutes compagnies
   et contenu global) que le moteur de jeu déduisait déjà de leurs réponses : exactement deux

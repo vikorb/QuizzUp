@@ -99,7 +99,9 @@ const companyRoomIdRoutes: FastifyPluginAsync = async (app) => {
           .where('id', roomId)
           .update({
             ...(name !== undefined ? { name } : {}),
-            ...(config !== undefined ? { config } : {}),
+            ...(config !== undefined
+              ? { config, config_revision: db.raw('config_revision + 1') }
+              : {}),
             updated_at: db.fn.now(),
           })
           .returning(roomSelect)

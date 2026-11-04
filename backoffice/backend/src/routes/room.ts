@@ -37,7 +37,11 @@ const roomGameFinishBodySchema = z.object({
     .max(GAME_PODIUMS),
 })
 
-const roomConfigBodySchema = z.object({ config: roomConfigSchema })
+const roomConfigBodySchema = z.object({
+  config: roomConfigSchema,
+  // Révision lue avec la config (`configRevision`). Absente : l'ancien comportement, on écrase.
+  revision: z.number().int().min(0).optional(),
+})
 
 const roomQuestionParamsSchema = z.object({
   questionId: z.coerce.number().int().positive(),
@@ -123,7 +127,9 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
 
   // Le PC de la salle enregistre sa configuration matérielle (buzzers appris, lumières…) dans
   // `rooms.config` (décision d'Enzo, 2026-11-04) ; il la relit avec `GET /room/me`. Les sections
-  // envoyées remplacent celles du même nom, les autres sont gardées.
+  // envoyées remplacent celles du même nom, les autres sont gardées. Avec `revision`, l'écriture
+  // n'a lieu que si la config n'a pas changé depuis cette lecture (sinon 409 + config courante) ;
+  // sans `revision`, elle écrase (anciens clients). Chaque écriture augmente `config_revision`.
   app.put('/room/config', { preHandler: [app.authenticate] }, async (req, reply) => {
     if (!isRoomAccount(req)) {
       return reply.code(403).send({ error: 'forbidden' })
@@ -147,17 +153,43 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
 
     // Fusion des clés de premier niveau : le PC envoie ses sections (ex. `buzzers`) sans
     // effacer celles réglées depuis le backoffice.
+    const { revision } = parsedBody.data
     const config = { ...(current.config ?? {}), ...parsedBody.data.config }
 
     if (JSON.stringify(config).length > ROOM_CONFIG_MAX_LENGTH) {
       return reply.code(400).send({ error: 'room_config_too_large' })
     }
-    const updated = await db('rooms')
+    const write = db('rooms')
       .where('id', req.user.room_id)
       .where('company_id', req.user.company_id)
-      .update({ config, updated_at: db.fn.now() })
+      .whereNot('status', ROOM_STATUS_DELETED)
+
+    if (revision !== undefined) {
+      // Atomique : le test de la révision et l'écriture forment une seule requête.
+      write.where('config_revision', revision)
+    }
+    const updated = await write
+      .update({ config, config_revision: db.raw('config_revision + 1'), updated_at: db.fn.now() })
       .returning(roomSelect)
     const room = Array.isArray(updated) ? updated[0] : updated
+
+    if (!room) {
+      const latest = await db('rooms')
+        .where('id', req.user.room_id)
+        .where('company_id', req.user.company_id)
+        .whereNot('status', ROOM_STATUS_DELETED)
+        .first('config', 'config_revision')
+
+      if (!latest) {
+        return reply.code(404).send({ error: 'not_found' })
+      }
+
+      return reply.code(409).send({
+        error: 'room_config_conflict',
+        config: latest.config ?? {},
+        configRevision: Number(latest.config_revision),
+      })
+    }
 
     return { room: room as RoomRow }
   })

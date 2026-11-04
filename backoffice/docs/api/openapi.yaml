@@ -1483,6 +1483,12 @@ paths:
         Objet JSON de 20 000 caractères au plus. `desksCount`, s'il est présent, est un entier de 1 à 6
         (nombre de pupitres de la salle, 4 par défaut).
 
+        **Révision** : `rooms.config_revision` (`configRevision` dans la salle) augmente de 1 à chaque
+        écriture de `config`. Avec `revision` (celle lue avec `GET /room/me`), l'écriture n'a lieu que si
+        la config n'a pas changé depuis : sinon `409 room_config_conflict` avec la config et la révision
+        courantes, et rien n'est écrit. Sans `revision`, l'ancien comportement est conservé (la config est
+        écrasée et la révision augmente).
+
         Accès : réservé au rôle `room`.
       operationId: updateRoomConfig
       x-availability: disponible
@@ -1498,9 +1504,15 @@ paths:
                 config:
                   type: object
                   additionalProperties: true
+                revision:
+                  type: integer
+                  minimum: 0
+                  description: >-
+                    Révision de la config lue (`configRevision`). Facultative : absente, l'écriture
+                    n'est pas contrôlée.
       responses:
         '200':
-          description: Salle mise à jour
+          description: Salle mise à jour, avec la nouvelle révision dans `room.configRevision`
           content:
             application/json:
               schema:
@@ -1508,6 +1520,25 @@ paths:
                 properties:
                   room:
                     $ref: '#/components/schemas/Room'
+        '409':
+          description: >-
+            Un autre poste a modifié la config depuis la lecture (`room_config_conflict`). La config
+            courante et sa révision sont renvoyées pour que le poste les recharge ; rien n'est écrit.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error, config, configRevision]
+                properties:
+                  error:
+                    type: string
+                    example: room_config_conflict
+                  config:
+                    type: object
+                    additionalProperties: true
+                  configRevision:
+                    type: integer
+                    example: 5
         '400':
           description: Configuration invalide ou trop grande (`invalid_body`)
           content:
@@ -3566,6 +3597,13 @@ components:
             Configuration matérielle (buzzers, lumières, fumée), JSON libre de 20 000 caractères max.
             `desksCount` (entier de 1 à 6, 4 par défaut) fixe le nombre de pupitres de la salle.
           example: { desksCount: 4 }
+        configRevision:
+          type: integer
+          minimum: 0
+          description: >-
+            Révision de `config` : 0 à la création, +1 à chaque écriture (`PUT /room/config`, ou
+            `PATCH` du backoffice qui modifie `config`). À renvoyer dans `revision` de `PUT /room/config`.
+          example: 3
         status:
           type: integer
           enum: [0, 1, 2]
