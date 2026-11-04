@@ -38,9 +38,7 @@ exports.up = async function (knex) {
  * @returns { Promise<void> }
  */
 exports.down = async function (knex) {
-  const used = await knex('game_rounds')
-    .whereNot('mini_game', 'flash_blind_test')
-    .first('id')
+  const used = await knex('game_rounds').whereNot('mini_game', 'flash_blind_test').first('id')
 
   if (used) {
     throw new Error(
