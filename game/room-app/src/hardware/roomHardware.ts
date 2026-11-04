@@ -5,8 +5,10 @@ import {
   type BuzzerKeymap,
   createKeyboardBuzzerInput,
   createLightingController,
+  createMeteredOutput,
   createSerialOutput,
   createSimulationOutput,
+  type DmxDriver,
   type DmxOutput,
   getGrantedDmxPort,
   isDesk,
@@ -14,10 +16,14 @@ import {
   type KeyboardBuzzerInput,
   type LightingController,
   type LightingState,
+  type MeteredOutput,
+  type OutputStats,
   type ParsedRoomHardwareConfig,
   parseRoomHardwareConfig,
   requestDmxPort,
   type RoomHardwareConfig,
+  type SerialPortLike,
+  watchDmxPortReconnection,
 } from '@quizzup/hardware'
 import { computed, shallowRef } from 'vue'
 
@@ -143,6 +149,33 @@ function resolveDesk(participantId: number) {
   return isDesk(participantId) ? participantId : null
 }
 
+/** Sortie USB réellement branchée, mesurée pour l'écran de diagnostic. */
+let meteredOutput: MeteredOutput | null = null
+let dmxPort: SerialPortLike | null = null
+let stopReconnectWatch: (() => void) | null = null
+
+async function useSerialPort(
+  controller: LightingController,
+  port: SerialPortLike,
+  driver: Exclude<DmxDriver, 'simulation'>
+): Promise<void> {
+  const output = createMeteredOutput(createSerialOutput({ port, driver }))
+  meteredOutput = output
+  dmxPort = port
+  await controller.setOutput(output)
+}
+
+/** Mesures de la sortie USB en cours (`null` en simulation). */
+export function getDmxStats(): OutputStats | null {
+  const state = lighting?.getState()
+  return meteredOutput && state && !state.simulation ? meteredOutput.getStats() : null
+}
+
+/** Port USB utilisé par les lumières, pour l'afficher (« FTDI 0403:6001 »). */
+export function getDmxPort(): SerialPortLike | null {
+  return lighting?.getState().simulation === false ? dmxPort : null
+}
+
 async function reconnectGrantedPort(controller: LightingController): Promise<void> {
   const { driver } = parsed.value.config.lighting
   if (driver === 'simulation' || preferSimulation || !isWebSerialSupported()) {
@@ -150,8 +183,31 @@ async function reconnectGrantedPort(controller: LightingController): Promise<voi
   }
   const port = await getGrantedDmxPort().catch(() => null)
   if (port && controller === lighting) {
-    await controller.setOutput(createSerialOutput({ port, driver }))
+    await useSerialPort(controller, port, driver)
   }
+}
+
+/** Interface débranchée puis rebranchée : on la reprend sans clic (même port ou même modèle). */
+function watchReconnection(controller: LightingController): void {
+  stopReconnectWatch?.()
+  stopReconnectWatch = null
+  // Sans interface connue, on ne prend pas n'importe quel port USB qui apparaît.
+  if (!isWebSerialSupported() || !dmxPort) {
+    return
+  }
+  stopReconnectWatch = watchDmxPortReconnection({
+    match: dmxPort,
+    onReconnect: (port) => {
+      const { driver } = parsed.value.config.lighting
+      const state = controller.getState()
+      if (controller !== lighting || driver === 'simulation' || preferSimulation) {
+        return
+      }
+      if (state.simulation || state.outputStatus === 'error' || state.outputStatus === 'closed') {
+        void useSerialPort(controller, port, driver).catch(() => undefined)
+      }
+    },
+  })
 }
 
 async function createLighting(
@@ -185,6 +241,7 @@ async function createLighting(
   lightingState.value = controller.getState()
   // Interface déjà autorisée lors d'une visite précédente : reconnexion sans clic.
   await reconnectGrantedPort(controller).catch(() => undefined)
+  watchReconnection(controller)
   return controller
 }
 
@@ -196,6 +253,9 @@ async function shutdownLighting(): Promise<void> {
   stopLightingEvents = null
   stopLightingState?.()
   stopLightingState = null
+  stopReconnectWatch?.()
+  stopReconnectWatch = null
+  meteredOutput = null
   lightingState.value = null
   closingLighting = controller
   try {
@@ -253,8 +313,9 @@ async function restartLighting(): Promise<void> {
  * Bouton « Connecter l'interface DMX » : doit être appelé dans un clic (le
  * navigateur demande quelle interface USB utiliser).
  */
-export async function connectDmxInterface(): Promise<void> {
-  const { driver } = parsed.value.config.lighting
+export async function connectDmxInterface(
+  driver: DmxDriver = parsed.value.config.lighting.driver
+): Promise<void> {
   if (driver === 'simulation') {
     throw new Error('simulation_driver')
   }
@@ -262,7 +323,8 @@ export async function connectDmxInterface(): Promise<void> {
   const port = await requestDmxPort()
   const controller = await startLighting()
   preferSimulation = false
-  await controller.setOutput(createSerialOutput({ port, driver }))
+  await useSerialPort(controller, port, driver)
+  watchReconnection(controller)
 }
 
 /** Revient à la salle simulée (débranchement volontaire de l'interface). */
@@ -300,7 +362,10 @@ export async function saveRoomHardwareConfig(input: unknown): Promise<ParsedRoom
 
 /** Enregistre seulement le mapping des buzzers (fin de l'apprentissage). */
 export async function saveBuzzerKeymap(keymap: BuzzerKeymap): Promise<ParsedRoomHardwareConfig> {
-  return saveRoomHardwareConfig({ ...parsed.value.config, buzzers: { keymap } })
+  return saveRoomHardwareConfig({
+    ...parsed.value.config,
+    buzzers: { ...parsed.value.config.buzzers, keymap },
+  })
 }
 
 /** Remet à zéro tout le matériel de la page (tests). */
@@ -309,6 +374,7 @@ export async function resetRoomHardware(options: { storage?: HardwareStorage | n
   setBuzzerInput(null)
   preferSimulation = false
   pendingEmergency = null
+  dmxPort = null
   storage = options.storage ?? null
   parsed.value = parseRoomHardwareConfig(loadStoredConfig())
 }

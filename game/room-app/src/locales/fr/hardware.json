@@ -4,9 +4,11 @@
     "open": "Matériel de la salle",
     "back": "Retour",
     "tabs": {
+      "assistant": "Assistant",
       "buzzers": "Buzzers",
       "lights": "Lumières et fumée",
-      "advanced": "Configuration avancée"
+      "advanced": "Configuration avancée",
+      "diagnostic": "Diagnostic"
     },
     "localNote": "Cette configuration est enregistrée sur ce PC.",
     "buzzers": {
@@ -126,6 +128,184 @@
       "saved": "Configuration enregistrée.",
       "problems": "Points à corriger",
       "profiles": "Profils d’appareils disponibles"
+    },
+    "diagnostic": {
+      "title": "Diagnostic matériel",
+      "hint": "Teste l’interface DMX, chaque canal et chaque appareil. Pendant le diagnostic, les scènes du jeu sont suspendues.",
+      "interface": "Interface",
+      "port": "Port USB",
+      "noPort": "aucun",
+      "status": "État",
+      "simulated": "simulation",
+      "rate": "Trames envoyées",
+      "hz": "{n} par seconde",
+      "writeTime": "Temps d’écriture",
+      "ms": "{avg} ms en moyenne, {max} ms au pire",
+      "failures": "Échecs",
+      "manual": "Test manuel",
+      "allowUnknown": "Autoriser les canaux hors appareils déclarés (recherche d’adresse)",
+      "unplugSmoke": "Débranche d’abord la machine à fumée : son adresse réelle est peut-être l’un de ces canaux.",
+      "begin": "Commencer le diagnostic",
+      "activeHint": "Diagnostic en cours. Il s’arrête tout seul après 10 minutes sans action.",
+      "channel": "Canal",
+      "value": "Valeur : {n}",
+      "send": "Envoyer",
+      "address": "Adresse {n}",
+      "colors": {
+        "white": "Blanc",
+        "red": "Rouge",
+        "green": "Vert",
+        "blue": "Bleu",
+        "off": "Éteindre"
+      },
+      "clear": "Tout éteindre",
+      "end": "Terminer le diagnostic",
+      "freezeTitle": "Test de coupure de la fumée",
+      "freezeHint": "Simule un plantage : une courte émission de fumée, puis plus aucune trame pendant 15 s. Le relais temporisé doit couper la fumée tout seul, en 10 s au plus. À faire salle vide, arrêt d’urgence physique à portée de main.",
+      "freeze": "Lancer le plantage simulé",
+      "freezeConfirm1": "La fumée va vraiment partir. La salle est vide et l’arrêt d’urgence physique est à portée de main ?",
+      "freezeConfirm2": "Dernière confirmation : plus aucune trame ne sera envoyée pendant 15 s. Si la fumée ne s’arrête pas seule, appuie sur l’arrêt d’urgence physique.",
+      "freezeGo": "Lancer le test",
+      "frozen": "Plus aucune trame envoyée : encore {n} s. La fumée doit s’être arrêtée seule.",
+      "refused": {
+        "not_active": "Commence d’abord le diagnostic.",
+        "emergency": "Arrêt d’urgence actif.",
+        "invalid_address": "Canal invalide (1 à 512).",
+        "smoke_channel": "Canal de fumée : la fumée se teste uniquement avec le bouton de test sécurisé.",
+        "unknown_channel": "Ce canal n’appartient à aucun appareil déclaré. Coche la recherche d’adresse pour le tester.",
+        "unknown_fixture": "Appareil inconnu.",
+        "not_confirmed": "Confirmation manquante.",
+        "invalid_duration": "Durée refusée."
+      },
+      "errors": {
+        "unsupported": "Ce navigateur ne pilote pas l’USB : utilise Chrome ou Edge.",
+        "cancelled": "Aucune interface choisie.",
+        "already_open": "L’interface était déjà ouverte.",
+        "busy": "L’interface est déjà utilisée par un autre logiciel.",
+        "forbidden": "Le navigateur a refusé l’accès à l’interface.",
+        "disconnected": "L’interface a été débranchée.",
+        "unknown": "Impossible d’ouvrir l’interface DMX."
+      }
+    },
+    "assistant": {
+      "title": "Assistant d’installation",
+      "progress": "Étape {n} sur {total}",
+      "back": "Précédent",
+      "next": "Suivant",
+      "steps": {
+        "browser": {
+          "short": "Navigateur",
+          "title": "Vérifier le navigateur",
+          "hint": "Les interfaces USB DMX ne fonctionnent que dans Chrome ou Edge, sur une page sécurisée."
+        },
+        "buzzers": {
+          "short": "Buzzers",
+          "title": "Associer les buzzers",
+          "hint": "Indique le nombre de pupitres et le type de boîtier, puis appuie sur chaque buzzer quand on te le demande."
+        },
+        "interface": {
+          "short": "Interface",
+          "title": "Choisir l’interface DMX",
+          "hint": "L’interface relie le PC aux lumières. Sans interface, la salle est simulée à l’écran."
+        },
+        "fixtures": {
+          "short": "Appareils",
+          "title": "Déclarer les appareils",
+          "hint": "Ajoute chaque projecteur. L’adresse est celle réglée sur l’appareil (afficheur ou petits interrupteurs) : on te propose la première libre."
+        },
+        "fixtureTest": {
+          "short": "Test",
+          "title": "Tester chaque appareil",
+          "hint": "Allume chaque appareil : s’il s’allume, c’est bon. Sinon, vérifie son adresse et le câble DMX."
+        },
+        "positions": {
+          "short": "Lyres",
+          "title": "Viser les pupitres",
+          "hint": "Pour chaque lyre, déplace le faisceau jusqu’à ce qu’il éclaire le pupitre indiqué."
+        },
+        "smoke": {
+          "short": "Fumée",
+          "title": "Sécuriser la fumée",
+          "hint": "La fumée n’est activée qu’après toutes les vérifications ci-dessous."
+        },
+        "summary": {
+          "short": "Fin",
+          "title": "Récapitulatif",
+          "hint": "Vérifie les points ci-dessous puis enregistre la configuration de la salle."
+        }
+      },
+      "browser": {
+        "webSerial": "Pilotage USB (Web Serial)",
+        "secureContext": "Page sécurisée (HTTPS ou localhost)",
+        "gamepad": "Cartes manettes (API Gamepad)"
+      },
+      "buzzers": {
+        "desks": "Pupitres",
+        "source": "Boîtier des buzzers",
+        "keyboard": "Clavier (boîtier qui imite un clavier)",
+        "gamepad": "Carte manette (entrées USB)",
+        "match": "Nom de la carte (facultatif)",
+        "matchPlaceholder": "ex. BU0836",
+        "gamepadWake": "Appuie sur un buzzer pour activer la carte : le navigateur ne la voit qu’après un premier appui."
+      },
+      "interface": {
+        "recommended": "recommandée",
+        "experimental": "Open DMX est expérimental : le signal est fabriqué par le PC, des scintillements sont possibles. Préfère une interface DMX USB Pro.",
+        "connected": "Interface connectée.",
+        "about": {
+          "simulation": "Aucun matériel : les lumières s’affichent à l’écran. Idéal pour essayer.",
+          "usbpro": "Interface avec son propre processeur (Enttec DMX USB Pro et compatibles) : signal stable.",
+          "opendmx": "Câble USB-DMX simple (FTDI) sans processeur : bon marché, moins fiable."
+        }
+      },
+      "fixtures": {
+        "importSix": "Importer une salle 6 pupitres",
+        "importCalibration": "Reprendre les positions des lyres (fichier)",
+        "calibrationApplied": "{n} position reprise. | {n} positions reprises.",
+        "profile": "Type d’appareil",
+        "name": "Nom",
+        "desk": "Pupitre",
+        "address": "Adresse",
+        "add": "Ajouter",
+        "remove": "Retirer",
+        "addressHint": "Laisse l’adresse vide pour prendre la première libre ({n}).",
+        "errors": {
+          "unknown_profile": "Type d’appareil inconnu.",
+          "no_room": "Plus de place dans l’univers DMX (512 canaux).",
+          "invalid_address": "Adresse invalide : l’appareil doit tenir entre 1 et 512.",
+          "conflict": "Adresse déjà utilisée."
+        }
+      },
+      "test": {
+        "on": "Allumer",
+        "off": "Éteindre",
+        "ok": "Ça marche",
+        "ko": "Rien ne se passe"
+      },
+      "positions": {
+        "pan": "Gauche / droite",
+        "tilt": "Haut / bas"
+      },
+      "smoke": {
+        "enable": "Utiliser la fumée dans cette salle",
+        "maxDuration": "Durée max d’une émission (s)",
+        "cooldown": "Pause entre deux émissions (s)",
+        "checklist": "Vérifications obligatoires",
+        "checks": {
+          "physicalStop": "Un arrêt d’urgence physique coupe l’alimentation de la machine, accessible au staff.",
+          "timedRelay": "Le relais temporisé est réglé à 10 secondes maximum.",
+          "freezeTest": "Le test de plantage simulé a réussi (coché automatiquement).",
+          "siteRules": "La détection incendie et les consignes du site ont été vérifiées avec le responsable."
+        },
+        "freezeQuestion": "La fumée s’est-elle arrêtée toute seule en 10 secondes au plus ?",
+        "freezeYes": "Oui, elle s’est arrêtée",
+        "freezeNo": "Non",
+        "freezeFailed": "La fumée ne doit pas être utilisée : vérifie le câblage et le réglage du relais temporisé, puis refais le test."
+      },
+      "summary": {
+        "ready": "Tout est prêt.",
+        "save": "Enregistrer la configuration"
+      }
     }
   }
 }

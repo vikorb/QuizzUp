@@ -30,8 +30,10 @@
         </UiButton>
       </nav>
 
-      <BuzzerSetup v-if="current === 'buzzers'" />
+      <SetupAssistant v-if="current === 'assistant'" />
+      <BuzzerSetup v-else-if="current === 'buzzers'" />
       <LightingSetup v-else-if="current === 'lights'" />
+      <DiagnosticPanel v-else-if="current === 'diagnostic'" />
       <AdvancedConfig v-else />
 
       <p class="hw-hint hardware__note">{{ $t('hardware.localNote') }}</p>
@@ -49,9 +51,11 @@ import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import AdvancedConfig from '@/views/hardware/AdvancedConfig.vue'
 import BuzzerSetup from '@/views/hardware/BuzzerSetup.vue'
+import DiagnosticPanel from '@/views/hardware/DiagnosticPanel.vue'
 import LightingSetup from '@/views/hardware/LightingSetup.vue'
+import SetupAssistant from '@/views/hardware/SetupAssistant.vue'
 
-const TABS = ['buzzers', 'lights', 'advanced'] as const
+const TABS = ['assistant', 'buzzers', 'lights', 'diagnostic', 'advanced'] as const
 
 const router = useRouter()
 const current = ref<(typeof TABS)[number]>('buzzers')
@@ -80,8 +84,14 @@ async function onBack(): Promise<void> {
 
 .hardware__tabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
+}
+
+@media (max-width: 960px) {
+  .hardware__tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .hardware__tabs .ui-btn {

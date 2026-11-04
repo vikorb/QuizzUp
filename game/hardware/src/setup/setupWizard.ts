@@ -175,7 +175,13 @@ export type SetupWizard = {
   setSmoke: (patch: Partial<SmokeSafetyConfig>) => void
   checkSmoke: (check: SmokeCheckId, done: boolean) => void
 
-  summary: () => SetupSummary
+  /**
+   * Config à enregistrer. Avec `forFreezeTest`, la fumée reste active dès que l'arrêt
+   * d'urgence physique et le relais temporisé sont cochés : c'est ce qu'il faut pour faire le
+   * test de gel. Ne jamais garder cette config si le test n'est pas fait : réenregistrer
+   * `summary()` en quittant.
+   */
+  summary: (options?: { forFreezeTest?: boolean }) => SetupSummary
 }
 
 const allChecks = (value: boolean) =>
@@ -583,7 +589,7 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
       smokeChecks = { ...smokeChecks, [check]: done }
     },
 
-    summary: () => {
+    summary: (options = {}) => {
       const problems: string[] = []
       const warnings: string[] = []
       const rig = parseRig(config.lighting.fixtures, config.lighting.customProfiles)
@@ -607,7 +613,9 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
       }
 
       let smoke = config.lighting.smoke
-      if (smoke.enabled && (!hasKind('smoke') || !smokeReady())) {
+      const testReady = smokeChecks.physicalStop && smokeChecks.timedRelay
+      const allowed = smokeReady() || (options.forFreezeTest === true && testReady)
+      if (smoke.enabled && (!hasKind('smoke') || !allowed)) {
         // Jamais de fumée active sans les vérifications humaines : on l'enregistre désactivée.
         smoke = { ...smoke, enabled: false }
         warnings.push(

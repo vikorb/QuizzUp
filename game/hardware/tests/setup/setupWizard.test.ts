@@ -286,6 +286,13 @@ describe('assistant d’installation : fumée', () => {
     expect(blocked.config.lighting.smoke.enabled).toBe(false)
     expect(blocked.warnings.join(' ')).toContain('vérifications de sécurité')
 
+    // Test de gel : la fumée doit pouvoir partir une fois l'arrêt physique et le relais cochés.
+    expect(wizard.summary({ forFreezeTest: true }).config.lighting.smoke.enabled).toBe(false)
+    wizard.checkSmoke('physicalStop', true)
+    wizard.checkSmoke('timedRelay', true)
+    expect(wizard.summary({ forFreezeTest: true }).config.lighting.smoke.enabled).toBe(true)
+    expect(wizard.summary().config.lighting.smoke.enabled).toBe(false)
+
     for (const check of SMOKE_CHECKS) {
       wizard.checkSmoke(check, true)
     }

@@ -4,9 +4,11 @@
     "open": "Room hardware",
     "back": "Back",
     "tabs": {
+      "assistant": "Setup wizard",
       "buzzers": "Buzzers",
       "lights": "Lights and smoke",
-      "advanced": "Advanced settings"
+      "advanced": "Advanced settings",
+      "diagnostic": "Diagnostics"
     },
     "localNote": "This configuration is saved on this PC.",
     "buzzers": {
@@ -126,6 +128,184 @@
       "saved": "Configuration saved.",
       "problems": "To fix",
       "profiles": "Available fixture profiles"
+    },
+    "diagnostic": {
+      "title": "Hardware diagnostics",
+      "hint": "Test the DMX interface, each channel and each fixture. Game scenes are paused during diagnostics.",
+      "interface": "Interface",
+      "port": "USB port",
+      "noPort": "none",
+      "status": "Status",
+      "simulated": "simulation",
+      "rate": "Frames sent",
+      "hz": "{n} per second",
+      "writeTime": "Write time",
+      "ms": "{avg} ms average, {max} ms worst",
+      "failures": "Failures",
+      "manual": "Manual test",
+      "allowUnknown": "Allow channels outside declared fixtures (address search)",
+      "unplugSmoke": "Unplug the smoke machine first: its real address may be one of these channels.",
+      "begin": "Start diagnostics",
+      "activeHint": "Diagnostics running. They stop on their own after 10 minutes without action.",
+      "channel": "Channel",
+      "value": "Value: {n}",
+      "send": "Send",
+      "address": "Address {n}",
+      "colors": {
+        "white": "White",
+        "red": "Red",
+        "green": "Green",
+        "blue": "Blue",
+        "off": "Off"
+      },
+      "clear": "All off",
+      "end": "End diagnostics",
+      "freezeTitle": "Smoke cut-off test",
+      "freezeHint": "Simulates a crash: a short smoke burst, then no frames at all for 15 s. The timed relay must cut the smoke on its own, within 10 s. Do it in an empty room, with the physical emergency stop within reach.",
+      "freeze": "Run the simulated crash",
+      "freezeConfirm1": "Smoke will really be released. Is the room empty and the physical emergency stop within reach?",
+      "freezeConfirm2": "Last confirmation: no frames will be sent for 15 s. If the smoke does not stop on its own, press the physical emergency stop.",
+      "freezeGo": "Run the test",
+      "frozen": "No frames sent: {n} s left. The smoke must have stopped on its own.",
+      "refused": {
+        "not_active": "Start diagnostics first.",
+        "emergency": "Emergency stop active.",
+        "invalid_address": "Invalid channel (1 to 512).",
+        "smoke_channel": "Smoke channel: smoke is only tested with the safe test button.",
+        "unknown_channel": "This channel belongs to no declared fixture. Tick address search to test it.",
+        "unknown_fixture": "Unknown fixture.",
+        "not_confirmed": "Missing confirmation.",
+        "invalid_duration": "Duration refused."
+      },
+      "errors": {
+        "unsupported": "This browser cannot drive USB: use Chrome or Edge.",
+        "cancelled": "No interface chosen.",
+        "already_open": "The interface was already open.",
+        "busy": "The interface is already used by another program.",
+        "forbidden": "The browser denied access to the interface.",
+        "disconnected": "The interface was unplugged.",
+        "unknown": "Could not open the DMX interface."
+      }
+    },
+    "assistant": {
+      "title": "Setup wizard",
+      "progress": "Step {n} of {total}",
+      "back": "Previous",
+      "next": "Next",
+      "steps": {
+        "browser": {
+          "short": "Browser",
+          "title": "Check the browser",
+          "hint": "USB DMX interfaces only work in Chrome or Edge, on a secure page."
+        },
+        "buzzers": {
+          "short": "Buzzers",
+          "title": "Pair the buzzers",
+          "hint": "Set the number of desks and the buzzer box type, then press each buzzer when asked."
+        },
+        "interface": {
+          "short": "Interface",
+          "title": "Choose the DMX interface",
+          "hint": "The interface links the PC to the lights. Without one, the room is simulated on screen."
+        },
+        "fixtures": {
+          "short": "Fixtures",
+          "title": "Declare the fixtures",
+          "hint": "Add each light. The address is the one set on the fixture (display or DIP switches): the first free one is suggested."
+        },
+        "fixtureTest": {
+          "short": "Test",
+          "title": "Test each fixture",
+          "hint": "Turn each fixture on: if it lights up, it works. Otherwise check its address and the DMX cable."
+        },
+        "positions": {
+          "short": "Moving heads",
+          "title": "Aim at the desks",
+          "hint": "For each moving head, move the beam until it lights the given desk."
+        },
+        "smoke": {
+          "short": "Smoke",
+          "title": "Secure the smoke",
+          "hint": "Smoke is only enabled once every check below is done."
+        },
+        "summary": {
+          "short": "Done",
+          "title": "Summary",
+          "hint": "Check the points below, then save the room configuration."
+        }
+      },
+      "browser": {
+        "webSerial": "USB control (Web Serial)",
+        "secureContext": "Secure page (HTTPS or localhost)",
+        "gamepad": "Gamepad boards (Gamepad API)"
+      },
+      "buzzers": {
+        "desks": "Desks",
+        "source": "Buzzer box",
+        "keyboard": "Keyboard (box that emulates a keyboard)",
+        "gamepad": "Gamepad board (USB inputs)",
+        "match": "Board name (optional)",
+        "matchPlaceholder": "e.g. BU0836",
+        "gamepadWake": "Press a buzzer to activate the board: the browser only sees it after a first press."
+      },
+      "interface": {
+        "recommended": "recommended",
+        "experimental": "Open DMX is experimental: the PC generates the signal, flicker is possible. Prefer a DMX USB Pro interface.",
+        "connected": "Interface connected.",
+        "about": {
+          "simulation": "No hardware: lights are shown on screen. Ideal to try things out.",
+          "usbpro": "Interface with its own processor (Enttec DMX USB Pro and compatibles): stable signal.",
+          "opendmx": "Simple USB-DMX cable (FTDI) without a processor: cheap, less reliable."
+        }
+      },
+      "fixtures": {
+        "importSix": "Import a 6-desk room",
+        "importCalibration": "Reuse moving head positions (file)",
+        "calibrationApplied": "{n} position reused. | {n} positions reused.",
+        "profile": "Fixture type",
+        "name": "Name",
+        "desk": "Desk",
+        "address": "Address",
+        "add": "Add",
+        "remove": "Remove",
+        "addressHint": "Leave the address empty to take the first free one ({n}).",
+        "errors": {
+          "unknown_profile": "Unknown fixture type.",
+          "no_room": "No room left in the DMX universe (512 channels).",
+          "invalid_address": "Invalid address: the fixture must fit between 1 and 512.",
+          "conflict": "Address already used."
+        }
+      },
+      "test": {
+        "on": "Turn on",
+        "off": "Turn off",
+        "ok": "It works",
+        "ko": "Nothing happens"
+      },
+      "positions": {
+        "pan": "Left / right",
+        "tilt": "Up / down"
+      },
+      "smoke": {
+        "enable": "Use smoke in this room",
+        "maxDuration": "Max burst duration (s)",
+        "cooldown": "Pause between bursts (s)",
+        "checklist": "Mandatory checks",
+        "checks": {
+          "physicalStop": "A physical emergency stop cuts the machine's power and is within staff reach.",
+          "timedRelay": "The timed relay is set to 10 seconds at most.",
+          "freezeTest": "The simulated crash test passed (ticked automatically).",
+          "siteRules": "Fire detection and site rules were checked with the manager."
+        },
+        "freezeQuestion": "Did the smoke stop on its own within 10 seconds?",
+        "freezeYes": "Yes, it stopped",
+        "freezeNo": "No",
+        "freezeFailed": "Do not use the smoke: check the wiring and the timed relay setting, then run the test again."
+      },
+      "summary": {
+        "ready": "Everything is ready.",
+        "save": "Save the configuration"
+      }
     }
   }
 }
