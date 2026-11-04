@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
-Génère les extraits audio du thème de démonstration « Mélodies du domaine public ».
+Génère les extraits audio des deux thèmes de démonstration :
+- « Mélodies du domaine public » : 10 mélodies jouées note par note ;
+- « Sons synthétiques » : 10 sons du quotidien (sirènes, morse, sonnerie…) fabriqués par calcul.
 
 Pourquoi un générateur plutôt que des fichiers téléchargés ?
 - Les mélodies choisies sont des œuvres du domaine public (compositeurs morts depuis plus de
@@ -177,6 +179,118 @@ MELODIES: list[tuple[str, float, str, str | None]] = [
 ]
 
 
+def _t(seconds: float) -> np.ndarray:
+    return np.arange(int(SAMPLE_RATE * seconds)) / SAMPLE_RATE
+
+
+def _beep(freq: float, seconds: float, square: bool = False) -> np.ndarray:
+    t = _t(seconds)
+    w = np.sin(2 * np.pi * freq * t)
+    if square:
+        w = np.sign(w) * 0.6
+    edge = np.minimum(1.0, np.minimum(t, seconds - t) / 0.005).clip(0, 1)
+    return w * edge
+
+
+def _silence(seconds: float) -> np.ndarray:
+    return np.zeros(int(SAMPLE_RATE * seconds))
+
+
+def _bell(freq: float, seconds: float) -> np.ndarray:
+    t = _t(seconds)
+    partials = [(1, 1.0), (2.76, 0.5), (5.4, 0.25), (8.9, 0.12)]
+    w = sum(a * np.sin(2 * np.pi * freq * r * t) * np.exp(-t * (2 + r)) for r, a in partials)
+    return w * np.minimum(1.0, t / 0.003)
+
+
+def _pattern(*chunks: np.ndarray) -> np.ndarray:
+    return np.concatenate(chunks)
+
+
+def sfx_sirene_pompiers() -> np.ndarray:
+    return _pattern(_beep(435, 0.6, square=True), _beep(580, 0.6, square=True))
+
+
+def sfx_sirene_americaine() -> np.ndarray:
+    t = _t(3.0)
+    freq = 650 + 650 * (0.5 - 0.5 * np.cos(2 * np.pi * t / 3.0))
+    return np.sin(2 * np.pi * np.cumsum(freq) / SAMPLE_RATE)
+
+
+def sfx_tonalite_occupe() -> np.ndarray:
+    return _pattern(_beep(440, 0.5), _silence(0.5))
+
+
+def sfx_morse_sos() -> np.ndarray:
+    dot, dash, gap = _beep(700, 0.1), _beep(700, 0.3), _silence(0.1)
+    letter_s = _pattern(dot, gap, dot, gap, dot)
+    letter_o = _pattern(dash, gap, dash, gap, dash)
+    return _pattern(letter_s, _silence(0.3), letter_o, _silence(0.3), letter_s, _silence(0.9))
+
+
+def sfx_reveil() -> np.ndarray:
+    beeps = [c for _ in range(4) for c in (_beep(2000, 0.08, square=True), _silence(0.07))]
+    return _pattern(*beeps, _silence(0.5))
+
+
+def sfx_carillon() -> np.ndarray:
+    return _pattern(_bell(659.3, 0.9), _bell(523.3, 1.6), _silence(1.2))
+
+
+def sfx_tic_tac() -> np.ndarray:
+    def click(freq: float) -> np.ndarray:
+        t = _t(0.03)
+        return np.sin(2 * np.pi * freq * t) * np.exp(-t * 250)
+    return _pattern(click(3200), _silence(0.47), click(2400), _silence(0.47))
+
+
+def sfx_telephone_ancien() -> np.ndarray:
+    t = _t(1.5)
+    ring = (np.sin(2 * np.pi * 1000 * t) + 0.6 * np.sin(2 * np.pi * 1400 * t)) * (
+        0.5 + 0.5 * np.sign(np.sin(2 * np.pi * 20 * t))
+    )
+    return _pattern(ring, _silence(2.0))
+
+
+def sfx_sonar() -> np.ndarray:
+    t = _t(3.0)
+    ping = np.sin(2 * np.pi * 1500 * t) * np.exp(-t * 2.5) * np.minimum(1.0, t / 0.01)
+    echo = np.zeros_like(ping)
+    delay = int(SAMPLE_RATE * 0.9)
+    echo[delay:] = 0.3 * ping[:-delay]
+    return ping + echo
+
+
+def sfx_battements_coeur() -> np.ndarray:
+    def thump(freq: float, amp: float) -> np.ndarray:
+        t = _t(0.18)
+        return amp * np.sin(2 * np.pi * freq * t) * np.exp(-t * 22)
+    return _pattern(thump(60, 1.0), _silence(0.08), thump(50, 0.7), _silence(0.55))
+
+
+SOUNDS = {
+    "sirene-pompiers": sfx_sirene_pompiers,
+    "sirene-americaine": sfx_sirene_americaine,
+    "tonalite-occupe": sfx_tonalite_occupe,
+    "morse-sos": sfx_morse_sos,
+    "reveil": sfx_reveil,
+    "carillon-porte": sfx_carillon,
+    "tic-tac": sfx_tic_tac,
+    "telephone-ancien": sfx_telephone_ancien,
+    "sonar": sfx_sonar,
+    "battements-coeur": sfx_battements_coeur,
+}
+
+
+def loop_to_target(pattern: np.ndarray) -> np.ndarray:
+    target = int(SAMPLE_RATE * TARGET_SECONDS)
+    signal = np.tile(pattern, int(np.ceil(target / len(pattern))))[:target]
+    fade = int(SAMPLE_RATE * 1.0)
+    signal[-fade:] *= np.linspace(1, 0, fade)
+    peak = np.max(np.abs(signal)) or 1.0
+    return signal / peak * 0.8
+
+
 def write_wav(path: Path, signal: np.ndarray) -> None:
     data = (signal * 32767).astype(np.int16)
     with wave.open(str(path), "wb") as handle:
@@ -189,9 +303,13 @@ def write_wav(path: Path, signal: np.ndarray) -> None:
 def main() -> int:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
-        for slug, bpm, melody, bass in MELODIES:
+        jobs = [
+            (slug, render(seq(melody), bpm, seq(bass) if bass else None))
+            for slug, bpm, melody, bass in MELODIES
+        ] + [(slug, loop_to_target(build())) for slug, build in SOUNDS.items()]
+        for slug, signal in jobs:
             wav = Path(tmp) / f"{slug}.wav"
-            write_wav(wav, render(seq(melody), bpm, seq(bass) if bass else None))
+            write_wav(wav, signal)
             mp3 = OUT_DIR / f"{slug}.mp3"
             subprocess.run(
                 [
