@@ -50,9 +50,11 @@ function getAvailable(state: PointStealState, participantId: number): number {
 }
 
 function getTargets(state: PointStealState): EngineParticipant[] {
-  return state.participants.filter(
-    (participant) => participant.id !== state.thiefId && getAvailable(state, participant.id) > 0
-  )
+  return state.participants
+    .filter(
+      (participant) => participant.id !== state.thiefId && getAvailable(state, participant.id) > 0
+    )
+    .sort((first, second) => first.podium - second.podium)
 }
 
 /** Cible automatique : l'adversaire le plus riche, au plus petit pupitre en cas d'égalité. */

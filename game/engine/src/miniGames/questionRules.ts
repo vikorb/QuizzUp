@@ -75,13 +75,24 @@ export function parseLeadingNumber(text: string): number | null {
   return match ? Number(match[0].replace(',', '.')) : null
 }
 
+/**
+ * Une fourchette commence par un nombre, éventuellement précédé d'un mot de
+ * comparaison (« Moins de 50 », « Entre 10 et 20 », « < 5 ») : « Henri 4 » ou
+ * « Louis 14 » restent des réponses de QCM.
+ */
+const RANGE_PATTERN = /^(?:(?:moins de|plus de|entre|de|environ|au moins|au plus|[<>≤≥~])\s*)?-?\d/
+
+export function isRangeAnswer(answer: EngineAnswer): boolean {
+  return RANGE_PATTERN.test(normalizeText(answer.text))
+}
+
 /** Estimation : 3 ou 4 fourchettes chiffrées, une seule juste. */
 export function isEstimateQuestion(question: EngineQuestion): boolean {
   return (
     READABLE_MEDIA_TYPES.includes(question.mediaType) &&
     hasPlayableAnswers(question, 3, 4) &&
     question.answers.filter((answer) => answer.isCorrect).length === 1 &&
-    question.answers.every((answer) => parseLeadingNumber(answer.text) !== null)
+    question.answers.every((answer) => isRangeAnswer(answer))
   )
 }
 
