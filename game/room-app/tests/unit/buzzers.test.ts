@@ -1,6 +1,9 @@
 import {
+  ALL_DESKS,
+  createSimulationKeymap,
   formatKeyCode,
   getDeskKeys,
+  isDeskNumber,
   loadKeyboardLayout,
   SIMULATION_KEYMAP,
 } from '@/hardware/buzzers'
@@ -10,6 +13,29 @@ describe('buzzers de la salle', () => {
     expect(Object.keys(SIMULATION_KEYMAP)).toHaveLength(16)
     expect(SIMULATION_KEYMAP.KeyQ).toEqual({ desk: 2, button: 'A' })
     expect(SIMULATION_KEYMAP.KeyV).toEqual({ desk: 4, button: 'D' })
+  })
+
+  it('étend le clavier de simulation aux pupitres 5 et 6, et le limite aux pupitres de la salle', () => {
+    expect(ALL_DESKS).toEqual([1, 2, 3, 4, 5, 6])
+    const six = createSimulationKeymap(6)
+    expect(Object.keys(six)).toHaveLength(24)
+    expect(getDeskKeys(six, 5)).toEqual(['5', '6', '7', '8'])
+    expect(getDeskKeys(six, 6)).toEqual(['T', 'Y', 'U', 'I'])
+    expect(Object.keys(createSimulationKeymap(2))).toHaveLength(8)
+    // Valeur absente ou absurde : 4 pupitres, comme une salle neuve.
+    expect(Object.keys(createSimulationKeymap(Number.NaN))).toHaveLength(16)
+    expect(createSimulationKeymap(4)).toEqual(SIMULATION_KEYMAP)
+  })
+
+  it('connaît les pupitres 1 à 6', () => {
+    expect([0, 1, 4, 5, 6, 7].map((value) => isDeskNumber(value))).toEqual([
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+    ])
   })
 
   it('affiche les touches d’un pupitre dans l’ordre A-D', () => {

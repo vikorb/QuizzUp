@@ -2,6 +2,7 @@ import { flushPromises } from '@vue/test-utils'
 
 import { createMemorySessionStorage } from '@/game/session'
 import { closeGame, configureRoomGame, useRoomGame } from '@/game/useRoomGame'
+import { saveRoomDesksCount } from '@/hardware/roomHardware'
 import { enterDemo, syncRoomAuth } from '@/state/roomAuth'
 import LobbyView from '@/views/LobbyView.vue'
 
@@ -77,6 +78,63 @@ describe('LobbyView', () => {
 
     expect(wrapper.find('.desk--4').classes()).toContain('desk--ping')
     expect(wrapper.find('.desk--4').text()).toContain('Buzzer OK')
+    wrapper.unmount()
+  })
+})
+
+describe('LobbyView — nombre de pupitres de la salle', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    syncRoomAuth()
+    enterDemo()
+    configureRoomGame({ storage: createMemorySessionStorage() })
+  })
+
+  afterEach(() => closeGame())
+
+  it('affiche 4 pupitres par défaut', async () => {
+    const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+
+    expect(wrapper.findAll('article.desk')).toHaveLength(4)
+    expect(wrapper.find('.desk--5').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it.each([
+    [1, 1],
+    [2, 2],
+    [5, 3],
+    [6, 3],
+  ])('affiche %i pupitre(s) sur %i colonne(s)', async (count, columns) => {
+    await saveRoomDesksCount(count)
+    const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+
+    expect(wrapper.findAll('article.desk')).toHaveLength(count)
+    expect(wrapper.find('[data-test="lobby-desks"]').attributes('style')).toContain(
+      `--desk-cols: ${columns}`
+    )
+    wrapper.unmount()
+  })
+
+  it('démarre une partie à 6 joueurs et fait briller les pupitres 5 et 6', async () => {
+    await saveRoomDesksCount(6)
+    const { wrapper, router } = await mountWithApp(LobbyView, { route: '/lobby' })
+
+    for (let desk = 1; desk <= 6; desk += 1) {
+      await wrapper.find(`input[name=desk-${desk}-name]`).setValue(`Joueur ${desk}`)
+    }
+    pressKey('Digit6')
+    pressKey('KeyT')
+    await flushPromises()
+    expect(wrapper.find('.desk--5').classes()).toContain('desk--ping')
+    expect(wrapper.find('.desk--6').classes()).toContain('desk--ping')
+
+    await findButton(wrapper, 'Démarrer la partie')?.trigger('click')
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('play'))
+    const { state } = useRoomGame()
+    expect(state.value?.setup.participants.map((participant) => participant.podium)).toEqual([
+      1, 2, 3, 4, 5, 6,
+    ])
     wrapper.unmount()
   })
 })

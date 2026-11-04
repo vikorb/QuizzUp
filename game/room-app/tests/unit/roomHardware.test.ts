@@ -5,11 +5,14 @@ import {
   connectDmxInterface,
   getBuzzerInput,
   getLighting,
+  getRoomDesks,
   HARDWARE_STORAGE_KEY,
   isDefaultHardwareConfig,
   saveBuzzerKeymap,
+  saveRoomDesksCount,
   saveRoomHardwareConfig,
   setBuzzerInput,
+  setHardwareRemoteSaver,
   stableStringify,
   startLighting,
   stopLighting,
@@ -38,6 +41,70 @@ describe('matériel de la salle', () => {
     expect(listener).toHaveBeenCalledWith(
       expect.objectContaining({ desk: 2, button: 'A', buttonIndex: 0, code: 'KeyQ' })
     )
+  })
+
+  describe('nombre de pupitres de la salle', () => {
+    it('vaut 4 par défaut, avec ou sans le champ dans la config', async () => {
+      const { desks } = useRoomHardware()
+      expect(desks.value).toEqual([1, 2, 3, 4])
+      expect(getRoomDesks()).toEqual([1, 2, 3, 4])
+
+      // Une ancienne config (sans `desksCount`) donne aussi 4 pupitres.
+      await saveRoomHardwareConfig({ buzzers: { keymap: LEARNED_KEYMAP } })
+      expect(desks.value).toEqual([1, 2, 3, 4])
+    })
+
+    it('se règle de 1 à 6, est gardé sur ce PC et envoyé au compte de salle', async () => {
+      const sent: unknown[] = []
+      setHardwareRemoteSaver(
+        async (config) => {
+          sent.push(config)
+        },
+        { accountId: 1, tokenTag: 'tag' }
+      )
+      const { desks } = useRoomHardware()
+
+      await saveRoomDesksCount(6)
+
+      expect(desks.value).toEqual([1, 2, 3, 4, 5, 6])
+      expect(getRoomDesks()).toHaveLength(6)
+      expect(JSON.parse(localStorage.getItem(HARDWARE_STORAGE_KEY) ?? '{}').desksCount).toBe(6)
+      expect(sent).toEqual([expect.objectContaining({ desksCount: 6 })])
+
+      await saveRoomDesksCount(2)
+      expect(desks.value).toEqual([1, 2])
+      await saveRoomDesksCount(99)
+      expect(desks.value).toHaveLength(6)
+      await saveRoomDesksCount(0)
+      expect(desks.value).toEqual([1])
+    })
+
+    it('n’est plus une config de salle neuve dès qu’il change', async () => {
+      expect(isDefaultHardwareConfig({ desksCount: 4 })).toBe(true)
+      expect(isDefaultHardwareConfig({})).toBe(true)
+      expect(isDefaultHardwareConfig({ desksCount: 6 })).toBe(false)
+    })
+
+    it('joue au clavier de simulation sur les 6 pupitres, et seulement sur ceux de la salle', async () => {
+      const listener = vi.fn()
+      getBuzzerInput().onPress(listener)
+
+      pressKey('Digit5')
+      expect(listener).not.toHaveBeenCalled()
+
+      await saveRoomDesksCount(6)
+      pressKey('Digit5')
+      pressKey('KeyI')
+      expect(listener).toHaveBeenCalledWith(expect.objectContaining({ desk: 5, button: 'A' }))
+      expect(listener).toHaveBeenCalledWith(expect.objectContaining({ desk: 6, button: 'D' }))
+
+      await saveRoomDesksCount(2)
+      listener.mockClear()
+      pressKey('KeyA') // pupitre 3 : n'existe plus
+      pressKey('KeyQ') // pupitre 2
+      expect(listener).toHaveBeenCalledTimes(1)
+      expect(listener).toHaveBeenCalledWith(expect.objectContaining({ desk: 2, button: 'A' }))
+    })
   })
 
   it('applique et garde le mapping appris', async () => {

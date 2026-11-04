@@ -13,7 +13,7 @@ import { normalizeSmokeSafety } from '../lighting/smoke'
 import type { PanTiltCalibration, SixDeskRigOptions } from '../presets/sixDeskRoom'
 import { createSixDeskRoomRig } from '../presets/sixDeskRoom'
 import type { Desk } from '../types'
-import { DEFAULT_DESKS, DESKS } from '../types'
+import { clampDeskCount, DESKS, desksForCount } from '../types'
 
 /**
  * Assistant d'installation pas à pas, pensé pour un centre qui n'a aucune connaissance DMX.
@@ -180,6 +180,8 @@ export type SetupWizard = {
 
   setBrowserCheck: (check: BrowserCheck) => void
   setDesks: (desks: readonly Desk[]) => void
+  /** Nombre de pupitres de la salle (1 à 6) : pupitres 1 à N, enregistré dans `desksCount`. */
+  setDesksCount: (count: number) => void
   setBuzzerSource: (source: BuzzerSource) => void
   setKeymap: (keymap: BuzzerKeymap) => void
 
@@ -229,7 +231,7 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
   let config = parsed.config
   let step: SetupStepId = 'browser'
   let browser: BrowserCheck | null = null
-  let desks: Desk[] = [...DEFAULT_DESKS]
+  let desks: Desk[] = desksForCount(config.desksCount)
   let fixtureTests: Record<string, FixtureTestResult> = {}
   let smokeChecks = allChecks(false)
   const highestDesk = Math.max(
@@ -237,8 +239,11 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
     ...config.lighting.fixtures.map((fixture) => fixture.desk ?? 0),
     0
   )
-  if (highestDesk > DEFAULT_DESKS.length) {
-    desks = DESKS.filter((desk) => desk <= highestDesk)
+  // Un mapping ou un appareil sur un pupitre au-delà du nombre enregistré (salle équipée avant
+  // le réglage du nombre de pupitres) : on élargit au plus haut pupitre utilisé.
+  if (highestDesk > desks.length) {
+    desks = desksForCount(highestDesk)
+    config = { ...config, desksCount: desks.length }
   }
 
   const profileOf = (fixture: FixtureConfig): FixtureProfile | null =>
@@ -451,7 +456,13 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
       const valid = DESKS.filter((desk) => list.includes(desk))
       if (valid.length > 0) {
         desks = valid
+        // Le nombre enregistré suit : les pupitres sont toujours 1 à N dans la config de salle.
+        config = { ...config, desksCount: clampDeskCount(Math.max(...valid)) }
       }
+    },
+    setDesksCount: (count) => {
+      desks = desksForCount(count)
+      config = { ...config, desksCount: desks.length }
     },
     setBuzzerSource: (source) => {
       config = {
@@ -564,6 +575,7 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
         },
       }
       desks = [...DESKS]
+      config = { ...config, desksCount: DESKS.length }
       fixtureTests = {}
       smokeChecks = { ...smokeChecks, freezeTest: false }
     },

@@ -1,6 +1,14 @@
 import { browserClock } from '@hardware/clock'
 import { createEmitter } from '@hardware/emitter'
-import { buttonToIndex, clampByte, isBuzzerButton, isDesk } from '@hardware/types'
+import {
+  buttonToIndex,
+  clampByte,
+  clampDeskCount,
+  DEFAULT_DESK_COUNT,
+  desksForCount,
+  isBuzzerButton,
+  isDesk,
+} from '@hardware/types'
 
 describe('outils de base', () => {
   it('horloge navigateur : base performance.now() et minuteurs natifs', async () => {
@@ -42,5 +50,19 @@ describe('outils de base', () => {
     expect(clampByte(-3)).toBe(0)
     expect(clampByte(300)).toBe(255)
     expect(clampByte(12.6)).toBe(13)
+  })
+
+  it('compte les pupitres d’une salle : 4 par défaut, de 1 à 6', () => {
+    expect(DEFAULT_DESK_COUNT).toBe(4)
+    expect(clampDeskCount(undefined)).toBe(4)
+    expect(clampDeskCount('5')).toBe(4)
+    expect(clampDeskCount(Number.NaN)).toBe(4)
+    expect(clampDeskCount(0)).toBe(1)
+    expect(clampDeskCount(3.9)).toBe(3)
+    expect(clampDeskCount(6)).toBe(6)
+    expect(clampDeskCount(7)).toBe(6)
+    expect(desksForCount(2)).toEqual([1, 2])
+    expect(desksForCount(6)).toEqual([1, 2, 3, 4, 5, 6])
+    expect(desksForCount(undefined)).toEqual([1, 2, 3, 4])
   })
 })

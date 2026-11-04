@@ -205,3 +205,78 @@ describe('HardwareView', () => {
     await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('launch'))
   })
 })
+
+describe('HardwareView — nombre de pupitres', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    syncRoomAuth()
+    enterDemo()
+  })
+
+  it('propose 4 pupitres par défaut et les règle de 1 à 6', async () => {
+    const { wrapper } = await mountWithApp(HardwareView, { route: '/hardware' })
+    const select = wrapper.find<HTMLSelectElement>('[data-test="desks-count"]')
+
+    expect(select.element.value).toBe('4')
+    expect(select.findAll('option').map((option) => option.text())).toEqual([
+      '1',
+      '2',
+      '3',
+      '4',
+      '5',
+      '6',
+    ])
+    expect(wrapper.findAll('.desk-test')).toHaveLength(4)
+
+    await select.setValue('6')
+    await flushPromises()
+
+    expect(useRoomHardware().hardware.value.config.desksCount).toBe(6)
+    expect(wrapper.findAll('.desk-test')).toHaveLength(6)
+    expect(JSON.parse(localStorage.getItem(HARDWARE_STORAGE_KEY) ?? '{}').desksCount).toBe(6)
+    // Le test des buzzers montre les touches de simulation des pupitres 5 et 6.
+    expect(wrapper.find('[data-test="buzzer-5A"]').text()).toContain('5')
+    expect(wrapper.find('[data-test="buzzer-6D"]').text()).toContain('I')
+  })
+
+  it('apprend les buzzers des pupitres de la salle seulement', async () => {
+    const { wrapper } = await mountWithApp(HardwareView, { route: '/hardware' })
+
+    await wrapper.find('[data-test="desks-count"]').setValue('6')
+    await flushPromises()
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Associer'))!
+      .trigger('click')
+
+    expect(wrapper.find('[data-test="learning"]').text()).toContain('Buzzer 1 sur 24')
+    // Le nombre de pupitres ne se change pas en plein apprentissage.
+    expect(wrapper.find('[data-test="desks-count"]').attributes('disabled')).toBeDefined()
+    wrapper.unmount()
+
+    const smaller = await mountWithApp(HardwareView, { route: '/hardware' })
+    await smaller.wrapper.find('[data-test="desks-count"]').setValue('2')
+    await flushPromises()
+    await smaller.wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Associer'))!
+      .trigger('click')
+    expect(smaller.wrapper.find('[data-test="learning"]').text()).toContain('Buzzer 1 sur 8')
+    smaller.wrapper.unmount()
+  })
+
+  it('règle aussi le nombre de pupitres depuis l’assistant d’installation', async () => {
+    const { wrapper } = await mountWithApp(HardwareView, { route: '/hardware' })
+    await openTab(wrapper, 'assistant')
+    // Première étape : le navigateur ; on avance jusqu'aux buzzers.
+    await wrapper.find('[data-test="assistant-next"]').trigger('click')
+    await flushPromises()
+    const select = wrapper.find<HTMLSelectElement>('[data-test="desk-count"]')
+
+    expect(select.element.value).toBe('4')
+    await select.setValue('5')
+    await flushPromises()
+
+    expect(wrapper.find<HTMLSelectElement>('[data-test="desk-count"]').element.value).toBe('5')
+  })
+})

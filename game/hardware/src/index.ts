@@ -177,8 +177,11 @@ export type { ButtonIndex, BuzzerButton, Desk, Rgb, Rgbw, Unsubscribe } from './
 export {
   buttonToIndex,
   BUZZER_BUTTONS,
+  clampDeskCount,
+  DEFAULT_DESK_COUNT,
   DEFAULT_DESKS,
   DESKS,
+  desksForCount,
   isBuzzerButton,
   isDesk,
 } from './types'

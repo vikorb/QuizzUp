@@ -58,4 +58,43 @@ describe('configuration matérielle de salle', () => {
     expect(parsed.config.lighting.refreshHz).toBe(DMX_REFRESH_LIMITS.min)
     expect(parsed.problems[0]).toContain('artnet')
   })
+
+  describe('nombre de pupitres (`desksCount`)', () => {
+    it('vaut 4 pour une salle neuve et pour une config sans le champ', () => {
+      expect(defaultRoomHardwareConfig().desksCount).toBe(4)
+      for (const input of [{}, null, { buzzers: { keymap: {} } }, { version: 1, lighting: {} }]) {
+        const parsed = parseRoomHardwareConfig(input)
+        expect(parsed.config.desksCount).toBe(4)
+        expect(parsed.problems).toEqual([])
+      }
+    })
+
+    it('relit un nombre de 1 à 6', () => {
+      for (const desksCount of [1, 2, 3, 4, 5, 6]) {
+        const parsed = parseRoomHardwareConfig({ desksCount })
+        expect(parsed.config.desksCount).toBe(desksCount)
+        expect(parsed.problems).toEqual([])
+      }
+    })
+
+    it('ramène une valeur hors bornes ou décimale dans 1 à 6 et la signale', () => {
+      expect(parseRoomHardwareConfig({ desksCount: 0 }).config.desksCount).toBe(1)
+      expect(parseRoomHardwareConfig({ desksCount: 9 }).config.desksCount).toBe(6)
+      expect(parseRoomHardwareConfig({ desksCount: 5.8 }).config.desksCount).toBe(5)
+      expect(parseRoomHardwareConfig({ desksCount: 9 }).problems[0]).toContain('pupitres')
+    })
+
+    it('retombe sur 4 pour une valeur qui n’est pas un nombre', () => {
+      for (const desksCount of ['6', null, Number.NaN, Number.POSITIVE_INFINITY, {}]) {
+        const parsed = parseRoomHardwareConfig({ desksCount })
+        expect(parsed.config.desksCount).toBe(4)
+        expect(parsed.problems).toHaveLength(1)
+      }
+    })
+
+    it('est conservé tel quel par une seconde relecture', () => {
+      const once = parseRoomHardwareConfig({ desksCount: 6 }).config
+      expect(parseRoomHardwareConfig(once).config).toEqual(once)
+    })
+  })
 })

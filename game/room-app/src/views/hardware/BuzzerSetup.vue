@@ -17,6 +17,21 @@
       }}
     </p>
 
+    <div class="hw-actions">
+      <label class="hw-field">
+        {{ $t('hardware.buzzers.desksCount') }}
+        <select
+          :value="desks.length"
+          :disabled="learningState !== null"
+          data-test="desks-count"
+          @change="onDesksCount"
+        >
+          <option v-for="count in ALL_DESKS.length" :key="count" :value="count">{{ count }}</option>
+        </select>
+      </label>
+      <p class="hw-hint">{{ $t('hardware.buzzers.desksCountHint') }}</p>
+    </div>
+
     <div v-if="learningState" class="learn neon neon--no-hover" data-test="learning">
       <template v-if="learningState.current">
         <p class="learn__step">
@@ -82,7 +97,7 @@
     <h3 class="hw-panel__subtitle">{{ $t('hardware.buzzers.testTitle') }}</h3>
     <p class="hw-hint">{{ $t('hardware.buzzers.testHint') }}</p>
     <div class="desks">
-      <article v-for="desk in DESKS" :key="desk" class="desk-test" :class="`desk-test--${desk}`">
+      <article v-for="desk in desks" :key="desk" class="desk-test" :class="`desk-test--${desk}`">
         <header class="desk-test__head">
           <DeskBadge :desk="desk" :size="30" />
           <span>{{ $t('room.desk', { n: desk }) }}</span>
@@ -119,21 +134,26 @@ import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import {
+  ALL_DESKS,
   BUZZER_BUTTONS,
   type BuzzerButton,
   type DeskNumber,
-  DESKS,
   formatKeyCode,
   getDeskKeys,
 } from '@/hardware/buzzers'
-import { getBuzzerInput, saveBuzzerKeymap, useRoomHardware } from '@/hardware/roomHardware'
+import {
+  getBuzzerInput,
+  saveBuzzerKeymap,
+  saveRoomDesksCount,
+  useRoomHardware,
+} from '@/hardware/roomHardware'
 import { useBuzzers } from '@/hardware/useBuzzers'
 
 const FLASH_MS = 450
 
 const { t } = useI18n()
 const { confirm } = useConfirm()
-const { hardware, keymap, usesSimulationKeys, usesGamepad, buzzerState } = useRoomHardware()
+const { hardware, desks, keymap, usesSimulationKeys, usesGamepad, buzzerState } = useRoomHardware()
 
 const learning = shallowRef<BuzzerLearning | null>(null)
 const learningState = shallowRef<BuzzerLearningState | null>(null)
@@ -146,7 +166,7 @@ let offKeys: (() => void) | null = null
 const learnedCount = computed(() => Object.keys(hardware.value.config.buzzers.keymap).length)
 const learnedInSession = computed(() => Object.keys(learningState.value?.keymap ?? {}).length)
 const keysByDesk = computed(() =>
-  Object.fromEntries(DESKS.map((desk) => [desk, getDeskKeys(keymap.value, desk)]))
+  Object.fromEntries(desks.value.map((desk) => [desk, getDeskKeys(keymap.value, desk)]))
 )
 
 const feedback = computed(() => {
@@ -189,7 +209,7 @@ useBuzzers((press) => {
 function startLearning(): void {
   stopLearning()
   saved.value = false
-  const next = createBuzzerLearning()
+  const next = createBuzzerLearning({ desks: desks.value })
   learning.value = next
   learningState.value = next.getState()
   offLearning = next.onChange((state) => {
@@ -203,6 +223,10 @@ function startLearning(): void {
     }
     next.capture(code)
   })
+}
+
+async function onDesksCount(event: Event): Promise<void> {
+  await saveRoomDesksCount(Number((event.target as HTMLSelectElement).value))
 }
 
 function stopLearning(): void {
@@ -282,6 +306,14 @@ onBeforeUnmount(() => {
   color: var(--desk-4);
 }
 
+.learn__prompt--5 {
+  color: var(--desk-5);
+}
+
+.learn__prompt--6 {
+  color: var(--desk-6);
+}
+
 .learn__feedback {
   margin: 0;
   color: var(--ok);
@@ -293,7 +325,7 @@ onBeforeUnmount(() => {
 
 .desks {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
   gap: 14px;
 }
 
@@ -324,6 +356,14 @@ onBeforeUnmount(() => {
 
 .desk-test--4 {
   --desk-color: var(--desk-4);
+}
+
+.desk-test--5 {
+  --desk-color: var(--desk-5);
+}
+
+.desk-test--6 {
+  --desk-color: var(--desk-6);
 }
 
 .desk-test__head {

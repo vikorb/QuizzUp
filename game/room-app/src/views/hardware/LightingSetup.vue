@@ -87,7 +87,7 @@
       <label class="scene-desk">
         {{ $t('hardware.lights.sceneDesk') }}
         <select v-model.number="sceneDesk">
-          <option v-for="desk in DESKS" :key="desk" :value="desk">{{ desk }}</option>
+          <option v-for="desk in desks" :key="desk" :value="desk">{{ desk }}</option>
         </select>
       </label>
       <UiButton
@@ -135,12 +135,12 @@ import {
   SCENE_IDS,
   type SmokeRefusal,
 } from '@quizzup/hardware'
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
-import { type DeskNumber, DESKS } from '@/hardware/buzzers'
+import { type DeskNumber } from '@/hardware/buzzers'
 import {
   connectDmxInterface,
   startLighting,
@@ -164,11 +164,17 @@ const TEST_SCENES = [
 ] as const
 
 const { t } = useI18n()
-const { hardware, lightingState: state, lighting } = useRoomHardware()
+const { hardware, desks, lightingState: state, lighting } = useRoomHardware()
 const emergency = useEmergencyStop()
 
 const fixtures = shallowRef<FixtureView[]>([])
 const sceneDesk = ref<DeskNumber>(1)
+// Moins de pupitres qu'avant : le pupitre d'essai des scènes revient au dernier qui existe.
+watch(desks, (list) => {
+  if (!list.includes(sceneDesk.value)) {
+    sceneDesk.value = list.at(-1) ?? 1
+  }
+})
 const connecting = ref(false)
 const connectFailed = ref(false)
 const smokeRefusal = ref<SmokeRefusal | null>(null)

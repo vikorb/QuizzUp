@@ -10,7 +10,7 @@ import { DEFAULT_DESK_COLORS } from './lighting/scenes'
 import type { SmokeSafetyConfig } from './lighting/smoke'
 import { DEFAULT_SMOKE_SAFETY, normalizeSmokeSafety } from './lighting/smoke'
 import type { Desk, Rgb } from './types'
-import { clampByte, DESKS } from './types'
+import { clampByte, clampDeskCount, DEFAULT_DESK_COUNT, DESKS } from './types'
 
 export const ROOM_HARDWARE_CONFIG_VERSION = 1
 
@@ -43,6 +43,11 @@ export type BuzzerSource = { kind: 'keyboard' } | { kind: 'gamepad'; match?: str
 /** Configuration matérielle d'une salle, stockée dans `rooms.config` (JSONB). */
 export type RoomHardwareConfig = {
   version: number
+  /**
+   * Nombre de pupitres de la salle (1 à 6, 4 par défaut). Lu aussi par le backoffice, qui ne
+   * propose que ces pupitres au lancement d'une partie : le champ reste à la racine de la config.
+   */
+  desksCount: number
   buzzers: { keymap: BuzzerKeymap; source?: BuzzerSource }
   lighting: LightingConfig
 }
@@ -59,6 +64,7 @@ export type ParsedRoomHardwareConfig = {
 export function defaultRoomHardwareConfig(): RoomHardwareConfig {
   return {
     version: ROOM_HARDWARE_CONFIG_VERSION,
+    desksCount: DEFAULT_DESK_COUNT,
     buzzers: { keymap: {} },
     lighting: {
       driver: 'simulation',
@@ -141,6 +147,13 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
     problems.push('Origine des buzzers inconnue (clavier utilisé)')
   }
 
+  const desksCount = clampDeskCount(raw.desksCount)
+  if (raw.desksCount !== undefined && raw.desksCount !== desksCount) {
+    problems.push(
+      `Nombre de pupitres invalide : ${String(raw.desksCount)} (${desksCount} utilisé, de 1 à ${DESKS.length})`
+    )
+  }
+
   const rig = parseRig(lighting.fixtures, lighting.customProfiles)
   problems.push(...rig.problems)
 
@@ -171,6 +184,7 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
 
   const config: RoomHardwareConfig = {
     version: ROOM_HARDWARE_CONFIG_VERSION,
+    desksCount,
     buzzers: { keymap, ...(source ? { source } : {}) },
     lighting: {
       driver,
