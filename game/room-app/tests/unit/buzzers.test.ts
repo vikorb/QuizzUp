@@ -34,6 +34,7 @@ describe('touches affichées selon la disposition du clavier', () => {
     const azerty = new Map([
       ['KeyQ', 'a'],
       ['KeyW', 'z'],
+      ['Digit1', '&'],
     ])
     await loadKeyboardLayout({ keyboard: { getLayoutMap: async () => azerty } })
     expect(formatKeyCode('KeyQ')).toBe('A')

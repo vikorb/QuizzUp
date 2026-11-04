@@ -59,7 +59,8 @@ export async function loadKeyboardLayout(
 
 /** Libellé court d'une touche physique (`KeyQ` → `Q`, ou `A` en AZERTY ; `Digit1` → `1`). */
 export function formatKeyCode(code: string): string {
-  const printed = /^(Key|Digit)/.test(code) ? keyboardLayout.value?.get(code) : undefined
+  // Seules les lettres : sans Maj, les chiffres AZERTY donneraient & é " '.
+  const printed = code.startsWith('Key') ? keyboardLayout.value?.get(code) : undefined
   return printed && printed.trim() ? printed.toUpperCase() : code.replace(/^(Digit|Key|Numpad)/, '')
 }
 
