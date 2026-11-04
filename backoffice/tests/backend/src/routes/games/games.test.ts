@@ -21,7 +21,7 @@ import {
 } from '@quizzup/shared'
 import gamesRoutes from '@backend/routes/games'
 import { findGameParticipants, toGameRow } from '@backend/routes/games/_shared'
-import { dbState, MOCK_NOW } from '../_helpers/mockDb'
+import { dbState, MOCK_NOW, resetDb } from '../_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
 import {
   authHeaders,
@@ -434,6 +434,84 @@ describe('routes/games.ts (US-GAME-08)', () => {
         details: { fieldErrors: { miniGames: expect.any(Array) } },
       })
       expect(dbState.games).toHaveLength(0)
+    })
+  })
+
+  describe('POST /companies/:companyId/games — six pupitres', () => {
+    const sixPlayers = Array.from({ length: 6 }, (_item, index) => ({
+      podium: index + 1,
+      displayName: `Joueur ${index + 1}`,
+    }))
+
+    async function launch(participants: unknown, config?: Record<string, unknown>) {
+      seedRoom(config ? { config } : {})
+      const app = await createRouteApp(gamesRoutes)
+      const response = await app.inject({
+        method: 'POST',
+        url: '/companies/1/games',
+        headers: authHeaders(operator),
+        payload: { roomId: 1, participants },
+      })
+      await app.close()
+
+      return response
+    }
+
+    it('launches a game on 6 pupitres in a room set to 6', async () => {
+      const response = await launch(sixPlayers, { desksCount: 6 })
+
+      expect(response.statusCode).toBe(201)
+      expect(
+        parseJson<GameBody>(response).game.participants.map((participant) => participant.podium)
+      ).toEqual([1, 2, 3, 4, 5, 6])
+      expect(dbState.game_participants).toHaveLength(6)
+    })
+
+    it('accepts pupitre 5 in a room set to 5, but not pupitre 6', async () => {
+      const fiveOk = await launch(sixPlayers.slice(0, 5), { desksCount: 5 })
+      expect(fiveOk.statusCode).toBe(201)
+
+      resetDb()
+      const sixRefused = await launch(sixPlayers, { desksCount: 5 })
+      expect(sixRefused.statusCode).toBe(400)
+      expect(parseJson(sixRefused)).toEqual({ error: 'podium_not_in_room', desksCount: 5 })
+    })
+
+    it('refuses pupitre 5 in a room without desksCount (4 by default)', async () => {
+      const response = await launch([
+        { podium: 1, displayName: 'Léa' },
+        { podium: 5, displayName: 'Hugo' },
+      ])
+
+      expect(response.statusCode).toBe(400)
+      expect(parseJson(response)).toEqual({ error: 'podium_not_in_room', desksCount: 4 })
+      expect(dbState.games).toHaveLength(0)
+      expect(dbState.game_participants).toHaveLength(0)
+    })
+
+    it('refuses a pupitre beyond a small room, whatever the participants count', async () => {
+      const response = await launch([{ podium: 3, displayName: 'Léa' }], { desksCount: 2 })
+
+      expect(response.statusCode).toBe(400)
+      expect(parseJson(response)).toEqual({ error: 'podium_not_in_room', desksCount: 2 })
+    })
+
+    it('clamps an out-of-range desksCount stored in the room config', async () => {
+      // 12 est ramené à 6 : le pupitre 6 passe, comme dans la liste des salles.
+      const response = await launch(sixPlayers, { desksCount: 12 })
+
+      expect(response.statusCode).toBe(201)
+    })
+
+    it('still caps the schema at 6 pupitres and 6 participants', async () => {
+      const podiumSeven = await launch([{ podium: 7, displayName: 'Léa' }], { desksCount: 6 })
+      expect(podiumSeven.statusCode).toBe(400)
+      expect(parseJson<{ error: string }>(podiumSeven).error).toBe('invalid_body')
+
+      const sevenPlayers = [...sixPlayers, { podium: 6, displayName: 'Doublon' }]
+      const tooMany = await launch(sevenPlayers, { desksCount: 6 })
+      expect(tooMany.statusCode).toBe(400)
+      expect(parseJson<{ error: string }>(tooMany).error).toBe('invalid_body')
     })
   })
 

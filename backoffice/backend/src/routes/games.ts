@@ -7,6 +7,7 @@ import {
   GAME_STATE_RUNNING,
   GAME_STATUS_ACTIVE,
   GAME_STATUS_DELETED,
+  getRoomDesksCount,
   ROOM_STATUS_ACTIVE,
 } from '@quizzup/shared'
 import db from '../db'
@@ -114,6 +115,13 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
 
       if (room.status !== ROOM_STATUS_ACTIVE) {
         return reply.code(409).send({ error: 'room_inactive' })
+      }
+
+      // Une salle de 4 pupitres n'a pas de pupitre 5 : le nombre vient de `rooms.config`.
+      const desksCount = getRoomDesksCount(room.config)
+
+      if (participants.some((participant) => participant.podium > desksCount)) {
+        return reply.code(400).send({ error: 'podium_not_in_room', desksCount })
       }
 
       const busyGame = await db('games')

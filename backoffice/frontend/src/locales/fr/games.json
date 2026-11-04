@@ -153,6 +153,7 @@
       "roomNotFound": "Cette salle est introuvable.",
       "roomInactive": "Cette salle est inactive : activez-la avant d'y lancer une partie.",
       "roomBusy": "Une partie est déjà en attente ou en cours dans cette salle.",
+      "podiumNotInRoom": "Un des pupitres choisis n'existe pas dans cette salle.",
       "companyDeleted": "Cette compagnie est supprimée : aucune partie ne peut y être lancée.",
       "companyInactive": "Cette compagnie est inactive : réactivez-la avant de lancer une partie.",
       "gameAlreadyOver": "Cette partie est déjà terminée ou arrêtée.",

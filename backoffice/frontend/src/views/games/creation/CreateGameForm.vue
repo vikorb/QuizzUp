@@ -62,7 +62,7 @@
         <div>
           <h3 class="game-form__section-title">{{ $t('games.form.sections.participants') }}</h3>
           <p class="game-form__notice">
-            {{ $t('games.form.participantsHint', { max: GAME_PODIUMS }) }}
+            {{ $t('games.form.participantsHint', { max: desksCount }) }}
           </p>
         </div>
 
@@ -117,7 +117,7 @@
 <script setup lang="ts">
 import { mdiAccountPlusOutline } from '@mdi/js'
 import type { MiniGame } from '@quizzup/shared'
-import { GAME_MAX_QUESTIONS_PER_ROUND, GAME_MAX_ROUNDS, GAME_PODIUMS } from '@quizzup/shared'
+import { GAME_MAX_QUESTIONS_PER_ROUND, GAME_MAX_ROUNDS } from '@quizzup/shared'
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -147,8 +147,10 @@ import {
   createGameFieldErrors,
   createGameParticipantFieldErrors,
   createGameParticipantFormValues,
+  fitGameParticipantsToDesks,
   getActiveGameRooms,
   getGamePodiums,
+  getGameRoomDesksCount,
   getNextFreePodium,
   hasGameFormErrors,
   openGameSecondPlayer,
@@ -187,7 +189,9 @@ const formError = ref<string | null>(null)
 const isBusy = computed(() => saving.value || props.roomsLoading)
 const activeRooms = computed(() => getActiveGameRooms(props.rooms))
 const hasNoActiveRoom = computed(() => !props.roomsLoading && activeRooms.value.length === 0)
-const canAddParticipant = computed(() => canAddGameParticipant(form.participants))
+// Pupitres de la salle choisie : seuls ceux-là sont proposés (4 tant qu'aucune salle n'est choisie).
+const desksCount = computed(() => getGameRoomDesksCount(props.rooms, form.roomId))
+const canAddParticipant = computed(() => canAddGameParticipant(form.participants, desksCount.value))
 const canRemoveParticipant = computed(() => canRemoveGameParticipant(form.participants))
 
 const roomOptions = computed<SelectFieldOption[]>(() =>
@@ -208,6 +212,19 @@ watch(
   { immediate: true }
 )
 
+// Autre salle, autres pupitres : les participants hors de la nouvelle salle changent de pupitre
+// (premier libre) ; s'il n'y a plus de place, les derniers sont retirés.
+watch(desksCount, (count) => {
+  for (const index of fitGameParticipantsToDesks(form.participants, count)) {
+    form.participants.splice(index, 1)
+    fieldErrors.participants.splice(index, 1)
+  }
+
+  fieldErrors.participants.forEach((errors) => {
+    Object.assign(errors, { podium: '' })
+  })
+})
+
 function errorLabel(
   errorKey: string,
   params?: Record<string, string | number>
@@ -227,7 +244,7 @@ function getPodiumOptions(index: number): SelectFieldOption[] {
       .map((participant) => participant.podium)
   )
 
-  return getGamePodiums().map((podium) => ({
+  return getGamePodiums(desksCount.value).map((podium) => ({
     label: t('games.form.podiumOption', { podium }),
     value: String(podium),
     disabled: takenPodiums.has(String(podium)),
@@ -240,7 +257,7 @@ function resetErrors(): void {
 }
 
 function addParticipant(): void {
-  const podium = getNextFreePodium(form.participants)
+  const podium = getNextFreePodium(form.participants, desksCount.value)
 
   if (podium === null || !canAddParticipant.value) {
     return
@@ -340,7 +357,7 @@ async function onSubmit(): Promise<void> {
 
   resetErrors()
 
-  const errors = validateGameForm(form)
+  const errors = validateGameForm(form, desksCount.value)
 
   if (hasGameFormErrors(errors)) {
     Object.assign(fieldErrors, errors)

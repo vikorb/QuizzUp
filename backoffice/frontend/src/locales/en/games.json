@@ -153,6 +153,7 @@
       "roomNotFound": "This room cannot be found.",
       "roomInactive": "This room is inactive: activate it before launching a game in it.",
       "roomBusy": "A game is already pending or running in this room.",
+      "podiumNotInRoom": "One of the chosen podiums does not exist in this room.",
       "companyDeleted": "This company is deleted: no game can be launched in it.",
       "companyInactive": "This company is inactive: reactivate it before launching a game.",
       "gameAlreadyOver": "This game is already finished or stopped.",

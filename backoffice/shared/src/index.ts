@@ -400,8 +400,31 @@ export const GAME_DEFAULT_QUESTIONS_PER_ROUND = 10 as const
 export const GAME_MAX_ROUNDS = 20 as const
 export const GAME_MAX_QUESTIONS_PER_ROUND = 20 as const
 export const GAME_THEMES_OFFERED_PER_ROUND = 4 as const
-export const GAME_PODIUMS = 4 as const
+/** Plafond de pupitres d'une salle (décision d'Enzo, 2026-11-04 : 6 au maximum). */
+export const GAME_PODIUMS = 6 as const
 export const GAME_BUZZERS_PER_PODIUM = 4 as const
+
+/** Pupitres d'une salle neuve (4 par défaut, réglable de 1 à `GAME_PODIUMS`). */
+export const ROOM_DEFAULT_DESKS = 4 as const
+export const ROOM_MIN_DESKS = 1 as const
+
+/**
+ * Nombre de pupitres d'une salle, lu dans `rooms.config.desksCount`. Config absente, ancienne ou
+ * invalide : `ROOM_DEFAULT_DESKS`. Une valeur décimale ou hors bornes est ramenée dans
+ * `ROOM_MIN_DESKS`..`GAME_PODIUMS`.
+ */
+export function getRoomDesksCount(config: unknown): number {
+  const raw =
+    config && typeof config === 'object' && !Array.isArray(config)
+      ? (config as Record<string, unknown>).desksCount
+      : undefined
+
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) {
+    return ROOM_DEFAULT_DESKS
+  }
+
+  return Math.min(GAME_PODIUMS, Math.max(ROOM_MIN_DESKS, Math.trunc(raw)))
+}
 
 /** Graine de tirage d'une partie : entier 32 bits (générateur du moteur de jeu). */
 export const GAME_SEED_MAX = 0xff_ff_ff_ff
