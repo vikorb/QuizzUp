@@ -14,6 +14,7 @@ import { MINI_GAMES_STORAGE_KEY } from '@/game/miniGamesSetting'
 import { PENDING_FINISHES_KEY } from '@/game/pendingFinishes'
 import { createMemorySessionStorage, GameSession, type SessionStorage } from '@/game/session'
 import { closeGame, configureRoomGame, useRoomGame } from '@/game/useRoomGame'
+import { saveRoomDesksCount } from '@/hardware/roomHardware'
 import { signIn, syncRoomAuth } from '@/state/roomAuth'
 import * as roomApi from '@/utils/roomApi'
 import LobbyView from '@/views/LobbyView.vue'
@@ -126,6 +127,48 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
     await flushPromises()
     expect(wrapper.find('[data-test="player-3"]').classes()).toContain('player--ping')
     vi.useRealTimers()
+  })
+
+  it('affiche et démarre une partie à 6 pupitres venue du backoffice', async () => {
+    const sixPlayers: roomApi.RoomGame = {
+      ...GAME,
+      participants: [6, 4, 5, 2, 1, 3].map((podium) => ({
+        id: podium + 20,
+        podium,
+        displayName: `Joueur ${podium}`,
+        score: 0,
+      })),
+    }
+    // La salle est réglée sur 6 pupitres (sinon le backoffice aurait refusé cette partie).
+    await saveRoomDesksCount(6)
+    vi.spyOn(roomApi, 'fetchCurrentGame').mockResolvedValue(sixPlayers)
+    vi.spyOn(roomApi, 'fetchCurrentContent').mockResolvedValue(getPlayableThemes())
+    vi.spyOn(roomApi, 'startRoomGame').mockResolvedValue({ ...sixPlayers, state: 'running' })
+    const { wrapper, router } = await mountWithApp(LobbyView, { route: '/lobby' })
+    await flushPromises()
+
+    expect(wrapper.findAll('.player strong').map((node) => node.text())).toEqual([
+      'Joueur 1',
+      'Joueur 2',
+      'Joueur 3',
+      'Joueur 4',
+      'Joueur 5',
+      'Joueur 6',
+    ])
+    // Chaque pupitre garde sa couleur, jusqu'au 6.
+    expect(wrapper.find('.player--5').exists()).toBe(true)
+    expect(wrapper.find('.desk-badge--6').exists()).toBe(true)
+
+    pressKey('Digit5')
+    await flushPromises()
+    expect(wrapper.find('[data-test="player-5"]').classes()).toContain('player--ping')
+
+    await wrapper.find('[data-test="start-game"]').trigger('click')
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('play'))
+    const { state } = useRoomGame()
+    expect(state.value?.setup.participants.map((participant) => participant.podium)).toEqual([
+      1, 2, 3, 4, 5, 6,
+    ])
   })
 
   it('charge le contenu, accuse réception et démarre la partie du backoffice', async () => {

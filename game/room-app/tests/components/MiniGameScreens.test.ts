@@ -12,6 +12,7 @@ import {
 import { flushPromises } from '@vue/test-utils'
 
 import { getDemoThemes } from '@/game/demoContent'
+import type { Registration } from '@/game/registrations'
 import { createMemorySessionStorage } from '@/game/session'
 import {
   closeGame,
@@ -23,7 +24,7 @@ import {
 import { enterDemo, syncRoomAuth } from '@/state/roomAuth'
 import GameView from '@/views/GameView.vue'
 
-import { createManualClock, REGISTRATIONS } from '../_helpers/fixtures'
+import { createManualClock, REGISTRATIONS, SIX_REGISTRATIONS } from '../_helpers/fixtures'
 import { mountWithApp } from '../_helpers/mount'
 
 type Clock = ReturnType<typeof createManualClock>
@@ -32,9 +33,13 @@ function press(desk: number, buttonIndex: number, clock: Clock): void {
   pressBuzzer({ desk, buttonIndex, at: clock.value } as never)
 }
 
-async function startOn(miniGame: MiniGame, clock: Clock) {
+async function startOn(
+  miniGame: MiniGame,
+  clock: Clock,
+  registrations: Registration[] = REGISTRATIONS
+) {
   startNewGame({
-    registrations: REGISTRATIONS,
+    registrations,
     themes: getDemoThemes(),
     seed: 5,
     miniGames: [miniGame],
@@ -43,7 +48,7 @@ async function startOn(miniGame: MiniGame, clock: Clock) {
   clock.advance(DEFAULT_GAME_TIMINGS.roundIntroMs + 1)
   useRoomGame().session.value?.tick()
   const round = useRoomGame().state.value?.rounds.at(-1)
-  const chooser = REGISTRATIONS.findIndex(
+  const chooser = registrations.findIndex(
     (_item, index) => index + 1 === round?.chooserParticipantId
   )
   useRoomGame().session.value?.press(chooser + 1 || 1, 0)
@@ -154,6 +159,64 @@ describe('écrans des mini-jeux', () => {
     session?.press(3, wrongIndex() as 0)
     await flushPromises()
     expect(wrapper.text()).toContain('Hugo choisit qui voler')
+  })
+
+  it('vol de points : à 3 joueurs, une lettre par pupitre et pas de défilement', async () => {
+    const wrapper = await startOn(MINI_GAME_POINT_STEAL, clock)
+    const session = useRoomGame().session.value
+    session?.press(2, correctIndex() as 0)
+    session?.press(1, correctIndex() as 0)
+    session?.press(3, correctIndex() as 0)
+    await flushPromises()
+
+    expect(wrapper.find('.steal__letter').exists()).toBe(true)
+    expect(wrapper.findAll('.steal__letter').map((letter) => letter.text())).toEqual([
+      'A',
+      'B',
+      'C',
+    ])
+    expect(wrapper.find('[data-test="steal-keys"]').exists()).toBe(false)
+    expect(wrapper.find('.steal__target--picked').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Appuie sur la lettre du pupitre visé')
+  })
+
+  it('vol de points à 6 joueurs : la cible en surbrillance suit A et B', async () => {
+    const wrapper = await startOn(MINI_GAME_POINT_STEAL, clock, SIX_REGISTRATIONS)
+    const session = useRoomGame().session.value
+    session?.press(5, correctIndex() as 0)
+    session?.press(2, correctIndex() as 0)
+    session?.press(6, correctIndex() as 0)
+    for (const desk of [1, 3, 4]) {
+      session?.press(desk, wrongIndex() as 0)
+    }
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Joueur 5 choisit qui voler')
+    expect(wrapper.findAll('.steal__target')).toHaveLength(6)
+    // Plus de lettres (A à D ne suffisent plus), mais la consigne de défilement.
+    expect(wrapper.find('.steal__letter').exists()).toBe(false)
+    expect(wrapper.find('[data-test="steal-keys"]').text()).toContain('A précédent')
+    expect(wrapper.find('[data-test="steal-keys"]').text()).toContain('B suivant')
+    expect(wrapper.find('[data-test="steal-keys"]').text()).toContain('C ou D valide')
+    expect(wrapper.text()).toContain('A : cible précédente')
+
+    const picked = () =>
+      wrapper.findAll('.steal__target--picked').map((item) => item.attributes('data-test'))
+    expect(picked()).toEqual(['steal-target-2'])
+
+    session?.press(5, 1)
+    await flushPromises()
+    expect(picked()).toEqual(['steal-target-6'])
+
+    session?.press(5, 0)
+    session?.press(5, 0)
+    await flushPromises()
+    expect(picked()).toEqual(['steal-target-6'])
+    // Les pupitres sans points ne sont pas des cibles : ils restent atténués.
+    expect(wrapper.find('[data-test="steal-target-3"]').classes()).toContain('steal__target--off')
+    expect(wrapper.find('[data-test="steal-target-6"]').classes()).not.toContain(
+      'steal__target--off'
+    )
   })
 
   it.each([MINI_GAME_FIRST_BUZZ, MINI_GAME_PROGRESSIVE_REVEAL])(

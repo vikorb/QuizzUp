@@ -289,6 +289,46 @@ describe('routes/room.ts — current game (US-GAME-08)', () => {
     await app.close()
   })
 
+  it('finishes a game played on 6 pupitres', async () => {
+    seedRoom()
+    seedGame({ state: GAME_STATE_RUNNING })
+    for (const podium of [2, 3, 4, 5, 6]) {
+      dbState.game_participants.push({
+        id: podium,
+        game_id: 5,
+        podium,
+        display_name: `Joueur ${podium}`,
+        score: 0,
+      })
+    }
+    const app = await createRouteApp(roomRoutes)
+
+    const finished = await app.inject({
+      method: 'POST',
+      url: '/room/games/5/finish',
+      headers: authHeaders(roomUser),
+      payload: {
+        scores: [1, 2, 3, 4, 5, 6].map((podium) => ({ podium, score: podium * 100 })),
+      },
+    })
+    const tooMany = await app.inject({
+      method: 'POST',
+      url: '/room/games/5/finish',
+      headers: authHeaders(roomUser),
+      payload: {
+        scores: [1, 2, 3, 4, 5, 6, 7].map((podium) => ({ podium, score: 0 })),
+      },
+    })
+
+    expect(finished.statusCode).toBe(200)
+    expect(dbState.game_participants.map((row) => row.score)).toEqual([
+      100, 200, 300, 400, 500, 600,
+    ])
+    expect(tooMany.statusCode).toBe(400)
+
+    await app.close()
+  })
+
   it('refuses to finish an aborted game or a game of another room', async () => {
     seedRoom()
     seedGame({ state: GAME_STATE_ABORTED })
@@ -401,6 +441,33 @@ describe('routes/room.ts — hardware config', () => {
     })
     expect(tooLarge.statusCode).toBe(400)
     expect(parseJson(tooLarge)).toEqual({ error: 'room_config_too_large' })
+
+    await app.close()
+  })
+
+  it('stores the number of pupitres, from 1 to 6, and refuses the rest', async () => {
+    seedRoom({ config: { buzzers: { keymap: {} } } })
+    const app = await createRouteApp(roomRoutes)
+    const save = (desksCount: unknown) =>
+      app.inject({
+        method: 'PUT',
+        url: '/room/config',
+        headers: authHeaders(roomUser),
+        payload: { config: { desksCount } },
+      })
+
+    const six = await save(6)
+    expect(six.statusCode).toBe(200)
+    // Les autres sections sont gardées, `desksCount` est ajouté.
+    expect(parseJson<{ room: { config: unknown } }>(six).room.config).toEqual({
+      buzzers: { keymap: {} },
+      desksCount: 6,
+    })
+
+    for (const invalid of [0, 7, 3.5, '4']) {
+      expect((await save(invalid)).statusCode).toBe(400)
+    }
+    expect(dbState.rooms[0]!.config).toMatchObject({ desksCount: 6 })
 
     await app.close()
   })

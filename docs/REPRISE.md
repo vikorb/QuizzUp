@@ -77,10 +77,18 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
    comprises ; au-delà de 3 ans, email et consentement effacés dans les parties de cette
    compagnie seulement, noms et scores gardés. Tout se fait en SQL (verrou consultatif) ; test
    d'intégration PostgreSQL dans la CI (job migrations).
-6. **6 pupitres** : décidé (6 au maximum, 4 par défaut).
-   `game/hardware` gère déjà 1-6. À faire : `GAME_PODIUMS` 4 → 6 dans `@quizzup/shared`,
-   `GAME_PARTICIPANTS_MAX`, `game_participants`, lobby de room-app (`DESKS` dans
-   `src/hardware/buzzers.ts`) et le mini-jeu de vol de points (limité à 4).
+6. ~~**6 pupitres**~~ : fait (branche `feat/six-podiums`). `GAME_PODIUMS` = 6 (`@quizzup/shared`) ;
+   migration `20261104040000` (CHECK `podium` 1..6, retour arrière refusé si un pupitre 5 ou 6 est
+   utilisé) ; nombre de pupitres d'une salle = `rooms.config.desksCount` (1 à 6, absent = 4), réglé
+   dans l'écran Matériel (onglet Buzzers et assistant), renvoyé par `GET /companies/:id/rooms`
+   (`desksCount`) ; le formulaire de lancement ne propose que les pupitres de la salle, le backend
+   refuse au-delà (`400 podium_not_in_room`). Écran de salle : lobby, apprentissage, test des
+   buzzers, lumières et clavier de simulation (pupitres 5 = `5-8`, 6 = `T Y U I`) suivent
+   `desksCount` ; couleurs `--desk-5` / `--desk-6`. Vol de points : désignation directe A-D tant que
+   tous les pupitres sont de 1 à 4 ; dès un pupitre 5 ou 6, A recule / B avance la cible (en boucle),
+   C ou D valide, sans validation le vol vise le plus riche (cible automatique, en surbrillance au
+   départ). Reste à faire à la main : essai sur un vrai écran 5-6 joueurs (mise en page vue seulement
+   en tests) et sur la carte manette 24 entrées.
 7. Plus tard : SACEM, pricing, mode hors ligne (V2).
 
 Petits suivis connus : pas de Keyboard Lock avec la carte manette ; `LaunchView` reprend

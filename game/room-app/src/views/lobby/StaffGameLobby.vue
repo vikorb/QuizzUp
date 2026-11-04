@@ -136,7 +136,7 @@ import {
   startNewGame,
   validateNewGame,
 } from '@/game/useRoomGame'
-import { type DeskNumber, DESKS } from '@/hardware/buzzers'
+import { type DeskNumber, isDeskNumber } from '@/hardware/buzzers'
 import { useBuzzers } from '@/hardware/useBuzzers'
 import { getRoomToken } from '@/utils/auth'
 import {
@@ -198,10 +198,6 @@ const sortedParticipants = computed(() =>
     )
     .sort((left, right) => left.podium - right.podium)
 )
-
-function isDeskNumber(value: number): value is DeskNumber {
-  return (DESKS as readonly number[]).includes(value)
-}
 
 /** Nom affiché d'un pupitre : un ou deux joueurs (le score est celui du pupitre). */
 function formatDeskName(participant: RoomGameParticipant): string {
@@ -460,6 +456,14 @@ onBeforeUnmount(() => {
 
 .player--4 {
   --desk-color: var(--desk-4);
+}
+
+.player--5 {
+  --desk-color: var(--desk-5);
+}
+
+.player--6 {
+  --desk-color: var(--desk-6);
 }
 
 .player--ping {

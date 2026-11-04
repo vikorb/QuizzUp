@@ -45,6 +45,25 @@ describe('keymap des buzzers', () => {
     expect(findCode(keymap, 4, 'D')).toBe('KeyV')
   })
 
+  it('étend le mapping clavier par défaut aux pupitres 5 et 6, sans touche en double', () => {
+    const six = createDefaultKeymap([1, 2, 3, 4, 5, 6])
+    expect(Object.keys(six)).toHaveLength(24)
+    expect(missingSlots(six, [1, 2, 3, 4, 5, 6])).toEqual([])
+    expect(findCode(six, 5, 'A')).toBe('Digit5')
+    expect(findCode(six, 6, 'D')).toBe('KeyI')
+    // Les 4 premiers pupitres gardent leurs touches.
+    expect(findCode(six, 2, 'A')).toBe('KeyQ')
+    expect(Object.values(six).map((slot) => `${slot.desk}${slot.button}`)).toHaveLength(
+      new Set(Object.values(six).map((slot) => `${slot.desk}${slot.button}`)).size
+    )
+  })
+
+  it('ne donne au mapping par défaut que les pupitres demandés', () => {
+    expect(Object.keys(createDefaultKeymap([1, 2]))).toHaveLength(8)
+    expect(missingSlots(createDefaultKeymap([1, 2]), [1, 2])).toEqual([])
+    expect(listSlots([1, 2, 3, 4, 5, 6])).toHaveLength(24)
+  })
+
   it('retrouve une touche et un buzzer, ou null', () => {
     const keymap = { KeyA: { desk: 1 as const, button: 'B' as const } }
     expect(findSlot(keymap, 'KeyA')).toEqual({ desk: 1, button: 'B' })

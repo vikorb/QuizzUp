@@ -6,11 +6,13 @@
 @import '@backoffice-assets/styles/main.css';
 
 :root {
-  /* ---- Couleurs des 4 pupitres (dérivées des accents existants) ---- */
+  /* ---- Couleurs des 6 pupitres (1-4 dérivées des accents existants, 5 et 6 ajoutés) ---- */
   --desk-1: var(--accent-blue);
   --desk-2: var(--accent-pink);
   --desk-3: var(--accent-cyan);
   --desk-4: var(--warn);
+  --desk-5: #4ab4ff;
+  --desk-6: #ff7f50;
 
   /* ---- Couleurs des réponses A-D (mêmes teintes que les pupitres) ---- */
   --answer-a: var(--desk-1);

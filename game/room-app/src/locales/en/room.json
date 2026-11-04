@@ -18,7 +18,7 @@
     },
     "lobby": {
       "title": "Player registration",
-      "subtitle": "One player per desk, from 1 to 4. Press a buzzer to check your desk.",
+      "subtitle": "One player per desk, from 1 to {n}. Press a buzzer to check your desk.",
       "displayName": "Display name",
       "displayNamePlaceholder": "Your nickname",
       "email": "Email (optional)",

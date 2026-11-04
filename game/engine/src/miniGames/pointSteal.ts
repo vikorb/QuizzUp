@@ -1,7 +1,7 @@
 import { MINI_GAME_POINT_STEAL } from '@quizzup/shared'
 
 import type { ScoreLine } from '../draws'
-import type { AnswerRecord, EngineParticipant, PendingEvent } from '../types'
+import type { AnswerRecord, ButtonIndex, EngineParticipant, PendingEvent } from '../types'
 import type { MiniGameDefinition, QuestionStep } from './miniGame'
 import { getParticipantIds, getScore, isMultipleChoiceQuestion } from './questionRules'
 import {
@@ -16,14 +16,30 @@ import {
 
 /**
  * Vol de points : tout le monde répond en même temps (juste = 50 points). Le plus
- * rapide des bons choisit ensuite un adversaire avec ses buzzers (A = pupitre 1,
- * B = pupitre 2…) et lui vole jusqu'à 100 points. Sans choix dans le temps, le vol
- * vise automatiquement l'adversaire le mieux classé.
+ * rapide des bons choisit ensuite un adversaire avec ses buzzers et lui vole jusqu'à
+ * 100 points. Sans choix dans le temps, le vol vise automatiquement l'adversaire le
+ * mieux classé.
+ *
+ * Deux façons de choisir, selon les pupitres de la partie :
+ * - `direct` : tous les pupitres sont de 1 à 4, un bouton désigne un pupitre
+ *   (A = pupitre 1, B = 2, C = 3, D = 4) ;
+ * - `scroll` : dès qu'un pupitre est le 5 ou le 6 (donc toujours à 5 et 6 joueurs), il n'y a
+ *   plus assez de boutons : A recule et B avance dans la liste des adversaires (par pupitre,
+ *   en boucle), C ou D valide la cible en surbrillance. Elle démarre sur la cible automatique ;
+ *   sans validation dans le temps, le vol vise la cible automatique, comme en `direct`.
  */
 export const POINT_STEAL_ANSWER_MS = 15_000
 export const POINT_STEAL_TARGET_MS = 8000
 export const POINT_STEAL_POINTS = 50
 export const POINT_STEAL_AMOUNT = 100
+/** Pupitres désignables directement par un bouton (A à D). */
+export const POINT_STEAL_DIRECT_PODIUMS = 4
+
+/** Boutons du mode `scroll` : A recule, B avance, C ou D valide. */
+export const POINT_STEAL_PREVIOUS_BUTTON = 0
+export const POINT_STEAL_NEXT_BUTTON = 1
+
+export type PointStealTargeting = 'direct' | 'scroll'
 
 export type PointStealState = {
   kind: typeof MINI_GAME_POINT_STEAL
@@ -33,6 +49,10 @@ export type PointStealState = {
   answering: SimultaneousAnswering
   /** Le plus rapide des bons, qui choisit sa cible. */
   thiefId: number | null
+  /** Façon de choisir la cible, fixée par les pupitres de la partie. */
+  targeting: PointStealTargeting
+  /** Mode `scroll` : cible en surbrillance pendant le choix (`null` hors choix). */
+  highlightedId: number | null
   targetDeadline: number | null
   /** Points de la question avant le vol, par joueur. */
   records: AnswerRecord[]
@@ -57,6 +77,13 @@ function getTargets(state: PointStealState): EngineParticipant[] {
     .sort((first, second) => first.podium - second.podium)
 }
 
+/** Tous les pupitres tiennent sur A-D : désignation directe, sinon défilement. */
+export function getPointStealTargeting(participants: EngineParticipant[]): PointStealTargeting {
+  return participants.every((participant) => participant.podium <= POINT_STEAL_DIRECT_PODIUMS)
+    ? 'direct'
+    : 'scroll'
+}
+
 /** Cible automatique : l'adversaire le plus riche, au plus petit pupitre en cas d'égalité. */
 export function pickAutomaticTarget(state: PointStealState): number | null {
   const targets = getTargets(state)
@@ -67,7 +94,7 @@ export function pickAutomaticTarget(state: PointStealState): number | null {
 
 function finish(state: PointStealState, events: PendingEvent[], at: number): Step {
   return {
-    state: { ...state, status: 'done' },
+    state: { ...state, status: 'done', highlightedId: null },
     events,
     answers: state.records,
     endedAt: at,
@@ -140,7 +167,12 @@ function closeAnswers(state: PointStealState, events: PendingEvent[]): Step {
   }
 
   return {
-    state: { ...next, status: 'targeting', targetDeadline: at + POINT_STEAL_TARGET_MS },
+    state: {
+      ...next,
+      status: 'targeting',
+      highlightedId: next.targeting === 'scroll' ? pickAutomaticTarget(next) : null,
+      targetDeadline: at + POINT_STEAL_TARGET_MS,
+    },
     events: [
       ...events,
       {
@@ -154,6 +186,34 @@ function closeAnswers(state: PointStealState, events: PendingEvent[]): Step {
       },
     ],
   }
+}
+
+/** Mode `scroll` : seul le voleur agit ; A recule, B avance, C ou D valide la cible en surbrillance. */
+function pressScroll(
+  state: PointStealState,
+  participantId: number,
+  button: ButtonIndex,
+  at: number
+): Step {
+  if (participantId !== state.thiefId) {
+    return { state, events: [] }
+  }
+
+  const targets = getTargets(state)
+  const index = targets.findIndex((target) => target.id === state.highlightedId)
+
+  if (index === -1) {
+    return { state, events: [] }
+  }
+
+  if (button === POINT_STEAL_PREVIOUS_BUTTON || button === POINT_STEAL_NEXT_BUTTON) {
+    const shift = button === POINT_STEAL_NEXT_BUTTON ? 1 : -1
+    const next = targets[(index + shift + targets.length) % targets.length] as EngineParticipant
+
+    return { state: { ...state, highlightedId: next.id }, events: [] }
+  }
+
+  return steal(state, targets[index]!.id, false, at)
 }
 
 export const pointSteal: MiniGameDefinition<PointStealState> = {
@@ -174,6 +234,8 @@ export const pointSteal: MiniGameDefinition<PointStealState> = {
         POINT_STEAL_ANSWER_MS
       ),
       thiefId: null,
+      targeting: getPointStealTargeting(participants),
+      highlightedId: null,
       targetDeadline: null,
       records: [],
     },
@@ -199,6 +261,10 @@ export const pointSteal: MiniGameDefinition<PointStealState> = {
   },
 
   press: (state, { participantId, button, at }) => {
+    if (state.status === 'targeting' && state.targeting === 'scroll') {
+      return pressScroll(state, participantId, button, at)
+    }
+
     if (state.status === 'targeting') {
       // Le bouton désigne un pupitre : A = 1, B = 2, C = 3, D = 4.
       const target = state.participants.find((participant) => participant.podium === button + 1)

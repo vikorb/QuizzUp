@@ -7,7 +7,14 @@
           {{ $t('game.steal.title', { name: thief?.displayName ?? '' }) }}
         </h1>
         <p class="steal__hint">
-          {{ $t('game.steal.hint', { n: POINT_STEAL_AMOUNT }) }}
+          {{
+            $t(scrolling ? 'game.steal.scrollHint' : 'game.steal.hint', { n: POINT_STEAL_AMOUNT })
+          }}
+        </p>
+        <p v-if="scrolling" class="steal__keys" data-test="steal-keys">
+          <kbd>{{ $t('game.steal.scrollPrevious') }}</kbd>
+          <kbd>{{ $t('game.steal.scrollNext') }}</kbd>
+          <kbd>{{ $t('game.steal.scrollValidate') }}</kbd>
         </p>
       </div>
     </header>
@@ -20,10 +27,12 @@
         :aria-disabled="!view.targetIds.includes(participant.id)"
         :class="{
           'steal__target--off': !view.targetIds.includes(participant.id),
-          [`steal__target--${letters[participant.podium - 1]?.toLowerCase()}`]: true,
+          'steal__target--picked': scrolling && view.highlightedId === participant.id,
+          [`steal__target--${letters[participant.podium - 1]?.toLowerCase()}`]: !scrolling,
         }"
+        :data-test="`steal-target-${participant.podium}`"
       >
-        <span class="steal__letter">{{ letters[participant.podium - 1] }}</span>
+        <span v-if="!scrolling" class="steal__letter">{{ letters[participant.podium - 1] }}</span>
         <DeskBadge :desk="participant.podium" :size="40" />
         <span class="steal__name">{{ participant.displayName }}</span>
       </li>
@@ -51,6 +60,8 @@ import { BUZZER_BUTTONS } from '@/hardware/buzzers'
 const props = defineProps<{ view: StealView; participants: EngineParticipant[] }>()
 
 const letters = BUZZER_BUTTONS
+/** Pupitre 5 ou 6 dans la partie : plus assez de lettres, on fait défiler la cible. */
+const scrolling = computed(() => props.view.targeting === 'scroll')
 const thief = computed(() =>
   props.participants.find((participant) => participant.id === props.view.thiefId)
 )
@@ -121,6 +132,34 @@ const thief = computed(() =>
 
 .steal__target--off {
   opacity: 0.3;
+}
+
+/* Mode défilement : la cible en surbrillance (celle que C ou D validerait). */
+.steal__target--picked {
+  border-color: var(--border-hover);
+  border-left-color: var(--accent-cyan);
+  background: linear-gradient(135deg, var(--glow-blue), var(--glow-pink)), var(--bg-card-hi);
+  box-shadow: 0 0 34px var(--glow-pink);
+  transform: scale(1.04);
+  opacity: 1;
+}
+
+.steal__keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 10px 0 0;
+}
+
+.steal__keys kbd {
+  padding: 4px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-2);
+  background: var(--surface-1);
+  color: var(--text-1);
+  font-family: inherit;
+  font-size: var(--stage-small);
+  font-weight: 800;
 }
 
 .steal__letter {

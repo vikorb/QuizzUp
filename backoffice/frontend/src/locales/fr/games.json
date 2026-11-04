@@ -72,6 +72,11 @@
       "room": "Salle",
       "roomPlaceholder": "Choisir une salle",
       "roomsLoading": "Chargement des salles...",
+      "roomChange": {
+        "moved": "Cette salle n'a que {max} pupitres : pupitre changé pour {list}.",
+        "removed": "Retirés faute de pupitre libre dans cette salle : {list}.",
+        "participant": "Participant {n}"
+      },
       "noActiveRoom": "Aucune salle active dans cette compagnie : activez une salle avant de lancer une partie.",
       "roundsCount": "Manches",
       "roundsHint": "Entre 1 et {max}",
@@ -153,6 +158,7 @@
       "roomNotFound": "Cette salle est introuvable.",
       "roomInactive": "Cette salle est inactive : activez-la avant d'y lancer une partie.",
       "roomBusy": "Une partie est déjà en attente ou en cours dans cette salle.",
+      "podiumNotInRoom": "Un des pupitres choisis n'existe pas dans cette salle.",
       "companyDeleted": "Cette compagnie est supprimée : aucune partie ne peut y être lancée.",
       "companyInactive": "Cette compagnie est inactive : réactivez-la avant de lancer une partie.",
       "gameAlreadyOver": "Cette partie est déjà terminée ou arrêtée.",

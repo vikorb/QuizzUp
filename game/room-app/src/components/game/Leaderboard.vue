@@ -58,6 +58,14 @@ defineProps<{ lines: LeaderboardLine[]; showRoundPoints?: boolean }>()
   animation-delay: 0.3s;
 }
 
+.board__line:nth-child(5) {
+  animation-delay: 0.4s;
+}
+
+.board__line:nth-child(6) {
+  animation-delay: 0.5s;
+}
+
 .board__line--first {
   border-color: var(--border-hover);
   box-shadow: 0 0 30px var(--glow-pink);

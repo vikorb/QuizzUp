@@ -80,24 +80,27 @@ export function missingSlots(
 
 /**
  * Mapping de développement et de démonstration, sans buzzer branché : rangées 1-4, Q-R, A-F et
- * Z-V d'un clavier QWERTY (mêmes positions physiques sur un AZERTY).
+ * Z-V d'un clavier QWERTY (mêmes positions physiques sur un AZERTY), puis 5-8 et T-I pour les
+ * pupitres 5 et 6. Par défaut les 4 pupitres d'une salle standard ; `desks` en choisit d'autres.
  */
-export function createDefaultKeymap(): BuzzerKeymap {
-  const rows: string[][] = [
-    ['Digit1', 'Digit2', 'Digit3', 'Digit4'],
-    ['KeyQ', 'KeyW', 'KeyE', 'KeyR'],
-    ['KeyA', 'KeyS', 'KeyD', 'KeyF'],
-    ['KeyZ', 'KeyX', 'KeyC', 'KeyV'],
-  ]
+export function createDefaultKeymap(desks: readonly Desk[] = DEFAULT_DESKS): BuzzerKeymap {
+  const rows: Record<Desk, readonly string[]> = {
+    1: ['Digit1', 'Digit2', 'Digit3', 'Digit4'],
+    2: ['KeyQ', 'KeyW', 'KeyE', 'KeyR'],
+    3: ['KeyA', 'KeyS', 'KeyD', 'KeyF'],
+    4: ['KeyZ', 'KeyX', 'KeyC', 'KeyV'],
+    5: ['Digit5', 'Digit6', 'Digit7', 'Digit8'],
+    6: ['KeyT', 'KeyY', 'KeyU', 'KeyI'],
+  }
   const keymap: BuzzerKeymap = {}
-  DEFAULT_DESKS.forEach((desk, deskIndex) => {
+  for (const desk of desks) {
     BUZZER_BUTTONS.forEach((button, buttonIndex) => {
-      const code = rows[deskIndex]?.[buttonIndex]
+      const code = rows[desk][buttonIndex]
       if (code) {
         keymap[code] = { desk, button }
       }
     })
-  })
+  }
   return keymap
 }
 
