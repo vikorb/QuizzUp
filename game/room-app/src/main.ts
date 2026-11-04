@@ -6,6 +6,7 @@ import { createApp } from 'vue'
 import App from '@/App.vue'
 import { createDemoSynthPlayer, createRoutingExtractPlayer } from '@/audio/demoSynthPlayer'
 import { configureRoomGame } from '@/game/useRoomGame'
+import { loadKeyboardLayout } from '@/hardware/buzzers'
 import { syncHardwareWithRoom } from '@/hardware/hardwareSync'
 import { createAppI18n } from '@/plugins/i18n'
 import { createRoomRouter } from '@/router'
@@ -28,6 +29,9 @@ configureRoomGame({
 })
 
 const router = createRoomRouter()
+
+// Touches affichées selon la disposition réelle du clavier (AZERTY sur les PC de salle).
+void loadKeyboardLayout()
 
 // Jeton expiré ou révoqué : retour à la connexion (une partie interrompue se reprend ensuite).
 void refreshRoomAccount().then(() => {
