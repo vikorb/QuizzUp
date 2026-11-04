@@ -19,3 +19,7 @@ fi
 if [ -d game/e2e/node_modules ]; then
   (cd game/e2e && npx --no -- lint-staged) || exit 1
 fi
+
+if [ -d game/artnet-bridge/node_modules ]; then
+  (cd game/artnet-bridge && npx --no -- lint-staged) || exit 1
+fi
