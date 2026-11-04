@@ -11,6 +11,7 @@
     "migrate": "knex migrate:latest",
     "rollback": "knex migrate:rollback",
     "seed": "knex seed:run",
+    "seed:if-empty": "node db/seedIfEmpty.js",
     "test": "vitest --config vitest.config.ts",
     "test:watch": "vitest --config vitest.config.ts --watch",
     "test:coverage": "vitest --config vitest.config.ts --coverage"

@@ -27,6 +27,8 @@ services:
       JWT_EXPIRES_IN: '2h'
       MEDIA_STORAGE_DIR: '/data/media'
       MEDIA_MAX_BYTES: '10485760'
+      # Seeds au premier démarrage seulement (base vide) ; `always` pour réinitialiser à chaque up.
+      SEED_ON_START: '${SEED_ON_START:-if-empty}'
     ports:
       - '3001:3001'
     depends_on:
@@ -47,7 +49,7 @@ services:
         npm --prefix ../shared run build &&
         test -d node_modules || npm install &&
         npm run migrate &&
-        npm run seed &&
+        npm run seed:if-empty &&
         npm run dev
       "
 
@@ -75,6 +77,27 @@ services:
         npm --prefix ../shared run build &&
         test -d node_modules || npm install &&
         npm run dev -- --host 0.0.0.0 --port 5173
+      "
+
+  # Écran de salle (game/room-app) : consomme en sources le moteur, le matériel, l'audio et la
+  # charte du backoffice, d'où le montage de tout le dépôt.
+  room-app:
+    image: node:22-alpine
+    environment:
+      VITE_API_URL: 'http://localhost:3001'
+      CHOKIDAR_USEPOLLING: 'true'
+    ports:
+      - '4174:4174'
+    depends_on:
+      - backend
+    volumes:
+      - ..:/workspace
+      - room_app_node_modules:/workspace/game/room-app/node_modules
+    working_dir: /workspace/game/room-app
+    command: >
+      sh -c "
+        test -x node_modules/.bin/vite || npm ci &&
+        npm run dev -- --host 0.0.0.0 --port 4174 --strictPort
       "
 
   tests:
@@ -113,3 +136,4 @@ volumes:
   backend_node_modules:
   frontend_node_modules:
   shared_node_modules:
+  room_app_node_modules:

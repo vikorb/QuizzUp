@@ -1,17 +1,19 @@
-if [ -d backoffice/node_modules ]; then
+# On teste le binaire et pas le dossier : `npm run demo` (docker compose) crée des dossiers
+# node_modules vides sur l'hôte comme points de montage.
+if [ -x backoffice/node_modules/.bin/lint-staged ]; then
   (cd backoffice && npx --no -- lint-staged) || exit 1
 else
   echo "husky(pre-commit): backoffice/node_modules absent -> lint-staged ignore. Lance 'npm install' dans backoffice/ pour activer le lint pre-commit."
 fi
 
-if [ -d game/engine/node_modules ]; then
+if [ -x game/engine/node_modules/.bin/lint-staged ]; then
   (cd game/engine && npx --no -- lint-staged) || exit 1
 fi
 
-if [ -d game/room-app/node_modules ]; then
+if [ -x game/room-app/node_modules/.bin/lint-staged ]; then
   (cd game/room-app && npx --no -- lint-staged) || exit 1
 fi
 
-if [ -d game/hardware/node_modules ]; then
+if [ -x game/hardware/node_modules/.bin/lint-staged ]; then
   (cd game/hardware && npx --no -- lint-staged) || exit 1
 fi
