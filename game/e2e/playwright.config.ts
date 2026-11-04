@@ -28,6 +28,7 @@ export default defineConfig({
     {
       name: 'room-app',
       testMatch: /room-app\/.*\.spec\.ts/,
+      testIgnore: /-audio\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         baseURL: ROOM_APP_URL,
@@ -44,8 +45,10 @@ export default defineConfig({
       // Mesures au son réel (± 150 ms) : lancées seules, après les autres projets, pour ne
       // pas partager le CPU avec une partie en cours.
       name: 'audio',
-      testMatch: /harness\/.*-audio\.spec\.ts/,
+      testMatch: /(harness|room-app)\/.*-audio\.spec\.ts/,
       dependencies: ['room-app', 'harness'],
+      // Une mesure à la fois.
+      workers: 1,
       use: { ...devices['Desktop Chrome'], baseURL: HARNESS_URL, video: 'off' },
     },
   ],

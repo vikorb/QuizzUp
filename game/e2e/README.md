@@ -13,6 +13,7 @@ Objectif : attraper les régressions que les tests unitaires de chaque paquet ne
 | `tests/room-app/full-game.spec.ts`        | écran de salle (mode démo)             | Lobby RGPD (buzzer qui fait briller son pupitre, email refusé sans consentement, email jamais affiché), partie courte 3 × 3 jouée au clavier, points 100 / 50 / 20, « Personne n'a trouvé », bilans de manche, podium final, sauvegarde effacée à la fin. Arrêt de partie confirmé. |
 | `tests/room-app/blind-test-rules.spec.ts` | écran de salle + moteur                | Règles validées par Enzo : tout le monde joue en même temps, une erreur ne bloque **que pour le palier**, on passe au palier suivant **seulement si personne n'a trouvé** (tous faux, ou fenêtre de buzz écoulée).                                                                  |
 | `tests/room-app/hardware-dmx.spec.ts`     | écran « Matériel » (`/hardware`)       | Config de salle en JSON (2 PAR), sortie simulée, scène « buzz » sur le pupitre 2 (PAR à sa couleur, l'autre baissé), arrêt d'urgence = tout éteint et scènes bloquées, réarmement confirmé.                                                                                         |
+| `tests/room-app/demo-audio.spec.ts`       | écran de salle (mode démo, son réel)   | Extraits démo synthétisés en Web Audio, mesurés en sortie : l'extrait joue pendant l'écoute du palier, silence pendant la fenêtre de buzz, coupé au buzz, repris après une erreur, arrêté sur une bonne réponse. Horloge réelle (le son suit l'horloge audio).                      |
 | `tests/harness/blind-test-audio.spec.ts`  | banc audio (moteur + pont + Web Audio) | **Son réel** mesuré en sortie : démarre et s'arrête à 1 s, 5 s, 20 s (± 150 ms), respecte le point de départ de l'extrait, se coupe au buzz, reprend après une erreur, s'arrête sur une bonne réponse.                                                                              |
 | `tests/harness/dmx-simulation.spec.ts`    | banc lumières (moteur + buzzers + DMX) | Boucle DMX ~30 trames/s, scènes buzz / bonne / mauvaise réponse / victoire, PAR du pupitre qui a buzzé à sa couleur, arrêt d'urgence = noir complet, réarmement, fumée activée mais non armée : déclenchement refusé (`not_armed`), canal fumée toujours à 0.                       |
 
@@ -31,8 +32,8 @@ relit le contenu de la partie que la salle sauvegarde dans `localStorage`.
 
 ### Banc d'essai (`harness/`)
 
-Le mode démo de l'écran de salle ne joue pas encore de son et la partie ne montre pas les
-lumières : de petites pages assemblent les **vrais paquets** dans Chromium (`npm run harness`, port 4175) :
+Pour mesurer les paliers au milliseconde près avec un vrai fichier audio et lire les trames DMX,
+de petites pages assemblent les **vrais paquets** dans Chromium (`npm run harness`, port 4175) :
 
 - `audio.html` : moteur `@quizzup/game-engine` + pont audio de l'écran de salle
   (`room-app/src/audio/audioBridge.ts`) + `WebAudioExtractPlayer` de `@quizzup/audio`. Un
@@ -65,7 +66,7 @@ npm run format:check
 npm run type-check
 ```
 
-Les tests audio forment un projet Playwright à part (`audio`), lancé seul après les autres pour
+Les tests audio (`*-audio.spec.ts`, banc et écran de salle) forment un projet Playwright à part (`audio`), lancé seul après les autres pour
 que les mesures au son réel ne partagent pas le CPU ; si un test des autres projets échoue, ils
 sont ignorés (corriger d'abord l'échec, ou lancer `npx playwright test --project=audio`).
 
