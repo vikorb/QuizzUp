@@ -1,4 +1,5 @@
 import { DEFAULT_GAME_TIMINGS } from '@quizzup/game-engine'
+import { MINI_GAME_FLASH_BLIND_TEST } from '@quizzup/shared'
 
 import { createSilentExtractPlayer, type ExtractPlayer } from '@/audio/player'
 import { getDemoThemes } from '@/game/demoContent'
@@ -20,6 +21,8 @@ import {
 } from '@/game/useRoomGame'
 
 import { createManualClock, getPlayableThemes, REGISTRATIONS } from '../_helpers/fixtures'
+
+const BLIND_TEST_ONLY = [MINI_GAME_FLASH_BLIND_TEST]
 
 function fakePlayer(): ExtractPlayer {
   return {
@@ -64,7 +67,12 @@ describe('useRoomGame', () => {
     const off = onGameEvents(listener)
     const { state, now } = useRoomGame()
 
-    startNewGame({ registrations: REGISTRATIONS, themes: getDemoThemes(), seed: 7 })
+    startNewGame({
+      registrations: REGISTRATIONS,
+      themes: getDemoThemes(),
+      seed: 7,
+      miniGames: BLIND_TEST_ONLY,
+    })
 
     expect(getExtractPlayer()).toBe(player)
     expect(state.value?.phase.name).toBe('round_intro')
@@ -86,7 +94,12 @@ describe('useRoomGame', () => {
 
   it('transmet les appuis buzzers au moteur et l’audio suit', () => {
     const { state } = useRoomGame()
-    startNewGame({ registrations: REGISTRATIONS, themes: getPlayableThemes(), seed: 7 })
+    startNewGame({
+      registrations: REGISTRATIONS,
+      themes: getPlayableThemes(),
+      seed: 7,
+      miniGames: BLIND_TEST_ONLY,
+    })
     clock.advance(DEFAULT_GAME_TIMINGS.roundIntroMs + 10)
     vi.advanceTimersByTime(50)
 
@@ -99,7 +112,12 @@ describe('useRoomGame', () => {
 
   it('arrête la partie puis la ferme sans laisser de sauvegarde', () => {
     const { state, session } = useRoomGame()
-    startNewGame({ registrations: REGISTRATIONS, themes: getDemoThemes(), seed: 7 })
+    startNewGame({
+      registrations: REGISTRATIONS,
+      themes: getDemoThemes(),
+      seed: 7,
+      miniGames: BLIND_TEST_ONLY,
+    })
 
     abortGame()
     expect(state.value?.phase.name).toBe('aborted')
@@ -112,7 +130,12 @@ describe('useRoomGame', () => {
 
   it('reprend une partie sauvegardée après avoir rechargé les extraits', async () => {
     const { state } = useRoomGame()
-    startNewGame({ registrations: REGISTRATIONS, themes: getDemoThemes(), seed: 7 })
+    startNewGame({
+      registrations: REGISTRATIONS,
+      themes: getDemoThemes(),
+      seed: 7,
+      miniGames: BLIND_TEST_ONLY,
+    })
     const phase = state.value?.phase.name
 
     expect(await resumeSavedGame()).toBe(true)
@@ -127,7 +150,12 @@ describe('useRoomGame', () => {
 
   it('relance l’extrait du palier en cours à la reprise', async () => {
     const { state } = useRoomGame()
-    startNewGame({ registrations: REGISTRATIONS, themes: getPlayableThemes(), seed: 7 })
+    startNewGame({
+      registrations: REGISTRATIONS,
+      themes: getPlayableThemes(),
+      seed: 7,
+      miniGames: BLIND_TEST_ONLY,
+    })
     clock.advance(DEFAULT_GAME_TIMINGS.roundIntroMs + 10)
     vi.advanceTimersByTime(50)
     const chooser = state.value?.rounds[0]?.chooserParticipantId as 1 | 2 | 3
@@ -148,8 +176,9 @@ describe('preloadExtracts', () => {
       id: 1,
       name: 'Thème',
       questions: [
-        { mediaUrl: 'https://api/questions/1/media?v=2' },
-        { mediaUrl: 'demo://1/1' },
+        { mediaType: 'audio', mediaUrl: 'https://api/questions/1/media?v=2' },
+        { mediaType: 'image', mediaUrl: 'https://img.test/2.png' },
+        { mediaType: 'audio', mediaUrl: 'demo://1/1' },
         { mediaUrl: null },
       ],
     },

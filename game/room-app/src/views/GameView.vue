@@ -57,10 +57,27 @@
         :view="blindTest"
         :answering="getParticipant(state, blindTest.answeringParticipantId)"
       />
+      <AnswerAllScreen v-else-if="miniView?.mode === 'answer_all'" :view="miniView" />
+      <BuzzQuestionScreen
+        v-else-if="miniView?.mode === 'buzz'"
+        :view="miniView"
+        :answering="getParticipant(state, miniView.answeringParticipantId)"
+      />
+      <BetScreen
+        v-else-if="miniView?.mode === 'bet'"
+        :view="miniView"
+        :players-count="state.setup.participants.length"
+      />
+      <StealScreen
+        v-else-if="miniView?.mode === 'steal'"
+        :view="miniView"
+        :participants="state.setup.participants"
+      />
       <RevealScreen
         v-else-if="reveal"
         :view="reveal"
         :winner="getParticipant(state, reveal.winnerId)"
+        :participants="state.setup.participants"
       />
       <RoundSummaryScreen
         v-else-if="phase.name === 'round_summary' && round"
@@ -82,7 +99,10 @@
       v-if="!isOver"
       :lines="leaderboard"
       :active-id="activeId"
-      :locked-ids="blindTest?.lockedOutIds"
+      :locked-ids="blindTest?.lockedOutIds ?? buzzLockedIds"
+      :eliminated-ids="answerAll?.eliminatedIds"
+      :answered-ids="answeredIds"
+      :tags="scoreTags"
     />
   </main>
 </template>
@@ -98,6 +118,7 @@ import ScoreBoard from '@/components/game/ScoreBoard.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { useConfirm } from '@/composables/useConfirm'
+import { getMiniGameView } from '@/game/miniGameViews'
 import {
   getBlindTestView,
   getCurrentRound,
@@ -112,11 +133,15 @@ import { abortGame, closeGame, pressBuzzer, useRoomGame } from '@/game/useRoomGa
 import { useRoomHardware } from '@/hardware/roomHardware'
 import { useBuzzers } from '@/hardware/useBuzzers'
 import { useEmergencyStop } from '@/hardware/useEmergencyStop'
+import AnswerAllScreen from '@/views/game/AnswerAllScreen.vue'
+import BetScreen from '@/views/game/BetScreen.vue'
 import BlindTestScreen from '@/views/game/BlindTestScreen.vue'
+import BuzzQuestionScreen from '@/views/game/BuzzQuestionScreen.vue'
 import FinishedScreen from '@/views/game/FinishedScreen.vue'
 import RevealScreen from '@/views/game/RevealScreen.vue'
 import RoundIntroScreen from '@/views/game/RoundIntroScreen.vue'
 import RoundSummaryScreen from '@/views/game/RoundSummaryScreen.vue'
+import StealScreen from '@/views/game/StealScreen.vue'
 import ThemeChoiceScreen from '@/views/game/ThemeChoiceScreen.vue'
 
 const { t } = useI18n()
@@ -134,6 +159,28 @@ const isOver = computed(() => phase.value.name === 'finished' || phase.value.nam
 const leaderboard = computed(() => (state.value ? getLeaderboard(state.value) : []))
 const blindTest = computed(() => (state.value ? getBlindTestView(state.value, now.value) : null))
 const reveal = computed(() => (state.value ? getRevealView(state.value) : null))
+const miniView = computed(() => (state.value ? getMiniGameView(state.value, now.value) : null))
+const answerAll = computed(() => (miniView.value?.mode === 'answer_all' ? miniView.value : null))
+const buzzLockedIds = computed(() =>
+  miniView.value?.mode === 'buzz' ? miniView.value.lockedOutIds : undefined
+)
+const answeredIds = computed(() => {
+  if (miniView.value?.mode === 'answer_all') {
+    return miniView.value.answeredIds
+  }
+  return miniView.value?.mode === 'bet' ? miniView.value.betIds : undefined
+})
+/** Étiquettes du tableau des scores : multiplicateur de série, mise de quitte ou double. */
+const scoreTags = computed(() => {
+  const tags: Record<number, string> = {}
+  for (const [id, tag] of Object.entries(answerAll.value?.tags ?? {})) {
+    tags[Number(id)] =
+      tag.kind === 'multiplier'
+        ? t('game.scoreboard.multiplier', { n: tag.value })
+        : t(`game.scoreboard.${tag.kind}`, { n: tag.value })
+  }
+  return tags
+})
 const questionNumber = computed(() => (state.value ? getQuestionNumber(state.value) : null))
 const themeName = computed(() =>
   state.value && round.value ? getThemeName(state.value, round.value.themeId) : ''
@@ -148,6 +195,12 @@ const offeredThemes = computed(() =>
 const activeId = computed(() => {
   if (blindTest.value?.answeringParticipantId) {
     return blindTest.value.answeringParticipantId
+  }
+  if (miniView.value?.mode === 'buzz' && miniView.value.answeringParticipantId) {
+    return miniView.value.answeringParticipantId
+  }
+  if (miniView.value?.mode === 'steal') {
+    return miniView.value.thiefId
   }
   if (phase.value.name === 'theme_choice') {
     return round.value?.chooserParticipantId ?? null

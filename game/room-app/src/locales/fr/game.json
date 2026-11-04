@@ -13,6 +13,94 @@
           "Plus tu trouves tôt, plus tu marques : 100, 50 ou 20 points.",
           "Une erreur ne coûte rien, mais tu ne peux plus buzzer avant le palier suivant."
         ]
+      },
+      "quick_answer": {
+        "name": "Rapidité",
+        "pitch": "Tout le monde répond, le plus rapide marque le plus !",
+        "rules": [
+          "Tout le monde répond en même temps avec A, B, C ou D.",
+          "Seule ta première réponse compte.",
+          "Une bonne réponse rapporte de 100 points (tout de suite) à 20 points (à la fin).",
+          "Une erreur ne coûte rien."
+        ]
+      },
+      "first_buzz": {
+        "name": "Premier buzz",
+        "pitch": "Buzze le premier et réponds seul !",
+        "rules": [
+          "Lis la question, puis buzze avec n’importe quel bouton.",
+          "Le premier qui buzze répond seul avec A, B, C ou D.",
+          "Bonne réponse : 100 points.",
+          "Mauvaise réponse : 25 points de pénalité et la main passe."
+        ]
+      },
+      "true_false": {
+        "name": "Vrai ou faux éclair",
+        "pitch": "Une rafale d’affirmations, à toi de trancher !",
+        "rules": [
+          "A = Vrai, B = Faux.",
+          "Tout le monde répond en même temps, en quelques secondes.",
+          "Chaque bonne réponse rapporte 50 points."
+        ]
+      },
+      "double_or_nothing": {
+        "name": "Quitte ou double",
+        "pitch": "Mise avant de voir la question !",
+        "rules": [
+          "Avant la question, mise avec tes buzzers : A = je passe, B = 100, C = 200, D = tapis.",
+          "Le tapis met tout ton score en jeu (au moins 300 points).",
+          "Bonne réponse : tu gagnes ta mise. Mauvaise réponse ou silence : tu la perds.",
+          "Sans mise, tu joues 100 points."
+        ]
+      },
+      "sudden_death": {
+        "name": "Mort subite",
+        "pitch": "Une erreur et c’est fini pour toi !",
+        "rules": [
+          "Tout le monde répond en même temps : 50 points par bonne réponse.",
+          "Une erreur ou pas de réponse : éliminé jusqu’à la fin de la manche.",
+          "Si tous les survivants se trompent, personne n’est éliminé.",
+          "Le dernier debout rafle 200 points de bonus."
+        ]
+      },
+      "point_steal": {
+        "name": "Vol de points",
+        "pitch": "Le plus rapide vole un adversaire !",
+        "rules": [
+          "Tout le monde répond en même temps : 50 points par bonne réponse.",
+          "Le plus rapide des bons choisit un adversaire avec ses buzzers (A = pupitre 1, B = pupitre 2…).",
+          "Il lui vole jusqu’à 100 points.",
+          "Sans choix, le vol vise le mieux classé."
+        ]
+      },
+      "streak": {
+        "name": "Série",
+        "pitch": "Enchaîne les bonnes réponses pour faire grimper le multiplicateur !",
+        "rules": [
+          "Tout le monde répond en même temps avec A, B, C ou D.",
+          "Une bonne réponse rapporte 25 points × ton multiplicateur.",
+          "Chaque bonne réponse d’affilée fait monter le multiplicateur, jusqu’à ×5.",
+          "Une erreur ou un silence le fait retomber à ×1."
+        ]
+      },
+      "estimate": {
+        "name": "Estimation",
+        "pitch": "Trouve la bonne fourchette !",
+        "rules": [
+          "Les fourchettes sont rangées de la plus petite (A) à la plus grande.",
+          "Tout le monde répond en même temps.",
+          "Bonne fourchette : 100 points. Fourchette voisine : 30 points."
+        ]
+      },
+      "progressive_reveal": {
+        "name": "Révélation progressive",
+        "pitch": "L’image se dévoile peu à peu : trouve-la avant les autres !",
+        "rules": [
+          "L’image floue se précise pendant 20 secondes.",
+          "Le premier qui buzze fige l’image et répond seul avec A, B, C ou D.",
+          "Plus tu trouves tôt, plus tu marques : de 100 à 20 points.",
+          "Une erreur ne coûte rien, mais tu ne peux plus buzzer sur cette image."
+        ]
       }
     },
     "intro": {
@@ -51,7 +139,7 @@
       "title": "Fin de la partie",
       "winner": "{name} remporte la partie !",
       "tie": "Égalité au sommet !",
-      "noContent": "Plus assez de questions audio pour continuer la partie.",
+      "noContent": "Plus assez de questions pour continuer la partie.",
       "newGame": "Nouvelle partie",
       "home": "Retour à l’accueil"
     },
@@ -59,7 +147,47 @@
       "title": "Partie arrêtée"
     },
     "scoreboard": {
-      "label": "Scores"
+      "label": "Scores",
+      "answered": "A répondu",
+      "eliminated": "Éliminé",
+      "multiplier": "×{n}",
+      "stake": "Mise {n}",
+      "all_in": "Tapis {n}",
+      "pass": "Passe"
+    },
+    "answerAll": {
+      "answered": "{n} / {total} ont répondu",
+      "hint": "Tout le monde répond : A, B, C ou D",
+      "hintTrueFalse": "A = Vrai · B = Faux",
+      "hintEstimate": "Choisis la bonne fourchette",
+      "hintStreak": "Garde ta série !",
+      "hintSuddenDeath": "Pas le droit à l’erreur",
+      "hintDoubleOrNothing": "Ta mise est en jeu"
+    },
+    "buzz": {
+      "open": "Buzzez !",
+      "answering": "{name} répond !",
+      "atStake": "En jeu : {n} pts",
+      "hintFirstBuzz": "Premier buzz",
+      "hintReveal": "Qu’est-ce qui se cache ici ?"
+    },
+    "bet": {
+      "label": "Quitte ou double",
+      "title": "Faites vos jeux !",
+      "hint": "Mise avec tes buzzers avant de découvrir la question",
+      "count": "{n} / {total} ont misé",
+      "allInDetail": "tout ton score (min. {n})",
+      "options": {
+        "pass": "Je passe",
+        "single": "Mise simple",
+        "double": "Mise double",
+        "allIn": "Tapis"
+      }
+    },
+    "steal": {
+      "title": "{name} choisit qui voler",
+      "hint": "Appuie sur la lettre du pupitre visé : jusqu’à {n} points volés",
+      "auto": "Sans choix, le vol vise le mieux classé"
     }
   }
 }

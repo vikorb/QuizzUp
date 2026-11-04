@@ -1,4 +1,5 @@
 import { DEFAULT_GAME_TIMINGS, getMiniGameQuestion } from '@quizzup/game-engine'
+import { MINI_GAME_FLASH_BLIND_TEST } from '@quizzup/shared'
 import { flushPromises } from '@vue/test-utils'
 
 import { getDemoThemes } from '@/game/demoContent'
@@ -11,6 +12,8 @@ import GameView from '@/views/GameView.vue'
 import { createManualClock, REGISTRATIONS } from '../_helpers/fixtures'
 import { pressKey } from '../_helpers/keyboard'
 import { mountWithApp } from '../_helpers/mount'
+
+const BLIND_TEST_ONLY = [MINI_GAME_FLASH_BLIND_TEST]
 
 const KEY_BY_DESK = { 1: 'Digit1', 2: 'KeyQ', 3: 'KeyA', 4: 'KeyZ' } as const
 
@@ -37,7 +40,12 @@ describe('GameView', () => {
   })
 
   it('demande confirmation avant de quitter une partie en cours', async () => {
-    startNewGame({ registrations: REGISTRATIONS, themes: getDemoThemes(), seed: 11 })
+    startNewGame({
+      registrations: REGISTRATIONS,
+      themes: getDemoThemes(),
+      seed: 11,
+      miniGames: BLIND_TEST_ONLY,
+    })
     // Les gardes de navigation d'un composant ne s'activent que rendu par <RouterView> (App).
     const { default: App } = await import('@/App.vue')
     const { router } = await mountWithApp(App, { route: '/play' })
@@ -60,7 +68,12 @@ describe('GameView', () => {
   })
 
   it('enchaîne annonce, choix du thème, blind test et révélation au rythme du moteur', async () => {
-    startNewGame({ registrations: REGISTRATIONS, themes: getDemoThemes(), seed: 11 })
+    startNewGame({
+      registrations: REGISTRATIONS,
+      themes: getDemoThemes(),
+      seed: 11,
+      miniGames: BLIND_TEST_ONLY,
+    })
     const { state } = useRoomGame()
     const { wrapper } = await mountWithApp(GameView, { route: '/play' })
 
@@ -125,7 +138,12 @@ describe('GameView', () => {
   })
 
   it('verrouille un joueur qui s’est trompé', async () => {
-    startNewGame({ registrations: REGISTRATIONS, themes: getDemoThemes(), seed: 11 })
+    startNewGame({
+      registrations: REGISTRATIONS,
+      themes: getDemoThemes(),
+      seed: 11,
+      miniGames: BLIND_TEST_ONLY,
+    })
     const { state } = useRoomGame()
     const { wrapper } = await mountWithApp(GameView, { route: '/play' })
     clock.advance(DEFAULT_GAME_TIMINGS.roundIntroMs + 1)
@@ -147,7 +165,12 @@ describe('GameView', () => {
   })
 
   it('arrête la partie après confirmation et propose une nouvelle partie', async () => {
-    startNewGame({ registrations: REGISTRATIONS, themes: getDemoThemes(), seed: 11 })
+    startNewGame({
+      registrations: REGISTRATIONS,
+      themes: getDemoThemes(),
+      seed: 11,
+      miniGames: BLIND_TEST_ONLY,
+    })
     const { wrapper, router } = await mountWithApp(GameView, { route: '/play' })
 
     await wrapper.find('[aria-label="Arrêter la partie"]').trigger('click')

@@ -1,4 +1,5 @@
 import type { EngineTheme } from '@quizzup/game-engine'
+import { QUESTION_MEDIA_TYPE_AUDIO } from '@quizzup/shared'
 
 import { getDemoThemes } from '@/game/demoContent'
 
@@ -19,7 +20,12 @@ export function collectMediaUrls(themes: EngineTheme[]): string[] {
   const urls = new Set<string>()
   for (const theme of themes) {
     for (const question of theme.questions) {
-      if (question.mediaUrl && !question.mediaUrl.startsWith(DEMO_MEDIA_PREFIX)) {
+      // Seuls les extraits audio passent par le lecteur ; les images sont de simples liens.
+      if (
+        question.mediaType === QUESTION_MEDIA_TYPE_AUDIO &&
+        question.mediaUrl &&
+        !question.mediaUrl.startsWith(DEMO_MEDIA_PREFIX)
+      ) {
         urls.add(question.mediaUrl)
       }
     }
