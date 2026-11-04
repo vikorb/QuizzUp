@@ -2,7 +2,7 @@ import type { Desk, Rgbw } from '../types'
 import { clampByte, DESKS, isDesk } from '../types'
 import type { DmxDriver } from './output'
 import { DMX_DRIVER_UNIVERSES } from './output'
-import type { ChannelSpec, FixtureProfile } from './profiles'
+import type { ChannelSpec, ColorSlot, FixtureProfile } from './profiles'
 import { CHANNEL_ROLES, findProfile, FIXTURE_KINDS } from './profiles'
 import { DMX_CHANNELS, MAX_UNIVERSES } from './universe'
 
@@ -24,6 +24,16 @@ export type FixtureConfig = {
   deskPositions?: Partial<Record<Desk, PanTilt>>
   /** Lyres : position de repos. */
   homePosition?: PanTilt
+  /** Lyres : inverse le sens du pan (appareil monté à l'envers ou en miroir). Défaut `false`. */
+  invertPan?: boolean
+  /** Lyres : inverse le sens du tilt. Défaut `false`. */
+  invertTilt?: boolean
+  /**
+   * Lyres : plage de débattement utile `[min, max]`, sur 16 bits comme `PanTilt` (0-65535). La
+   * position demandée y est ramenée (butée matérielle ou mur à éviter). Absente = course complète.
+   */
+  panRange?: [number, number]
+  tiltRange?: [number, number]
 }
 
 /** Appareil prêt à être rendu : config + profil résolu. */
@@ -60,6 +70,28 @@ export function isLightFixture(fixture: ResolvedFixture): boolean {
 
 const clampWord = (value: number) => Math.min(65_535, Math.max(0, Math.round(value)))
 
+/** Position d'un axe : ramenée dans la plage, puis inversée dans cette même plage. */
+function axisWord(value: number, range: [number, number] | undefined, invert: boolean | undefined) {
+  const [min, max] = range ?? [0, 65_535]
+  const word = Math.min(max, Math.max(min, clampWord(value)))
+  return invert ? min + max - word : word
+}
+
+/** Emplacement de roue le plus proche (distance RVB euclidienne) ; à égalité, le premier. */
+function nearestSlot(slots: readonly ColorSlot[], color: Rgbw): ColorSlot | undefined {
+  let best: ColorSlot | undefined
+  let bestDistance = Infinity
+  for (const slot of slots) {
+    const distance =
+      (slot.rgb[0] - color.r) ** 2 + (slot.rgb[1] - color.g) ** 2 + (slot.rgb[2] - color.b) ** 2
+    if (distance < bestDistance) {
+      best = slot
+      bestDistance = distance
+    }
+  }
+  return best
+}
+
 function channelValue(
   spec: ChannelSpec,
   fixture: ResolvedFixture,
@@ -85,13 +117,24 @@ function channelValue(
     case 'strobe':
       return clampByte(state.strobe)
     case 'pan':
-      return clampWord(position.pan) >> 8
+      return axisWord(position.pan, fixture.panRange, fixture.invertPan) >> 8
     case 'panFine':
-      return clampWord(position.pan) & 0xff
+      return axisWord(position.pan, fixture.panRange, fixture.invertPan) & 0xff
     case 'tilt':
-      return clampWord(position.tilt) >> 8
+      return axisWord(position.tilt, fixture.tiltRange, fixture.invertTilt) >> 8
     case 'tiltFine':
-      return clampWord(position.tilt) & 0xff
+      return axisWord(position.tilt, fixture.tiltRange, fixture.invertTilt) & 0xff
+    case 'colorWheel':
+      // Roue vide ou absente : valeur fixe du canal, comme un canal `fixed`.
+      return clampByte(nearestSlot(spec.slots ?? [], state.color)?.value ?? spec.value ?? 0)
+    case 'shutter':
+      return clampByte(
+        spec.closed !== undefined && state.intensity <= 0 ? spec.closed : (spec.open ?? 255)
+      )
+    case 'gobo':
+      return clampByte(spec.open ?? 0)
+    case 'speed':
+      return clampByte(spec.value ?? 0)
     case 'smoke':
       if (smokeLevel <= 0) {
         return 0
@@ -193,6 +236,43 @@ function parsePanTilt(input: unknown): PanTilt | null {
   return { pan: clampWord(value.pan), tilt: clampWord(value.tilt) }
 }
 
+const isByte = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 255
+
+/** Emplacements de roue : `undefined` si absents, `null` si l'un d'eux est invalide. */
+function parseSlots(input: unknown): ColorSlot[] | undefined | null {
+  if (input === undefined) {
+    return undefined
+  }
+  if (!Array.isArray(input) || input.length > 256) {
+    return null
+  }
+  const slots: ColorSlot[] = []
+  for (const raw of input as Record<string, unknown>[]) {
+    const rgb = raw?.rgb
+    if (!isByte(raw?.value) || !Array.isArray(rgb) || rgb.length !== 3 || !rgb.every(isByte)) {
+      return null
+    }
+    slots.push({ value: raw.value, rgb: rgb.slice(0, 3) as ColorSlot['rgb'] })
+  }
+  return slots
+}
+
+/** Plage `[min, max]` en mots 16 bits ; `null` si invalide. */
+function parseRange(input: unknown): [number, number] | null {
+  if (
+    !Array.isArray(input) ||
+    input.length !== 2 ||
+    !input.every(
+      (word) => typeof word === 'number' && Number.isInteger(word) && word >= 0 && word <= 65_535
+    ) ||
+    input[0] > input[1]
+  ) {
+    return null
+  }
+  return [input[0] as number, input[1] as number]
+}
+
 function parseCustomProfiles(input: unknown, problems: string[]): FixtureProfile[] {
   if (!Array.isArray(input)) {
     return []
@@ -214,20 +294,28 @@ function parseCustomProfiles(input: unknown, problems: string[]): FixtureProfile
       continue
     }
     const specs: ChannelSpec[] = []
-    let valid = true
+    let problem: string | null = null
     for (const channel of channels as Record<string, unknown>[]) {
       if (!(CHANNEL_ROLES as readonly unknown[]).includes(channel?.role)) {
-        valid = false
+        problem = 'rôle de canal inconnu'
+        break
+      }
+      const slots = channel.role === 'colorWheel' ? parseSlots(channel.slots) : undefined
+      if (slots === null) {
+        problem = 'emplacement de roue invalide (valeur entière 0-255, rgb = 3 entiers 0-255)'
         break
       }
       specs.push({
         role: channel.role as ChannelSpec['role'],
         ...(typeof channel.value === 'number' ? { value: clampByte(channel.value) } : {}),
         ...(channel.binary === true ? { binary: true } : {}),
+        ...(slots ? { slots } : {}),
+        ...(typeof channel.open === 'number' ? { open: clampByte(channel.open) } : {}),
+        ...(typeof channel.closed === 'number' ? { closed: clampByte(channel.closed) } : {}),
       })
     }
-    if (!valid) {
-      problems.push(`Profil sur mesure ${raw.id} : rôle de canal inconnu`)
+    if (problem) {
+      problems.push(`Profil sur mesure ${raw.id} : ${problem}`)
       continue
     }
     profiles.push({
@@ -311,6 +399,18 @@ export function parseRig(fixturesInput: unknown, customProfilesInput: unknown): 
       }
     }
     const homePosition = parsePanTilt(raw.homePosition)
+    const ranges: Partial<Pick<FixtureConfig, 'panRange' | 'tiltRange'>> = {}
+    for (const key of ['panRange', 'tiltRange'] as const) {
+      if (raw[key] === undefined) {
+        continue
+      }
+      const range = parseRange(raw[key])
+      if (range) {
+        ranges[key] = range
+      } else {
+        problems.push(`Appareil « ${label} » : ${key} invalide (ignorée, [min, max] de 0 à 65535)`)
+      }
+    }
 
     ids.add(raw.id)
     profile.channels.forEach((_channel, offset) =>
@@ -326,6 +426,9 @@ export function parseRig(fixturesInput: unknown, customProfilesInput: unknown): 
       ...(isDesk(raw.desk) ? { desk: raw.desk } : {}),
       ...(Object.keys(deskPositions).length > 0 ? { deskPositions } : {}),
       ...(homePosition ? { homePosition } : {}),
+      ...(raw.invertPan === true ? { invertPan: true } : {}),
+      ...(raw.invertTilt === true ? { invertTilt: true } : {}),
+      ...ranges,
     })
   }
 

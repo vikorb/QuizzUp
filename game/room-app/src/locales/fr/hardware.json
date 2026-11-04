@@ -329,6 +329,30 @@
       "saved": "Configuration enregistrée sur le compte de la salle (copie de secours sur ce PC).",
       "error": "Backoffice injoignable : configuration gardée sur ce PC, elle sera renvoyée au prochain démarrage ou enregistrement.",
       "rejected": "Configuration refusée par le backoffice (trop volumineuse ou invalide) : elle n'est gardée que sur ce PC."
+    },
+    "profiles": {
+      "title": "Profils sur mesure et sens des lyres",
+      "hint": "Copie un profil générique pour régler ses canaux : roue de couleurs (valeur DMX et couleur de chaque emplacement), shutter, gobo, vitesse. Valeurs indicatives, à vérifier sur la notice de la lyre.",
+      "base": "Profil à copier",
+      "copy": "Copier ce profil",
+      "copySuffix": "(copie)",
+      "name": "Nom du profil",
+      "removeProfile": "Supprimer le profil",
+      "role": "Rôle du canal",
+      "removeChannel": "Retirer le canal",
+      "addChannel": "Ajouter un canal",
+      "slotValue": "Valeur DMX de l’emplacement",
+      "slotColor": "Couleur de l’emplacement",
+      "addSlot": "Ajouter un emplacement",
+      "removeSlot": "Retirer l’emplacement",
+      "open": "Ouvert",
+      "closed": "Fermé",
+      "never": "jamais",
+      "openGobo": "Sans gobo",
+      "value": "Valeur",
+      "fixtures": "Sens des lyres",
+      "invertPan": "Inverser le pan",
+      "invertTilt": "Inverser le tilt"
     }
   }
 }

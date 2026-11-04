@@ -329,6 +329,30 @@
       "saved": "Configuration saved on the room account (backup copy on this PC).",
       "error": "Back office unreachable: the configuration is kept on this PC and will be sent again at the next start or save.",
       "rejected": "Configuration refused by the back office (too large or invalid): it is only kept on this PC."
+    },
+    "profiles": {
+      "title": "Custom profiles and moving head direction",
+      "hint": "Copy a generic profile to tune its channels: colour wheel (DMX value and colour of each slot), shutter, gobo, speed. Values are indicative: check the fixture manual.",
+      "base": "Profile to copy",
+      "copy": "Copy this profile",
+      "copySuffix": "(copy)",
+      "name": "Profile name",
+      "removeProfile": "Delete profile",
+      "role": "Channel role",
+      "removeChannel": "Remove channel",
+      "addChannel": "Add channel",
+      "slotValue": "Slot DMX value",
+      "slotColor": "Slot colour",
+      "addSlot": "Add slot",
+      "removeSlot": "Remove slot",
+      "open": "Open",
+      "closed": "Closed",
+      "never": "never",
+      "openGobo": "No gobo",
+      "value": "Value",
+      "fixtures": "Moving head direction",
+      "invertPan": "Invert pan",
+      "invertTilt": "Invert tilt"
     }
   }
 }

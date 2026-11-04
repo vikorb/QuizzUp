@@ -1,6 +1,7 @@
 import type { BuzzerKeymap } from '../buzzers/keymap'
 import type { FixtureConfig, PanTilt } from '../dmx/fixtures'
 import type { FixtureProfile } from '../dmx/profiles'
+import { defaultColorWheelSlots } from '../dmx/profiles'
 import type { BuzzerButton, Desk } from '../types'
 import { BUZZER_BUTTONS, DESKS, isDesk } from '../types'
 
@@ -63,11 +64,12 @@ export const SIX_DESK_PROFILES: readonly FixtureProfile[] = [
     channels: [
       { role: 'pan' },
       { role: 'tilt' },
-      { role: 'fixed', value: 0 }, // roue de couleurs : blanc
-      { role: 'fixed', value: 0 }, // gobo : ouvert
+      // Roue de couleurs : le spot prend la couleur du pupitre (emplacements indicatifs, à régler).
+      { role: 'colorWheel', slots: defaultColorWheelSlots() },
+      { role: 'gobo', open: 0 }, // gobo : ouvert
       { role: 'strobe' },
       { role: 'dimmer' },
-      { role: 'fixed', value: 0 }, // vitesse pan/tilt : maximale
+      { role: 'speed', value: 0 }, // vitesse pan/tilt : maximale
       { role: 'fixed', value: 0 }, // programmes automatiques : désactivés
       { role: 'fixed', value: 0 }, // reset : aucun
     ],
@@ -85,7 +87,7 @@ export const SIX_DESK_PROFILES: readonly FixtureProfile[] = [
       { role: 'blue' },
       { role: 'white' },
       { role: 'strobe' },
-      { role: 'fixed', value: 0 }, // vitesse pan/tilt : maximale
+      { role: 'speed', value: 0 }, // vitesse pan/tilt : maximale
     ],
   },
 ]

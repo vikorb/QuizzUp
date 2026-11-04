@@ -209,6 +209,18 @@ relais (tout ou rien). Un appareil absent de la liste se décrit avec un **profi
 (`lighting.customProfiles`) : liste ordonnée de rôles de canaux (`dimmer`, `red`, `pan`,
 `smoke`, `fixed` avec une valeur…).
 
+Lyres spot génériques à roue de couleurs : `moving-head-spot-9`, `-11` et `-16` (ordre de canaux
+courant, **à vérifier sur la notice**). Rôles de canal à réglages :
+
+- `colorWheel` : `slots: [{ "value": 0-255, "rgb": [r, g, b] }]`. La couleur demandée prend la
+  valeur de l'emplacement le plus proche (distance RVB, premier en cas d'égalité) ; roue vide =
+  `value` du canal. Rendue en plus des canaux RVB si le profil en a.
+- `shutter` : `open` (défaut 255) ; `closed` facultatif, envoyé quand l'intensité vaut 0.
+- `gobo` : `open` (défaut 0, pas de gobo). `speed` : `value` fixe (défaut 0).
+- Sur l'appareil installé : `invertPan`, `invertTilt` (défaut `false`) et `panRange`, `tiltRange`
+  (`[min, max]` en mots 16 bits comme `PanTilt`) : la position est ramenée dans la plage, puis
+  inversée à l'intérieur de celle-ci.
+
 Un appareil peut être **dédié à un pupitre** (`desk`) et une lyre peut avoir une **position
 enregistrée par pupitre** (`deskPositions`) : « spot sur le pupitre qui a buzzé ».
 
