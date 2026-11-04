@@ -9,12 +9,13 @@ import {
   type GameTimings,
   reduceGame,
 } from '@quizzup/game-engine'
+import { MINI_GAME_FLASH_BLIND_TEST } from '@quizzup/shared'
 
 /** Bonne réponse et une mauvaise réponse de la question en cours, dans l'ordre A-D du moteur. */
 export function answerButtons(state: GameState): { correct: ButtonIndex; wrong: ButtonIndex } {
   const { phase } = state
-  if (phase.name !== 'question') {
-    throw new Error(`Pas de question en cours (phase ${phase.name})`)
+  if (phase.name !== 'question' || phase.miniGameState.kind !== MINI_GAME_FLASH_BLIND_TEST) {
+    throw new Error(`Pas de question de blind test éclair en cours (phase ${phase.name})`)
   }
   const { miniGameState } = phase
   // Tous les mini-jeux n'ont pas une question unique (paris du quitte ou double…).
@@ -62,6 +63,8 @@ export function createGameDriver(options: {
     roundsCount: options.roundsCount,
     questionsPerRound: options.questionsPerRound,
     timings: options.timings,
+    // Le banc ne joue que le blind test éclair (audio, lumières des paliers).
+    miniGames: [MINI_GAME_FLASH_BLIND_TEST],
   })
   const log: LoggedEvent[] = []
   let ticker: ReturnType<typeof setInterval> | null = null
