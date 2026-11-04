@@ -6,7 +6,7 @@ import { canAccessCompanyContext } from '../../security/companiesPolicy'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
 import { requireApiPermission } from '../../security/requireApiPermission'
 import { gameParamsSchema } from './_schemas'
-import { findGameInCompany } from './_shared'
+import { findGameInCompany, findStaffGame } from './_shared'
 
 const gamesIdRoutes: FastifyPluginAsync = async (app) => {
   app.get(
@@ -31,7 +31,7 @@ const gamesIdRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(403).send({ error: 'forbidden' })
       }
 
-      const game = await findGameInCompany(companyId, gameId)
+      const game = await findStaffGame(req, companyId, gameId)
 
       if (!game) {
         return reply.code(404).send({ error: 'not_found' })
@@ -83,7 +83,7 @@ const gamesIdRoutes: FastifyPluginAsync = async (app) => {
           updated_at: db.fn.now(),
         })
 
-      return { game: await findGameInCompany(companyId, gameId) }
+      return { game: await findStaffGame(req, companyId, gameId) }
     }
   )
 }

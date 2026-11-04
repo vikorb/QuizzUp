@@ -204,7 +204,10 @@ describe('views/questions/creation/CreateQuestionForm.vue — audio', () => {
 
     const wrapper = mountForm(null, 'create')
 
-    wrapper.findComponent(SelectField).vm.$emit('update:modelValue', 'audio')
+    wrapper
+      .findAllComponents(SelectField)
+      .find((field) => field.attributes('id') === 'question-type-media')
+      ?.vm.$emit('update:modelValue', 'audio')
     await nextTick()
     await findInput(wrapper, 'question').setValue('Quel groupe ?')
     await findInput(wrapper, 'answer-0').setValue('Queen')

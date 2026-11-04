@@ -133,7 +133,8 @@
           "server_error": "erreur serveur."
         },
         "measuring": "durée en cours de lecture…"
-      }
+      },
+      "kind": "Type de question"
     },
     "themeModes": {
       "classic": "Classique",
@@ -189,6 +190,11 @@
       "deleteFailed": "Impossible de supprimer la question.",
       "saveFailed": "Impossible d’enregistrer la question.",
       "serverError": "Une erreur serveur est survenue."
+    },
+    "kinds": {
+      "qcm": "QCM",
+      "true_false": "Vrai / faux",
+      "estimate": "Estimation"
     }
   }
 }

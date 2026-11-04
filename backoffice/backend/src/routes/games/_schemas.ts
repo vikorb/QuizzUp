@@ -18,18 +18,32 @@ export const gameParamsSchema = z.object({
   gameId: z.coerce.number().int().positive(),
 })
 
+const emailSchema = z.string().trim().toLowerCase().email().max(255).optional().nullable()
+const displayNameSchema = z.string().trim().min(1).max(GAME_PARTICIPANT_DISPLAY_NAME_MAX_LENGTH)
+
+// RGPD : la case doit être cochée explicitement pour qu'un email soit gardé.
+function hasConsentIfEmail(player: { email?: string | null; emailConsent?: boolean }): boolean {
+  return !player.email || player.emailConsent === true
+}
+
+/** 2e joueur facultatif d'un pupitre : son propre nom et son propre email RGPD. */
+const secondPlayerSchema = z
+  .object({
+    displayName: displayNameSchema,
+    email: emailSchema,
+    emailConsent: z.boolean().optional(),
+  })
+  .refine(hasConsentIfEmail, { message: 'email_consent_required', path: ['emailConsent'] })
+
 const participantSchema = z
   .object({
     podium: z.number().int().min(1).max(GAME_PODIUMS),
-    displayName: z.string().trim().min(1).max(GAME_PARTICIPANT_DISPLAY_NAME_MAX_LENGTH),
-    email: z.string().trim().toLowerCase().email().max(255).optional().nullable(),
-    // RGPD : la case doit être cochée explicitement pour qu'un email soit gardé.
+    displayName: displayNameSchema,
+    email: emailSchema,
     emailConsent: z.boolean().optional(),
+    secondPlayer: secondPlayerSchema.optional().nullable(),
   })
-  .refine((participant) => !participant.email || participant.emailConsent === true, {
-    message: 'email_consent_required',
-    path: ['emailConsent'],
-  })
+  .refine(hasConsentIfEmail, { message: 'email_consent_required', path: ['emailConsent'] })
 
 export const createGameSchema = z
   .object({

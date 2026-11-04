@@ -1,5 +1,6 @@
 import {
   ANSWER_STATUS_ACTIVE,
+  DEFAULT_QUESTION_KIND,
   QUESTION_MEDIA_TYPE_AUDIO,
   QUESTION_MEDIA_TYPE_IMAGE,
   QUESTION_MEDIA_TYPE_NONE,
@@ -18,6 +19,8 @@ export type RoomContentAnswer = { id: number; text: string; isCorrect: boolean }
 export type RoomContentQuestion = {
   id: number
   text: string
+  /** Type de question : `qcm`, `true_false` ou `estimate`. */
+  kind: string
   mediaType: string
   /** Audio : chemin relatif à l'API, à préfixer par son URL de base. Image / vidéo : lien. */
   mediaUrl: string | null
@@ -134,6 +137,7 @@ export async function loadRoomContent(companyId: number): Promise<RoomContentThe
         'scope',
         'company_id',
         'type_media',
+        'kind',
         'media_key',
         'media_url',
         'media_start_ms'
@@ -178,6 +182,7 @@ export async function loadRoomContent(companyId: number): Promise<RoomContentThe
         {
           id,
           text: question.question,
+          kind: question.kind ?? DEFAULT_QUESTION_KIND,
           mediaType: question.type_media,
           mediaUrl: question.mediaUrl ?? null,
           mediaStartMs: Number(question.media_start_ms ?? 0),

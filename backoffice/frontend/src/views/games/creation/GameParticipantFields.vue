@@ -58,45 +58,100 @@
       />
     </div>
 
-    <div class="participant__consent-block">
-      <label
-        class="participant__consent"
-        :class="{
-          'participant__consent--error': !!errors.emailConsent,
-          'participant__consent--checked': participant.emailConsent,
-        }"
-        :for="consentId"
-      >
-        <input
-          :id="consentId"
-          class="participant__checkbox"
-          type="checkbox"
-          :name="`participants.${index}.emailConsent`"
-          data-test="game-participant-consent"
-          :checked="participant.emailConsent"
-          :disabled="disabled"
-          :aria-invalid="!!errors.emailConsent"
-          :aria-describedby="consentDescribedBy"
-          @change="onConsentChange"
-        />
-        <span class="participant__consent-text">
-          {{ $t('games.form.consent') }}
-          <span v-if="consentRequired" class="participant__req" aria-hidden="true">*</span>
-        </span>
-      </label>
+    <GameConsentCheckbox
+      :id="consentId"
+      :name="`participants.${index}.emailConsent`"
+      data-test="game-participant-consent"
+      :checked="participant.emailConsent"
+      :required="consentRequired"
+      :disabled="disabled"
+      :error="errorLabel(errors.emailConsent)"
+      @change="emitUpdate('emailConsent', $event)"
+    />
 
-      <p v-if="errors.emailConsent" :id="`${consentId}_error`" class="participant__error">
-        {{ errorLabel(errors.emailConsent) }}
-      </p>
-      <p v-else :id="`${consentId}_hint`" class="participant__hint">
-        {{ $t('games.form.consentHint') }}
-      </p>
+    <div
+      v-if="participant.hasSecondPlayer"
+      class="participant__second"
+      data-test="game-second-player"
+    >
+      <div class="participant__second-head">
+        <h4 class="participant__second-title">{{ $t('games.form.secondPlayer') }}</h4>
+
+        <UiButton
+          class="icon icon-delete"
+          variant="icon"
+          type="button"
+          data-test="game-second-player-remove"
+          :disabled="disabled"
+          :title="$t('games.form.removeSecondPlayer')"
+          :aria-label="$t('games.form.removeSecondPlayer')"
+          @click="emit('remove-second-player')"
+        >
+          <MdIcon :path="mdiDeleteOutline" :size="18" />
+        </UiButton>
+      </div>
+
+      <div class="participant__grid participant__grid--second">
+        <FormField
+          :id="`game-participant-${participant.key}-second-name`"
+          :model-value="participant.secondDisplayName"
+          :label="$t('games.form.displayName')"
+          :name="`participants.${index}.secondPlayer.displayName`"
+          :placeholder="$t('games.form.secondDisplayNamePlaceholder')"
+          autocomplete="off"
+          :disabled="disabled"
+          :error="errorLabel(errors.secondDisplayName)"
+          required
+          @update:model-value="emitUpdate('secondDisplayName', $event)"
+        />
+
+        <FormField
+          :id="`game-participant-${participant.key}-second-email`"
+          :model-value="participant.secondEmail"
+          :label="$t('games.form.email')"
+          :name="`participants.${index}.secondPlayer.email`"
+          type="email"
+          inputmode="email"
+          autocomplete="off"
+          :placeholder="$t('games.form.emailPlaceholder')"
+          :hint="$t('games.form.emailHint')"
+          :disabled="disabled"
+          :error="errorLabel(errors.secondEmail)"
+          @update:model-value="emitUpdate('secondEmail', $event)"
+        />
+      </div>
+
+      <GameConsentCheckbox
+        :id="secondConsentId"
+        :name="`participants.${index}.secondPlayer.emailConsent`"
+        data-test="game-second-player-consent"
+        :checked="participant.secondEmailConsent"
+        :required="secondConsentRequired"
+        :disabled="disabled"
+        :error="errorLabel(errors.secondEmailConsent)"
+        @change="emitUpdate('secondEmailConsent', $event)"
+      />
+    </div>
+
+    <div v-else class="participant__second-add">
+      <UiButton
+        variant="default"
+        type="button"
+        data-test="game-second-player-add"
+        :disabled="disabled"
+        @click="emit('add-second-player')"
+      >
+        <span class="participant__button-content">
+          <MdIcon :path="mdiAccountPlusOutline" :size="18" />
+          <span>{{ $t('games.form.addSecondPlayer') }}</span>
+        </span>
+      </UiButton>
     </div>
   </fieldset>
 </template>
 
 <script setup lang="ts">
-import { mdiDeleteOutline } from '@mdi/js'
+import { mdiAccountPlusOutline, mdiDeleteOutline } from '@mdi/js'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -105,10 +160,14 @@ import SelectField from '@/components/ui/form/SelectField.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import type { SelectFieldOption } from '@/types/form'
-import type { GameParticipantFieldErrors, GameParticipantFormValues } from '@/types/game'
+import type {
+  GameParticipantField,
+  GameParticipantFieldErrors,
+  GameParticipantFormValues,
+} from '@/types/game'
 import { isBlank } from '@/utils/validation'
 
-type ParticipantField = 'podium' | 'displayName' | 'email' | 'emailConsent'
+import GameConsentCheckbox from './GameConsentCheckbox.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -126,34 +185,25 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
-  (event: 'update', field: ParticipantField, value: string | boolean): void
+  (event: 'update', field: GameParticipantField, value: string | boolean): void
   (event: 'remove'): void
+  (event: 'add-second-player'): void
+  (event: 'remove-second-player'): void
 }>()
 
 const { t } = useI18n()
 
 const consentId = computed(() => `game-participant-${props.participant.key}-consent`)
 const consentRequired = computed(() => !isBlank(props.participant.email))
-const consentDescribedBy = computed(() =>
-  props.errors.emailConsent ? `${consentId.value}_error` : `${consentId.value}_hint`
-)
+const secondConsentId = computed(() => `game-participant-${props.participant.key}-second-consent`)
+const secondConsentRequired = computed(() => !isBlank(props.participant.secondEmail))
 
 function errorLabel(errorKey: string): string | undefined {
   return errorKey ? t(errorKey) : undefined
 }
 
-function emitUpdate(field: ParticipantField, value: string | boolean): void {
+function emitUpdate(field: GameParticipantField, value: string | boolean): void {
   emit('update', field, value)
-}
-
-function onConsentChange(event: Event): void {
-  const target = event.target
-
-  if (!(target instanceof HTMLInputElement)) {
-    return
-  }
-
-  emitUpdate('emailConsent', target.checked)
 }
 </script>
 
@@ -187,69 +237,42 @@ function onConsentChange(event: Event): void {
   gap: 14px;
 }
 
-.participant__consent-block {
+.participant__second {
   display: grid;
-  gap: 6px;
-}
-
-.participant__consent {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--border-ui);
+  gap: 12px;
+  padding: 12px;
+  border: 1px dashed var(--border-ui);
   border-radius: 12px;
   background: var(--bg-field);
-  color: var(--text-1);
+}
+
+.participant__second-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.participant__second-title {
+  margin: 0;
   font-size: 13px;
-  line-height: 1.45;
-  cursor: pointer;
-  transition: var(--tr);
-}
-
-.participant__consent:hover,
-.participant__consent:focus-within {
-  border-color: var(--border-hover);
-  box-shadow: 0 0 0 3px var(--glow-soft);
-}
-
-.participant__consent--checked {
-  border-color: rgba(87, 224, 176, 0.3);
-  background: var(--ok-bg);
-}
-
-.participant__consent--error {
-  border-color: var(--danger);
-}
-
-.participant__checkbox {
-  flex: 0 0 auto;
-  width: 18px;
-  height: 18px;
-  margin: 1px 0 0;
-  accent-color: var(--primary);
-  cursor: pointer;
-}
-
-.participant__checkbox:disabled {
-  cursor: not-allowed;
-}
-
-.participant__req {
-  color: var(--accent-pink);
   font-weight: 800;
+  color: var(--text-0);
 }
 
-.participant__hint {
-  margin: 0;
-  font-size: 12px;
-  color: var(--text-3);
+.participant__grid--second {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.participant__error {
-  margin: 0;
-  font-size: 12px;
-  color: var(--danger);
+.participant__second-add {
+  display: flex;
+}
+
+.participant__button-content {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .participant__remove {
@@ -263,7 +286,8 @@ function onConsentChange(event: Event): void {
 }
 
 @media (max-width: 900px) {
-  .participant__grid {
+  .participant__grid,
+  .participant__grid--second {
     grid-template-columns: 1fr;
   }
 }

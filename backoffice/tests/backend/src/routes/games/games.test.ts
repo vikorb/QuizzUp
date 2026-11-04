@@ -100,15 +100,127 @@ describe('routes/games.ts (US-GAME-08)', () => {
       expect(Number(game.seed)).toBeGreaterThanOrEqual(0)
       expect(Number(game.seed)).toBeLessThanOrEqual(GAME_SEED_MAX)
       expect(Number.isInteger(Number(game.seed))).toBe(true)
+      // Le staff saisit l'email mais ne le relit pas (RGPD) : il est bien gardé en base.
       expect(game.participants).toEqual([
         expect.objectContaining({
           podium: 1,
           displayName: 'Léa',
-          email: 'lea@exemple.fr',
+          email: null,
+          hasEmail: true,
           consentAt: MOCK_NOW,
+          secondPlayer: null,
         }),
-        expect.objectContaining({ podium: 2, displayName: 'Hugo', email: null, consentAt: null }),
+        expect.objectContaining({ podium: 2, displayName: 'Hugo', email: null, hasEmail: false }),
       ])
+      expect(dbState.game_participants[0]).toMatchObject({
+        email: 'lea@exemple.fr',
+        consent_at: MOCK_NOW,
+      })
+
+      await app.close()
+    })
+
+    it('stores an optional second player per podium with their own GDPR email', async () => {
+      seedRoom()
+      const app = await createRouteApp(gamesRoutes)
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/companies/1/games',
+        headers: authHeaders(companyAdminUser),
+        payload: {
+          roomId: 1,
+          participants: [
+            {
+              podium: 1,
+              displayName: 'Léa',
+              secondPlayer: { displayName: 'Noé', email: 'NOE@exemple.fr', emailConsent: true },
+            },
+            { podium: 2, displayName: 'Hugo', secondPlayer: { displayName: 'Inès' } },
+          ],
+        },
+      })
+      const missingConsent = await app.inject({
+        method: 'POST',
+        url: '/companies/1/games',
+        headers: authHeaders(companyAdminUser),
+        payload: {
+          roomId: 1,
+          participants: [
+            {
+              podium: 1,
+              displayName: 'Léa',
+              secondPlayer: { displayName: 'Noé', email: 'n@x.fr' },
+            },
+          ],
+        },
+      })
+
+      expect(response.statusCode).toBe(201)
+      expect(parseJson<GameBody>(response).game.participants).toEqual([
+        expect.objectContaining({
+          podium: 1,
+          secondPlayer: {
+            displayName: 'Noé',
+            email: 'noe@exemple.fr',
+            hasEmail: true,
+            consentAt: MOCK_NOW,
+          },
+        }),
+        expect.objectContaining({
+          podium: 2,
+          secondPlayer: { displayName: 'Inès', email: null, hasEmail: false, consentAt: null },
+        }),
+      ])
+      expect(dbState.game_participants[0]).toMatchObject({
+        second_display_name: 'Noé',
+        second_email: 'noe@exemple.fr',
+        second_consent_at: MOCK_NOW,
+      })
+      expect(missingConsent.statusCode).toBe(400)
+      expect(JSON.stringify(parseJson(missingConsent))).toContain('email_consent_required')
+
+      await app.close()
+    })
+
+    it('shows player emails to admins only, never to the staff', async () => {
+      seedRoom()
+      seedGame()
+      dbState.game_participants.push({
+        id: 1,
+        game_id: 1,
+        podium: 1,
+        display_name: 'Léa',
+        email: 'lea@exemple.fr',
+        consent_at: MOCK_NOW,
+        second_display_name: 'Noé',
+        second_email: 'noe@exemple.fr',
+        second_consent_at: MOCK_NOW,
+        score: 0,
+      })
+      const app = await createRouteApp(gamesRoutes)
+
+      const asAdmin = await app.inject({
+        method: 'GET',
+        url: '/companies/1/games/1',
+        headers: authHeaders(companyAdminUser),
+      })
+      const asStaff = await app.inject({
+        method: 'GET',
+        url: '/companies/1/games/1',
+        headers: authHeaders(operator),
+      })
+
+      expect(parseJson<GameBody>(asAdmin).game.participants[0]).toMatchObject({
+        email: 'lea@exemple.fr',
+        secondPlayer: { email: 'noe@exemple.fr' },
+      })
+      expect(parseJson<GameBody>(asStaff).game.participants[0]).toMatchObject({
+        email: null,
+        hasEmail: true,
+        secondPlayer: { displayName: 'Noé', email: null, hasEmail: true },
+      })
+      expect(asStaff.body).not.toContain('@exemple.fr')
 
       await app.close()
     })

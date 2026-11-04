@@ -14,6 +14,7 @@ import {
   buildCreateGamePayload,
   canAddGameParticipant,
   canRemoveGameParticipant,
+  closeGameSecondPlayer,
   createDefaultGameFormValues,
   createGameParticipantFormValues,
   getActiveGameRooms,
@@ -21,6 +22,8 @@ import {
   getNextFreePodium,
   hasGameFormErrors,
   isGameParticipantConsentMissing,
+  isGameSecondPlayerConsentMissing,
+  openGameSecondPlayer,
   validateGameForm,
 } from '@/utils/game/form'
 
@@ -32,6 +35,16 @@ function participant(
     displayName: 'Team A',
     ...overrides,
   }
+}
+
+function withSecondPlayer(
+  overrides: Partial<GameParticipantFormValues> = {}
+): GameParticipantFormValues {
+  return participant({
+    hasSecondPlayer: true,
+    secondDisplayName: 'Alex',
+    ...overrides,
+  })
 }
 
 function validForm(overrides: Partial<GameFormValues> = {}): GameFormValues {
@@ -212,6 +225,9 @@ describe('utils/game/form', () => {
           displayName: '',
           email: '',
           emailConsent: '',
+          secondDisplayName: '',
+          secondEmail: '',
+          secondEmailConsent: '',
         }
       )
     })
@@ -252,6 +268,128 @@ describe('utils/game/form', () => {
       )
 
       expect(payload.participants[0]).toEqual({ podium: 1, displayName: 'Team A' })
+    })
+  })
+
+  describe('second player', () => {
+    it('starts closed with an unticked consent, and closing forgets the entry', () => {
+      const entered = createGameParticipantFormValues(2)
+
+      expect(entered.hasSecondPlayer).toBe(false)
+      expect(entered.secondEmailConsent).toBe(false)
+
+      openGameSecondPlayer(entered)
+      expect(entered.hasSecondPlayer).toBe(true)
+
+      Object.assign(entered, {
+        secondDisplayName: 'Alex',
+        secondEmail: 'alex@quizzup.test',
+        secondEmailConsent: true,
+      })
+      closeGameSecondPlayer(entered)
+
+      expect(entered).toMatchObject({
+        hasSecondPlayer: false,
+        secondDisplayName: '',
+        secondEmail: '',
+        secondEmailConsent: false,
+      })
+    })
+
+    it('requires the name of the second player once the block is open', () => {
+      const errors = validateGameForm(
+        validForm({ participants: [withSecondPlayer({ secondDisplayName: '   ' })] })
+      )
+
+      expect(errors.participants[0].secondDisplayName).toBe('games.form.errors.displayNameRequired')
+      expect(errors.participants[0].displayName).toBe('')
+      expect(hasGameFormErrors(errors)).toBe(true)
+    })
+
+    it('rejects a too long name and an invalid email for the second player', () => {
+      const errors = validateGameForm(
+        validForm({
+          participants: [
+            withSecondPlayer({
+              secondDisplayName: 'x'.repeat(GAME_PARTICIPANT_DISPLAY_NAME_MAX_LENGTH + 1),
+              secondEmail: 'not-an-email',
+              secondEmailConsent: true,
+            }),
+          ],
+        })
+      )
+
+      expect(errors.participants[0].secondDisplayName).toBe('games.form.errors.displayNameTooLong')
+      expect(errors.participants[0].secondEmail).toBe('games.form.errors.emailInvalid')
+    })
+
+    it('applies the GDPR consent rule to the second player on its own', () => {
+      const entered = withSecondPlayer({ secondEmail: 'alex@quizzup.test' })
+      const errors = validateGameForm(validForm({ participants: [entered] }))
+
+      expect(isGameSecondPlayerConsentMissing(entered)).toBe(true)
+      expect(isGameParticipantConsentMissing(entered)).toBe(false)
+      expect(errors.participants[0].secondEmailConsent).toBe('games.form.errors.consentRequired')
+      expect(errors.participants[0].emailConsent).toBe('')
+
+      const consented = withSecondPlayer({
+        secondEmail: 'alex@quizzup.test',
+        secondEmailConsent: true,
+      })
+
+      expect(isGameSecondPlayerConsentMissing(consented)).toBe(false)
+      expect(hasGameFormErrors(validateGameForm(validForm({ participants: [consented] })))).toBe(
+        false
+      )
+    })
+
+    it('ignores the second player fields while the block is closed', () => {
+      const closed = participant({
+        hasSecondPlayer: false,
+        secondDisplayName: '',
+        secondEmail: 'alex@quizzup.test',
+        secondEmailConsent: false,
+      })
+
+      expect(isGameSecondPlayerConsentMissing(closed)).toBe(false)
+      expect(hasGameFormErrors(validateGameForm(validForm({ participants: [closed] })))).toBe(false)
+      expect(buildCreateGamePayload(validForm({ participants: [closed] })).participants[0]).toEqual(
+        { podium: 1, displayName: 'Team A' }
+      )
+    })
+
+    it('sends the second player of a podium, trimmed, with its own email and consent', () => {
+      const payload = buildCreateGamePayload(
+        validForm({
+          participants: [
+            withSecondPlayer({
+              secondDisplayName: '  Alex  ',
+              secondEmail: ' alex@quizzup.test ',
+              secondEmailConsent: true,
+            }),
+          ],
+        })
+      )
+
+      expect(payload.participants).toEqual([
+        {
+          podium: 1,
+          displayName: 'Team A',
+          secondPlayer: {
+            displayName: 'Alex',
+            email: 'alex@quizzup.test',
+            emailConsent: true,
+          },
+        },
+      ])
+    })
+
+    it('sends a second player without email nor consent when none is entered', () => {
+      const payload = buildCreateGamePayload(
+        validForm({ participants: [withSecondPlayer({ secondEmailConsent: true })] })
+      )
+
+      expect(payload.participants[0].secondPlayer).toEqual({ displayName: 'Alex' })
     })
   })
 })

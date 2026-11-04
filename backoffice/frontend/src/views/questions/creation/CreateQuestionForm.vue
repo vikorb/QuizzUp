@@ -33,6 +33,14 @@
 
     <div class="question-form__grid">
       <SelectField
+        id="question-kind"
+        v-model="form.kind"
+        :label="$t('questions.form.kind')"
+        :options="kindOptions"
+        :disabled="saving"
+      />
+
+      <SelectField
         id="question-type-media"
         v-model="form.typeMedia"
         :label="$t('questions.form.typeMedia')"
@@ -130,6 +138,10 @@
 <script setup lang="ts">
 import { mdiTrashCanOutline } from '@mdi/js'
 import {
+  DEFAULT_QUESTION_KIND,
+  QUESTION_KIND_ESTIMATE,
+  QUESTION_KIND_QCM,
+  QUESTION_KIND_TRUE_FALSE,
   QUESTION_MEDIA_TYPE_AUDIO,
   QUESTION_MEDIA_TYPE_IMAGE,
   QUESTION_MEDIA_TYPE_NONE,
@@ -163,6 +175,7 @@ import type {
   Answer,
   Question,
   QuestionAudioState,
+  QuestionKind,
   QuestionMediaFile,
   QuestionMediaType,
   QuestionPayload,
@@ -195,6 +208,7 @@ const { t } = useI18n()
 const form = reactive({
   themeIds: [] as number[],
   question: '',
+  kind: DEFAULT_QUESTION_KIND as QuestionKind,
   typeMedia: QUESTION_MEDIA_TYPE_NONE as QuestionMediaType,
   mediaUrl: '',
   status: QUESTION_STATUS_ACTIVE as QuestionStatus,
@@ -280,6 +294,12 @@ const statusHelp = computed(() => {
     : t('questions.form.status.inactiveHelp')
 })
 
+const kindOptions = computed<SelectFieldOption[]>(() => [
+  { label: t('questions.kinds.qcm'), value: QUESTION_KIND_QCM },
+  { label: t('questions.kinds.true_false'), value: QUESTION_KIND_TRUE_FALSE },
+  { label: t('questions.kinds.estimate'), value: QUESTION_KIND_ESTIMATE },
+])
+
 const typeMediaOptions = computed<SelectFieldOption[]>(() => [
   {
     label: t('questions.media.none'),
@@ -309,6 +329,7 @@ watch(
     if (!question) {
       form.themeIds = normalizeThemeIds(props.initialThemeIds)
       form.question = ''
+      form.kind = DEFAULT_QUESTION_KIND
       form.typeMedia = QUESTION_MEDIA_TYPE_NONE
       form.mediaUrl = ''
       form.status = QUESTION_STATUS_ACTIVE
@@ -321,6 +342,7 @@ watch(
 
     form.themeIds = getQuestionThemeIds(question)
     form.question = question.question
+    form.kind = question.kind ?? DEFAULT_QUESTION_KIND
     form.typeMedia = question.typeMedia
     form.mediaUrl = question.mediaUrl ?? ''
     form.status = toQuestionStatus(question.status)
@@ -447,6 +469,7 @@ function buildPayload(): QuestionPayload {
   const payload: QuestionPayload = {
     themeIds: form.themeIds,
     question: form.question.trim(),
+    kind: form.kind,
     typeMedia: form.typeMedia,
     mediaUrl:
       form.typeMedia === QUESTION_MEDIA_TYPE_NONE || isAudio.value
