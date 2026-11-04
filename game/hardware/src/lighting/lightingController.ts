@@ -289,6 +289,9 @@ export function createLightingController(options: LightingControllerOptions): Li
   })
 
   const notify = () => changeEmitter.emit(getState())
+  // Les fins d'émission et de pause arrivent avec le temps, sans appel de l'extérieur : la vue
+  // doit les recevoir aussi.
+  smoke.onChange(() => notify())
 
   function warn(warning: LightingWarning) {
     lastWarning = warning

@@ -148,6 +148,35 @@ describe('contrôleur lumières et fumée', () => {
     expect(controller.getState().smoke.status).toBe('cooldown')
   })
 
+  it('notifie les abonnés quand la fumée finit son jet puis sa pause, sans action', async () => {
+    current = setup({
+      smoke: {
+        enabled: true,
+        maxDurationMs: 2_000,
+        cooldownMs: 5_000,
+        maxLevel: 180,
+        requireConfirmation: true,
+      },
+    })
+    const { controller, clock } = current
+    await controller.start()
+    controller.smoke.arm()
+    controller.smoke.fire(2_000)
+    const statuses: string[] = []
+    controller.onChange((state) => {
+      if (statuses.at(-1) !== state.smoke.status) {
+        statuses.push(state.smoke.status)
+      }
+    })
+
+    await advanceAsync(clock, 2_600)
+    expect(controller.getState().smoke.status).toBe('cooldown')
+    expect(statuses.at(-1)).toBe('cooldown')
+
+    await advanceAsync(clock, 5_000)
+    expect(statuses.at(-1)).toBe('ready')
+  })
+
   it('victoire à égalité : pas de pupitre mis en avant', async () => {
     current = setup()
     await current.controller.start()
