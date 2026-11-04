@@ -76,10 +76,10 @@ SOS en morse, carillon…).
 
 1. Ouvrir <http://localhost:4174>, cliquer **« Essayer en mode démo (sans compte) »**.
 2. Cliquer **« Lancer la salle »** (plein écran ; `Échap` pour en sortir).
-3. Lobby : saisir un pseudo sur les pupitres 1 et 2, choisir **Partie courte · 3 × 3**,
-   cliquer **« Démarrer la partie »**.
-4. Jouer au clavier (voir le tableau ci-dessous). Le joueur désigné choisit le thème avec
-   A-D ; pendant un palier, le premier qui buzze répond seul.
+3. Lobby : saisir un pseudo sur les pupitres 1 et 2. Le format **« Partie courte · 3 manches
+   × 3 questions »** est déjà choisi. Cliquer **« Démarrer la partie »**.
+4. Jouer au clavier (tableau ci-dessous). Le joueur désigné choisit le thème avec A-D ;
+   pendant un palier, le premier qui buzze répond seul avec A-D.
 
 | Pupitre | A   | B   | C   | D   |
 | ------- | --- | --- | --- | --- |
@@ -88,31 +88,43 @@ SOS en morse, carillon…).
 | 3       | `Q` | `S` | `D` | `F` |
 | 4       | `W` | `X` | `C` | `V` |
 
-(touches d'un clavier AZERTY ; sur un clavier QWERTY, rangées `QWER`, `ASDF`, `ZXCV`)
+Ce sont les touches d'un clavier **AZERTY**. Attention : l'écran affiche les noms QWERTY des
+mêmes touches (« Q W E R » pour le pupitre 2), c'est la même rangée physique.
+
+En mode démo, les extraits sont des petites mélodies synthétisées à la volée (pas les thèmes
+du backoffice) ; l'inscription des joueurs se fait directement sur l'écran.
 
 À vérifier : annonce du mini-jeu → choix du thème → paliers 1 s / 5 s / 20 s → révélation →
 bilan de manche → podium final.
 
 ## 6. Parcours B — une vraie partie, du backoffice à la salle (10 minutes)
 
-C'est le parcours d'un centre : le staff lance la partie au backoffice, la salle la joue.
+C'est le parcours d'un centre : le staff inscrit les joueurs et lance la partie au
+backoffice, la salle la reçoit et la joue. Ouvrir le backoffice et l'écran de salle dans deux
+fenêtres (ou sur deux PC).
 
 1. **Backoffice** <http://localhost:4173> : se connecter avec `demo-admin` / `Demo1234!`.
-2. Menu **Clients → QuizzUP Démo → Salles** : la salle « Salle 1 » et son compte de salle
-   existent déjà (on peut en créer d'autres ici, avec leur mot de passe).
-3. Menu **Thèmes** : ouvrir « Mélodies du domaine public », puis une question : l'extrait
-   audio s'écoute dans la fiche. (Pour tester l'upload : ajouter une question audio, envoyer
-   un MP3 ou OGG de moins de 10 Mo et cocher l'attestation de droits.)
-4. Menu **Parties → Lancer une partie** : salle « Salle 1 », 3 manches × 3 questions,
-   2 participants (pupitres 1 et 2, pseudo ; email facultatif avec consentement). Valider :
-   la partie passe **En attente**.
-5. **Écran de salle** <http://localhost:4174> (idéalement dans une autre fenêtre ou un autre
-   PC) : se connecter avec `salle1-demo` / `Demo1234!`, cliquer **« Lancer la salle »**.
-   La partie préparée au backoffice apparaît avec ses joueurs ; la démarrer.
-6. Jouer comme au parcours A. Cette fois **les extraits s'entendent** : ils viennent du
-   backoffice et sont préchargés avant la partie.
-7. Revenir au backoffice, **Parties** : la partie est **En cours** puis **Terminée**.
-   Le bouton **Arrêter** libère la salle si une partie reste bloquée.
+2. Menu **Ma compagnie** : section **Salles** ; « Salle 1 » et son compte de salle existent
+   déjà (on peut créer d'autres salles et leur compte ici).
+3. Menu **Thèmes** : « Mélodies du domaine public » et « Sons synthétiques ». Dans **Questions /
+   Réponses**, modifier une question audio : les boutons d'écoute jouent l'extrait. (Pour tester
+   l'envoi : ajouter une question audio, envoyer un MP3 ou OGG de moins de 10 Mo et cocher
+   l'attestation de droits.)
+4. Menu **Parties → « Lancer une partie »** : salle « Salle 1 », par exemple 2 manches × 2
+   questions ; participant 1 sur le pupitre 1, **« Ajouter un participant »** pour le pupitre 2
+   (nom ; email facultatif avec la case de consentement ; **« Ajouter un 2e joueur »** pour un
+   duo sur le même pupitre). Cliquer **« Lancer la partie »** : elle apparaît **En attente**.
+5. **Écran de salle** <http://localhost:4174> : se connecter avec `salle1-demo` /
+   `Demo1234!`, cliquer **« Lancer la salle »**. L'écran **« Partie du jour »** affiche
+   « Partie prête : 2 manches × 2 questions » et les joueurs par pupitre (chaque appui buzzer
+   fait briller son pupitre). Sans partie, il affiche « En attente d'une partie » et la
+   détecte tout seul dès qu'elle est lancée au backoffice.
+6. Cliquer **« Démarrer la partie »** (« Préparation des extraits… » le temps du
+   préchargement), puis jouer comme au parcours A. Cette fois **on entend les extraits du
+   backoffice**, et le joueur désigné choisit entre les deux thèmes de démo.
+7. Au backoffice, **Parties** : la partie passe **En cours** dès le démarrage dans la salle.
+   Elle **reste « En cours » après le podium** : l'envoi des résultats au backoffice n'est pas
+   encore fait. Utiliser **Arrêter** pour libérer la salle avant la partie suivante.
 
 À vérifier en plus :
 
@@ -121,6 +133,8 @@ C'est le parcours d'un centre : le staff lance la partie au backoffice, la salle
 - **Focus** : cliquer hors de la fenêtre → une alerte plein écran prévient que les buzzers
   ne sont plus reçus.
 - **Son** : au premier palier on doit entendre 1 seconde exactement, puis 5, puis 20.
+- **Backoffice coupé** (`npm run demo:stop` puis relance) : le lobby affiche « Backoffice
+  injoignable » avec un bouton « Réessayer ».
 
 > Si un extrait n'a pas pu être préchargé (réseau coupé au chargement), il reste muet pendant
 > la partie : c'est voulu, la partie ne doit jamais attendre un téléchargement.
@@ -130,7 +144,11 @@ C'est le parcours d'un centre : le staff lance la partie au backoffice, la salle
 C'est la partie la plus délicate : on la teste par étapes, du plus simple au plus risqué.
 Tout se règle dans l'écran de salle, bouton **« Matériel de la salle »** (écran de
 lancement), puis les onglets **Buzzers**, **Lumières et fumée**, **Configuration avancée**.
-La configuration est enregistrée sur ce PC.
+Connectée avec un compte de salle, la configuration est enregistrée **sur le compte de la
+salle** (en base), avec une copie de secours sur le PC ; en mode démo, sur le PC seulement.
+
+> Pas encore d'interface DMX ? Tout le parcours C2 se teste en **Simulation** : la « salle
+> simulée » montre ce que feraient les projecteurs et la fumée.
 
 ### C1. Buzzers
 
@@ -243,20 +261,26 @@ Les mots de passe des comptes de démo sont alors ceux choisis dans `deploy/rece
 Depuis la racine, après les installations décrites dans `CLAUDE.md` :
 
 ```bash
-cd backoffice && npm run lint && npm run type-check && npm test   # backoffice
-cd game/engine   && npm ci && npm test                              # moteur
-cd game/hardware && npm ci && npm test                              # matériel
-cd game/audio    && npm ci && npm test                              # audio
-cd game/room-app && npm ci && npm test && npm run build             # écran de salle
+(cd backoffice && npm run lint && npm run type-check && npm test)   # backoffice
+(cd game/engine && npm ci && npm test)                              # moteur
+(cd game/hardware && npm ci && npm test)                            # matériel
+(cd game/audio && npm ci && npm test)                               # audio
+(cd game/room-app && npm ci && npm test && npm run build)           # écran de salle
+(cd game/e2e && npm ci && npx playwright install chromium && npm test)  # bout en bout
 ```
 
-Au 4 novembre 2026 sur `main` : 1 143 tests verts (backoffice 752, moteur 70, matériel 134,
-audio 81, écran de salle 106) et build de l'écran de salle OK.
+Au 4 novembre 2026 sur `main` : 1 363 tests unitaires verts (backoffice 772, moteur 234,
+matériel 134, audio 81, écran de salle 142), build de l'écran de salle OK ; les tests de bout
+en bout tournent dans la CI GitHub.
 
 ## 10. Limites connues de cette version
 
 - **Un seul mini-jeu** : le blind test éclair. Les suivants sont en cours.
 - **4 pupitres** : les salles 6 pupitres déjà équipées attendent la décision « passer à 6 ».
+- **Résultats** : la partie reste « En cours » au backoffice après le podium (scores et fin de
+  partie pas encore renvoyés par la salle).
+- **Ports en local seulement** : `npm run demo` n'est joignable que depuis le PC qui le lance
+  (mots de passe de démo publics). Pour tester depuis un autre appareil : la recette en ligne.
 - **Lumières réseau (Art-Net)** : impossibles depuis un navigateur ; il faudra un petit pont
   local. En attendant : interface **USB DMX Pro**.
 - **Conservation des emails 3 ans** : texte RGPD à valider.
