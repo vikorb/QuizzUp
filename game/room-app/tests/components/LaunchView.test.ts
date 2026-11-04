@@ -1,11 +1,12 @@
 import { flushPromises } from '@vue/test-utils'
 
 import type { ExtractPlayer } from '@/audio/player'
-import { rememberBackofficeGameId } from '@/game/backofficeGame'
+import { rememberBackofficeGameId, reportFinishedGame } from '@/game/backofficeGame'
 import { getDemoThemes } from '@/game/demoContent'
 import { createMemorySessionStorage, GameSession } from '@/game/session'
 import { closeGame, configureRoomGame, startNewGame, useRoomGame } from '@/game/useRoomGame'
-import { enterDemo, signIn, syncRoomAuth } from '@/state/roomAuth'
+import { enterDemo, refreshRoomAccount, signIn, syncRoomAuth } from '@/state/roomAuth'
+import * as roomApi from '@/utils/roomApi'
 import LaunchView from '@/views/LaunchView.vue'
 
 import { REGISTRATIONS } from '../_helpers/fixtures'
@@ -26,6 +27,12 @@ function fakePlayer(): ExtractPlayer {
 
 function signInAsRoom(): void {
   signIn('token-salle', { id: 10, companyId: 1, role: 'room' })
+}
+
+/** Jeton expiré en pleine partie : le PC est déconnecté, la sauvegarde est gardée. */
+async function expireToken(): Promise<void> {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 401 })))
+  await refreshRoomAccount()
 }
 
 describe('LaunchView', () => {
@@ -116,9 +123,17 @@ describe('LaunchView', () => {
       ).start()
     }
 
-    it('démo : ne propose pas et efface la sauvegarde d’une partie du backoffice', async () => {
+    it('démo : ne propose pas la partie du backoffice mais la garde', async () => {
       saveGame(false)
       rememberBackofficeGameId(5, SEED)
+      const { wrapper } = await mountWithApp(LaunchView)
+
+      expect(wrapper.text()).not.toContain('Une partie est en cours')
+      expect(storage.current).not.toBeNull()
+    })
+
+    it('démo : efface une sauvegarde sans partie retenue au backoffice', async () => {
+      saveGame(false)
       const { wrapper } = await mountWithApp(LaunchView)
 
       expect(wrapper.text()).not.toContain('Une partie est en cours')
@@ -166,6 +181,93 @@ describe('LaunchView', () => {
 
       expect(wrapper.text()).not.toContain('Une partie est en cours')
       expect(storage.current).not.toBeNull()
+    })
+  })
+
+  describe('jeton expiré et changement de compte', () => {
+    const SEED = 3
+    const OTHER_ACCOUNT = { id: 11, companyId: 2, role: 'room' }
+
+    function saveRoomGame(): GameSession {
+      signIn('token-salle', { id: 10, companyId: 1, role: 'room' })
+      const session = GameSession.create(
+        {
+          seed: SEED,
+          participants: [{ id: 1, podium: 1, displayName: 'Léa' }],
+          themes: getDemoThemes(),
+        },
+        REGISTRATIONS.slice(0, 1),
+        { storage, demo: false }
+      )
+      session.start()
+      rememberBackofficeGameId(5, SEED)
+      return session
+    }
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+      vi.restoreAllMocks()
+    })
+
+    it('reconnexion avec le même compte : la partie est reprise', async () => {
+      saveRoomGame()
+      await expireToken()
+      signIn('nouveau-jeton', { id: 10, companyId: 1, role: 'room' })
+
+      const { wrapper } = await mountWithApp(LaunchView)
+
+      expect(wrapper.text()).toContain('Une partie est en cours')
+    })
+
+    it('mode démo après expiration : la partie de la salle est gardée puis reprise à la reconnexion', async () => {
+      saveRoomGame()
+      await expireToken()
+      enterDemo()
+
+      const demoScreen = await mountWithApp(LaunchView)
+      expect(demoScreen.wrapper.text()).not.toContain('Une partie est en cours')
+      expect(storage.current).not.toBeNull()
+      demoScreen.wrapper.unmount()
+
+      signIn('nouveau-jeton', { id: 10, companyId: 1, role: 'room' })
+      const { wrapper } = await mountWithApp(LaunchView)
+      expect(wrapper.text()).toContain('Une partie est en cours')
+    })
+
+    it('autre compte de salle : la partie n’est pas proposée mais gardée pour son compte', async () => {
+      saveRoomGame()
+      await expireToken()
+      signIn('jeton-autre-salle', OTHER_ACCOUNT)
+
+      const other = await mountWithApp(LaunchView)
+      expect(other.wrapper.text()).not.toContain('Une partie est en cours')
+      expect(storage.current).not.toBeNull()
+      other.wrapper.unmount()
+
+      signIn('jeton-salle', { id: 10, companyId: 1, role: 'room' })
+      const { wrapper } = await mountWithApp(LaunchView)
+      expect(wrapper.text()).toContain('Une partie est en cours')
+    })
+
+    it('autre compte de salle : la fin de partie n’est pas envoyée avec son jeton', async () => {
+      const session = saveRoomGame()
+      await expireToken()
+      signIn('jeton-autre-salle', OTHER_ACCOUNT)
+      const finish = vi.spyOn(roomApi, 'finishRoomGame')
+
+      expect(await reportFinishedGame(session.state)).toBe(false)
+      expect(finish).not.toHaveBeenCalled()
+    })
+
+    it('résultats envoyés : plus aucune reprise proposée', async () => {
+      const session = saveRoomGame()
+      vi.spyOn(roomApi, 'finishRoomGame').mockResolvedValue({ id: 5 } as never)
+
+      expect(await reportFinishedGame(session.state)).toBe(true)
+      const { wrapper } = await mountWithApp(LaunchView)
+
+      expect(wrapper.text()).not.toContain('Une partie est en cours')
+      expect(storage.current).toBeNull()
     })
   })
 

@@ -22,7 +22,7 @@ import {
   startNewGame,
   useRoomGame,
 } from '@/game/useRoomGame'
-import { setDemoMode } from '@/utils/auth'
+import { setDemoMode, setRoomAccountId } from '@/utils/auth'
 
 import { createManualClock, getPlayableThemes, REGISTRATIONS } from '../_helpers/fixtures'
 
@@ -236,7 +236,7 @@ describe('sauvegarde de partie et contexte courant', () => {
     expect(await resumeSavedGame()).toBe(true)
   })
 
-  it('démo : ignore et efface la sauvegarde d’une partie du backoffice', async () => {
+  it('démo : ne propose pas la partie du backoffice mais la garde', async () => {
     startGame()
     rememberBackofficeGameId(5, SEED)
     expect(storage.current?.demo).toBe(false)
@@ -245,7 +245,31 @@ describe('sauvegarde de partie et contexte courant', () => {
 
     expect(hasSavedGame()).toBe(false)
     expect(await resumeSavedGame()).toBe(false)
-    expect(storage.current).toBeNull()
+    expect(storage.current).not.toBeNull()
+
+    setDemoMode(false)
+    expect(await resumeSavedGame()).toBe(true)
+  })
+
+  it('autre compte de salle : non proposée mais gardée ; mémoire ancienne sans compte : graine', () => {
+    setRoomAccountId(10)
+    startGame()
+    rememberBackofficeGameId(5, SEED)
+    leaveSaveBehind()
+    expect(hasSavedGame()).toBe(true)
+
+    setRoomAccountId(11)
+    expect(hasSavedGame()).toBe(false)
+    discardStaleSavedGame()
+    expect(storage.current).not.toBeNull()
+
+    setRoomAccountId(10)
+    expect(hasSavedGame()).toBe(true)
+
+    // Mémoire d'avant l'enregistrement du compte : seule la graine compte.
+    localStorage.setItem('quizzup_room_backoffice_game', JSON.stringify({ id: 5, seed: SEED }))
+    setRoomAccountId(11)
+    expect(hasSavedGame()).toBe(true)
   })
 
   it('compte de salle : reprend la partie retenue du backoffice (même graine)', async () => {

@@ -6,7 +6,11 @@ import { computed, ref, shallowRef } from 'vue'
 import { createAudioBridge } from '@/audio/audioBridge'
 import { createSilentExtractPlayer, type ExtractPlayer } from '@/audio/player'
 import { createUiSoundBridge, type UiSoundOutput } from '@/audio/uiSoundBridge'
-import { isRememberedBackofficeSeed } from '@/game/backofficeGameMemory'
+import {
+  isRememberedBackofficeSeed,
+  isRememberedForCurrentAccount,
+  readSavedBackofficeGame,
+} from '@/game/backofficeGameMemory'
 import { collectMediaUrls } from '@/game/content'
 import { readMiniGamesSetting } from '@/game/miniGamesSetting'
 import {
@@ -203,14 +207,27 @@ export function startNewGame(options: NewGameOptions): GameSession {
 }
 
 /**
- * Une sauvegarde est-elle propre au contexte courant ? En démo : une partie démo. Avec un
- * compte de salle : la partie retenue du backoffice (même graine) ; une sauvegarde d'avant
- * le champ `demo` suit la même règle.
+ * Une sauvegarde est-elle reprenable dans le contexte courant ? En démo : seulement une partie
+ * démo. Avec un compte de salle : la partie retenue du backoffice (même graine) pour ce
+ * compte ; une sauvegarde d'avant le champ `demo` suit la règle de la graine.
  */
 function matchesCurrentContext(snapshot: SessionSnapshot): boolean {
   if (isDemoMode()) {
     return snapshot.demo === true
   }
+  return (
+    snapshot.demo !== true &&
+    isRememberedBackofficeSeed(snapshot.setup.seed) &&
+    isRememberedForCurrentAccount(readSavedBackofficeGame())
+  )
+}
+
+/**
+ * Une sauvegarde peut-elle encore servir plus tard ? Une partie de salle dont la graine est
+ * retenue par le backoffice est gardée quel que soit le mode ou le compte connecté (jeton
+ * expiré puis mode démo, ou autre compte : elle revient à la reconnexion du bon compte).
+ */
+function mayStillBeResumed(snapshot: SessionSnapshot): boolean {
   return snapshot.demo !== true && isRememberedBackofficeSeed(snapshot.setup.seed)
 }
 
@@ -221,15 +238,21 @@ export function hasSavedGame(): boolean {
 }
 
 /**
- * Efface la sauvegarde d'un autre contexte (autre compte, démo, partie déjà terminée côté
- * backoffice). Sans effet pendant qu'une partie tourne : sa sauvegarde est la progression.
+ * Efface la sauvegarde devenue inutile : partie démo hors du mode démo, ou partie sans
+ * mémoire du backoffice (terminée et envoyée, abandonnée, ancienne). Garde toute partie de
+ * salle dont la graine est retenue, même si elle n'est pas proposée dans le contexte courant.
+ * Sans effet pendant qu'une partie tourne : sa sauvegarde est la progression.
  */
 export function discardStaleSavedGame(): void {
   if (session.value) {
     return
   }
   const snapshot = storage.load()
-  if (snapshot && !matchesCurrentContext(snapshot)) {
+  if (!snapshot) {
+    return
+  }
+  const demoInDemo = isDemoMode() && snapshot.demo === true
+  if (!demoInDemo && !mayStillBeResumed(snapshot)) {
     storage.clear()
   }
 }

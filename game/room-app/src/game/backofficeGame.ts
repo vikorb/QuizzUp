@@ -2,6 +2,7 @@ import type { GameState } from '@quizzup/game-engine'
 
 import {
   forgetBackofficeGameId,
+  isRememberedForCurrentAccount,
   readBackofficeGameId,
   readSavedBackofficeGame,
   rememberBackofficeGameId,
@@ -17,7 +18,7 @@ let reporting: Promise<boolean> | null = null
 /**
  * Au podium, signale la fin de la partie au backoffice avec les scores des pupitres, pour
  * qu'elle ne reste pas « en cours ». Sans effet en mode démo, hors partie du backoffice ou
- * si la partie jouée n'est pas celle retenue (graine différente). Un seul envoi à la fois.
+ * si la partie jouée n'est pas celle retenue (graine différente) ou appartient à un autre compte de salle. Un seul envoi à la fois.
  */
 export function reportFinishedGame(state: GameState): Promise<boolean> {
   reporting ??= send(state).finally(() => {
@@ -30,7 +31,13 @@ async function send(state: GameState): Promise<boolean> {
   const token = getRoomToken()
   const saved = readSavedBackofficeGame()
 
-  if (isDemoMode() || !token || !saved || saved.seed !== state.setup.seed) {
+  if (
+    isDemoMode() ||
+    !token ||
+    !saved ||
+    saved.seed !== state.setup.seed ||
+    !isRememberedForCurrentAccount(saved)
+  ) {
     return false
   }
 
