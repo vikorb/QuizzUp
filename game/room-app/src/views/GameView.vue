@@ -102,6 +102,7 @@
       :locked-ids="blindTest?.lockedOutIds ?? buzzLockedIds"
       :eliminated-ids="answerAll?.eliminatedIds"
       :answered-ids="answeredIds"
+      :answered-label="miniView?.mode === 'bet' ? $t('game.scoreboard.bet') : undefined"
       :tags="scoreTags"
     />
   </main>

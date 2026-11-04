@@ -3,7 +3,7 @@
     <header class="steal__head">
       <DeskBadge v-if="thief" :desk="thief.podium" :size="54" />
       <div>
-        <h1 class="steal__title">
+        <h1 class="steal__title" role="status">
           {{ $t('game.steal.title', { name: thief?.displayName ?? '' }) }}
         </h1>
         <p class="steal__hint">
@@ -17,6 +17,7 @@
         v-for="participant in participants"
         :key="participant.id"
         class="steal__target"
+        :aria-disabled="!view.targetIds.includes(participant.id)"
         :class="{
           'steal__target--off': !view.targetIds.includes(participant.id),
           [`steal__target--${letters[participant.podium - 1]?.toLowerCase()}`]: true,

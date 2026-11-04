@@ -56,10 +56,13 @@ const imageUrl = computed(() =>
 
 const isBlindTest = computed(() => props.view.miniGame === MINI_GAME_FLASH_BLIND_TEST)
 
-/** Joueurs dont le score bouge sur cette question (gains, pénalités, vols). */
+/**
+ * Joueurs dont le score bouge sur cette question (gains, pénalités, vols), plus ceux qui
+ * ont juste sans gagner de points (mise passée, gain volé) : ils restent affichés.
+ */
 const lines = computed(() =>
   props.view.results
-    .filter((result) => result.points !== 0)
+    .filter((result) => result.points !== 0 || result.isCorrect)
     .map((result) => {
       const participant = props.participants?.find((item) => item.id === result.participantId)
       return {

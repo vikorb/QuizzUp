@@ -1,8 +1,12 @@
 import type { EngineAnswer, EngineQuestion, EngineTheme } from '@quizzup/game-engine'
 import {
+  QUESTION_KIND_ESTIMATE,
+  QUESTION_KIND_QCM,
+  QUESTION_KIND_TRUE_FALSE,
   QUESTION_MEDIA_TYPE_AUDIO,
   QUESTION_MEDIA_TYPE_IMAGE,
   QUESTION_MEDIA_TYPE_NONE,
+  type QuestionKind,
 } from '@quizzup/shared'
 
 /**
@@ -12,6 +16,7 @@ import {
  *
  * Chaque thème couvre tous les mini-jeux : extraits audio (blind test), QCM texte,
  * vrai/faux, estimations (fourchettes chiffrées) et images (révélation progressive).
+ * Chaque question porte son type (`kind`), comme celles du backoffice.
  */
 
 /** QCM : énoncé, bonne réponse, puis trois mauvaises. */
@@ -120,7 +125,7 @@ const DEMO_THEMES: DemoTheme[] = [
       [
         'Quel appareil chauffe les aliments grâce à des ondes électromagnétiques ?',
         'Le micro-ondes',
-        'Le grille-pain',
+        'Le mixeur',
         'La bouilloire',
         'Le réfrigérateur',
       ],
@@ -151,7 +156,7 @@ const DEMO_THEMES: DemoTheme[] = [
         'AZERTY',
         'QWERTY',
         'QWERTZ',
-        'BÉPOÈ',
+        'ABCDEF',
       ],
     ],
     trueFalse: [
@@ -549,6 +554,7 @@ function buildAudioQuestion(theme: DemoTheme, index: number): EngineQuestion {
     mediaType: QUESTION_MEDIA_TYPE_AUDIO,
     mediaUrl: `demo://${theme.id}/${index + 1}`,
     mediaStartMs: 0,
+    kind: QUESTION_KIND_QCM,
     answers: buildAnswers(id, options, 0),
   }
 }
@@ -557,7 +563,8 @@ function buildTextQuestion(
   id: number,
   text: string,
   answers: string[],
-  correctIndex: number
+  correctIndex: number,
+  kind: QuestionKind
 ): EngineQuestion {
   return {
     id,
@@ -565,6 +572,7 @@ function buildTextQuestion(
     mediaType: QUESTION_MEDIA_TYPE_NONE,
     mediaUrl: null,
     mediaStartMs: 0,
+    kind,
     answers: buildAnswers(id, answers, correctIndex),
   }
 }
@@ -591,18 +599,25 @@ function buildThemeQuestions(theme: DemoTheme): EngineQuestion[] {
     buildAudioQuestion(theme, index)
   )
   const choices = theme.choices.map(([text, ...answers], index) =>
-    buildTextQuestion(base + ID_OFFSET.choice + index, text, answers, 0)
+    buildTextQuestion(base + ID_OFFSET.choice + index, text, answers, 0, QUESTION_KIND_QCM)
   )
   const trueFalse = theme.trueFalse.map(([statement, isTrue], index) =>
     buildTextQuestion(
       base + ID_OFFSET.trueFalse + index,
       statement,
       ['Vrai', 'Faux'],
-      isTrue ? 0 : 1
+      isTrue ? 0 : 1,
+      QUESTION_KIND_TRUE_FALSE
     )
   )
   const estimates = theme.estimates.map(([text, ranges, correctIndex], index) =>
-    buildTextQuestion(base + ID_OFFSET.estimate + index, text, ranges, correctIndex)
+    buildTextQuestion(
+      base + ID_OFFSET.estimate + index,
+      text,
+      ranges,
+      correctIndex,
+      QUESTION_KIND_ESTIMATE
+    )
   )
   const images = theme.images.map(([emoji, ...answers], index): EngineQuestion => {
     const id = base + ID_OFFSET.image + index
@@ -612,6 +627,7 @@ function buildThemeQuestions(theme: DemoTheme): EngineQuestion[] {
       mediaType: QUESTION_MEDIA_TYPE_IMAGE,
       mediaUrl: buildEmojiImageUrl(emoji),
       mediaStartMs: 0,
+      kind: QUESTION_KIND_QCM,
       answers: buildAnswers(id, answers, 0),
     }
   })

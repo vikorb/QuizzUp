@@ -55,8 +55,6 @@ export type BetView = QuestionBase & {
   remainingMs: number
   remainingRatio: number
   betIds: number[]
-  /** Mise que représenterait le tapis, par joueur (son score, au moins 300). */
-  scores: Record<number, number>
 }
 
 /** Vol de points : le plus rapide des bons choisit sa cible. */
@@ -163,10 +161,6 @@ export function getMiniGameView(state: GameState, now: number): MiniGameView | n
 
   if (mini.kind === MINI_GAME_DOUBLE_OR_NOTHING && mini.status === 'betting') {
     const remainingMs = getRemaining(mini.betDeadline, now)
-    const scores: Record<number, number> = {}
-    for (const line of mini.scoresAtStart) {
-      scores[line.participantId] = line.score
-    }
 
     return {
       ...base,
@@ -175,7 +169,6 @@ export function getMiniGameView(state: GameState, now: number): MiniGameView | n
       remainingMs,
       remainingRatio: ratio(remainingMs, DOUBLE_OR_NOTHING_BET_MS),
       betIds: mini.bets.map((bet) => bet.participantId),
-      scores,
     }
   }
 

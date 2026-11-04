@@ -70,7 +70,7 @@
           "Tout le monde répond en même temps : 50 points par bonne réponse.",
           "Le plus rapide des bons choisit un adversaire avec ses buzzers (A = pupitre 1, B = pupitre 2…).",
           "Il lui vole jusqu’à 100 points.",
-          "Sans choix, le vol vise le mieux classé."
+          "Sans choix, le vol vise le joueur qui a le plus de points."
         ]
       },
       "streak": {
@@ -149,6 +149,7 @@
     "scoreboard": {
       "label": "Scores",
       "answered": "A répondu",
+      "bet": "A misé",
       "eliminated": "Éliminé",
       "multiplier": "×{n}",
       "stake": "Mise {n}",
@@ -187,7 +188,7 @@
     "steal": {
       "title": "{name} choisit qui voler",
       "hint": "Appuie sur la lettre du pupitre visé : jusqu’à {n} points volés",
-      "auto": "Sans choix, le vol vise le mieux classé"
+      "auto": "Sans choix, le vol vise le joueur qui a le plus de points"
     }
   }
 }

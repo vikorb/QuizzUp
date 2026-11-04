@@ -31,11 +31,19 @@ export function getRangeSortValue(text: string): number {
   const value = parseLeadingNumber(text) ?? 0
   const normalized = normalizeText(text)
 
-  if (/^(?:moins de|au plus|jusqu['’]a|[<≤])/.test(normalized) || normalized.includes('ou moins')) {
+  if (
+    /^(?:moins de|au plus|jusqu['’]a|avant|[<≤])/.test(normalized) ||
+    normalized.includes('ou moins') ||
+    normalized.includes('ou avant')
+  ) {
     return value - 0.5
   }
 
-  if (/^(?:plus de|au moins|[>≥])/.test(normalized) || normalized.includes('ou plus')) {
+  if (
+    /^(?:plus de|au moins|apres|[>≥])/.test(normalized) ||
+    normalized.includes('ou plus') ||
+    normalized.includes('ou apres')
+  ) {
     return value + 0.5
   }
 

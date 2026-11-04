@@ -1,22 +1,19 @@
 import {
-  QUESTION_MEDIA_TYPE_IMAGE,
+  QUESTION_KIND_ESTIMATE,
+  QUESTION_KIND_TRUE_FALSE,
   QUESTION_MEDIA_TYPE_NONE,
-  type QuestionMediaType,
 } from '@quizzup/shared'
 
 import type { ScoreLine } from '../draws'
 import type { EngineAnswer, EngineParticipant, EngineQuestion } from '../types'
 
 /**
- * Règles communes d'éligibilité des questions. Le backoffice n'a pas encore de
- * « type de question » (QCM, vrai/faux, estimation) : on le déduit du contenu.
+ * Règles communes d'éligibilité des questions. Le type saisi au backoffice
+ * (`question.kind`) fait foi ; sans lui (ancien contenu), on le déduit des réponses.
+ *
+ * Les questions à image sont réservées à la révélation progressive : affichée nette
+ * dans un autre mini-jeu, l'image donnerait souvent la réponse.
  */
-
-/** Médias affichables à l'écran pendant une question à lire (pas d'audio à jouer). */
-const READABLE_MEDIA_TYPES: readonly QuestionMediaType[] = [
-  QUESTION_MEDIA_TYPE_NONE,
-  QUESTION_MEDIA_TYPE_IMAGE,
-]
 
 export function hasPlayableAnswers(question: EngineQuestion, min = 2, max = 4): boolean {
   return (
@@ -26,18 +23,23 @@ export function hasPlayableAnswers(question: EngineQuestion, min = 2, max = 4): 
   )
 }
 
-/** QCM classique : texte (ou image en illustration), 2 à 4 réponses, au moins une juste. */
+function hasSingleCorrectAnswer(question: EngineQuestion): boolean {
+  return question.answers.filter((answer) => answer.isCorrect).length === 1
+}
+
+/** Question à lire, sans média : seul le texte est affiché à l'écran. */
+function isTextQuestion(question: EngineQuestion): boolean {
+  return question.mediaType === QUESTION_MEDIA_TYPE_NONE
+}
+
+/** QCM classique : question texte, 2 à 4 réponses, au moins une juste (quel que soit le type). */
 export function isMultipleChoiceQuestion(question: EngineQuestion): boolean {
-  return READABLE_MEDIA_TYPES.includes(question.mediaType) && hasPlayableAnswers(question)
+  return isTextQuestion(question) && hasPlayableAnswers(question)
 }
 
 /** Minuscules, sans accents ni espaces superflus : « Vrai », « VRAI » et « vrai » se valent. */
 export function normalizeText(text: string): string {
-  return text
-    .normalize('NFD')
-    .replaceAll(/[\u0300-\u036F]/g, '')
-    .trim()
-    .toLowerCase()
+  return text.normalize('NFD').replaceAll(/[̀-ͯ]/g, '').trim().toLowerCase()
 }
 
 const TRUE_WORDS = new Set(['vrai', 'true'])
@@ -47,11 +49,19 @@ export function isTrueAnswer(answer: EngineAnswer): boolean {
   return TRUE_WORDS.has(normalizeText(answer.text))
 }
 
-/** Vrai/faux : exactement deux réponses « Vrai » et « Faux », une seule juste. */
+/**
+ * Vrai/faux : exactement deux réponses « Vrai » et « Faux » (A = Vrai à l'écran), une
+ * seule juste. Une question typée autrement au backoffice n'en est pas une.
+ */
 export function isTrueFalseQuestion(question: EngineQuestion): boolean {
   const [first, second] = question.answers
 
-  if (question.answers.length !== 2 || !first || !second) {
+  if (
+    question.answers.length !== 2 ||
+    !first ||
+    !second ||
+    (question.kind !== undefined && question.kind !== QUESTION_KIND_TRUE_FALSE)
+  ) {
     return false
   }
 
@@ -59,12 +69,7 @@ export function isTrueFalseQuestion(question: EngineQuestion): boolean {
   const hasTrue = [...words].some((word) => TRUE_WORDS.has(word))
   const hasFalse = [...words].some((word) => FALSE_WORDS.has(word))
 
-  return (
-    READABLE_MEDIA_TYPES.includes(question.mediaType) &&
-    hasTrue &&
-    hasFalse &&
-    question.answers.filter((answer) => answer.isCorrect).length === 1
-  )
+  return isTextQuestion(question) && hasTrue && hasFalse && hasSingleCorrectAnswer(question)
 }
 
 /** Premier nombre d'un texte (« Entre 1 000 et 2 000 » → 1000, « 1,5 m » → 1.5). */
@@ -78,26 +83,47 @@ export function parseLeadingNumber(text: string): number | null {
   return match ? Number(match[0].replace(',', '.')) : null
 }
 
+/** Mots de comparaison qui ouvrent une fourchette (texte normalisé, sans accents). */
+const RANGE_PREFIX =
+  "moins de|plus de|entre|de|environ|au moins|au plus|jusqu'a|jusqu’a|avant|apres|[<>≤≥~]"
+
 /**
  * Une fourchette commence par un nombre, éventuellement précédé d'un mot de
- * comparaison (« Moins de 50 », « Entre 10 et 20 », « < 5 ») : « Henri 4 » ou
- * « Louis 14 » restent des réponses de QCM.
+ * comparaison (« Moins de 50 », « Entre 10 et 20 », « Avant 1800 », « < 5 ») :
+ * « Henri 4 » ou « Louis 14 » restent des réponses de QCM.
  */
-const RANGE_PATTERN =
-  /^(?:(?:moins de|plus de|entre|de|environ|au moins|au plus|jusqu'a|jusqu’a|[<>≤≥~])\s*)?-?\d/
+const RANGE_PATTERN = new RegExp(String.raw`^(?:(?:${RANGE_PREFIX})\s*)?-?\d`)
+
+/** Bornes explicites : un mot de comparaison, ou deux nombres reliés (« 10 à 20 », « 10-20 »). */
+const RANGE_MARKER_PATTERN = new RegExp(
+  String.raw`^(?:${RANGE_PREFIX})|\bou (?:moins|plus)\b|\d\s*(?:a|et|-|–)\s*\d`
+)
 
 export function isRangeAnswer(answer: EngineAnswer): boolean {
   return RANGE_PATTERN.test(normalizeText(answer.text))
 }
 
-/** Estimation : 3 ou 4 fourchettes chiffrées, une seule juste. */
+/**
+ * Estimation : 3 ou 4 fourchettes chiffrées, une seule juste. Typée au backoffice, il
+ * suffit que chaque réponse commence par un nombre (pour les trier) ; sans type, il faut
+ * en plus au moins une vraie fourchette, sinon « 4 / 6 / 7 / 12 » serait pris pour une
+ * estimation alors que c'est un QCM.
+ */
 export function isEstimateQuestion(question: EngineQuestion): boolean {
-  return (
-    READABLE_MEDIA_TYPES.includes(question.mediaType) &&
-    hasPlayableAnswers(question, 3, 4) &&
-    question.answers.filter((answer) => answer.isCorrect).length === 1 &&
-    question.answers.every((answer) => isRangeAnswer(answer))
-  )
+  if (
+    !isTextQuestion(question) ||
+    !hasPlayableAnswers(question, 3, 4) ||
+    !hasSingleCorrectAnswer(question) ||
+    !question.answers.every((answer) => isRangeAnswer(answer))
+  ) {
+    return false
+  }
+
+  if (question.kind !== undefined) {
+    return question.kind === QUESTION_KIND_ESTIMATE
+  }
+
+  return question.answers.some((answer) => RANGE_MARKER_PATTERN.test(normalizeText(answer.text)))
 }
 
 export function getScore(scores: ScoreLine[], participantId: number): number {

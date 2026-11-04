@@ -58,6 +58,14 @@ function correctIndex(): number {
     : 0
 }
 
+/** Une mauvaise réponse de la question en cours (2 à 4 réponses selon la question). */
+function wrongIndex(): number {
+  const phase = useRoomGame().state.value?.phase
+  const count =
+    phase?.name === 'question' ? getMiniGameQuestion(phase.miniGameState).answers.length : 4
+  return (correctIndex() + 1) % count
+}
+
 describe('écrans des mini-jeux', () => {
   let clock: Clock
 
@@ -81,7 +89,7 @@ describe('écrans des mini-jeux', () => {
     expect(wrapper.text()).toContain('A répondu')
 
     useRoomGame().session.value?.press(2, correctIndex() as 0)
-    useRoomGame().session.value?.press(3, ((correctIndex() + 1) % 4) as 0)
+    useRoomGame().session.value?.press(3, wrongIndex() as 0)
     await flushPromises()
     expect(wrapper.text()).toContain('La bonne réponse')
     expect(wrapper.text()).toContain('+100')
@@ -97,7 +105,7 @@ describe('écrans des mini-jeux', () => {
     const session = useRoomGame().session.value
     session?.press(1, correctIndex() as 0)
     session?.press(2, correctIndex() as 0)
-    session?.press(3, ((correctIndex() + 1) % 4) as 0)
+    session?.press(3, wrongIndex() as 0)
     clock.advance(DEFAULT_GAME_TIMINGS.revealMs + 1)
     session?.tick()
     await flushPromises()
@@ -111,6 +119,9 @@ describe('écrans des mini-jeux', () => {
 
     const session = useRoomGame().session.value
     session?.press(1, 0)
+    await flushPromises()
+    expect(wrapper.text()).toContain('A misé')
+
     session?.press(2, 1)
     session?.press(3, 2)
     await flushPromises()
@@ -118,12 +129,29 @@ describe('écrans des mini-jeux', () => {
     expect(wrapper.text()).toContain('Mise 200')
   })
 
+  it('quitte ou double : un joueur juste qui avait passé reste dans la révélation', async () => {
+    const wrapper = await startOn(MINI_GAME_DOUBLE_OR_NOTHING, clock)
+    const session = useRoomGame().session.value
+    for (const desk of [1, 2, 3]) {
+      session?.press(desk, 0)
+    }
+    await flushPromises()
+    for (const desk of [1, 2, 3]) {
+      session?.press(desk, correctIndex() as 0)
+    }
+    await flushPromises()
+
+    const reveal = wrapper.find('.reveal')
+    expect(reveal.text()).not.toContain('Personne')
+    expect(reveal.findAll('.reveal__results li')).toHaveLength(3)
+  })
+
   it('vol de points : le voleur choisit sa victime', async () => {
     const wrapper = await startOn(MINI_GAME_POINT_STEAL, clock)
     const session = useRoomGame().session.value
     session?.press(2, correctIndex() as 0)
     session?.press(1, correctIndex() as 0)
-    session?.press(3, ((correctIndex() + 1) % 4) as 0)
+    session?.press(3, wrongIndex() as 0)
     await flushPromises()
     expect(wrapper.text()).toContain('Hugo choisit qui voler')
   })

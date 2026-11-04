@@ -3,6 +3,7 @@ import { MINI_GAME_FLASH_BLIND_TEST } from '@quizzup/shared'
 
 import { createSilentExtractPlayer, type ExtractPlayer } from '@/audio/player'
 import { getDemoThemes } from '@/game/demoContent'
+import { MINI_GAMES_STORAGE_KEY } from '@/game/miniGamesSetting'
 import { createMemorySessionStorage } from '@/game/session'
 import {
   abortGame,
@@ -108,6 +109,21 @@ describe('useRoomGame', () => {
 
     expect(state.value?.phase.name).toBe('question')
     expect(player.play).toHaveBeenCalledTimes(1)
+  })
+
+  it('tire les mini-jeux du réglage de la salle, sinon tous', () => {
+    const { state } = useRoomGame()
+    startNewGame({ registrations: REGISTRATIONS, themes: getDemoThemes(), seed: 7 })
+    expect(state.value?.setup.miniGames.length).toBeGreaterThan(1)
+    closeGame()
+
+    localStorage.setItem(MINI_GAMES_STORAGE_KEY, JSON.stringify(BLIND_TEST_ONLY))
+    try {
+      startNewGame({ registrations: REGISTRATIONS, themes: getDemoThemes(), seed: 7 })
+      expect(state.value?.setup.miniGames).toEqual(BLIND_TEST_ONLY)
+    } finally {
+      localStorage.removeItem(MINI_GAMES_STORAGE_KEY)
+    }
   })
 
   it('arrête la partie puis la ferme sans laisser de sauvegarde', () => {

@@ -24,7 +24,7 @@
       </span>
       <span v-else-if="answeredIds?.includes(line.participantId)" class="score__answered">
         <MdIcon :path="mdiCheckCircleOutline" :size="16" />
-        {{ $t('game.scoreboard.answered') }}
+        {{ answeredLabel ?? $t('game.scoreboard.answered') }}
       </span>
       <span v-if="tags?.[line.participantId]" class="score__tag">{{
         tags[line.participantId]
@@ -50,6 +50,8 @@ defineProps<{
   eliminatedIds?: number[]
   /** Joueurs qui ont déjà répondu (sans dévoiler leur choix). */
   answeredIds?: number[]
+  /** Libellé de l'étiquette « a répondu » (« A misé » pendant les paris). */
+  answeredLabel?: string
   /** Étiquette courte par joueur (multiplicateur, mise). */
   tags?: Record<number, string>
 }>()

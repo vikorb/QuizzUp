@@ -7,6 +7,7 @@ import { createAudioBridge } from '@/audio/audioBridge'
 import { createSilentExtractPlayer, type ExtractPlayer } from '@/audio/player'
 import { createUiSoundBridge, type UiSoundOutput } from '@/audio/uiSoundBridge'
 import { collectMediaUrls } from '@/game/content'
+import { readMiniGamesSetting } from '@/game/miniGamesSetting'
 import {
   finalizeRegistrations,
   type Registration,
@@ -156,7 +157,7 @@ export function startNewGame(options: {
   themes: EngineTheme[]
   roundsCount?: number
   questionsPerRound?: number
-  /** Mini-jeux tirés au sort (tous par défaut). */
+  /** Mini-jeux tirés au sort (réglage de la salle, sinon tous). */
   miniGames?: MiniGame[]
   seed?: number
 }): GameSession {
@@ -168,7 +169,7 @@ export function startNewGame(options: {
       themes: options.themes,
       roundsCount: options.roundsCount,
       questionsPerRound: options.questionsPerRound,
-      miniGames: options.miniGames,
+      miniGames: options.miniGames ?? readMiniGamesSetting(),
     },
     registrations,
     { storage, now: clock }

@@ -80,7 +80,7 @@ describe('doubleOrNothing definition', () => {
   it('plays readable multiple choice questions', () => {
     expect(doubleOrNothing.id).toBe(MINI_GAME_DOUBLE_OR_NOTHING)
     expect(doubleOrNothing.isQuestionEligible(question)).toBe(true)
-    expect(doubleOrNothing.isQuestionEligible(imageQuestion(1))).toBe(true)
+    expect(doubleOrNothing.isQuestionEligible(imageQuestion(1))).toBe(false)
     expect(doubleOrNothing.isQuestionEligible(audioQuestion(2))).toBe(false)
   })
 })

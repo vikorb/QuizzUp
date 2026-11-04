@@ -70,7 +70,7 @@
           "Everyone answers at the same time: 50 points per right answer.",
           "The fastest right player picks an opponent with their buzzers (A = desk 1, B = desk 2…).",
           "They steal up to 100 points.",
-          "Without a choice, the steal targets the leader."
+          "Without a choice, the steal targets the player with the most points."
         ]
       },
       "streak": {
@@ -149,6 +149,7 @@
     "scoreboard": {
       "label": "Scores",
       "answered": "Answered",
+      "bet": "Bet placed",
       "eliminated": "Out",
       "multiplier": "×{n}",
       "stake": "Bet {n}",
@@ -187,7 +188,7 @@
     "steal": {
       "title": "{name} picks who to rob",
       "hint": "Press the letter of the target desk: up to {n} points stolen",
-      "auto": "Without a choice, the steal targets the leader"
+      "auto": "Without a choice, the steal targets the player with the most points"
     }
   }
 }
