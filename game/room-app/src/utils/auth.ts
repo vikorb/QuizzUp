@@ -7,6 +7,7 @@ import { ADMIN_ROLE_ROOM } from '@quizzup/shared'
  */
 export const ROOM_TOKEN_KEY = 'quizzup_room_token'
 const DEMO_KEY = 'quizzup_room_demo'
+const ROOM_ACCOUNT_KEY = 'quizzup_room_account'
 
 export type RoomLoginFailReason =
   'invalid_credentials' | 'invalid_form' | 'not_room_account' | 'server_error' | 'api_unreachable'
@@ -53,6 +54,16 @@ export function getRoomToken(): string | null {
 
 export function setRoomToken(token: string | null): void {
   safeSet(ROOM_TOKEN_KEY, token)
+}
+
+/** Compte de salle connecté (identifiant), conservé pour lier une partie à son compte. */
+export function getRoomAccountId(): number | null {
+  const id = Number(safeGet(ROOM_ACCOUNT_KEY))
+  return Number.isInteger(id) && id > 0 ? id : null
+}
+
+export function setRoomAccountId(id: number | null): void {
+  safeSet(ROOM_ACCOUNT_KEY, id === null ? null : String(id))
 }
 
 export function isDemoMode(): boolean {

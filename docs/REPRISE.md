@@ -91,8 +91,8 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
    en tests) et sur la carte manette 24 entrées.
 7. Plus tard : SACEM, pricing, mode hors ligne (V2).
 
-Petits suivis connus : `LaunchView` reprend
-n'importe quelle sauvegarde ; migration
+Petits suivis connus : ~~`LaunchView` reprend
+n'importe quelle sauvegarde~~ (fait : `fix/launch-resume-save`, reprise limitée au contexte courant) ; migration
 de données qui typerait l'ancien contenu (le moteur sait déjà déduire le type).
 
 ## 5. Process de travail

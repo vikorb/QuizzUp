@@ -65,6 +65,7 @@ import UiButton from '@/components/ui/UiButton.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import {
   discardSavedGame,
+  discardStaleSavedGame,
   getExtractPlayer,
   hasSavedGame,
   resumeSavedGame,
@@ -77,6 +78,8 @@ const { t } = useI18n()
 const router = useRouter()
 const { confirm } = useConfirm()
 
+// Une sauvegarde d'un autre contexte (démo, autre compte, partie close) n'est ni proposée ni gardée.
+discardStaleSavedGame()
 const savedGame = ref(hasSavedGame())
 const launching = ref(false)
 const fullscreenRefused = ref(false)

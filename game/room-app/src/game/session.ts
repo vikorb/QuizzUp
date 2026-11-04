@@ -25,6 +25,11 @@ export type SessionSnapshot = {
   lastAt: number
   /** Inscriptions du lobby (email + consentement RGPD), à renvoyer avec les résultats. */
   registrations: Registration[]
+  /**
+   * Partie jouée en mode démo. Absent des sauvegardes d'avant ce champ : elles ne sont
+   * reprises que si leur graine est celle de la partie retenue du backoffice.
+   */
+  demo?: boolean
 }
 
 export type SessionStorage = {
@@ -91,6 +96,8 @@ type SessionOptions = {
   storage: SessionStorage
   /** Horloge monotone de base (par défaut `performance.now()`). */
   now?: () => number
+  /** Partie de démonstration : la sauvegarde le consigne pour ne pas être reprise ailleurs. */
+  demo?: boolean
 }
 
 export class GameSession {
@@ -99,6 +106,7 @@ export class GameSession {
   private readonly listeners = new Set<SessionListener>()
   private readonly storage: SessionStorage
   private readonly baseNow: () => number
+  private readonly demo: boolean
   private readonly offset: number
   private lastAt: number
   private lastSavedAt: number
@@ -111,6 +119,7 @@ export class GameSession {
   ) {
     this.storage = options.storage
     this.baseNow = options.now ?? (() => performance.now())
+    this.demo = options.demo ?? false
     this.currentState = restored?.state ?? createGame(setup)
     this.commands = restored?.commands ?? []
     // Après un rechargement, `performance.now()` repart de zéro : on décale
@@ -139,11 +148,16 @@ export class GameSession {
         ...snapshot.commands,
         { type: 'tick', at: snapshot.lastAt },
       ])
-      return new GameSession(snapshot.setup, snapshot.registrations ?? [], options, {
-        state: replayed.state,
-        commands: snapshot.commands,
-        lastAt: snapshot.lastAt,
-      })
+      return new GameSession(
+        snapshot.setup,
+        snapshot.registrations ?? [],
+        { ...options, demo: snapshot.demo === true },
+        {
+          state: replayed.state,
+          commands: snapshot.commands,
+          lastAt: snapshot.lastAt,
+        }
+      )
     } catch {
       options.storage.clear()
       return null
@@ -238,6 +252,7 @@ export class GameSession {
       commands: this.commands,
       lastAt: this.lastAt,
       registrations: this.registrations,
+      demo: this.demo,
     })
   }
 }

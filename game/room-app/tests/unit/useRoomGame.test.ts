@@ -6,15 +6,17 @@ import {
 } from '@quizzup/shared'
 
 import { createSilentExtractPlayer, type ExtractPlayer } from '@/audio/player'
+import { rememberBackofficeGameId } from '@/game/backofficeGameMemory'
 import { getDemoThemes } from '@/game/demoContent'
 import { MINI_GAMES_STORAGE_KEY } from '@/game/miniGamesSetting'
-import { createMemorySessionStorage } from '@/game/session'
+import { createMemorySessionStorage, type SessionSnapshot } from '@/game/session'
 import {
   abortGame,
   closeGame,
   configureRoomGame,
   createSeed,
   discardSavedGame,
+  discardStaleSavedGame,
   getExtractPlayer,
   hasSavedGame,
   NoPlayableMiniGameError,
@@ -26,6 +28,7 @@ import {
   useRoomGame,
   validateNewGame,
 } from '@/game/useRoomGame'
+import { setDemoMode, setRoomAccountId } from '@/utils/auth'
 
 import { createManualClock, getPlayableThemes, REGISTRATIONS } from '../_helpers/fixtures'
 
@@ -55,10 +58,14 @@ describe('useRoomGame', () => {
     storage = createMemorySessionStorage()
     player = fakePlayer()
     configureRoomGame({ storage, player, now: clock.now })
+    // Une partie démo se reprend en mode démo ; les contextes sont testés plus bas.
+    setDemoMode(true)
   })
 
   afterEach(() => {
     closeGame()
+    setDemoMode(false)
+    localStorage.clear()
     vi.useRealTimers()
   })
 
@@ -189,6 +196,169 @@ describe('useRoomGame', () => {
     expect(await resumeSavedGame()).toBe(true)
     expect(state.value?.phase.name).toBe('question')
     expect(player.play).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('sauvegarde de partie et contexte courant', () => {
+  const SEED = 99
+  let storage: ReturnType<typeof createMemorySessionStorage>
+
+  function startGame(seed = SEED): void {
+    startNewGame({
+      registrations: REGISTRATIONS,
+      themes: getDemoThemes(),
+      seed,
+      miniGames: BLIND_TEST_ONLY,
+    })
+  }
+
+  beforeEach(() => {
+    localStorage.clear()
+    setDemoMode(false)
+    storage = createMemorySessionStorage()
+    configureRoomGame({ storage, player: fakePlayer(), now: createManualClock().now })
+  })
+
+  afterEach(() => {
+    closeGame()
+    setDemoMode(false)
+    localStorage.clear()
+  })
+
+  /** Simule la fermeture de la page : la sauvegarde reste, plus de partie en mémoire. */
+  function leaveSaveBehind(): void {
+    const saved = structuredClone(storage.current)
+    closeGame()
+    storage.save(saved as SessionSnapshot)
+  }
+
+  it('démo : reprend une partie démo', async () => {
+    setDemoMode(true)
+    startGame()
+    expect(storage.current?.demo).toBe(true)
+    leaveSaveBehind()
+
+    expect(hasSavedGame()).toBe(true)
+    expect(await resumeSavedGame()).toBe(true)
+  })
+
+  it('démo : ne propose pas la partie du backoffice mais la garde', async () => {
+    startGame()
+    rememberBackofficeGameId(5, SEED)
+    expect(storage.current?.demo).toBe(false)
+    leaveSaveBehind()
+    setDemoMode(true)
+
+    expect(hasSavedGame()).toBe(false)
+    expect(await resumeSavedGame()).toBe(false)
+    expect(storage.current).not.toBeNull()
+
+    setDemoMode(false)
+    expect(await resumeSavedGame()).toBe(true)
+  })
+
+  it('autre compte de salle : non proposée mais gardée ; mémoire ancienne sans compte : graine', () => {
+    setRoomAccountId(10)
+    startGame()
+    rememberBackofficeGameId(5, SEED)
+    leaveSaveBehind()
+    expect(hasSavedGame()).toBe(true)
+
+    setRoomAccountId(11)
+    expect(hasSavedGame()).toBe(false)
+    discardStaleSavedGame()
+    expect(storage.current).not.toBeNull()
+
+    setRoomAccountId(10)
+    expect(hasSavedGame()).toBe(true)
+
+    // Mémoire d'avant l'enregistrement du compte : seule la graine compte.
+    localStorage.setItem('quizzup_room_backoffice_game', JSON.stringify({ id: 5, seed: SEED }))
+    setRoomAccountId(11)
+    expect(hasSavedGame()).toBe(true)
+  })
+
+  it('compte de salle : reprend la partie retenue du backoffice (même graine)', async () => {
+    startGame()
+    rememberBackofficeGameId(5, SEED)
+    leaveSaveBehind()
+
+    expect(hasSavedGame()).toBe(true)
+    expect(await resumeSavedGame()).toBe(true)
+  })
+
+  it('compte de salle : ignore et efface la sauvegarde d’une autre graine', async () => {
+    startGame()
+    rememberBackofficeGameId(5, SEED + 1)
+    leaveSaveBehind()
+
+    expect(hasSavedGame()).toBe(false)
+    expect(await resumeSavedGame()).toBe(false)
+    expect(storage.current).toBeNull()
+  })
+
+  it('compte de salle : ignore une partie démo, même avec une partie retenue de même graine', () => {
+    setDemoMode(true)
+    startGame()
+    leaveSaveBehind()
+    setDemoMode(false)
+    rememberBackofficeGameId(5, SEED)
+
+    expect(hasSavedGame()).toBe(false)
+    discardStaleSavedGame()
+    expect(storage.current).toBeNull()
+  })
+
+  it('compte de salle : ignore la sauvegarde si plus aucune partie n’est retenue', () => {
+    startGame()
+    leaveSaveBehind()
+
+    expect(hasSavedGame()).toBe(false)
+    discardStaleSavedGame()
+    expect(storage.current).toBeNull()
+  })
+
+  it('ancienne sauvegarde sans indicateur démo : reprise seulement si la graine est retenue', () => {
+    startGame()
+    leaveSaveBehind()
+    const { demo: _demo, ...legacy } = storage.current as SessionSnapshot
+    storage.save(legacy)
+
+    rememberBackofficeGameId(5, SEED)
+    expect(hasSavedGame()).toBe(true)
+
+    rememberBackofficeGameId(5, SEED + 1)
+    expect(hasSavedGame()).toBe(false)
+
+    rememberBackofficeGameId(5, SEED)
+    setDemoMode(true)
+    expect(hasSavedGame()).toBe(false)
+  })
+
+  it('mémoire du backoffice sans graine (id seul) : ne permet pas de reprendre', () => {
+    startGame()
+    leaveSaveBehind()
+    localStorage.setItem('quizzup_room_backoffice_game', '5')
+
+    expect(hasSavedGame()).toBe(false)
+  })
+
+  it('ne touche pas à la sauvegarde d’une partie en cours', () => {
+    startGame()
+    // Contexte devenu incohérent pendant que la partie tourne : on ne perd pas sa progression.
+    expect(hasSavedGame()).toBe(false)
+    discardStaleSavedGame()
+
+    expect(storage.current).not.toBeNull()
+  })
+
+  it('une sauvegarde reprise conserve son contexte', async () => {
+    setDemoMode(true)
+    startGame()
+    leaveSaveBehind()
+
+    expect(await resumeSavedGame()).toBe(true)
+    expect(storage.current?.demo).toBe(true)
   })
 })
 
