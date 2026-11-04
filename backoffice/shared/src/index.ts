@@ -163,14 +163,13 @@ const ESTIMATE_RANGE_PREFIXES = [
   'au moins',
   'au plus',
   "jusqu'a",
-  'avant',
-  'apres',
 ]
 
 // Une fourchette commence par un nombre, éventuellement précédé d'un mot (« Moins de 100 ») ou
-// d'un symbole (« ≥ 1 000 »). Le texte est comparé sans accents ni casse.
+// d'un symbole (« ≥ 1 000 »). Le texte est comparé sans accents ni casse, espaces insécables
+// comprises ; la liste de mots est celle que reconnaît le moteur de jeu (`isRangeAnswer`).
 const ESTIMATE_RANGE_PATTERN = new RegExp(
-  String.raw`^(?:(?:${ESTIMATE_RANGE_PREFIXES.join('|')})\s+|[<>≤≥~]\s*)?[-+]?\d`
+  String.raw`^(?:(?:${ESTIMATE_RANGE_PREFIXES.join('|')})\s+|[<>≤≥~]\s*)?-?\d`
 )
 
 function normalizeAnswerLabel(value: string): string {
@@ -178,6 +177,7 @@ function normalizeAnswerLabel(value: string): string {
     .normalize('NFD')
     .replaceAll(/[\u0300-\u036F]/g, '')
     .replaceAll('’', "'")
+    .replaceAll(/\s+/g, ' ')
     .trim()
     .toLowerCase()
 }

@@ -11,7 +11,9 @@ import {
   getCreateAnswerStatus,
   getCurrentAdminId,
   getQuestionAccessRow,
+  lockQuestionAnswers,
   parsePositiveId,
+  validateLockedAnswersForKind,
   type AnswerBody,
   type QuestionParams,
 } from '../_shared'
@@ -94,21 +96,41 @@ const questionAnswersRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const isCorrect = req.body!.isCorrect ?? false
+      const status = getCreateAnswerStatus(req)
 
       // Plusieurs bonnes réponses sont autorisées : ajouter une bonne réponse
-      // ne modifie pas les autres.
-      const [answer] = await db('answers')
-        .insert({
-          admin_id: adminId,
-          question_id: questionId,
-          response,
-          is_correct: isCorrect,
-          status: getCreateAnswerStatus(req),
-          deleted_at: null,
-        })
-        .returning(answerSelect)
+      // ne modifie pas les autres. Les règles du type (vrai/faux, estimation)
+      // portent sur l'ensemble des réponses, revérifié question verrouillée.
+      const result = await db.transaction(async (trx) => {
+        const currentAnswers = await lockQuestionAnswers(trx, questionId)
+        const kindError = validateLockedAnswersForKind(question.kind, [
+          ...currentAnswers,
+          { id: 0, response, is_correct: isCorrect, status },
+        ])
 
-      return reply.code(201).send({ answer })
+        if (kindError) {
+          return { ok: false, error: kindError } as const
+        }
+
+        const [answer] = await trx('answers')
+          .insert({
+            admin_id: adminId,
+            question_id: questionId,
+            response,
+            is_correct: isCorrect,
+            status,
+            deleted_at: null,
+          })
+          .returning(answerSelect)
+
+        return { ok: true, answer } as const
+      })
+
+      if (!result.ok) {
+        return reply.code(400).send({ error: result.error })
+      }
+
+      return reply.code(201).send({ answer: result.answer })
     }
   )
 }

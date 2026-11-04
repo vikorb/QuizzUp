@@ -13,6 +13,7 @@ import {
   lockQuestionAnswers,
   isValidAnswerStatus,
   parsePositiveId,
+  validateLockedAnswersForKind,
   type AnswerParams,
   type AnswerStatusBody,
 } from '../_shared'
@@ -81,6 +82,17 @@ const questionAnswerIdStatusRoutes: FastifyPluginAsync = async (app) => {
           !hasCorrectAnswerBesides(activeAnswers, answerId)
         ) {
           return { ok: false, status: 400, error: 'answer_correct_delete_forbidden' } as const
+        }
+
+        const kindError = validateLockedAnswersForKind(
+          question.kind,
+          activeAnswers.map((answer) =>
+            Number(answer.id) === answerId ? { ...answer, status: nextStatus } : answer
+          )
+        )
+
+        if (kindError) {
+          return { ok: false, status: 400, error: kindError } as const
         }
 
         const [updatedAnswer] = await trx('answers')

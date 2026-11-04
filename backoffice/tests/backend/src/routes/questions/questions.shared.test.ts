@@ -118,7 +118,7 @@ describe('routes/questions/_shared.ts', () => {
         validateAnswersForKind(QUESTION_KIND_ESTIMATE, [
           answer('≥ 50'),
           answer('Jusqu’à 10', true),
-          answer('Après 1990'),
+          answer('Moins\u00A0de 5'),
         ])
       ).toBeNull()
 
@@ -126,6 +126,9 @@ describe('routes/questions/_shared.ts', () => {
         [answer('Moins de 100', true), answer('Plus de 100')],
         [answer('Moins de 100', true), answer('Beaucoup'), answer('Plus de 500')],
         [answer('1', true), answer('2', true), answer('3')],
+        // Mots et signe que le moteur ne reconnaît pas : la question ne serait jamais tirée.
+        [answer('Avant 1900', true), answer('1900 à 1999'), answer('2000 ou plus')],
+        [answer('+5', true), answer('6 à 10'), answer('Plus de 10')],
       ]) {
         expect(validateAnswersForKind(QUESTION_KIND_ESTIMATE, answers)).toBe(
           'question_estimate_answers_invalid'

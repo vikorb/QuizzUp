@@ -200,13 +200,24 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
       }
       let detachedMediaKey: string | null = null
 
+      const bodyAnswers = req.body.answers === undefined ? null : normalizeAnswers(req.body.answers)
+
+      if (bodyAnswers) {
+        const answersError = validateAnswers(bodyAnswers)
+
+        if (answersError) {
+          return reply.code(400).send({ error: answersError })
+        }
+
+        if (hasInvalidAnswerStatus(bodyAnswers)) {
+          return reply.code(400).send({ error: 'question_answer_status_invalid' })
+        }
+      }
+
       // Le type et les réponses se valident ensemble : changer l'un revérifie l'autre.
-      if (req.body.kind !== undefined || req.body.answers !== undefined) {
+      if (req.body.kind !== undefined || bodyAnswers) {
         const nextKind = req.body.kind ?? accessQuestion.kind ?? DEFAULT_QUESTION_KIND
-        const nextAnswers =
-          req.body.answers === undefined
-            ? await getQuestionAnswersForValidation(questionId)
-            : normalizeAnswers(req.body.answers)
+        const nextAnswers = bodyAnswers ?? (await getQuestionAnswersForValidation(questionId))
         const kindError = validateAnswersForKind(nextKind, nextAnswers)
 
         if (kindError) {
@@ -215,18 +226,8 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
       }
 
       try {
-        if (req.body.answers !== undefined) {
-          const answers = normalizeAnswers(req.body.answers)
-          const answersError = validateAnswers(answers)
-
-          if (answersError) {
-            return reply.code(400).send({ error: answersError })
-          }
-
-          if (hasInvalidAnswerStatus(answers)) {
-            return reply.code(400).send({ error: 'question_answer_status_invalid' })
-          }
-
+        if (bodyAnswers) {
+          const answers = bodyAnswers
           const answerStatus = getAnswerStatusFromQuestionStatus(accessQuestion.status)
 
           await db.transaction(async (trx) => {

@@ -6,6 +6,7 @@ import {
   ANSWER_STATUS_DELETED,
   ANSWER_STATUS_DRAFT,
   ANSWER_STATUS_INACTIVE,
+  DEFAULT_QUESTION_KIND,
   QUESTION_KINDS,
   getQuestionKindAnswersError,
   QUESTION_MEDIA_TYPE_NONE,
@@ -366,6 +367,15 @@ export function validateAnswers(answers: NormalizedAnswer[]): string | null {
 }
 
 /** Règles de réponses du type de question : partagées avec le formulaire du backoffice. */
+/**
+ * Les règles du type ne comptent que les réponses que la salle jouera (actives) et les
+ * brouillons d'une question en préparation : une réponse inactive ou supprimée est ignorée.
+ */
+function countsForKindRules(status: number): boolean {
+  return status === ANSWER_STATUS_ACTIVE || status === ANSWER_STATUS_DRAFT
+}
+
+/** Réponses envoyées en entier (création, PATCH) : elles prennent toutes le statut de la question. */
 export function validateAnswersForKind(
   kind: QuestionKind,
   answers: NormalizedAnswer[]
@@ -373,16 +383,35 @@ export function validateAnswersForKind(
   return getQuestionKindAnswersError(kind, answers)
 }
 
-/** Réponses non supprimées d'une question, pour revalider ses règles quand son type change. */
+/** Réponses actives ou en brouillon d'une question, pour revalider ses règles quand son type change. */
 export async function getQuestionAnswersForValidation(
   questionId: number
 ): Promise<NormalizedAnswer[]> {
   const rows = await db('answers')
     .where('question_id', questionId)
-    .whereNot('status', ANSWER_STATUS_DELETED)
+    .whereIn('status', [ANSWER_STATUS_ACTIVE, ANSWER_STATUS_DRAFT])
     .select('response', 'is_correct')
 
   return rows.map((row) => ({ response: String(row.response), isCorrect: Boolean(row.is_correct) }))
+}
+
+/**
+ * Règles du type appliquées à l'état final des réponses verrouillées, après une modification
+ * unitaire (ajout, édition, changement de statut ou suppression d'une réponse).
+ */
+export function validateLockedAnswersForKind(
+  kind: QuestionKind | null | undefined,
+  answers: AnswerLockRow[]
+): string | null {
+  return validateAnswersForKind(
+    kind ?? DEFAULT_QUESTION_KIND,
+    answers
+      .filter((answer) => countsForKindRules(Number(answer.status)))
+      .map((answer) => ({
+        response: String(answer.response),
+        isCorrect: Boolean(answer.is_correct),
+      }))
+  )
 }
 
 /**
@@ -392,6 +421,7 @@ export async function getQuestionAnswersForValidation(
  */
 export type AnswerLockRow = {
   id: number | string
+  response: string
   is_correct: boolean
   status: number
 }
