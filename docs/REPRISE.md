@@ -24,9 +24,8 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
 
 ## 2. Travail en cours au moment de l'arrêt
 
-- **PR #88** `feat/room-game-results` : l'écran de salle appelle `POST /room/games/:id/finish` au
-  podium ; la partie passe « terminée » et les scores sont enregistrés. Relue, tests verts. Si elle
-  n'est pas mergée quand tu lis ceci : vérifier la CI et la merger.
+- **PR #88 mergée** : l'écran de salle appelle `POST /room/games/:id/finish` au podium ; la
+  partie passe « terminée » et les scores sont enregistrés. Aucune PR de code n'est ouverte.
 - **Branche `feat/backoffice-mini-games`** (WIP, commit 5b15168a, pas de PR, lint et tests non
   lancés) : choix des mini-jeux à la création d'une partie. Fait côté backend : migration
   `games.mini_games` (jsonb, null = tous), `db.dbml`, champ optionnel `miniGames` à la création
@@ -57,7 +56,7 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
 
 1. **Mini-jeux dans une partie lancée du backoffice** : aujourd'hui elle ne propose que le blind
    test. Finir la branche `feat/backoffice-mini-games` (voir §2), lancer tous les contrôles, PR.
-2. **Fin de partie** : finir/merger la PR #88 ; ensuite réessai de l'envoi des scores après une panne réseau.
+2. **Fin de partie** (#88 mergée) : réessai de l'envoi des scores après une panne réseau.
 3. **Tests matériel réels** sur TERMIVAVOR2 : buzzers (clavier AZERTY, carte manette), interface
    USB DMX quand Enzo l'aura (tout est testable en simulation d'ici là), relais fumée temporisé
    10 s maximum. En salle compatible concurrent : vérifier l'ordre des canaux des lyres 9 canaux
@@ -110,7 +109,7 @@ de données qui typerait l'ancien contenu (le moteur sait déjà déduire le typ
 Tu reprends le projet QuizzUP (dépôt vikorb/QuizzUp). Parle-moi toujours en français ; les rapports
 sont de vrais fichiers exportables (.md ou .docx), pas des artefacts. Commence par lire CLAUDE.md
 puis docs/REPRISE.md, qui donnent les conventions, l'état de main, mes décisions, les lots restants
-par priorité et les pièges connus. Vérifie d'abord l'état de la PR #88 et de la branche
+par priorité et les pièges connus. Reprends d'abord la branche WIP
 feat/backoffice-mini-games, puis enchaîne les lots dans l'ordre de docs/REPRISE.md §4.
 Pour chaque lot : branche dédiée, lint + type-check + tests verts, PR, relecture par un seul
 sous-agent indépendant, corrections, merge toi-même quand la CI GitHub est verte. Mets à jour
