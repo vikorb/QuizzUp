@@ -43,7 +43,13 @@
           "server_error": "server error."
         },
         "measuring": "reading duration…"
-      }
+      },
+      "kind": "Question type"
+    },
+    "kinds": {
+      "qcm": "Multiple choice",
+      "true_false": "True / false",
+      "estimate": "Estimate"
     }
   }
 }

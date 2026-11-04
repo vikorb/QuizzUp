@@ -8,7 +8,7 @@ import type { QuestionStep } from '@engine/miniGames/miniGame'
 import { QUESTION_MEDIA_TYPE_IMAGE } from '@quizzup/shared'
 import { describe, expect, it } from 'vitest'
 
-import { audioQuestion, PARTICIPANTS, textQuestion } from '../_helpers/fixtures'
+import { audioQuestion, PARTICIPANTS, questionContext, textQuestion } from '../_helpers/fixtures'
 
 const STAGE_1_END = 1000 + FLASH_BLIND_TEST_BUZZ_WINDOW_MS
 const STAGE_2_END = STAGE_1_END + 5000 + FLASH_BLIND_TEST_BUZZ_WINDOW_MS
@@ -18,7 +18,7 @@ const STAGE_3_END = STAGE_2_END + 20_000 + FLASH_BLIND_TEST_BUZZ_WINDOW_MS
 const question = audioQuestion(7, 2)
 
 function start(): QuestionStep<FlashBlindTestState> {
-  return flashBlindTest.start(question, PARTICIPANTS, 0)
+  return flashBlindTest.start(question, PARTICIPANTS, 0, questionContext(question))
 }
 
 function press(
@@ -250,7 +250,12 @@ describe('flashBlindTest answers', () => {
 
   it('ignores unknown players and buttons without an answer', () => {
     const shortQuestion = { ...question, answers: question.answers.slice(0, 2) }
-    const { state } = flashBlindTest.start(shortQuestion, PARTICIPANTS, 0)
+    const { state } = flashBlindTest.start(
+      shortQuestion,
+      PARTICIPANTS,
+      0,
+      questionContext(shortQuestion)
+    )
 
     expect(press(state, 99, 0, 10).events).toEqual([])
 

@@ -12,16 +12,39 @@
         <span class="podium">{{ value }}</span>
       </template>
 
-      <template #cell-displayName="{ value }">
-        <span class="name">{{ value }}</span>
+      <template #cell-displayName="{ item }">
+        <span class="players">
+          <span v-for="player in getPlayers(item)" :key="player.rank" class="player">
+            <span
+              class="name"
+              :class="{ 'name--second': player.rank === 2 }"
+              :data-test="`game-player-name-${player.rank}`"
+            >
+              {{ player.displayName }}
+            </span>
+          </span>
+        </span>
       </template>
 
       <template #cell-score="{ value }">
         <span class="score">{{ value }}</span>
       </template>
 
-      <template #cell-email="{ value }">
-        <span class="email" :class="{ 'email--empty': !value }">{{ value || '—' }}</span>
+      <template #cell-email="{ item }">
+        <span class="players">
+          <span v-for="player in getPlayers(item)" :key="player.rank" class="player">
+            <span
+              class="email"
+              :class="{
+                'email--masked': player.email.kind === 'masked',
+                'email--empty': player.email.kind === 'none',
+              }"
+              :data-test="`game-player-email-${player.rank}`"
+            >
+              {{ formatEmail(player.email) }}
+            </span>
+          </span>
+        </span>
       </template>
     </BaseTable>
   </BaseCard>
@@ -35,8 +58,16 @@ import BaseCard from '@/components/ui/BaseCard.vue'
 import type { BaseTableColumn } from '@/components/ui/BaseTable.vue'
 import BaseTable from '@/components/ui/BaseTable.vue'
 import type { GameParticipant } from '@/types/game'
+import { type GamePlayerEmailDisplay, getGamePlayerEmailDisplay } from '@/utils/game/format'
 
 type GameParticipantRow = GameParticipant & Record<string, unknown>
+
+/** Un joueur d'un pupitre : le 1er, puis le 2e facultatif, affichés sur la même ligne. */
+type GamePlayerLine = {
+  rank: 1 | 2
+  displayName: string
+  email: GamePlayerEmailDisplay
+}
 
 const props = defineProps<{
   participants: GameParticipant[]
@@ -56,6 +87,35 @@ const tableItems = computed<GameParticipantRow[]>(() =>
     .sort((left, right) => left.podium - right.podium)
     .map((participant) => ({ ...participant }))
 )
+
+function getPlayers(item: Record<string, unknown>): GamePlayerLine[] {
+  const participant = item as GameParticipantRow
+  const players: GamePlayerLine[] = [
+    {
+      rank: 1,
+      displayName: participant.displayName,
+      email: getGamePlayerEmailDisplay(participant),
+    },
+  ]
+
+  if (participant.secondPlayer) {
+    players.push({
+      rank: 2,
+      displayName: participant.secondPlayer.displayName,
+      email: getGamePlayerEmailDisplay(participant.secondPlayer),
+    })
+  }
+
+  return players
+}
+
+function formatEmail(email: GamePlayerEmailDisplay): string {
+  if (email.kind === 'value') {
+    return email.value
+  }
+
+  return email.kind === 'masked' ? t('games.detail.emailMasked') : '—'
+}
 </script>
 
 <style scoped>
@@ -77,9 +137,24 @@ const tableItems = computed<GameParticipantRow[]>(() =>
   box-shadow: 0 0 10px var(--glow-pink);
 }
 
+.players {
+  display: grid;
+  gap: 6px;
+}
+
+.player {
+  display: block;
+  line-height: 1.4;
+}
+
 .name {
   font-weight: 800;
   color: var(--text-0);
+}
+
+.name--second {
+  font-weight: 600;
+  color: var(--text-1);
 }
 
 .score {
@@ -89,6 +164,11 @@ const tableItems = computed<GameParticipantRow[]>(() =>
 
 .email {
   color: var(--text-1);
+}
+
+.email--masked {
+  color: var(--text-3);
+  font-style: italic;
 }
 
 .email--empty {

@@ -82,10 +82,12 @@
           :can-remove="canRemoveParticipant"
           :disabled="isBusy"
           @update="
-            (field: ParticipantField, value: string | boolean) =>
+            (field: GameParticipantField, value: string | boolean) =>
               updateParticipant(index, field, value)
           "
           @remove="removeParticipant(index)"
+          @add-second-player="addSecondPlayer(index)"
+          @remove-second-player="removeSecondPlayer(index)"
         />
       </div>
     </section>
@@ -121,8 +123,8 @@ import type {
   Game,
   GameFieldErrors,
   GameFormValues,
+  GameParticipantField,
   GameParticipantFieldErrors,
-  GameParticipantFormValues,
   GameRoom,
 } from '@/types/game'
 import { getGameErrorKey } from '@/utils/game/errors'
@@ -130,6 +132,7 @@ import {
   buildCreateGamePayload,
   canAddGameParticipant,
   canRemoveGameParticipant,
+  closeGameSecondPlayer,
   createDefaultGameFormValues,
   createGameFieldErrors,
   createGameParticipantFieldErrors,
@@ -138,12 +141,11 @@ import {
   getGamePodiums,
   getNextFreePodium,
   hasGameFormErrors,
+  openGameSecondPlayer,
   validateGameForm,
 } from '@/utils/game/form'
 
 import GameParticipantFields from './GameParticipantFields.vue'
-
-type ParticipantField = keyof Omit<GameParticipantFormValues, 'key'>
 
 /** Erreurs de l'API qui concernent le choix de la salle. */
 const ROOM_ERROR_CODES = ['room_busy', 'room_inactive', 'room_not_found']
@@ -246,15 +248,47 @@ function removeParticipant(index: number): void {
   fieldErrors.participants.splice(index, 1)
 }
 
-function updateParticipant(index: number, field: ParticipantField, value: string | boolean): void {
+function clearSecondPlayerErrors(index: number): void {
+  const errors = fieldErrors.participants[index]
+
+  if (errors) {
+    errors.secondDisplayName = ''
+    errors.secondEmail = ''
+    errors.secondEmailConsent = ''
+  }
+}
+
+function addSecondPlayer(index: number): void {
+  const participant = form.participants[index]
+
+  if (participant) {
+    openGameSecondPlayer(participant)
+    clearSecondPlayerErrors(index)
+  }
+}
+
+function removeSecondPlayer(index: number): void {
+  const participant = form.participants[index]
+
+  if (participant) {
+    closeGameSecondPlayer(participant)
+    clearSecondPlayerErrors(index)
+  }
+}
+
+function updateParticipant(
+  index: number,
+  field: GameParticipantField,
+  value: string | boolean
+): void {
   const participant = form.participants[index]
 
   if (!participant) {
     return
   }
 
-  if (field === 'emailConsent') {
-    participant.emailConsent = value === true
+  if (field === 'emailConsent' || field === 'secondEmailConsent') {
+    participant[field] = value === true
   } else {
     participant[field] = String(value)
   }
@@ -267,6 +301,8 @@ function updateParticipant(index: number, field: ParticipantField, value: string
 
     if (field === 'email') {
       errors.emailConsent = ''
+    } else if (field === 'secondEmail') {
+      errors.secondEmailConsent = ''
     }
   }
 }

@@ -2,7 +2,11 @@ import '../_helpers/registerRouteMocks'
 
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { ANSWER_STATUS_ACTIVE, ANSWER_STATUS_DELETED } from '@quizzup/shared'
+import {
+  ANSWER_STATUS_ACTIVE,
+  ANSWER_STATUS_DELETED,
+  QUESTION_KIND_ESTIMATE,
+} from '@quizzup/shared'
 import questionsRoutes from '@backend/routes/questions'
 import { dbState } from '../_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
@@ -60,6 +64,32 @@ describe('routes/questions/id.ts', () => {
 
     expect(response.statusCode).toBe(403)
     expect(parseJson(response)).toEqual({ error: 'forbidden' })
+
+    await app.close()
+  })
+
+  it('updates the question kind and rejects an unknown one', async () => {
+    const app = await createRouteApp(questionsRoutes)
+
+    const updated = await app.inject({
+      method: 'PATCH',
+      url: '/questions/2',
+      headers: authHeaders(companyAdminUser),
+      payload: { kind: QUESTION_KIND_ESTIMATE },
+    })
+    const invalid = await app.inject({
+      method: 'PATCH',
+      url: '/questions/2',
+      headers: authHeaders(companyAdminUser),
+      payload: { kind: 'riddle' },
+    })
+
+    expect(updated.statusCode).toBe(200)
+    expect(dbState.questions.find((row) => row.id === 2)).toMatchObject({
+      kind: QUESTION_KIND_ESTIMATE,
+    })
+    expect(invalid.statusCode).toBe(400)
+    expect(parseJson(invalid)).toEqual({ error: 'question_kind_invalid' })
 
     await app.close()
   })

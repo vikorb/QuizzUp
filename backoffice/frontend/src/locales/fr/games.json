@@ -64,7 +64,7 @@
       "roundsHint": "Entre 1 et {max}",
       "questionsPerRound": "Questions par manche",
       "questionsHint": "Entre 1 et {max}",
-      "participantsHint": "De 1 à {max} participants, un par pupitre.",
+      "participantsHint": "De 1 à {max} pupitres, avec 1 ou 2 joueurs par pupitre.",
       "participant": "Participant {index}",
       "podium": "Pupitre",
       "podiumOption": "Pupitre {podium}",
@@ -90,7 +90,11 @@
         "displayNameTooLong": "Le nom affiché est trop long.",
         "emailInvalid": "L'adresse email est invalide.",
         "consentRequired": "Cochez la case de consentement pour enregistrer cet email, ou retirez l'email."
-      }
+      },
+      "secondPlayer": "2e joueur",
+      "secondDisplayNamePlaceholder": "Ex : Alex",
+      "addSecondPlayer": "Ajouter un 2e joueur",
+      "removeSecondPlayer": "Retirer le 2e joueur"
     },
     "detail": {
       "title": "Détail de la partie",
@@ -114,7 +118,8 @@
         "displayName": "Nom",
         "score": "Score",
         "email": "Email"
-      }
+      },
+      "emailMasked": "Email enregistré (masqué)"
     },
     "errors": {
       "missingToken": "Vous devez être connecté.",

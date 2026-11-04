@@ -153,6 +153,75 @@ describe('views/games/creation/CreateGameForm.vue', () => {
     expect(wrapper.emitted('created')?.[0]?.[0]).toMatchObject({ id: 99 })
   })
 
+  it('opens and removes the second player block of a podium', async () => {
+    const wrapper = mountForm()
+
+    expect(wrapper.find('[data-test="game-second-player"]').exists()).toBe(false)
+
+    await wrapper.get('[data-test="game-second-player-add"]').trigger('click')
+
+    expect(wrapper.find('[data-test="game-second-player"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="game-second-player-add"]').exists()).toBe(false)
+    expect(
+      wrapper.get<HTMLInputElement>('[data-test="game-second-player-consent"]').element.checked
+    ).toBe(false)
+
+    await wrapper.get('input[name="participants.0.secondPlayer.displayName"]').setValue('Alex')
+    await wrapper.get('[data-test="game-second-player-remove"]').trigger('click')
+
+    expect(wrapper.find('[data-test="game-second-player"]').exists()).toBe(false)
+
+    await wrapper.get('[data-test="game-second-player-add"]').trigger('click')
+
+    expect(
+      wrapper.get<HTMLInputElement>('input[name="participants.0.secondPlayer.displayName"]').element
+        .value
+    ).toBe('')
+  })
+
+  it('validates the second player like the first one', async () => {
+    const wrapper = mountForm()
+
+    await roomSelect(wrapper).get('select').setValue('10')
+    await fillParticipant(wrapper, 0, { displayName: 'Team A' })
+    await wrapper.get('[data-test="game-second-player-add"]').trigger('click')
+    await wrapper
+      .get('input[name="participants.0.secondPlayer.email"]')
+      .setValue('alex@quizzup.test')
+    await submit(wrapper)
+
+    expect(createGameServiceMock).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('games.form.errors.displayNameRequired')
+    expect(wrapper.text()).toContain('games.form.errors.consentRequired')
+  })
+
+  it('sends the second player of a podium once its consent is ticked', async () => {
+    const wrapper = mountForm()
+
+    await roomSelect(wrapper).get('select').setValue('10')
+    await fillParticipant(wrapper, 0, { displayName: 'Team A' })
+    await wrapper.get('[data-test="game-second-player-add"]').trigger('click')
+    await wrapper.get('input[name="participants.0.secondPlayer.displayName"]').setValue(' Alex ')
+    await wrapper
+      .get('input[name="participants.0.secondPlayer.email"]')
+      .setValue('alex@quizzup.test')
+    await wrapper.get('[data-test="game-second-player-consent"]').setValue(true)
+    await submit(wrapper)
+
+    expect(createGameServiceMock).toHaveBeenCalledWith(1, {
+      roomId: 10,
+      roundsCount: 10,
+      questionsPerRound: 10,
+      participants: [
+        {
+          podium: 1,
+          displayName: 'Team A',
+          secondPlayer: { displayName: 'Alex', email: 'alex@quizzup.test', emailConsent: true },
+        },
+      ],
+    })
+  })
+
   it('preselects the only active room', async () => {
     const wrapper = mountForm([
       { id: 10, name: 'Salle Néon', status: ROOM_STATUS_ACTIVE },

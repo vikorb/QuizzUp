@@ -14,6 +14,7 @@ import {
   GAME_STATE_PENDING,
   GAME_STATES,
   GAME_STATUSES,
+  MINI_GAME_FLASH_BLIND_TEST,
   MINI_GAMES,
   ROOM_STATUSES,
   ROUND_CHOOSER_REASONS,
@@ -44,6 +45,7 @@ function getCheckValues(source: string, column: string): string[] {
 const roomsMigration = readMigration('20261103220000_create_rooms_table.js')
 const roomRoleMigration = readMigration('20261103220100_add_room_role_to_admins.js')
 const gamesMigration = readMigration('20261103220200_create_games_tables.js')
+const miniGamesMigration = readMigration('20261104010000_add_mini_games_to_game_rounds.js')
 
 describe('game schema migrations', () => {
   it('aligns room statuses with shared constants', () => {
@@ -68,7 +70,16 @@ describe('game schema migrations', () => {
   })
 
   it('aligns mini games and chooser reasons with shared constants', () => {
-    expect(getCheckValues(gamesMigration, 'mini_game')).toEqual([...MINI_GAMES])
+    // Le CHECK d'origine ne connaissait que le blind test ; la migration des
+    // nouveaux mini-jeux l'élargit à tout le catalogue partagé.
+    expect(getCheckValues(gamesMigration, 'mini_game')).toEqual([MINI_GAME_FLASH_BLIND_TEST])
+    const listed = /const MINI_GAMES = \[([^\]]*)\]/.exec(miniGamesMigration)?.[1] ?? ''
+    expect(
+      listed
+        .split(',')
+        .map((value) => value.trim().replaceAll("'", ''))
+        .filter(Boolean)
+    ).toEqual([...MINI_GAMES])
     expect(getCheckValues(gamesMigration, 'chooser_reason')).toEqual([...ROUND_CHOOSER_REASONS])
   })
 

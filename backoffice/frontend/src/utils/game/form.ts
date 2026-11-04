@@ -11,6 +11,7 @@ import {
 import type {
   CreateGameParticipantPayload,
   CreateGamePayload,
+  CreateGameSecondPlayerPayload,
   GameFieldErrors,
   GameFormValues,
   GameParticipantFieldErrors,
@@ -39,7 +40,33 @@ export function createGameParticipantFormValues(podium: number): GameParticipant
     email: '',
     // RGPD : le consentement n'est jamais pré-coché.
     emailConsent: false,
+    hasSecondPlayer: false,
+    ...createEmptySecondPlayerValues(),
   }
+}
+
+type SecondPlayerValues = Pick<
+  GameParticipantFormValues,
+  'secondDisplayName' | 'secondEmail' | 'secondEmailConsent'
+>
+
+function createEmptySecondPlayerValues(): SecondPlayerValues {
+  return {
+    secondDisplayName: '',
+    secondEmail: '',
+    // RGPD : le consentement du 2e joueur n'est jamais pré-coché non plus.
+    secondEmailConsent: false,
+  }
+}
+
+/** Ouvre le bloc du 2e joueur d'un pupitre, vierge. */
+export function openGameSecondPlayer(participant: GameParticipantFormValues): void {
+  Object.assign(participant, createEmptySecondPlayerValues(), { hasSecondPlayer: true })
+}
+
+/** Ferme le bloc du 2e joueur et oublie sa saisie (aucun email ne traîne en mémoire). */
+export function closeGameSecondPlayer(participant: GameParticipantFormValues): void {
+  Object.assign(participant, createEmptySecondPlayerValues(), { hasSecondPlayer: false })
 }
 
 export function createDefaultGameFormValues(): GameFormValues {
@@ -57,6 +84,9 @@ export function createGameParticipantFieldErrors(): GameParticipantFieldErrors {
     displayName: '',
     email: '',
     emailConsent: '',
+    secondDisplayName: '',
+    secondEmail: '',
+    secondEmailConsent: '',
   }
 }
 
@@ -102,23 +132,30 @@ function parseIntegerInRange(value: string, max: number): number | null {
 }
 
 /** Règle RGPD : un email saisi exige une case de consentement cochée explicitement. */
-export function isGameParticipantConsentMissing(participant: GameParticipantFormValues): boolean {
-  return !isBlank(participant.email) && participant.emailConsent !== true
+function isConsentMissing(email: string, emailConsent: boolean): boolean {
+  return !isBlank(email) && emailConsent !== true
 }
 
-function validateParticipant(
-  participant: GameParticipantFormValues,
-  duplicatedPodiums: Set<string>
-): GameParticipantFieldErrors {
-  const errors = createGameParticipantFieldErrors()
-  const displayName = participant.displayName.trim()
-  const email = participant.email.trim()
+/** Règle RGPD appliquée au joueur 1 d'un pupitre. */
+export function isGameParticipantConsentMissing(participant: GameParticipantFormValues): boolean {
+  return isConsentMissing(participant.email, participant.emailConsent)
+}
 
-  if (parseIntegerInRange(participant.podium, GAME_PODIUMS) === null) {
-    errors.podium = 'games.form.errors.podiumInvalid'
-  } else if (duplicatedPodiums.has(participant.podium)) {
-    errors.podium = 'games.form.errors.podiumDuplicated'
-  }
+/** Même règle RGPD pour le 2e joueur, seulement si son bloc est ouvert. */
+export function isGameSecondPlayerConsentMissing(participant: GameParticipantFormValues): boolean {
+  return (
+    participant.hasSecondPlayer &&
+    isConsentMissing(participant.secondEmail, participant.secondEmailConsent)
+  )
+}
+
+type PlayerErrors = Pick<GameParticipantFieldErrors, 'displayName' | 'email' | 'emailConsent'>
+
+/** Règles communes aux deux joueurs d'un pupitre : nom obligatoire, email valide + consentement. */
+function validatePlayer(rawName: string, rawEmail: string, emailConsent: boolean): PlayerErrors {
+  const errors: PlayerErrors = { displayName: '', email: '', emailConsent: '' }
+  const displayName = rawName.trim()
+  const email = rawEmail.trim()
 
   if (!displayName) {
     errors.displayName = 'games.form.errors.displayNameRequired'
@@ -130,8 +167,40 @@ function validateParticipant(
     errors.email = 'games.form.errors.emailInvalid'
   }
 
-  if (isGameParticipantConsentMissing(participant)) {
+  if (isConsentMissing(email, emailConsent)) {
     errors.emailConsent = 'games.form.errors.consentRequired'
+  }
+
+  return errors
+}
+
+function validateParticipant(
+  participant: GameParticipantFormValues,
+  duplicatedPodiums: Set<string>
+): GameParticipantFieldErrors {
+  const errors = createGameParticipantFieldErrors()
+
+  if (parseIntegerInRange(participant.podium, GAME_PODIUMS) === null) {
+    errors.podium = 'games.form.errors.podiumInvalid'
+  } else if (duplicatedPodiums.has(participant.podium)) {
+    errors.podium = 'games.form.errors.podiumDuplicated'
+  }
+
+  Object.assign(
+    errors,
+    validatePlayer(participant.displayName, participant.email, participant.emailConsent)
+  )
+
+  if (participant.hasSecondPlayer) {
+    const second = validatePlayer(
+      participant.secondDisplayName,
+      participant.secondEmail,
+      participant.secondEmailConsent
+    )
+
+    errors.secondDisplayName = second.displayName
+    errors.secondEmail = second.email
+    errors.secondEmailConsent = second.emailConsent
   }
 
   return errors
@@ -184,19 +253,38 @@ export function hasGameFormErrors(errors: GameFieldErrors): boolean {
   )
 }
 
+function buildPlayerPayload(
+  rawName: string,
+  rawEmail: string,
+  emailConsent: boolean
+): CreateGameSecondPlayerPayload {
+  const payload: CreateGameSecondPlayerPayload = { displayName: rawName.trim() }
+  const email = rawEmail.trim()
+
+  // Sans email, rien à consentir : on n'envoie ni l'email ni la case.
+  if (email) {
+    payload.email = email
+    payload.emailConsent = emailConsent === true
+  }
+
+  return payload
+}
+
 function buildParticipantPayload(
   participant: GameParticipantFormValues
 ): CreateGameParticipantPayload {
   const payload: CreateGameParticipantPayload = {
     podium: Number(participant.podium),
-    displayName: participant.displayName.trim(),
+    ...buildPlayerPayload(participant.displayName, participant.email, participant.emailConsent),
   }
-  const email = participant.email.trim()
 
-  // Sans email, rien à consentir : on n'envoie ni l'email ni la case.
-  if (email) {
-    payload.email = email
-    payload.emailConsent = participant.emailConsent === true
+  // Le 2e joueur n'est envoyé que si son bloc est ouvert ; le score reste celui du pupitre.
+  if (participant.hasSecondPlayer) {
+    payload.secondPlayer = buildPlayerPayload(
+      participant.secondDisplayName,
+      participant.secondEmail,
+      participant.secondEmailConsent
+    )
   }
 
   return payload

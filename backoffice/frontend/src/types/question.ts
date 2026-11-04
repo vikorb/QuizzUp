@@ -2,6 +2,9 @@ export type QuestionScope = 'global' | 'company'
 export type ThemeMode = 'classic' | 'image' | 'audio' | 'mixed'
 export type QuestionMediaType = 'none' | 'image' | 'audio' | 'video'
 
+/** Type de question, utilisé par le moteur pour l'éligibilité des mini-jeux. */
+export type QuestionKind = 'qcm' | 'true_false' | 'estimate'
+
 export interface Theme {
   id: number
   adminId: number
@@ -46,6 +49,7 @@ export interface Question {
   themeScope?: QuestionScope | null
   scope: QuestionScope
   question: string
+  kind?: QuestionKind
   typeMedia: QuestionMediaType
   mediaUrl: string | null
   mediaStartMs?: number
@@ -69,6 +73,7 @@ export interface QuestionFilters {
 export interface QuestionPayload {
   themeIds: number[]
   question: string
+  kind: QuestionKind
   typeMedia: QuestionMediaType
   mediaUrl: string | null
   answers: Answer[]
