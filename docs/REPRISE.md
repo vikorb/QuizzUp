@@ -24,6 +24,13 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
 
 ## 2. Travail en cours au moment de l'arrêt
 
+- **Décisions d'Enzo du 2026-11-04 (soir), mergées** : #101 (`backoffice/backend/.env` sorti de
+  git ; les tests backend se replient sur `.env.example` ; **sauvegarder son `.env` avant le
+  pull**, git le supprime du disque), #102 (baisser le nombre de pupitres garde en **réserve** les
+  buzzers et lumières des pupitres retirés, restitués si on remonte), #103 (retypage de l'ancien
+  contenu : `true_false` si exactement « vrai »/« faux », `estimate` seulement si chaque réponse
+  est une fourchette en mots ; sinon `qcm` ; table de trace `question_kind_retypings` pour le
+  `down` ; test PostgreSQL lancé en CI). Purge RGPD : par compagnie, confirmée.
 - **Session du 2026-11-04 : tout est mergé, aucune PR ouverte.** PR #91 (mini-jeux), #97 (réessai
   de l'envoi des scores), #94 (type, média et réponses sous verrou), #98 (purge RGPD), #93
   (hygiène du dépôt : `backoffice/shared/node_modules` sorti de git, `format:check` en CI ; après
@@ -97,12 +104,8 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
 
 Petits suivis connus : ~~`LaunchView` reprend
 n'importe quelle sauvegarde~~ (fait : PR #99, reprise limitée au contexte courant) ; typage
-de l'ancien contenu : **décision d'Enzo à prendre**. La migration `20261104020000_add_kind_to_questions`
-a rempli toutes les anciennes questions avec `kind = 'qcm'` (défaut `NOT NULL`), donc rien n'est à
-`NULL` et une ancienne question est indiscernable d'un QCM choisi exprès. Le moteur déduit déjà le
-vrai/faux et l'estimation (`game/engine/src/miniGames/questionRules.ts`). Seule option si on veut le
-faire : retyper les `qcm` qui suivent la règle du moteur (attention, `true_false` et `estimate`
-verrouillent ensuite les réponses dans le backoffice).
+de l'ancien contenu (fait : PR #103, règle plus stricte que le moteur pour ne verrouiller aucun
+vrai QCM).
 
 ## 5. Process de travail
 
