@@ -92,8 +92,13 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
 7. Plus tard : SACEM, pricing, mode hors ligne (V2).
 
 Petits suivis connus : ~~`LaunchView` reprend
-n'importe quelle sauvegarde~~ (fait : `fix/launch-resume-save`, reprise limitée au contexte courant) ; migration
-de données qui typerait l'ancien contenu (le moteur sait déjà déduire le type).
+n'importe quelle sauvegarde~~ (fait : `fix/launch-resume-save`, reprise limitée au contexte courant) ; typage
+de l'ancien contenu : **décision d'Enzo à prendre**. La migration `20261104020000_add_kind_to_questions`
+a rempli toutes les anciennes questions avec `kind = 'qcm'` (défaut `NOT NULL`), donc rien n'est à
+`NULL` et une ancienne question est indiscernable d'un QCM choisi exprès. Le moteur déduit déjà le
+vrai/faux et l'estimation (`game/engine/src/miniGames/questionRules.ts`). Seule option si on veut le
+faire : retyper les `qcm` qui suivent la règle du moteur (attention, `true_false` et `estimate`
+verrouillent ensuite les réponses dans le backoffice).
 
 ## 5. Process de travail
 
