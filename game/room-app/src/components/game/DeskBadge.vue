@@ -35,4 +35,12 @@ withDefaults(defineProps<{ desk: number; size?: number }>(), { size: 34 })
 .desk-badge--4 {
   --desk-color: var(--desk-4);
 }
+
+.desk-badge--5 {
+  --desk-color: var(--desk-5);
+}
+
+.desk-badge--6 {
+  --desk-color: var(--desk-6);
+}
 </style>

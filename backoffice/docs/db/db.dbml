@@ -181,6 +181,7 @@ Table games {
   questions_per_round smallint [not null, default: 10, note: '1 à 20']
   seed bigint [not null, note: 'Graine des tirages : rejouer la partie à l’identique']
   state varchar(50) [not null, default: 'pending', note: 'pending, running, finished, aborted']
+  mini_games jsonb [note: 'Mini-jeux choisis au lancement (MINI_GAMES) ; null = tous']
 
   started_at timestamptz
   finished_at timestamptz
@@ -205,7 +206,7 @@ Table game_participants {
   id bigint [pk, increment]
   game_id bigint [not null]
 
-  podium smallint [not null, note: '1 à 4']
+  podium smallint [not null, note: '1 à 6 (GAME_PODIUMS) ; pupitres de la salle : rooms.config.desksCount, 4 par défaut']
   display_name varchar(100) [not null]
   email varchar(255) [note: 'RGPD : uniquement si consent_at est renseigné']
   consent_at timestamptz

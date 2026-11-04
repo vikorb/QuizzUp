@@ -152,6 +152,14 @@ function onConsent(event: Event): void {
   --desk-color: var(--desk-4);
 }
 
+.desk--5 {
+  --desk-color: var(--desk-5);
+}
+
+.desk--6 {
+  --desk-color: var(--desk-6);
+}
+
 .desk--filled {
   border-color: var(--desk-color);
   box-shadow: 0 0 26px -12px var(--desk-color);

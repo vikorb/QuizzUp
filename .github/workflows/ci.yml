@@ -41,6 +41,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Format
+        run: npm run format:check
+
       - name: Type-check
         run: npm run type-check
 
@@ -92,6 +95,19 @@ jobs:
           RECENT=$(ls db/migrations | awk -F_ '$1 >= 20260521000000' | wc -l)
           for _ in $(seq "$RECENT"); do npx knex migrate:down; done
           npx knex migrate:latest
+
+      # Purge RGPD des emails joueurs sur un vrai PostgreSQL. Base dédiée : le test applique
+      # les migrations et vide les tables, il ne doit pas toucher à la base de l'aller-retour.
+      - name: Test d'intégration de la purge RGPD (PostgreSQL)
+        working-directory: backoffice
+        env:
+          PG_INTEGRATION_URL: postgresql://quizzup:quizzup@localhost:5434/quizzup_purge_test
+        run: |
+          PGPASSWORD=quizzup psql -h localhost -p 5434 -U quizzup -d quizzup_backoffice \
+            -c "CREATE DATABASE quizzup_purge_test"
+          npm ci
+          npx vitest run --config vitest.backend.config.ts \
+            tests/backend/src/jobs/purgePlayerEmails.pg.test.ts
 
   game-engine:
     name: Moteur de jeu (lint, type-check, tests)

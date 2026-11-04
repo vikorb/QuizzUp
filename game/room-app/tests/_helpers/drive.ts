@@ -30,3 +30,11 @@ export function correctButton(session: GameSession): 0 | 1 | 2 | 3 {
     (answer) => answer.isCorrect
   ) as 0 | 1 | 2 | 3
 }
+
+/** Fait avancer une partie (sans réponse ni buzz) jusqu'au podium final. */
+export function playToPodium(session: GameSession, clock: Clock): void {
+  for (let step = 0; step < 40 && session.state.phase.name !== 'finished'; step += 1) {
+    clock.advance(60_000)
+    session.tick()
+  }
+}

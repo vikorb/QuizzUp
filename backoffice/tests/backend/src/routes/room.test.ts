@@ -171,6 +171,33 @@ describe('routes/room.ts — current game (US-GAME-08)', () => {
     await app.close()
   })
 
+  it('gives the room PC the mini-games chosen at launch, null meaning every one', async () => {
+    seedRoom()
+    seedGame({ mini_games: ['first_buzz', 'quick_answer'] })
+    const app = await createRouteApp(roomRoutes)
+
+    const restricted = await app.inject({
+      method: 'GET',
+      url: '/room/games/current',
+      headers: authHeaders(roomUser),
+    })
+    dbState.games[0]!.mini_games = null
+    const unrestricted = await app.inject({
+      method: 'GET',
+      url: '/room/games/current',
+      headers: authHeaders(roomUser),
+    })
+
+    // Renvoyés dans l'ordre des codes partagés (quick_answer avant first_buzz).
+    expect(parseJson<CurrentBody>(restricted).game?.miniGames).toEqual([
+      'quick_answer',
+      'first_buzz',
+    ])
+    expect(parseJson<CurrentBody>(unrestricted).game?.miniGames).toBeNull()
+
+    await app.close()
+  })
+
   it('starts the pending game once and ignores finished games', async () => {
     seedRoom()
     seedGame()
@@ -258,6 +285,46 @@ describe('routes/room.ts — current game (US-GAME-08)', () => {
     expect(dbState.game_participants.map((row) => row.score)).toEqual([1200, 300])
     expect((await finish([], 6)).statusCode).toBe(404)
     expect((await finish('nope')).statusCode).toBe(400)
+
+    await app.close()
+  })
+
+  it('finishes a game played on 6 pupitres', async () => {
+    seedRoom()
+    seedGame({ state: GAME_STATE_RUNNING })
+    for (const podium of [2, 3, 4, 5, 6]) {
+      dbState.game_participants.push({
+        id: podium,
+        game_id: 5,
+        podium,
+        display_name: `Joueur ${podium}`,
+        score: 0,
+      })
+    }
+    const app = await createRouteApp(roomRoutes)
+
+    const finished = await app.inject({
+      method: 'POST',
+      url: '/room/games/5/finish',
+      headers: authHeaders(roomUser),
+      payload: {
+        scores: [1, 2, 3, 4, 5, 6].map((podium) => ({ podium, score: podium * 100 })),
+      },
+    })
+    const tooMany = await app.inject({
+      method: 'POST',
+      url: '/room/games/5/finish',
+      headers: authHeaders(roomUser),
+      payload: {
+        scores: [1, 2, 3, 4, 5, 6, 7].map((podium) => ({ podium, score: 0 })),
+      },
+    })
+
+    expect(finished.statusCode).toBe(200)
+    expect(dbState.game_participants.map((row) => row.score)).toEqual([
+      100, 200, 300, 400, 500, 600,
+    ])
+    expect(tooMany.statusCode).toBe(400)
 
     await app.close()
   })
@@ -374,6 +441,33 @@ describe('routes/room.ts — hardware config', () => {
     })
     expect(tooLarge.statusCode).toBe(400)
     expect(parseJson(tooLarge)).toEqual({ error: 'room_config_too_large' })
+
+    await app.close()
+  })
+
+  it('stores the number of pupitres, from 1 to 6, and refuses the rest', async () => {
+    seedRoom({ config: { buzzers: { keymap: {} } } })
+    const app = await createRouteApp(roomRoutes)
+    const save = (desksCount: unknown) =>
+      app.inject({
+        method: 'PUT',
+        url: '/room/config',
+        headers: authHeaders(roomUser),
+        payload: { config: { desksCount } },
+      })
+
+    const six = await save(6)
+    expect(six.statusCode).toBe(200)
+    // Les autres sections sont gardées, `desksCount` est ajouté.
+    expect(parseJson<{ room: { config: unknown } }>(six).room.config).toEqual({
+      buzzers: { keymap: {} },
+      desksCount: 6,
+    })
+
+    for (const invalid of [0, 7, 3.5, '4']) {
+      expect((await save(invalid)).statusCode).toBe(400)
+    }
+    expect(dbState.rooms[0]!.config).toMatchObject({ desksCount: 6 })
 
     await app.close()
   })

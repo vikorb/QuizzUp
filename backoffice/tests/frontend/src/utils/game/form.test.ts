@@ -6,6 +6,10 @@ import {
   GAME_MAX_ROUNDS,
   GAME_PARTICIPANT_DISPLAY_NAME_MAX_LENGTH,
   GAME_PODIUMS,
+  MINI_GAME_ESTIMATE,
+  MINI_GAME_FIRST_BUZZ,
+  MINI_GAME_FLASH_BLIND_TEST,
+  MINI_GAMES,
 } from '@quizzup/shared'
 import { describe, expect, it } from 'vitest'
 
@@ -17,9 +21,12 @@ import {
   closeGameSecondPlayer,
   createDefaultGameFormValues,
   createGameParticipantFormValues,
+  fitGameParticipantsToDesks,
   getActiveGameRooms,
   getGamePodiums,
+  getGameRoomDesksCount,
   getNextFreePodium,
+  getSelectedMiniGames,
   hasGameFormErrors,
   isGameParticipantConsentMissing,
   isGameSecondPlayerConsentMissing,
@@ -68,6 +75,17 @@ describe('utils/game/form', () => {
       expect(form.participants[0].podium).toBe('1')
     })
 
+    it('ticks every mini-game by default, in a copy of the shared list', () => {
+      const form = createDefaultGameFormValues()
+
+      expect(form.miniGames).toEqual([...MINI_GAMES])
+      expect(form.miniGames).not.toBe(MINI_GAMES)
+
+      form.miniGames.pop()
+
+      expect(createDefaultGameFormValues().miniGames).toEqual([...MINI_GAMES])
+    })
+
     it('never pre-ticks the GDPR consent', () => {
       expect(createDefaultGameFormValues().participants[0].emailConsent).toBe(false)
       expect(createGameParticipantFormValues(3).emailConsent).toBe(false)
@@ -100,6 +118,65 @@ describe('utils/game/form', () => {
       expect(canAddGameParticipant(full)).toBe(false)
     })
 
+    it('caps the podiums at 6', () => {
+      expect(GAME_PODIUMS).toBe(6)
+      expect(getGamePodiums()).toEqual([1, 2, 3, 4, 5, 6])
+      expect(getGamePodiums(12)).toEqual([1, 2, 3, 4, 5, 6])
+    })
+
+    it('lists only the podiums of the room', () => {
+      expect(getGamePodiums(4)).toEqual([1, 2, 3, 4])
+      expect(getGamePodiums(1)).toEqual([1])
+      expect(getGamePodiums(0)).toEqual([1])
+    })
+
+    it('finds the next free podium and the add limit inside the room', () => {
+      const four = [1, 2, 3, 4].map((podium) => participant({ podium: String(podium) }))
+
+      expect(getNextFreePodium(four, 4)).toBeNull()
+      expect(canAddGameParticipant(four, 4)).toBe(false)
+      expect(getNextFreePodium(four, 6)).toBe(5)
+      expect(canAddGameParticipant(four, 6)).toBe(true)
+      expect(canAddGameParticipant([participant()], 1)).toBe(false)
+    })
+
+    it('reads the podiums of the chosen room, 4 by default', () => {
+      const rooms = [
+        { ...roomsFixture[0], id: 1, desksCount: 6 },
+        { ...roomsFixture[0], id: 2, desksCount: 2 },
+        { ...roomsFixture[0], id: 3, desksCount: 99 },
+        { ...roomsFixture[0], id: 4, desksCount: undefined },
+      ]
+
+      expect(getGameRoomDesksCount(rooms, '1')).toBe(6)
+      expect(getGameRoomDesksCount(rooms, '2')).toBe(2)
+      expect(getGameRoomDesksCount(rooms, '3')).toBe(6)
+      expect(getGameRoomDesksCount(rooms, '4')).toBe(4)
+      expect(getGameRoomDesksCount(rooms, '')).toBe(4)
+      expect(getGameRoomDesksCount(rooms, '404')).toBe(4)
+    })
+
+    it('keeps participants inside the room when it changes', () => {
+      const list = ['1', '2'].map((podium) => participant({ podium }))
+
+      expect(fitGameParticipantsToDesks(list, 4)).toEqual([])
+      expect(list.map((item) => item.podium)).toEqual(['1', '2'])
+    })
+
+    it('moves participants beyond the room to the first free podium, in order', () => {
+      const list = ['6', '1', '5'].map((podium) => participant({ podium }))
+
+      expect(fitGameParticipantsToDesks(list, 4)).toEqual([])
+      expect(list.map((item) => item.podium)).toEqual(['2', '1', '3'])
+    })
+
+    it('reports (last first) the participants that no longer fit', () => {
+      const list = ['1', '2', '3', '4', '5', '6'].map((podium) => participant({ podium }))
+
+      expect(fitGameParticipantsToDesks(list, 4)).toEqual([5, 4])
+      expect(fitGameParticipantsToDesks(list, 2)).toEqual([5, 4, 3, 2])
+    })
+
     it('allows adding while a podium is free and removing while more than one', () => {
       expect(canAddGameParticipant([participant()])).toBe(true)
       expect(canRemoveGameParticipant([participant()])).toBe(false)
@@ -114,6 +191,24 @@ describe('utils/game/form', () => {
   describe('validateGameForm', () => {
     it('accepts a valid form', () => {
       expect(hasGameFormErrors(validateGameForm(validForm()))).toBe(false)
+    })
+
+    it('has no mini-game error by default', () => {
+      expect(validateGameForm(validForm()).miniGames).toBe('')
+    })
+
+    it('requires at least one mini-game', () => {
+      const errors = validateGameForm(validForm({ miniGames: [] }))
+
+      expect(errors.miniGames).toBe('games.form.errors.miniGamesRequired')
+      expect(hasGameFormErrors(errors)).toBe(true)
+    })
+
+    it('accepts a single mini-game', () => {
+      const errors = validateGameForm(validForm({ miniGames: [MINI_GAME_FIRST_BUZZ] }))
+
+      expect(errors.miniGames).toBe('')
+      expect(hasGameFormErrors(errors)).toBe(false)
     })
 
     it('requires a room', () => {
@@ -185,6 +280,16 @@ describe('utils/game/form', () => {
 
       expect(errors.participants[0].podium).toBe('games.form.errors.podiumDuplicated')
       expect(errors.participants[1].podium).toBe('games.form.errors.podiumDuplicated')
+    })
+
+    it('rejects a podium beyond the room, accepts it in a bigger one', () => {
+      const form = validForm({ participants: [participant({ podium: '5' })] })
+
+      expect(validateGameForm(form, 4).participants[0].podium).toBe(
+        'games.form.errors.podiumInvalid'
+      )
+      expect(validateGameForm(form, 6).participants[0].podium).toBe('')
+      expect(validateGameForm(form).participants[0].podium).toBe('')
     })
 
     it('rejects a podium out of range', () => {
@@ -260,6 +365,32 @@ describe('utils/game/form', () => {
           { podium: 3, displayName: 'Team C' },
         ],
       })
+    })
+
+    it('omits miniGames when every mini-game is ticked (= all, future ones included)', () => {
+      const payload = buildCreateGamePayload(validForm())
+
+      expect(payload).not.toHaveProperty('miniGames')
+    })
+
+    it('omits miniGames when every mini-game is ticked in a different order', () => {
+      const payload = buildCreateGamePayload(validForm({ miniGames: [...MINI_GAMES].reverse() }))
+
+      expect(payload).not.toHaveProperty('miniGames')
+    })
+
+    it('sends a strict subset in the order of the shared list', () => {
+      const payload = buildCreateGamePayload(
+        validForm({ miniGames: [MINI_GAME_ESTIMATE, MINI_GAME_FLASH_BLIND_TEST] })
+      )
+
+      expect(payload.miniGames).toEqual([MINI_GAME_FLASH_BLIND_TEST, MINI_GAME_ESTIMATE])
+    })
+
+    it('sends a single mini-game', () => {
+      const payload = buildCreateGamePayload(validForm({ miniGames: [MINI_GAME_FIRST_BUZZ] }))
+
+      expect(payload.miniGames).toEqual([MINI_GAME_FIRST_BUZZ])
     })
 
     it('sends neither email nor consent when no email is entered', () => {
@@ -391,5 +522,21 @@ describe('utils/game/form', () => {
 
       expect(payload.participants[0].secondPlayer).toEqual({ displayName: 'Alex' })
     })
+  })
+})
+
+describe('getSelectedMiniGames', () => {
+  it('returns undefined when every mini-game is ticked', () => {
+    expect(getSelectedMiniGames([...MINI_GAMES])).toBeUndefined()
+  })
+
+  it('returns the ticked ones in the shared order, without duplicates', () => {
+    expect(
+      getSelectedMiniGames([MINI_GAME_ESTIMATE, MINI_GAME_FIRST_BUZZ, MINI_GAME_ESTIMATE])
+    ).toEqual([MINI_GAME_FIRST_BUZZ, MINI_GAME_ESTIMATE])
+  })
+
+  it('returns an empty list when nothing is ticked (the validation rejects it before)', () => {
+    expect(getSelectedMiniGames([])).toEqual([])
   })
 })

@@ -14,6 +14,7 @@ import {
   createSimulationOutput,
   DEFAULT_BRIDGE_URL,
   defaultRoomHardwareConfig,
+  desksForCount,
   type DmxDriver,
   type DmxOutput,
   type GamepadBuzzerInput,
@@ -33,11 +34,12 @@ import {
   type RoomHardwareConfig,
   type SerialPortLike,
   watchDmxPortReconnection,
+  withDesksCount,
 } from '@quizzup/hardware'
 import { computed, shallowRef } from 'vue'
 
 import { onGameEvents } from '@/game/useRoomGame'
-import { SIMULATION_KEYMAP } from '@/hardware/buzzers'
+import { createSimulationKeymap } from '@/hardware/buzzers'
 import { RoomApiError } from '@/utils/roomApi'
 
 /**
@@ -81,7 +83,7 @@ const parsed = shallowRef<ParsedRoomHardwareConfig>(parseRoomHardwareConfig(load
 function effectiveKeymap(config: RoomHardwareConfig): BuzzerKeymap {
   return Object.keys(config.buzzers.keymap).length > 0
     ? config.buzzers.keymap
-    : { ...SIMULATION_KEYMAP }
+    : createSimulationKeymap(config.desksCount)
 }
 
 // ── Buzzers ────────────────────────────────────────────────────────────────
@@ -723,6 +725,16 @@ export async function saveBuzzerKeymap(keymap: BuzzerKeymap): Promise<ParsedRoom
   })
 }
 
+/**
+ * Enregistre le nombre de pupitres de la salle (1 à 6, 4 par défaut) : lobby, apprentissage des
+ * buzzers, test et mapping de simulation suivent. Les buzzers appris et les positions de lyres
+ * des pupitres au-delà sont retirés de la config (voir `withDesksCount`). Le backoffice relit le
+ * nombre pour ne proposer que ces pupitres au lancement d'une partie.
+ */
+export async function saveRoomDesksCount(count: number): Promise<ParsedRoomHardwareConfig> {
+  return saveRoomHardwareConfig(withDesksCount(parsed.value.config, count))
+}
+
 /** Remet à zéro tout le matériel de la page (tests). */
 export async function resetRoomHardware(options: { storage?: HardwareStorage | null } = {}) {
   await stopLighting()
@@ -744,6 +756,8 @@ export async function resetRoomHardware(options: { storage?: HardwareStorage | n
 export function useRoomHardware() {
   return {
     hardware: computed(() => parsed.value),
+    /** Pupitres de la salle : 1 à `desksCount` (4 par défaut). */
+    desks: computed(() => desksForCount(parsed.value.config.desksCount)),
     keymap: computed(() => effectiveKeymap(parsed.value.config)),
     usesGamepad: computed(() => parsed.value.config.buzzers.source?.kind === 'gamepad'),
     // La carte manette ne lit pas le clavier : pas de touches de simulation avec elle.

@@ -12,7 +12,9 @@
     },
     "buzzers": {
       "title": "Buzzers",
-      "simulation": "No buzzer paired: the simulation keyboard is used (one row of keys per desk).",
+      "desksCount": "Number of desks",
+      "desksCountHint": "4 by default, 6 at most. The backoffice only offers these desks when launching a game.",
+      "simulation": "No buzzer paired: the simulation keyboard is used (one row of keys per desk: 1-4, Q-R, A-F, Z-V, then 5-8 and T-I).",
       "learned": "{n} buzzer paired | {n} buzzers paired",
       "inactive": "The page lost focus: buzzers are not received. Click the page to enable them again.",
       "learn": "Pair the buzzers",

@@ -69,6 +69,7 @@
         "rules": [
           "Tout le monde répond en même temps : 50 points par bonne réponse.",
           "Le plus rapide des bons choisit un adversaire avec ses buzzers (A = pupitre 1, B = pupitre 2…).",
+          "Si un joueur est au pupitre 5 ou 6 : A fait reculer la cible, B la fait avancer, C ou D la valide.",
           "Il lui vole jusqu’à 100 points.",
           "Sans choix, le vol vise le joueur qui a le plus de points."
         ]
@@ -141,7 +142,14 @@
       "tie": "Égalité au sommet !",
       "noContent": "Plus assez de questions pour continuer la partie.",
       "newGame": "Nouvelle partie",
-      "home": "Retour à l’accueil"
+      "home": "Retour à l’accueil",
+      "sync": {
+        "sending": "Envoi des résultats…",
+        "sent": "Résultats enregistrés",
+        "refused": "Résultats refusés par le backoffice.",
+        "offline": "Hors ligne : résultats en attente, nouvel essai automatique",
+        "auth": "Salle déconnectée : résultats en attente, ils seront envoyés à la reconnexion"
+      }
     },
     "aborted": {
       "title": "Partie arrêtée"
@@ -188,6 +196,10 @@
     "steal": {
       "title": "{name} choisit qui voler",
       "hint": "Appuie sur la lettre du pupitre visé : jusqu’à {n} points volés",
+      "scrollHint": "A : cible précédente · B : cible suivante · C ou D : valider. Jusqu’à {n} points volés",
+      "scrollPrevious": "A précédent",
+      "scrollNext": "B suivant",
+      "scrollValidate": "C ou D valide",
       "auto": "Sans choix, le vol vise le joueur qui a le plus de points"
     }
   }

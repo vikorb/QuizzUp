@@ -15,12 +15,8 @@ import {
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { pushMock } from '@frontend-tests/_helpers/routerMock'
-import {
-  ADMIN_ROLE_ADMIN,
-  ADMIN_ROLE_USER,
-  ADMIN_STATUS_ACTIVE,
-} from '@quizzup/shared'
-import { type DOMWrapper,flushPromises } from '@vue/test-utils'
+import { ADMIN_ROLE_ADMIN, ADMIN_ROLE_USER, ADMIN_STATUS_ACTIVE } from '@quizzup/shared'
+import { type DOMWrapper, flushPromises } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import { nextTick } from 'vue'
 
@@ -30,7 +26,7 @@ resetFrontendMocksBeforeEach()
 
 function findInput(
   wrapper: ReturnType<typeof mountWithFrontendMocks>,
-  name: string,
+  name: string
 ): DOMWrapper<HTMLInputElement> {
   return wrapper.find(`input[name="${name}"]`) as DOMWrapper<HTMLInputElement>
 }
@@ -69,7 +65,9 @@ describe('views/clients/accounts/create/CreateAccountForm.vue', () => {
     expect(findInput(wrapper, 'email').attributes('required')).toBeDefined()
     expect(findInput(wrapper, 'password').attributes('required')).toBeDefined()
     expect(wrapper.find('select[name="role"]').exists()).toBe(true)
-    expect(wrapper.find('select[name="role"]').text()).toContain('accounts.form.fields.role.options.superadmin')
+    expect(wrapper.find('select[name="role"]').text()).toContain(
+      'accounts.form.fields.role.options.superadmin'
+    )
     expect(wrapper.text()).toContain('accounts.form.actions.create')
     expect(wrapper.text()).toContain('accounts.form.hints.create')
   })
@@ -85,10 +83,14 @@ describe('views/clients/accounts/create/CreateAccountForm.vue', () => {
     })
 
     expect(adminWrapper.find('select[name="role"]').text()).not.toContain(
-      'accounts.form.fields.role.options.superadmin',
+      'accounts.form.fields.role.options.superadmin'
     )
-    expect(adminWrapper.find('select[name="role"]').text()).toContain('accounts.form.fields.role.options.admin')
-    expect(adminWrapper.find('select[name="role"]').text()).toContain('accounts.form.fields.role.options.user')
+    expect(adminWrapper.find('select[name="role"]').text()).toContain(
+      'accounts.form.fields.role.options.admin'
+    )
+    expect(adminWrapper.find('select[name="role"]').text()).toContain(
+      'accounts.form.fields.role.options.user'
+    )
 
     const profileWrapper = mountWithFrontendMocks(CreateAccountForm, {
       props: {
@@ -155,7 +157,7 @@ describe('views/clients/accounts/create/CreateAccountForm.vue', () => {
         username: 'alice',
         email: 'alice@quizzup.test',
         password: 'ChangeMe123!',
-      }),
+      })
     )
     expect(pushMock).toHaveBeenCalledTimes(1)
   })
@@ -176,9 +178,12 @@ describe('views/clients/accounts/create/CreateAccountForm.vue', () => {
     await findInput(wrapper, 'password').setValue('ChangeMe123!')
     await submitForm(wrapper)
 
-    expect(wrapper.findAll('[data-test="form-field-error"]').map((error) => error.text()).join(' ')).toContain(
-      'accounts.form.errors',
-    )
+    expect(
+      wrapper
+        .findAll('[data-test="form-field-error"]')
+        .map((error) => error.text())
+        .join(' ')
+    ).toContain('accounts.form.errors')
     expect(pushMock).not.toHaveBeenCalled()
   })
 
@@ -211,7 +216,7 @@ describe('views/clients/accounts/create/CreateAccountForm.vue', () => {
       () =>
         new Promise<CreateCompanyAccountResult>((resolve) => {
           resolveCreate = resolve
-        }),
+        })
     )
 
     const wrapper = mountWithFrontendMocks(CreateAccountForm, {
@@ -281,7 +286,7 @@ describe('views/clients/accounts/create/CreateAccountForm.vue', () => {
       9,
       expect.objectContaining({
         firstname: 'Updated',
-      }),
+      })
     )
     expect(pushMock).toHaveBeenCalledTimes(1)
   })
@@ -302,7 +307,9 @@ describe('views/clients/accounts/create/CreateAccountForm.vue', () => {
 
     await submitForm(wrapper)
 
-    expect(wrapper.find('[data-test="form-result-error"]').text()).toBe('accounts.form.errors.not_found')
+    expect(wrapper.find('[data-test="form-result-error"]').text()).toBe(
+      'accounts.form.errors.not_found'
+    )
   })
 
   it('updates profile mode, refreshes me and stays on the page with a success message', async () => {
@@ -331,7 +338,7 @@ describe('views/clients/accounts/create/CreateAccountForm.vue', () => {
 
     expect(refreshMeMock).toHaveBeenCalledTimes(1)
     expect(wrapper.find('[data-test="form-result-success"]').text()).toBe(
-      'accounts.form.success.profileUpdated',
+      'accounts.form.success.profileUpdated'
     )
     expect(pushMock).not.toHaveBeenCalled()
   })

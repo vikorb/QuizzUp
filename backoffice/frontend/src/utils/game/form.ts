@@ -1,3 +1,4 @@
+import type { MiniGame } from '@quizzup/shared'
 import {
   GAME_DEFAULT_QUESTIONS_PER_ROUND,
   GAME_DEFAULT_ROUNDS,
@@ -5,6 +6,8 @@ import {
   GAME_MAX_ROUNDS,
   GAME_PARTICIPANT_DISPLAY_NAME_MAX_LENGTH,
   GAME_PODIUMS,
+  MINI_GAMES,
+  ROOM_DEFAULT_DESKS,
   ROOM_STATUS_ACTIVE,
 } from '@quizzup/shared'
 
@@ -25,9 +28,60 @@ const EMAIL_MAX_LENGTH = 255
 
 let participantKeySequence = 0
 
-/** Pupitres possibles : 1 à GAME_PODIUMS. */
-export function getGamePodiums(): number[] {
-  return Array.from({ length: GAME_PODIUMS }, (_item, index) => index + 1)
+/** Pupitres possibles : 1 à `desksCount` (au plus GAME_PODIUMS). */
+export function getGamePodiums(desksCount: number = GAME_PODIUMS): number[] {
+  return Array.from({ length: clampDesksCount(desksCount) }, (_item, index) => index + 1)
+}
+
+function clampDesksCount(desksCount: number): number {
+  return Math.min(GAME_PODIUMS, Math.max(1, Math.trunc(desksCount) || 1))
+}
+
+/**
+ * Pupitres de la salle choisie (au plus GAME_PODIUMS). Sans salle choisie, ou salle inconnue
+ * ou sans nombre (ancienne réponse), on propose ceux d'une salle neuve.
+ */
+export function getGameRoomDesksCount(rooms: GameRoom[], roomId: string): number {
+  const room = rooms.find((item) => String(item.id) === roomId)
+
+  return typeof room?.desksCount === 'number'
+    ? clampDesksCount(room.desksCount)
+    : ROOM_DEFAULT_DESKS
+}
+
+/**
+ * Change de salle : les participants dont le pupitre n'existe plus dans la nouvelle salle
+ * prennent le premier pupitre libre. Ceux pour qui il n'y a plus de place sont à retirer.
+ * Renvoie les index à retirer (ordre décroissant, prêts à être « spliced »), sans toucher
+ * aux participants conservés tels quels.
+ */
+export function fitGameParticipantsToDesks(
+  participants: GameParticipantFormValues[],
+  desksCount: number
+): number[] {
+  const max = clampDesksCount(desksCount)
+  const used = new Set(
+    participants.map((participant) => Number(participant.podium)).filter((podium) => podium <= max)
+  )
+  const toRemove: number[] = []
+
+  participants.forEach((participant, index) => {
+    if (Number(participant.podium) <= max) {
+      return
+    }
+
+    const free = getGamePodiums(max).find((podium) => !used.has(podium))
+
+    if (free === undefined) {
+      toRemove.push(index)
+      return
+    }
+
+    used.add(free)
+    Object.assign(participant, { podium: String(free) })
+  })
+
+  return toRemove.reverse()
 }
 
 export function createGameParticipantFormValues(podium: number): GameParticipantFormValues {
@@ -74,6 +128,8 @@ export function createDefaultGameFormValues(): GameFormValues {
     roomId: '',
     roundsCount: String(GAME_DEFAULT_ROUNDS),
     questionsPerRound: String(GAME_DEFAULT_QUESTIONS_PER_ROUND),
+    // Tous les mini-jeux cochés par défaut : l'opérateur retire ce qu'il ne veut pas.
+    miniGames: [...MINI_GAMES],
     participants: [createGameParticipantFormValues(1)],
   }
 }
@@ -95,19 +151,29 @@ export function createGameFieldErrors(participantsCount = 0): GameFieldErrors {
     roomId: '',
     roundsCount: '',
     questionsPerRound: '',
+    miniGames: '',
     participants: Array.from({ length: participantsCount }, createGameParticipantFieldErrors),
   }
 }
 
-/** Premier pupitre libre, ou null si les GAME_PODIUMS pupitres sont pris. */
-export function getNextFreePodium(participants: GameParticipantFormValues[]): number | null {
+/** Premier pupitre libre parmi ceux de la salle, ou null s'ils sont tous pris. */
+export function getNextFreePodium(
+  participants: GameParticipantFormValues[],
+  desksCount: number = GAME_PODIUMS
+): number | null {
   const usedPodiums = new Set(participants.map((participant) => Number(participant.podium)))
 
-  return getGamePodiums().find((podium) => !usedPodiums.has(podium)) ?? null
+  return getGamePodiums(desksCount).find((podium) => !usedPodiums.has(podium)) ?? null
 }
 
-export function canAddGameParticipant(participants: GameParticipantFormValues[]): boolean {
-  return participants.length < GAME_PODIUMS && getNextFreePodium(participants) !== null
+export function canAddGameParticipant(
+  participants: GameParticipantFormValues[],
+  desksCount: number = GAME_PODIUMS
+): boolean {
+  return (
+    participants.length < clampDesksCount(desksCount) &&
+    getNextFreePodium(participants, desksCount) !== null
+  )
 }
 
 export function canRemoveGameParticipant(participants: GameParticipantFormValues[]): boolean {
@@ -176,11 +242,12 @@ function validatePlayer(rawName: string, rawEmail: string, emailConsent: boolean
 
 function validateParticipant(
   participant: GameParticipantFormValues,
-  duplicatedPodiums: Set<string>
+  duplicatedPodiums: Set<string>,
+  desksCount: number
 ): GameParticipantFieldErrors {
   const errors = createGameParticipantFieldErrors()
 
-  if (parseIntegerInRange(participant.podium, GAME_PODIUMS) === null) {
+  if (parseIntegerInRange(participant.podium, clampDesksCount(desksCount)) === null) {
     errors.podium = 'games.form.errors.podiumInvalid'
   } else if (duplicatedPodiums.has(participant.podium)) {
     errors.podium = 'games.form.errors.podiumDuplicated'
@@ -221,8 +288,14 @@ function getDuplicatedPodiums(participants: GameParticipantFormValues[]): Set<st
   return duplicated
 }
 
-/** Valide la saisie ; chaque erreur est une clé i18n (vide = pas d'erreur). */
-export function validateGameForm(form: GameFormValues): GameFieldErrors {
+/**
+ * Valide la saisie ; chaque erreur est une clé i18n (vide = pas d'erreur). `desksCount` : pupitres
+ * de la salle choisie (tous les pupitres possibles par défaut).
+ */
+export function validateGameForm(
+  form: GameFormValues,
+  desksCount: number = GAME_PODIUMS
+): GameFieldErrors {
   const errors = createGameFieldErrors()
 
   if (!form.roomId) {
@@ -237,10 +310,14 @@ export function validateGameForm(form: GameFormValues): GameFieldErrors {
     errors.questionsPerRound = 'games.form.errors.questionsInvalid'
   }
 
+  if (form.miniGames.length === 0) {
+    errors.miniGames = 'games.form.errors.miniGamesRequired'
+  }
+
   const duplicatedPodiums = getDuplicatedPodiums(form.participants)
 
   errors.participants = form.participants.map((participant) =>
-    validateParticipant(participant, duplicatedPodiums)
+    validateParticipant(participant, duplicatedPodiums, desksCount)
   )
 
   return errors
@@ -248,7 +325,7 @@ export function validateGameForm(form: GameFormValues): GameFieldErrors {
 
 export function hasGameFormErrors(errors: GameFieldErrors): boolean {
   return (
-    Boolean(errors.roomId || errors.roundsCount || errors.questionsPerRound) ||
+    Boolean(errors.roomId || errors.roundsCount || errors.questionsPerRound || errors.miniGames) ||
     errors.participants.some((participant) => Object.values(participant).some(Boolean))
   )
 }
@@ -290,9 +367,19 @@ function buildParticipantPayload(
   return payload
 }
 
+/**
+ * Mini-jeux à envoyer, dans l'ordre de MINI_GAMES, ou `undefined` quand tous sont cochés :
+ * le champ est alors omis (= « tous »), ce qui inclut d'office un futur mini-jeu.
+ */
+export function getSelectedMiniGames(selected: MiniGame[]): MiniGame[] | undefined {
+  const ordered = MINI_GAMES.filter((miniGame) => selected.includes(miniGame))
+
+  return ordered.length === MINI_GAMES.length ? undefined : ordered
+}
+
 /** Corps de POST /companies/:companyId/games, à n'appeler qu'après validation. */
 export function buildCreateGamePayload(form: GameFormValues): CreateGamePayload {
-  return {
+  const payload: CreateGamePayload = {
     roomId: Number(form.roomId),
     roundsCount: Number(form.roundsCount.trim()),
     questionsPerRound: Number(form.questionsPerRound.trim()),
@@ -300,4 +387,11 @@ export function buildCreateGamePayload(form: GameFormValues): CreateGamePayload 
       .map(buildParticipantPayload)
       .sort((left, right) => left.podium - right.podium),
   }
+  const miniGames = getSelectedMiniGames(form.miniGames)
+
+  if (miniGames) {
+    payload.miniGames = miniGames
+  }
+
+  return payload
 }

@@ -8,6 +8,33 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- 6 pupitres au maximum, 4 par défaut (décision d'Enzo du 2026-11-04). `GAME_PODIUMS` passe de 4 à
+  6 dans `@quizzup/shared` (avec `ROOM_DEFAULT_DESKS` et `getRoomDesksCount`) ; le nombre de
+  pupitres d'une salle est `rooms.config.desksCount` (1 à 6, absent = 4), réglable depuis l'écran
+  Matériel de la salle. `GET /companies/:id/rooms` renvoie `desksCount` ; le formulaire « Lancer
+  une partie » ne propose que les pupitres de la salle choisie et `POST /companies/:id/games`
+  refuse un pupitre au-delà (`400 podium_not_in_room`). Nouvelle migration : CHECK
+  `game_participants.podium` 1..6 (le retour arrière à 4 est refusé si un pupitre 5 ou 6 est
+  utilisé). Écran de salle : lobby, apprentissage des buzzers, lumières, classement et clavier de
+  simulation jusqu'à 6 pupitres ; vol de points à 5 ou 6 joueurs : A et B font défiler la cible,
+  C ou D la valide (jusqu'à 4 pupitres, les boutons A à D désignent toujours un pupitre).
+  US: us-six-podiums
+
+- Choix des mini-jeux au lancement d'une partie : le formulaire « Lancer une partie » propose une
+  case par mini-jeu (tous cochés par défaut, au moins un requis) ; `POST /companies/:id/games`
+  accepte `miniGames` (facultatif, stocké dans `games.mini_games`, `null` = tous) et le détail de
+  la partie l'affiche. L'écran de salle le reçoit via `GET /room/games/current` et tire au sort
+  parmi ces mini-jeux (à défaut, le réglage local de la salle, sinon tous).
+  US: us-game-minigames
+
+- Purge RGPD des emails joueurs : un email (1er ou 2e joueur) est effacé, avec son consentement,
+  dans les parties d'une compagnie 3 ans après sa dernière partie dans cette compagnie
+  (`PLAYER_EMAIL_RETENTION_YEARS` dans `@quizzup/shared`) ; noms et scores restent. Calculée en SQL
+  sous verrou, exécutée au démarrage du serveur puis toutes les 24 h
+  (`PLAYER_EMAIL_PURGE_INTERVAL_HOURS`, minimum 1, `0` = désactivée), ou à la main avec
+  `npm run purge:emails`. Test d'intégration sur PostgreSQL dans la CI.
+  US: us-rgpd-purge
+
 - Version testable : `npm run demo` à la racine (base, API, backoffice, écran de salle), seed de
   démo (compagnie « QuizzUP Démo », `demo-admin`, salle « Salle 1 » et son compte de salle
   `salle1-demo`, mot de passe `DEMO_SEED_PASSWORD`, `DEMO_SEED=false` pour le couper, 2 thèmes
@@ -17,6 +44,14 @@ Format inspiré de Keep a Changelog.
 - Fin de partie envoyée au backoffice : au podium, l'écran de salle appelle
   `POST /room/games/:id/finish` (scores par pupitre) ; la partie passe « Terminée » et
   `game_participants.score` est rempli. Idempotent, partie de la salle uniquement, rien en mode démo.
+
+- Envoi des résultats de partie qui survit à une panne réseau : au podium, l'écran de salle met les
+  scores dans une file gardée dans le navigateur (elle survit au rechargement et à la partie
+  suivante) et les renvoie en arrière-plan (2 s, 5 s, 15 s, 30 s puis toutes les 60 s, ou dès le
+  retour du réseau, au démarrage et à la reconnexion de la salle). Un refus définitif du
+  backoffice (404, 409, 400) l'abandonne ; un jeton expiré (401/403) attend la reconnexion. État
+  discret sur le podium et bandeau dans le lobby du staff quand des résultats attendent.
+  US: us-room-finish-retry
 
 - Média selon le type de question (`getQuestionKindMediaError` dans `@quizzup/shared`) : une
   question vrai/faux ou estimation n'accepte qu'un texte ou une image, comme le moteur de jeu.
@@ -154,6 +189,17 @@ Format inspiré de Keep a Changelog.
   d'entrée (40 ms) et de sortie (60 ms) du volume pour éviter les claquements, sans changer la
   durée des paliers du blind test.
   US: us-room-polish
+
+- Course de concurrence type / média d'une question : deux admins qui changent en même temps le
+  type (`PATCH /questions/:id`) et l'extrait audio (`PUT /questions/:id/media`) ne peuvent plus
+  laisser une question incohérente. La règle `question_kind_media_invalid` est contrôlée sur la
+  ligne relue en `SELECT … FOR UPDATE` dans la transaction ; l'extrait est écrit hors
+  transaction et retiré si le contrôle échoue (y compris si la question est supprimée entre-temps,
+  réponse 404). Même famille de course pour les réponses : le type et les réponses sont
+  revalidés sur le type relu sous verrou pour `PATCH /questions/:id` et pour les routes unitaires
+  de réponses (ajout, modification, statut, suppression), toujours dans l'ordre de verrous
+  question puis réponses.
+  US: us-question-kind-race
 
 - Compte de salle : connexion refusée et PC déconnecté si la compagnie n'est plus active ;
   suppression d'une salle atomique (salle, compte et parties actives) ; salles et comptes de

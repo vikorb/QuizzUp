@@ -1,5 +1,4 @@
-import type {
-  CreateCompanyResult} from '@frontend-tests/_helpers/companiesServiceMock';
+import type { CreateCompanyResult } from '@frontend-tests/_helpers/companiesServiceMock'
 import {
   createCompanyMock,
   mockCreateCompanyFailure,
@@ -8,7 +7,7 @@ import {
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { pushMock } from '@frontend-tests/_helpers/routerMock'
-import { COMPANY_STATUS_ACTIVE } from '@quizzup/shared';
+import { COMPANY_STATUS_ACTIVE } from '@quizzup/shared'
 import type { DOMWrapper } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import { nextTick } from 'vue'
@@ -17,7 +16,10 @@ import CreateClientForm from '@/views/clients/creation/CreateClientForm.vue'
 
 resetFrontendMocksBeforeEach()
 
-function findInput(wrapper: ReturnType<typeof mountWithFrontendMocks>, name: string): DOMWrapper<HTMLInputElement> {
+function findInput(
+  wrapper: ReturnType<typeof mountWithFrontendMocks>,
+  name: string
+): DOMWrapper<HTMLInputElement> {
   return wrapper.find(`input[name="${name}"]`) as DOMWrapper<HTMLInputElement>
 }
 
@@ -32,8 +34,12 @@ describe('views/clients/creation/CreateClientForm.vue', () => {
 
     expect(findInput(wrapper, 'name').attributes('autocomplete')).toBe('organization')
     expect(findInput(wrapper, 'email').attributes('type')).toBe('email')
-    expect(wrapper.find('[data-test="form-actions-cancel"]').text()).toBe('clients.create.actions.cancel')
-    expect(wrapper.find('[data-test="form-actions-submit"]').text()).toBe('clients.create.actions.submit')
+    expect(wrapper.find('[data-test="form-actions-cancel"]').text()).toBe(
+      'clients.create.actions.cancel'
+    )
+    expect(wrapper.find('[data-test="form-actions-submit"]').text()).toBe(
+      'clients.create.actions.submit'
+    )
     expect(wrapper.text()).toContain('clients.create.hint')
   })
 
@@ -81,9 +87,9 @@ describe('views/clients/creation/CreateClientForm.vue', () => {
     await findInput(wrapper, 'email').setValue('contact@acme.test')
     await submitForm(wrapper)
 
-    expect(wrapper.findAll('[data-test="form-field-error"]').map((error) => error.text())).toContain(
-      'clients.create.errorsApi.emailAlreadyExists',
-    )
+    expect(
+      wrapper.findAll('[data-test="form-field-error"]').map((error) => error.text())
+    ).toContain('clients.create.errorsApi.emailAlreadyExists')
     expect(pushMock).not.toHaveBeenCalled()
   })
 
@@ -96,7 +102,9 @@ describe('views/clients/creation/CreateClientForm.vue', () => {
     await findInput(wrapper, 'email').setValue('contact@acme.test')
     await submitForm(wrapper)
 
-    expect(wrapper.find('[data-test="form-result-error"]').text()).toBe('clients.create.errorsApi.serverError')
+    expect(wrapper.find('[data-test="form-result-error"]').text()).toBe(
+      'clients.create.errorsApi.serverError'
+    )
     expect(pushMock).not.toHaveBeenCalled()
   })
 
@@ -107,7 +115,7 @@ describe('views/clients/creation/CreateClientForm.vue', () => {
       () =>
         new Promise<CreateCompanyResult>((resolve) => {
           resolveCreate = resolve
-        }),
+        })
     )
 
     const wrapper = mountWithFrontendMocks(CreateClientForm)

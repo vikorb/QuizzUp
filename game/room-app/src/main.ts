@@ -5,6 +5,7 @@ import { createApp } from 'vue'
 
 import App from '@/App.vue'
 import { createDemoSynthPlayer, createRoutingExtractPlayer } from '@/audio/demoSynthPlayer'
+import { flushPendingFinishes } from '@/game/pendingFinishes'
 import { configureRoomGame } from '@/game/useRoomGame'
 import { loadKeyboardLayout } from '@/hardware/buzzers'
 import { syncHardwareWithRoom } from '@/hardware/hardwareSync'
@@ -35,6 +36,8 @@ void loadKeyboardLayout()
 
 // Jeton expiré ou révoqué : retour à la connexion (une partie interrompue se reprend ensuite).
 void refreshRoomAccount().then(() => {
+  // Résultats de parties restés en attente (réseau coupé avant la fermeture de la page).
+  void flushPendingFinishes()
   const current = router.currentRoute.value
   if (!isRoomReady.value && !current.meta.public) {
     void router.replace({ name: 'login' })

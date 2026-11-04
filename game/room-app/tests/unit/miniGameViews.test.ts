@@ -14,11 +14,17 @@ import {
 } from '@quizzup/shared'
 
 import { getMiniGameView } from '@/game/miniGameViews'
+import { toEngineParticipants } from '@/game/registrations'
 import { getRevealView } from '@/game/selectors'
 import { createMemorySessionStorage, GameSession } from '@/game/session'
 
 import { driveToQuestion } from '../_helpers/drive'
-import { baseSetup, createManualClock, REGISTRATIONS } from '../_helpers/fixtures'
+import {
+  baseSetup,
+  createManualClock,
+  REGISTRATIONS,
+  SIX_REGISTRATIONS,
+} from '../_helpers/fixtures'
 
 function startOn(miniGame: MiniGame) {
   const clock = createManualClock()
@@ -26,6 +32,22 @@ function startOn(miniGame: MiniGame) {
     storage: createMemorySessionStorage(),
     now: clock.now,
   })
+  session.start()
+  driveToQuestion(session, clock)
+  return { session, clock }
+}
+
+/** Partie à 6 pupitres sur un seul mini-jeu, jusqu'à la première question. */
+function startSixOn(miniGame: MiniGame) {
+  const clock = createManualClock()
+  const session = GameSession.create(
+    baseSetup({
+      miniGames: [miniGame],
+      participants: toEngineParticipants(SIX_REGISTRATIONS),
+    }),
+    SIX_REGISTRATIONS,
+    { storage: createMemorySessionStorage(), now: clock.now }
+  )
   session.start()
   driveToQuestion(session, clock)
   return { session, clock }
@@ -125,6 +147,8 @@ describe('getMiniGameView', () => {
       mode: 'steal',
       thiefId: 2,
       targetIds: [1, 3],
+      targeting: 'direct',
+      highlightedId: null,
     })
 
     session.press(2, 0) // A = pupitre 1
@@ -135,6 +159,63 @@ describe('getMiniGameView', () => {
       { participantId: 2, isCorrect: true, points: 100 },
       { participantId: 3, isCorrect: true, points: 50 },
     ])
+  })
+
+  it('vol de points à 6 pupitres : la cible défile avec A et B, C ou D valide', () => {
+    const { session, clock } = startSixOn(MINI_GAME_POINT_STEAL)
+    const right = correctIndex(session)
+    const wrong = ((right + 1) % 4) as ButtonIndex
+    // 5 est le plus rapide des bons (le voleur) ; 2 et 6 ont aussi gagné 50 points.
+    session.press(5, right)
+    session.press(2, right)
+    session.press(6, right)
+    for (const desk of [1, 3, 4]) {
+      session.press(desk, wrong)
+    }
+
+    // Cible automatique en surbrillance : à égalité, le plus petit pupitre.
+    expect(getMiniGameView(session.state, clock.value)).toMatchObject({
+      mode: 'steal',
+      thiefId: 5,
+      targetIds: [2, 6],
+      targeting: 'scroll',
+      highlightedId: 2,
+    })
+
+    session.press(2, 1) // pas le voleur : ignoré
+    expect(getMiniGameView(session.state, clock.value)).toMatchObject({ highlightedId: 2 })
+    session.press(5, 1) // B : suivant
+    expect(getMiniGameView(session.state, clock.value)).toMatchObject({ highlightedId: 6 })
+    session.press(5, 1) // B : retour au début
+    expect(getMiniGameView(session.state, clock.value)).toMatchObject({ highlightedId: 2 })
+    session.press(5, 0) // A : précédent
+    expect(getMiniGameView(session.state, clock.value)).toMatchObject({ highlightedId: 6 })
+
+    session.press(5, 3) // D : valide le pupitre 6
+    const reveal = getRevealView(session.state)
+    expect(reveal?.results.find((result) => result.participantId === 5)?.points).toBe(100)
+    expect(reveal?.results.find((result) => result.participantId === 6)?.points).toBe(0)
+    expect(reveal?.results.find((result) => result.participantId === 2)?.points).toBe(50)
+  })
+
+  it('vol de points à 6 pupitres : sans validation, la cible automatique est volée', () => {
+    const { session, clock } = startSixOn(MINI_GAME_POINT_STEAL)
+    const right = correctIndex(session)
+    const wrong = ((right + 1) % 4) as ButtonIndex
+    session.press(5, right)
+    session.press(2, right)
+    session.press(6, right)
+    for (const desk of [1, 3, 4]) {
+      session.press(desk, wrong)
+    }
+    session.press(5, 1)
+
+    clock.advance(9000)
+    session.tick()
+
+    const reveal = getRevealView(session.state)
+    expect(reveal?.results.find((result) => result.participantId === 2)?.points).toBe(0)
+    expect(reveal?.results.find((result) => result.participantId === 5)?.points).toBe(100)
   })
 
   it.each([MINI_GAME_FIRST_BUZZ, MINI_GAME_PROGRESSIVE_REVEAL])(

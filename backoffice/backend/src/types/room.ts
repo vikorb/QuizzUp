@@ -13,3 +13,6 @@ export type RoomRow = {
   updatedAt: string | null
   deletedAt: string | null
 }
+
+/** Salle de la liste d'une compagnie : avec son nombre de pupitres (défaut 4, de 1 à 6). */
+export type RoomListItem = RoomRow & { desksCount: number }
