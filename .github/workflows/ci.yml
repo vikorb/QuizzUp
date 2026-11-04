@@ -100,7 +100,7 @@ jobs:
       # l'ancien contenu). Base dédiée : les tests appliquent les migrations et vident les tables,
       # ils ne doivent pas toucher à la base de l'aller-retour. Fichiers lancés l'un après l'autre
       # (même base, migrations et TRUNCATE).
-      - name: Tests d'intégration PostgreSQL (purge RGPD, retypage)
+      - name: Tests d'intégration PostgreSQL (purge RGPD, retypage, bigint)
         working-directory: backoffice
         env:
           PG_INTEGRATION_URL: postgresql://quizzup:quizzup@localhost:5434/quizzup_purge_test
@@ -110,7 +110,8 @@ jobs:
           npm ci
           npx vitest run --config vitest.backend.config.ts --no-file-parallelism \
             tests/backend/src/jobs/purgePlayerEmails.pg.test.ts \
-            tests/backend/src/db/retypeLegacyQuestions.pg.test.ts
+            tests/backend/src/db/retypeLegacyQuestions.pg.test.ts \
+            tests/backend/src/db/bigintIds.pg.test.ts
 
   game-engine:
     name: Moteur de jeu (lint, type-check, tests)
