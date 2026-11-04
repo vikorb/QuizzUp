@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   ADMIN_ROLE_ROOM,
+  GAME_STATE_ABORTED,
   GAME_STATE_FINISHED,
   GAME_STATE_PENDING,
   GAME_STATE_RUNNING,
@@ -206,8 +207,96 @@ describe('routes/room.ts — current game (US-GAME-08)', () => {
     await app.close()
   })
 
+  it('finishes the game with the desk scores, once', async () => {
+    seedRoom()
+    seedGame({ state: GAME_STATE_RUNNING })
+    dbState.game_participants.push({
+      id: 2,
+      game_id: 5,
+      podium: 2,
+      display_name: 'Tom',
+      score: 0,
+    })
+    const app = await createRouteApp(roomRoutes)
+    const finish = (scores: unknown, gameId = 5) =>
+      app.inject({
+        method: 'POST',
+        url: `/room/games/${gameId}/finish`,
+        headers: authHeaders(roomUser),
+        payload: { scores },
+      })
+
+    const unknownDesk = await finish([{ podium: 3, score: 10 }])
+    const duplicated = await finish([
+      { podium: 1, score: 10 },
+      { podium: 1, score: 20 },
+    ])
+
+    expect(unknownDesk.statusCode).toBe(400)
+    expect(parseJson(unknownDesk)).toEqual({ error: 'game_scores_invalid' })
+    expect(duplicated.statusCode).toBe(400)
+    expect(dbState.games[0]!.state).toBe(GAME_STATE_RUNNING)
+
+    const finished = await finish([
+      { podium: 1, score: 1200 },
+      { podium: 2, score: 300 },
+    ])
+
+    expect(finished.statusCode).toBe(200)
+    expect(parseJson<CurrentBody>(finished).game).toMatchObject({
+      id: 5,
+      state: GAME_STATE_FINISHED,
+    })
+    expect(dbState.games[0]!.finished_at).not.toBeNull()
+    expect(dbState.game_participants.map((row) => row.score)).toEqual([1200, 300])
+
+    // Renvoi (réseau coupé au retour) : rien ne change, les premiers scores restent.
+    const again = await finish([{ podium: 1, score: 0 }])
+
+    expect(again.statusCode).toBe(200)
+    expect(dbState.game_participants.map((row) => row.score)).toEqual([1200, 300])
+    expect((await finish([], 6)).statusCode).toBe(404)
+    expect((await finish('nope')).statusCode).toBe(400)
+
+    await app.close()
+  })
+
+  it('refuses to finish an aborted game or a game of another room', async () => {
+    seedRoom()
+    seedGame({ state: GAME_STATE_ABORTED })
+    const app = await createRouteApp(roomRoutes)
+
+    const aborted = await app.inject({
+      method: 'POST',
+      url: '/room/games/5/finish',
+      headers: authHeaders(roomUser),
+      payload: { scores: [] },
+    })
+    const otherRoom = await app.inject({
+      method: 'POST',
+      url: '/room/games/5/finish',
+      headers: authHeaders({ ...roomUser, room_id: 2 } as TestUser),
+      payload: { scores: [] },
+    })
+
+    expect(aborted.statusCode).toBe(409)
+    expect(parseJson(aborted)).toEqual({ error: 'game_already_over' })
+    expect(otherRoom.statusCode).toBe(404)
+
+    await app.close()
+  })
+
   it('is reserved to room accounts', async () => {
     const app = await createRouteApp(roomRoutes)
+
+    const finish = await app.inject({
+      method: 'POST',
+      url: '/room/games/5/finish',
+      headers: authHeaders(companyAdminUser),
+      payload: { scores: [] },
+    })
+
+    expect(finish.statusCode).toBe(403)
 
     const current = await app.inject({
       method: 'GET',

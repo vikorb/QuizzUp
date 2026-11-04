@@ -1704,6 +1704,81 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /room/games/{gameId}/finish:
+    post:
+      tags:
+        - Rooms
+      summary: '[DISPONIBLE] Terminer la partie et enregistrer les scores'
+      description: |
+        Statut : **Disponible**
+
+        Envoyé par l'écran de salle au podium : la partie passe `finished` (`finishedAt` renseigné) et le score de chaque pupitre est enregistré. Idempotent : une partie déjà terminée est renvoyée telle quelle, sans toucher aux scores.
+
+        Accès : réservé au rôle `room`, partie de sa salle uniquement.
+      operationId: finishRoomGame
+      x-availability: disponible
+      x-us: 'US-GAME-08'
+      parameters:
+        - $ref: '#/components/parameters/GameIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scores]
+              properties:
+                scores:
+                  type: array
+                  maxItems: 4
+                  items:
+                    type: object
+                    required: [podium, score]
+                    properties:
+                      podium:
+                        type: integer
+                        minimum: 1
+                        maximum: 4
+                      score:
+                        type: integer
+                        minimum: -1000000
+                        maximum: 1000000
+      responses:
+        '200':
+          description: Partie terminée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  game:
+                    allOf:
+                      - $ref: '#/components/schemas/RoomGame'
+        '400':
+          description: Corps invalide (`invalid_body`) ou pupitre inconnu / en double (`game_scores_invalid`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Compte qui n'est pas un compte de salle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Pas de partie de cette salle avec cet id (`game_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Partie annulée (`game_already_over`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /players:
     get:
       tags:

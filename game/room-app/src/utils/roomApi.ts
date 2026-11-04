@@ -103,6 +103,22 @@ export async function startRoomGame(token: string, gameId: number): Promise<Room
   return data.game
 }
 
+/** Score final d'un pupitre, envoyé au podium. */
+export type RoomGameScore = { podium: number; score: number }
+
+/** Fin de partie : le backoffice la passe « terminée » avec les scores (idempotent). */
+export async function finishRoomGame(
+  token: string,
+  gameId: number,
+  scores: RoomGameScore[]
+): Promise<RoomGame> {
+  const data = await request<{ game: RoomGame }>(token, `/room/games/${gameId}/finish`, {
+    method: 'POST',
+    body: { scores },
+  })
+  return data.game
+}
+
 export async function saveRoomConfig(token: string, config: unknown): Promise<RoomInfo> {
   const data = await request<{ room: RoomInfo }>(token, '/room/config', {
     method: 'PUT',

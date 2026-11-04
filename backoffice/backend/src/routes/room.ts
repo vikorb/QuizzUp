@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import {
   ADMIN_ROLE_ROOM,
+  GAME_STATE_FINISHED,
   GAME_STATE_PENDING,
   GAME_STATE_RUNNING,
   GAME_STATUS_DELETED,
@@ -21,6 +22,18 @@ import { isInPlayableTheme, isReadableByCompany, loadRoomContent } from './room/
 
 const roomGameParamsSchema = z.object({
   gameId: z.coerce.number().int().positive(),
+})
+
+// Scores finaux par pupitre (`podium` est unique dans une partie).
+const roomGameFinishBodySchema = z.object({
+  scores: z
+    .array(
+      z.object({
+        podium: z.number().int().min(1).max(4),
+        score: z.number().int().min(-1_000_000).max(1_000_000),
+      })
+    )
+    .max(4),
 })
 
 const roomConfigBodySchema = z.object({ config: roomConfigSchema })
@@ -51,11 +64,18 @@ async function findCurrentRoomGameId(req: FastifyRequest): Promise<number | null
 async function findCurrentRoomGame(req: FastifyRequest) {
   const currentId = await findCurrentRoomGameId(req)
 
-  if (currentId === null) {
-    return null
-  }
+  return currentId === null ? null : findRoomGame(req, currentId)
+}
 
-  const game = await findGameInCompany(req.user.company_id, currentId)
+/** Partie de la salle (quel que soit son état), au format du PC de la salle. */
+async function findRoomGame(req: FastifyRequest, gameId: number) {
+  const owned = await db('games')
+    .where('id', gameId)
+    .where('room_id', req.user.room_id)
+    .where('company_id', req.user.company_id)
+    .whereNot('status', GAME_STATUS_DELETED)
+    .first('id')
+  const game = owned ? await findGameInCompany(req.user.company_id, gameId) : null
 
   if (!game) {
     return null
@@ -248,6 +268,75 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
     }
 
     return { game: await findCurrentRoomGame(req) }
+  })
+
+  // Fin de partie (podium) : la salle enregistre les scores et passe la partie « terminée ».
+  // Idempotent : renvoyer la fin d'une partie déjà terminée ne change rien.
+  app.post('/room/games/:gameId/finish', { preHandler: [app.authenticate] }, async (req, reply) => {
+    if (!isRoomAccount(req)) {
+      return reply.code(403).send({ error: 'forbidden' })
+    }
+
+    const parsedParams = roomGameParamsSchema.safeParse(req.params)
+
+    if (!parsedParams.success) {
+      return reply.code(400).send({ error: 'invalid_params' })
+    }
+
+    const parsedBody = roomGameFinishBodySchema.safeParse(req.body)
+
+    if (!parsedBody.success) {
+      return reply.code(400).send({ error: 'invalid_body', details: parsedBody.error.flatten() })
+    }
+
+    const { gameId } = parsedParams.data
+    const game = await findRoomGame(req, gameId)
+
+    if (!game) {
+      return reply.code(404).send({ error: 'game_not_found' })
+    }
+
+    if (game.state === GAME_STATE_FINISHED) {
+      return { game }
+    }
+
+    if (game.state !== GAME_STATE_PENDING && game.state !== GAME_STATE_RUNNING) {
+      return reply.code(409).send({ error: 'game_already_over' })
+    }
+
+    const podiums = new Set(game.participants.map((participant) => participant.podium))
+    const { scores } = parsedBody.data
+
+    if (
+      scores.some((line) => !podiums.has(line.podium)) ||
+      new Set(scores.map((line) => line.podium)).size !== scores.length
+    ) {
+      return reply.code(400).send({ error: 'game_scores_invalid' })
+    }
+
+    await db.transaction(async (trx) => {
+      const updated = await trx('games')
+        .where('id', gameId)
+        .whereIn('state', [GAME_STATE_PENDING, GAME_STATE_RUNNING])
+        .update({ state: GAME_STATE_FINISHED, finished_at: trx.fn.now(), updated_at: trx.fn.now() })
+
+      // Une autre requête l'a terminée entre-temps : ses scores restent.
+      if (!updated) {
+        return
+      }
+
+      for (const { podium, score } of scores) {
+        await trx('game_participants')
+          .where({ game_id: gameId, podium })
+          .update({ score, updated_at: trx.fn.now() })
+      }
+    })
+
+    const finished = await findRoomGame(req, gameId)
+
+    return finished?.state === GAME_STATE_FINISHED
+      ? { game: finished }
+      : reply.code(409).send({ error: 'game_already_over' })
   })
 }
 

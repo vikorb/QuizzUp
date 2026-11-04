@@ -115,6 +115,7 @@ import RoomTopBar from '@/components/game/RoomTopBar.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { useConfirm } from '@/composables/useConfirm'
+import { readBackofficeGameId, rememberBackofficeGameId } from '@/game/backofficeGame'
 import { createEmptyRegistration, type Registration } from '@/game/registrations'
 import {
   hasSavedGame,
@@ -153,28 +154,9 @@ const status = ref<Status>('loading')
 const game = shallowRef<RoomGame | null>(null)
 const starting = ref(false)
 const error = ref<StartError | null>(null)
-/** Partie du backoffice dont la sauvegarde locale est la progression. */
-const SAVED_GAME_ID_KEY = 'quizzup_room_backoffice_game'
-
-function readSavedGameId(): string | null {
-  try {
-    return localStorage.getItem(SAVED_GAME_ID_KEY)
-  } catch {
-    return null
-  }
-}
-
-function rememberSavedGameId(id: number): void {
-  try {
-    localStorage.setItem(SAVED_GAME_ID_KEY, String(id))
-  } catch {
-    // Stockage indisponible : la reprise ne sera simplement pas proposée.
-  }
-}
-
 /** Une sauvegarde locale existe, et c'est bien celle de la partie `current`. */
 function hasSaveFor(current: RoomGame | null): boolean {
-  return current !== null && hasSavedGame() && readSavedGameId() === String(current.id)
+  return current !== null && hasSavedGame() && readBackofficeGameId() === String(current.id)
 }
 
 const savedGame = ref(false)
@@ -315,7 +297,7 @@ async function onStart(): Promise<void> {
       return
     }
     startNewGame(options)
-    rememberSavedGameId(current.id)
+    rememberBackofficeGameId(current.id)
   } catch (caught) {
     error.value = toStartError(caught)
     return

@@ -2,6 +2,7 @@ import {
   fetchCurrentContent,
   fetchCurrentGame,
   fetchRoomInfo,
+  finishRoomGame,
   resolveMediaUrl,
   RoomApiError,
   saveRoomConfig,
@@ -55,6 +56,18 @@ describe('API de la salle', () => {
     await saveRoomConfig('tok', { version: 1 })
     expect(save.mock.calls.at(-1)?.[1]?.method).toBe('PUT')
     expect(save.mock.calls.at(-1)?.[1]?.body).toBe(JSON.stringify({ config: { version: 1 } }))
+  })
+
+  it('envoie la fin de partie avec les scores', async () => {
+    const fetchMock = respond(200, { game: { id: 4, state: 'finished' } })
+    const game = await finishRoomGame('tok', 4, [{ podium: 1, score: 300 }])
+
+    expect(game).toMatchObject({ state: 'finished' })
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(`${API}/room/games/4/finish`)
+    expect(fetchMock.mock.calls[0]?.[1]?.method).toBe('POST')
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(
+      JSON.stringify({ scores: [{ podium: 1, score: 300 }] })
+    )
   })
 
   it('traduit les erreurs du backoffice', async () => {
