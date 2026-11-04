@@ -9,6 +9,14 @@ import { DEMO_MEDIA_PREFIX } from '@/game/content'
  */
 const STEP_SEC = 0.25
 const MASTER_GAIN = 0.22
+/**
+ * Fondus du volume général, en secondes : sans eux, démarrer ou couper net un oscillateur en
+ * plein cycle claque. Ils ne décalent rien : le son démarre à l'instant prévu (montée de 40 ms) et
+ * le minuteur du palier, lui, ne bouge pas ; le fondu de sortie ne sert qu'aux coupures
+ * (pause, arrêt, palier suivant), car chaque note finit déjà à zéro à la fin d'un palier.
+ */
+const FADE_IN_SEC = 0.04
+const FADE_OUT_SEC = 0.06
 /** Gamme pentatonique (demi-tons au-dessus de la tonique) : toujours consonante. */
 const SCALE = [0, 2, 4, 7, 9, 12, 14, 16]
 const WAVES: readonly OscillatorType[] = ['triangle', 'square', 'sawtooth', 'sine']
@@ -81,13 +89,25 @@ export function createDemoSynthPlayer(
   let segment: Segment | null = null
   let timer: unknown = null
   let nodes: OscillatorNode[] = []
+  /** Volume général du morceau en cours (porte les fondus d'entrée et de sortie). */
+  let output: { context: AudioContext; master: GainNode } | null = null
   /** Instant (horloge du scheduler) où le morceau en cours a (re)commencé. */
   let startedAt = 0
 
   function silence(): void {
+    // Fondu de sortie court, puis arrêt des oscillateurs juste après : pas de claquement.
+    const current = output
+    const stopAt = current ? current.context.currentTime + FADE_OUT_SEC : 0
+    if (current) {
+      const { gain } = current.master
+      gain.cancelScheduledValues(current.context.currentTime)
+      gain.setValueAtTime(gain.value, current.context.currentTime)
+      gain.linearRampToValueAtTime(0, stopAt)
+    }
+    output = null
     for (const node of nodes) {
       try {
-        node.stop()
+        node.stop(stopAt + 0.01)
       } catch {
         // Déjà arrêté.
       }
@@ -122,10 +142,15 @@ export function createDemoSynthPlayer(
 
     const melody = getDemoMelody(current.url)
     const master = context.createGain()
-    master.gain.value = MASTER_GAIN
     master.connect(context.destination)
 
     const origin = context.currentTime + 0.01
+    // Gain à 0 dès maintenant (le défaut serait 1) : une coupure ou un contexte suspendu avant
+    // l'instant de départ ne doit pas laisser passer une note à pleine puissance.
+    master.gain.setValueAtTime(0, context.currentTime)
+    master.gain.setValueAtTime(0, origin)
+    master.gain.linearRampToValueAtTime(MASTER_GAIN, origin + FADE_IN_SEC)
+    output = { context, master }
     const endSec = current.offsetSec + current.remainingMs / 1000
 
     for (let step = Math.floor(current.offsetSec / STEP_SEC); step * STEP_SEC < endSec; step += 1) {

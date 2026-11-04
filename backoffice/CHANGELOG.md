@@ -183,6 +183,13 @@ Format inspiré de Keep a Changelog.
 
 ### Fixed
 
+- Écran de salle : le verrou clavier (Keyboard Lock, Échap et raccourcis système captés en plein
+  écran) s'applique aussi quand les buzzers sont lus sur une carte manette, et il est repris si
+  la source des buzzers change en cours de séance. Le synthé du mode démo ajoute un court fondu
+  d'entrée (40 ms) et de sortie (60 ms) du volume pour éviter les claquements, sans changer la
+  durée des paliers du blind test.
+  US: us-room-polish
+
 - Course de concurrence type / média d'une question : deux admins qui changent en même temps le
   type (`PATCH /questions/:id`) et l'extrait audio (`PUT /questions/:id/media`) ne peuvent plus
   laisser une question incohérente. La règle `question_kind_media_invalid` est contrôlée sur la

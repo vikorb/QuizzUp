@@ -99,7 +99,8 @@ async function prepareRoom(): Promise<void> {
   // Lumières en ambiance, sans retarder le lancement : une interface DMX déjà
   // autorisée se reconnecte seule.
   void startLighting().catch(() => undefined)
-  await Promise.all([keepScreenAwake(), lockBuzzerSystemKeys()])
+  // Le verrou clavier n'a de sens (et n'est accepté) qu'en plein écran effectif.
+  await Promise.all([keepScreenAwake(), fullscreen ? lockBuzzerSystemKeys() : false])
 }
 
 async function onLaunch(): Promise<void> {

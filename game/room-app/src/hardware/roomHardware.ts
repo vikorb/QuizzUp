@@ -134,6 +134,8 @@ function releaseDevice(): void {
 
 /** (Re)crée le lecteur pour la source de la config ; les abonnés de la page sont gardés. */
 function attachDevice(config: RoomHardwareConfig): BuzzerDevice {
+  // Changer de source en pleine séance (écran Matériel) ne doit pas relâcher le verrou clavier.
+  const wasLocked = device?.getState().keyboardLocked ?? false
   releaseDevice()
   const keymap = effectiveKeymap(config)
   const source = config.buzzers.source
@@ -154,6 +156,9 @@ function attachDevice(config: RoomHardwareConfig): BuzzerDevice {
   device = next
   deviceKey = buzzerSourceKey(config)
   emitTo(changeListeners, next.getState())
+  if (wasLocked) {
+    void next.lockSystemKeys()
+  }
   return next
 }
 
@@ -214,10 +219,13 @@ function applyBuzzerConfig(config: RoomHardwareConfig): void {
   }
 }
 
-/** Capte Échap, Alt+Tab… en plein écran (Chrome / Edge), pour ne pas sortir du jeu. */
+/**
+ * Capte Échap, Alt+Tab… en plein écran (Chrome / Edge), pour ne pas sortir du jeu. Vaut pour les
+ * deux sources de buzzers (clavier ou carte manette).
+ */
 export async function lockBuzzerSystemKeys(): Promise<boolean> {
   getBuzzerInput()
-  return device && 'lockSystemKeys' in device ? device.lockSystemKeys() : false
+  return device ? device.lockSystemKeys() : false
 }
 
 // ── Lumières ───────────────────────────────────────────────────────────────
