@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 
 import { createLocalSessionStorage } from '@/game/session'
+import { stopLighting } from '@/hardware/roomHardware'
 import {
   fetchRoomAccount,
   getRoomToken,
@@ -68,6 +69,8 @@ function clearLocalSession(options: { keepSavedGame?: boolean } = {}): void {
 export async function signOut(): Promise<void> {
   const current = token.value
   clearLocalSession()
+  // Plus personne aux commandes : noir complet, fumée coupée, interface DMX libérée.
+  await stopLighting().catch(() => undefined)
   if (current) {
     await logoutApi(current)
   }

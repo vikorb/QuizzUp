@@ -10,6 +10,20 @@
       </span>
       <template #actions>
         <UiButton
+          v-if="lighting && hasFixtures"
+          :variant="lightingState?.emergency ? 'primary' : 'danger'"
+          class="game__emergency"
+          :data-test="lightingState?.emergency ? 'emergency-reset' : 'emergency-stop'"
+          @click="onEmergency"
+        >
+          <MdIcon :path="mdiAlertOctagonOutline" :size="18" />
+          {{
+            lightingState?.emergency
+              ? $t('hardware.lights.emergencyReset')
+              : $t('hardware.lights.emergencyStop')
+          }}
+        </UiButton>
+        <UiButton
           v-if="!isOver"
           variant="icon"
           :aria-label="$t('room.toolbar.abort')"
@@ -71,7 +85,7 @@
 </template>
 
 <script setup lang="ts">
-import { mdiStopCircleOutline } from '@mdi/js'
+import { mdiAlertOctagonOutline, mdiStopCircleOutline } from '@mdi/js'
 import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
@@ -92,6 +106,7 @@ import {
   getThemeName,
 } from '@/game/selectors'
 import { abortGame, closeGame, pressBuzzer, useRoomGame } from '@/game/useRoomGame'
+import { useRoomHardware } from '@/hardware/roomHardware'
 import { useBuzzers } from '@/hardware/useBuzzers'
 import BlindTestScreen from '@/views/game/BlindTestScreen.vue'
 import FinishedScreen from '@/views/game/FinishedScreen.vue'
@@ -104,6 +119,8 @@ const { t } = useI18n()
 const router = useRouter()
 const { confirm } = useConfirm()
 const { state, now } = useRoomGame()
+const { hardware, lighting, lightingState } = useRoomHardware()
+const hasFixtures = computed(() => hardware.value.fixtures.length > 0)
 
 const phase = computed(() => state.value?.phase ?? { name: 'lobby' as const })
 const round = computed(() => (state.value ? getCurrentRound(state.value) : undefined))
@@ -159,6 +176,15 @@ async function onAbort(): Promise<void> {
   const ok = await confirm({ message: t('room.toolbar.abortConfirm'), variant: 'danger' })
   if (ok) {
     abortGame()
+  }
+}
+
+/** Arrêt d'urgence logiciel, sans confirmation : chaque seconde compte. */
+function onEmergency(): void {
+  if (lightingState.value?.emergency) {
+    lighting.value?.resetEmergency()
+  } else {
+    lighting.value?.emergencyStop('operator')
   }
 }
 

@@ -83,7 +83,7 @@ export function loginReasonToI18nKey(reason: RoomLoginFailReason): string {
   }
 }
 
-function authHeaders(token: string): Headers {
+export function authHeaders(token: string): Headers {
   const headers = new Headers()
   headers.set('Authorization', `Bearer ${token}`)
   return headers

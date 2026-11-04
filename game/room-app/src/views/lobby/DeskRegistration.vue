@@ -52,7 +52,9 @@
       <span>{{ $t('room.lobby.consent') }}</span>
     </label>
 
-    <p class="desk__keys">{{ $t('room.lobby.keysHint', { keys: keys.join(' · ') }) }}</p>
+    <p v-if="usesSimulationKeys" class="desk__keys">
+      {{ $t('room.lobby.keysHint', { keys: keys.join(' · ') }) }}
+    </p>
   </article>
 </template>
 
@@ -72,7 +74,8 @@ import {
   type RegistrationErrors,
   setConsent,
 } from '@/game/registrations'
-import { getSimulationKeys } from '@/hardware/buzzers'
+import { getDeskKeys } from '@/hardware/buzzers'
+import { useRoomHardware } from '@/hardware/roomHardware'
 
 const props = defineProps<{
   registration: Registration
@@ -90,7 +93,9 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const filled = computed(() => isRegistrationFilled(props.registration))
-const keys = computed(() => getSimulationKeys(props.registration.desk))
+const { keymap, usesSimulationKeys } = useRoomHardware()
+// Sans buzzers associés, on rappelle les touches du clavier de simulation.
+const keys = computed(() => getDeskKeys(keymap.value, props.registration.desk))
 
 const displayNameError = computed(() => {
   const code = props.errors.displayName

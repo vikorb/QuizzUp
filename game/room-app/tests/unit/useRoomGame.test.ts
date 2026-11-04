@@ -1,6 +1,6 @@
 import { DEFAULT_GAME_TIMINGS } from '@quizzup/game-engine'
 
-import type { ExtractPlayer } from '@/audio/player'
+import { createSilentExtractPlayer, type ExtractPlayer } from '@/audio/player'
 import { getDemoThemes } from '@/game/demoContent'
 import { createMemorySessionStorage } from '@/game/session'
 import {
@@ -12,6 +12,7 @@ import {
   getExtractPlayer,
   hasSavedGame,
   onGameEvents,
+  preloadExtracts,
   pressBuzzer,
   resumeSavedGame,
   startNewGame,
@@ -28,6 +29,8 @@ function fakePlayer(): ExtractPlayer {
     pause: vi.fn(() => 0),
     resume: vi.fn(),
     stop: vi.fn(),
+    isLoaded: vi.fn(() => true),
+    release: vi.fn(),
   }
 }
 
@@ -88,7 +91,7 @@ describe('useRoomGame', () => {
     vi.advanceTimersByTime(50)
 
     const chooser = state.value?.rounds[0]?.chooserParticipantId as 1 | 2 | 3
-    pressBuzzer({ desk: chooser, button: 'A', at: clock.value })
+    pressBuzzer({ desk: chooser, button: 'A', buttonIndex: 0, at: clock.value, code: 'test' })
 
     expect(state.value?.phase.name).toBe('question')
     expect(player.play).toHaveBeenCalledTimes(1)
@@ -114,7 +117,8 @@ describe('useRoomGame', () => {
 
     expect(await resumeSavedGame()).toBe(true)
     expect(state.value?.phase.name).toBe(phase)
-    expect(player.preload).toHaveBeenCalledWith(expect.arrayContaining(['demo://9001/1']))
+    // Les extraits de démo n'ont pas de fichier : rien à télécharger.
+    expect(player.preload).not.toHaveBeenCalled()
 
     discardSavedGame()
     closeGame()
@@ -127,7 +131,7 @@ describe('useRoomGame', () => {
     clock.advance(DEFAULT_GAME_TIMINGS.roundIntroMs + 10)
     vi.advanceTimersByTime(50)
     const chooser = state.value?.rounds[0]?.chooserParticipantId as 1 | 2 | 3
-    pressBuzzer({ desk: chooser, button: 'A', at: clock.value })
+    pressBuzzer({ desk: chooser, button: 'A', buttonIndex: 0, at: clock.value, code: 'test' })
     clock.advance(300)
     vi.advanceTimersByTime(1000)
     vi.mocked(player.play).mockClear()
@@ -135,5 +139,47 @@ describe('useRoomGame', () => {
     expect(await resumeSavedGame()).toBe(true)
     expect(state.value?.phase.name).toBe('question')
     expect(player.play).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('preloadExtracts', () => {
+  const themes = [
+    {
+      id: 1,
+      name: 'Thème',
+      questions: [
+        { mediaUrl: 'https://api/questions/1/media?v=2' },
+        { mediaUrl: 'demo://1/1' },
+        { mediaUrl: null },
+      ],
+    },
+  ] as unknown as Parameters<typeof preloadExtracts>[0]
+
+  afterEach(() => {
+    configureRoomGame({ player: createSilentExtractPlayer() })
+  })
+
+  it('télécharge les extraits réels avec le fetch authentifié de la salle', async () => {
+    const fetchMedia = vi.fn(async () => new Response())
+    const player = fakePlayer()
+    vi.mocked(player.preload).mockResolvedValue({
+      loaded: [],
+      failed: ['https://api/questions/1/media?v=2'],
+    })
+    configureRoomGame({ player, fetchMedia })
+
+    await expect(preloadExtracts(themes)).resolves.toEqual(['https://api/questions/1/media?v=2'])
+    expect(player.preload).toHaveBeenCalledWith(['https://api/questions/1/media?v=2'], {
+      fetch: fetchMedia,
+      onProgress: undefined,
+    })
+  })
+
+  it('considère tout en échec si le lecteur plante', async () => {
+    const player = fakePlayer()
+    vi.mocked(player.preload).mockRejectedValue(new Error('boom'))
+    configureRoomGame({ player })
+
+    await expect(preloadExtracts(themes)).resolves.toEqual(['https://api/questions/1/media?v=2'])
   })
 })

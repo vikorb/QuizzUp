@@ -15,6 +15,8 @@ function fakePlayer(): ExtractPlayer & Record<string, ReturnType<typeof vi.fn>> 
     pause: vi.fn(() => 0),
     resume: vi.fn(),
     stop: vi.fn(),
+    isLoaded: vi.fn(() => true),
+    release: vi.fn(),
   }
 }
 

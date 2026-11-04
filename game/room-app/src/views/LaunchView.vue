@@ -4,6 +4,15 @@
       <template #actions>
         <UiButton
           variant="icon"
+          :aria-label="$t('hardware.open')"
+          :title="$t('hardware.open')"
+          data-test="open-hardware"
+          @click="router.push({ name: 'hardware' })"
+        >
+          <MdIcon :path="mdiTuneVariant" :size="20" />
+        </UiButton>
+        <UiButton
+          variant="icon"
           :aria-label="$t('auth.logout')"
           :title="$t('auth.logout')"
           @click="onLogout"
@@ -45,7 +54,7 @@
 </template>
 
 <script setup lang="ts">
-import { mdiLogout, mdiRestore, mdiRocketLaunchOutline } from '@mdi/js'
+import { mdiLogout, mdiRestore, mdiRocketLaunchOutline, mdiTuneVariant } from '@mdi/js'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -60,7 +69,8 @@ import {
   hasSavedGame,
   resumeSavedGame,
 } from '@/game/useRoomGame'
-import { enterFullscreen, keepScreenAwake, lockSystemKeys } from '@/hardware/screen'
+import { lockBuzzerSystemKeys, startLighting } from '@/hardware/roomHardware'
+import { enterFullscreen, keepScreenAwake } from '@/hardware/screen'
 import { signOut } from '@/state/roomAuth'
 
 const { t } = useI18n()
@@ -83,7 +93,12 @@ async function prepareRoom(): Promise<void> {
       .catch(() => undefined),
   ])
   fullscreenRefused.value = !fullscreen
-  await Promise.all([keepScreenAwake(), lockSystemKeys()])
+  await Promise.all([
+    keepScreenAwake(),
+    lockBuzzerSystemKeys(),
+    // Lumières en ambiance ; une interface DMX déjà autorisée se reconnecte seule.
+    startLighting().catch(() => undefined),
+  ])
 }
 
 async function onLaunch(): Promise<void> {
