@@ -172,6 +172,12 @@ describe('sortRanges with open-ended ranges', () => {
   it('reads a dot followed by three digits as a thousands separator', () => {
     expect(getRangeSortValue('1.500 km')).toBe(1500)
     expect(getRangeSortValue('Plus de 1.000')).toBe(1000.5)
+    expect(getRangeSortValue('Avant 1800')).toBe(1799.5)
+    expect(getRangeSortValue('Après 1900')).toBe(1900.5)
+    expect(getRangeSortValue('1900 ou après')).toBe(1900.5)
+    expect(getRangeSortValue('1800 ou avant')).toBe(1799.5)
+    expect(getRangeSortValue('50 et plus')).toBe(50.5)
+    expect(getRangeSortValue('5 et moins')).toBe(4.5)
     expect(getRangeSortValue('1,5 m')).toBe(1.5)
   })
 })

@@ -36,7 +36,13 @@
       <DiagnosticPanel v-else-if="current === 'diagnostic'" />
       <AdvancedConfig v-else />
 
-      <p class="hw-hint hardware__note">{{ $t('hardware.localNote') }}</p>
+      <p
+        class="hw-hint hardware__note"
+        :class="{ 'hardware__note--error': syncStatus === 'error' || syncStatus === 'rejected' }"
+        data-test="sync-status"
+      >
+        {{ $t(`hardware.sync.${syncStatus}`) }}
+      </p>
     </section>
   </main>
 </template>
@@ -49,6 +55,7 @@ import { useRouter } from 'vue-router'
 import RoomTopBar from '@/components/game/RoomTopBar.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import { useRoomHardware } from '@/hardware/roomHardware'
 import AdvancedConfig from '@/views/hardware/AdvancedConfig.vue'
 import BuzzerSetup from '@/views/hardware/BuzzerSetup.vue'
 import DiagnosticPanel from '@/views/hardware/DiagnosticPanel.vue'
@@ -58,6 +65,7 @@ import SetupAssistant from '@/views/hardware/SetupAssistant.vue'
 const TABS = ['assistant', 'buzzers', 'lights', 'diagnostic', 'advanced'] as const
 
 const router = useRouter()
+const { syncStatus } = useRoomHardware()
 const current = ref<(typeof TABS)[number]>('buzzers')
 
 async function onBack(): Promise<void> {
@@ -106,5 +114,9 @@ async function onBack(): Promise<void> {
 
 .hardware__note {
   text-align: center;
+}
+
+.hardware__note--error {
+  color: var(--warn);
 }
 </style>

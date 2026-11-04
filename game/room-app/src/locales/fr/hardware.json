@@ -10,7 +10,6 @@
       "advanced": "Configuration avancée",
       "diagnostic": "Diagnostic"
     },
-    "localNote": "Cette configuration est enregistrée sur ce PC.",
     "buzzers": {
       "title": "Buzzers",
       "simulation": "Aucun buzzer associé : le clavier de simulation est utilisé (une rangée de touches par pupitre).",
@@ -314,6 +313,12 @@
         "ready": "Tout est prêt.",
         "save": "Enregistrer la configuration"
       }
+    },
+    "sync": {
+      "local": "Cette configuration est enregistrée sur ce PC.",
+      "saved": "Configuration enregistrée sur le compte de la salle (copie de secours sur ce PC).",
+      "error": "Backoffice injoignable : configuration gardée sur ce PC, elle sera renvoyée au prochain démarrage ou enregistrement.",
+      "rejected": "Configuration refusée par le backoffice (trop volumineuse ou invalide) : elle n'est gardée que sur ce PC."
     }
   }
 }

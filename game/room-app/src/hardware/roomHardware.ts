@@ -10,6 +10,7 @@ import {
   createSerialOutput,
   createSimulationOutput,
   DEFAULT_BRIDGE_URL,
+  defaultRoomHardwareConfig,
   type DmxDriver,
   type DmxOutput,
   getGrantedDmxPort,
@@ -31,15 +32,18 @@ import { computed, shallowRef } from 'vue'
 
 import { onGameEvents } from '@/game/useRoomGame'
 import { SIMULATION_KEYMAP } from '@/hardware/buzzers'
+import { RoomApiError } from '@/utils/roomApi'
 
 /**
  * Matériel de la salle, partagé par tous les écrans : config (`rooms.config`), une
  * seule entrée buzzers et un seul contrôleur de lumières pour toute la page.
  *
- * Tant que la config de salle n'est pas servie par le backoffice, elle est gardée
- * dans le navigateur du PC de la salle.
+ * La config vit sur le compte de la salle (`rooms.config`) ; le navigateur du PC
+ * de la salle en garde une copie de secours, avec la salle à laquelle elle se
+ * rapporte et l'indication qu'elle attend encore d'être envoyée.
  */
 export const HARDWARE_STORAGE_KEY = 'quizzup_room_hardware'
+export const HARDWARE_SYNC_STORAGE_KEY = 'quizzup_room_hardware_sync'
 
 type HardwareStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 
@@ -376,18 +380,127 @@ export async function switchToSimulatedLights(
 // ── Configuration ──────────────────────────────────────────────────────────
 
 /**
- * Enregistre la config de salle (normalisée) et l'applique : nouveau mapping des
- * buzzers, et contrôleur de lumières relancé seulement si la partie lumières a changé.
+ * Où se trouve la dernière config enregistrée : compte de la salle, ce PC seulement,
+ * ce PC faute de réseau (renvoyée plus tard), ou ce PC parce que le backoffice l'a refusée.
  */
-export async function saveRoomHardwareConfig(
+export type HardwareSyncStatus = 'local' | 'saved' | 'error' | 'rejected'
+
+type RemoteSaver = (config: RoomHardwareConfig) => Promise<void>
+
+/**
+ * État de la copie locale : compte de salle auquel elle se rapporte, empreinte du
+ * jeton qui l'y a reliée (pour la retrouver hors ligne), et modifications pas encore envoyées.
+ */
+export type HardwareSyncMeta = {
+  accountId: number | null
+  tokenTag: string | null
+  pending: boolean
+}
+
+/** Compte de salle auquel partent les enregistrements. */
+export type HardwareBinding = { accountId: number; tokenTag: string }
+
+let remoteSaver: RemoteSaver | null = null
+let binding: HardwareBinding | null = null
+/**
+ * La copie locale vient d'un autre compte de salle : rien n'est envoyé tant que la
+ * config du compte connecté n'a pas été relue et appliquée.
+ */
+let foreignCopy = false
+const syncStatus = shallowRef<HardwareSyncStatus>('local')
+/** Incrémenté à chaque enregistrement local : une config relue avant est périmée. */
+let saveGeneration = 0
+/** Les envois partent un par un, dans l'ordre des enregistrements. */
+let saveQueue: Promise<void> = Promise.resolve()
+
+/** JSON aux clés triées : `jsonb` réordonne les clés, le contenu seul compte. */
+export function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(',')}]`
+  }
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, item]) => item !== undefined)
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+    return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`).join(',')}}`
+  }
+  return JSON.stringify(value) ?? 'null'
+}
+
+const DEFAULT_CONFIG_JSON = stableStringify(defaultRoomHardwareConfig())
+
+/** Config de salle neuve (rien d'associé, aucun appareil) : rien à transmettre ni à garder. */
+export function isDefaultHardwareConfig(input: unknown): boolean {
+  return stableStringify(parseRoomHardwareConfig(input).config) === DEFAULT_CONFIG_JSON
+}
+
+export function getHardwareSyncMeta(): HardwareSyncMeta {
+  try {
+    const raw = getStorage()?.getItem(HARDWARE_SYNC_STORAGE_KEY)
+    const value = raw ? (JSON.parse(raw) as Partial<HardwareSyncMeta>) : {}
+    return {
+      accountId: typeof value.accountId === 'number' ? value.accountId : null,
+      tokenTag: typeof value.tokenTag === 'string' ? value.tokenTag : null,
+      pending: value.pending === true,
+    }
+  } catch {
+    return { accountId: null, tokenTag: null, pending: false }
+  }
+}
+
+function writeSyncMeta(patch: Partial<HardwareSyncMeta>): void {
+  try {
+    getStorage()?.setItem(
+      HARDWARE_SYNC_STORAGE_KEY,
+      JSON.stringify({ ...getHardwareSyncMeta(), ...patch })
+    )
+  } catch {
+    // Stockage indisponible.
+  }
+}
+
+/** Numéro du dernier enregistrement local (voir `saveGeneration`). */
+export function getHardwareSaveGeneration(): number {
+  return saveGeneration
+}
+
+/**
+ * Enregistrement côté backoffice (`rooms.config`) pour le compte de salle `next`.
+ * Sans enregistreur (mode démo, compte inconnu), la config reste sur ce PC. Une
+ * copie locale rattachée à un autre compte n'est jamais envoyée à celui-ci.
+ */
+export function setHardwareRemoteSaver(
+  saver: RemoteSaver | null,
+  next: HardwareBinding | null = null
+): void {
+  remoteSaver = saver && next ? saver : null
+  binding = remoteSaver ? next : null
+  syncStatus.value = 'local'
+  foreignCopy = false
+  if (binding) {
+    const meta = getHardwareSyncMeta()
+    if (meta.accountId !== null && meta.accountId !== binding.accountId) {
+      foreignCopy = true
+    } else {
+      writeSyncMeta({ accountId: binding.accountId, tokenTag: binding.tokenTag })
+    }
+  }
+}
+
+/** La copie locale appartient à un autre compte de salle que celui connecté. */
+export function isHardwareCopyForeign(): boolean {
+  return foreignCopy
+}
+
+async function applyConfig(
   input: unknown,
   options: { persist?: boolean } = {}
 ): Promise<ParsedRoomHardwareConfig> {
-  const previousLighting = JSON.stringify(parsed.value.config.lighting)
+  const previousLighting = stableStringify(parsed.value.config.lighting)
   const next = parseRoomHardwareConfig(input)
   parsed.value = next
 
-  // `persist: false` : config appliquée à la page seulement (test de coupure de la fumée).
+  // Copie locale de secours (backoffice injoignable au prochain démarrage).
   if (options.persist !== false) {
     try {
       getStorage()?.setItem(HARDWARE_STORAGE_KEY, JSON.stringify(next.config))
@@ -398,10 +511,100 @@ export async function saveRoomHardwareConfig(
 
   keyboardInput?.setKeymap(effectiveKeymap(next.config))
 
-  if (JSON.stringify(next.config.lighting) !== previousLighting) {
+  if (stableStringify(next.config.lighting) !== previousLighting) {
     await restartLighting()
   }
   return next
+}
+
+/**
+ * Envoie la config actuelle au compte de la salle, après les envois déjà en cours.
+ * La copie locale reste « à envoyer » tant que le dernier enregistrement n'est pas passé.
+ */
+export function pushHardwareConfig(
+  config: RoomHardwareConfig = parsed.value.config,
+  generation = saveGeneration
+): Promise<void> {
+  const saver = remoteSaver
+  if (!saver) {
+    return Promise.resolve()
+  }
+  if (foreignCopy) {
+    // Copie modifiée sans savoir pour quel compte : elle ne part plus vers aucun,
+    // pas même vers son compte d'origine.
+    writeSyncMeta({ pending: false })
+    return Promise.resolve()
+  }
+  writeSyncMeta({ pending: true })
+
+  const run = async (): Promise<void> => {
+    try {
+      await saver(config)
+      if (generation === saveGeneration) {
+        writeSyncMeta({ pending: false })
+        syncStatus.value = 'saved'
+      }
+    } catch (caught) {
+      if (generation === saveGeneration) {
+        // Un 400 (config trop volumineuse ou invalide) ne passera pas mieux plus tard :
+        // elle n'est pas renvoyée, le prochain démarrage reprend celle du compte.
+        const rejected = caught instanceof RoomApiError && caught.status === 400
+        if (rejected) {
+          writeSyncMeta({ pending: false })
+        }
+        syncStatus.value = rejected ? 'rejected' : 'error'
+      }
+    }
+  }
+  const sent = saveQueue.then(run)
+  saveQueue = sent
+  return sent
+}
+
+/**
+ * Enregistre la config de salle (normalisée) et l'applique : nouveau mapping des
+ * buzzers, et contrôleur de lumières relancé seulement si la partie lumières a changé.
+ * Elle part ensuite sur le compte de la salle ; en cas d'échec, elle reste sur ce PC
+ * et sera renvoyée au prochain démarrage.
+ */
+export async function saveRoomHardwareConfig(
+  input: unknown,
+  options: { persist?: boolean } = {}
+): Promise<ParsedRoomHardwareConfig> {
+  // `persist: false` : config appliquée à la page seulement (test de coupure de la fumée),
+  // jamais gardée sur ce PC ni envoyée au compte de la salle.
+  if (options.persist === false) {
+    return applyConfig(input, { persist: false })
+  }
+  saveGeneration += 1
+  const generation = saveGeneration
+  const next = await applyConfig(input)
+  await pushHardwareConfig(next.config, generation)
+  return next
+}
+
+/**
+ * Config relue depuis le compte connecté : appliquée sans être renvoyée. La copie
+ * locale lui est désormais rattachée. Un enregistrement local fait pendant
+ * l'application reste « à envoyer ».
+ */
+export async function applyRemoteHardwareConfig(input: unknown): Promise<void> {
+  const generation = saveGeneration
+  await applyConfig(input)
+  if (!binding) {
+    return
+  }
+  foreignCopy = false
+  writeSyncMeta({ accountId: binding.accountId, tokenTag: binding.tokenTag })
+  if (generation === saveGeneration) {
+    writeSyncMeta({ pending: false })
+    syncStatus.value = 'saved'
+  }
+}
+
+/** Config actuelle (normalisée), par exemple pour la pousser vers le backoffice. */
+export function getRoomHardwareConfig(): RoomHardwareConfig {
+  return parsed.value.config
 }
 
 /** Enregistre seulement le mapping des buzzers (fin de l'apprentissage). */
@@ -420,6 +623,12 @@ export async function resetRoomHardware(options: { storage?: HardwareStorage | n
   pendingEmergency = null
   dmxPort = null
   bridgeConnected = false
+  remoteSaver = null
+  binding = null
+  foreignCopy = false
+  syncStatus.value = 'local'
+  saveGeneration = 0
+  saveQueue = Promise.resolve()
   storage = options.storage ?? null
   parsed.value = parseRoomHardwareConfig(loadStoredConfig())
 }
@@ -434,5 +643,6 @@ export function useRoomHardware() {
     buzzerState: computed(() => buzzerState.value),
     lightingState: computed(() => lightingState.value),
     lighting: computed(() => lightingRef.value),
+    syncStatus: computed(() => syncStatus.value),
   }
 }

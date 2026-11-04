@@ -6,9 +6,11 @@ import {
   getBuzzerInput,
   getLighting,
   HARDWARE_STORAGE_KEY,
+  isDefaultHardwareConfig,
   saveBuzzerKeymap,
   saveRoomHardwareConfig,
   setBuzzerInput,
+  stableStringify,
   startLighting,
   stopLighting,
   triggerEmergencyStop,
@@ -131,6 +133,18 @@ describe('sécurité des lumières à l’enregistrement', () => {
     expect(getLighting()).toBe(before)
   })
 
+  it('ne relance pas les lumières quand seules les clés changent d’ordre (jsonb)', async () => {
+    const bindings = Object.fromEntries([
+      ['game_started', 'intro'],
+      ['round_ended', null],
+    ])
+    await saveRoomHardwareConfig({ lighting: { fixtures: [FIXTURE], bindings } })
+    const before = await startLighting()
+    const reordered = Object.fromEntries(Object.entries(bindings).reverse())
+    await saveRoomHardwareConfig({ lighting: { bindings: reordered, fixtures: [FIXTURE] } })
+    expect(getLighting()).toBe(before)
+  })
+
   it('garde l’arrêt d’urgence et désarme la fumée quand la config est relancée', async () => {
     await saveRoomHardwareConfig(SMOKE_CONFIG)
     const first = await startLighting()
@@ -170,5 +184,20 @@ describe('arrêt d’urgence pendant un redémarrage', () => {
     const controller = await startLighting()
     triggerEmergencyStop()
     expect(controller.getState().emergency).toBe(true)
+  })
+})
+
+describe('outils de comparaison de config', () => {
+  it('sérialise sans tenir compte de l’ordre des clés', () => {
+    expect(stableStringify({ b: 1, a: [{ d: 2, c: 3 }] })).toBe(
+      stableStringify({ a: [{ c: 3, d: 2 }], b: 1 })
+    )
+  })
+
+  it('reconnaît une config de salle neuve', () => {
+    expect(isDefaultHardwareConfig({})).toBe(true)
+    expect(isDefaultHardwareConfig({ autre: 'réglage du backoffice' })).toBe(true)
+    expect(isDefaultHardwareConfig({ buzzers: { keymap: LEARNED_KEYMAP } })).toBe(false)
+    expect(isDefaultHardwareConfig({ lighting: { fixtures: [FIXTURE] } })).toBe(false)
   })
 })
