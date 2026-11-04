@@ -2,7 +2,11 @@ import { flushPromises } from '@vue/test-utils'
 
 import { rememberBackofficeGameId } from '@/game/backofficeGame'
 import { getDemoThemes } from '@/game/demoContent'
-import { PENDING_FINISHES_KEY, readPendingFinishes } from '@/game/pendingFinishes'
+import {
+  flushPendingFinishes,
+  PENDING_FINISHES_KEY,
+  readPendingFinishes,
+} from '@/game/pendingFinishes'
 import { createMemorySessionStorage } from '@/game/session'
 import { closeGame, configureRoomGame, startNewGame } from '@/game/useRoomGame'
 import { enterDemo, signIn, syncRoomAuth } from '@/state/roomAuth'
@@ -116,7 +120,7 @@ describe('GameView : fin de partie signalée au backoffice', () => {
     expect(wrapper.find('[data-test="finish-sync"]').exists()).toBe(false)
   })
 
-  it('n’affiche rien quand le backoffice a déjà clos la partie (409)', async () => {
+  it('signale le refus du backoffice (409) sans dire « enregistré »', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     rememberBackofficeGameId(7, SEED)
     vi.spyOn(roomApi, 'finishRoomGame').mockRejectedValue(
@@ -127,7 +131,49 @@ describe('GameView : fin de partie signalée au backoffice', () => {
     const { wrapper } = await mountWithApp(GameView, { route: '/play' })
     await flushPromises()
 
-    expect(wrapper.find('[data-test="finish-sync"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="finish-sync"]').text()).toBe(
+      'Résultats refusés par le backoffice.'
+    )
     expect(readPendingFinishes()).toEqual([])
+  })
+
+  it('page rechargée au podium : affiche l’état de la partie encore en file', async () => {
+    // Le rapport est déjà en file (partie retenue oubliée), le réseau est toujours coupé.
+    localStorage.setItem(
+      PENDING_FINISHES_KEY,
+      JSON.stringify([{ gameId: 7, seed: SEED, scores: [{ podium: 1, score: 10 }] }])
+    )
+    const finish = vi.spyOn(roomApi, 'finishRoomGame').mockRejectedValue(new Error('offline'))
+    playUntilPodium()
+
+    const { wrapper } = await mountWithApp(GameView, { route: '/play' })
+    await flushPromises()
+    // Le démarrage de l'application vide la file.
+    await flushPendingFinishes()
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="finish-sync"]').text()).toContain('Hors ligne')
+    expect(readPendingFinishes()).toHaveLength(1)
+
+    finish.mockResolvedValue({} as roomApi.RoomGame)
+    await vi.advanceTimersByTimeAsync(5000)
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="finish-sync"]').text()).toBe('Résultats enregistrés')
+  })
+
+  it('n’affiche pas l’état d’une autre partie en file', async () => {
+    localStorage.setItem(
+      PENDING_FINISHES_KEY,
+      JSON.stringify([{ gameId: 8, seed: SEED + 1, scores: [{ podium: 1, score: 10 }] }])
+    )
+    vi.spyOn(roomApi, 'finishRoomGame').mockRejectedValue(new Error('offline'))
+    playUntilPodium()
+
+    const { wrapper } = await mountWithApp(GameView, { route: '/play' })
+    await flushPendingFinishes()
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="finish-sync"]').exists()).toBe(false)
   })
 })

@@ -107,6 +107,10 @@ const winners = computed(() => props.lines.filter((line) => line.rank === 1 && l
   color: var(--ok);
 }
 
+.finished__sync--refused {
+  color: var(--danger);
+}
+
 .finished__sync--offline,
 .finished__sync--auth {
   color: var(--warn);

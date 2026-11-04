@@ -47,7 +47,8 @@ describe('fin de partie envoyée au backoffice', () => {
     const second = reportFinishedGame(state)
     await vi.advanceTimersByTimeAsync(0)
 
-    expect([first, second]).toEqual([true, false])
+    // Le second appel retrouve la même partie en file : un seul envoi, un seul état.
+    expect([first, second]).toEqual([7, 7])
     expect(finishRoomGame).toHaveBeenCalledOnce()
     expect(finishRoomGame).toHaveBeenCalledWith('tok', 7, SCORES)
     expect(readBackofficeGameId()).toBeNull()
@@ -58,7 +59,7 @@ describe('fin de partie envoyée au backoffice', () => {
     rememberBackofficeGameId(7, SEED)
     vi.mocked(finishRoomGame).mockRejectedValue(new Error('offline'))
 
-    expect(reportFinishedGame(state)).toBe(true)
+    expect(reportFinishedGame(state)).toBe(7)
     await vi.advanceTimersByTimeAsync(0)
 
     expect(readBackofficeGameId()).toBeNull()
@@ -66,18 +67,18 @@ describe('fin de partie envoyée au backoffice', () => {
   })
 
   it("n'envoie rien en mode démo, sans jeton, sans partie ou pour une autre partie", async () => {
-    expect(reportFinishedGame(state)).toBe(false)
+    expect(reportFinishedGame(state)).toBeNull()
 
     rememberBackofficeGameId(7, SEED + 1)
-    expect(reportFinishedGame(state)).toBe(false)
+    expect(reportFinishedGame(state)).toBeNull()
 
     rememberBackofficeGameId(7, SEED)
     setDemoMode(true)
-    expect(reportFinishedGame(state)).toBe(false)
+    expect(reportFinishedGame(state)).toBeNull()
 
     setDemoMode(false)
     setRoomToken(null)
-    expect(reportFinishedGame(state)).toBe(false)
+    expect(reportFinishedGame(state)).toBeNull()
     await vi.advanceTimersByTimeAsync(0)
 
     expect(finishRoomGame).not.toHaveBeenCalled()
@@ -89,16 +90,41 @@ describe('fin de partie envoyée au backoffice', () => {
     localStorage.setItem('quizzup_room_backoffice_game', '41')
 
     expect(readBackofficeGameId()).toBe('41')
-    expect(reportFinishedGame(state)).toBe(false)
+    expect(reportFinishedGame(state)).toBeNull()
     await vi.advanceTimersByTimeAsync(0)
     expect(finishRoomGame).not.toHaveBeenCalled()
+  })
+
+  it('page rechargée au podium : retrouve la partie encore en file par sa graine', async () => {
+    rememberBackofficeGameId(7, SEED)
+    vi.mocked(finishRoomGame).mockRejectedValue(new Error('offline'))
+    expect(reportFinishedGame(state)).toBe(7)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(readBackofficeGameId()).toBeNull()
+    vi.mocked(finishRoomGame).mockClear()
+
+    expect(reportFinishedGame(state)).toBe(7)
+    expect(reportFinishedGame({ setup: { seed: SEED + 1 } } as GameState)).toBeNull()
+    expect(readPendingFinishes()).toHaveLength(1)
+    // Aucun second rapport : un seul élément en file, pas d'envoi supplémentaire immédiat.
+    expect(finishRoomGame).not.toHaveBeenCalled()
+  })
+
+  it('en démo, ne rattache pas le podium à une partie en file', () => {
+    localStorage.setItem(
+      PENDING_FINISHES_KEY,
+      JSON.stringify([{ gameId: 7, seed: SEED, scores: [{ podium: 1, score: 1 }] }])
+    )
+    setDemoMode(true)
+
+    expect(reportFinishedGame(state)).toBeNull()
   })
 
   it('ignore une sauvegarde illisible', () => {
     localStorage.setItem('quizzup_room_backoffice_game', '{oups')
 
     expect(readBackofficeGameId()).toBeNull()
-    expect(reportFinishedGame(state)).toBe(false)
+    expect(reportFinishedGame(state)).toBeNull()
   })
 
   it('garde le rapport si le réseau est coupé et le renvoie aux délais prévus', async () => {
@@ -126,7 +152,7 @@ describe('fin de partie envoyée au backoffice', () => {
     rememberBackofficeGameId(7, SEED)
     vi.mocked(finishRoomGame).mockRejectedValueOnce(new RoomApiError(409, 'game_already_over'))
 
-    expect(reportFinishedGame(state)).toBe(true)
+    expect(reportFinishedGame(state)).toBe(7)
     await vi.advanceTimersByTimeAsync(0)
 
     expect(readPendingFinishes()).toEqual([])

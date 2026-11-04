@@ -122,7 +122,7 @@ import UiButton from '@/components/ui/UiButton.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import { reportFinishedGame } from '@/game/backofficeGame'
 import { getMiniGameView } from '@/game/miniGameViews'
-import { usePendingFinishes } from '@/game/pendingFinishes'
+import { getFinishStatus } from '@/game/pendingFinishes'
 import {
   getBlindTestView,
   getCurrentRound,
@@ -216,16 +216,17 @@ useBuzzers(pressBuzzer)
 
 // Podium : le backoffice passe la partie « terminée » avec les scores (aussi après une reprise).
 // L'envoi est mis en file et réessayé en arrière-plan si le réseau est coupé.
-const finishReported = ref(false)
-const { status: finishStatus } = usePendingFinishes()
-const finishSync = computed(() =>
-  finishReported.value && finishStatus.value !== 'idle' ? finishStatus.value : null
-)
+const finishGameId = ref<number | null>(null)
+const finishSync = computed(() => {
+  const status = getFinishStatus(finishGameId.value)
+  return status === 'idle' ? null : status
+})
 watch(
   () => phase.value.name === 'finished' && state.value,
   (finished) => {
-    if (finished && reportFinishedGame(finished)) {
-      finishReported.value = true
+    const gameId = finished ? reportFinishedGame(finished) : null
+    if (gameId !== null) {
+      finishGameId.value = gameId
     }
   },
   { immediate: true }

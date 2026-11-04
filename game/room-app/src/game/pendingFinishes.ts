@@ -1,4 +1,4 @@
-import { readonly, ref } from 'vue'
+import { computed, ref } from 'vue'
 
 import { getRoomToken } from '@/utils/auth'
 import { finishRoomGame, RoomApiError, type RoomGameScore } from '@/utils/roomApi'
@@ -17,21 +17,34 @@ export const RETRY_DELAYS_MS = [2000, 5000, 15_000, 30_000, 60_000] as const
 export type PendingFinish = { gameId: number; seed: number; scores: RoomGameScore[] }
 
 /**
- * - `idle` : rien à signaler (file vide, ou résultats refusés pour de bon par le backoffice) ;
- * - `sending` : un envoi est en cours ;
- * - `sent` : tous les résultats sont enregistrés ;
+ * État d'envoi des résultats d'UNE partie (`getFinishStatus`) :
+ * - `idle` : rien à signaler pour cette partie ;
+ * - `sending` : en file, un envoi est en cours ou imminent ;
+ * - `sent` : résultats enregistrés par le backoffice ;
+ * - `refused` : refus définitif du backoffice (partie introuvable, déjà close, scores invalides) ;
  * - `offline` : envoi impossible (réseau, serveur), nouvel essai automatique ;
  * - `auth` : la salle n'est plus connectée, l'envoi reprendra à la reconnexion.
  */
-export type FinishSyncStatus = 'idle' | 'sending' | 'sent' | 'offline' | 'auth'
+export type FinishSyncStatus = 'idle' | 'sending' | 'sent' | 'refused' | 'offline' | 'auth'
 
 /** Refus définitifs du backoffice : partie introuvable (404), déjà close (409) ou scores invalides (400). */
 const FINAL_REFUSALS: ReadonlySet<number> = new Set([400, 404, 409])
 /** Jeton absent, expiré ou refusé : inutile de boucler, on attend une reconnexion. */
 const AUTH_REFUSALS: ReadonlySet<number> = new Set([401, 403])
 
-const pendingCount = ref(0)
-const syncStatus = ref<FinishSyncStatus>('idle')
+/** Parties dont les résultats attendent d'être envoyés (vue réactive de la file). */
+const pendingIds = ref<number[]>([])
+/** Issue définitive des parties traitées depuis l'ouverture de la page. */
+const outcomes = ref<Record<number, 'sent' | 'refused'>>({})
+/** Ce que fait la file en ce moment, pour les parties qui y figurent encore. */
+const syncStatus = ref<'idle' | 'sending' | 'offline' | 'auth'>('idle')
+
+/**
+ * Copie en mémoire de la file : elle devient la source de vérité quand `localStorage` refuse
+ * l'écriture (quota plein, stockage bloqué), pour que les résultats partent quand même.
+ */
+let memory: PendingFinish[] = []
+let storageFailed = false
 
 let retryTimer: ReturnType<typeof setTimeout> | null = null
 let failedAttempts = 0
@@ -69,11 +82,21 @@ function toPendingFinish(value: unknown): PendingFinish | null {
   }
 }
 
-/** Lecture tolérante : stockage absent ou illisible → file vide, éléments invalides ignorés. */
-export function readPendingFinishes(): PendingFinish[] {
+function copyOf(items: PendingFinish[]): PendingFinish[] {
+  return items.map((item) => ({ ...item, scores: item.scores.map((score) => ({ ...score })) }))
+}
+
+/** File stockée ; `null` si le stockage est inaccessible, vide si son contenu est illisible. */
+function readStored(): PendingFinish[] | null {
+  let raw: string | null
+  try {
+    raw = localStorage.getItem(PENDING_FINISHES_KEY)
+  } catch {
+    return null
+  }
   const items: PendingFinish[] = []
   try {
-    const saved = JSON.parse(localStorage.getItem(PENDING_FINISHES_KEY) ?? '[]') as unknown
+    const saved = JSON.parse(raw ?? '[]') as unknown
     for (const value of Array.isArray(saved) ? saved : []) {
       const item = toPendingFinish(value)
       if (item && !items.some((known) => known.gameId === item.gameId)) {
@@ -86,17 +109,36 @@ export function readPendingFinishes(): PendingFinish[] {
   return items
 }
 
+/** Lecture tolérante : la copie en mémoire fait foi si l'écriture a échoué ou le stockage manque. */
+export function readPendingFinishes(): PendingFinish[] {
+  if (!storageFailed) {
+    const stored = readStored()
+    if (stored) {
+      memory = stored
+    }
+  }
+  return copyOf(memory)
+}
+
+function showQueue(items: PendingFinish[]): void {
+  pendingIds.value = items.map((item) => item.gameId)
+}
+
 function writePendingFinishes(items: PendingFinish[]): void {
+  memory = copyOf(items)
   try {
     if (items.length === 0) {
       localStorage.removeItem(PENDING_FINISHES_KEY)
     } else {
       localStorage.setItem(PENDING_FINISHES_KEY, JSON.stringify(items))
     }
+    storageFailed = false
   } catch {
-    // Stockage indisponible : la file ne survivra pas au rechargement.
+    // Stockage plein ou indisponible : la copie en mémoire garde la file (envoyée, mais elle
+    // ne survivra pas à un rechargement).
+    storageFailed = true
   }
-  pendingCount.value = items.length
+  showQueue(memory)
 }
 
 function removePendingFinish(gameId: number): void {
@@ -120,15 +162,35 @@ function scheduleRetry(): void {
   }, RETRY_DELAYS_MS[index])
 }
 
+type Attempt = 'sent' | 'refused' | 'reauth' | 'auth' | 'retry'
+
+async function attempt(report: PendingFinish, token: string): Promise<Attempt> {
+  try {
+    await finishRoomGame(token, report.gameId, report.scores)
+    return 'sent'
+  } catch (error) {
+    const status = error instanceof RoomApiError ? error.status : null
+    if (status !== null && FINAL_REFUSALS.has(status)) {
+      console.warn(`Résultats de la partie ${report.gameId} refusés par le backoffice (${status})`)
+      return 'refused'
+    }
+    if (status !== null && AUTH_REFUSALS.has(status)) {
+      // La salle s'est reconnectée pendant l'envoi : le nouveau jeton n'a pas encore servi.
+      return getRoomToken() === token ? 'auth' : 'reauth'
+    }
+    // Réseau coupé, délai dépassé, 5xx, 429 : on réessaiera.
+    return 'retry'
+  }
+}
+
 /** Envoie les rapports dans l'ordre, un à la fois ; s'arrête au premier qui doit être renvoyé. */
 async function sendAll(): Promise<void> {
-  let sentSome = false
   for (;;) {
     const [next] = readPendingFinishes()
     if (!next) {
       clearRetryTimer()
       failedAttempts = 0
-      syncStatus.value = sentSome ? 'sent' : 'idle'
+      syncStatus.value = 'idle'
       return
     }
 
@@ -138,22 +200,20 @@ async function sendAll(): Promise<void> {
       return
     }
 
-    try {
-      await finishRoomGame(token, next.gameId, next.scores)
-      sentSome = true
-    } catch (error) {
-      const status = error instanceof RoomApiError ? error.status : null
-      if (status !== null && FINAL_REFUSALS.has(status)) {
-        console.warn(`Résultats de la partie ${next.gameId} refusés par le backoffice (${status})`)
-      } else if (status !== null && AUTH_REFUSALS.has(status)) {
-        syncStatus.value = 'auth'
-        return
-      } else {
-        syncStatus.value = 'offline'
-        scheduleRetry()
-        return
-      }
+    const result = await attempt(next, token)
+    if (result === 'reauth') {
+      continue
     }
+    if (result === 'auth') {
+      syncStatus.value = 'auth'
+      return
+    }
+    if (result === 'retry') {
+      syncStatus.value = 'offline'
+      scheduleRetry()
+      return
+    }
+    outcomes.value = { ...outcomes.value, [next.gameId]: result }
     removePendingFinish(next.gameId)
   }
 }
@@ -172,9 +232,27 @@ function onOnline(): void {
   void flushPendingFinishes()
 }
 
+/** Autre onglet : la file stockée a changé, on s'y aligne (sans perdre ce qui n'a pu être écrit). */
+function onStorage(event: StorageEvent): void {
+  if (event.key !== null && event.key !== PENDING_FINISHES_KEY) {
+    return
+  }
+  const stored = readStored()
+  if (stored) {
+    memory = storageFailed
+      ? [
+          ...stored,
+          ...memory.filter((item) => !stored.some((known) => known.gameId === item.gameId)),
+        ]
+      : stored
+  }
+  showQueue(memory)
+}
+
 function listenToConnection(): void {
   if (!listening && typeof window !== 'undefined') {
     window.addEventListener('online', onOnline)
+    window.addEventListener('storage', onStorage)
     listening = true
   }
 }
@@ -185,8 +263,9 @@ function listenToConnection(): void {
  */
 export function flushPendingFinishes(): Promise<void> {
   listenToConnection()
-  pendingCount.value = readPendingFinishes().length
-  if (pendingCount.value === 0) {
+  const items = readPendingFinishes()
+  showQueue(items)
+  if (items.length === 0) {
     return draining ?? Promise.resolve()
   }
   failedAttempts = 0
@@ -200,15 +279,37 @@ export function flushPendingFinishes(): Promise<void> {
 export function enqueuePendingFinish(report: PendingFinish): Promise<void> {
   const items = readPendingFinishes()
   if (!items.some((item) => item.gameId === report.gameId)) {
+    const { [report.gameId]: _previous, ...others } = outcomes.value
+    outcomes.value = others
     writePendingFinishes([...items, report])
   }
   return flushPendingFinishes()
 }
 
-/** État réactif de la file, pour l'affichage (podium, lobby du staff). */
+/** Partie en file dont la graine est celle de la partie jouée (`undefined` : aucune). */
+export function findPendingFinishBySeed(seed: number): PendingFinish | undefined {
+  return readPendingFinishes().find((item) => item.seed === seed)
+}
+
+/** État d'envoi d'une partie précise : celui du podium affiché, pas celui de la file entière. */
+export function getFinishStatus(gameId: number | null): FinishSyncStatus {
+  if (gameId === null) {
+    return 'idle'
+  }
+  const outcome = outcomes.value[gameId]
+  if (outcome) {
+    return outcome
+  }
+  if (!pendingIds.value.includes(gameId)) {
+    return 'idle'
+  }
+  return syncStatus.value === 'idle' ? 'sending' : syncStatus.value
+}
+
+/** Nombre de résultats en attente, réactif (bandeau du lobby du staff). */
 export function usePendingFinishes() {
-  pendingCount.value = readPendingFinishes().length
-  return { count: readonly(pendingCount), status: readonly(syncStatus) }
+  showQueue(readPendingFinishes())
+  return { count: computed(() => pendingIds.value.length) }
 }
 
 /** Arrête minuteur et écoute, et remet l'état à zéro (tests ; la file stockée n'est pas touchée). */
@@ -216,10 +317,14 @@ export function resetPendingFinishes(): void {
   clearRetryTimer()
   if (listening) {
     window.removeEventListener('online', onOnline)
+    window.removeEventListener('storage', onStorage)
     listening = false
   }
   failedAttempts = 0
   draining = null
+  memory = []
+  storageFailed = false
   syncStatus.value = 'idle'
-  pendingCount.value = 0
+  pendingIds.value = []
+  outcomes.value = {}
 }

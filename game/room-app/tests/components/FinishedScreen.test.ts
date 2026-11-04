@@ -4,7 +4,10 @@ import { nextTick } from 'vue'
 import { createAppI18n, setCurrentLocale } from '@/plugins/i18n'
 import FinishedScreen from '@/views/game/FinishedScreen.vue'
 
-async function mountScreen(sync?: 'sending' | 'sent' | 'offline' | 'auth' | null, locale = 'fr') {
+async function mountScreen(
+  sync?: 'sending' | 'sent' | 'refused' | 'offline' | 'auth' | null,
+  locale = 'fr'
+) {
   setCurrentLocale(locale as 'fr' | 'en')
   await nextTick() // la langue de vue-i18n suit la ref au tick suivant
   return mount(FinishedScreen, {
@@ -24,6 +27,7 @@ describe('podium : état de l’envoi des résultats', () => {
   it.each([
     ['sending', 'Envoi des résultats…'],
     ['sent', 'Résultats enregistrés'],
+    ['refused', 'Résultats refusés par le backoffice.'],
     ['offline', 'Hors ligne : résultats en attente, nouvel essai automatique'],
     ['auth', 'Salle déconnectée : résultats en attente, ils seront envoyés à la reconnexion'],
   ] as const)('affiche discrètement l’état « %s »', async (sync, text) => {
@@ -32,6 +36,13 @@ describe('podium : état de l’envoi des résultats', () => {
     expect(note.text()).toBe(text)
     expect(note.attributes('role')).toBe('status')
     expect(note.classes()).toContain(`finished__sync--${sync}`)
+  })
+
+  it('signale un refus du backoffice en rouge, sans dire « enregistré »', async () => {
+    const note = (await mountScreen('refused')).find('[data-test="finish-sync"]')
+
+    expect(note.text()).not.toContain('enregistrés')
+    expect(note.classes()).toContain('finished__sync--refused')
   })
 
   it('est traduit en anglais', async () => {

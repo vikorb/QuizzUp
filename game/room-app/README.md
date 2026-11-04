@@ -51,7 +51,10 @@ src/
   à `POST /room/games/:id/finish`, un à la fois. Réseau coupé, 5xx ou 429 : nouvel essai après 2 s,
   5 s, 15 s, 30 s puis toutes les 60 s (aussitôt sur l'événement `online`, au démarrage et à la
   connexion de la salle) ; 404, 409 et 400 abandonnent le rapport ; 401/403 le gardent jusqu'à la
-  reconnexion. La file survit au rechargement et au lancement d'une nouvelle partie.
+  reconnexion. La file survit au rechargement et au lancement d'une nouvelle partie ; une copie en mémoire
+  prend le relais si `localStorage` refuse l'écriture, et l'événement `storage` aligne les onglets.
+  Chaque envoi est abandonné après 10 s (réessayé comme une coupure). Le podium affiche l'état de
+  sa propre partie (envoi, enregistré, refusé, hors ligne).
 - **Matériel** (`hardware/roomHardware.ts`) : **une seule** entrée buzzers
   (`createKeyboardBuzzerInput` de `game/hardware`) et **un seul** contrôleur de lumières pour
   toute la page. Le contrôleur démarre au clic « Lancer la salle », reçoit tous les événements du

@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   enqueuePendingFinish,
+  findPendingFinishBySeed,
   flushPendingFinishes,
+  getFinishStatus,
   PENDING_FINISHES_KEY,
   type PendingFinish,
   readPendingFinishes,
@@ -33,6 +35,12 @@ function stored(): unknown {
 async function timersLeft(): Promise<number> {
   await vi.advanceTimersByTimeAsync(1)
   return vi.getTimerCount()
+}
+
+/** Met en file sans attendre la fin de l'envoi (la requête est suspendue). */
+async function enqueuePendingFinishWithoutAwait(item: PendingFinish): Promise<void> {
+  void enqueuePendingFinish(item)
+  await vi.advanceTimersByTimeAsync(0)
 }
 
 /** Appel de `finishRoomGame` en attente, résolu ou rejeté à la main. */
@@ -105,12 +113,125 @@ describe('file des résultats de partie à envoyer', () => {
       expect(usePendingFinishes().count.value).toBe(0)
     })
 
-    it('survit au stockage indisponible sans planter', async () => {
+    it('envoie quand même les résultats quand le stockage refuse l’écriture (quota plein)', async () => {
       vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-        throw new Error('quota')
+        throw new DOMException('quota', 'QuotaExceededError')
       })
-      await expect(enqueuePendingFinish(report(1))).resolves.toBeUndefined()
-      expect(finish).not.toHaveBeenCalled()
+      const { count } = usePendingFinishes()
+
+      await enqueuePendingFinish(report(1, 500))
+
+      expect(localStorage.getItem(PENDING_FINISHES_KEY)).toBeNull()
+      expect(finish).toHaveBeenCalledWith('tok', 1, [{ podium: 1, score: 500 }])
+      expect(count.value).toBe(0)
+      expect(getFinishStatus(1)).toBe('sent')
+    })
+
+    it('garde la file en mémoire tant que le stockage refuse, et réessaie sans la perdre', async () => {
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new DOMException('quota', 'QuotaExceededError')
+      })
+      finish.mockRejectedValue(new Error('offline'))
+      const { count } = usePendingFinishes()
+
+      await enqueuePendingFinish(report(1, 500))
+      await enqueuePendingFinish(report(2, 600))
+
+      expect(localStorage.getItem(PENDING_FINISHES_KEY)).toBeNull()
+      expect(readPendingFinishes().map((item) => item.gameId)).toEqual([1, 2])
+      expect(count.value).toBe(2)
+      expect(getFinishStatus(1)).toBe('offline')
+
+      finish.mockReset()
+      finish.mockResolvedValue({ id: 1 } as never)
+      await vi.advanceTimersByTimeAsync(RETRY_DELAYS_MS[0])
+
+      expect(finish.mock.calls.map((call) => call[1])).toEqual([1, 2])
+      expect(readPendingFinishes()).toEqual([])
+      expect(count.value).toBe(0)
+    })
+
+    it('repasse sur le stockage dès qu’il accepte de nouveau les écritures', async () => {
+      const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementationOnce(() => {
+        throw new DOMException('quota', 'QuotaExceededError')
+      })
+      finish.mockRejectedValue(new Error('offline'))
+
+      await enqueuePendingFinish(report(1))
+      expect(localStorage.getItem(PENDING_FINISHES_KEY)).toBeNull()
+
+      await enqueuePendingFinish(report(2))
+
+      expect(setItem).toHaveBeenCalledTimes(2)
+      expect(readPendingFinishes().map((item) => item.gameId)).toEqual([1, 2])
+      expect(JSON.parse(localStorage.getItem(PENDING_FINISHES_KEY) ?? '[]')).toHaveLength(2)
+    })
+
+    it('se rabat sur la copie en mémoire si le stockage devient illisible', async () => {
+      finish.mockRejectedValue(new Error('offline'))
+      await enqueuePendingFinish(report(1))
+      vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+        throw new Error('SecurityError')
+      })
+
+      expect(readPendingFinishes().map((item) => item.gameId)).toEqual([1])
+    })
+
+    it('suit les changements faits par un autre onglet (événement « storage »)', async () => {
+      finish.mockRejectedValue(new Error('offline'))
+      const { count } = usePendingFinishes()
+      await enqueuePendingFinish(report(1))
+      expect(count.value).toBe(1)
+
+      // L'autre onglet ajoute une partie.
+      localStorage.setItem(PENDING_FINISHES_KEY, JSON.stringify([report(1), report(2), report(3)]))
+      window.dispatchEvent(new StorageEvent('storage', { key: PENDING_FINISHES_KEY }))
+      expect(count.value).toBe(3)
+
+      // Puis il en a envoyé deux.
+      localStorage.setItem(PENDING_FINISHES_KEY, JSON.stringify([report(3)]))
+      window.dispatchEvent(new StorageEvent('storage', { key: PENDING_FINISHES_KEY }))
+      expect(count.value).toBe(1)
+      expect(readPendingFinishes().map((item) => item.gameId)).toEqual([3])
+
+      // Il a vidé le stockage (clear() : clé nulle).
+      localStorage.clear()
+      window.dispatchEvent(new StorageEvent('storage', { key: null }))
+      expect(count.value).toBe(0)
+    })
+
+    it('ignore les événements « storage » d’autres clés', async () => {
+      finish.mockRejectedValue(new Error('offline'))
+      const { count } = usePendingFinishes()
+      await enqueuePendingFinish(report(1))
+      localStorage.removeItem(PENDING_FINISHES_KEY)
+
+      window.dispatchEvent(new StorageEvent('storage', { key: 'autre_cle' }))
+
+      expect(count.value).toBe(1)
+    })
+
+    it('garde en mémoire ce que le stockage n’a pu écrire quand un autre onglet écrit', async () => {
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementationOnce(() => {
+        throw new DOMException('quota', 'QuotaExceededError')
+      })
+      finish.mockRejectedValue(new Error('offline'))
+      const { count } = usePendingFinishes()
+      await enqueuePendingFinish(report(1))
+
+      localStorage.setItem(PENDING_FINISHES_KEY, JSON.stringify([report(2)]))
+      window.dispatchEvent(new StorageEvent('storage', { key: PENDING_FINISHES_KEY }))
+
+      expect(count.value).toBe(2)
+      expect(readPendingFinishes().map((item) => item.gameId)).toEqual([2, 1])
+    })
+
+    it('retrouve la partie en file par sa graine (page rechargée au podium)', async () => {
+      finish.mockRejectedValue(new Error('offline'))
+      await enqueuePendingFinish(report(4))
+
+      expect(findPendingFinishBySeed(40)?.gameId).toBe(4)
+      expect(findPendingFinishBySeed(41)).toBeUndefined()
     })
   })
 
@@ -118,13 +239,13 @@ describe('file des résultats de partie à envoyer', () => {
     it('enregistre le rapport puis l’envoie tout de suite, et le retire en cas de succès', async () => {
       const call = deferred()
       finish.mockReturnValueOnce(call.promise)
-      const { status, count } = usePendingFinishes()
+      const { count } = usePendingFinishes()
 
       const sending = enqueuePendingFinish(report(7, 900))
 
       expect(stored()).toEqual([report(7, 900)])
       expect(count.value).toBe(1)
-      expect(status.value).toBe('sending')
+      expect(getFinishStatus(7)).toBe('sending')
       expect(finish).toHaveBeenCalledWith('tok', 7, [{ podium: 1, score: 900 }])
 
       call.resolve()
@@ -133,7 +254,7 @@ describe('file des résultats de partie à envoyer', () => {
       expect(stored()).toEqual([])
       expect(localStorage.getItem(PENDING_FINISHES_KEY)).toBeNull()
       expect(count.value).toBe(0)
-      expect(status.value).toBe('sent')
+      expect(getFinishStatus(7)).toBe('sent')
       expect(await timersLeft()).toBe(0)
     })
 
@@ -147,12 +268,10 @@ describe('file des résultats de partie à envoyer', () => {
     })
 
     it('ne fait rien quand la file est vide', async () => {
-      const { status } = usePendingFinishes()
-
       await flushPendingFinishes()
 
       expect(finish).not.toHaveBeenCalled()
-      expect(status.value).toBe('idle')
+      expect(getFinishStatus(1)).toBe('idle')
       expect(await timersLeft()).toBe(0)
     })
 
@@ -247,14 +366,13 @@ describe('file des résultats de partie à envoyer', () => {
       expect(await timersLeft()).toBe(0)
     })
 
-    it('n’affiche rien de « enregistré » quand rien n’a été accepté', async () => {
+    it('ne dit jamais « enregistré » pour une partie refusée', async () => {
       vi.spyOn(console, 'warn').mockImplementation(() => undefined)
       finish.mockRejectedValueOnce(new RoomApiError(409, 'game_already_over'))
-      const { status } = usePendingFinishes()
 
       await enqueuePendingFinish(report(1))
 
-      expect(status.value).toBe('idle')
+      expect(getFinishStatus(1)).toBe('refused')
     })
   })
 
@@ -266,19 +384,18 @@ describe('file des résultats de partie à envoyer', () => {
       ['une limitation 429', new RoomApiError(429, 'rate_limited')],
     ])('garde la partie sur %s et la renvoie', async (_label, failure) => {
       finish.mockRejectedValueOnce(failure)
-      const { status } = usePendingFinishes()
 
       await enqueuePendingFinish(report(1))
 
       expect(readPendingFinishes()).toHaveLength(1)
-      expect(status.value).toBe('offline')
+      expect(getFinishStatus(1)).toBe('offline')
       expect(await timersLeft()).toBe(1)
 
       await vi.advanceTimersByTimeAsync(RETRY_DELAYS_MS[0])
 
       expect(finish).toHaveBeenCalledTimes(2)
       expect(readPendingFinishes()).toEqual([])
-      expect(status.value).toBe('sent')
+      expect(getFinishStatus(1)).toBe('sent')
       expect(await timersLeft()).toBe(0)
     })
 
@@ -322,15 +439,14 @@ describe('file des résultats de partie à envoyer', () => {
 
     it('reste « hors ligne » entre deux essais automatiques, sans clignoter', async () => {
       finish.mockRejectedValue(new Error('offline'))
-      const { status } = usePendingFinishes()
       await enqueuePendingFinish(report(1))
 
       const seen = new Set<string>()
       for (const delay of [2000, 5000]) {
         const waiting = vi.advanceTimersByTimeAsync(delay)
-        seen.add(status.value)
+        seen.add(getFinishStatus(1))
         await waiting
-        seen.add(status.value)
+        seen.add(getFinishStatus(1))
       }
 
       expect([...seen]).toEqual(['offline'])
@@ -400,12 +516,11 @@ describe('file des résultats de partie à envoyer', () => {
       async (code) => {
         localStorage.setItem(PENDING_FINISHES_KEY, JSON.stringify([report(1), report(2)]))
         finish.mockRejectedValueOnce(new RoomApiError(code, 'unauthorized'))
-        const { status } = usePendingFinishes()
 
         await flushPendingFinishes()
 
         expect(finish).toHaveBeenCalledTimes(1)
-        expect(status.value).toBe('auth')
+        expect(getFinishStatus(1)).toBe('auth')
         expect(await timersLeft()).toBe(0)
         await vi.advanceTimersByTimeAsync(10 * 60_000)
         expect(finish).toHaveBeenCalledTimes(1)
@@ -420,33 +535,142 @@ describe('file des résultats de partie à envoyer', () => {
           ['nouveau', 2],
         ])
         expect(readPendingFinishes()).toEqual([])
-        expect(status.value).toBe('sent')
+        expect(getFinishStatus(1)).toBe('sent')
       }
     )
 
     it('n’appelle pas le backoffice sans jeton', async () => {
       setRoomToken(null)
-      const { status } = usePendingFinishes()
 
       await enqueuePendingFinish(report(1))
 
       expect(finish).not.toHaveBeenCalled()
-      expect(status.value).toBe('auth')
+      expect(getFinishStatus(1)).toBe('auth')
       expect(await timersLeft()).toBe(0)
       expect(readPendingFinishes()).toHaveLength(1)
     })
 
     it('une panne réseau après un refus d’authentification relance les essais', async () => {
       finish.mockRejectedValueOnce(new RoomApiError(401, 'unauthorized'))
-      const { status } = usePendingFinishes()
       await enqueuePendingFinish(report(1))
-      expect(status.value).toBe('auth')
+      expect(getFinishStatus(1)).toBe('auth')
 
       finish.mockRejectedValueOnce(new Error('offline'))
       await flushPendingFinishes()
 
-      expect(status.value).toBe('offline')
+      expect(getFinishStatus(1)).toBe('offline')
       expect(await timersLeft()).toBe(1)
+    })
+  })
+
+  describe('reconnexion pendant un envoi', () => {
+    it('reprend la boucle avec le nouveau jeton au lieu de rester en attente de connexion', async () => {
+      localStorage.setItem(PENDING_FINISHES_KEY, JSON.stringify([report(1), report(2)]))
+      const first = deferred()
+      finish.mockReturnValueOnce(first.promise)
+
+      const sending = flushPendingFinishes()
+      expect(finish).toHaveBeenCalledWith('tok', 1, expect.any(Array))
+
+      // La salle se reconnecte pendant que la requête part avec l'ancien jeton, qui est refusé.
+      setRoomToken('frais')
+      first.reject(new RoomApiError(401, 'unauthorized'))
+      await sending
+
+      expect(finish.mock.calls.map((call) => call.slice(0, 2))).toEqual([
+        ['tok', 1],
+        ['frais', 1],
+        ['frais', 2],
+      ])
+      expect(readPendingFinishes()).toEqual([])
+      expect(getFinishStatus(1)).toBe('sent')
+      expect(getFinishStatus(2)).toBe('sent')
+    })
+
+    it('reste en attente de connexion si le nouveau jeton est refusé à son tour', async () => {
+      const first = deferred()
+      finish
+        .mockReturnValueOnce(first.promise)
+        .mockRejectedValueOnce(new RoomApiError(403, 'forbidden'))
+      await enqueuePendingFinishWithoutAwait(report(1))
+
+      setRoomToken('frais')
+      first.reject(new RoomApiError(401, 'unauthorized'))
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(finish).toHaveBeenCalledTimes(2)
+      expect(getFinishStatus(1)).toBe('auth')
+      expect(await timersLeft()).toBe(0)
+      expect(readPendingFinishes()).toHaveLength(1)
+    })
+
+    it('attend la connexion si le jeton a été retiré pendant l’envoi', async () => {
+      const first = deferred()
+      finish.mockReturnValueOnce(first.promise)
+      await enqueuePendingFinishWithoutAwait(report(1))
+
+      setRoomToken(null)
+      first.reject(new RoomApiError(401, 'unauthorized'))
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(finish).toHaveBeenCalledTimes(1)
+      expect(getFinishStatus(1)).toBe('auth')
+    })
+  })
+
+  describe('état affiché pour une partie précise', () => {
+    it('est « idle » pour une partie inconnue ou absente', () => {
+      expect(getFinishStatus(null)).toBe('idle')
+      expect(getFinishStatus(99)).toBe('idle')
+    })
+
+    it('distingue la partie refusée de la suivante enregistrée', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+      localStorage.setItem(PENDING_FINISHES_KEY, JSON.stringify([report(1), report(2)]))
+      finish.mockRejectedValueOnce(new RoomApiError(409, 'game_already_over'))
+
+      await flushPendingFinishes()
+
+      expect(getFinishStatus(1)).toBe('refused')
+      expect(getFinishStatus(2)).toBe('sent')
+    })
+
+    it('ne dit pas « enregistré » pour une partie encore en file derrière une partie envoyée', async () => {
+      localStorage.setItem(PENDING_FINISHES_KEY, JSON.stringify([report(1), report(2)]))
+      finish.mockResolvedValueOnce({ id: 1 } as never).mockRejectedValueOnce(new Error('offline'))
+
+      await flushPendingFinishes()
+
+      expect(getFinishStatus(1)).toBe('sent')
+      expect(getFinishStatus(2)).toBe('offline')
+    })
+
+    it('repart de zéro quand une partie est remise en file', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+      finish.mockRejectedValueOnce(new RoomApiError(404, 'game_not_found'))
+      await enqueuePendingFinish(report(1))
+      expect(getFinishStatus(1)).toBe('refused')
+
+      finish.mockRejectedValue(new Error('offline'))
+      await enqueuePendingFinish(report(1))
+
+      expect(getFinishStatus(1)).toBe('offline')
+    })
+  })
+
+  describe('délai dépassé', () => {
+    it('traite l’abandon de la requête comme une coupure : gardé puis renvoyé', async () => {
+      finish.mockRejectedValueOnce(new DOMException('signal timed out', 'TimeoutError'))
+
+      await enqueuePendingFinish(report(1))
+
+      expect(getFinishStatus(1)).toBe('offline')
+      expect(readPendingFinishes()).toHaveLength(1)
+
+      await vi.advanceTimersByTimeAsync(RETRY_DELAYS_MS[0])
+
+      expect(finish).toHaveBeenCalledTimes(2)
+      expect(readPendingFinishes()).toEqual([])
     })
   })
 })

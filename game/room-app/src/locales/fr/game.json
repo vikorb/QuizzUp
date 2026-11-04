@@ -145,6 +145,7 @@
       "sync": {
         "sending": "Envoi des résultats…",
         "sent": "Résultats enregistrés",
+        "refused": "Résultats refusés par le backoffice.",
         "offline": "Hors ligne : résultats en attente, nouvel essai automatique",
         "auth": "Salle déconnectée : résultats en attente, ils seront envoyés à la reconnexion"
       }

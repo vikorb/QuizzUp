@@ -145,6 +145,7 @@
       "sync": {
         "sending": "Sending results…",
         "sent": "Results saved",
+        "refused": "Results rejected by the backoffice.",
         "offline": "Offline: results pending, retrying automatically",
         "auth": "Room signed out: results pending, they will be sent after sign-in"
       }
