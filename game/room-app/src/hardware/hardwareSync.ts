@@ -6,6 +6,7 @@ import {
   isDefaultHardwareConfig,
   isHardwareCopyForeign,
   pushHardwareConfig,
+  setHardwareConfigRevision,
   setHardwareRemoteSaver,
 } from '@/hardware/roomHardware'
 import { roomAccount } from '@/state/roomAuth'
@@ -59,12 +60,14 @@ export async function syncHardwareWithRoom(): Promise<void> {
   }
 
   setHardwareRemoteSaver(
-    async (config) => {
+    async (config, revision) => {
       // Un envoi resté en file ne part jamais vers un autre compte.
       if (getRoomToken() !== token) {
         throw new Error('account_changed')
       }
-      await saveRoomConfig(token, config)
+      // Un 409 (autre poste passé avant nous) est traité par `pushHardwareConfig`.
+      const saved = await saveRoomConfig(token, config, revision)
+      return saved.configRevision ?? null
     },
     { accountId, tokenTag }
   )
@@ -95,8 +98,10 @@ export async function syncHardwareWithRoom(): Promise<void> {
     (getHardwareSyncMeta().pending || isDefaultHardwareConfig(room.config))
 
   if (keepLocal) {
+    // La copie locale part sur la révision qu'on vient de lire.
+    setHardwareConfigRevision(room.configRevision)
     await pushHardwareConfig()
     return
   }
-  await applyRemoteHardwareConfig(room.config)
+  await applyRemoteHardwareConfig(room.config, room.configRevision ?? null)
 }

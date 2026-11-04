@@ -19,6 +19,15 @@ function mockSave() {
 
 const ACCOUNT = { id: 10, companyId: 1, role: 'room' }
 
+/** Réponse 409 du backoffice : un autre poste a enregistré, voici la config courante. */
+function conflict(config: Record<string, unknown>, configRevision: number) {
+  return new roomApi.RoomApiError(409, 'room_config_conflict', {
+    error: 'room_config_conflict',
+    config,
+    configRevision,
+  })
+}
+
 /** Rechargement de la page : la config repart de la copie locale, le compte est relu. */
 async function reload(options: { offline?: boolean } = {}): Promise<void> {
   await resetRoomHardware()
@@ -56,7 +65,11 @@ describe('config matérielle sur le compte de la salle', () => {
     expect(save).not.toHaveBeenCalled()
 
     await saveBuzzerKeymap({})
-    expect(save).toHaveBeenCalledWith('tok', expect.objectContaining({ buzzers: { keymap: {} } }))
+    expect(save).toHaveBeenCalledWith(
+      'tok',
+      expect.objectContaining({ buzzers: { keymap: {} } }),
+      null
+    )
     expect(syncStatus.value).toBe('saved')
 
     save.mockRejectedValueOnce(new Error('offline'))
@@ -77,7 +90,8 @@ describe('config matérielle sur le compte de la salle', () => {
     await syncHardwareWithRoom()
     expect(save).toHaveBeenCalledWith(
       'tok',
-      expect.objectContaining({ buzzers: { keymap: SERVER_KEYMAP } })
+      expect.objectContaining({ buzzers: { keymap: SERVER_KEYMAP } }),
+      null
     )
 
     vi.spyOn(roomApi, 'fetchRoomInfo').mockRejectedValueOnce(new Error('offline'))
@@ -104,7 +118,8 @@ describe('config matérielle sur le compte de la salle', () => {
     expect(hardware.value.config.buzzers.keymap).toEqual(LOCAL_KEYMAP)
     expect(save).toHaveBeenLastCalledWith(
       'tok',
-      expect.objectContaining({ buzzers: { keymap: LOCAL_KEYMAP } })
+      expect.objectContaining({ buzzers: { keymap: LOCAL_KEYMAP } }),
+      null
     )
     expect(syncStatus.value).toBe('saved')
     expect(getHardwareSyncMeta().pending).toBe(false)
@@ -200,7 +215,8 @@ describe('config matérielle sur le compte de la salle', () => {
     expect(useRoomHardware().hardware.value.config.buzzers.keymap).toEqual(LOCAL_KEYMAP)
     expect(save).toHaveBeenLastCalledWith(
       'tok',
-      expect.objectContaining({ buzzers: { keymap: LOCAL_KEYMAP } })
+      expect.objectContaining({ buzzers: { keymap: LOCAL_KEYMAP } }),
+      null
     )
   })
 
@@ -272,6 +288,132 @@ describe('config matérielle sur le compte de la salle', () => {
 
     expect(order).toEqual(['start KeyP', 'end KeyP', 'start KeyL', 'end KeyL'])
     expect(useRoomHardware().syncStatus.value).toBe('saved')
+  })
+
+  describe('révision de la config (deux postes sur le même compte)', () => {
+    const REMOTE = { buzzers: { keymap: SERVER_KEYMAP }, desksCount: 5 }
+
+    it('envoie la révision lue puis celle rendue par chaque enregistrement', async () => {
+      vi.spyOn(roomApi, 'fetchRoomInfo').mockResolvedValue({
+        ...ROOM,
+        config: {},
+        configRevision: 3,
+      })
+      const save = vi
+        .spyOn(roomApi, 'saveRoomConfig')
+        .mockResolvedValueOnce({ ...ROOM, config: {}, configRevision: 4 })
+        .mockResolvedValueOnce({ ...ROOM, config: {}, configRevision: 5 })
+      await syncHardwareWithRoom()
+
+      await saveBuzzerKeymap(SERVER_KEYMAP)
+      await saveBuzzerKeymap(LOCAL_KEYMAP)
+
+      expect(save.mock.calls.map((call) => call[2])).toEqual([3, 4])
+      expect(getHardwareSyncMeta().revision).toBe(5)
+    })
+
+    it('garde la révision au rechargement, même hors ligne', async () => {
+      vi.spyOn(roomApi, 'fetchRoomInfo').mockResolvedValue({
+        ...ROOM,
+        config: {},
+        configRevision: 8,
+      })
+      const save = mockSave()
+      await syncHardwareWithRoom()
+
+      await reload()
+      vi.spyOn(roomApi, 'fetchRoomInfo').mockRejectedValue(new Error('offline'))
+      await syncHardwareWithRoom()
+      await saveBuzzerKeymap(LOCAL_KEYMAP)
+
+      expect(save).toHaveBeenLastCalledWith('tok', expect.anything(), 8)
+    })
+
+    it('sur un 409, applique la config du compte, retient sa révision et prévient', async () => {
+      vi.spyOn(roomApi, 'fetchRoomInfo').mockResolvedValue({
+        ...ROOM,
+        config: {},
+        configRevision: 3,
+      })
+      const save = vi.spyOn(roomApi, 'saveRoomConfig').mockRejectedValue(conflict(REMOTE, 7))
+      await syncHardwareWithRoom()
+
+      await saveBuzzerKeymap(LOCAL_KEYMAP)
+
+      const { hardware, syncStatus } = useRoomHardware()
+      expect(syncStatus.value).toBe('conflict')
+      expect(hardware.value.config.buzzers.keymap).toEqual(SERVER_KEYMAP)
+      expect(hardware.value.config.desksCount).toBe(5)
+      // Copie locale = config relue du compte, révision à jour, rien en attente.
+      expect(localStorage.getItem('quizzup_room_hardware')).toContain('KeyP')
+      expect(localStorage.getItem('quizzup_room_hardware')).not.toContain('KeyL')
+      expect(getHardwareSyncMeta()).toMatchObject({ revision: 7, pending: false, accountId: 10 })
+      expect(save).toHaveBeenCalledTimes(1)
+    })
+
+    it('ne renvoie rien après un 409, même les envois déjà en file', async () => {
+      vi.spyOn(roomApi, 'fetchRoomInfo').mockResolvedValue({
+        ...ROOM,
+        config: {},
+        configRevision: 3,
+      })
+      let rejectFirst: ((error: Error) => void) | undefined
+      const save = vi.spyOn(roomApi, 'saveRoomConfig').mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectFirst = reject
+          })
+      )
+      await syncHardwareWithRoom()
+
+      const first = saveBuzzerKeymap(SERVER_KEYMAP)
+      const second = saveRoomHardwareConfig({ buzzers: { keymap: LOCAL_KEYMAP } })
+      await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(1))
+      rejectFirst?.(conflict(REMOTE, 7))
+      await Promise.all([first, second])
+
+      expect(save).toHaveBeenCalledTimes(1)
+      expect(useRoomHardware().syncStatus.value).toBe('conflict')
+      expect(useRoomHardware().hardware.value.config.desksCount).toBe(5)
+    })
+
+    it('un enregistrement fait après le conflit repart sur la nouvelle révision', async () => {
+      vi.spyOn(roomApi, 'fetchRoomInfo').mockResolvedValue({
+        ...ROOM,
+        config: {},
+        configRevision: 3,
+      })
+      const save = vi
+        .spyOn(roomApi, 'saveRoomConfig')
+        .mockRejectedValueOnce(conflict(REMOTE, 7))
+        .mockResolvedValueOnce({ ...ROOM, config: {}, configRevision: 8 })
+      await syncHardwareWithRoom()
+      await saveBuzzerKeymap(LOCAL_KEYMAP)
+
+      await saveBuzzerKeymap({})
+
+      expect(save).toHaveBeenCalledTimes(2)
+      expect(save.mock.calls[1]![2]).toBe(7)
+      expect(useRoomHardware().syncStatus.value).toBe('saved')
+    })
+
+    it('traite un autre 409, ou un 409 sans config, comme une erreur ordinaire', async () => {
+      vi.spyOn(roomApi, 'fetchRoomInfo').mockResolvedValue({
+        ...ROOM,
+        config: {},
+        configRevision: 3,
+      })
+      const save = vi
+        .spyOn(roomApi, 'saveRoomConfig')
+        .mockRejectedValue(new roomApi.RoomApiError(409, 'room_config_conflict', {}))
+      await syncHardwareWithRoom()
+
+      await saveBuzzerKeymap(LOCAL_KEYMAP)
+
+      expect(useRoomHardware().syncStatus.value).toBe('error')
+      expect(useRoomHardware().hardware.value.config.buzzers.keymap).toEqual(LOCAL_KEYMAP)
+      expect(save).toHaveBeenCalledTimes(1)
+    })
   })
 
   it('reste sur le PC en mode démo', async () => {
