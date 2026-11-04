@@ -164,12 +164,16 @@ export type AddFixtureResult =
       detail?: string
     }
 
+export type SmokeDisabledReason = 'no_device' | 'checks_incomplete'
+
 export type SetupSummary = {
   config: RoomHardwareConfig
   /** Points qui empêchent une installation correcte (à corriger). */
   problems: string[]
   /** Points à connaître, non bloquants. */
   warnings: string[]
+  /** Pourquoi la fumée sera enregistrée désactivée alors que la case est cochée (null sinon). */
+  smokeDisabled: SmokeDisabledReason | null
 }
 
 export type SetupWizard = {
@@ -689,16 +693,13 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
       }
 
       let smoke = config.lighting.smoke
+      let smokeDisabled: SmokeDisabledReason | null = null
       const testReady = smokeChecks.physicalStop && smokeChecks.timedRelay
       const allowed = smokeReady() || (options.forFreezeTest === true && testReady)
       if (smoke.enabled && (!hasKind('smoke') || !allowed)) {
         // Jamais de fumée active sans les vérifications humaines : on l'enregistre désactivée.
         smoke = { ...smoke, enabled: false }
-        warnings.push(
-          hasKind('smoke')
-            ? 'Fumée enregistrée désactivée : les vérifications de sécurité ne sont pas toutes faites'
-            : 'Fumée enregistrée désactivée : aucune machine à fumée configurée'
-        )
+        smokeDisabled = hasKind('smoke') ? 'checks_incomplete' : 'no_device'
       }
       if (smoke.enabled && smoke.maxDurationMs > TIMED_RELAY_MAX_MS) {
         warnings.push('La durée d’émission dépasse le réglage du relais temporisé (10 s)')
@@ -708,6 +709,7 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
         config: structuredClone({ ...config, lighting: { ...config.lighting, smoke } }),
         problems,
         warnings,
+        smokeDisabled,
       }
     },
   }
