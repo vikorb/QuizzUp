@@ -1,4 +1,5 @@
 import {
+  EMERGENCY_STORAGE_KEY,
   HARDWARE_STORAGE_KEY,
   HARDWARE_SYNC_STORAGE_KEY,
   resetRoomHardware,
@@ -12,5 +13,6 @@ afterEach(async () => {
   resetPendingFinishes()
   localStorage.removeItem(HARDWARE_STORAGE_KEY)
   localStorage.removeItem(HARDWARE_SYNC_STORAGE_KEY)
+  localStorage.removeItem(EMERGENCY_STORAGE_KEY)
   await resetRoomHardware()
 })

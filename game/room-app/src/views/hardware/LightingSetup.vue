@@ -13,6 +13,17 @@
     <div v-if="state?.emergency" class="hw-alert hw-alert--danger" role="alert">
       {{ $t('hardware.lights.emergencyActive') }}
     </div>
+    <div v-if="bridgeDown" class="hw-alert bridge-banner" role="alert" data-test="bridge-banner">
+      <span>
+        {{ $t('hardware.lights.bridgeDown') }}
+        <template v-if="bridgeError"
+          >{{ $t('hardware.lights.bridgeRetry') }} ({{ bridgeError }})</template
+        >
+      </span>
+      <UiButton :disabled="connecting" data-test="bridge-connect" @click="onConnect">
+        {{ $t('hardware.lights.bridgeConnect') }}
+      </UiButton>
+    </div>
     <p v-if="warningText" class="hw-alert" role="status">{{ warningText }}</p>
     <p v-if="connectFailed" class="hw-alert hw-alert--danger" role="alert">
       {{ $t('hardware.lights.connectFailed') }}
@@ -164,7 +175,7 @@ const TEST_SCENES = [
 ] as const
 
 const { t } = useI18n()
-const { hardware, desks, lightingState: state, lighting } = useRoomHardware()
+const { hardware, desks, lightingState: state, lighting, bridgeError } = useRoomHardware()
 const emergency = useEmergencyStop()
 
 const fixtures = shallowRef<FixtureView[]>([])
@@ -183,6 +194,12 @@ let rigTimer: ReturnType<typeof setInterval> | null = null
 
 const driver = computed(() => hardware.value.config.lighting.driver)
 const smoke = computed(() => state.value?.smoke ?? null)
+// Pont Art-Net voulu mais pas connecté (absent, occupé, simulation choisie, ou coupé en route).
+const bridgeDown = computed(
+  () =>
+    driver.value === 'artnet-bridge' &&
+    (state.value?.simulation === true || state.value?.outputStatus === 'error')
+)
 const warningText = computed(() => {
   const warning = state.value?.lastWarning
   if (!warning) {
@@ -256,6 +273,14 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.bridge-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+}
+
 .smoke {
   display: flex;
   flex-wrap: wrap;

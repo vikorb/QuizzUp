@@ -3,10 +3,12 @@ import { createMemorySessionStorage } from '@/game/session'
 import { closeGame, configureRoomGame, startNewGame } from '@/game/useRoomGame'
 import {
   connectDmxInterface,
+  EMERGENCY_STORAGE_KEY,
   getBuzzerInput,
   getLighting,
   HARDWARE_STORAGE_KEY,
   isDefaultHardwareConfig,
+  resetRoomHardware,
   saveBuzzerKeymap,
   saveLearnedBuzzers,
   saveRoomDesksCount,
@@ -261,7 +263,6 @@ describe('matériel de la salle', () => {
 
   it('ignore une config stockée illisible', async () => {
     localStorage.setItem(HARDWARE_STORAGE_KEY, '{oops')
-    const { resetRoomHardware } = await import('@/hardware/roomHardware')
     await resetRoomHardware()
     expect(useRoomHardware().hardware.value.config.lighting.driver).toBe('simulation')
   })
@@ -308,6 +309,58 @@ describe('sécurité des lumières à l’enregistrement', () => {
     expect(next?.getState().emergency).toBe(true)
     next?.resetEmergency()
     expect(next?.getState().smoke.armed).toBe(false)
+  })
+
+  it('garde la fumée coupée et désarmée après un rechargement en arrêt d’urgence', async () => {
+    await saveRoomHardwareConfig(SMOKE_CONFIG)
+    await startLighting()
+    triggerEmergencyStop('operator')
+
+    // Rechargement de la page : le stockage du PC reste, la mémoire repart de zéro.
+    await resetRoomHardware()
+    const controller = await startLighting()
+    expect(controller.getState().emergency).toBe(true)
+    expect(controller.getState().smoke.status).toBe('emergency')
+    expect(controller.smoke.fire(1000)).toMatchObject({ ok: false })
+    expect(controller.getState().smoke.level).toBe(0)
+
+    // Réarmement humain : les lumières reviennent, pas la fumée.
+    controller.resetEmergency()
+    expect(controller.getState().smoke.armed).toBe(false)
+    expect(controller.smoke.fire(1000)).toMatchObject({ ok: false, reason: 'not_armed' })
+  })
+
+  it('retient l’arrêt d’urgence sur ce PC et l’efface au réarmement seulement', async () => {
+    const controller = await startLighting()
+    triggerEmergencyStop('freeze_test_failed')
+    expect(localStorage.getItem(EMERGENCY_STORAGE_KEY)).toBe('freeze_test_failed')
+
+    // Changer la config (redémarrage des lumières) ne l'efface pas.
+    await saveRoomHardwareConfig({ lighting: { refreshHz: 20 } })
+    expect(getLighting()).not.toBe(controller)
+    expect(localStorage.getItem(EMERGENCY_STORAGE_KEY)).toBe('freeze_test_failed')
+
+    getLighting()?.resetEmergency()
+    expect(localStorage.getItem(EMERGENCY_STORAGE_KEY)).toBeNull()
+  })
+
+  it('reste utilisable quand le stockage du PC est indisponible', async () => {
+    const broken = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('stockage bloqué')
+    })
+    const setter = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('stockage bloqué')
+    })
+    try {
+      const controller = await startLighting()
+      triggerEmergencyStop('operator')
+      expect(controller.getState().emergency).toBe(true)
+      controller.resetEmergency()
+      expect(controller.getState().emergency).toBe(false)
+    } finally {
+      broken.mockRestore()
+      setter.mockRestore()
+    }
   })
 
   it('n’ouvre jamais deux contrôleurs en même temps', async () => {
@@ -368,7 +421,6 @@ describe('buzzers sur une carte USB vue comme une manette', () => {
   })
 
   afterEach(async () => {
-    const { resetRoomHardware } = await import('@/hardware/roomHardware')
     await resetRoomHardware()
     vi.useRealTimers()
     Reflect.deleteProperty(navigator, 'getGamepads')
