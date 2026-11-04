@@ -658,6 +658,9 @@ function onFreezeAnswer(ok: boolean): void {
     // La fumée continue : on coupe tout, sans attendre la fin du gel.
     triggerEmergencyStop('freeze_test_failed')
   }
+  // Fin du test : on remet tout de suite la config sûre (fumée active seulement si les quatre
+  // vérifications sont faites), en mémoire comme dans l'enregistrement.
+  void apply()
   run(() => wizard.checkSmoke('freezeTest', ok))
 }
 

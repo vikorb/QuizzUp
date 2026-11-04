@@ -11,6 +11,7 @@ import {
 import { enterDemo, syncRoomAuth } from '@/state/roomAuth'
 import HardwareView from '@/views/hardware/HardwareView.vue'
 
+import { createFakeUsbPort, installFakeSerial, uninstallFakeSerial } from '../_helpers/fakeUsb'
 import { mountWithApp } from '../_helpers/mount'
 
 type Wrapper = Awaited<ReturnType<typeof mountWithApp>>['wrapper']
@@ -118,9 +119,17 @@ describe('onglet Assistant', () => {
     localStorage.clear()
     syncRoomAuth()
     enterDemo()
+    Object.defineProperty(globalThis, 'isSecureContext', { value: true, configurable: true })
   })
 
-  it('installe une salle en simulation avec un PAR et une fumée sécurisée', async () => {
+  afterEach(() => {
+    uninstallFakeSerial()
+    Reflect.deleteProperty(globalThis, 'isSecureContext')
+  })
+
+  it('installe une salle USB DMX avec un PAR et une fumée sécurisée', async () => {
+    const usb = createFakeUsbPort()
+    installFakeSerial(usb)
     await saveBuzzerKeymap(fullKeymap())
     const { wrapper } = await mountWithApp(HardwareView, { route: '/hardware' })
     await openTab(wrapper, 'assistant')
@@ -137,7 +146,9 @@ describe('onglet Assistant', () => {
     expect(sel(wrapper, 'step-interface').exists()).toBe(true)
     await sel(wrapper, 'driver-opendmx').setValue(true)
     expect(wrapper.text()).toContain('Open DMX est expérimental')
-    await sel(wrapper, 'driver-simulation').setValue(true)
+    await sel(wrapper, 'driver-usbpro').setValue(true)
+    await click(wrapper, 'assistant-connect')
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Interface connectée'))
 
     await click(wrapper, 'assistant-next')
     expect(sel(wrapper, 'step-fixtures').exists()).toBe(true)
@@ -178,6 +189,9 @@ describe('onglet Assistant', () => {
     // La trame figée contient bien la fumée : c'est elle que l'interface répète.
     expect(getLighting()?.diagnostics.getState().frozenUntil).not.toBeNull()
     expect(getLighting()?.getFrame()[3]).toBeGreaterThan(0)
+    const sentBeforeFreeze = usb.frames.length
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(usb.frames.length).toBe(sentBeforeFreeze)
     expect(sel(wrapper, 'freeze-running').exists()).toBe(true)
     // La config de test (fumée active avant le test) n'est jamais enregistrée.
     expect(useRoomHardware().hardware.value.config.lighting.smoke.enabled).toBe(true)
@@ -191,7 +205,7 @@ describe('onglet Assistant', () => {
 
     await click(wrapper, 'assistant-next')
     expect(sel(wrapper, 'step-summary').exists()).toBe(true)
-    expect(sel(wrapper, 'summary-warnings').text()).toContain('simulation')
+    expect(wrapper.text()).toContain('Tout est prêt')
     await click(wrapper, 'assistant-save')
     expect(wrapper.text()).toContain('Configuration enregistrée')
 
@@ -205,6 +219,7 @@ describe('onglet Assistant', () => {
   })
 
   it('referme la fumée si on quitte l’assistant après le seul test de gel', async () => {
+    installFakeSerial(createFakeUsbPort())
     await saveBuzzerKeymap(fullKeymap())
     const { wrapper } = await mountWithApp(HardwareView, { route: '/hardware' })
     await openTab(wrapper, 'assistant')
@@ -220,6 +235,21 @@ describe('onglet Assistant', () => {
     // Sans « Utiliser la fumée », pas de test de gel.
     expect(sel(wrapper, 'assistant-freeze').attributes('disabled')).toBeDefined()
     await sel(wrapper, 'smoke-enable').setValue(true)
+
+    // En simulation, aucune fumée ne sortirait : le test est refusé avant toute confirmation.
+    await click(wrapper, 'assistant-freeze')
+    expect(useConfirm().state.open).toBe(false)
+    expect(wrapper.text()).toContain('Connecte d’abord la vraie interface DMX')
+
+    await click(wrapper, 'assistant-back')
+    await click(wrapper, 'assistant-back')
+    await sel(wrapper, 'driver-usbpro').setValue(true)
+    await click(wrapper, 'assistant-connect')
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Interface connectée'))
+    await click(wrapper, 'assistant-next')
+    await click(wrapper, 'assistant-next')
+    expect(sel(wrapper, 'step-smoke').exists()).toBe(true)
+    await vi.waitFor(() => expect(getLighting()?.getState().simulation).toBe(false))
 
     const cancelled = sel(wrapper, 'assistant-freeze').trigger('click')
     await acceptConfirmations(1)
@@ -241,8 +271,12 @@ describe('onglet Assistant', () => {
     expect(getLighting()?.getState().emergency).toBe(true)
     expect(getLighting()?.diagnostics.getState().frozenUntil).toBeNull()
     expect(wrapper.text()).toContain('La fumée ne doit pas être utilisée')
-    expect(useRoomHardware().hardware.value.config.lighting.smoke.enabled).toBe(true)
+    // Fin du test : la config sûre (fumée désactivée) revient aussitôt, en mémoire aussi.
+    await vi.waitFor(() =>
+      expect(useRoomHardware().hardware.value.config.lighting.smoke.enabled).toBe(false)
+    )
     expect(localStorage.getItem(HARDWARE_STORAGE_KEY) ?? '').not.toContain('"enabled":true')
+    expect(getLighting()?.getState().emergency).toBe(true)
 
     await openTab(wrapper, 'buzzers')
     await vi.waitFor(() =>

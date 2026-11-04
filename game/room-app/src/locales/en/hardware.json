@@ -188,7 +188,8 @@
         "disconnected": "The interface was unplugged.",
         "unknown": "Could not open the DMX interface."
       },
-      "freezeBridge": "With the Art-Net bridge, the bridge itself cuts the smoke when the browser goes quiet: this test would not check the timed relay. Run it with the USB interface, or stop the bridge program during a burst."
+      "freezeBridge": "With the Art-Net bridge, the bridge itself cuts the smoke when the browser goes quiet: this test would not check the timed relay. Run it with the USB interface, or stop the bridge program during a burst.",
+      "freezeNoInterface": "Connect the real DMX interface first: in simulation no smoke would come out and the test would prove nothing."
     },
     "assistant": {
       "title": "Setup wizard",

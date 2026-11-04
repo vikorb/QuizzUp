@@ -197,6 +197,27 @@ describe('diagnostic matériel', () => {
     }
   })
 
+  it('terminer le diagnostic ou arrêter la fumée pendant un gel la coupe et la désarme', async () => {
+    for (const action of ['end', 'stop'] as const) {
+      const { controller, clock, frame } = await setup()
+      controller.diagnostics.begin()
+      controller.smoke.arm()
+      controller.smoke.fire(3_000)
+      controller.diagnostics.freezeOutput(10_000, { confirm: true })
+      await advanceAsync(clock, 500)
+      if (action === 'end') {
+        controller.diagnostics.end()
+      } else {
+        controller.smoke.stop()
+      }
+      await advanceAsync(clock, 100)
+      expect(frame()[SMOKE - 1]).toBe(0)
+      expect(controller.getState().smoke).toMatchObject({ armed: false })
+      expect(controller.getState().smoke.status).not.toBe('firing')
+      await controller.stop()
+    }
+  })
+
   it('l’arrêt d’urgence annule le gel et bloque le diagnostic', async () => {
     const { controller, clock, output, frame } = await setup()
     controller.diagnostics.begin()

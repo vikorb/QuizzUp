@@ -222,12 +222,15 @@ describe('sortie série DMX USB Pro', () => {
     await output.close()
   })
 
-  it('jette les octets en attente à la fermeture (abort) avant de fermer le port', async () => {
+  it('rend le verrou sans abandonner le flux : la dernière trame noire part vraiment', async () => {
     const { port, aborted, released } = createFakePort()
     const output = createSerialOutput({ port, driver: 'usbpro', serial: null })
     await output.open()
+    await output.write(new Uint8Array(512))
     await output.close()
-    expect(aborted()).toBe(1)
+    // `abort()` purgerait le tampon d'émission (trame noire perdue) : jamais à la fermeture.
+    expect(aborted()).toBe(0)
+    expect(port.written).toHaveLength(1)
     expect(released()).toBe(1)
     expect(port.isOpen).toBe(false)
   })

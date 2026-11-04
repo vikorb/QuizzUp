@@ -160,18 +160,24 @@ export function createSerialOutput(options: SerialOutputOptions): DmxOutput {
     return current !== null
   }
 
-  /** `port.close()` borné : une interface figée peut ne jamais rendre la main. Ne rejette pas. */
+  /**
+   * `port.close()` borné : une interface figée peut ne jamais rendre la main. Ne rejette pas.
+   * Renvoie `false` si le délai a expiré.
+   */
   const closePort = async () => {
     let timer: ReturnType<typeof setTimeout> | undefined
-    await Promise.race([
-      port.close().catch(() => {
+    const closed = await Promise.race([
+      port.close().then(
+        () => true,
         // Port déjà fermé ou débranché : rien à faire.
-      }),
-      new Promise<void>((resolve) => {
-        timer = setTimeout(resolve, closeTimeoutMs)
+        () => true
+      ),
+      new Promise<boolean>((resolve) => {
+        timer = setTimeout(() => resolve(false), closeTimeoutMs)
       }),
     ])
     clearTimeout(timer)
+    return closed
   }
 
   const onSerialDisconnect = (event: Event) => {
@@ -248,8 +254,20 @@ export function createSerialOutput(options: SerialOutputOptions): DmxOutput {
     },
     async close() {
       serial?.removeEventListener?.('disconnect', onSerialDisconnect)
-      dropWriter()
-      await closePort()
+      // Fermeture normale : on rend le verrou sans abandonner le flux, pour que `port.close()`
+      // vide le tampon d'émission. La dernière trame (noire) part donc vraiment sur le câble ;
+      // `abort()` la purgerait. On n'abandonne qu'en secours, si l'interface ne répond plus.
+      const current = writer
+      writer = null
+      try {
+        current?.releaseLock()
+      } catch {
+        // Verrou déjà rendu.
+      }
+      if (!(await closePort())) {
+        // Le verrou est rendu : on abandonne le flux lui-même pour débloquer la fermeture.
+        port.writable?.abort?.().catch(() => undefined)
+      }
     },
     onDisconnect: disconnectEmitter.on,
   }

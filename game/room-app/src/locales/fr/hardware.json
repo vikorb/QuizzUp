@@ -188,7 +188,8 @@
         "disconnected": "L’interface a été débranchée.",
         "unknown": "Impossible d’ouvrir l’interface DMX."
       },
-      "freezeBridge": "Avec le pont Art-Net, le pont coupe lui-même la fumée quand le navigateur se tait : ce test ne vérifierait pas le relais temporisé. Fais-le avec l’interface USB, ou arrête le programme du pont pendant une émission."
+      "freezeBridge": "Avec le pont Art-Net, le pont coupe lui-même la fumée quand le navigateur se tait : ce test ne vérifierait pas le relais temporisé. Fais-le avec l’interface USB, ou arrête le programme du pont pendant une émission.",
+      "freezeNoInterface": "Connecte d’abord la vraie interface DMX : en simulation, aucune fumée ne sortirait et le test ne prouverait rien."
     },
     "assistant": {
       "title": "Assistant d’installation",

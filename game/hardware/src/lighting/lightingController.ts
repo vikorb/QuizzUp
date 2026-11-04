@@ -28,6 +28,9 @@ export const WRITE_TIMEOUT_MS = 500
 const REFRESH_LIMITS = { min: 10, max: 40, fallback: 30 } as const
 
 /** Durée maximale d'un gel volontaire des trames (test de perte de signal). */
+/** Attente maximale de la fermeture d'une sortie (au-delà du délai propre au Web Serial). */
+const OUTPUT_CLOSE_TIMEOUT_MS = 1_500
+
 /** Trames noires acceptées d'affilée pour sortir de l'état d'erreur (environ 1 s à 30 Hz). */
 export const OUTPUT_RECOVERY_WRITES = 30
 
@@ -432,6 +435,11 @@ export function createLightingController(options: LightingControllerOptions): Li
     }
     diagnosticsActive = false
     allowUnknownChannels = false
+    if (frozenUntil !== null) {
+      // Test de coupure interrompu : la fumée ne reprend pas et doit être réautorisée.
+      smoke.stop('manual')
+      smoke.disarm()
+    }
     frozenUntil = null
     manualChannels = createUniverse()
     manualFixtures.clear()
@@ -566,7 +574,9 @@ export function createLightingController(options: LightingControllerOptions): Li
     }
     try {
       // Une interface figée peut ne jamais rendre la main : on n'attend pas indéfiniment.
-      await within(output.close(), CLOSE_TIMEOUT_MS)
+      // La sortie série borne elle-même sa fermeture à 1 s : on lui laisse ce temps, pour ne
+      // jamais rouvrir le même port pendant qu'il se ferme encore.
+      await within(output.close(), OUTPUT_CLOSE_TIMEOUT_MS)
     } catch {
       // Sortie déjà fermée ou débranchée.
     }
@@ -750,6 +760,10 @@ export function createLightingController(options: LightingControllerOptions): Li
       },
       stop() {
         smoke.stop('manual')
+        if (frozenUntil !== null) {
+          // Arrêt pendant un test de coupure : la fumée doit être réautorisée par un humain.
+          smoke.disarm()
+        }
         frozenUntil = null
         notify()
       },

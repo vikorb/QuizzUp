@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { useConfirm } from '@/composables/useConfirm'
-import { getLighting } from '@/hardware/roomHardware'
+import { getLighting, useRoomHardware } from '@/hardware/roomHardware'
 
 /** Émission courte lancée juste avant le gel : le relais temporisé doit la couper seul. */
 export const FREEZE_SMOKE_MS = 3000
@@ -18,9 +18,28 @@ export function useFreezeTest() {
   const { t } = useI18n()
   const { confirm } = useConfirm()
   const refusal = ref<string | null>(null)
+  const { hardware } = useRoomHardware()
+
+  /** Raison de refuser le test avant même de demander confirmation, `null` sinon. */
+  function precheck(): string | null {
+    // Le pont Art-Net envoie du noir dès que le navigateur se tait : le test validerait le
+    // pont, pas le relais temporisé. On le fait sur l'interface USB, ou en coupant le pont.
+    if (hardware.value.config.lighting.driver === 'artnet-bridge') {
+      return t('hardware.diagnostic.freezeBridge')
+    }
+    // Sans interface réelle ouverte, aucune fumée ne sortirait : le test ne prouverait rien.
+    const state = getLighting()?.getState()
+    if (!state || state.simulation || state.outputStatus !== 'open') {
+      return t('hardware.diagnostic.freezeNoInterface')
+    }
+    return null
+  }
 
   async function run(): Promise<boolean> {
-    refusal.value = null
+    refusal.value = precheck()
+    if (refusal.value) {
+      return false
+    }
     const first = await confirm({
       message: t('hardware.diagnostic.freezeConfirm1'),
       variant: 'danger',
@@ -37,10 +56,9 @@ export function useFreezeTest() {
     if (!second || !controller) {
       return false
     }
-    // Le pont Art-Net envoie du noir dès que le navigateur se tait : le test validerait le
-    // pont, pas le relais temporisé. On le fait sur l'interface USB, ou en coupant le pont.
-    if (controller.getState().driver === 'artnet-bridge') {
-      refusal.value = t('hardware.diagnostic.freezeBridge')
+    // L'interface a pu tomber pendant les confirmations.
+    refusal.value = precheck()
+    if (refusal.value) {
       return false
     }
     if (!controller.diagnostics.getState().active) {
