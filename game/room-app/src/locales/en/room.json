@@ -52,6 +52,24 @@
       "exitFullscreen": "Exit fullscreen",
       "abort": "Stop the game",
       "abortConfirm": "Stop the current game? Current scores will be kept as the result."
+    },
+    "staffLobby": {
+      "title": "Today's game",
+      "loading": "Looking for the game…",
+      "waitingTitle": "Waiting for a game",
+      "waitingText": "The staff registers players and launches the game from the back office. It will show up here automatically.",
+      "offlineTitle": "Back office unreachable",
+      "offlineText": "Check the Internet connection of the room PC. A connection is required to start the game.",
+      "retry": "Retry",
+      "ready": "Game ready: {rounds} rounds × {questions} questions",
+      "readyText": "Each player can press a buzzer to check their desk.",
+      "starting": "Preparing the clips…",
+      "errors": {
+        "noContent": "No playable theme for this game: add active audio questions in the back office.",
+        "gameGone": "This game is no longer available (stopped or finished in the back office).",
+        "startFailed": "Could not start the game. Check the connection and try again.",
+        "invalidGame": "A player sits at an unknown desk: fix the game in the back office."
+      }
     }
   }
 }

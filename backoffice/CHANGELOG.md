@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Configuration matérielle enregistrée par l'écran de salle (`PUT /room/config`) : buzzers
+  appris, appareils DMX et sécurité fumée gardés dans `rooms.config`, relus via `GET /room/me`.
+  US: us-room-02, us-roomapp-01
 - Catalogue de la salle (`GET /room/games/current/content`) : questions actives de tous types,
   l'audio seulement avec un fichier uploadé, et lecture des extraits par le compte de salle
   (`GET /room/questions/{questionId}/media`) pendant une partie.

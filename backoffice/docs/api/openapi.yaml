@@ -1277,6 +1277,62 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /room/config:
+    put:
+      tags:
+        - Rooms
+      summary: '[DISPONIBLE] Enregistrer la configuration matérielle de la salle'
+      description: |
+        Statut : **Disponible**
+
+        Remplace la configuration matérielle (`rooms.config` : buzzers appris, interface et
+        appareils DMX, sécurité fumée) de la salle du compte connecté. L'écran de salle l'envoie
+        quand l'opérateur enregistre l'écran « Matériel » et la relit via `GET /room/me`.
+        Objet JSON de 20 000 caractères au plus.
+
+        Accès : réservé au rôle `room`.
+      operationId: putCurrentRoomConfig
+      x-availability: disponible
+      x-us: 'US-ROOM-02'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [config]
+              properties:
+                config:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Salle mise à jour
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  room:
+                    $ref: '#/components/schemas/Room'
+        '400':
+          description: Configuration absente, invalide ou trop volumineuse
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Compte qui n'est pas un compte de salle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Salle introuvable ou supprimée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /companies/{companyId}/games:
     get:
       tags:

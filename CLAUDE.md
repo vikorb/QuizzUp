@@ -21,9 +21,10 @@ Rôles (multi-tenant) :
 - ✅ **Backoffice** (auth, compagnies, comptes, thèmes, questions, réponses) : mûr et testé.
 - 🔨 **Moteur de jeu** : en cours. Tables `rooms`, `games`, `game_*` migrées ; moteur pur dans
   `game/engine` (blind test éclair en V1) ; écran de salle web `game/room-app` (connexion,
-  lobby RGPD, partie complète, mode démo, écran Matériel) branché sur `game/hardware` (buzzers
-  appris, lumières DMX / simulation, fumée sécurisée) et `game/audio` (Web Audio). À venir : contenu
-  et résultats via les routes `/room/*` du backoffice. Cadrage : `docs/cadrage/bilan-cadrage-version-finale.md`.
+  partie reçue du backoffice via `/room/*`, mode démo avec inscription locale et extraits
+  synthétisés, écran Matériel) branché sur `game/hardware` (buzzers appris, lumières DMX /
+  simulation, fumée sécurisée, config dans `rooms.config`) et `game/audio` (Web Audio). À venir :
+  envoi des résultats de partie au backoffice. Cadrage : `docs/cadrage/bilan-cadrage-version-finale.md`.
 
 ## 2. Structure du dépôt (monorepo)
 

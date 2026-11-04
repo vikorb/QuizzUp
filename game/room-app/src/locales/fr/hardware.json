@@ -8,7 +8,6 @@
       "lights": "Lumières et fumée",
       "advanced": "Configuration avancée"
     },
-    "localNote": "Cette configuration est enregistrée sur ce PC.",
     "buzzers": {
       "title": "Buzzers",
       "simulation": "Aucun buzzer associé : le clavier de simulation est utilisé (une rangée de touches par pupitre).",
@@ -126,6 +125,11 @@
       "saved": "Configuration enregistrée.",
       "problems": "Points à corriger",
       "profiles": "Profils d’appareils disponibles"
+    },
+    "sync": {
+      "local": "Cette configuration est enregistrée sur ce PC.",
+      "saved": "Configuration enregistrée sur le compte de la salle (copie de secours sur ce PC).",
+      "error": "Backoffice injoignable : configuration gardée sur ce PC, elle sera renvoyée au prochain enregistrement."
     }
   }
 }

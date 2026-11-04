@@ -275,15 +275,29 @@ export async function switchToSimulatedLights(
 
 // ── Configuration ──────────────────────────────────────────────────────────
 
+/** Où se trouve la dernière config enregistrée : compte de la salle, ou ce PC seulement. */
+export type HardwareSyncStatus = 'local' | 'saved' | 'error'
+
+type RemoteSaver = (config: RoomHardwareConfig) => Promise<void>
+
+let remoteSaver: RemoteSaver | null = null
+const syncStatus = shallowRef<HardwareSyncStatus>('local')
+
 /**
- * Enregistre la config de salle (normalisée) et l'applique : nouveau mapping des
- * buzzers, et contrôleur de lumières relancé seulement si la partie lumières a changé.
+ * Enregistrement côté backoffice (`rooms.config`, compte de la salle). Sans
+ * enregistreur (mode démo), la config reste sur ce PC.
  */
-export async function saveRoomHardwareConfig(input: unknown): Promise<ParsedRoomHardwareConfig> {
+export function setHardwareRemoteSaver(saver: RemoteSaver | null): void {
+  remoteSaver = saver
+  syncStatus.value = 'local'
+}
+
+async function applyConfig(input: unknown): Promise<ParsedRoomHardwareConfig> {
   const previousLighting = JSON.stringify(parsed.value.config.lighting)
   const next = parseRoomHardwareConfig(input)
   parsed.value = next
 
+  // Copie locale de secours (backoffice injoignable au prochain démarrage).
   try {
     getStorage()?.setItem(HARDWARE_STORAGE_KEY, JSON.stringify(next.config))
   } catch {
@@ -298,6 +312,36 @@ export async function saveRoomHardwareConfig(input: unknown): Promise<ParsedRoom
   return next
 }
 
+/**
+ * Enregistre la config de salle (normalisée) et l'applique : nouveau mapping des
+ * buzzers, et contrôleur de lumières relancé seulement si la partie lumières a changé.
+ * Elle part ensuite sur le compte de la salle ; en cas d'échec, elle reste sur ce PC.
+ */
+export async function saveRoomHardwareConfig(input: unknown): Promise<ParsedRoomHardwareConfig> {
+  const next = await applyConfig(input)
+
+  if (remoteSaver) {
+    try {
+      await remoteSaver(next.config)
+      syncStatus.value = 'saved'
+    } catch {
+      syncStatus.value = 'error'
+    }
+  }
+  return next
+}
+
+/** Config relue depuis le compte de la salle : appliquée sans être renvoyée. */
+export async function applyRemoteHardwareConfig(input: unknown): Promise<void> {
+  await applyConfig(input)
+  syncStatus.value = 'saved'
+}
+
+/** Config actuelle (normalisée), par exemple pour la pousser vers le backoffice. */
+export function getRoomHardwareConfig(): RoomHardwareConfig {
+  return parsed.value.config
+}
+
 /** Enregistre seulement le mapping des buzzers (fin de l'apprentissage). */
 export async function saveBuzzerKeymap(keymap: BuzzerKeymap): Promise<ParsedRoomHardwareConfig> {
   return saveRoomHardwareConfig({ ...parsed.value.config, buzzers: { keymap } })
@@ -309,6 +353,8 @@ export async function resetRoomHardware(options: { storage?: HardwareStorage | n
   setBuzzerInput(null)
   preferSimulation = false
   pendingEmergency = null
+  remoteSaver = null
+  syncStatus.value = 'local'
   storage = options.storage ?? null
   parsed.value = parseRoomHardwareConfig(loadStoredConfig())
 }
@@ -323,5 +369,6 @@ export function useRoomHardware() {
     buzzerState: computed(() => buzzerState.value),
     lightingState: computed(() => lightingState.value),
     lighting: computed(() => lightingRef.value),
+    syncStatus: computed(() => syncStatus.value),
   }
 }

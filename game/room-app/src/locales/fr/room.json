@@ -52,6 +52,24 @@
       "exitFullscreen": "Quitter le plein écran",
       "abort": "Arrêter la partie",
       "abortConfirm": "Arrêter la partie en cours ? Les scores actuels seront conservés comme résultat."
+    },
+    "staffLobby": {
+      "title": "Partie du jour",
+      "loading": "Recherche de la partie…",
+      "waitingTitle": "En attente d’une partie",
+      "waitingText": "Le staff inscrit les joueurs et lance la partie depuis le backoffice. Elle s’affichera ici automatiquement.",
+      "offlineTitle": "Backoffice injoignable",
+      "offlineText": "Vérifie la connexion Internet du PC de la salle. Une connexion est nécessaire pour lancer la partie.",
+      "retry": "Réessayer",
+      "ready": "Partie prête : {rounds} manches × {questions} questions",
+      "readyText": "Chaque joueur peut appuyer sur un buzzer pour vérifier son pupitre.",
+      "starting": "Préparation des extraits…",
+      "errors": {
+        "noContent": "Aucun thème jouable pour cette partie : ajoute des questions audio actives au backoffice.",
+        "gameGone": "Cette partie n’est plus disponible (arrêtée ou terminée au backoffice).",
+        "startFailed": "Impossible de démarrer la partie. Vérifie la connexion et réessaie.",
+        "invalidGame": "Un joueur est placé sur un pupitre inconnu : corrige la partie au backoffice."
+      }
     }
   }
 }

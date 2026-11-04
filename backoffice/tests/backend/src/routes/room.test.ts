@@ -224,3 +224,65 @@ describe('routes/room.ts — current game (US-GAME-08)', () => {
     await app.close()
   })
 })
+
+describe('routes/room.ts — hardware config', () => {
+  const config = { version: 1, buzzers: { keymap: { KeyB: { desk: 1, button: 'A' } } } }
+
+  it('saves the hardware config of the room account', async () => {
+    seedRoom()
+    const app = await createRouteApp(roomRoutes)
+
+    const response = await app.inject({
+      method: 'PUT',
+      url: '/room/config',
+      headers: authHeaders(roomUser),
+      payload: { config },
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(parseJson(response)).toMatchObject({ room: { id: 1, config } })
+    expect(dbState.rooms[0]?.config).toEqual(config)
+
+    await app.close()
+  })
+
+  it('rejects an invalid or oversized config', async () => {
+    seedRoom()
+    const app = await createRouteApp(roomRoutes)
+
+    for (const payload of [{ config: [1, 2] }, { config: { blob: 'x'.repeat(25_000) } }, {}]) {
+      const response = await app.inject({
+        method: 'PUT',
+        url: '/room/config',
+        headers: authHeaders(roomUser),
+        payload,
+      })
+      expect(response.statusCode).toBe(400)
+    }
+
+    await app.close()
+  })
+
+  it('is reserved to the room account of a live room', async () => {
+    seedRoom({ status: ROOM_STATUS_DELETED })
+    const app = await createRouteApp(roomRoutes)
+
+    const staff = await app.inject({
+      method: 'PUT',
+      url: '/room/config',
+      headers: authHeaders(companyAdminUser),
+      payload: { config },
+    })
+    const deleted = await app.inject({
+      method: 'PUT',
+      url: '/room/config',
+      headers: authHeaders(roomUser),
+      payload: { config },
+    })
+
+    expect(staff.statusCode).toBe(403)
+    expect(deleted.statusCode).toBe(404)
+
+    await app.close()
+  })
+})

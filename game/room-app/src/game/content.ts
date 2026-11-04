@@ -1,26 +1,31 @@
 import type { EngineTheme } from '@quizzup/game-engine'
+import { QUESTION_MEDIA_TYPE_AUDIO } from '@quizzup/shared'
 
 import { getDemoThemes } from '@/game/demoContent'
 
-/**
- * Source du contenu d'une partie (thèmes + questions audio de la compagnie).
- * Tant que l'API « contenu de la salle » n'existe pas (US-ROOM-02 / US-MEDIA-01),
- * la salle joue le contenu de démonstration, connecté ou non.
- */
-export async function loadRoomThemes(): Promise<EngineTheme[]> {
+/** Contenu du mode démo (sans backoffice) : thèmes « sans tubes », extraits synthétisés. */
+export async function loadDemoThemes(): Promise<EngineTheme[]> {
   return getDemoThemes()
 }
 
-/** Extraits de démonstration : pas de fichier à télécharger, les paliers restent muets. */
+/** Extraits de démonstration : synthétisés à la volée, aucun fichier à télécharger. */
 export const DEMO_MEDIA_PREFIX = 'demo://'
 
-/** URL des extraits à précharger avant la partie (lecture sans blanc, hors ligne). */
+/**
+ * URL des extraits audio à précharger avant la partie (lecture sans blanc). Les
+ * images et vidéos (liens externes) et les extraits de démo ne se préchargent pas.
+ */
 export function collectMediaUrls(themes: EngineTheme[]): string[] {
   const urls = new Set<string>()
   for (const theme of themes) {
     for (const question of theme.questions) {
-      if (question.mediaUrl && !question.mediaUrl.startsWith(DEMO_MEDIA_PREFIX)) {
-        urls.add(question.mediaUrl)
+      const url = question.mediaUrl
+      if (
+        url &&
+        question.mediaType === QUESTION_MEDIA_TYPE_AUDIO &&
+        !url.startsWith(DEMO_MEDIA_PREFIX)
+      ) {
+        urls.add(url)
       }
     }
   }

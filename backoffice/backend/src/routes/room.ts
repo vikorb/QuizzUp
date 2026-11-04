@@ -13,6 +13,7 @@ import {
 import db from '../db'
 import { getMediaStorage, isValidMediaKey } from '../storage/mediaStorage'
 import type { RoomRow } from '../types/room'
+import { roomConfigSchema } from './companies/rooms/_schemas'
 import { roomSelect } from './companies/rooms/_shared'
 import { findGameInCompany } from './games/_shared'
 import { getMediaVersion } from './questions/_shared'
@@ -91,6 +92,35 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
     const company = await db('companies').where('id', room.companyId).first('id', 'name')
 
     return { room, company: company ?? null }
+  })
+
+  // Configuration matérielle de la salle (buzzers appris, appareils DMX), réglée sur place.
+  app.put('/room/config', { preHandler: [app.authenticate] }, async (req, reply) => {
+    if (!isRoomAccount(req)) {
+      return reply.code(403).send({ error: 'forbidden' })
+    }
+
+    const parsedBody = z.object({ config: roomConfigSchema }).safeParse(req.body)
+
+    if (!parsedBody.success) {
+      return reply.code(400).send({ error: 'invalid_body', details: parsedBody.error.flatten() })
+    }
+
+    const room = (await db('rooms')
+      .where('id', req.user.room_id)
+      .where('company_id', req.user.company_id)
+      .first(roomSelect)) as RoomRow | undefined
+
+    if (!room || room.status === ROOM_STATUS_DELETED) {
+      return reply.code(404).send({ error: 'not_found' })
+    }
+
+    const updated = await db('rooms')
+      .where('id', room.id)
+      .update({ config: parsedBody.data.config, updated_at: db.fn.now() })
+      .returning(roomSelect)
+
+    return { room: (Array.isArray(updated) ? updated[0] : updated) as RoomRow }
   })
 
   // US-GAME-08 : la salle récupère la partie lancée par l'opérateur…
