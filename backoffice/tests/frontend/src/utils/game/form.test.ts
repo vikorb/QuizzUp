@@ -6,6 +6,10 @@ import {
   GAME_MAX_ROUNDS,
   GAME_PARTICIPANT_DISPLAY_NAME_MAX_LENGTH,
   GAME_PODIUMS,
+  MINI_GAME_ESTIMATE,
+  MINI_GAME_FIRST_BUZZ,
+  MINI_GAME_FLASH_BLIND_TEST,
+  MINI_GAMES,
 } from '@quizzup/shared'
 import { describe, expect, it } from 'vitest'
 
@@ -20,6 +24,7 @@ import {
   getActiveGameRooms,
   getGamePodiums,
   getNextFreePodium,
+  getSelectedMiniGames,
   hasGameFormErrors,
   isGameParticipantConsentMissing,
   isGameSecondPlayerConsentMissing,
@@ -68,6 +73,17 @@ describe('utils/game/form', () => {
       expect(form.participants[0].podium).toBe('1')
     })
 
+    it('ticks every mini-game by default, in a copy of the shared list', () => {
+      const form = createDefaultGameFormValues()
+
+      expect(form.miniGames).toEqual([...MINI_GAMES])
+      expect(form.miniGames).not.toBe(MINI_GAMES)
+
+      form.miniGames.pop()
+
+      expect(createDefaultGameFormValues().miniGames).toEqual([...MINI_GAMES])
+    })
+
     it('never pre-ticks the GDPR consent', () => {
       expect(createDefaultGameFormValues().participants[0].emailConsent).toBe(false)
       expect(createGameParticipantFormValues(3).emailConsent).toBe(false)
@@ -114,6 +130,24 @@ describe('utils/game/form', () => {
   describe('validateGameForm', () => {
     it('accepts a valid form', () => {
       expect(hasGameFormErrors(validateGameForm(validForm()))).toBe(false)
+    })
+
+    it('has no mini-game error by default', () => {
+      expect(validateGameForm(validForm()).miniGames).toBe('')
+    })
+
+    it('requires at least one mini-game', () => {
+      const errors = validateGameForm(validForm({ miniGames: [] }))
+
+      expect(errors.miniGames).toBe('games.form.errors.miniGamesRequired')
+      expect(hasGameFormErrors(errors)).toBe(true)
+    })
+
+    it('accepts a single mini-game', () => {
+      const errors = validateGameForm(validForm({ miniGames: [MINI_GAME_FIRST_BUZZ] }))
+
+      expect(errors.miniGames).toBe('')
+      expect(hasGameFormErrors(errors)).toBe(false)
     })
 
     it('requires a room', () => {
@@ -262,6 +296,32 @@ describe('utils/game/form', () => {
       })
     })
 
+    it('omits miniGames when every mini-game is ticked (= all, future ones included)', () => {
+      const payload = buildCreateGamePayload(validForm())
+
+      expect(payload).not.toHaveProperty('miniGames')
+    })
+
+    it('omits miniGames when every mini-game is ticked in a different order', () => {
+      const payload = buildCreateGamePayload(validForm({ miniGames: [...MINI_GAMES].reverse() }))
+
+      expect(payload).not.toHaveProperty('miniGames')
+    })
+
+    it('sends a strict subset in the order of the shared list', () => {
+      const payload = buildCreateGamePayload(
+        validForm({ miniGames: [MINI_GAME_ESTIMATE, MINI_GAME_FLASH_BLIND_TEST] })
+      )
+
+      expect(payload.miniGames).toEqual([MINI_GAME_FLASH_BLIND_TEST, MINI_GAME_ESTIMATE])
+    })
+
+    it('sends a single mini-game', () => {
+      const payload = buildCreateGamePayload(validForm({ miniGames: [MINI_GAME_FIRST_BUZZ] }))
+
+      expect(payload.miniGames).toEqual([MINI_GAME_FIRST_BUZZ])
+    })
+
     it('sends neither email nor consent when no email is entered', () => {
       const payload = buildCreateGamePayload(
         validForm({ participants: [participant({ email: '', emailConsent: true })] })
@@ -391,5 +451,21 @@ describe('utils/game/form', () => {
 
       expect(payload.participants[0].secondPlayer).toEqual({ displayName: 'Alex' })
     })
+  })
+})
+
+describe('getSelectedMiniGames', () => {
+  it('returns undefined when every mini-game is ticked', () => {
+    expect(getSelectedMiniGames([...MINI_GAMES])).toBeUndefined()
+  })
+
+  it('returns the ticked ones in the shared order, without duplicates', () => {
+    expect(
+      getSelectedMiniGames([MINI_GAME_ESTIMATE, MINI_GAME_FIRST_BUZZ, MINI_GAME_ESTIMATE])
+    ).toEqual([MINI_GAME_FIRST_BUZZ, MINI_GAME_ESTIMATE])
+  })
+
+  it('returns an empty list when nothing is ticked (the validation rejects it before)', () => {
+    expect(getSelectedMiniGames([])).toEqual([])
   })
 })

@@ -70,7 +70,8 @@
         "startFailed": "Impossible de démarrer la partie. Vérifie la connexion et réessaie.",
         "invalidGame": "Un joueur est placé sur un pupitre inconnu : corrige la partie au backoffice.",
         "noPlayers": "Aucun joueur n’est inscrit à cette partie : ajoute-les au backoffice.",
-        "invalidSetup": "Le format de cette partie (manches, questions ou joueurs) n’est pas jouable : corrige-la au backoffice."
+        "invalidSetup": "Le format de cette partie (manches, questions ou joueurs) n’est pas jouable : corrige-la au backoffice.",
+        "noPlayableMiniGame": "Aucun mini-jeu choisi n’est jouable avec ces joueurs et ce contenu : change les mini-jeux ou ajoute du contenu au backoffice."
       },
       "running": "Partie en cours : {rounds} manches × {questions} questions",
       "runningText": "Cette partie a déjà commencé sur ce PC : reprends-la là où elle s’est arrêtée.",
@@ -78,7 +79,8 @@
       "resume": "Reprendre la partie",
       "restart": "Recommencer depuis le début",
       "restartConfirm": "Recommencer la partie depuis le début ? Les scores déjà marqués sur ce PC seront perdus.",
-      "duo": "{first} & {second}"
+      "duo": "{first} & {second}",
+      "pendingResults": "{n} résultat de partie en attente d’envoi au backoffice : nouvel essai automatique. | {n} résultats de parties en attente d’envoi au backoffice : nouvel essai automatique."
     }
   }
 }

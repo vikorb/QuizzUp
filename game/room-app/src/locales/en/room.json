@@ -70,7 +70,8 @@
         "startFailed": "Could not start the game. Check the connection and try again.",
         "invalidGame": "A player sits at an unknown desk: fix the game in the back office.",
         "noPlayers": "No player is registered for this game: add them in the back office.",
-        "invalidSetup": "This game's format (rounds, questions or players) cannot be played: fix it in the back office."
+        "invalidSetup": "This game's format (rounds, questions or players) cannot be played: fix it in the back office.",
+        "noPlayableMiniGame": "None of the chosen mini-games can be played with these players and this content: change the mini-games or add content in the back office."
       },
       "running": "Game in progress: {rounds} rounds × {questions} questions",
       "runningText": "This game has already started on this PC: resume it where it stopped.",
@@ -78,7 +79,8 @@
       "resume": "Resume the game",
       "restart": "Restart from the beginning",
       "restartConfirm": "Restart the game from the beginning? The scores already earned on this PC will be lost.",
-      "duo": "{first} & {second}"
+      "duo": "{first} & {second}",
+      "pendingResults": "{n} game result waiting to be sent to the backoffice: automatic retry. | {n} game results waiting to be sent to the backoffice: automatic retry."
     }
   }
 }

@@ -5,6 +5,15 @@
     </RoomTopBar>
 
     <section class="staff-lobby__body">
+      <p
+        v-if="pendingResults > 0"
+        class="staff-lobby__notice"
+        role="status"
+        data-test="pending-results"
+      >
+        {{ $t('room.staffLobby.pendingResults', pendingResults) }}
+      </p>
+
       <p v-if="status === 'loading'" class="staff-lobby__wait" role="status">
         {{ $t('room.staffLobby.loading') }}
       </p>
@@ -116,9 +125,12 @@ import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import { readBackofficeGameId, rememberBackofficeGameId } from '@/game/backofficeGame'
+import { sanitizeMiniGames } from '@/game/miniGamesSetting'
+import { usePendingFinishes } from '@/game/pendingFinishes'
 import { createEmptyRegistration, type Registration } from '@/game/registrations'
 import {
   hasSavedGame,
+  NoPlayableMiniGameError,
   preloadExtracts,
   resumeSavedGame,
   startNewGame,
@@ -144,11 +156,20 @@ const OFFLINE_AFTER_FAILURES = 3
 
 type Status = 'loading' | 'waiting' | 'offline' | 'ready'
 type StartError =
-  'noContent' | 'gameGone' | 'startFailed' | 'invalidGame' | 'noPlayers' | 'invalidSetup'
+  | 'noContent'
+  | 'gameGone'
+  | 'startFailed'
+  | 'invalidGame'
+  | 'noPlayers'
+  | 'invalidSetup'
+  | 'noPlayableMiniGame'
 
 const router = useRouter()
 const { t } = useI18n()
 const { confirm } = useConfirm()
+
+/** Résultats de parties terminées pas encore enregistrés au backoffice (réseau coupé). */
+const { count: pendingResults } = usePendingFinishes()
 
 const status = ref<Status>('loading')
 const game = shallowRef<RoomGame | null>(null)
@@ -284,6 +305,8 @@ async function onStart(): Promise<void> {
       seed: current.seed,
       roundsCount: current.roundsCount,
       questionsPerRound: current.questionsPerRound,
+      // Le choix du backoffice prime ; sans lui, le réglage local de la salle, sinon tous.
+      miniGames: sanitizeMiniGames(current.miniGames),
     }
     // Le moteur valide la partie avant que le backoffice ne la passe « en cours ».
     validateNewGame(options)
@@ -309,6 +332,9 @@ async function onStart(): Promise<void> {
 }
 
 function toStartError(caught: unknown): StartError {
+  if (caught instanceof NoPlayableMiniGameError) {
+    return 'noPlayableMiniGame'
+  }
   if (caught instanceof GameSetupError) {
     return 'invalidSetup'
   }
@@ -461,6 +487,16 @@ onBeforeUnmount(() => {
 .player__ping {
   color: var(--desk-color);
   font-weight: 800;
+}
+
+.staff-lobby__notice {
+  margin: 0;
+  padding: 8px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--warn);
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-size: var(--stage-small);
 }
 
 .staff-lobby__error {

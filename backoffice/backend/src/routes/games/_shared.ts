@@ -7,6 +7,8 @@ import {
   ADMIN_ROLE_SUPERADMIN,
   GAME_SEED_MAX,
   GAME_STATUS_DELETED,
+  MINI_GAMES,
+  type MiniGame,
 } from '@quizzup/shared'
 
 import db from '../../db'
@@ -20,6 +22,7 @@ export const gameSelect = [
   'games.admin_id as adminId',
   'games.rounds_count as roundsCount',
   'games.questions_per_round as questionsPerRound',
+  'games.mini_games as miniGames',
   'games.seed',
   'games.state',
   'games.started_at as startedAt',
@@ -82,6 +85,25 @@ function toOptionalNumber(value: unknown): number | undefined {
   return value === undefined || value === null ? undefined : Number(value)
 }
 
+/** `jsonb` relu par `pg` (tableau) ou texte : seuls les mini-jeux connus, `null` = tous. */
+function toMiniGames(value: unknown): MiniGame[] | null {
+  let list: unknown = value
+
+  if (typeof value === 'string') {
+    try {
+      list = JSON.parse(value)
+    } catch {
+      return null
+    }
+  }
+
+  if (!Array.isArray(list)) {
+    return null
+  }
+  const miniGames = MINI_GAMES.filter((miniGame) => list.includes(miniGame))
+  return miniGames.length > 0 ? miniGames : null
+}
+
 /**
  * Ids, graine et compteurs sont des bigint : `pg` les renvoie en texte. Le moteur de jeu
  * compare les ids strictement, on renvoie donc des nombres (contrat OpenAPI `integer`).
@@ -97,6 +119,7 @@ export function toGameRow(row: Record<string, unknown>): GameRow {
     roomId: Number(row.roomId),
     adminId: Number(row.adminId),
     seed: Number(row.seed),
+    miniGames: toMiniGames(row.miniGames),
     ...(participantsCount === undefined ? {} : { participantsCount }),
   }
 }

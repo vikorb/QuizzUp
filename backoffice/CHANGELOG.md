@@ -8,6 +8,13 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Choix des mini-jeux au lancement d'une partie : le formulaire « Lancer une partie » propose une
+  case par mini-jeu (tous cochés par défaut, au moins un requis) ; `POST /companies/:id/games`
+  accepte `miniGames` (facultatif, stocké dans `games.mini_games`, `null` = tous) et le détail de
+  la partie l'affiche. L'écran de salle le reçoit via `GET /room/games/current` et tire au sort
+  parmi ces mini-jeux (à défaut, le réglage local de la salle, sinon tous).
+  US: us-game-minigames
+
 - Purge RGPD des emails joueurs : un email (1er ou 2e joueur) est effacé, avec son consentement,
   dans les parties d'une compagnie 3 ans après sa dernière partie dans cette compagnie
   (`PLAYER_EMAIL_RETENTION_YEARS` dans `@quizzup/shared`) ; noms et scores restent. Calculée en SQL
@@ -25,6 +32,14 @@ Format inspiré de Keep a Changelog.
 - Fin de partie envoyée au backoffice : au podium, l'écran de salle appelle
   `POST /room/games/:id/finish` (scores par pupitre) ; la partie passe « Terminée » et
   `game_participants.score` est rempli. Idempotent, partie de la salle uniquement, rien en mode démo.
+
+- Envoi des résultats de partie qui survit à une panne réseau : au podium, l'écran de salle met les
+  scores dans une file gardée dans le navigateur (elle survit au rechargement et à la partie
+  suivante) et les renvoie en arrière-plan (2 s, 5 s, 15 s, 30 s puis toutes les 60 s, ou dès le
+  retour du réseau, au démarrage et à la reconnexion de la salle). Un refus définitif du
+  backoffice (404, 409, 400) l'abandonne ; un jeton expiré (401/403) attend la reconnexion. État
+  discret sur le podium et bandeau dans le lobby du staff quand des résultats attendent.
+  US: us-room-finish-retry
 
 - Média selon le type de question (`getQuestionKindMediaError` dans `@quizzup/shared`) : une
   question vrai/faux ou estimation n'accepte qu'un texte ou une image, comme le moteur de jeu.

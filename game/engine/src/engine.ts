@@ -197,6 +197,21 @@ function getPlayableThemes(themes: EngineTheme[], miniGame: MiniGame): EngineThe
   )
 }
 
+/**
+ * Mini-jeux réellement jouables avec ces joueurs et ce contenu, dans l'ordre de `miniGames`
+ * (tous par défaut) : assez de pupitres pour le mini-jeu, et au moins un thème avec une
+ * question éligible. Vide : la partie se terminerait aussitôt en `no_content`.
+ */
+export function getPlayableMiniGames(
+  setup: Pick<GameSetup, 'participants' | 'themes' | 'miniGames'>
+): MiniGame[] {
+  return (setup.miniGames ?? MINI_GAMES).filter(
+    (miniGame) =>
+      setup.participants.length >= (getMiniGameDefinition(miniGame).minParticipants ?? 1) &&
+      getPlayableThemes(setup.themes, miniGame).length > 0
+  )
+}
+
 function finishGame(context: Context, at: number, reason: 'completed' | 'no_content'): void {
   const { state } = context
 
@@ -218,11 +233,7 @@ function beginRound(context: Context, at: number): void {
   const { state } = context
   const position = state.rounds.length + 1
   const previousMiniGame = getCurrentRound(state)?.miniGame
-  const playableMiniGames = state.setup.miniGames.filter(
-    (miniGame) =>
-      state.setup.participants.length >= (getMiniGameDefinition(miniGame).minParticipants ?? 1) &&
-      getPlayableThemes(state.setup.themes, miniGame).length > 0
-  )
+  const playableMiniGames = getPlayableMiniGames(state.setup)
   // Pas deux fois le même mini-jeu d'affilée quand on a le choix.
   const candidates =
     playableMiniGames.length > 1

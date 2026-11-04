@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue'
 
+import { flushPendingFinishes } from '@/game/pendingFinishes'
 import { createLocalSessionStorage } from '@/game/session'
 import { setHardwareRemoteSaver, stopLighting } from '@/hardware/roomHardware'
 import {
@@ -27,6 +28,8 @@ export function signIn(nextToken: string, nextAccount: RoomAccount): void {
   setRoomToken(nextToken)
   token.value = nextToken
   account.value = nextAccount
+  // Des résultats de partie attendaient peut-être un jeton valide.
+  void flushPendingFinishes()
 }
 
 export function enterDemo(): void {
