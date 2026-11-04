@@ -38,8 +38,11 @@ describe('ligne de commande', () => {
       blackoutMs: BLACKOUT_MS,
     })
     expect(options.bind).toBeUndefined()
-    expect(options.plan.outputs).toHaveLength(1)
-    expect(options.plan.outputs[0]!.address).toEqual({ net: 0, subnet: 0, universe: 0 })
+    const direct = options.plan.outputs.filter((output) => !output.auto)
+    expect(direct).toHaveLength(1)
+    expect(direct[0]!.address).toEqual({ net: 0, subnet: 0, universe: 0 })
+    // Sans --map : les univers internes 1 à 15 sont recopiés vers les univers Art-Net suivants.
+    expect(options.plan.outputs).toHaveLength(16)
   })
 
   it('a des valeurs par défaut', () => {

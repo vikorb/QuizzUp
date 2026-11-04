@@ -3,7 +3,7 @@ import { DMX_CHANNELS, encodeArtDmx, nextSequence } from './artnet.js'
 import type { Clock, TimerHandle } from './clock.js'
 import { systemClock } from './clock.js'
 import type { OutputPlan } from './mapping.js'
-import { renderOutputs } from './mapping.js'
+import { renderOutput } from './mapping.js'
 
 /**
  * Silence du navigateur au-delà duquel le pont envoie du noir (onglet planté, PC gelé). Chrome
@@ -55,8 +55,8 @@ export type BridgeCore = {
   start: () => void
   /** Arrête la boucle et envoie immédiatement une trame à zéro sur chaque univers. */
   stop: () => void
-  /** Une trame de l'écran de salle (512 canaux de l'univers interne). */
-  frame: (data: Uint8Array) => void
+  /** Une trame de l'écran de salle : 512 canaux d'un univers interne (0-15, 0 par défaut). */
+  frame: (data: Uint8Array, universe?: number) => void
   /** Le navigateur s'est déconnecté : trames à zéro pendant `blackoutMs`. */
   clientDisconnected: () => void
   /** Envoie tout de suite une trame à zéro sur chaque univers de sortie. */
@@ -69,10 +69,22 @@ const REASONS: Record<BlackoutReason, string> = {
   disconnected: 'navigateur déconnecté',
 }
 
+/** Dernier état reçu pour un univers interne. */
+type Source = {
+  data: Uint8Array
+  frameAt: number
+  sentAt: number
+  dirty: boolean
+  /** Plus de trame depuis `silenceTimeoutMs` alors que d'autres univers arrivent : il reste à zéro. */
+  stale: boolean
+}
+
 /**
- * Cœur du pont, sans réseau : reçoit les trames, les convertit en paquets ArtDMX (un par
- * univers de sortie, chacun avec sa séquence), et applique le **chien de garde** :
- * silence ou coupure → noir sur tous les univers ; dernière trame renvoyée à plus de 1 Hz.
+ * Cœur du pont, sans réseau : reçoit les trames (une par univers interne), les convertit en
+ * paquets ArtDMX (un par univers de sortie, chacun avec sa séquence), et applique le **chien de
+ * garde** : silence ou coupure → noir sur tous les univers ; dernière trame renvoyée à plus de
+ * 1 Hz. Seuls les univers internes réellement reçus (et le 0) sont émis : jamais de zéros sur un
+ * univers Art-Net que l'écran de salle ne pilote pas.
  */
 export function createBridgeCore(options: BridgeCoreOptions): BridgeCore {
   const clock = options.clock ?? systemClock
@@ -80,34 +92,48 @@ export function createBridgeCore(options: BridgeCoreOptions): BridgeCore {
   const blackoutMs = options.blackoutMs ?? BLACKOUT_MS
   const log = options.log ?? (() => undefined)
   const { plan } = options
-  const sequences = plan.outputs.map(() => 0)
+  const sequences = new Map<number, number>()
   const zeros = new Uint8Array(DMX_CHANNELS)
+  const newSource = (stale = false): Source => ({
+    data: zeros,
+    frameAt: 0,
+    sentAt: Number.NEGATIVE_INFINITY,
+    dirty: false,
+    stale,
+  })
+  /** L'univers 0 est toujours émis (comme avant les univers multiples), les autres à leur arrivée. */
+  const sources = new Map<number, Source>([[0, newSource(true)]])
 
   let mode: BridgeMode = 'waiting'
   let timer: TimerHandle | null = null
-  let last: Uint8Array = zeros
-  let dirty = false
-  let lastFrameAt = 0
   let lastSentAt = Number.NEGATIVE_INFINITY
   let blackoutUntil = 0
   let framesReceived = 0
   let packetsSent = 0
   let blackouts = 0
 
-  const sendUniverse = (internal: Uint8Array) => {
-    const outputs = renderOutputs(plan, internal)
-    plan.outputs.forEach((output, index) => {
-      sequences[index] = nextSequence(sequences[index]!)
+  /** Envoie les univers de sortie alimentés par l'univers interne `universe`. */
+  const sendSource = (universe: number, data: Uint8Array) => {
+    for (const output of plan.outputs) {
+      if (output.source !== universe) {
+        continue
+      }
+      const sequence = nextSequence(sequences.get(output.key) ?? 0)
+      sequences.set(output.key, sequence)
       options.transmit(
-        encodeArtDmx({
-          sequence: sequences[index]!,
-          address: output.address,
-          data: outputs[index]!,
-        }),
+        encodeArtDmx({ sequence, address: output.address, data: renderOutput(output, data) }),
         output.address
       )
       packetsSent += 1
-    })
+    }
+  }
+
+  /** Du noir sur chaque univers émis (les données mémorisées ne sont pas touchées). */
+  const sendZeros = () => {
+    for (const [universe, source] of sources) {
+      sendSource(universe, zeros)
+      source.sentAt = clock.now()
+    }
     lastSentAt = clock.now()
   }
 
@@ -115,27 +141,43 @@ export function createBridgeCore(options: BridgeCoreOptions): BridgeCore {
     const wasBlackout = mode === 'blackout'
     mode = 'blackout'
     blackoutUntil = clock.now() + blackoutMs
-    last = zeros
-    dirty = false
+    for (const source of sources.values()) {
+      source.data = zeros
+      source.dirty = false
+    }
     if (!wasBlackout) {
       blackouts += 1
       log(
         `Chien de garde : ${REASONS[reason]} → noir sur tous les univers pendant ${blackoutMs} ms`
       )
     }
-    sendUniverse(zeros)
+    sendZeros()
   }
 
   const tick = () => {
     const now = clock.now()
     if (mode === 'live') {
-      if (now - lastFrameAt > silenceTimeoutMs) {
+      const isSilent = (source: Source) => now - source.frameAt > silenceTimeoutMs
+      if ([...sources.values()].every((source) => source.stale || isSilent(source))) {
         startBlackout('silence')
         return
       }
-      if ((dirty && now - lastSentAt >= MIN_INTERVAL_MS) || now - lastSentAt >= KEEPALIVE_MS) {
-        dirty = false
-        sendUniverse(last)
+      for (const [universe, source] of sources) {
+        if (!source.stale && isSilent(source)) {
+          // Un univers se tait pendant que les autres continuent : il passe à zéro, pas figé.
+          log(`Univers interne ${universe} : plus de trame, remis à zéro`)
+          source.stale = true
+          source.data = zeros
+          source.dirty = true
+        }
+        if (
+          (source.dirty && now - source.sentAt >= MIN_INTERVAL_MS) ||
+          now - source.sentAt >= KEEPALIVE_MS
+        ) {
+          source.dirty = false
+          sendSource(universe, source.data)
+          source.sentAt = now
+        }
       }
       return
     }
@@ -146,7 +188,7 @@ export function createBridgeCore(options: BridgeCoreOptions): BridgeCore {
         return
       }
       if (now - lastSentAt >= BLACKOUT_INTERVAL_MS) {
-        sendUniverse(zeros)
+        sendZeros()
       }
     }
   }
@@ -163,24 +205,36 @@ export function createBridgeCore(options: BridgeCoreOptions): BridgeCore {
         timer = null
       }
       mode = 'waiting'
-      last = zeros
-      dirty = false
+      for (const source of sources.values()) {
+        source.data = zeros
+        source.dirty = false
+      }
       log('Arrêt du pont : noir sur tous les univers')
-      sendUniverse(zeros)
+      sendZeros()
     },
-    frame(data) {
+    frame(data, universe = 0) {
       const now = clock.now()
       if (mode !== 'live') {
         log('Trames reçues du navigateur : envoi Art-Net en cours')
       }
       mode = 'live'
       framesReceived += 1
-      lastFrameAt = now
-      last = data.slice(0, DMX_CHANNELS)
-      dirty = true
-      if (now - lastSentAt >= MIN_INTERVAL_MS) {
-        dirty = false
-        sendUniverse(last)
+      let source = sources.get(universe)
+      if (!source) {
+        source = newSource()
+        sources.set(universe, source)
+        if (!plan.outputs.some((output) => output.source === universe)) {
+          log(`Univers interne ${universe} reçu mais non mappé (voir --map) : ignoré`)
+        }
+      }
+      source.frameAt = now
+      source.stale = false
+      source.data = data.slice(0, DMX_CHANNELS)
+      source.dirty = true
+      if (now - source.sentAt >= MIN_INTERVAL_MS) {
+        source.dirty = false
+        sendSource(universe, source.data)
+        source.sentAt = now
       }
     },
     clientDisconnected() {
@@ -188,7 +242,7 @@ export function createBridgeCore(options: BridgeCoreOptions): BridgeCore {
         startBlackout('disconnected')
       }
     },
-    sendBlackout: () => sendUniverse(zeros),
+    sendBlackout: sendZeros,
     getStatus: () => ({ mode, framesReceived, packetsSent, blackouts }),
   }
 }

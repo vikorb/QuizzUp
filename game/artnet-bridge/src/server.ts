@@ -20,8 +20,9 @@ import {
   CLOSE_CODES,
   decodeFrame,
   errorMessage,
+  isInternalUniverse,
+  MAX_INTERNAL_UNIVERSES,
   parseHello,
-  SUPPORTED_INTERNAL_UNIVERSE,
 } from './protocol.js'
 import type { WsConnection } from './websocket.js'
 import { acceptUpgrade, rejectUpgrade } from './websocket.js'
@@ -202,11 +203,11 @@ export function createBridgeServer(options: BridgeServerOptions): BridgeServer {
           )
           return
         }
-        if (hello.universe !== SUPPORTED_INTERNAL_UNIVERSE) {
+        if (!isInternalUniverse(hello.universe)) {
           refuse(
             CLOSE_CODES.universe,
             'universe',
-            `univers interne ${hello.universe} non géré (seul l'univers ${SUPPORTED_INTERNAL_UNIVERSE} l'est)`
+            `univers interne ${hello.universe} non géré (univers 0 à ${MAX_INTERNAL_UNIVERSES - 1})`
           )
           return
         }
@@ -223,11 +224,15 @@ export function createBridgeServer(options: BridgeServerOptions): BridgeServer {
         refuse(CLOSE_CODES.badFrame, 'frame', frame.reason)
         return
       }
-      if (frame.universe !== SUPPORTED_INTERNAL_UNIVERSE) {
-        refuse(CLOSE_CODES.universe, 'universe', `trame pour l'univers ${frame.universe}`)
+      if (!isInternalUniverse(frame.universe)) {
+        refuse(
+          CLOSE_CODES.universe,
+          'universe',
+          `trame pour l'univers ${frame.universe} (univers 0 à ${MAX_INTERNAL_UNIVERSES - 1})`
+        )
         return
       }
-      core.frame(frame.data)
+      core.frame(frame.data, frame.universe)
     })
 
     connection.onClose((code) => {
