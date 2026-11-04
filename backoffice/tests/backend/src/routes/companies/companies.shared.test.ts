@@ -9,7 +9,11 @@ import {
   ADMIN_STATUS_DELETED,
 } from '@quizzup/shared'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
-import { getAdminRow, getCompanyAdminsCount, normalizeNullableString } from '@backend/routes/companies/_shared'
+import {
+  getAdminRow,
+  getCompanyAdminsCount,
+  normalizeNullableString,
+} from '@backend/routes/companies/_shared'
 import { dbState, MOCK_NOW } from '../_helpers/mockDb'
 
 resetRouteMocksBeforeEach()

@@ -1,10 +1,6 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 
-import {
-  QUESTION_STATUS_DELETED,
-  THEME_SCOPE_GLOBAL,
-  THEME_STATUS_DELETED,
-} from '@quizzup/shared'
+import { QUESTION_STATUS_DELETED, THEME_SCOPE_GLOBAL, THEME_STATUS_DELETED } from '@quizzup/shared'
 import db from '../../db'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
 import { requireApiPermission } from '../../security/requireApiPermission'
@@ -34,10 +30,7 @@ type ThemeQuestionParams = ThemeParams & {
   questionId: string
 }
 
-function canLinkQuestionToTheme(
-  theme: ThemeAccessRow,
-  question: QuestionAccessRow,
-): boolean {
+function canLinkQuestionToTheme(theme: ThemeAccessRow, question: QuestionAccessRow): boolean {
   if (theme.scope === THEME_SCOPE_GLOBAL) {
     return question.scope === THEME_SCOPE_GLOBAL
   }
@@ -54,12 +47,7 @@ const themeIdRoutes: FastifyPluginAsync = async (app) => {
     '/themes/:themeId',
     { preHandler: [app.authenticate] },
     async (req: FastifyRequest<{ Params: ThemeParams }>, reply: FastifyReply) => {
-      const hasPermission = requireApiPermission(
-        req,
-        reply,
-        API_RESOURCE.THEME,
-        API_ACTION.READ,
-      )
+      const hasPermission = requireApiPermission(req, reply, API_RESOURCE.THEME, API_ACTION.READ)
 
       if (!hasPermission) {
         return
@@ -84,19 +72,14 @@ const themeIdRoutes: FastifyPluginAsync = async (app) => {
       const theme = await db('themes').select(themeSelect).where({ id: themeId }).first()
 
       return { theme }
-    },
+    }
   )
 
   app.get<{ Params: ThemeParams }>(
     '/themes/:themeId/questions',
     { preHandler: [app.authenticate] },
     async (req: FastifyRequest<{ Params: ThemeParams }>, reply: FastifyReply) => {
-      const hasPermission = requireApiPermission(
-        req,
-        reply,
-        API_RESOURCE.THEME,
-        API_ACTION.READ,
-      )
+      const hasPermission = requireApiPermission(req, reply, API_RESOURCE.THEME, API_ACTION.READ)
 
       if (!hasPermission) {
         return
@@ -128,22 +111,14 @@ const themeIdRoutes: FastifyPluginAsync = async (app) => {
       const questions = await attachThemesToQuestions(questionsWithoutThemes)
 
       return { questions }
-    },
+    }
   )
 
   app.patch<{ Params: ThemeParams; Body: ThemeBody }>(
     '/themes/:themeId',
     { preHandler: [app.authenticate] },
-    async (
-      req: FastifyRequest<{ Params: ThemeParams; Body: ThemeBody }>,
-      reply: FastifyReply,
-    ) => {
-      const hasPermission = requireApiPermission(
-        req,
-        reply,
-        API_RESOURCE.THEME,
-        API_ACTION.UPDATE,
-      )
+    async (req: FastifyRequest<{ Params: ThemeParams; Body: ThemeBody }>, reply: FastifyReply) => {
+      const hasPermission = requireApiPermission(req, reply, API_RESOURCE.THEME, API_ACTION.UPDATE)
 
       if (!hasPermission) {
         return
@@ -187,28 +162,17 @@ const themeIdRoutes: FastifyPluginAsync = async (app) => {
         patch.mode = req.body.mode
       }
 
-      const [theme] = await db('themes')
-        .where({ id: themeId })
-        .update(patch)
-        .returning(themeSelect)
+      const [theme] = await db('themes').where({ id: themeId }).update(patch).returning(themeSelect)
 
       return { theme }
-    },
+    }
   )
 
   app.post<{ Params: ThemeQuestionParams }>(
     '/themes/:themeId/questions/:questionId',
     { preHandler: [app.authenticate] },
-    async (
-      req: FastifyRequest<{ Params: ThemeQuestionParams }>,
-      reply: FastifyReply,
-    ) => {
-      const hasPermission = requireApiPermission(
-        req,
-        reply,
-        API_RESOURCE.THEME,
-        API_ACTION.UPDATE,
-      )
+    async (req: FastifyRequest<{ Params: ThemeQuestionParams }>, reply: FastifyReply) => {
+      const hasPermission = requireApiPermission(req, reply, API_RESOURCE.THEME, API_ACTION.UPDATE)
 
       if (!hasPermission) {
         return
@@ -260,22 +224,14 @@ const themeIdRoutes: FastifyPluginAsync = async (app) => {
       const question = await getQuestionWithAnswers(questionId)
 
       return { question }
-    },
+    }
   )
 
   app.delete<{ Params: ThemeQuestionParams }>(
     '/themes/:themeId/questions/:questionId',
     { preHandler: [app.authenticate] },
-    async (
-      req: FastifyRequest<{ Params: ThemeQuestionParams }>,
-      reply: FastifyReply,
-    ) => {
-      const hasPermission = requireApiPermission(
-        req,
-        reply,
-        API_RESOURCE.THEME,
-        API_ACTION.UPDATE,
-      )
+    async (req: FastifyRequest<{ Params: ThemeQuestionParams }>, reply: FastifyReply) => {
+      const hasPermission = requireApiPermission(req, reply, API_RESOURCE.THEME, API_ACTION.UPDATE)
 
       if (!hasPermission) {
         return
@@ -330,19 +286,14 @@ const themeIdRoutes: FastifyPluginAsync = async (app) => {
       const question = await getQuestionWithAnswers(questionId)
 
       return { question }
-    },
+    }
   )
 
   app.delete<{ Params: ThemeParams }>(
     '/themes/:themeId',
     { preHandler: [app.authenticate] },
     async (req: FastifyRequest<{ Params: ThemeParams }>, reply: FastifyReply) => {
-      const hasPermission = requireApiPermission(
-        req,
-        reply,
-        API_RESOURCE.THEME,
-        API_ACTION.DELETE,
-      )
+      const hasPermission = requireApiPermission(req, reply, API_RESOURCE.THEME, API_ACTION.DELETE)
 
       if (!hasPermission) {
         return
@@ -370,7 +321,7 @@ const themeIdRoutes: FastifyPluginAsync = async (app) => {
         .returning(themeSelect)
 
       return { theme }
-    },
+    }
   )
 }
 

@@ -48,7 +48,7 @@ export function getCreateCompanyAccountRoute(companyId: number | string): RouteL
 
 export function getEditCompanyAccountRoute(
   companyId: number | string,
-  accountId: number | string,
+  accountId: number | string
 ): RouteLocationRaw {
   return {
     name: 'company-account-edit',

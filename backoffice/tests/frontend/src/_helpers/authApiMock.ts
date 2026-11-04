@@ -17,18 +17,14 @@ type LoginFailure = {
 
 export type LoginResult = LoginSuccess | LoginFailure
 
-export const loginApiMock = vi.fn(
-  async (_payload: LoginPayload): Promise<LoginResult> => ({
-    ok: true,
-    token: 'test-login-token',
-  }),
-)
+export const loginApiMock = vi.fn(async (_payload: LoginPayload): Promise<LoginResult> => ({
+  ok: true,
+  token: 'test-login-token',
+}))
 
 export const setTokenMock = vi.fn((_token: string): void => {})
 
-export const loginReasonToI18nKeyMock = vi.fn(
-  (reason: string): string => `auth.errors.${reason}`,
-)
+export const loginReasonToI18nKeyMock = vi.fn((reason: string): string => `auth.errors.${reason}`)
 
 export function mockLoginSuccess(token = 'test-login-token'): void {
   loginApiMock.mockResolvedValue({
@@ -54,7 +50,5 @@ export function resetAuthApiMock(): void {
     token: 'test-login-token',
   })
 
-  loginReasonToI18nKeyMock.mockImplementation(
-    (reason: string): string => `auth.errors.${reason}`,
-  )
+  loginReasonToI18nKeyMock.mockImplementation((reason: string): string => `auth.errors.${reason}`)
 }

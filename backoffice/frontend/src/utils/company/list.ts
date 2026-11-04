@@ -3,7 +3,7 @@ import { toCompanyStatus } from '@/utils/company/status'
 
 export function updateCompanyInList(
   companies: Company[],
-  updatedCompany: CompanyTableRow,
+  updatedCompany: CompanyTableRow
 ): Company[] {
   const updatedStatus = toCompanyStatus(updatedCompany.status)
 
