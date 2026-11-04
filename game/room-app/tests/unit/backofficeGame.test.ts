@@ -7,9 +7,13 @@ import {
   reportFinishedGame,
 } from '@/game/backofficeGame'
 import { setDemoMode, setRoomToken } from '@/utils/auth'
-import { finishRoomGame } from '@/utils/roomApi'
+import type * as RoomApi from '@/utils/roomApi'
+import { finishRoomGame, RoomApiError } from '@/utils/roomApi'
 
-vi.mock('@/utils/roomApi', () => ({ finishRoomGame: vi.fn().mockResolvedValue({ id: 7 }) }))
+vi.mock('@/utils/roomApi', async (importOriginal) => ({
+  ...(await importOriginal<typeof RoomApi>()),
+  finishRoomGame: vi.fn().mockResolvedValue({ id: 7 }),
+}))
 vi.mock('@/game/selectors', () => ({
   getLeaderboard: () => [
     { participantId: 2, podium: 3, displayName: 'B', score: 900, rank: 1, roundPoints: 0 },
@@ -17,7 +21,8 @@ vi.mock('@/game/selectors', () => ({
   ],
 }))
 
-const state = {} as GameState
+const SEED = 42
+const state = { setup: { seed: SEED } } as GameState
 
 describe('fin de partie envoyée au backoffice', () => {
   beforeEach(() => {
@@ -27,10 +32,16 @@ describe('fin de partie envoyée au backoffice', () => {
   })
   afterEach(() => vi.mocked(finishRoomGame).mockClear())
 
-  it('envoie les scores par pupitre puis oublie la partie', async () => {
-    rememberBackofficeGameId(7)
+  it('envoie les scores par pupitre une seule fois, puis oublie la partie', async () => {
+    rememberBackofficeGameId(7, SEED)
 
-    expect(await reportFinishedGame(state)).toBe(true)
+    const [first, second] = await Promise.all([
+      reportFinishedGame(state),
+      reportFinishedGame(state),
+    ])
+
+    expect([first, second]).toEqual([true, true])
+    expect(finishRoomGame).toHaveBeenCalledOnce()
     expect(finishRoomGame).toHaveBeenCalledWith('tok', 7, [
       { podium: 3, score: 900 },
       { podium: 1, score: 100 },
@@ -38,10 +49,13 @@ describe('fin de partie envoyée au backoffice', () => {
     expect(readBackofficeGameId()).toBeNull()
   })
 
-  it("n'envoie rien en mode démo, sans jeton ou sans partie du backoffice", async () => {
+  it("n'envoie rien en mode démo, sans jeton, sans partie ou pour une autre partie", async () => {
     expect(await reportFinishedGame(state)).toBe(false)
 
-    rememberBackofficeGameId(7)
+    rememberBackofficeGameId(7, SEED + 1)
+    expect(await reportFinishedGame(state)).toBe(false)
+
+    rememberBackofficeGameId(7, SEED)
     setDemoMode(true)
     expect(await reportFinishedGame(state)).toBe(false)
 
@@ -52,11 +66,23 @@ describe('fin de partie envoyée au backoffice', () => {
     expect(readBackofficeGameId()).toBe('7')
   })
 
-  it("garde la partie si l'envoi échoue", async () => {
-    rememberBackofficeGameId(7)
+  it('relit une ancienne sauvegarde (id seul) sans rien envoyer', async () => {
+    localStorage.setItem('quizzup_room_backoffice_game', '41')
+
+    expect(readBackofficeGameId()).toBe('41')
+    expect(await reportFinishedGame(state)).toBe(false)
+  })
+
+  it("garde la partie si le réseau échoue, l'oublie si le backoffice l'a close", async () => {
+    rememberBackofficeGameId(7, SEED)
     vi.mocked(finishRoomGame).mockRejectedValueOnce(new Error('offline'))
 
     await expect(reportFinishedGame(state)).rejects.toThrow('offline')
     expect(readBackofficeGameId()).toBe('7')
+
+    vi.mocked(finishRoomGame).mockRejectedValueOnce(new RoomApiError(409, 'game_already_over'))
+
+    expect(await reportFinishedGame(state)).toBe(false)
+    expect(readBackofficeGameId()).toBeNull()
   })
 })

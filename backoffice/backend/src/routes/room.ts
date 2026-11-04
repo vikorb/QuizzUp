@@ -307,7 +307,9 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
     const podiums = new Set(game.participants.map((participant) => participant.podium))
     const { scores } = parsedBody.data
 
+    // Un score par pupitre inscrit, ni plus ni moins : pas de partie close à moitié notée.
     if (
+      scores.length !== podiums.size ||
       scores.some((line) => !podiums.has(line.podium)) ||
       new Set(scores.map((line) => line.podium)).size !== scores.length
     ) {

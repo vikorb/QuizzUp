@@ -235,6 +235,7 @@ describe('routes/room.ts — current game (US-GAME-08)', () => {
     expect(unknownDesk.statusCode).toBe(400)
     expect(parseJson(unknownDesk)).toEqual({ error: 'game_scores_invalid' })
     expect(duplicated.statusCode).toBe(400)
+    expect((await finish([{ podium: 1, score: 10 }])).statusCode).toBe(400)
     expect(dbState.games[0]!.state).toBe(GAME_STATE_RUNNING)
 
     const finished = await finish([
@@ -282,6 +283,16 @@ describe('routes/room.ts — current game (US-GAME-08)', () => {
     expect(aborted.statusCode).toBe(409)
     expect(parseJson(aborted)).toEqual({ error: 'game_already_over' })
     expect(otherRoom.statusCode).toBe(404)
+
+    // Même salle n° 1, mais d'une autre compagnie : invisible.
+    const otherCompany = await app.inject({
+      method: 'POST',
+      url: '/room/games/5/finish',
+      headers: authHeaders({ ...roomUser, company_id: 2 } as TestUser),
+      payload: { scores: [] },
+    })
+
+    expect(otherCompany.statusCode).toBe(404)
 
     await app.close()
   })

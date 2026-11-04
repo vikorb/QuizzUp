@@ -1712,7 +1712,7 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Envoyé par l'écran de salle au podium : la partie passe `finished` (`finishedAt` renseigné) et le score de chaque pupitre est enregistré. Idempotent : une partie déjà terminée est renvoyée telle quelle, sans toucher aux scores.
+        Envoyé par l'écran de salle au podium : la partie passe `finished` (`finishedAt` renseigné) et le score de chaque pupitre est enregistré (une ligne par pupitre inscrit, ni plus ni moins). Idempotent : une partie déjà terminée est renvoyée telle quelle, sans toucher aux scores.
 
         Accès : réservé au rôle `room`, partie de sa salle uniquement.
       operationId: finishRoomGame
@@ -1755,7 +1755,7 @@ paths:
                     allOf:
                       - $ref: '#/components/schemas/RoomGame'
         '400':
-          description: Corps invalide (`invalid_body`) ou pupitre inconnu / en double (`game_scores_invalid`)
+          description: Corps invalide (`invalid_body`) ou scores ne couvrant pas exactement les pupitres inscrits (`game_scores_invalid`)
           content:
             application/json:
               schema:

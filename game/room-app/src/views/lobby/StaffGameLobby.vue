@@ -297,7 +297,7 @@ async function onStart(): Promise<void> {
       return
     }
     startNewGame(options)
-    rememberBackofficeGameId(current.id)
+    rememberBackofficeGameId(current.id, current.seed)
   } catch (caught) {
     error.value = toStartError(caught)
     return
