@@ -10,6 +10,23 @@
       </span>
       <template #actions>
         <UiButton
+          v-if="lighting && hasFixtures && emergencyActive"
+          variant="primary"
+          data-test="emergency-reset"
+          @click="emergency.reset"
+        >
+          {{ $t('hardware.lights.emergencyReset') }}
+        </UiButton>
+        <UiButton
+          v-else-if="lighting && hasFixtures"
+          variant="danger"
+          data-test="emergency-stop"
+          @click="emergency.stop"
+        >
+          <MdIcon :path="mdiAlertOctagonOutline" :size="18" />
+          {{ $t('hardware.lights.emergencyStop') }}
+        </UiButton>
+        <UiButton
           v-if="!isOver"
           variant="icon"
           :aria-label="$t('room.toolbar.abort')"
@@ -71,7 +88,7 @@
 </template>
 
 <script setup lang="ts">
-import { mdiStopCircleOutline } from '@mdi/js'
+import { mdiAlertOctagonOutline, mdiStopCircleOutline } from '@mdi/js'
 import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
@@ -92,7 +109,9 @@ import {
   getThemeName,
 } from '@/game/selectors'
 import { abortGame, closeGame, pressBuzzer, useRoomGame } from '@/game/useRoomGame'
+import { useRoomHardware } from '@/hardware/roomHardware'
 import { useBuzzers } from '@/hardware/useBuzzers'
+import { useEmergencyStop } from '@/hardware/useEmergencyStop'
 import BlindTestScreen from '@/views/game/BlindTestScreen.vue'
 import FinishedScreen from '@/views/game/FinishedScreen.vue'
 import RevealScreen from '@/views/game/RevealScreen.vue'
@@ -104,6 +123,10 @@ const { t } = useI18n()
 const router = useRouter()
 const { confirm } = useConfirm()
 const { state, now } = useRoomGame()
+const { hardware, lighting } = useRoomHardware()
+const hasFixtures = computed(() => hardware.value.fixtures.length > 0)
+const emergency = useEmergencyStop()
+const emergencyActive = emergency.active
 
 const phase = computed(() => state.value?.phase ?? { name: 'lobby' as const })
 const round = computed(() => (state.value ? getCurrentRound(state.value) : undefined))

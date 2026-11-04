@@ -1,0 +1,131 @@
+{
+  "hardware": {
+    "title": "Matériel de la salle",
+    "open": "Matériel de la salle",
+    "back": "Retour",
+    "tabs": {
+      "buzzers": "Buzzers",
+      "lights": "Lumières et fumée",
+      "advanced": "Configuration avancée"
+    },
+    "localNote": "Cette configuration est enregistrée sur ce PC.",
+    "buzzers": {
+      "title": "Buzzers",
+      "simulation": "Aucun buzzer associé : le clavier de simulation est utilisé (une rangée de touches par pupitre).",
+      "learned": "{n} buzzer associé | {n} buzzers associés",
+      "inactive": "La page n’a plus le focus : les buzzers ne sont pas reçus. Clique dans la page pour les réactiver.",
+      "learn": "Associer les buzzers",
+      "learnHint": "On te demande chaque buzzer, pupitre par pupitre : appuie dessus pour l’associer.",
+      "resetToSimulation": "Revenir au clavier de simulation",
+      "resetConfirm": "Oublier les buzzers associés et revenir au clavier de simulation ?",
+      "step": "Buzzer {n} sur {total}",
+      "prompt": "Appuie sur le buzzer {button} du pupitre {desk}",
+      "assigned": "Buzzer {button} du pupitre {desk} associé (touche {key}).",
+      "duplicate": "La touche {key} est déjà utilisée par le buzzer {button} du pupitre {desk}.",
+      "forbidden": "La touche {key} est réservée au système et ne peut pas servir de buzzer.",
+      "back": "Buzzer précédent",
+      "skip": "Passer ce buzzer",
+      "restart": "Recommencer",
+      "cancel": "Annuler",
+      "done": "{n} buzzer associé. | {n} buzzers associés.",
+      "save": "Enregistrer l’association",
+      "saved": "Association enregistrée.",
+      "testTitle": "Test des buzzers",
+      "testHint": "Appuie sur un buzzer : il s’allume ici."
+    },
+    "lights": {
+      "title": "Lumières",
+      "driver": "Sortie",
+      "drivers": {
+        "simulation": "Simulation (aucune interface)",
+        "usbpro": "Interface DMX USB Pro",
+        "opendmx": "Interface Open DMX (expérimental)"
+      },
+      "status": {
+        "closed": "déconnectée",
+        "opening": "connexion…",
+        "open": "connectée",
+        "closing": "déconnexion…",
+        "error": "en erreur"
+      },
+      "simulated": "Salle simulée : les lumières s’affichent ci-dessous.",
+      "connect": "Connecter l’interface DMX",
+      "connectFailed": "Impossible d’ouvrir l’interface DMX. Vérifie le câble USB et réessaie.",
+      "useSimulation": "Passer en simulation",
+      "noWebSerial": "Ce navigateur ne pilote pas l’USB : utilise Chrome ou Edge.",
+      "simulationDriver": "Choisis une interface DMX dans la configuration avancée pour brancher de vraies lumières.",
+      "emergencyStop": "Arrêt d’urgence",
+      "emergencyActive": "Arrêt d’urgence actif : lumières éteintes, fumée coupée.",
+      "emergencyReset": "Rallumer les lumières",
+      "emergencyResetConfirm": "Rallumer les lumières ? Vérifie d’abord que la salle est sûre. La fumée restera désarmée.",
+      "physicalStop": "Le bouton logiciel ne remplace pas l’arrêt d’urgence physique, obligatoire en salle.",
+      "scenes": "Tester une scène",
+      "sceneDesk": "Pupitre",
+      "fixtures": "Appareils",
+      "noFixtures": "Aucun appareil déclaré. Ajoute-les dans la configuration avancée.",
+      "identify": "Identifier",
+      "kinds": {
+        "par": "PAR",
+        "movingHead": "Lyre",
+        "dimmer": "Gradateur",
+        "strobe": "Stroboscope",
+        "smoke": "Fumée"
+      },
+      "warnings": {
+        "smoke_refused": "Fumée refusée par la sécurité.",
+        "watchdog": "La page a gelé : fumée coupée par sécurité.",
+        "output_error": "L’interface DMX ne répond plus.",
+        "page_hidden": "Onglet masqué : fumée coupée par sécurité.",
+        "unknown_scene": "Scène inconnue dans la configuration."
+      }
+    },
+    "scenes": {
+      "idle": "Repos",
+      "game-start": "Début de partie",
+      "round-start": "Début de manche",
+      "chooser": "Choix du thème",
+      "question": "Question",
+      "clip-playing": "Extrait",
+      "buzz": "Buzz",
+      "answer-correct": "Bonne réponse",
+      "answer-wrong": "Mauvaise réponse",
+      "question-lost": "Perdu pour tous",
+      "round-end": "Fin de manche",
+      "victory": "Victoire"
+    },
+    "smoke": {
+      "title": "Fumée",
+      "disabled": "Fumée désactivée dans la configuration de la salle.",
+      "arm": "Fumée autorisée pour cette session",
+      "armHint": "À cocher par l’opérateur, salle vérifiée. La fumée se désarme à chaque arrêt d’urgence.",
+      "test": "Tester 2 s",
+      "status": {
+        "disabled": "désactivée",
+        "unarmed": "non autorisée",
+        "ready": "prête",
+        "firing": "en cours",
+        "cooldown": "pause de sécurité",
+        "emergency": "bloquée (arrêt d’urgence)"
+      },
+      "refused": {
+        "disabled": "Fumée désactivée.",
+        "not_armed": "Coche d’abord « Fumée autorisée ».",
+        "firing": "Une émission est déjà en cours.",
+        "cooldown": "Pause de sécurité en cours, réessaie dans quelques secondes.",
+        "emergency": "Arrêt d’urgence actif.",
+        "invalid_duration": "Durée refusée.",
+        "page_hidden": "Onglet masqué : fumée refusée."
+      }
+    },
+    "advanced": {
+      "title": "Configuration avancée",
+      "hint": "Configuration complète de la salle (format JSON) : interface DMX, appareils, couleurs des pupitres, sécurité fumée. Voir la documentation matériel.",
+      "save": "Enregistrer",
+      "reset": "Recharger",
+      "invalidJson": "JSON invalide : {message}",
+      "saved": "Configuration enregistrée.",
+      "problems": "Points à corriger",
+      "profiles": "Profils d’appareils disponibles"
+    }
+  }
+}

@@ -72,7 +72,7 @@ import { useRouter } from 'vue-router'
 import RoomTopBar from '@/components/game/RoomTopBar.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
-import { collectMediaUrls, loadRoomThemes } from '@/game/content'
+import { loadRoomThemes } from '@/game/content'
 import {
   createEmptyRegistration,
   hasErrors,
@@ -80,7 +80,7 @@ import {
   type Registration,
   validateRegistration,
 } from '@/game/registrations'
-import { getExtractPlayer, startNewGame } from '@/game/useRoomGame'
+import { preloadExtracts, startNewGame } from '@/game/useRoomGame'
 import { type DeskNumber, DESKS } from '@/hardware/buzzers'
 import { useBuzzers } from '@/hardware/useBuzzers'
 import { isDemo } from '@/state/roomAuth'
@@ -146,7 +146,8 @@ async function onStart(): Promise<void> {
   startFailed.value = false
   try {
     const themes = await loadRoomThemes()
-    await getExtractPlayer().preload(collectMediaUrls(themes))
+    // Un extrait illisible n'empêche pas de jouer : son palier restera muet.
+    await preloadExtracts(themes)
     startNewGame({
       registrations: filledRegistrations.value,
       themes,

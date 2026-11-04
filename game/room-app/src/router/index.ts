@@ -12,6 +12,11 @@ export const routes: RouteRecordRaw[] = [
   { path: '/', name: 'launch', component: () => import('@/views/LaunchView.vue') },
   { path: '/lobby', name: 'lobby', component: () => import('@/views/LobbyView.vue') },
   { path: '/play', name: 'play', component: () => import('@/views/GameView.vue') },
+  {
+    path: '/hardware',
+    name: 'hardware',
+    component: () => import('@/views/hardware/HardwareView.vue'),
+  },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 

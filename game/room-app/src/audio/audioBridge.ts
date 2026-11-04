@@ -1,6 +1,7 @@
 import type { GameEvent } from '@quizzup/game-engine'
 
 import type { ExtractPlayer } from '@/audio/player'
+import { DEMO_MEDIA_PREFIX } from '@/game/content'
 
 /**
  * Traduit les événements du moteur en ordres pour le lecteur d'extraits
@@ -8,6 +9,14 @@ import type { ExtractPlayer } from '@/audio/player'
  */
 export function createAudioBridge(player: ExtractPlayer) {
   let currentExtractMs = 0
+
+  /**
+   * Seuls les extraits préchargés sont joués : un téléchargement à la volée
+   * démarrerait en retard et déborderait du palier décidé par le moteur.
+   */
+  function isPlayable(url: string | null): url is string {
+    return Boolean(url) && !url!.startsWith(DEMO_MEDIA_PREFIX) && player.isLoaded(url!)
+  }
 
   function handle(event: GameEvent): void {
     const { payload } = event
@@ -17,7 +26,7 @@ export function createAudioBridge(player: ExtractPlayer) {
         const mediaUrl = typeof payload.mediaUrl === 'string' ? payload.mediaUrl : null
         currentExtractMs = Number(payload.extractMs) || 0
 
-        if (mediaUrl) {
+        if (isPlayable(mediaUrl)) {
           const startSec = (Number(payload.mediaStartMs) || 0) / 1000
           // Un extrait illisible ne doit pas arrêter la partie : le palier continue en silence.
           player.play(mediaUrl, startSec, currentExtractMs).catch(() => undefined)
@@ -67,7 +76,7 @@ export function createAudioBridge(player: ExtractPlayer) {
       currentExtractMs = options.extractMs
       const remainingMs = options.extractMs - options.elapsedMs
 
-      if (!options.mediaUrl || remainingMs <= 0) {
+      if (!isPlayable(options.mediaUrl) || remainingMs <= 0) {
         return
       }
 
