@@ -80,4 +80,12 @@ const imageUrl = computed(() =>
   object-fit: contain;
   transition: filter 0.2s linear;
 }
+
+/* Écrans bas (ex. 1440×810) : l'image cède de la place pour que la 2e ligne de réponses
+   (C, D) ne passe pas sous le tableau des scores. */
+@media (max-height: 860px) {
+  .prompt__image {
+    height: clamp(110px, 18vh, 280px);
+  }
+}
 </style>
