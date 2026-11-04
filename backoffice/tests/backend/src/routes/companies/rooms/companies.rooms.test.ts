@@ -31,6 +31,7 @@ function room(overrides: Record<string, unknown> = {}) {
     company_id: 1,
     name: 'Salle Néon',
     config: {},
+    config_revision: 0,
     status: ROOM_STATUS_ACTIVE,
     created_at: '2026-11-01T00:00:00.000Z',
     updated_at: '2026-11-01T00:00:00.000Z',
@@ -389,6 +390,27 @@ describe('routes/companies/rooms (US-ROOM-01)', () => {
         config: { lights: [] },
         updatedAt: MOCK_NOW,
       })
+
+      await app.close()
+    })
+
+    it('bumps config_revision when the config changes, not when only the name does', async () => {
+      seedRooms(room({ config_revision: 4 }))
+      const app = await rooms()
+      const patch = (payload: Record<string, unknown>) =>
+        app.inject({
+          method: 'PATCH',
+          url: '/companies/1/rooms/1',
+          headers: authHeaders(companyAdminUser),
+          payload,
+        })
+
+      const renamed = await patch({ name: 'Salle Laser' })
+      expect(parseJson(renamed).room).toMatchObject({ configRevision: 4 })
+
+      const reconfigured = await patch({ config: { lights: [] } })
+      expect(parseJson(reconfigured).room).toMatchObject({ configRevision: 5 })
+      expect(dbState.rooms[0]!.config_revision).toBe(5)
 
       await app.close()
     })

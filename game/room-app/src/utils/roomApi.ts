@@ -31,15 +31,37 @@ export type RoomInfo = {
   id: number
   name: string
   config: Record<string, unknown>
+  /** Révision de `config` : à renvoyer à l'enregistrement (absente d'un backoffice ancien). */
+  configRevision?: number
+}
+
+/** Corps du 409 de `PUT /room/config` : la config courante du compte et sa révision. */
+export type RoomConfigConflict = {
+  config: Record<string, unknown>
+  configRevision: number
 }
 
 export class RoomApiError extends Error {
   constructor(
     public readonly status: number,
-    public readonly code: string
+    public readonly code: string,
+    /** Corps JSON de la réponse d'erreur, s'il y en avait un. */
+    public readonly body: unknown = null
   ) {
     super(code)
     this.name = 'RoomApiError'
+  }
+
+  /** La config courante du compte, si c'est un conflit de révision bien formé. */
+  get configConflict(): RoomConfigConflict | null {
+    const body = this.body as Partial<RoomConfigConflict> | null
+    return this.status === 409 &&
+      this.code === 'room_config_conflict' &&
+      body?.config !== null &&
+      typeof body?.config === 'object' &&
+      Number.isInteger(body.configRevision)
+      ? (body as RoomConfigConflict)
+      : null
   }
 }
 
@@ -64,7 +86,7 @@ async function request<T>(
   const data = (await res.json().catch(() => null)) as (T & { error?: string }) | null
 
   if (!res.ok || data === null) {
-    throw new RoomApiError(res.status, data?.error ?? 'server_error')
+    throw new RoomApiError(res.status, data?.error ?? 'server_error', data)
   }
   return data
 }
@@ -128,10 +150,18 @@ export async function finishRoomGame(
   return data.game
 }
 
-export async function saveRoomConfig(token: string, config: unknown): Promise<RoomInfo> {
+/**
+ * Enregistre la config sur le compte. Avec `revision` (celle lue), le backoffice refuse
+ * (409, voir `RoomApiError.configConflict`) si un autre poste a écrit entre-temps.
+ */
+export async function saveRoomConfig(
+  token: string,
+  config: unknown,
+  revision?: number | null
+): Promise<RoomInfo> {
   const data = await request<{ room: RoomInfo }>(token, '/room/config', {
     method: 'PUT',
-    body: { config },
+    body: typeof revision === 'number' ? { config, revision } : { config },
   })
   return data.room
 }

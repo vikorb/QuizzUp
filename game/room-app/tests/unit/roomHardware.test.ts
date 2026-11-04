@@ -60,6 +60,7 @@ describe('matériel de la salle', () => {
       setHardwareRemoteSaver(
         async (config) => {
           sent.push(config)
+          return null
         },
         { accountId: 1, tokenTag: 'tag' }
       )
