@@ -36,7 +36,7 @@
 
       <p
         class="hw-hint hardware__note"
-        :class="{ 'hardware__note--error': syncStatus === 'error' }"
+        :class="{ 'hardware__note--error': syncStatus === 'error' || syncStatus === 'rejected' }"
         data-test="sync-status"
       >
         {{ $t(`hardware.sync.${syncStatus}`) }}

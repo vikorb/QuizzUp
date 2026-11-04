@@ -129,7 +129,8 @@
     "sync": {
       "local": "Cette configuration est enregistrée sur ce PC.",
       "saved": "Configuration enregistrée sur le compte de la salle (copie de secours sur ce PC).",
-      "error": "Backoffice injoignable : configuration gardée sur ce PC, elle sera renvoyée au prochain enregistrement."
+      "error": "Backoffice injoignable : configuration gardée sur ce PC, elle sera renvoyée au prochain démarrage ou enregistrement.",
+      "rejected": "Configuration refusée par le backoffice (trop volumineuse ou invalide) : elle n'est gardée que sur ce PC."
     }
   }
 }

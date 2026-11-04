@@ -10,6 +10,8 @@ export type RoomGameParticipant = {
   id: number
   podium: number
   displayName: string
+  /** 2e joueur facultatif du pupitre (`null` : joueur seul). */
+  secondDisplayName?: string | null
   score: number
 }
 

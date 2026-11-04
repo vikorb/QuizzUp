@@ -145,8 +145,11 @@ export function createDemoSynthPlayer(
       const envelope = context.createGain()
       oscillator.type = melody.wave
       oscillator.frequency.setValueAtTime(frequency, at)
+      // Attaque raccourcie pour une note tronquée (reprise juste avant sa fin) : sans
+      // ça, la montée finirait après la descente et la note claquerait à plein niveau.
+      const attack = Math.min(0.01, (until - at) / 2)
       envelope.gain.setValueAtTime(0, at)
-      envelope.gain.linearRampToValueAtTime(1, at + 0.01)
+      envelope.gain.linearRampToValueAtTime(1, at + attack)
       envelope.gain.linearRampToValueAtTime(0, until)
       oscillator.connect(envelope)
       envelope.connect(master)

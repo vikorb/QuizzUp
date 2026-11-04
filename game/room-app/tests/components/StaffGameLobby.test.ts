@@ -1,7 +1,8 @@
 import { flushPromises } from '@vue/test-utils'
 
 import type { ExtractPlayer } from '@/audio/player'
-import { createMemorySessionStorage } from '@/game/session'
+import { useConfirm } from '@/composables/useConfirm'
+import { createMemorySessionStorage, GameSession, type SessionStorage } from '@/game/session'
 import { closeGame, configureRoomGame, useRoomGame } from '@/game/useRoomGame'
 import { signIn, syncRoomAuth } from '@/state/roomAuth'
 import * as roomApi from '@/utils/roomApi'
@@ -38,13 +39,15 @@ function fakePlayer(): ExtractPlayer {
 
 describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
   let player: ExtractPlayer
+  let storage: SessionStorage
 
   beforeEach(() => {
     localStorage.clear()
     syncRoomAuth()
     signIn('token-salle', { id: 10, companyId: 1, role: 'room' })
     player = fakePlayer()
-    configureRoomGame({ storage: createMemorySessionStorage(), player })
+    storage = createMemorySessionStorage()
+    configureRoomGame({ storage, player })
   })
 
   afterEach(() => {
@@ -123,5 +126,120 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('Backoffice injoignable')
+  })
+
+  it('garde la partie affichée pendant une courte coupure', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(roomApi, 'fetchCurrentGame')
+      .mockResolvedValueOnce(GAME)
+      .mockRejectedValue(new Error('network'))
+    const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+    await flushPromises()
+
+    await vi.advanceTimersByTimeAsync(3000)
+    await flushPromises()
+    expect(wrapper.find('[data-test="start-game"]').exists()).toBe(true)
+
+    await vi.advanceTimersByTimeAsync(6000)
+    await flushPromises()
+    expect(wrapper.text()).toContain('Backoffice injoignable')
+    vi.useRealTimers()
+  })
+
+  it('affiche les deux joueurs d’un pupitre', async () => {
+    vi.spyOn(roomApi, 'fetchCurrentGame').mockResolvedValue({
+      ...GAME,
+      participants: [{ id: 6, podium: 1, displayName: 'Léa', secondDisplayName: 'Tom', score: 0 }],
+    })
+    const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+    await flushPromises()
+    expect(wrapper.find('[data-test="player-1"]').text()).toContain('Léa & Tom')
+  })
+
+  it('refuse une partie sans joueur', async () => {
+    vi.spyOn(roomApi, 'fetchCurrentGame').mockResolvedValue({ ...GAME, participants: [] })
+    const content = vi.spyOn(roomApi, 'fetchCurrentContent')
+    const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+    await flushPromises()
+
+    await wrapper.find('[data-test="start-game"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Aucun joueur n’est inscrit')
+    expect(content).not.toHaveBeenCalled()
+  })
+
+  it('ne passe pas la partie « en cours » si le moteur la refuse', async () => {
+    vi.spyOn(roomApi, 'fetchCurrentGame').mockResolvedValue({ ...GAME, roundsCount: 0 })
+    vi.spyOn(roomApi, 'fetchCurrentContent').mockResolvedValue(getPlayableThemes())
+    const start = vi.spyOn(roomApi, 'startRoomGame')
+    const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+    await flushPromises()
+
+    await wrapper.find('[data-test="start-game"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('n’est pas jouable')
+    expect(start).not.toHaveBeenCalled()
+    expect(useRoomGame().state.value).toBeNull()
+  })
+
+  it('ne démarre rien si l’écran est quitté pendant la préparation', async () => {
+    vi.spyOn(roomApi, 'fetchCurrentGame').mockResolvedValue(GAME)
+    let deliver: ((themes: ReturnType<typeof getPlayableThemes>) => void) | undefined
+    vi.spyOn(roomApi, 'fetchCurrentContent').mockReturnValue(
+      new Promise((resolve) => {
+        deliver = resolve
+      })
+    )
+    const start = vi.spyOn(roomApi, 'startRoomGame')
+    const { wrapper, router } = await mountWithApp(LobbyView, { route: '/lobby' })
+    await flushPromises()
+
+    await wrapper.find('[data-test="start-game"]').trigger('click')
+    wrapper.unmount()
+    deliver?.(getPlayableThemes())
+    await flushPromises()
+
+    expect(start).not.toHaveBeenCalled()
+    expect(useRoomGame().state.value).toBeNull()
+    expect(router.currentRoute.value.name).not.toBe('play')
+  })
+
+  it('propose de reprendre une partie déjà en cours sur ce PC', async () => {
+    GameSession.create(
+      {
+        seed: GAME.seed,
+        participants: [{ id: 1, podium: 1, displayName: 'Léa' }],
+        themes: getPlayableThemes(),
+      },
+      [],
+      { storage }
+    )
+    vi.spyOn(roomApi, 'fetchCurrentGame').mockResolvedValue({ ...GAME, state: 'running' })
+    const content = vi.spyOn(roomApi, 'fetchCurrentContent')
+    const { wrapper, router } = await mountWithApp(LobbyView, { route: '/lobby' })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Partie en cours')
+    await wrapper.find('[data-test="resume-game"]').trigger('click')
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('play'))
+    expect(content).not.toHaveBeenCalled()
+  })
+
+  it('demande confirmation avant de recommencer une partie en cours', async () => {
+    vi.spyOn(roomApi, 'fetchCurrentGame').mockResolvedValue({ ...GAME, state: 'running' })
+    const content = vi.spyOn(roomApi, 'fetchCurrentContent').mockResolvedValue(getPlayableThemes())
+    vi.spyOn(roomApi, 'startRoomGame').mockResolvedValue({ ...GAME, state: 'running' })
+    const { wrapper, router } = await mountWithApp(LobbyView, { route: '/lobby' })
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="resume-game"]').exists()).toBe(false)
+    await wrapper.find('[data-test="start-game"]').trigger('click')
+    useConfirm().cancel()
+    await flushPromises()
+    expect(content).not.toHaveBeenCalled()
+
+    await wrapper.find('[data-test="start-game"]').trigger('click')
+    useConfirm().accept()
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('play'))
   })
 })

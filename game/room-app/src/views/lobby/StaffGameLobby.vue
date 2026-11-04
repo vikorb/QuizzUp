@@ -28,13 +28,19 @@
       <template v-else-if="game">
         <h1 class="staff-lobby__title">
           {{
-            $t('room.staffLobby.ready', {
+            $t(isRunning ? 'room.staffLobby.running' : 'room.staffLobby.ready', {
               rounds: game.roundsCount,
               questions: game.questionsPerRound,
             })
           }}
         </h1>
-        <p class="staff-lobby__subtitle">{{ $t('room.staffLobby.readyText') }}</p>
+        <p class="staff-lobby__subtitle">
+          {{
+            isRunning
+              ? $t(savedGame ? 'room.staffLobby.runningText' : 'room.staffLobby.runningNoSaveText')
+              : $t('room.staffLobby.readyText')
+          }}
+        </p>
 
         <div class="staff-lobby__desks">
           <article
@@ -50,7 +56,7 @@
             <DeskBadge :desk="participant.podium" :size="44" />
             <div class="player__text">
               <small>{{ $t('room.desk', { n: participant.podium }) }}</small>
-              <strong>{{ participant.displayName }}</strong>
+              <strong>{{ formatDeskName(participant) }}</strong>
             </div>
             <span v-if="pinged.has(participant.podium)" class="player__ping">
               {{ $t('room.lobby.buzzerOk') }}
@@ -62,32 +68,61 @@
           {{ $t(`room.staffLobby.errors.${error}`) }}
         </p>
 
-        <UiButton
-          variant="primary"
-          class="staff-lobby__start"
-          :disabled="starting"
-          data-test="start-game"
-          @click="onStart"
-        >
-          <MdIcon :path="mdiPlay" :size="24" />
-          {{ starting ? $t('room.staffLobby.starting') : $t('room.lobby.start') }}
-        </UiButton>
+        <div class="staff-lobby__actions">
+          <UiButton
+            v-if="isRunning && savedGame"
+            variant="primary"
+            class="staff-lobby__start"
+            :disabled="starting"
+            data-test="resume-game"
+            @click="onResume"
+          >
+            <MdIcon :path="mdiPlay" :size="24" />
+            {{ $t('room.staffLobby.resume') }}
+          </UiButton>
+          <UiButton
+            :variant="isRunning && savedGame ? 'default' : 'primary'"
+            class="staff-lobby__start"
+            :disabled="starting"
+            data-test="start-game"
+            @click="onStart"
+          >
+            <MdIcon :path="isRunning ? mdiRestart : mdiPlay" :size="24" />
+            {{
+              starting
+                ? $t('room.staffLobby.starting')
+                : isRunning
+                  ? $t('room.staffLobby.restart')
+                  : $t('room.lobby.start')
+            }}
+          </UiButton>
+        </div>
       </template>
     </section>
   </main>
 </template>
 
 <script setup lang="ts">
-import { mdiPlay, mdiTimerSandEmpty } from '@mdi/js'
+import { mdiPlay, mdiRestart, mdiTimerSandEmpty } from '@mdi/js'
+import { GameSetupError } from '@quizzup/game-engine'
+import { GAME_STATE_RUNNING } from '@quizzup/shared'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
 import DeskBadge from '@/components/game/DeskBadge.vue'
 import RoomTopBar from '@/components/game/RoomTopBar.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import { useConfirm } from '@/composables/useConfirm'
 import { createEmptyRegistration, type Registration } from '@/game/registrations'
-import { preloadExtracts, startNewGame } from '@/game/useRoomGame'
+import {
+  hasSavedGame,
+  preloadExtracts,
+  resumeSavedGame,
+  startNewGame,
+  validateNewGame,
+} from '@/game/useRoomGame'
 import { type DeskNumber, DESKS } from '@/hardware/buzzers'
 import { useBuzzers } from '@/hardware/useBuzzers'
 import { getRoomToken } from '@/utils/auth'
@@ -96,25 +131,38 @@ import {
   fetchCurrentGame,
   RoomApiError,
   type RoomGame,
+  type RoomGameParticipant,
   startRoomGame,
 } from '@/utils/roomApi'
 
 /** Le staff lance la partie au backoffice : la salle vérifie régulièrement. */
 const POLL_INTERVAL_MS = 3000
 const PING_DURATION_MS = 1200
+/** Une partie affichée ne disparaît qu'après plusieurs échecs de suite (micro-coupure). */
+const OFFLINE_AFTER_FAILURES = 3
 
 type Status = 'loading' | 'waiting' | 'offline' | 'ready'
-type StartError = 'noContent' | 'gameGone' | 'startFailed' | 'invalidGame'
+type StartError =
+  'noContent' | 'gameGone' | 'startFailed' | 'invalidGame' | 'noPlayers' | 'invalidSetup'
 
 const router = useRouter()
+const { t } = useI18n()
+const { confirm } = useConfirm()
 
 const status = ref<Status>('loading')
 const game = shallowRef<RoomGame | null>(null)
 const starting = ref(false)
 const error = ref<StartError | null>(null)
+const savedGame = ref(hasSavedGame())
 const pinged = reactive(new Set<DeskNumber>())
 const timers = new Set<ReturnType<typeof setTimeout>>()
 let poller: ReturnType<typeof setInterval> | null = null
+let polling = false
+let failures = 0
+/** L'écran a été quitté : un démarrage en cours s'arrête là, sans naviguer. */
+let disposed = false
+
+const isRunning = computed(() => game.value?.state === GAME_STATE_RUNNING)
 
 const sortedParticipants = computed(() =>
   (game.value?.participants ?? [])
@@ -128,23 +176,36 @@ function isDeskNumber(value: number): value is DeskNumber {
   return (DESKS as readonly number[]).includes(value)
 }
 
+/** Nom affiché d'un pupitre : un ou deux joueurs (le score est celui du pupitre). */
+function formatDeskName(participant: RoomGameParticipant): string {
+  return participant.secondDisplayName
+    ? t('room.staffLobby.duo', {
+        first: participant.displayName,
+        second: participant.secondDisplayName,
+      })
+    : participant.displayName
+}
+
 /** Les joueurs inscrits au backoffice, au format du lobby (aucun email côté salle). */
-function toRegistrations(current: RoomGame): Registration[] | null {
+function toRegistrations(current: RoomGame): Registration[] | StartError {
+  if (current.participants.length === 0) {
+    return 'noPlayers'
+  }
   const registrations: Registration[] = []
   for (const participant of current.participants) {
     if (!isDeskNumber(participant.podium)) {
-      return null
+      return 'invalidGame'
     }
     registrations.push({
       ...createEmptyRegistration(participant.podium),
-      displayName: participant.displayName,
+      displayName: formatDeskName(participant),
     })
   }
-  return registrations.length > 0 ? registrations : null
+  return registrations
 }
 
 async function refresh(): Promise<void> {
-  if (starting.value) {
+  if (starting.value || polling) {
     return
   }
   const token = getRoomToken()
@@ -152,15 +213,23 @@ async function refresh(): Promise<void> {
     status.value = 'offline'
     return
   }
+  polling = true
   try {
     const current = await fetchCurrentGame(token)
-    if (starting.value) {
+    failures = 0
+    if (starting.value || disposed) {
       return
     }
     game.value = current
     status.value = current ? 'ready' : 'waiting'
+    savedGame.value = hasSavedGame()
   } catch {
-    status.value = 'offline'
+    failures += 1
+    if (!game.value || failures >= OFFLINE_AFTER_FAILURES) {
+      status.value = 'offline'
+    }
+  } finally {
+    polling = false
   }
 }
 
@@ -176,12 +245,19 @@ useBuzzers((press) => {
 async function onStart(): Promise<void> {
   const current = game.value
   const token = getRoomToken()
-  if (!current || !token) {
+  if (starting.value || !current || !token) {
     return
   }
   const registrations = toRegistrations(current)
-  if (!registrations) {
-    error.value = 'invalidGame'
+  if (typeof registrations === 'string') {
+    error.value = registrations
+    return
+  }
+  // Partie déjà commencée : la recommencer efface la progression de la salle.
+  if (
+    isRunning.value &&
+    !(await confirm({ message: t('room.staffLobby.restartConfirm'), variant: 'danger' }))
+  ) {
     return
   }
 
@@ -189,23 +265,34 @@ async function onStart(): Promise<void> {
   error.value = null
   try {
     const themes = await fetchCurrentContent(token)
+    if (disposed) {
+      return
+    }
     if (themes.length === 0) {
       error.value = 'noContent'
       return
     }
-    // Un extrait illisible n'empêche pas de jouer : son palier restera muet.
-    await preloadExtracts(themes)
-    await startRoomGame(token, current.id)
-    startNewGame({
+    const options = {
       registrations,
       themes,
       seed: current.seed,
       roundsCount: current.roundsCount,
       questionsPerRound: current.questionsPerRound,
-    })
+    }
+    // Le moteur valide la partie avant que le backoffice ne la passe « en cours ».
+    validateNewGame(options)
+    // Un extrait illisible n'empêche pas de jouer : son palier restera muet.
+    await preloadExtracts(themes)
+    if (disposed) {
+      return
+    }
+    await startRoomGame(token, current.id)
+    if (disposed) {
+      return
+    }
+    startNewGame(options)
   } catch (caught) {
-    error.value =
-      caught instanceof RoomApiError && caught.status === 404 ? 'gameGone' : 'startFailed'
+    error.value = toStartError(caught)
     return
   } finally {
     starting.value = false
@@ -214,12 +301,39 @@ async function onStart(): Promise<void> {
   await router.push({ name: 'play' })
 }
 
+function toStartError(caught: unknown): StartError {
+  if (caught instanceof GameSetupError) {
+    return 'invalidSetup'
+  }
+  return caught instanceof RoomApiError && caught.status === 404 ? 'gameGone' : 'startFailed'
+}
+
+async function onResume(): Promise<void> {
+  if (starting.value) {
+    return
+  }
+  starting.value = true
+  error.value = null
+  try {
+    if (!(await resumeSavedGame())) {
+      savedGame.value = false
+      return
+    }
+  } finally {
+    starting.value = false
+  }
+  if (!disposed) {
+    await router.push({ name: 'play' })
+  }
+}
+
 onMounted(() => {
   void refresh()
   poller = setInterval(() => void refresh(), POLL_INTERVAL_MS)
 })
 
 onBeforeUnmount(() => {
+  disposed = true
   if (poller !== null) {
     clearInterval(poller)
     poller = null
@@ -345,6 +459,13 @@ onBeforeUnmount(() => {
 .staff-lobby__error {
   margin: 0;
   color: var(--danger);
+}
+
+.staff-lobby__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
 }
 
 .staff-lobby__start {

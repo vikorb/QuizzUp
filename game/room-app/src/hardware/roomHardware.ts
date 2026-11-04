@@ -7,6 +7,7 @@ import {
   createLightingController,
   createSerialOutput,
   createSimulationOutput,
+  defaultRoomHardwareConfig,
   type DmxOutput,
   getGrantedDmxPort,
   isDesk,
@@ -23,15 +24,18 @@ import { computed, shallowRef } from 'vue'
 
 import { onGameEvents } from '@/game/useRoomGame'
 import { SIMULATION_KEYMAP } from '@/hardware/buzzers'
+import { RoomApiError } from '@/utils/roomApi'
 
 /**
  * Matériel de la salle, partagé par tous les écrans : config (`rooms.config`), une
  * seule entrée buzzers et un seul contrôleur de lumières pour toute la page.
  *
- * Tant que la config de salle n'est pas servie par le backoffice, elle est gardée
- * dans le navigateur du PC de la salle.
+ * La config vit sur le compte de la salle (`rooms.config`) ; le navigateur du PC
+ * de la salle en garde une copie de secours, avec la salle à laquelle elle se
+ * rapporte et l'indication qu'elle attend encore d'être envoyée.
  */
 export const HARDWARE_STORAGE_KEY = 'quizzup_room_hardware'
+export const HARDWARE_SYNC_STORAGE_KEY = 'quizzup_room_hardware_sync'
 
 type HardwareStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 
@@ -275,13 +279,73 @@ export async function switchToSimulatedLights(
 
 // ── Configuration ──────────────────────────────────────────────────────────
 
-/** Où se trouve la dernière config enregistrée : compte de la salle, ou ce PC seulement. */
-export type HardwareSyncStatus = 'local' | 'saved' | 'error'
+/**
+ * Où se trouve la dernière config enregistrée : compte de la salle, ce PC seulement,
+ * ce PC faute de réseau (renvoyée plus tard), ou ce PC parce que le backoffice l'a refusée.
+ */
+export type HardwareSyncStatus = 'local' | 'saved' | 'error' | 'rejected'
 
 type RemoteSaver = (config: RoomHardwareConfig) => Promise<void>
 
+/** État de la copie locale : salle d'origine, et modifications pas encore envoyées. */
+export type HardwareSyncMeta = { roomId: number | null; pending: boolean }
+
 let remoteSaver: RemoteSaver | null = null
 const syncStatus = shallowRef<HardwareSyncStatus>('local')
+/** Incrémenté à chaque enregistrement local : une config relue avant est périmée. */
+let saveGeneration = 0
+/** Les envois partent un par un, dans l'ordre des enregistrements. */
+let saveQueue: Promise<void> = Promise.resolve()
+
+/** JSON aux clés triées : `jsonb` réordonne les clés, le contenu seul compte. */
+export function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(',')}]`
+  }
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, item]) => item !== undefined)
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+    return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`).join(',')}}`
+  }
+  return JSON.stringify(value) ?? 'null'
+}
+
+const DEFAULT_CONFIG_JSON = stableStringify(defaultRoomHardwareConfig())
+
+/** Config de salle neuve (rien d'associé, aucun appareil) : rien à transmettre ni à garder. */
+export function isDefaultHardwareConfig(input: unknown): boolean {
+  return stableStringify(parseRoomHardwareConfig(input).config) === DEFAULT_CONFIG_JSON
+}
+
+export function getHardwareSyncMeta(): HardwareSyncMeta {
+  try {
+    const raw = getStorage()?.getItem(HARDWARE_SYNC_STORAGE_KEY)
+    const value = raw ? (JSON.parse(raw) as Partial<HardwareSyncMeta>) : {}
+    return {
+      roomId: typeof value.roomId === 'number' ? value.roomId : null,
+      pending: value.pending === true,
+    }
+  } catch {
+    return { roomId: null, pending: false }
+  }
+}
+
+function writeSyncMeta(patch: Partial<HardwareSyncMeta>): void {
+  try {
+    getStorage()?.setItem(
+      HARDWARE_SYNC_STORAGE_KEY,
+      JSON.stringify({ ...getHardwareSyncMeta(), ...patch })
+    )
+  } catch {
+    // Stockage indisponible.
+  }
+}
+
+/** Numéro du dernier enregistrement local (voir `saveGeneration`). */
+export function getHardwareSaveGeneration(): number {
+  return saveGeneration
+}
 
 /**
  * Enregistrement côté backoffice (`rooms.config`, compte de la salle). Sans
@@ -293,7 +357,7 @@ export function setHardwareRemoteSaver(saver: RemoteSaver | null): void {
 }
 
 async function applyConfig(input: unknown): Promise<ParsedRoomHardwareConfig> {
-  const previousLighting = JSON.stringify(parsed.value.config.lighting)
+  const previousLighting = stableStringify(parsed.value.config.lighting)
   const next = parseRoomHardwareConfig(input)
   parsed.value = next
 
@@ -306,35 +370,70 @@ async function applyConfig(input: unknown): Promise<ParsedRoomHardwareConfig> {
 
   keyboardInput?.setKeymap(effectiveKeymap(next.config))
 
-  if (JSON.stringify(next.config.lighting) !== previousLighting) {
+  if (stableStringify(next.config.lighting) !== previousLighting) {
     await restartLighting()
   }
   return next
 }
 
 /**
- * Enregistre la config de salle (normalisée) et l'applique : nouveau mapping des
- * buzzers, et contrôleur de lumières relancé seulement si la partie lumières a changé.
- * Elle part ensuite sur le compte de la salle ; en cas d'échec, elle reste sur ce PC.
+ * Envoie la config actuelle au compte de la salle, après les envois déjà en cours.
+ * La copie locale reste « à envoyer » tant que le dernier enregistrement n'est pas passé.
  */
-export async function saveRoomHardwareConfig(input: unknown): Promise<ParsedRoomHardwareConfig> {
-  const next = await applyConfig(input)
+export function pushHardwareConfig(
+  config: RoomHardwareConfig = parsed.value.config,
+  generation = saveGeneration
+): Promise<void> {
+  const saver = remoteSaver
+  if (!saver) {
+    return Promise.resolve()
+  }
+  writeSyncMeta({ pending: true })
 
-  if (remoteSaver) {
+  const run = async (): Promise<void> => {
     try {
-      await remoteSaver(next.config)
-      syncStatus.value = 'saved'
-    } catch {
-      syncStatus.value = 'error'
+      await saver(config)
+      if (generation === saveGeneration) {
+        writeSyncMeta({ pending: false })
+        syncStatus.value = 'saved'
+      }
+    } catch (caught) {
+      if (generation === saveGeneration) {
+        // Un 400 (config trop volumineuse ou invalide) ne passera pas mieux plus tard.
+        syncStatus.value =
+          caught instanceof RoomApiError && caught.status === 400 ? 'rejected' : 'error'
+      }
     }
   }
+  const sent = saveQueue.then(run)
+  saveQueue = sent
+  return sent
+}
+
+/**
+ * Enregistre la config de salle (normalisée) et l'applique : nouveau mapping des
+ * buzzers, et contrôleur de lumières relancé seulement si la partie lumières a changé.
+ * Elle part ensuite sur le compte de la salle ; en cas d'échec, elle reste sur ce PC
+ * et sera renvoyée au prochain démarrage.
+ */
+export async function saveRoomHardwareConfig(input: unknown): Promise<ParsedRoomHardwareConfig> {
+  saveGeneration += 1
+  const generation = saveGeneration
+  const next = await applyConfig(input)
+  await pushHardwareConfig(next.config, generation)
   return next
 }
 
-/** Config relue depuis le compte de la salle : appliquée sans être renvoyée. */
-export async function applyRemoteHardwareConfig(input: unknown): Promise<void> {
+/** Config relue depuis le compte de la salle `roomId` : appliquée sans être renvoyée. */
+export async function applyRemoteHardwareConfig(input: unknown, roomId: number): Promise<void> {
   await applyConfig(input)
+  writeSyncMeta({ roomId, pending: false })
   syncStatus.value = 'saved'
+}
+
+/** Rattache la copie locale à la salle connectée (avant de la lui envoyer). */
+export function bindHardwareToRoom(roomId: number): void {
+  writeSyncMeta({ roomId })
 }
 
 /** Config actuelle (normalisée), par exemple pour la pousser vers le backoffice. */
@@ -355,6 +454,8 @@ export async function resetRoomHardware(options: { storage?: HardwareStorage | n
   pendingEmergency = null
   remoteSaver = null
   syncStatus.value = 'local'
+  saveGeneration = 0
+  saveQueue = Promise.resolve()
   storage = options.storage ?? null
   parsed.value = parseRoomHardwareConfig(loadStoredConfig())
 }
