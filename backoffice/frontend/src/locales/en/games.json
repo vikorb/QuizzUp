@@ -71,7 +71,7 @@
       "displayName": "Display name",
       "displayNamePlaceholder": "e.g. The Quizzers",
       "email": "Email",
-      "emailPlaceholder": "e.g. player@example.com (optional)",
+      "emailPlaceholder": "e.g. player{'@'}example.com (optional)",
       "emailHint": "Optional.",
       "consent": "I agree that my email address may be used to receive the game results and offers from the centre.",
       "consentHint": "Required when an email is entered. The player can withdraw consent at any time.",

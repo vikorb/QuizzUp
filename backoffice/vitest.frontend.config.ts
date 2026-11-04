@@ -15,7 +15,12 @@ export default defineConfig({
       '@frontend-tests': path.resolve(rootDir, 'tests/frontend/src'),
 
       'vue-i18n': path.resolve(rootDir, 'tests/frontend/src/_helpers/i18nMock.ts'),
-      
+      // Vrai compilateur de vue-i18n, pour vérifier les textes des locales (le reste est moqué).
+      '@intlify/message-compiler': path.resolve(
+        rootDir,
+        'frontend/node_modules/@intlify/message-compiler/dist/message-compiler.mjs'
+      ),
+
       vue: path.resolve(rootDir, 'node_modules/vue'),
       'vue-router': path.resolve(rootDir, 'node_modules/vue-router'),
       '@vue/runtime-core': path.resolve(rootDir, 'node_modules/@vue/runtime-core'),
