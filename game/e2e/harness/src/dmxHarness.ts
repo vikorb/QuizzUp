@@ -39,6 +39,9 @@ const THEME: EngineTheme = {
 }
 
 const config = defaultRoomHardwareConfig().lighting
+// Fumée activée pour la salle, mais jamais armée par l'opérateur : chaque déclenchement
+// doit être refusé (`not_armed`).
+config.smoke = { ...config.smoke, enabled: true }
 config.fixtures = [
   ...([1, 2, 3, 4] as Desk[]).map((desk) => ({
     id: `par-${desk}`,

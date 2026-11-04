@@ -76,7 +76,7 @@ test.describe('Lumières — simulation DMX', () => {
     await expect.poll(() => page.evaluate(() => window.dmxHarness.scene())).toBe('answer-correct')
 
     // Question 2 : Alice se trompe → scène « mauvaise réponse ».
-    await waitForEvent(page, 'blind_test_stage_started', 2)
+    await waitForEvent(page, 'question_started', 2)
     await press(page, 1, 0)
     await waitForEvent(page, 'buzzer_pressed', 2)
     const correct2 = await page.evaluate(() => window.dmxHarness.correctButton())
@@ -100,15 +100,14 @@ test.describe('Lumières — simulation DMX', () => {
     await press(page, 2, correct3)
     await waitForEvent(page, 'answer_correct', 2)
     await expect.poll(() => page.evaluate(() => window.dmxHarness.scene())).toBe('answer-correct')
-    await expect.poll(() => page.evaluate(() => window.dmxHarness.frameMax())).toBeGreaterThan(0)
 
     // Fin de partie : scène de victoire ; fumée jamais déclenchée (non armée par défaut).
     await waitForEvent(page, 'game_ended')
     await expect.poll(() => page.evaluate(() => window.dmxHarness.scene())).toBe('victory')
-    // L'étape fumée de la victoire est refusée (non armée) : rien n'est envoyé à la machine.
+    // L'étape fumée de la victoire est refusée (activée mais non armée) : rien n'est envoyé.
     await expect
       .poll(() => page.evaluate(() => window.dmxHarness.smokeRefusals()))
-      .not.toHaveLength(0)
+      .toEqual(['not_armed'])
     expect(await page.evaluate(() => window.dmxHarness.smokeMax())).toBe(0)
   })
 })

@@ -14,7 +14,7 @@ Objectif : attraper les régressions que les tests unitaires de chaque paquet ne
 | `tests/room-app/blind-test-rules.spec.ts` | écran de salle + moteur                | Règles validées par Enzo : tout le monde joue en même temps, une erreur ne bloque **que pour le palier**, on passe au palier suivant **seulement si personne n'a trouvé** (tous faux, ou fenêtre de buzz écoulée).                                                                  |
 | `tests/room-app/hardware-dmx.spec.ts`     | écran « Matériel » (`/hardware`)       | Config de salle en JSON (2 PAR), sortie simulée, scène « buzz » sur le pupitre 2 (PAR à sa couleur, l'autre baissé), arrêt d'urgence = tout éteint et scènes bloquées, réarmement confirmé.                                                                                         |
 | `tests/harness/blind-test-audio.spec.ts`  | banc audio (moteur + pont + Web Audio) | **Son réel** mesuré en sortie : démarre et s'arrête à 1 s, 5 s, 20 s (± 150 ms), respecte le point de départ de l'extrait, se coupe au buzz, reprend après une erreur, s'arrête sur une bonne réponse.                                                                              |
-| `tests/harness/dmx-simulation.spec.ts`    | banc lumières (moteur + buzzers + DMX) | Boucle DMX ~30 trames/s, scènes buzz / bonne / mauvaise réponse / victoire, PAR du pupitre qui a buzzé à sa couleur, arrêt d'urgence = noir complet, réarmement, fumée jamais déclenchée sans armement.                                                                             |
+| `tests/harness/dmx-simulation.spec.ts`    | banc lumières (moteur + buzzers + DMX) | Boucle DMX ~30 trames/s, scènes buzz / bonne / mauvaise réponse / victoire, PAR du pupitre qui a buzzé à sa couleur, arrêt d'urgence = noir complet, réarmement, fumée activée mais non armée : déclenchement refusé (`not_armed`), canal fumée toujours à 0.                       |
 
 ### Écran de salle
 
@@ -64,6 +64,10 @@ npm run lint
 npm run format:check
 npm run type-check
 ```
+
+Les tests audio forment un projet Playwright à part (`audio`), lancé seul après les autres pour
+que les mesures au son réel ne partagent pas le CPU ; si un test des autres projets échoue, ils
+sont ignorés (corriger d'abord l'échec, ou lancer `npx playwright test --project=audio`).
 
 En CI (job `e2e` de `.github/workflows/ci.yml`), un échec publie le rapport Playwright, les
 traces, captures et vidéos en artefact `playwright-report`.

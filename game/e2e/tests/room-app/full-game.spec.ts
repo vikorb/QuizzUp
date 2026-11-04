@@ -58,7 +58,7 @@ async function expectWinner(page: Page, desk: Desk, stage: number, points: numbe
 
 /** Révélation (5 s) → question suivante. */
 async function nextQuestion(page: Page): Promise<void> {
-  await advance(page, 5000)
+  await advance(page, 5000 + TICK_MARGIN_MS)
   await expectScreen(page, 'blind')
   expect(await currentStage(page)).toBe(1)
 }
@@ -79,10 +79,10 @@ async function startRound(page: Page, position: number): Promise<void> {
 }
 
 async function endRound(page: Page, position: number): Promise<void> {
-  await advance(page, 5000)
+  await advance(page, 5000 + TICK_MARGIN_MS)
   await expectScreen(page, 'summary')
   await expect(page.locator('.summary__title')).toHaveText(`Fin de la manche ${position}`)
-  await advance(page, 8000)
+  await advance(page, 8000 + TICK_MARGIN_MS)
 }
 
 test.describe('Écran de salle — partie complète', () => {
@@ -179,9 +179,9 @@ test.describe('Écran de salle — partie complète', () => {
     await expectScores(page, { Alice: 350, Bob: 120, Chloé: 150 })
 
     // Bilan de la dernière manche puis podium final.
-    await advance(page, 5000)
+    await advance(page, 5000 + TICK_MARGIN_MS)
     await expect(page.locator('.summary__next')).toHaveText('Résultats finaux dans un instant…')
-    await advance(page, 8000)
+    await advance(page, 8000 + TICK_MARGIN_MS)
     await expectScreen(page, 'finished')
     await expect(page.locator('.finished__title')).toHaveText('Fin de la partie')
     await expect(page.locator('.finished__winner')).toHaveText('Alice remporte la partie !')

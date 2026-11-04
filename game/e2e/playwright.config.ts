@@ -36,8 +36,16 @@ export default defineConfig({
     },
     {
       name: 'harness',
-      testMatch: /harness\/.*\.spec\.ts/,
+      testMatch: /harness\/dmx-.*\.spec\.ts/,
       // Pas de vidéo : l'encodage prendrait du CPU aux mesures de son réel.
+      use: { ...devices['Desktop Chrome'], baseURL: HARNESS_URL, video: 'off' },
+    },
+    {
+      // Mesures au son réel (± 150 ms) : lancées seules, après les autres projets, pour ne
+      // pas partager le CPU avec une partie en cours.
+      name: 'audio',
+      testMatch: /harness\/.*-audio\.spec\.ts/,
+      dependencies: ['room-app', 'harness'],
       use: { ...devices['Desktop Chrome'], baseURL: HARNESS_URL, video: 'off' },
     },
   ],
