@@ -57,6 +57,9 @@ Autres commandes utiles :
 | `npm run demo:stop`  | Arrêter QuizzUP (les données sont gardées)                              |
 | `npm run demo:reset` | **Tout effacer** (base et extraits) ; le prochain `demo` repart à neuf  |
 
+Pour récupérer une nouvelle version : `git pull` puis **`npm run demo`** à nouveau (il
+reconstruit ce qui a changé ; les données sont gardées).
+
 Si une page ne s'ouvre pas tout de suite, attendre une minute puis recharger : le premier
 démarrage installe encore des dépendances (`npm run demo:logs` pour suivre).
 
