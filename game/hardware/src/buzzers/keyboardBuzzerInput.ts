@@ -28,6 +28,20 @@ export type KeyboardBuzzerInput = BuzzerInput & {
   unlockSystemKeys: () => void
 }
 
+/**
+ * Instant de l'appui : `event.timeStamp` (posé par le navigateur à la réception de la touche, même
+ * base que `performance.now()`), donc insensible au retard du thread principal. Repli sur
+ * `now` si la valeur est absente, nulle, non finie ou dans le futur (base d'horloge différente).
+ */
+export function eventTime(timeStamp: number | undefined, now: number): number {
+  return typeof timeStamp === 'number' &&
+    Number.isFinite(timeStamp) &&
+    timeStamp > 0 &&
+    timeStamp <= now
+    ? timeStamp
+    : now
+}
+
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!target || typeof (target as Partial<HTMLElement>).tagName !== 'string') {
     return false
@@ -80,7 +94,7 @@ export function createKeyboardBuzzerInput(
   const notify = () => changeEmitter.emit(getState())
 
   const onKeyDown = (event: KeyboardEvent) => {
-    const at = clock.now()
+    const at = eventTime(event.timeStamp, clock.now())
     const { code } = event
     // Saisie dans un champ (formulaire de la page) ou raccourci (Ctrl+R…) : pas un buzz.
     if (isEditableTarget(event.target) || event.ctrlKey || event.altKey || event.metaKey) {
