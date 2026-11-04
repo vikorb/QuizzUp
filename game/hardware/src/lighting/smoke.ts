@@ -250,10 +250,13 @@ export function createSmokeController(
     },
     level(now = clock.now()) {
       const status = statusAt(now)
-      if (status !== lastStatus && lastStatus !== null) {
+      const changed = status !== lastStatus && lastStatus !== null
+      // Avant `notify` : un abonné qui pilote la fumée de façon synchrone ne doit pas voir son
+      // statut écrasé par celui calculé ici.
+      lastStatus = status
+      if (changed) {
         notify(now)
       }
-      lastStatus = status
       return status === 'firing' ? config.maxLevel : 0
     },
     getState,

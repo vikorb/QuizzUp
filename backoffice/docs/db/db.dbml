@@ -159,6 +159,7 @@ Table rooms {
 
   name varchar(255) [not null, note: 'Unique par compagnie (insensible à la casse, hors supprimées)']
   config jsonb [not null, default: '{}', note: 'Configuration matérielle : buzzers, lumières, fumée (format RoomHardwareConfig v1, voir game/hardware/README.md)']
+  config_revision integer [not null, default: 0, note: 'Augmente de 1 à chaque écriture de config ; PUT /room/config refuse (409) une révision périmée']
 
   status smallint [not null, default: 1, note: '0=inactive, 1=active, 2=deleted']
   created_at timestamptz [not null, default: `now()`]

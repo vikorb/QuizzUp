@@ -199,6 +199,7 @@
       "title": "Assistant d’installation",
       "progress": "Étape {n} sur {total}",
       "back": "Précédent",
+      "blocked": "« Suivant » reste grisé :",
       "next": "Suivant",
       "steps": {
         "browser": {
@@ -317,7 +318,11 @@
         "freezeNo": "Non",
         "freezeFailed": "La fumée ne doit pas être utilisée : vérifie le câblage et le réglage du relais temporisé, puis refais le test.",
         "freezeRunning": "Plus aucune trame n’est envoyée pendant 15 s. Regarde la machine : la fumée doit s’arrêter seule en 10 s au plus.",
-        "freezeAbort": "La fumée ne s’arrête pas : tout couper"
+        "freezeAbort": "La fumée ne s’arrête pas : tout couper",
+        "willBeDisabled": {
+          "no_device": "La fumée sera enregistrée désactivée : aucune machine à fumée n’est configurée.",
+          "checks_incomplete": "La fumée sera enregistrée désactivée : la liste de contrôle de sécurité n’est pas entièrement validée."
+        }
       },
       "summary": {
         "ready": "Tout est prêt.",
@@ -328,7 +333,8 @@
       "local": "Cette configuration est enregistrée sur ce PC.",
       "saved": "Configuration enregistrée sur le compte de la salle (copie de secours sur ce PC).",
       "error": "Backoffice injoignable : configuration gardée sur ce PC, elle sera renvoyée au prochain démarrage ou enregistrement.",
-      "rejected": "Configuration refusée par le backoffice (trop volumineuse ou invalide) : elle n'est gardée que sur ce PC."
+      "rejected": "Configuration refusée par le backoffice (trop volumineuse ou invalide) : elle n'est gardée que sur ce PC.",
+      "conflict": "La configuration a été modifiée depuis un autre poste ; la version la plus récente a été chargée."
     },
     "profiles": {
       "title": "Profils sur mesure et sens des lyres",

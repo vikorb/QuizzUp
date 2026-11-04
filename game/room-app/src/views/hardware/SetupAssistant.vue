@@ -281,6 +281,9 @@
         />
         <span>{{ $t('hardware.assistant.smoke.enable') }}</span>
       </label>
+      <p v-if="summary.smokeDisabled" class="hw-alert" role="status" data-test="smoke-disabled">
+        {{ $t(`hardware.assistant.smoke.willBeDisabled.${summary.smokeDisabled}`) }}
+      </p>
       <div class="hw-actions">
         <label class="hw-field">
           {{ $t('hardware.assistant.smoke.maxDuration') }}
@@ -368,6 +371,9 @@
           <li v-for="problem in summary.problems" :key="problem">{{ problem }}</li>
         </ul>
       </div>
+      <p v-if="summary.smokeDisabled" class="hw-alert" role="status" data-test="summary-smoke">
+        {{ $t(`hardware.assistant.smoke.willBeDisabled.${summary.smokeDisabled}`) }}
+      </p>
       <div v-if="summary.warnings.length > 0" class="hw-alert" data-test="summary-warnings">
         <ul>
           <li v-for="warning in summary.warnings" :key="warning">{{ warning }}</li>
@@ -384,9 +390,16 @@
       </div>
     </div>
 
-    <ul v-if="blockers.length > 0" class="hw-alert blockers" data-test="blockers">
-      <li v-for="blocker in blockers" :key="blocker">{{ blocker }}</li>
-    </ul>
+    <p v-if="syncStatus === 'conflict'" class="hw-alert" role="status" data-test="sync-conflict">
+      {{ $t('hardware.sync.conflict') }}
+    </p>
+
+    <div v-if="blockers.length > 0" class="hw-alert blockers" data-test="blockers">
+      <p>{{ $t('hardware.assistant.blocked') }}</p>
+      <ul>
+        <li v-for="blocker in blockers" :key="blocker">{{ blocker }}</li>
+      </ul>
+    </div>
 
     <div class="hw-actions nav">
       <UiButton :disabled="view.steps[0] === view.step" data-test="assistant-back" @click="onBack">
@@ -454,11 +467,16 @@ const BROWSER_KEYS = [
 const CENTER: PanTilt = { pan: 32_768, tilt: 32_768 }
 
 const { t } = useI18n()
-const { hardware, lightingState } = useRoomHardware()
+const { hardware, lightingState, syncStatus, conflictCount } = useRoomHardware()
 const { run: runFreezeTest, refusal: freezeRefusal } = useFreezeTest()
 
-const wizard = createSetupWizard(hardware.value.config)
-wizard.setBrowserCheck(checkBrowser())
+function newWizard() {
+  const created = createSetupWizard(hardware.value.config)
+  created.setBrowserCheck(checkBrowser())
+  return created
+}
+
+let wizard = newWizard()
 const view = shallowRef(wizard.getState())
 const blockers = shallowRef(wizard.blockers())
 
@@ -548,6 +566,15 @@ const canFreezeTest = computed(
 
 const isBefore = (id: SetupStepId) =>
   view.value.steps.indexOf(id) < view.value.steps.indexOf(view.value.step)
+
+// Un autre poste a enregistré une autre config : l'assistant repart d'elle (première étape),
+// sinon l'étape suivante renverrait sa copie périmée avec la nouvelle révision.
+watch(conflictCount, () => {
+  getLighting()?.diagnostics.end()
+  wizard = newWizard()
+  saved.value = false
+  sync()
+})
 
 // Les buzzers appris dans l'étape 2 sont enregistrés par l'écran Buzzers : on les reprend.
 watch(
@@ -740,7 +767,7 @@ async function onSave(): Promise<void> {
     getLighting()?.diagnostics.end()
     savedForFreezeTest = false
     await saveRoomHardwareConfig(wizard.summary().config)
-    saved.value = true
+    saved.value = syncStatus.value !== 'conflict'
   } finally {
     saving.value = false
   }
@@ -879,8 +906,8 @@ onBeforeUnmount(() => {
   gap: 10px 16px;
 }
 
-.blockers {
-  padding-left: 32px;
+.blockers ul {
+  padding-left: 20px;
 }
 
 .nav {

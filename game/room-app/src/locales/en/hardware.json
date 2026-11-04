@@ -199,6 +199,7 @@
       "title": "Setup wizard",
       "progress": "Step {n} of {total}",
       "back": "Previous",
+      "blocked": "“Next” stays greyed out:",
       "next": "Next",
       "steps": {
         "browser": {
@@ -317,7 +318,11 @@
         "freezeNo": "No",
         "freezeFailed": "Do not use the smoke: check the wiring and the timed relay setting, then run the test again.",
         "freezeRunning": "No frames are sent for 15 s. Watch the machine: the smoke must stop on its own within 10 s.",
-        "freezeAbort": "The smoke does not stop: cut everything"
+        "freezeAbort": "The smoke does not stop: cut everything",
+        "willBeDisabled": {
+          "no_device": "Smoke will be saved as disabled: no smoke machine is configured.",
+          "checks_incomplete": "Smoke will be saved as disabled: the safety checklist is not fully validated."
+        }
       },
       "summary": {
         "ready": "Everything is ready.",
@@ -328,7 +333,8 @@
       "local": "This configuration is saved on this PC.",
       "saved": "Configuration saved on the room account (backup copy on this PC).",
       "error": "Back office unreachable: the configuration is kept on this PC and will be sent again at the next start or save.",
-      "rejected": "Configuration refused by the back office (too large or invalid): it is only kept on this PC."
+      "rejected": "Configuration refused by the back office (too large or invalid): it is only kept on this PC.",
+      "conflict": "The configuration was changed from another station; the most recent version has been loaded."
     },
     "profiles": {
       "title": "Custom profiles and moving head direction",
