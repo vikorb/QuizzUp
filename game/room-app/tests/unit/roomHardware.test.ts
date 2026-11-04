@@ -8,6 +8,7 @@ import {
   HARDWARE_STORAGE_KEY,
   isDefaultHardwareConfig,
   saveBuzzerKeymap,
+  saveLearnedBuzzers,
   saveRoomDesksCount,
   saveRoomHardwareConfig,
   setBuzzerInput,
@@ -76,24 +77,87 @@ describe('matériel de la salle', () => {
       expect(desks.value).toEqual([1])
     })
 
-    it('retire les buzzers appris des pupitres en trop et ne remonte pas tout seul', async () => {
+    const SIX_DESK_KEYMAP = Object.fromEntries([
+      ['KeyP', { desk: 1, button: 'D' } as const],
+      ['KeyT', { desk: 5, button: 'A' } as const],
+      ['KeyY', { desk: 6, button: 'B' } as const],
+    ])
+
+    it('garde en réserve les buzzers des pupitres retirés et les restitue en remontant', async () => {
       await saveRoomDesksCount(6)
-      await saveBuzzerKeymap(
-        Object.fromEntries([
-          ['KeyP', { desk: 1, button: 'D' } as const],
-          ['KeyT', { desk: 5, button: 'A' } as const],
-          ['KeyY', { desk: 6, button: 'B' } as const],
-        ])
-      )
+      await saveBuzzerKeymap(SIX_DESK_KEYMAP)
 
       await saveRoomDesksCount(4)
 
       const { hardware, desks } = useRoomHardware()
       expect(desks.value).toEqual([1, 2, 3, 4])
-      expect(hardware.value.config.buzzers.keymap).toEqual(LEARNED_KEYMAP)
+      // Réserve conservée dans la config (et sur ce PC), sans remonter tout seul.
+      expect(hardware.value.config.desksCount).toBe(4)
+      expect(hardware.value.config.buzzers.keymap).toEqual(SIX_DESK_KEYMAP)
       expect(JSON.parse(localStorage.getItem(HARDWARE_STORAGE_KEY) ?? '{}').buzzers.keymap).toEqual(
-        LEARNED_KEYMAP
+        SIX_DESK_KEYMAP
       )
+
+      await saveRoomDesksCount(6)
+      expect(useRoomHardware().desks.value).toEqual([1, 2, 3, 4, 5, 6])
+      expect(hardware.value.config.buzzers.keymap).toEqual(SIX_DESK_KEYMAP)
+    })
+
+    it('ignore le buzzer d’un pupitre en réserve, et le reprend en remontant le nombre', async () => {
+      await saveRoomDesksCount(6)
+      await saveBuzzerKeymap(SIX_DESK_KEYMAP)
+      const listener = vi.fn()
+      getBuzzerInput().onPress(listener)
+
+      await saveRoomDesksCount(4)
+      pressKey('KeyT') // pupitre 5 : en réserve
+      pressKey('KeyP') // pupitre 1 : actif
+      expect(listener).toHaveBeenCalledTimes(1)
+      expect(listener).toHaveBeenCalledWith(expect.objectContaining({ desk: 1, button: 'D' }))
+
+      await saveRoomDesksCount(6)
+      listener.mockClear()
+      pressKey('KeyT')
+      expect(listener).toHaveBeenCalledWith(expect.objectContaining({ desk: 5, button: 'A' }))
+    })
+
+    it('retire le doublon de réserve quand sa touche est réapprise sur un pupitre actif', async () => {
+      await saveRoomDesksCount(6)
+      await saveBuzzerKeymap(SIX_DESK_KEYMAP)
+      await saveRoomDesksCount(4)
+
+      // KeyT (réserve du pupitre 5) est réapprise sur le pupitre 2.
+      await saveLearnedBuzzers(Object.fromEntries([['KeyT', { desk: 2, button: 'B' } as const]]))
+
+      const { hardware } = useRoomHardware()
+      expect(hardware.value.config.buzzers.keymap).toEqual(
+        Object.fromEntries([
+          ['KeyY', { desk: 6, button: 'B' }],
+          ['KeyT', { desk: 2, button: 'B' }],
+        ])
+      )
+      await saveRoomDesksCount(6)
+      expect(hardware.value.config.buzzers.keymap['KeyT']).toEqual({ desk: 2, button: 'B' })
+    })
+
+    it('détache les lumières d’un pupitre retiré et les rattache en remontant le nombre', async () => {
+      await saveRoomDesksCount(6)
+      await saveRoomHardwareConfig({
+        ...useRoomHardware().hardware.value.config,
+        lighting: {
+          ...useRoomHardware().hardware.value.config.lighting,
+          fixtures: [{ ...FIXTURE, id: 'par6', desk: 6 }],
+        },
+      })
+      const controller = await startLighting()
+
+      await saveRoomDesksCount(4)
+
+      // Le contrôleur est relancé (l'appareil est détaché du pupitre 6), puis remonter le rétablit.
+      expect(getLighting()).not.toBe(controller)
+      expect(getLighting()?.getFixtureViews()[0]?.desk).toBeNull()
+      await saveRoomDesksCount(6)
+      expect(getLighting()?.getFixtureViews()[0]?.desk).toBe(6)
     })
 
     it('n’est plus une config de salle neuve dès qu’il change', async () => {

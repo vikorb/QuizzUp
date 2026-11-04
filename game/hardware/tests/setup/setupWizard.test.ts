@@ -1,5 +1,10 @@
 import { createDefaultKeymap } from '@hardware/buzzers/keymap'
-import { gamepadMatcher, parseRoomHardwareConfig } from '@hardware/config'
+import {
+  activeKeymap,
+  activeLightingConfig,
+  gamepadMatcher,
+  parseRoomHardwareConfig,
+} from '@hardware/config'
 import { parsePanTiltCalibration } from '@hardware/presets/sixDeskRoom'
 import {
   checkBrowser,
@@ -205,7 +210,7 @@ describe('assistant d’installation : appareils', () => {
     expect(wizard.summary().config.desksCount).toBe(6)
   })
 
-  it('ne remonte pas à 6 après avoir réduit le nombre de pupitres', () => {
+  it('garde la réserve des pupitres retirés et ne remonte pas à 6 tout seul', () => {
     const calibration = parsePanTiltCalibration('Pupitre1:150-77;\nPupitre6:10-20;\nHead1:10-20;')
     const wizard = createSetupWizard()
     wizard.importSixDeskPreset({ calibration })
@@ -216,13 +221,19 @@ describe('assistant d’installation : appareils', () => {
     const saved = wizard.summary().config
 
     expect(saved.desksCount).toBe(4)
-    expect(Object.values(saved.buzzers.keymap).every((slot) => slot.desk <= 4)).toBe(true)
-    expect(Object.keys(saved.buzzers.keymap)).toHaveLength(16)
+    // Les buzzers des pupitres 5 et 6 sont gardés en réserve, mais seuls 1 à 4 sont actifs.
+    expect(Object.keys(saved.buzzers.keymap)).toHaveLength(24)
+    expect(Object.keys(activeKeymap(saved))).toHaveLength(16)
     expect(saved.lighting.fixtures).toHaveLength(fixturesCount)
-    for (const fixture of saved.lighting.fixtures) {
+    for (const fixture of activeLightingConfig(saved).fixtures) {
       expect(fixture.desk ?? 1).toBeLessThanOrEqual(4)
       expect(Object.keys(fixture.deskPositions ?? {}).every((desk) => Number(desk) <= 4)).toBe(true)
     }
+    // Remonter à 6 restitue buzzers et lumières.
+    const sixAgain = createSetupWizard(saved)
+    sixAgain.setDesksCount(6)
+    expect(sixAgain.summary().config.buzzers.keymap).toEqual(saved.buzzers.keymap)
+    expect(sixAgain.summary().config.lighting.fixtures).toEqual(saved.lighting.fixtures)
 
     // Rouvrir l'assistant avec cette config garde 4 pupitres.
     const reopened = createSetupWizard(saved)
@@ -297,6 +308,21 @@ describe('assistant d’installation : tests et positions', () => {
     expect(wizard.getState().step).toBe('summary')
     expect(wizard.next()).toEqual({ ok: false, reason: 'last_step' })
     expect(wizard.back()).toEqual({ ok: true })
+  })
+
+  it('traite une lyre affectée à un pupitre retiré comme non affectée à l’étape des positions', () => {
+    const wizard = atFixtures()
+    wizard.setDesksCount(6)
+    wizard.addFixture({ profileId: 'moving-head-8', name: 'Lyre', desk: 6 })
+    wizard.markFixtureTest('lyre', 'ok')
+    expect(wizard.goTo('positions')).toEqual({ ok: true })
+    expect(wizard.blockers()).toEqual([])
+
+    wizard.setDesksCount(4)
+
+    expect(wizard.blockers()).toEqual(['« Lyre » : position manquante pour certains pupitres'])
+    // L'affectation au pupitre 6 reste enregistrée, pour le jour où il revient.
+    expect(wizard.summary().config.lighting.fixtures[0]?.desk).toBe(6)
   })
 
   it('enregistre les positions des lyres par pupitre', () => {

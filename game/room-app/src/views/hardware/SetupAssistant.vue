@@ -160,7 +160,7 @@
       </p>
 
       <ul class="list" data-test="fixture-list">
-        <li v-for="fixture in view.config.lighting.fixtures" :key="fixture.id">
+        <li v-for="fixture in activeFixtures" :key="fixture.id">
           <span>
             <strong>{{ fixture.name }}</strong>
             <small>
@@ -389,6 +389,7 @@
 <script setup lang="ts">
 import { mdiDeleteOutline, mdiUsb } from '@mdi/js'
 import {
+  activeLightingConfig,
   type BrowserCheck,
   type BuzzerSource,
   checkBrowser,
@@ -493,8 +494,10 @@ const kindOf = (profileId: string) =>
 const testableFixtures = computed(() =>
   view.value.config.lighting.fixtures.filter((fixture) => kindOf(fixture.profileId) !== 'smoke')
 )
+// Un appareil affecté à un pupitre retiré (en réserve) est vu comme non affecté.
+const activeFixtures = computed(() => activeLightingConfig(view.value.config).fixtures)
 const movingHeads = computed(() =>
-  view.value.config.lighting.fixtures
+  activeFixtures.value
     .filter((fixture) => kindOf(fixture.profileId) === 'movingHead')
     .map((fixture) => ({
       id: fixture.id,

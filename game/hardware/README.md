@@ -98,7 +98,11 @@ L'écran de test se construit avec `onPress` (allumer le buzzer à l'écran) et 
 Une salle a **4 pupitres par défaut** (`DEFAULT_DESKS`) et jusqu'à **6** (`DESKS`). Son nombre de
 pupitres est `desksCount` dans `rooms.config` (`RoomHardwareConfig.desksCount`, 1 à 6, absent = 4,
 valeur invalide ramenée dans 1..6 et signalée) ; `desksForCount(n)` donne les pupitres 1 à n. Le
-backoffice le relit pour ne proposer que ces pupitres au lancement d'une partie. Le mapping clavier
+backoffice le relit pour ne proposer que ces pupitres au lancement d'une partie. Réduire ce nombre
+**n'efface rien** (`withDesksCount`) : les buzzers appris et l'affectation des lumières des
+pupitres retirés restent en réserve dans la config, ignorés à l'usage (`activeKeymap`,
+`activeLightingConfig`) et restitués tels quels si on remonte le nombre. Réapprendre une touche de
+réserve sur un pupitre actif retire son doublon de réserve (`withLearnedKeymap`). Le mapping clavier
 de simulation (`createDefaultKeymap(desks)`) ajoute pour les pupitres 5 et 6 les rangées 5-8 et T-I.
 
 ### Salles 6 pupitres déjà équipées

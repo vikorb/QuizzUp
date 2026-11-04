@@ -1,8 +1,11 @@
 import {
+  activeKeymap,
+  activeLightingConfig,
   defaultRoomHardwareConfig,
   DMX_REFRESH_LIMITS,
   parseRoomHardwareConfig,
   withDesksCount,
+  withLearnedKeymap,
 } from '@hardware/config'
 import { DEFAULT_DESK_COLORS } from '@hardware/lighting/scenes'
 import { DEFAULT_SMOKE_SAFETY } from '@hardware/lighting/smoke'
@@ -113,8 +116,8 @@ describe('configuration matérielle de salle', () => {
       ).toBe(2)
     })
 
-    it('retire les buzzers et les positions des pupitres en trop quand on réduit le nombre', () => {
-      const config = parseRoomHardwareConfig({
+    const sixDeskConfig = () =>
+      parseRoomHardwareConfig({
         desksCount: 6,
         buzzers: {
           keymap: {
@@ -132,21 +135,82 @@ describe('configuration matérielle de salle', () => {
         },
       }).config
 
+    it('garde en réserve les buzzers et les lumières des pupitres retirés, et les restitue', () => {
+      const config = sixDeskConfig()
+
       const four = withDesksCount(config, 4)
 
       expect(four.desksCount).toBe(4)
-      expect(Object.keys(four.buzzers.keymap).sort()).toEqual(['KeyA', 'KeyB'])
-      // L'appareil reste déclaré, détaché du pupitre qui n'existe plus.
-      expect(four.lighting.fixtures.map((fixture) => [fixture.id, fixture.desk])).toEqual([
+      // Rien n'est effacé de la config enregistrée...
+      expect(four.buzzers.keymap).toEqual(config.buzzers.keymap)
+      expect(four.lighting.fixtures).toEqual(config.lighting.fixtures)
+      // ... mais seuls les pupitres de la salle sont actifs.
+      expect(Object.keys(activeKeymap(four)).sort()).toEqual(['KeyA', 'KeyB'])
+      expect(
+        activeLightingConfig(four).fixtures.map((fixture) => [fixture.id, fixture.desk])
+      ).toEqual([
         ['par4', 4],
         ['par6', undefined],
       ])
       // Relue, la config ne remonte pas à 6.
       expect(parseRoomHardwareConfig(four).config).toEqual(four)
-      // Ne modifie pas la config reçue ; un nombre absurde est ramené dans 1..6.
-      expect(Object.keys(config.buzzers.keymap)).toHaveLength(4)
-      expect(withDesksCount(config, 99).buzzers.keymap).toEqual(config.buzzers.keymap)
+
+      // Remonter à 6 restitue tout, tel quel.
+      const sixAgain = withDesksCount(four, 6)
+      expect(sixAgain).toEqual(config)
+      expect(activeKeymap(sixAgain)).toEqual(config.buzzers.keymap)
+      expect(activeLightingConfig(sixAgain).fixtures).toEqual(config.lighting.fixtures)
+    })
+
+    it('ne modifie pas la config reçue et ramène un nombre absurde dans 1..6', () => {
+      const config = sixDeskConfig()
+      expect(withDesksCount(config, 99).desksCount).toBe(6)
       expect(withDesksCount(config, 0).desksCount).toBe(1)
+      withDesksCount(config, 4)
+      expect(config.desksCount).toBe(6)
+      expect(Object.keys(config.buzzers.keymap)).toHaveLength(4)
+    })
+
+    it('ignore les positions de lyre des pupitres retirés pour les lumières actives', () => {
+      const config = parseRoomHardwareConfig({
+        desksCount: 4,
+        lighting: {
+          fixtures: [
+            {
+              id: 'lyre',
+              name: 'Lyre',
+              profileId: 'moving-head-8',
+              address: 1,
+              deskPositions: { 1: { pan: 1, tilt: 2 }, 5: { pan: 3, tilt: 4 } },
+            },
+          ],
+        },
+      }).config
+
+      expect(activeLightingConfig(config).fixtures[0]?.deskPositions).toEqual({
+        1: { pan: 1, tilt: 2 },
+      })
+      expect(config.lighting.fixtures[0]?.deskPositions).toHaveProperty('5')
+    })
+
+    it('enregistre les buzzers réappris en gardant la réserve, sans doublon de touche', () => {
+      const four = withDesksCount(sixDeskConfig(), 4)
+
+      // La touche KeyT (réserve du pupitre 5) est réapprise sur le pupitre 2 : plus de doublon.
+      const saved = withLearnedKeymap(four, {
+        KeyA: { desk: 1, button: 'A' },
+        KeyT: { desk: 2, button: 'C' },
+      })
+
+      expect(saved.buzzers.keymap).toEqual({
+        KeyY: { desk: 6, button: 'B' },
+        KeyA: { desk: 1, button: 'A' },
+        KeyT: { desk: 2, button: 'C' },
+      })
+      // Au remontage, la touche n'a qu'un propriétaire : le pupitre 2.
+      const sixAgain = activeKeymap(withDesksCount(saved, 6))
+      expect(sixAgain.KeyT).toEqual({ desk: 2, button: 'C' })
+      expect(Object.keys(sixAgain)).toHaveLength(3)
     })
 
     it('est conservé tel quel par une seconde relecture', () => {

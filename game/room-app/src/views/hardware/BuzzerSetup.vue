@@ -122,6 +122,7 @@
 <script setup lang="ts">
 import { mdiGestureTapButton } from '@mdi/js'
 import {
+  activeKeymap,
   type BuzzerLearning,
   type BuzzerLearningState,
   createBuzzerLearning,
@@ -144,6 +145,7 @@ import {
 import {
   getBuzzerInput,
   saveBuzzerKeymap,
+  saveLearnedBuzzers,
   saveRoomDesksCount,
   useRoomHardware,
 } from '@/hardware/roomHardware'
@@ -163,7 +165,7 @@ const flashTimers = new Set<ReturnType<typeof setTimeout>>()
 let offLearning: (() => void) | null = null
 let offKeys: (() => void) | null = null
 
-const learnedCount = computed(() => Object.keys(hardware.value.config.buzzers.keymap).length)
+const learnedCount = computed(() => Object.keys(activeKeymap(hardware.value.config)).length)
 const learnedInSession = computed(() => Object.keys(learningState.value?.keymap ?? {}).length)
 const keysByDesk = computed(() =>
   Object.fromEntries(desks.value.map((desk) => [desk, getDeskKeys(keymap.value, desk)]))
@@ -243,7 +245,7 @@ async function onSave(): Promise<void> {
   if (!current) {
     return
   }
-  await saveBuzzerKeymap(current.getKeymap())
+  await saveLearnedBuzzers(current.getKeymap())
   stopLearning()
   saved.value = true
 }

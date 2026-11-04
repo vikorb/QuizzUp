@@ -290,6 +290,26 @@ describe('HardwareView — nombre de pupitres', () => {
     expect(useRoomHardware().hardware.value.config.desksCount).toBe(4)
   })
 
+  it('garde les buzzers des pupitres retirés en réserve et les restitue en remontant', async () => {
+    const reserve = Object.fromEntries([
+      ['KeyT', { desk: 6, button: 'A' } as const],
+      ['KeyP', { desk: 1, button: 'D' } as const],
+    ])
+    await saveRoomDesksCount(6)
+    await saveBuzzerKeymap(reserve)
+    const { wrapper } = await mountWithApp(HardwareView, { route: '/hardware' })
+
+    await wrapper.find('[data-test="desks-count"]').setValue('4')
+    await flushPromises()
+    expect(wrapper.find('[data-test="buzzer-6A"]').exists()).toBe(false)
+    expect(useRoomHardware().hardware.value.config.buzzers.keymap).toEqual(reserve)
+
+    await wrapper.find('[data-test="desks-count"]').setValue('6')
+    await flushPromises()
+    expect(wrapper.find('[data-test="buzzer-6A"]').exists()).toBe(true)
+    expect(useRoomHardware().hardware.value.config.buzzers.keymap).toEqual(reserve)
+  })
+
   it('règle aussi le nombre de pupitres depuis l’assistant d’installation', async () => {
     const { wrapper } = await mountWithApp(HardwareView, { route: '/hardware' })
     await openTab(wrapper, 'assistant')

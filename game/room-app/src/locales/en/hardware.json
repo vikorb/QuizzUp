@@ -13,7 +13,7 @@
     "buzzers": {
       "title": "Buzzers",
       "desksCount": "Number of desks",
-      "desksCountHint": "4 by default, 6 at most. The backoffice only offers these desks when launching a game.",
+      "desksCountHint": "4 by default, 6 at most. The backoffice only offers these desks when launching a game. Buzzers and lights of removed desks are kept in reserve, inactive, and come back if you raise the number again.",
       "simulation": "No buzzer paired: the simulation keyboard is used (one row of keys per desk: 1-4, Q-R, A-F, Z-V, then 5-8 and T-I).",
       "learned": "{n} buzzer paired | {n} buzzers paired",
       "inactive": "The page lost focus: buzzers are not received. Click the page to enable them again.",
