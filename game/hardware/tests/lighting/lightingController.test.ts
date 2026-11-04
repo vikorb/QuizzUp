@@ -163,7 +163,9 @@ describe('contrôleur lumières et fumée', () => {
     controller.smoke.arm()
     controller.smoke.fire(2_000)
     const statuses: string[] = []
+    const listener = vi.fn()
     controller.onChange((state) => {
+      listener()
       if (statuses.at(-1) !== state.smoke.status) {
         statuses.push(state.smoke.status)
       }
@@ -175,6 +177,8 @@ describe('contrôleur lumières et fumée', () => {
 
     await advanceAsync(clock, 5_000)
     expect(statuses.at(-1)).toBe('ready')
+    // Deux changements de statut (pause, prêt) : pas de rafale d'émissions en double.
+    expect(listener.mock.calls.length).toBeLessThanOrEqual(3)
   })
 
   it('victoire à égalité : pas de pupitre mis en avant', async () => {

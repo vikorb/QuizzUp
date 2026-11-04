@@ -199,7 +199,7 @@
       "title": "Assistant d’installation",
       "progress": "Étape {n} sur {total}",
       "back": "Précédent",
-      "blocked": "« Suivant » est grisé tant que :",
+      "blocked": "« Suivant » reste grisé :",
       "next": "Suivant",
       "steps": {
         "browser": {

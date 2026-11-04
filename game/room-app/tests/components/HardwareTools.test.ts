@@ -179,7 +179,7 @@ describe('onglet Assistant', () => {
     // « Suivant » est grisé.
     expect(sel(wrapper, 'smoke-disabled').text()).toContain('sera enregistrée désactivée')
     expect(sel(wrapper, 'smoke-disabled').text()).toContain('liste de contrôle')
-    expect(sel(wrapper, 'blockers').text()).toContain('« Suivant » est grisé')
+    expect(sel(wrapper, 'blockers').text()).toContain('« Suivant » reste grisé')
     expect(sel(wrapper, 'assistant-freeze').attributes('disabled')).toBeDefined()
     await sel(wrapper, 'check-physicalStop').setValue(true)
     await sel(wrapper, 'check-timedRelay').setValue(true)

@@ -199,7 +199,7 @@
       "title": "Setup wizard",
       "progress": "Step {n} of {total}",
       "back": "Previous",
-      "blocked": "“Next” is greyed out until:",
+      "blocked": "“Next” stays greyed out:",
       "next": "Next",
       "steps": {
         "browser": {
