@@ -17,8 +17,10 @@ const bcrypt = require('bcryptjs')
  *
  * Le nom du fichier le fait passer APRÈS `quizz_content.js` (qui vide le contenu) : knex
  * exécute les seeds par ordre alphabétique. Rejoué à chaque démarrage Docker (`seedIfEmpty.js`),
- * il est idempotent et ne fait que créer ce qui manque : un compte, une salle ou un thème déjà
- * présents ne sont jamais modifiés (mot de passe changé, compte désactivé… restent tels quels).
+ * il est idempotent et ne fait que créer ce qui n'a jamais existé : la compagnie (cherchée par
+ * nom ou email), ses comptes et sa salle seulement à sa création ; un thème seulement s'il n'y
+ * a aucune ligne de ce nom, même supprimée. Ce qui a été modifié, désactivé ou supprimé au
+ * backoffice n'est jamais touché ni recréé.
  * `DEMO_SEED=false` désactive ce seed.
  */
 
@@ -99,9 +101,9 @@ function saveExtract(storageDir, questionId, file, writtenFiles) {
 async function seedTheme(trx, { adminId, companyId, storageDir, writtenFiles }, themeSeed) {
   // Thème déjà présent (seed lancé seul, sans quizz_content.js) : on n'y touche pas, il peut
   // être référencé par l'historique des parties (game_rounds / game_answers).
+  // Y compris un thème supprimé au backoffice : on ne le recrée pas.
   const existingTheme = await trx('themes')
     .where({ company_id: companyId, name: themeSeed.name })
-    .whereNot('status', 2)
     .first('id')
   if (existingTheme) {
     return
@@ -160,22 +162,27 @@ async function seedTheme(trx, { adminId, companyId, storageDir, writtenFiles }, 
   }
 }
 
+/** Compagnie de démo cherchée par nom OU email (elle a pu être renommée au backoffice). */
 async function findOrCreateCompany(trx, { name, email }) {
-  const existing = await trx('companies').whereRaw('lower(name) = lower(?)', [name]).first('id')
+  const existing = await trx('companies')
+    .whereRaw('lower(name) = lower(?)', [name])
+    .orWhereRaw('lower(email) = lower(?)', [email])
+    .first('id')
 
   if (existing) {
-    return existing.id
+    return { id: existing.id, created: false }
   }
 
   const [inserted] = await trx('companies')
     .insert({ name, email, status: STATUS_ACTIVE })
     .returning('id')
-  return inserted.id ?? inserted
+  return { id: inserted.id ?? inserted, created: true }
 }
 
 async function findOrCreateAdmin(trx, values) {
   const existing = await trx('admins')
     .whereRaw('lower(username) = lower(?)', [values.username])
+    .orWhereRaw('lower(email) = lower(?)', [values.email])
     .first('id')
 
   // Compte déjà là : on n'y touche pas (mot de passe changé, compte désactivé ou supprimé,
@@ -207,6 +214,36 @@ async function findOrCreateRoom(trx, companyId, name) {
   return inserted.id ?? inserted
 }
 
+async function createAccountsAndRoom(trx, companyId, mdpHash) {
+  await findOrCreateAdmin(trx, {
+    company_id: companyId,
+    room_id: null,
+    role: ADMIN_ROLE_ADMIN,
+    firstname: 'Gérant',
+    lastname: 'Démo',
+    username: 'demo-admin',
+    email: 'admin@demo.quizzup.local',
+    mdp_hash: mdpHash,
+  })
+
+  const roomId = await findOrCreateRoom(trx, companyId, 'Salle 1')
+
+  // Un seul compte de salle non supprimé par salle (index admins_room_id_unique).
+  const roomAccount = await trx('admins').where('room_id', roomId).whereNot('status', 2).first('id')
+  if (!roomAccount) {
+    await findOrCreateAdmin(trx, {
+      company_id: companyId,
+      room_id: roomId,
+      role: ADMIN_ROLE_ROOM,
+      firstname: 'Salle 1',
+      lastname: 'Démo',
+      username: 'salle1-demo',
+      email: 'salle1@demo.quizzup.local',
+      mdp_hash: mdpHash,
+    })
+  }
+}
+
 exports.seed = async function (knex) {
   if (process.env.DEMO_SEED === 'false') {
     return
@@ -219,42 +256,27 @@ exports.seed = async function (knex) {
 
   await knex
     .transaction(async (trx) => {
-      const companyId = await findOrCreateCompany(trx, {
+      const company = await findOrCreateCompany(trx, {
         name: 'QuizzUP Démo',
         email: 'contact@demo.quizzup.local',
       })
+      const companyId = company.id
 
-      const adminId = await findOrCreateAdmin(trx, {
-        company_id: companyId,
-        room_id: null,
-        role: ADMIN_ROLE_ADMIN,
-        firstname: 'Gérant',
-        lastname: 'Démo',
-        username: 'demo-admin',
-        email: 'admin@demo.quizzup.local',
-        mdp_hash: mdpHash,
-      })
-
-      const roomId = await findOrCreateRoom(trx, companyId, 'Salle 1')
-
-      // Un seul compte de salle non supprimé par salle (index admins_room_id_unique) : on ne
-      // crée celui de la démo que si la salle n'en a pas déjà un.
-      const roomAccount = await trx('admins')
-        .where('room_id', roomId)
-        .whereNot('status', 2)
-        .first('id')
-      if (!roomAccount) {
-        await findOrCreateAdmin(trx, {
-          company_id: companyId,
-          room_id: roomId,
-          role: ADMIN_ROLE_ROOM,
-          firstname: 'Salle 1',
-          lastname: 'Démo',
-          username: 'salle1-demo',
-          email: 'salle1@demo.quizzup.local',
-          mdp_hash: mdpHash,
-        })
+      // Comptes et salle seulement à la création de la compagnie de démo : ensuite, ce qui a
+      // été renommé, désactivé ou supprimé au backoffice reste tel quel.
+      if (company.created) {
+        await createAccountsAndRoom(trx, companyId, mdpHash)
       }
+
+      // Auteur des thèmes (admin_id obligatoire) : un admin de la compagnie de démo.
+      const author = await trx('admins')
+        .where({ company_id: companyId, role: ADMIN_ROLE_ADMIN })
+        .orderBy('id', 'asc')
+        .first('id')
+      if (!author) {
+        return
+      }
+      const adminId = author.id
 
       for (const themeSeed of DEMO_THEMES) {
         await seedTheme(trx, { adminId, companyId, storageDir, writtenFiles }, themeSeed)

@@ -249,7 +249,8 @@ Les migrations sont lancées à chaque démarrage du backend via Docker Compose.
 (`npm run seed:if-empty`) tournent **tous sur une base vide** ; sur une base déjà remplie, seul
 le seed de démo (`quizz_content_demo_room.js`, idempotent) est rejoué, pour ne pas effacer le
 contenu ni l'historique des parties. `SEED_ON_START=always` rejoue tous les seeds à chaque
-démarrage (ancien comportement), `DEMO_SEED=false` désactive le seed de démo.
+démarrage (ancien comportement), `DEMO_SEED=false` désactive le seed de démo et
+`DEMO_SEED_PASSWORD` fixe le mot de passe de ses comptes (`Demo1234!` par défaut).
 
 Démo complète (backoffice + écran de salle + comptes de démo) : `npm run demo` à la racine du
 dépôt, voir `docs/recette/guide-de-test.md`.

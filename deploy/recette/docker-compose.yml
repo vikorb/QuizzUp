@@ -44,7 +44,7 @@ services:
       - media_data:/data/media
       # L'image backend n'embarque pas docs/ : l'API lit openapi.yaml au démarrage (Swagger).
       - ../../backoffice/docs:/workspace/docs:ro
-    # Pas de mode watch en recette ; seeds au premier démarrage seulement (base vide).
+    # Pas de mode watch en recette ; tous les seeds sur base vide, ensuite le seed de démo seul.
     command: sh -c "npm run migrate && npm run seed:if-empty && npx tsx src/server.ts"
 
   web:

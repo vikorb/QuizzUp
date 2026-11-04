@@ -29,8 +29,13 @@ async function main() {
       return
     }
 
-    await db.seed.run({ specific: DEMO_SEED_FILE })
-    console.log(`[seed] base déjà initialisée : seul ${DEMO_SEED_FILE} est rejoué`)
+    // La démo ne doit jamais empêcher l'API de démarrer : une erreur est seulement signalée.
+    try {
+      await db.seed.run({ specific: DEMO_SEED_FILE })
+      console.log(`[seed] base déjà initialisée : seul ${DEMO_SEED_FILE} est rejoué`)
+    } catch (error) {
+      console.error(`[seed] ${DEMO_SEED_FILE} ignoré après une erreur :`, error)
+    }
   } finally {
     await db.destroy()
   }

@@ -42,7 +42,8 @@ docker compose -f deploy/recette/docker-compose.yml --env-file deploy/recette/.e
 ```
 
 Les données (base, extraits audio, certificats) sont dans des volumes Docker : une mise à jour
-ne les efface pas. Les seeds ne tournent qu'au premier démarrage (base vide).
+ne les efface pas. Tous les seeds tournent au premier démarrage (base vide) ; ensuite seul le seed de démo
+est rejoué, et il ne recrée jamais ce qui a été modifié ou supprimé au backoffice.
 
 ## Suivre / dépanner
 

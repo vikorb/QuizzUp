@@ -10,7 +10,8 @@ Format inspiré de Keep a Changelog.
 
 - Version testable : `npm run demo` à la racine (base, API, backoffice, écran de salle), seed de
   démo (compagnie « QuizzUP Démo », `demo-admin`, salle « Salle 1 » et son compte de salle
-  `salle1-demo`, 2 thèmes blind test de 10 extraits générés libres de droits), recette VPS en
+  `salle1-demo`, mot de passe `DEMO_SEED_PASSWORD`, `DEMO_SEED=false` pour le couper, 2 thèmes
+  blind test de 10 extraits générés libres de droits), recette VPS en
   HTTPS (`deploy/recette/`) et guide de test (`docs/recette/guide-de-test.md`).
 
 - Type de question (`kind` : QCM, vrai/faux, estimation ; QCM par défaut) en base, dans l'API
