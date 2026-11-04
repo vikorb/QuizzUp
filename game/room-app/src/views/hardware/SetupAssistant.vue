@@ -390,6 +390,10 @@
       </div>
     </div>
 
+    <p v-if="syncStatus === 'conflict'" class="hw-alert" role="status" data-test="sync-conflict">
+      {{ $t('hardware.sync.conflict') }}
+    </p>
+
     <div v-if="blockers.length > 0" class="hw-alert blockers" data-test="blockers">
       <p>{{ $t('hardware.assistant.blocked') }}</p>
       <ul>
@@ -463,11 +467,16 @@ const BROWSER_KEYS = [
 const CENTER: PanTilt = { pan: 32_768, tilt: 32_768 }
 
 const { t } = useI18n()
-const { hardware, lightingState } = useRoomHardware()
+const { hardware, lightingState, syncStatus, conflictCount } = useRoomHardware()
 const { run: runFreezeTest, refusal: freezeRefusal } = useFreezeTest()
 
-const wizard = createSetupWizard(hardware.value.config)
-wizard.setBrowserCheck(checkBrowser())
+function newWizard() {
+  const created = createSetupWizard(hardware.value.config)
+  created.setBrowserCheck(checkBrowser())
+  return created
+}
+
+let wizard = newWizard()
 const view = shallowRef(wizard.getState())
 const blockers = shallowRef(wizard.blockers())
 
@@ -557,6 +566,15 @@ const canFreezeTest = computed(
 
 const isBefore = (id: SetupStepId) =>
   view.value.steps.indexOf(id) < view.value.steps.indexOf(view.value.step)
+
+// Un autre poste a enregistré une autre config : l'assistant repart d'elle (première étape),
+// sinon l'étape suivante renverrait sa copie périmée avec la nouvelle révision.
+watch(conflictCount, () => {
+  getLighting()?.diagnostics.end()
+  wizard = newWizard()
+  saved.value = false
+  sync()
+})
 
 // Les buzzers appris dans l'étape 2 sont enregistrés par l'écran Buzzers : on les reprend.
 watch(
@@ -749,7 +767,7 @@ async function onSave(): Promise<void> {
     getLighting()?.diagnostics.end()
     savedForFreezeTest = false
     await saveRoomHardwareConfig(wizard.summary().config)
-    saved.value = true
+    saved.value = syncStatus.value !== 'conflict'
   } finally {
     saving.value = false
   }

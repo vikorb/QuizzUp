@@ -130,6 +130,8 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
   // envoyées remplacent celles du même nom, les autres sont gardées. Avec `revision`, l'écriture
   // n'a lieu que si la config n'a pas changé depuis cette lecture (sinon 409 + config courante) ;
   // sans `revision`, elle écrase (anciens clients). Chaque écriture augmente `config_revision`.
+  // ponytail: le `PATCH` du backoffice n'envoie pas de révision (il écrase) ; à lui en faire envoyer
+  // une quand son formulaire relira la config avant d'enregistrer.
   app.put('/room/config', { preHandler: [app.authenticate] }, async (req, reply) => {
     if (!isRoomAccount(req)) {
       return reply.code(403).send({ error: 'forbidden' })
@@ -141,57 +143,63 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ error: 'invalid_body', details: parsedBody.error.flatten() })
     }
 
-    const current = await db('rooms')
-      .where('id', req.user.room_id)
-      .where('company_id', req.user.company_id)
-      .whereNot('status', ROOM_STATUS_DELETED)
-      .first('config')
-
-    if (!current) {
-      return reply.code(404).send({ error: 'not_found' })
-    }
-
-    // Fusion des clés de premier niveau : le PC envoie ses sections (ex. `buzzers`) sans
-    // effacer celles réglées depuis le backoffice.
-    const { revision } = parsedBody.data
-    const config = { ...(current.config ?? {}), ...parsedBody.data.config }
-
-    if (JSON.stringify(config).length > ROOM_CONFIG_MAX_LENGTH) {
-      return reply.code(400).send({ error: 'room_config_too_large' })
-    }
-    const write = db('rooms')
-      .where('id', req.user.room_id)
-      .where('company_id', req.user.company_id)
-      .whereNot('status', ROOM_STATUS_DELETED)
-
-    if (revision !== undefined) {
-      // Atomique : le test de la révision et l'écriture forment une seule requête.
-      write.where('config_revision', revision)
-    }
-    const updated = await write
-      .update({ config, config_revision: db.raw('config_revision + 1'), updated_at: db.fn.now() })
-      .returning(roomSelect)
-    const room = Array.isArray(updated) ? updated[0] : updated
-
-    if (!room) {
-      const latest = await db('rooms')
+    const { config: sent, revision } = parsedBody.data
+    const readRoom = () =>
+      db('rooms')
         .where('id', req.user.room_id)
         .where('company_id', req.user.company_id)
         .whereNot('status', ROOM_STATUS_DELETED)
         .first('config', 'config_revision')
+    const conflict = (row: { config: unknown; config_revision: unknown }) =>
+      reply.code(409).send({
+        error: 'room_config_conflict',
+        config: row.config ?? {},
+        configRevision: Number(row.config_revision),
+      })
+
+    let base = await readRoom()
+
+    if (!base) {
+      return reply.code(404).send({ error: 'not_found' })
+    }
+
+    // Révision « en avance » ou périmée : on ne fusionne rien, le poste recharge la config courante.
+    if (revision !== undefined && revision !== Number(base.config_revision)) {
+      return conflict(base)
+    }
+
+    // L'UPDATE est toujours conditionné à la révision lue avec la config fusionnée : un
+    // `PATCH` du backoffice passé entre la lecture et l'écriture n'est jamais annulé. Sans
+    // `revision` (ancien client), on relit et on refait la fusion une seule fois.
+    for (let attempt = revision === undefined ? 2 : 1; attempt > 0; attempt -= 1) {
+      // Fusion des clés de premier niveau : le PC envoie ses sections (ex. `buzzers`) sans
+      // effacer celles réglées depuis le backoffice.
+      const config = { ...(base.config ?? {}), ...sent }
+
+      if (JSON.stringify(config).length > ROOM_CONFIG_MAX_LENGTH) {
+        return reply.code(400).send({ error: 'room_config_too_large' })
+      }
+      const updated = await db('rooms')
+        .where('id', req.user.room_id)
+        .where('company_id', req.user.company_id)
+        .whereNot('status', ROOM_STATUS_DELETED)
+        .where('config_revision', base.config_revision)
+        .update({ config, config_revision: db.raw('config_revision + 1'), updated_at: db.fn.now() })
+        .returning(roomSelect)
+      const room = Array.isArray(updated) ? updated[0] : updated
+
+      if (room) {
+        return { room: room as RoomRow }
+      }
+      const latest = await readRoom()
 
       if (!latest) {
         return reply.code(404).send({ error: 'not_found' })
       }
-
-      return reply.code(409).send({
-        error: 'room_config_conflict',
-        config: latest.config ?? {},
-        configRevision: Number(latest.config_revision),
-      })
+      base = latest
     }
 
-    return { room: room as RoomRow }
+    return conflict(base)
   })
 
   // US-GAME-08 : la salle récupère la partie lancée par l'opérateur…

@@ -13,7 +13,7 @@ import {
   ROOM_STATUS_DELETED,
 } from '@quizzup/shared'
 import roomRoutes from '@backend/routes/room'
-import { dbState } from './_helpers/mockDb'
+import { db, dbState, MOCK_NOW } from './_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from './_helpers/resetRouteMocks'
 import {
   authHeaders,
@@ -543,6 +543,92 @@ describe('routes/room.ts — hardware config', () => {
       expect(legacy.statusCode).toBe(200)
       expect(parseJson<RoomBody>(legacy).room.configRevision).toBe(10)
       expect(dbState.rooms[0]).toMatchObject({ config_revision: 10 })
+
+      await app.close()
+    })
+
+    it('answers 409 when the revision is ahead of the stored one, and writes nothing', async () => {
+      seedRoom({ config_revision: 2 })
+      const app = await createRouteApp(roomRoutes)
+
+      const ahead = await put(app, { config: { desksCount: 6 }, revision: 5 })
+
+      expect(ahead.statusCode).toBe(409)
+      expect(parseJson<ConflictBody>(ahead)).toMatchObject({ configRevision: 2 })
+      expect(dbState.rooms[0]).toMatchObject({
+        config_revision: 2,
+        config: { buzzers: { podiums: 4 } },
+      })
+
+      await app.close()
+    })
+
+    it('answers 404 for a revision write on a deleted room', async () => {
+      seedRoom({ status: ROOM_STATUS_DELETED, config_revision: 1 })
+      const app = await createRouteApp(roomRoutes)
+
+      expect((await put(app, { config: {}, revision: 1 })).statusCode).toBe(404)
+      expect((await put(app, { config: {} })).statusCode).toBe(404)
+
+      await app.close()
+    })
+
+    // Un `PATCH` du backoffice passe entre la lecture et l'écriture : simulé dans `db.fn.now()`,
+    // appelé juste avant l'UPDATE.
+    function patchBeforeWrite() {
+      db.fn.now.mockImplementationOnce(() => {
+        dbState.rooms[0]!.config = { lights: { profile: 'par-led' } }
+        dbState.rooms[0]!.config_revision = Number(dbState.rooms[0]!.config_revision) + 1
+
+        return MOCK_NOW
+      })
+    }
+
+    it('without revision, redoes the merge once on the config written meanwhile', async () => {
+      seedRoom({ config: { buzzers: { podiums: 2 } }, config_revision: 1 })
+      const app = await createRouteApp(roomRoutes)
+      patchBeforeWrite()
+
+      const legacy = await put(app, { config: { desksCount: 3 } })
+
+      expect(legacy.statusCode).toBe(200)
+      // Le PATCH du backoffice (`lights`) n'est pas annulé.
+      expect(parseJson<RoomBody>(legacy).room).toMatchObject({
+        config: { lights: { profile: 'par-led' }, desksCount: 3 },
+        configRevision: 3,
+      })
+
+      await app.close()
+    })
+
+    it('without revision, answers 409 when the second write also loses the race', async () => {
+      seedRoom({ config_revision: 1 })
+      const app = await createRouteApp(roomRoutes)
+      patchBeforeWrite()
+      patchBeforeWrite()
+
+      const legacy = await put(app, { config: { desksCount: 3 } })
+
+      expect(legacy.statusCode).toBe(409)
+      expect(parseJson<ConflictBody>(legacy)).toMatchObject({ configRevision: 3 })
+
+      await app.close()
+    })
+
+    it('with a revision, answers 409 when the config changes before the write', async () => {
+      seedRoom({ config_revision: 1 })
+      const app = await createRouteApp(roomRoutes)
+      patchBeforeWrite()
+
+      const raced = await put(app, { config: { desksCount: 3 }, revision: 1 })
+
+      expect(raced.statusCode).toBe(409)
+      expect(parseJson<ConflictBody>(raced)).toEqual({
+        error: 'room_config_conflict',
+        config: { lights: { profile: 'par-led' } },
+        configRevision: 2,
+      })
+      expect(dbState.rooms[0]).toMatchObject({ config_revision: 2 })
 
       await app.close()
     })

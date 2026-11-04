@@ -600,6 +600,10 @@ let foreignCopy = false
 let configRevision: number | null = null
 /** Les enregistrements jusqu'à cette génération sont périmés (conflit résolu par la config du compte). */
 let supersededUpTo = -1
+/** Dernière config dont l'envoi a échoué sans réponse claire (peut-être reçue par le compte). */
+let unconfirmedJson: string | null = null
+/** Nombre de conflits résolus : les écrans qui gardent une copie de la config la rechargent. */
+const conflictCount = shallowRef(0)
 const syncStatus = shallowRef<HardwareSyncStatus>('local')
 /** Incrémenté à chaque enregistrement local : une config relue avant est périmée. */
 let saveGeneration = 0
@@ -684,6 +688,7 @@ export function setHardwareRemoteSaver(
   foreignCopy = false
   configRevision = null
   supersededUpTo = -1
+  unconfirmedJson = null
   if (binding) {
     const meta = getHardwareSyncMeta()
     if (meta.accountId !== null && meta.accountId !== binding.accountId) {
@@ -753,7 +758,8 @@ export function pushHardwareConfig(
       return
     }
     try {
-      setHardwareConfigRevision(await saver(config, configRevision))
+      setHardwareConfigRevision(await sendConfig(saver, config))
+      unconfirmedJson = null
       if (generation === saveGeneration) {
         writeSyncMeta({ pending: false })
         syncStatus.value = 'saved'
@@ -762,24 +768,72 @@ export function pushHardwareConfig(
       const conflict = caught instanceof RoomApiError ? caught.configConflict : null
       if (conflict) {
         // Un autre poste a enregistré entre-temps : sa version, la plus récente, l'emporte ici.
-        supersededUpTo = saveGeneration
-        await applyRemoteHardwareConfig(conflict.config, conflict.configRevision)
-        writeSyncMeta({ pending: false })
-        syncStatus.value = 'conflict'
+        await resolveHardwareConflict(conflict.config, conflict.configRevision)
       } else if (generation === saveGeneration) {
         // Un 400 (config trop volumineuse ou invalide) ne passera pas mieux plus tard :
         // elle n'est pas renvoyée, le prochain démarrage reprend celle du compte.
         const rejected = caught instanceof RoomApiError && caught.status === 400
         if (rejected) {
           writeSyncMeta({ pending: false })
+        } else {
+          // Réponse peut-être perdue alors que le compte l'a reçue (voir `sendConfig`).
+          unconfirmedJson = stableStringify(config)
         }
         syncStatus.value = rejected ? 'rejected' : 'error'
       }
     }
   }
   const sent = saveQueue.then(run)
-  saveQueue = sent
+  // Un envoi ne bloque jamais les suivants, quoi qu'il lui arrive.
+  saveQueue = sent.catch(() => undefined)
   return sent
+}
+
+/**
+ * Un envoi dont la réponse s'est perdue a pu passer : le suivant reçoit alors un 409 sur
+ * notre propre écriture. Si la config du compte est celle qu'on a tenté d'envoyer, on adopte
+ * sa révision et on renvoie une fois (pas de conflit, personne d'autre n'a écrit).
+ * ponytail: comparaison exacte des JSON ; une section ajoutée côté backoffice entre-temps
+ * fait passer pour un vrai conflit (le compte l'emporte), sans perte de données.
+ */
+async function sendConfig(saver: RemoteSaver, config: RoomHardwareConfig): Promise<number | null> {
+  try {
+    return await saver(config, configRevision)
+  } catch (caught) {
+    const conflict = caught instanceof RoomApiError ? caught.configConflict : null
+    if (
+      !conflict ||
+      unconfirmedJson === null ||
+      stableStringify(conflict.config) !== unconfirmedJson
+    ) {
+      throw caught
+    }
+    unconfirmedJson = null
+    setHardwareConfigRevision(conflict.configRevision)
+    return saver(config, conflict.configRevision)
+  }
+}
+
+/**
+ * Un autre poste a écrit sur le compte : sa config remplace celle de ce PC (copie locale
+ * comprise) et sa révision est retenue. Les enregistrements faits jusque-là ne partent plus.
+ * Un enregistrement de l'opérateur fait pendant l'application reste « à envoyer ».
+ */
+export async function resolveHardwareConflict(config: unknown, revision: number): Promise<void> {
+  const generation = saveGeneration
+  supersededUpTo = generation
+  unconfirmedJson = null
+  try {
+    await applyRemoteHardwareConfig(config, revision)
+  } catch {
+    syncStatus.value = 'error'
+    return
+  }
+  if (generation === saveGeneration) {
+    writeSyncMeta({ pending: false })
+    syncStatus.value = 'conflict'
+    conflictCount.value += 1
+  }
 }
 
 /**
@@ -877,6 +931,8 @@ export async function resetRoomHardware(options: { storage?: HardwareStorage | n
   foreignCopy = false
   configRevision = null
   supersededUpTo = -1
+  unconfirmedJson = null
+  conflictCount.value = 0
   syncStatus.value = 'local'
   saveGeneration = 0
   saveQueue = Promise.resolve()
@@ -901,6 +957,8 @@ export function useRoomHardware() {
     lightingState: computed(() => lightingState.value),
     lighting: computed(() => lightingRef.value),
     syncStatus: computed(() => syncStatus.value),
+    /** Incrémenté à chaque conflit résolu par la config du compte (voir `resolveHardwareConflict`). */
+    conflictCount: computed(() => conflictCount.value),
     /** Pourquoi le pont Art-Net n'est pas connecté (`null` : connecté, ou pas essayé). */
     bridgeError: computed(() => bridgeError.value),
   }

@@ -6,6 +6,7 @@ import {
   isDefaultHardwareConfig,
   isHardwareCopyForeign,
   pushHardwareConfig,
+  resolveHardwareConflict,
   setHardwareConfigRevision,
   setHardwareRemoteSaver,
 } from '@/hardware/roomHardware'
@@ -98,7 +99,19 @@ export async function syncHardwareWithRoom(): Promise<void> {
     (getHardwareSyncMeta().pending || isDefaultHardwareConfig(room.config))
 
   if (keepLocal) {
-    // La copie locale part sur la révision qu'on vient de lire.
+    const meta = getHardwareSyncMeta()
+    if (
+      meta.pending &&
+      meta.revision !== null &&
+      room.configRevision !== undefined &&
+      meta.revision !== room.configRevision
+    ) {
+      // Le compte a changé depuis la dernière révision connue de ce PC : sa version, la plus
+      // récente, l'emporte sur la modification restée hors ligne, et rien n'est envoyé.
+      await resolveHardwareConflict(room.config, room.configRevision)
+      return
+    }
+    // Copie ancienne (révision inconnue) ou compte inchangé : elle part sur la révision lue.
     setHardwareConfigRevision(room.configRevision)
     await pushHardwareConfig()
     return
