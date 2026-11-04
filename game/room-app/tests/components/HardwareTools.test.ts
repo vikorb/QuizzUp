@@ -175,6 +175,11 @@ describe('onglet Assistant', () => {
     expect(sel(wrapper, 'step-smoke').exists()).toBe(true)
     await sel(wrapper, 'smoke-enable').setValue(true)
     expect(sel(wrapper, 'blockers').text()).toContain("Arrêt d'urgence physique")
+    // La case reste cochée : la vue dit pourquoi la fumée sera enregistrée désactivée et pourquoi
+    // « Suivant » est grisé.
+    expect(sel(wrapper, 'smoke-disabled').text()).toContain('sera enregistrée désactivée')
+    expect(sel(wrapper, 'smoke-disabled').text()).toContain('liste de contrôle')
+    expect(sel(wrapper, 'blockers').text()).toContain('« Suivant » reste grisé')
     expect(sel(wrapper, 'assistant-freeze').attributes('disabled')).toBeDefined()
     await sel(wrapper, 'check-physicalStop').setValue(true)
     await sel(wrapper, 'check-timedRelay').setValue(true)
@@ -202,6 +207,7 @@ describe('onglet Assistant', () => {
     expect(sel(wrapper, 'freeze-question').exists()).toBe(true)
     await click(wrapper, 'freeze-ok')
     expect(sel(wrapper, 'blockers').exists()).toBe(false)
+    expect(sel(wrapper, 'smoke-disabled').exists()).toBe(false)
 
     await click(wrapper, 'assistant-next')
     expect(sel(wrapper, 'step-summary').exists()).toBe(true)

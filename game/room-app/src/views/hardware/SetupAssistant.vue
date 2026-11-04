@@ -281,6 +281,9 @@
         />
         <span>{{ $t('hardware.assistant.smoke.enable') }}</span>
       </label>
+      <p v-if="summary.smokeDisabled" class="hw-alert" role="status" data-test="smoke-disabled">
+        {{ $t(`hardware.assistant.smoke.willBeDisabled.${summary.smokeDisabled}`) }}
+      </p>
       <div class="hw-actions">
         <label class="hw-field">
           {{ $t('hardware.assistant.smoke.maxDuration') }}
@@ -368,6 +371,9 @@
           <li v-for="problem in summary.problems" :key="problem">{{ problem }}</li>
         </ul>
       </div>
+      <p v-if="summary.smokeDisabled" class="hw-alert" role="status" data-test="summary-smoke">
+        {{ $t(`hardware.assistant.smoke.willBeDisabled.${summary.smokeDisabled}`) }}
+      </p>
       <div v-if="summary.warnings.length > 0" class="hw-alert" data-test="summary-warnings">
         <ul>
           <li v-for="warning in summary.warnings" :key="warning">{{ warning }}</li>
@@ -384,9 +390,12 @@
       </div>
     </div>
 
-    <ul v-if="blockers.length > 0" class="hw-alert blockers" data-test="blockers">
-      <li v-for="blocker in blockers" :key="blocker">{{ blocker }}</li>
-    </ul>
+    <div v-if="blockers.length > 0" class="hw-alert blockers" data-test="blockers">
+      <p>{{ $t('hardware.assistant.blocked') }}</p>
+      <ul>
+        <li v-for="blocker in blockers" :key="blocker">{{ blocker }}</li>
+      </ul>
+    </div>
 
     <div class="hw-actions nav">
       <UiButton :disabled="view.steps[0] === view.step" data-test="assistant-back" @click="onBack">
@@ -879,8 +888,8 @@ onBeforeUnmount(() => {
   gap: 10px 16px;
 }
 
-.blockers {
-  padding-left: 32px;
+.blockers ul {
+  padding-left: 20px;
 }
 
 .nav {
