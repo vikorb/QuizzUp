@@ -10,7 +10,7 @@ export function createErrorBanner(code: string): ActionBanner {
 
 export function createSuccessBanner(
   code: string,
-  params?: Record<string, string | number>,
+  params?: Record<string, string | number>
 ): ActionBanner {
   return {
     variant: 'success',

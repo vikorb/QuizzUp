@@ -21,11 +21,7 @@ import type {
   UpdateAccountPayload,
 } from '@/types/account'
 
-const ADMIN_ROLE_VALUES: AdminRole[] = [
-  ADMIN_ROLE_SUPERADMIN,
-  ADMIN_ROLE_ADMIN,
-  ADMIN_ROLE_USER,
-]
+const ADMIN_ROLE_VALUES: AdminRole[] = [ADMIN_ROLE_SUPERADMIN, ADMIN_ROLE_ADMIN, ADMIN_ROLE_USER]
 
 export function createAccountFieldErrors(): AccountFieldErrors {
   return {}
@@ -63,7 +59,7 @@ export function validateAccountForm(
   form: AccountFormValues,
   t: TranslateFn,
   mode: 'create' | 'edit',
-  canManageRole = true,
+  canManageRole = true
 ): AccountFieldErrors {
   const errors = createAccountFieldErrors()
 
@@ -110,7 +106,7 @@ function getPayloadRole(form: AccountFormValues, canManageRole: boolean): AdminR
 
 export function buildCreateAccountPayload(
   form: AccountFormValues,
-  canManageRole = true,
+  canManageRole = true
 ): CreateAccountPayload {
   return {
     role: getPayloadRole(form, canManageRole),
@@ -124,7 +120,7 @@ export function buildCreateAccountPayload(
 
 export function buildUpdateAccountPayload(
   form: AccountFormValues,
-  canManageRole = true,
+  canManageRole = true
 ): UpdateAccountPayload {
   const payload: UpdateAccountPayload = {
     firstname: normalizeNullableText(form.firstname),
@@ -147,7 +143,7 @@ export function buildUpdateAccountPayload(
 
 export function getAccountApiFieldError(
   errorCode: string,
-  t: TranslateFn,
+  t: TranslateFn
 ): { field: keyof AccountFieldErrors; message: string } | null {
   if (errorCode === 'email_already_exists') {
     return {
@@ -191,7 +187,7 @@ export function isAccountProfileRoute(routeName: RouteRecordName | null | undefi
 
 export function getAccountFormMode(
   routeName: RouteRecordName | null | undefined,
-  isProfileRoute: boolean,
+  isProfileRoute: boolean
 ): AccountFormMode {
   if (isProfileRoute) {
     return 'edit'
@@ -202,7 +198,7 @@ export function getAccountFormMode(
 
 export function getAccountFormPageContext(
   route: RouteLocationNormalizedLoaded,
-  currentUser: AccountFormUserContext,
+  currentUser: AccountFormUserContext
 ): AccountFormPageContext {
   const isProfileRoute = isAccountProfileRoute(route.name)
   const mode = getAccountFormMode(route.name, isProfileRoute)
@@ -226,7 +222,7 @@ export function getAccountFormPageContext(
 
 export function getAccountFormPageTexts(
   context: AccountFormPageContext,
-  t: TranslateFn,
+  t: TranslateFn
 ): AccountFormPageTexts {
   if (context.isProfileRoute) {
     return {
@@ -267,7 +263,7 @@ export function canRenderAccountForm(
   context: AccountFormPageContext,
   account: Account | null,
   loadingAccount: boolean,
-  accountError: string | null,
+  accountError: string | null
 ): boolean {
   if (!Number.isFinite(context.companyId)) {
     return false

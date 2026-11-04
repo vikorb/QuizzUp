@@ -7,7 +7,7 @@ export function requireApiPermission(
   req: FastifyRequest,
   reply: FastifyReply,
   resource: ApiResource,
-  action: ApiAction,
+  action: ApiAction
 ): boolean {
   const role = String(req.user.role)
 

@@ -26,12 +26,7 @@ export function parseCompaniesResponse(value: unknown): CompaniesResponse | null
             ? row.admins_count
             : undefined
 
-      if (
-        id === null ||
-        name.length === 0 ||
-        email.length === 0 ||
-        !isCompanyStatus(rawStatus)
-      ) {
+      if (id === null || name.length === 0 || email.length === 0 || !isCompanyStatus(rawStatus)) {
         return null
       }
 

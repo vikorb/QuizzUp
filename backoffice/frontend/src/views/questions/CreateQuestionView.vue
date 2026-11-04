@@ -30,10 +30,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import SectionLayout from '@/components/SectionLayout.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
-import {
-  listThemesService,
-  loadQuestionService,
-} from '@/services/questionsService'
+import { listThemesService, loadQuestionService } from '@/services/questionsService'
 import type { Question, Theme } from '@/types/question'
 
 import CreateQuestionForm from './creation/CreateQuestionForm.vue'
@@ -58,17 +55,14 @@ const questionId = computed(() => {
 const initialThemeIds = computed(() => {
   const rawThemeIds = route.query.themeIds
   const rawThemeId = route.query.themeId
-  const values = [
-    ...toQueryValues(rawThemeIds),
-    ...toQueryValues(rawThemeId),
-  ]
+  const values = [...toQueryValues(rawThemeIds), ...toQueryValues(rawThemeId)]
 
   return [
     ...new Set(
       values
         .flatMap((value) => value.split(','))
         .map((value) => Number(value))
-        .filter((value) => Number.isInteger(value) && value > 0),
+        .filter((value) => Number.isInteger(value) && value > 0)
     ),
   ]
 })
@@ -76,15 +70,15 @@ const initialThemeIds = computed(() => {
 const mode = computed(() => (questionId.value === null ? 'create' : 'edit'))
 
 const title = computed(() =>
-  mode.value === 'edit' ? t('questions.edit.title') : t('questions.create.title'),
+  mode.value === 'edit' ? t('questions.edit.title') : t('questions.create.title')
 )
 
 const subtitle = computed(() =>
-  mode.value === 'edit' ? t('questions.edit.subtitle') : t('questions.create.subtitle'),
+  mode.value === 'edit' ? t('questions.edit.subtitle') : t('questions.create.subtitle')
 )
 
 const cardTitle = computed(() =>
-  mode.value === 'edit' ? t('questions.edit.cardTitle') : t('questions.create.cardTitle'),
+  mode.value === 'edit' ? t('questions.edit.cardTitle') : t('questions.create.cardTitle')
 )
 
 function toQueryValues(value: unknown): string[] {
