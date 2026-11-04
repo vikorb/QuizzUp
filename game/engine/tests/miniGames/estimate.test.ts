@@ -4,6 +4,7 @@ import {
   ESTIMATE_NEIGHBOUR_POINTS,
   ESTIMATE_POINTS,
   type EstimateState,
+  getRangeSortValue,
   sortRanges,
 } from '@engine/miniGames/estimate'
 import { MINI_GAME_ESTIMATE, QUESTION_MEDIA_TYPE_AUDIO } from '@quizzup/shared'
@@ -151,5 +152,26 @@ describe('estimate play', () => {
     estimate.tick(press(state, 1, 0, 10).state, ESTIMATE_DURATION_MS)
 
     expect(state).toEqual(snapshot)
+  })
+})
+
+describe('sortRanges with open-ended ranges', () => {
+  it('puts "Moins de" first and "Plus de" last even when they share a number', () => {
+    const ranges = ['Entre 10 et 50', 'Moins de 10', 'Plus de 50', '50 ou plus'].map(
+      (text, index) => ({ id: index, text, isCorrect: index === 1 })
+    )
+
+    expect(sortRanges(ranges).map((answer) => answer.text)).toEqual([
+      'Moins de 10',
+      'Entre 10 et 50',
+      'Plus de 50',
+      '50 ou plus',
+    ])
+  })
+
+  it('reads a dot followed by three digits as a thousands separator', () => {
+    expect(getRangeSortValue('1.500 km')).toBe(1500)
+    expect(getRangeSortValue('Plus de 1.000')).toBe(1000.5)
+    expect(getRangeSortValue('1,5 m')).toBe(1.5)
   })
 })

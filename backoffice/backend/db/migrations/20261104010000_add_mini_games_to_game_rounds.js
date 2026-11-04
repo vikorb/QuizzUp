@@ -31,15 +31,23 @@ exports.up = async function (knex) {
 }
 
 /**
- * Retour au seul blind test éclair : les manches des autres mini-jeux ne
- * respecteraient plus la contrainte, elles sont supprimées (avec leurs réponses,
- * en cascade) avant de la recréer.
+ * Retour au seul blind test éclair : refusé tant que des manches d'autres
+ * mini-jeux existent (les supprimer casserait l'historique des parties).
  *
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
 exports.down = async function (knex) {
-  await knex('game_rounds').whereNot('mini_game', 'flash_blind_test').del()
+  const used = await knex('game_rounds')
+    .whereNot('mini_game', 'flash_blind_test')
+    .first('id')
+
+  if (used) {
+    throw new Error(
+      'Rollback impossible : des manches utilisent les nouveaux mini-jeux (game_rounds.mini_game).'
+    )
+  }
+
   await knex.raw(`
     ALTER TABLE game_rounds
     DROP CONSTRAINT game_rounds_mini_game_check,

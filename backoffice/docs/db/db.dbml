@@ -253,7 +253,7 @@ Table game_answers {
   is_correct boolean [not null, default: false]
   points integer [not null, default: 0]
   response_time_ms integer
-  stage smallint [note: 'Palier du mini-jeu (ex. blind test : 1 = 1 s, 2 = 5 s, 3 = 20 s)']
+  stage smallint [note: 'Palier du mini-jeu (blind test : 1 = 1 s, 2 = 5 s, 3 = 20 s ; série : multiplicateur 1 à 5)']
   answered_at timestamptz [not null, default: `now()`]
 
   indexes {

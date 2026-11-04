@@ -1,7 +1,12 @@
 import { MINI_GAME_ESTIMATE } from '@quizzup/shared'
 
 import type { EngineAnswer } from '../types'
-import { getParticipantIds, isEstimateQuestion, parseLeadingNumber } from './questionRules'
+import {
+  getParticipantIds,
+  isEstimateQuestion,
+  normalizeText,
+  parseLeadingNumber,
+} from './questionRules'
 import {
   choiceRecord,
   createSimultaneousMiniGame,
@@ -18,10 +23,29 @@ export const ESTIMATE_DURATION_MS = 20_000
 export const ESTIMATE_POINTS = 100
 export const ESTIMATE_NEIGHBOUR_POINTS = 30
 
-/** Fourchettes triées par leur premier nombre (ordre stable à égalité). */
+/**
+ * Valeur de tri d'une fourchette : « Moins de 10 » passe avant « Entre 10 et 50 »,
+ * « Plus de 50 » / « 50 ou plus » après « Entre 10 et 50 ».
+ */
+export function getRangeSortValue(text: string): number {
+  const value = parseLeadingNumber(text) ?? 0
+  const normalized = normalizeText(text)
+
+  if (/^(?:moins de|au plus|[<≤])/.test(normalized)) {
+    return value - 0.5
+  }
+
+  if (/^(?:plus de|au moins|[>≥])/.test(normalized) || normalized.includes('ou plus')) {
+    return value + 0.5
+  }
+
+  return value
+}
+
+/** Fourchettes triées de la plus petite à la plus grande (ordre stable à égalité). */
 export function sortRanges(answers: EngineAnswer[]): EngineAnswer[] {
   return answers
-    .map((answer, index) => ({ answer, index, value: parseLeadingNumber(answer.text) ?? 0 }))
+    .map((answer, index) => ({ answer, index, value: getRangeSortValue(answer.text) }))
     .sort((first, second) => first.value - second.value || first.index - second.index)
     .map((item) => item.answer)
 }

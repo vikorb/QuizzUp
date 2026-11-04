@@ -69,7 +69,10 @@ export function isTrueFalseQuestion(question: EngineQuestion): boolean {
 
 /** Premier nombre d'un texte (« Entre 1 000 et 2 000 » → 1000, « 1,5 m » → 1.5). */
 export function parseLeadingNumber(text: string): number | null {
-  const compact = text.replaceAll(/(\d)[\s\u00A0\u202F](?=\d)/g, '$1')
+  // Séparateurs de milliers : espaces (« 1 000 ») ou point suivi de 3 chiffres (« 1.000 »).
+  const compact = text
+    .replaceAll(/(\d)[\s\u00A0\u202F](?=\d)/g, '$1')
+    .replaceAll(/(\d)\.(?=\d{3}(?!\d))/g, '$1')
   const match = /-?\d+(?:[.,]\d+)?/.exec(compact)
 
   return match ? Number(match[0].replace(',', '.')) : null
