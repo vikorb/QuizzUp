@@ -42,6 +42,10 @@
       },
       "startFailed": "Impossible de démarrer la partie (contenu indisponible). Réessaie ou passe en mode démo."
     },
+    "alreadyOpen": {
+      "title": "QuizzUp est déjà ouvert sur ce PC",
+      "text": "Une autre fenêtre pilote déjà les buzzers et les lumières. Ferme cet onglet et utilise la fenêtre déjà ouverte."
+    },
     "focus": {
       "title": "Buzzers inactifs",
       "text": "La fenêtre du jeu n’a plus le focus : les buzzers ne sont plus reçus.",
