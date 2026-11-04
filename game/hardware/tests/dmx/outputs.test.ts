@@ -4,6 +4,8 @@ import {
   getGrantedDmxPort,
   getWebSerial,
   isWebSerialSupported,
+  OPEN_DMX_BREAK_MS,
+  OPEN_DMX_FRAME_MS,
   requestDmxPort,
 } from '@hardware/dmx/serialOutput'
 import { createSimulationOutput } from '@hardware/dmx/simulationOutput'
@@ -103,11 +105,19 @@ describe('sortie série DMX USB Pro', () => {
     await expect(output.write(createUniverse())).rejects.toThrow('USB')
     expect(onDisconnect).toHaveBeenCalledTimes(1)
 
-    const other = createFakePort().port
-    serial.disconnect(other)
-    expect(onDisconnect).toHaveBeenCalledTimes(1)
+    // Après une écriture en échec, l'événement de débranchement n'est pas signalé deux fois.
     serial.disconnect(port)
-    expect(onDisconnect).toHaveBeenCalledTimes(2)
+    expect(onDisconnect).toHaveBeenCalledTimes(1)
+    await output.close()
+
+    const reopened = createSerialOutput({ port, driver: 'usbpro', serial })
+    const onSecond = vi.fn()
+    reopened.onDisconnect(onSecond)
+    await reopened.open()
+    serial.disconnect(createFakePort().port)
+    expect(onSecond).not.toHaveBeenCalled()
+    serial.disconnect(port)
+    expect(onSecond).toHaveBeenCalledTimes(1)
     await output.close()
   })
 
@@ -132,13 +142,13 @@ describe('sortie série DMX USB Pro', () => {
 describe('sortie série Open DMX', () => {
   it('ouvre en 250 kbauds 8N2 et envoie un break avant chaque trame', async () => {
     const { port } = createFakePort()
-    const breakDelay = vi.fn().mockResolvedValue(undefined)
-    const output = createSerialOutput({ port, driver: 'opendmx', serial: null, breakDelay })
+    const sleep = vi.fn().mockResolvedValue(undefined)
+    const output = createSerialOutput({ port, driver: 'opendmx', serial: null, sleep })
     await output.open()
     expect(port.openedWith).toEqual({ baudRate: 250_000, dataBits: 8, stopBits: 2, parity: 'none' })
     await output.write(createUniverse())
     expect(port.signals).toEqual([{ break: true }, { break: false }])
-    expect(breakDelay).toHaveBeenCalledTimes(1)
+    expect(sleep.mock.calls).toEqual([[OPEN_DMX_BREAK_MS], [OPEN_DMX_FRAME_MS]])
     expect(port.written[0]).toHaveLength(513)
   })
 

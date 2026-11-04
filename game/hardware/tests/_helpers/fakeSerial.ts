@@ -57,32 +57,41 @@ export function createFakePort(options: { withSignals?: boolean; noWritable?: bo
 }
 
 export function createFakeSerial(ports: SerialPortLike[]) {
-  const listeners = new Set<(event: Event) => void>()
-  const serial: SerialLike & { disconnect: (port: SerialPortLike) => void; requested: unknown[] } =
-    {
-      requested: [],
-      async requestPort(options) {
-        serial.requested.push(options)
-        const port = ports[0]
-        if (!port) {
-          throw new Error('NotFoundError')
-        }
-        return port
-      },
-      async getPorts() {
-        return ports
-      },
-      addEventListener: (_type, listener) => {
-        listeners.add(listener)
-      },
-      removeEventListener: (_type, listener) => {
-        listeners.delete(listener)
-      },
-      disconnect(port) {
-        for (const listener of listeners) {
-          listener({ target: port } as unknown as Event)
-        }
-      },
-    }
+  const listeners = new Map<string, Set<(event: Event) => void>>()
+  type FakeSerial = SerialLike & {
+    disconnect: (port: SerialPortLike) => void
+    emit: (type: string, port: unknown) => void
+    requested: unknown[]
+  }
+  const serial: FakeSerial = {
+    requested: [],
+    async requestPort(options) {
+      serial.requested.push(options)
+      const port = ports[0]
+      if (!port) {
+        throw new Error('NotFoundError')
+      }
+      return port
+    },
+    async getPorts() {
+      return ports
+    },
+    addEventListener: (type, listener) => {
+      const set = listeners.get(type) ?? new Set()
+      set.add(listener)
+      listeners.set(type, set)
+    },
+    removeEventListener: (type, listener) => {
+      listeners.get(type)?.delete(listener)
+    },
+    emit(type, port) {
+      for (const listener of [...(listeners.get(type) ?? [])]) {
+        listener({ target: port } as unknown as Event)
+      }
+    },
+    disconnect(port) {
+      serial.emit('disconnect', port)
+    },
+  }
   return serial
 }

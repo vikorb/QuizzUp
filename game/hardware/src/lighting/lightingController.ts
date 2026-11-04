@@ -2,13 +2,13 @@ import type { Clock, TimerHandle } from '../clock'
 import { browserClock } from '../clock'
 import type { LightingConfig } from '../config'
 import type { FixtureState, PanTilt } from '../dmx/fixtures'
-import { parseRig, renderUniverse } from '../dmx/fixtures'
+import { darkState, parseRig, renderUniverse } from '../dmx/fixtures'
 import type { DmxDriver, DmxOutput, DmxOutputStatus } from '../dmx/output'
 import type { FixtureKind } from '../dmx/profiles'
-import { createUniverse } from '../dmx/universe'
+import { createUniverse, DMX_CHANNELS } from '../dmx/universe'
 import { createEmitter } from '../emitter'
 import type { Desk, Rgbw, Unsubscribe } from '../types'
-import { isDesk } from '../types'
+import { clampByte, isDesk } from '../types'
 import type { ScenePlayer } from './scenePlayer'
 import { createScenePlayer } from './scenePlayer'
 import type { SceneContext, SceneDefinition } from './scenes'
@@ -26,6 +26,12 @@ const CLOSE_TIMEOUT_MS = 250
 export const WRITE_TIMEOUT_MS = 500
 
 const REFRESH_LIMITS = { min: 10, max: 40, fallback: 30 } as const
+
+/** Durée maximale d'un gel volontaire des trames (test de perte de signal). */
+export const MAX_FREEZE_MS = 15_000
+
+/** Sans action de l'opérateur pendant ce délai, le diagnostic se termine tout seul. */
+export const DIAGNOSTICS_IDLE_MS = 10 * 60_000
 
 /**
  * Événement de jeu, au format du moteur (`{ type, payload }` de `@quizzup/game-engine`).
@@ -92,6 +98,59 @@ export type LightingController = {
   getFixtureViews: () => FixtureView[]
   /** Dernière trame envoyée (copie). */
   getFrame: () => Uint8Array
+  /** Mode diagnostic : test canal par canal et appareil par appareil (voir `LightingDiagnostics`). */
+  diagnostics: LightingDiagnostics
+}
+
+export type DiagnosticRefusal =
+  | 'not_active'
+  | 'emergency'
+  | 'invalid_address'
+  | 'smoke_channel'
+  | 'unknown_channel'
+  | 'unknown_fixture'
+  | 'not_confirmed'
+  | 'invalid_duration'
+
+export type DiagnosticResult = { ok: true } | { ok: false; reason: DiagnosticRefusal }
+
+export type DiagnosticsState = {
+  active: boolean
+  allowUnknownChannels: boolean
+  /** Fin du gel des trames en cours (test de perte de signal), `null` sinon. */
+  frozenUntil: number | null
+}
+
+/**
+ * Diagnostic matériel. Les scènes sont suspendues et l'opérateur pilote directement :
+ * - un canal brut (trouver l'adresse d'un appareil inconnu) ;
+ * - un appareil configuré (couleur, intensité, position) ;
+ * - la fumée, uniquement par le contrôleur sécurisé : un canal de fumée ne se règle jamais à la main ;
+ * - un gel volontaire des trames, pour vérifier que le relais temporisé ou l'interface coupe
+ *   la fumée quand la page plante.
+ */
+export type LightingDiagnostics = {
+  /**
+   * Entre en diagnostic. Avec `allowUnknownChannels`, les canaux qui n'appartiennent à aucun
+   * appareil configuré sont réglables : débrancher la machine à fumée avant, car son adresse
+   * réelle est peut-être l'un d'eux.
+   */
+  begin: (options?: { allowUnknownChannels?: boolean }) => DiagnosticResult
+  end: () => void
+  /** Adresse 1-512, valeur 0-255. */
+  setChannel: (address: number, value: number) => DiagnosticResult
+  setFixture: (
+    fixtureId: string,
+    state: Partial<Pick<FixtureState, 'color' | 'intensity' | 'position' | 'strobe'>>
+  ) => DiagnosticResult
+  /** Remet tous les canaux de test à zéro. */
+  clear: () => void
+  /**
+   * Gèle l'envoi des trames pendant `durationMs` (≤ 15 s) : l'interface garde la dernière trame,
+   * comme si la page avait planté. Exige `confirm: true`. Annulé par l'arrêt d'urgence.
+   */
+  freezeOutput: (durationMs: number, options: { confirm: boolean }) => DiagnosticResult
+  getState: () => DiagnosticsState
 }
 
 export type LightingControllerOptions = {
@@ -156,6 +215,23 @@ export function createLightingController(options: LightingControllerOptions): Li
   let session = 0
   let emergency = false
   let emergencyReason: string | null = null
+  let diagnosticsActive = false
+  let allowUnknownChannels = false
+  let diagnosticsTouchedAt = 0
+  let frozenUntil: number | null = null
+  let manualChannels = createUniverse()
+  const manualFixtures = new Map<string, FixtureState>()
+  const fixtureChannels = new Set<number>()
+  const smokeChannels = new Set<number>()
+  for (const fixture of fixtures) {
+    fixture.profile.channels.forEach((spec, offset) => {
+      const address = fixture.address + offset
+      fixtureChannels.add(address)
+      if (spec.role === 'smoke' || fixture.profile.kind === 'smoke') {
+        smokeChannels.add(address)
+      }
+    })
+  }
   let lastFrameAt: number | null = null
   let lastWarning: LightingWarning | null = null
   let lastSceneId: string | null = null
@@ -262,8 +338,25 @@ export function createLightingController(options: LightingControllerOptions): Li
     lastFrameAt = now
 
     if (emergency || outputStatus === 'error') {
+      frozenUntil = null
       send(createUniverse())
       return
+    }
+    if (frozenUntil !== null) {
+      if (now < frozenUntil) {
+        // Gel volontaire : aucune trame, l'interface répète la dernière reçue.
+        return
+      }
+      frozenUntil = null
+      notify()
+    }
+    if (diagnosticsActive) {
+      if (now - diagnosticsTouchedAt > DIAGNOSTICS_IDLE_MS) {
+        endDiagnostics()
+      } else {
+        send(renderDiagnostics(now))
+        return
+      }
     }
     player.update(now)
     send(renderUniverse(fixtures, player.states(), smoke.level(now)))
@@ -273,6 +366,130 @@ export function createLightingController(options: LightingControllerOptions): Li
       lastSceneId = sceneId
       notify()
     }
+  }
+
+  /** Trame de diagnostic : canaux bruts, puis appareils réglés, puis fumée sécurisée. */
+  function renderDiagnostics(now: number): Uint8Array {
+    const universe = manualChannels.slice()
+    const overlay = renderUniverse(
+      fixtures.filter(
+        (fixture) => manualFixtures.has(fixture.id) || fixture.profile.kind === 'smoke'
+      ),
+      manualFixtures,
+      smoke.level(now)
+    )
+    for (const fixture of fixtures) {
+      if (manualFixtures.has(fixture.id) || fixture.profile.kind === 'smoke') {
+        fixture.profile.channels.forEach((_spec, offset) => {
+          const index = fixture.address - 1 + offset
+          universe[index] = overlay[index] ?? 0
+        })
+      }
+    }
+    for (const address of smokeChannels) {
+      universe[address - 1] = overlay[address - 1] ?? 0
+    }
+    return universe
+  }
+
+  function endDiagnostics() {
+    if (!diagnosticsActive) {
+      return
+    }
+    diagnosticsActive = false
+    allowUnknownChannels = false
+    frozenUntil = null
+    manualChannels = createUniverse()
+    manualFixtures.clear()
+    player.blackout()
+    playScene(SCENE_IDS.IDLE)
+    notify()
+  }
+
+  const touchDiagnostics = (): DiagnosticResult | null => {
+    if (emergency) {
+      return { ok: false, reason: 'emergency' }
+    }
+    if (!diagnosticsActive) {
+      return { ok: false, reason: 'not_active' }
+    }
+    diagnosticsTouchedAt = clock.now()
+    return null
+  }
+
+  const diagnostics: LightingDiagnostics = {
+    begin(beginOptions = {}) {
+      if (emergency) {
+        return { ok: false, reason: 'emergency' }
+      }
+      diagnosticsActive = true
+      allowUnknownChannels = beginOptions.allowUnknownChannels === true
+      diagnosticsTouchedAt = clock.now()
+      manualChannels = createUniverse()
+      manualFixtures.clear()
+      player.stop()
+      notify()
+      return { ok: true }
+    },
+    end: endDiagnostics,
+    setChannel(address, value) {
+      const refused = touchDiagnostics()
+      if (refused) {
+        return refused
+      }
+      if (!Number.isInteger(address) || address < 1 || address > DMX_CHANNELS) {
+        return { ok: false, reason: 'invalid_address' }
+      }
+      if (smokeChannels.has(address)) {
+        return { ok: false, reason: 'smoke_channel' }
+      }
+      if (!fixtureChannels.has(address) && !allowUnknownChannels) {
+        return { ok: false, reason: 'unknown_channel' }
+      }
+      manualChannels[address - 1] = clampByte(value)
+      return { ok: true }
+    },
+    setFixture(fixtureId, state) {
+      const refused = touchDiagnostics()
+      if (refused) {
+        return refused
+      }
+      const fixture = fixtures.find((candidate) => candidate.id === fixtureId)
+      if (!fixture || fixture.profile.kind === 'smoke') {
+        return { ok: false, reason: 'unknown_fixture' }
+      }
+      const previous = manualFixtures.get(fixtureId) ?? darkState()
+      manualFixtures.set(fixtureId, {
+        color: state.color ? { ...state.color } : previous.color,
+        intensity: state.intensity ?? previous.intensity,
+        position: state.position === undefined ? previous.position : state.position,
+        strobe: state.strobe ?? previous.strobe,
+      })
+      return { ok: true }
+    },
+    clear() {
+      manualChannels = createUniverse()
+      manualFixtures.clear()
+      diagnosticsTouchedAt = clock.now()
+    },
+    freezeOutput(durationMs, freezeOptions) {
+      const refused = touchDiagnostics()
+      if (refused) {
+        return refused
+      }
+      if (!freezeOptions.confirm) {
+        return { ok: false, reason: 'not_confirmed' }
+      }
+      if (!Number.isFinite(durationMs) || durationMs <= 0 || durationMs > MAX_FREEZE_MS) {
+        return { ok: false, reason: 'invalid_duration' }
+      }
+      frozenUntil = clock.now() + durationMs
+      // Le chien de garde ne doit pas compter le gel comme un plantage.
+      lastFrameAt = null
+      notify()
+      return { ok: true }
+    },
+    getState: () => ({ active: diagnosticsActive, allowUnknownChannels, frozenUntil }),
   }
 
   const openOutput = async () => {
@@ -363,7 +580,8 @@ export function createLightingController(options: LightingControllerOptions): Li
   }
 
   const playScene = (sceneId: string, context: SceneContext = { desk: null }) => {
-    if (emergency) {
+    // Pendant un diagnostic, aucune scène (ni fumée de scène) ne se déclenche.
+    if (emergency || diagnosticsActive) {
       return false
     }
     const scene = scenes.get(sceneId)
@@ -468,7 +686,7 @@ export function createLightingController(options: LightingControllerOptions): Li
     },
     playScene,
     identifyFixture(fixtureId) {
-      if (emergency || !fixtures.some((fixture) => fixture.id === fixtureId)) {
+      if (emergency || diagnosticsActive || !fixtures.some((fixture) => fixture.id === fixtureId)) {
         return false
       }
       const played = player.play(identifyScene(fixtureId), { desk: null }, clock.now())
@@ -497,6 +715,7 @@ export function createLightingController(options: LightingControllerOptions): Li
     },
     emergencyStop(reason = 'Arrêt d’urgence') {
       emergency = true
+      frozenUntil = null
       emergencyReason = reason
       smoke.emergencyStop()
       player.blackout()
@@ -530,5 +749,6 @@ export function createLightingController(options: LightingControllerOptions): Li
         }
       }),
     getFrame: () => frame.slice(),
+    diagnostics,
   }
 }
