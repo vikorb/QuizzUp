@@ -1,0 +1,35 @@
+{
+  "name": "@quizzup/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Tests de bout en bout QuizzUp (Playwright, Chromium) : une partie complète de blind test éclair sur l'écran de salle, lecture audio réelle et simulation DMX.",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "report": "playwright show-report",
+    "harness": "vite --config harness/vite.config.ts",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "type-check": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "1.63.0",
+    "@types/node": "^24.19.2",
+    "eslint": "~10.8.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-simple-import-sort": "^12.1.1",
+    "eslint-plugin-unicorn": "^63.0.0",
+    "eslint-plugin-unused-imports": "^4.4.1",
+    "globals": "~17.8.0",
+    "lint-staged": "^16.3.1",
+    "prettier": "~3.9.6",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "~8.65.0",
+    "vite": "^7.3.1"
+  }
+}
