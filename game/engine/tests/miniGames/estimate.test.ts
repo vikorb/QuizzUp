@@ -175,3 +175,11 @@ describe('sortRanges with open-ended ranges', () => {
     expect(getRangeSortValue('1,5 m')).toBe(1.5)
   })
 })
+
+describe('getRangeSortValue edge cases', () => {
+  it('keeps small decimals and reads "ou moins" / "jusqu’à" as lower bounds', () => {
+    expect(getRangeSortValue('0.125 kg')).toBe(0.125)
+    expect(getRangeSortValue('10 ou moins')).toBe(9.5)
+    expect(getRangeSortValue('Jusqu’à 10')).toBe(9.5)
+  })
+})

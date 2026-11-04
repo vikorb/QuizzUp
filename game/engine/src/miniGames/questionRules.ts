@@ -72,7 +72,7 @@ export function parseLeadingNumber(text: string): number | null {
   // Séparateurs de milliers : espaces (« 1 000 ») ou point suivi de 3 chiffres (« 1.000 »).
   const compact = text
     .replaceAll(/(\d)[\s\u00A0\u202F](?=\d)/g, '$1')
-    .replaceAll(/(\d)\.(?=\d{3}(?!\d))/g, '$1')
+    .replaceAll(/(?<![\d.])([1-9]\d{0,2})\.(?=\d{3}(?!\d))/g, '$1')
   const match = /-?\d+(?:[.,]\d+)?/.exec(compact)
 
   return match ? Number(match[0].replace(',', '.')) : null
@@ -83,7 +83,8 @@ export function parseLeadingNumber(text: string): number | null {
  * comparaison (« Moins de 50 », « Entre 10 et 20 », « < 5 ») : « Henri 4 » ou
  * « Louis 14 » restent des réponses de QCM.
  */
-const RANGE_PATTERN = /^(?:(?:moins de|plus de|entre|de|environ|au moins|au plus|[<>≤≥~])\s*)?-?\d/
+const RANGE_PATTERN =
+  /^(?:(?:moins de|plus de|entre|de|environ|au moins|au plus|jusqu'a|jusqu’a|[<>≤≥~])\s*)?-?\d/
 
 export function isRangeAnswer(answer: EngineAnswer): boolean {
   return RANGE_PATTERN.test(normalizeText(answer.text))

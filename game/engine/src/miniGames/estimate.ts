@@ -31,7 +31,7 @@ export function getRangeSortValue(text: string): number {
   const value = parseLeadingNumber(text) ?? 0
   const normalized = normalizeText(text)
 
-  if (/^(?:moins de|au plus|[<≤])/.test(normalized)) {
+  if (/^(?:moins de|au plus|jusqu['’]a|[<≤])/.test(normalized) || normalized.includes('ou moins')) {
     return value - 0.5
   }
 
