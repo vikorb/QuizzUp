@@ -49,7 +49,7 @@
     <div class="hw-actions">
       <UiButton
         v-if="driver !== 'simulation'"
-        :disabled="!webSerial || connecting"
+        :disabled="(!webSerial && driver !== 'artnet-bridge') || connecting"
         data-test="diag-connect"
         @click="onConnect"
       >

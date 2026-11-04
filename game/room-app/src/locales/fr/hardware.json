@@ -41,7 +41,8 @@
       "drivers": {
         "simulation": "Simulation (aucune interface)",
         "usbpro": "Interface DMX USB Pro",
-        "opendmx": "Interface Open DMX (expérimental)"
+        "opendmx": "Interface Open DMX (expérimental)",
+        "artnet-bridge": "Pont Art-Net local (boîtier réseau)"
       },
       "status": {
         "closed": "déconnectée",
@@ -255,8 +256,10 @@
         "about": {
           "simulation": "Aucun matériel : les lumières s’affichent à l’écran. Idéal pour essayer.",
           "usbpro": "Interface avec son propre processeur (Enttec DMX USB Pro et compatibles) : signal stable.",
-          "opendmx": "Câble USB-DMX simple (FTDI) sans processeur : bon marché, moins fiable."
-        }
+          "opendmx": "Câble USB-DMX simple (FTDI) sans processeur : bon marché, moins fiable.",
+          "artnet-bridge": "Programme quizzup-artnet-bridge lancé sur le PC : pilote un boîtier Art-Net (ex. Showtec NET-2/3) sur le réseau."
+        },
+        "bridge": "Lance d’abord le programme quizzup-artnet-bridge sur ce PC (voir sa notice). Chrome peut demander l’autorisation d’accéder au réseau local : accepte-la."
       },
       "fixtures": {
         "importSix": "Importer une salle 6 pupitres",

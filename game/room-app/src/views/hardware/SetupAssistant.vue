@@ -86,6 +86,9 @@
       <p v-if="view.config.lighting.driver === 'opendmx'" class="hw-alert" role="status">
         {{ $t('hardware.assistant.interface.experimental') }}
       </p>
+      <p v-if="view.config.lighting.driver === 'artnet-bridge'" class="hw-alert" role="status">
+        {{ $t('hardware.assistant.interface.bridge') }}
+      </p>
       <div v-if="view.config.lighting.driver !== 'simulation'" class="hw-actions">
         <UiButton :disabled="connecting" data-test="assistant-connect" @click="onConnect">
           <MdIcon :path="mdiUsb" :size="18" />

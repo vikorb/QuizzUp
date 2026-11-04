@@ -111,3 +111,63 @@ describe('interface USB DMX de la salle', () => {
     expect(controller.getState().outputStatus).toBe('error')
   })
 })
+
+/** Pont Art-Net factice : répond à `hello` et compte les trames binaires. */
+class FakeBridgeSocket {
+  static last: FakeBridgeSocket | null = null
+  readyState = 0
+  bufferedAmount = 0
+  binaryType = 'blob'
+  frames = 0
+  onopen: (() => void) | null = null
+  onmessage: ((event: { data: unknown }) => void) | null = null
+  onerror: (() => void) | null = null
+  onclose: ((event: { code: number; reason: string }) => void) | null = null
+
+  constructor(readonly url: string) {
+    FakeBridgeSocket.last = this
+    queueMicrotask(() => {
+      this.readyState = 1
+      this.onopen?.()
+    })
+  }
+
+  send(data: unknown) {
+    if (typeof data === 'string') {
+      queueMicrotask(() =>
+        this.onmessage?.({
+          data: JSON.stringify({ type: 'ack', protocol: 1, bridge: 'quizzup-artnet-bridge' }),
+        })
+      )
+    } else {
+      this.frames += 1
+    }
+  }
+
+  close() {
+    this.readyState = 3
+  }
+}
+
+describe('pont Art-Net de la salle', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('se connecte au pont local au clic et mesure les trames', async () => {
+    vi.stubGlobal('WebSocket', FakeBridgeSocket)
+    await saveRoomHardwareConfig({
+      lighting: { driver: 'artnet-bridge', bridgeUrl: 'ws://127.0.0.1:7700' },
+    })
+    await startLighting()
+    // Pas de connexion automatique : Chrome peut demander l'accès au réseau local.
+    expect(FakeBridgeSocket.last).toBeNull()
+
+    await connectDmxInterface()
+    expect(FakeBridgeSocket.last?.url).toBe('ws://127.0.0.1:7700')
+    await vi.waitFor(() => expect(FakeBridgeSocket.last?.frames).toBeGreaterThan(0))
+    expect(getLighting()?.getState().simulation).toBe(false)
+    await vi.waitFor(() => expect(getDmxStats()?.framesSent).toBeGreaterThan(0))
+    expect(getDmxPort()).toBeNull()
+  })
+})

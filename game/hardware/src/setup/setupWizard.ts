@@ -67,12 +67,39 @@ export type InterfaceChoice = {
   experimental: boolean
   /** A besoin de Web Serial dans le navigateur. */
   needsWebSerial: boolean
+  /** A besoin du pont local `quizzup-artnet-bridge` lancé sur le PC de la salle. */
+  needsBridge: boolean
 }
 
 export const INTERFACE_CHOICES: readonly InterfaceChoice[] = [
-  { driver: 'simulation', recommended: false, experimental: false, needsWebSerial: false },
-  { driver: 'usbpro', recommended: true, experimental: false, needsWebSerial: true },
-  { driver: 'opendmx', recommended: false, experimental: true, needsWebSerial: true },
+  {
+    driver: 'simulation',
+    recommended: false,
+    experimental: false,
+    needsWebSerial: false,
+    needsBridge: false,
+  },
+  {
+    driver: 'usbpro',
+    recommended: true,
+    experimental: false,
+    needsWebSerial: true,
+    needsBridge: false,
+  },
+  {
+    driver: 'opendmx',
+    recommended: false,
+    experimental: true,
+    needsWebSerial: true,
+    needsBridge: false,
+  },
+  {
+    driver: 'artnet-bridge',
+    recommended: false,
+    experimental: false,
+    needsWebSerial: false,
+    needsBridge: true,
+  },
 ]
 
 /**
@@ -601,6 +628,10 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
       const choice = INTERFACE_CHOICES.find((item) => item.driver === config.lighting.driver)
       if (config.lighting.driver === 'simulation') {
         warnings.push('Lumières en simulation : aucune interface DMX ne sera pilotée')
+      } else if (choice?.needsBridge) {
+        warnings.push(
+          'Pont Art-Net : le programme quizzup-artnet-bridge doit tourner sur le PC de la salle'
+        )
       } else if (choice?.experimental) {
         warnings.push(
           'Interface Open DMX : expérimentale, des scintillements sont possibles selon le PC'

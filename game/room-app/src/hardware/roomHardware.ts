@@ -3,11 +3,13 @@ import {
   type BuzzerInput,
   type BuzzerInputState,
   type BuzzerKeymap,
+  createBridgeOutput,
   createKeyboardBuzzerInput,
   createLightingController,
   createMeteredOutput,
   createSerialOutput,
   createSimulationOutput,
+  DEFAULT_BRIDGE_URL,
   type DmxDriver,
   type DmxOutput,
   getGrantedDmxPort,
@@ -157,7 +159,7 @@ let stopReconnectWatch: (() => void) | null = null
 async function useSerialPort(
   controller: LightingController,
   port: SerialPortLike,
-  driver: Exclude<DmxDriver, 'simulation'>
+  driver: 'usbpro' | 'opendmx'
 ): Promise<void> {
   const output = createMeteredOutput(createSerialOutput({ port, driver }))
   meteredOutput = output
@@ -178,7 +180,13 @@ export function getDmxPort(): SerialPortLike | null {
 
 async function reconnectGrantedPort(controller: LightingController): Promise<void> {
   const { driver } = parsed.value.config.lighting
-  if (driver === 'simulation' || preferSimulation || !isWebSerialSupported()) {
+  // Le pont Art-Net se connecte au clic : Chrome peut demander l'accès au réseau local.
+  if (
+    driver === 'simulation' ||
+    driver === 'artnet-bridge' ||
+    preferSimulation ||
+    !isWebSerialSupported()
+  ) {
     return
   }
   const port = await getGrantedDmxPort().catch(() => null)
@@ -200,7 +208,12 @@ function watchReconnection(controller: LightingController): void {
     onReconnect: (port) => {
       const { driver } = parsed.value.config.lighting
       const state = controller.getState()
-      if (controller !== lighting || driver === 'simulation' || preferSimulation) {
+      if (
+        controller !== lighting ||
+        driver === 'simulation' ||
+        driver === 'artnet-bridge' ||
+        preferSimulation
+      ) {
         return
       }
       if (state.simulation || state.outputStatus === 'error' || state.outputStatus === 'closed') {
@@ -318,6 +331,17 @@ export async function connectDmxInterface(
 ): Promise<void> {
   if (driver === 'simulation') {
     throw new Error('simulation_driver')
+  }
+  if (driver === 'artnet-bridge') {
+    const controller = await startLighting()
+    preferSimulation = false
+    const output = createMeteredOutput(
+      createBridgeOutput({ url: parsed.value.config.lighting.bridgeUrl ?? DEFAULT_BRIDGE_URL })
+    )
+    meteredOutput = output
+    dmxPort = null
+    await controller.setOutput(output)
+    return
   }
   // La fenêtre de choix doit s'ouvrir dans le clic, avant toute autre attente.
   const port = await requestDmxPort()

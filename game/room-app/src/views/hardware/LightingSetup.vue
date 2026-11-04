@@ -33,7 +33,11 @@
       </UiButton>
 
       <template v-if="driver !== 'simulation'">
-        <UiButton :disabled="!webSerial || connecting" data-test="dmx-connect" @click="onConnect">
+        <UiButton
+          :disabled="(!webSerial && driver !== 'artnet-bridge') || connecting"
+          data-test="dmx-connect"
+          @click="onConnect"
+        >
           <MdIcon :path="mdiUsb" :size="18" />
           {{ $t('hardware.lights.connect') }}
         </UiButton>

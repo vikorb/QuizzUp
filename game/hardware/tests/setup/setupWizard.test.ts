@@ -346,6 +346,8 @@ describe('assistant d’installation : récapitulatif', () => {
 
     wizard.setDriver('simulation')
     expect(wizard.summary().warnings.join(' ')).toContain('simulation')
+    wizard.setDriver('artnet-bridge')
+    expect(wizard.summary().warnings.join(' ')).toContain('quizzup-artnet-bridge')
   })
 
   it('reprend une config existante (6 pupitres déjà appris)', () => {
