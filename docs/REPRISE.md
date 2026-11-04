@@ -24,6 +24,12 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
 
 ## 2. Travail en cours au moment de l'arrêt
 
+- **Session du 2026-11-04 : tout est mergé, aucune PR ouverte.** PR #91 (mini-jeux), #97 (réessai
+  de l'envoi des scores), #94 (type, média et réponses sous verrou), #98 (purge RGPD), #93
+  (hygiène du dépôt : `backoffice/shared/node_modules` sorti de git, `format:check` en CI ; après
+  un pull, relancer `cd backoffice/shared && npm install`), #92 (6 pupitres), #99 (reprise de
+  sauvegarde liée au compte de salle), #95 (verrou clavier avec la carte manette, fondus du synthé),
+  #96 (lint-staged n'applique plus eslint aux migrations).
 - **PR #88 mergée** : l'écran de salle appelle `POST /room/games/:id/finish` au podium ; la
   partie passe « terminée » et les scores sont enregistrés.
 - **PR #91 (lot 1, mini-jeux)** : choix des mini-jeux à la création d'une partie (cases à cocher,
@@ -55,8 +61,7 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
 ## 4. Lots restants, par priorité
 
 1. ~~**Mini-jeux dans une partie lancée du backoffice**~~ : fait (PR #91).
-2. ~~**Fin de partie** : réessai de l'envoi des scores après une panne réseau~~ : fait (branche
-   `fix/room-finish-retry`). File persistante `quizzup_room_pending_finishes`
+2. ~~**Fin de partie** : réessai de l'envoi des scores après une panne réseau~~ : fait (PR #97). File persistante `quizzup_room_pending_finishes`
    (`room-app/src/game/pendingFinishes.ts`) : survit au rechargement et à une nouvelle partie ;
    essais à 2 s, 5 s, 15 s, 30 s puis toutes les 60 s, essai immédiat sur `online`, vidage au
    démarrage et à la connexion du compte de salle ; 404/409/400 abandonnés, 401/403 attendent une
@@ -68,8 +73,7 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
    Dans `room-app/src/hardware/roomHardware.ts`, s'assurer que `createGamepadBuzzerInput` reçoit
    bien le `gamepadMatcher` quand `buzzers.source.kind` vaut `'gamepad'`.
 4. **Recette VPS** : déployer `deploy/recette/` dès qu'Enzo donne l'IP et l'accès SSH du VPS.
-5. ~~**Purge RGPD** des emails joueurs 3 ans après leur dernière partie~~ : fait (branche
-   `feat/rgpd-purge-emails`). Purge planifiée dans le backend (30 s après le démarrage puis
+5. ~~**Purge RGPD** des emails joueurs 3 ans après leur dernière partie~~ : fait (PR #98). Purge planifiée dans le backend (30 s après le démarrage puis
    toutes les 24 h, `PLAYER_EMAIL_PURGE_INTERVAL_HOURS=0` pour la couper) et
    `npm run purge:emails` dans `backend/`. Purge **par compagnie** (le consentement est donné au
    centre) : un joueur = son email (joueur 1 ou 2e joueur) dans une compagnie ; dernière partie
@@ -77,7 +81,7 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
    comprises ; au-delà de 3 ans, email et consentement effacés dans les parties de cette
    compagnie seulement, noms et scores gardés. Tout se fait en SQL (verrou consultatif) ; test
    d'intégration PostgreSQL dans la CI (job migrations).
-6. ~~**6 pupitres**~~ : fait (branche `feat/six-podiums`). `GAME_PODIUMS` = 6 (`@quizzup/shared`) ;
+6. ~~**6 pupitres**~~ : fait (PR #92). `GAME_PODIUMS` = 6 (`@quizzup/shared`) ;
    migration `20261104040000` (CHECK `podium` 1..6, retour arrière refusé si un pupitre 5 ou 6 est
    utilisé) ; nombre de pupitres d'une salle = `rooms.config.desksCount` (1 à 6, absent = 4), réglé
    dans l'écran Matériel (onglet Buzzers et assistant), renvoyé par `GET /companies/:id/rooms`
@@ -92,7 +96,7 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
 7. Plus tard : SACEM, pricing, mode hors ligne (V2).
 
 Petits suivis connus : ~~`LaunchView` reprend
-n'importe quelle sauvegarde~~ (fait : `fix/launch-resume-save`, reprise limitée au contexte courant) ; typage
+n'importe quelle sauvegarde~~ (fait : PR #99, reprise limitée au contexte courant) ; typage
 de l'ancien contenu : **décision d'Enzo à prendre**. La migration `20261104020000_add_kind_to_questions`
 a rempli toutes les anciennes questions avec `kind = 'qcm'` (défaut `NOT NULL`), donc rien n'est à
 `NULL` et une ancienne question est indiscernable d'un QCM choisi exprès. Le moteur déduit déjà le
