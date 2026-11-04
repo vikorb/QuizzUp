@@ -34,40 +34,67 @@ export type { SimulatedBuzzerInput } from './buzzers/simulatedBuzzerInput'
 export { createSimulatedBuzzerInput } from './buzzers/simulatedBuzzerInput'
 export type { Clock } from './clock'
 export { browserClock } from './clock'
-export type { LightingConfig, ParsedRoomHardwareConfig, RoomHardwareConfig } from './config'
+export type {
+  BuzzerSource,
+  LightingConfig,
+  ParsedRoomHardwareConfig,
+  RoomHardwareConfig,
+} from './config'
 export {
   defaultRoomHardwareConfig,
   DMX_REFRESH_LIMITS,
+  gamepadMatcher,
   parseRoomHardwareConfig,
   ROOM_HARDWARE_CONFIG_VERSION,
 } from './config'
 export type { FixtureConfig, FixtureState, PanTilt, ResolvedFixture } from './dmx/fixtures'
 export { parseRig, renderUniverse } from './dmx/fixtures'
+export type { MeteredOutput, OutputStats } from './dmx/meteredOutput'
+export { createMeteredOutput } from './dmx/meteredOutput'
 export type { DmxDriver, DmxOutput, DmxOutputStatus } from './dmx/output'
 export { DMX_DRIVERS } from './dmx/output'
 export type { ChannelRole, ChannelSpec, FixtureKind, FixtureProfile } from './dmx/profiles'
 export { CHANNEL_ROLES, findProfile, FIXTURE_KINDS, GENERIC_PROFILES } from './dmx/profiles'
-export type { SerialLike, SerialPortLike } from './dmx/serialOutput'
+export type {
+  SerialErrorCode,
+  SerialErrorDescription,
+  SerialLike,
+  SerialPortLike,
+} from './dmx/serialOutput'
 export {
   createSerialOutput,
+  describePort,
+  describeSerialError,
   getGrantedDmxPort,
   getWebSerial,
   isWebSerialSupported,
+  OPEN_DMX_BREAK_MS,
+  OPEN_DMX_FRAME_MS,
   requestDmxPort,
+  watchDmxPortReconnection,
 } from './dmx/serialOutput'
 export type { SimulationOutput } from './dmx/simulationOutput'
 export { createSimulationOutput } from './dmx/simulationOutput'
 export { DMX_CHANNELS, encodeRawDmxFrame, encodeUsbProFrame } from './dmx/universe'
 export type {
   DeskResolver,
+  DiagnosticRefusal,
+  DiagnosticResult,
+  DiagnosticsState,
   FixtureView,
   HardwareGameEvent,
   LightingController,
   LightingControllerOptions,
+  LightingDiagnostics,
   LightingState,
   LightingWarning,
 } from './lighting/lightingController'
-export { createLightingController, WATCHDOG_STALL_MS } from './lighting/lightingController'
+export {
+  createLightingController,
+  DIAGNOSTICS_IDLE_MS,
+  MAX_FREEZE_MS,
+  WATCHDOG_STALL_MS,
+} from './lighting/lightingController'
 export type {
   SceneAim,
   SceneColor,
@@ -107,6 +134,28 @@ export {
   SIX_DESK_BUTTON_COLORS,
   SIX_DESK_PROFILES,
 } from './presets/sixDeskRoom'
+export type {
+  AddFixtureInput,
+  AddFixtureResult,
+  BrowserCheck,
+  FixtureTestResult,
+  InterfaceChoice,
+  SetupStepId,
+  SetupSummary,
+  SetupWizard,
+  SetupWizardState,
+  SmokeCheckId,
+  WizardResult,
+} from './setup/setupWizard'
+export {
+  checkBrowser,
+  createSetupWizard,
+  INTERFACE_CHOICES,
+  SETUP_STEPS,
+  SMOKE_CHECK_LABELS,
+  SMOKE_CHECKS,
+  TIMED_RELAY_MAX_MS,
+} from './setup/setupWizard'
 export type { ButtonIndex, BuzzerButton, Desk, Rgb, Rgbw, Unsubscribe } from './types'
 export {
   buttonToIndex,

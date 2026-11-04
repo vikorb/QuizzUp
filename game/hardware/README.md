@@ -208,16 +208,67 @@ Le contrôleur de fumée applique, quoi que dise la configuration :
 > machine à fumée et des lumières. Le bouton logiciel ne suffit pas : si le PC ou le navigateur
 > plante, plus aucune trame n'est envoyée.
 >
-> **Fortement recommandé** : une interface DMX ou un relais qui **coupe la fumée en cas de perte
-> de signal** (beaucoup d'appareils gardent la dernière valeur reçue), ou à défaut une machine à
-> fumée avec temporisation matérielle.
+> **Montage retenu** : la fumée passe par un **relais DMX** suivi d'un **relais temporisé
+> physique réglé à 10 s maximum**. Une interface DMX USB Pro répète la dernière trame reçue :
+> si le PC plante pendant une émission, seul le relais temporisé coupe la fumée. Vérifier ce
+> montage avec le test de gel du diagnostic.
+
+## Fiabilité des interfaces USB DMX (Web Serial)
+
+- **DMX USB Pro** : l'interface fabrique elle-même le signal DMX, le PC lui envoie un paquet
+  par trame. C'est le choix recommandé : timing stable sous Windows comme sous macOS.
+- **Open DMX** (FTDI sans microcontrôleur) : le navigateur fabrique le signal. Chaque trame
+  envoie un _break_ (`setSignals({ break })`, `OPEN_DMX_BREAK_MS`) puis attend la durée de
+  transmission (`OPEN_DMX_FRAME_MS` = 23 ms à 250 kbit/s) avant la suivante, pour ne jamais
+  tronquer une trame. Le timing dépend du PC et du pilote : **expérimental**, scintillements
+  possibles.
+- Un port resté ouvert (rechargement de page) est refermé puis rouvert automatiquement.
+  `describeSerialError(error)` traduit les erreurs Web Serial (`busy` : port pris par QLC+ ou
+  le logiciel Enttec, `forbidden`, `disconnected`…) avec un conseil à afficher.
+- `watchDmxPortReconnection({ onReconnect })` prévient quand l'interface est rebranchée (même
+  port ou même modèle USB) : l'écran peut relancer `setOutput` sans redemander le port.
+- `createMeteredOutput(output)` mesure les trames réellement envoyées (Hz mesurés, durée
+  moyenne et max d'écriture, échecs) pour l'écran de diagnostic.
+
+## Diagnostic matériel (`lights.diagnostics`)
+
+Pendant un diagnostic, les scènes et les événements de jeu sont suspendus :
+
+- `setChannel(adresse, valeur)` pilote un canal brut. Les canaux d'appareils inconnus sont
+  refusés sauf `begin({ allowUnknownChannels: true })` (recherche d'adresse) : **débrancher la
+  machine à fumée avant** une recherche sur des canaux inconnus ;
+- `setFixture(id, { color, intensity, position, strobe })` règle un appareil configuré ;
+- les canaux de **fumée sont toujours refusés** : la fumée se teste uniquement par
+  `lights.smoke` (armement, durée max, pause) ;
+- `freezeOutput(ms, { confirm: true })` arrête l'envoi des trames (15 s max) pour simuler un
+  plantage : l'interface répète la dernière trame et **le relais temporisé doit couper la
+  fumée tout seul**. Réservé à l'admin, avec double confirmation dans l'écran ;
+- l'arrêt d'urgence annule le gel et bloque le diagnostic ; sans action pendant 10 minutes, le
+  diagnostic se termine et l'ambiance revient.
+
+## Assistant d'installation (`createSetupWizard`)
+
+Modèle pur, piloté par l'écran de salle, pour un centre sans connaissance DMX : navigateur →
+buzzers (clavier ou carte manette choisie par son nom) → interface → appareils (adresse libre
+proposée, chevauchements refusés, import de la salle 6 pupitres) → test de chaque appareil →
+positions des lyres par pupitre (ou import de calibration) → fumée → récapitulatif.
+Les étapes lyres et fumée n'apparaissent que si la salle en a. `summary().config` s'enregistre
+avec `saveRoomHardwareConfig()` (compte de la salle, `rooms.config`).
+
+La fumée n'est enregistrée **active** que si les 4 vérifications humaines sont cochées
+(`SMOKE_CHECKS`) : arrêt d'urgence physique, relais temporisé réglé à **10 s maximum**, test de
+gel réussi, consignes incendie du site. Changer d'interface oblige à refaire le test de gel.
 
 ## Configuration de salle (`rooms.config`, JSONB)
 
 ```jsonc
 {
   "version": 1,
-  "buzzers": { "keymap": { "KeyQ": { "desk": 1, "button": "A" } } },
+  "buzzers": {
+    "keymap": { "KeyQ": { "desk": 1, "button": "A" } },
+    // Facultatif : "keyboard" (défaut) ou carte manette retrouvée par un morceau de son nom.
+    "source": { "kind": "gamepad", "match": "BU0836" },
+  },
   "lighting": {
     "driver": "usbpro",
     "refreshHz": 30,
