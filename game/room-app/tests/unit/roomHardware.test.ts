@@ -219,7 +219,9 @@ describe('buzzers sur une carte USB vue comme une manette', () => {
     })
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    const { resetRoomHardware } = await import('@/hardware/roomHardware')
+    await resetRoomHardware()
     vi.useRealTimers()
     Reflect.deleteProperty(navigator, 'getGamepads')
     pad.buttons[0] = { pressed: false }
@@ -237,6 +239,7 @@ describe('buzzers sur une carte USB vue comme une manette', () => {
       },
     })
     expect(useRoomHardware().usesGamepad.value).toBe(true)
+    expect(useRoomHardware().usesSimulationKeys.value).toBe(false)
 
     await vi.advanceTimersByTimeAsync(10)
     pad.buttons[0] = { pressed: true }
@@ -246,6 +249,14 @@ describe('buzzers sur une carte USB vue comme une manette', () => {
       expect.objectContaining({ desk: 2, button: 'C', code: 'GamepadButton0' })
     )
     expect(useRoomHardware().buzzerState.value?.active).toBe(true)
+  })
+
+  it('n’annonce pas les touches de simulation avec une carte manette', async () => {
+    const { saveBuzzerSource } = await import('@/hardware/roomHardware')
+    expect(useRoomHardware().usesSimulationKeys.value).toBe(true)
+    await saveBuzzerSource({ kind: 'gamepad' })
+    expect(useRoomHardware().usesSimulationKeys.value).toBe(false)
+    expect(useRoomHardware().usesGamepad.value).toBe(true)
   })
 
   it('ignore une carte qui ne correspond pas au filtre', async () => {

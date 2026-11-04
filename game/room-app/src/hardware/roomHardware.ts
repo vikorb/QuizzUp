@@ -4,6 +4,7 @@ import {
   type BuzzerInputState,
   type BuzzerKeymap,
   type BuzzerPress,
+  type BuzzerSource,
   createBridgeOutput,
   createGamepadBuzzerInput,
   createKeyboardBuzzerInput,
@@ -700,6 +701,12 @@ export function getRoomHardwareConfig(): RoomHardwareConfig {
   return parsed.value.config
 }
 
+/** Change la source des buzzers (clavier ou carte manette) : le lecteur suit tout de suite. */
+export async function saveBuzzerSource(source: BuzzerSource): Promise<ParsedRoomHardwareConfig> {
+  const config = parsed.value.config
+  return saveRoomHardwareConfig({ ...config, buzzers: { ...config.buzzers, source } })
+}
+
 /** Enregistre seulement le mapping des buzzers (fin de l'apprentissage). */
 export async function saveBuzzerKeymap(keymap: BuzzerKeymap): Promise<ParsedRoomHardwareConfig> {
   return saveRoomHardwareConfig({
@@ -731,8 +738,11 @@ export function useRoomHardware() {
     hardware: computed(() => parsed.value),
     keymap: computed(() => effectiveKeymap(parsed.value.config)),
     usesGamepad: computed(() => parsed.value.config.buzzers.source?.kind === 'gamepad'),
+    // La carte manette ne lit pas le clavier : pas de touches de simulation avec elle.
     usesSimulationKeys: computed(
-      () => Object.keys(parsed.value.config.buzzers.keymap).length === 0
+      () =>
+        Object.keys(parsed.value.config.buzzers.keymap).length === 0 &&
+        parsed.value.config.buzzers.source?.kind !== 'gamepad'
     ),
     buzzerState: computed(() => buzzerState.value),
     lightingState: computed(() => lightingState.value),
