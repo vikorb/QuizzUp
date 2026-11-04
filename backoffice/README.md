@@ -170,9 +170,9 @@ JWT_EXPIRES_IN=2h
 PLAYER_EMAIL_PURGE_INTERVAL_HOURS=24
 ```
 
-RGPD : les emails des joueurs sont effacés 3 ans après leur dernière partie, automatiquement
-(`PLAYER_EMAIL_PURGE_INTERVAL_HOURS`, `0` pour désactiver) ou à la main avec
-`npm run purge:emails` depuis `backend/`.
+RGPD : les emails des joueurs sont effacés, compagnie par compagnie, 3 ans après leur dernière
+partie dans la compagnie, automatiquement (`PLAYER_EMAIL_PURGE_INTERVAL_HOURS`, minimum 1, `0` pour
+désactiver) ou à la main avec `npm run purge:emails` depuis `backend/`.
 
 ### Frontend
 

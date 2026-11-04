@@ -9,9 +9,11 @@ Format inspiré de Keep a Changelog.
 ### Added
 
 - Purge RGPD des emails joueurs : un email (1er ou 2e joueur) est effacé, avec son consentement,
-  3 ans après sa dernière partie (`PLAYER_EMAIL_RETENTION_YEARS` dans `@quizzup/shared`) ; noms et
-  scores restent. Exécutée au démarrage du serveur puis toutes les 24 h
-  (`PLAYER_EMAIL_PURGE_INTERVAL_HOURS`, `0` = désactivée), ou à la main avec `npm run purge:emails`.
+  dans les parties d'une compagnie 3 ans après sa dernière partie dans cette compagnie
+  (`PLAYER_EMAIL_RETENTION_YEARS` dans `@quizzup/shared`) ; noms et scores restent. Calculée en SQL
+  sous verrou, exécutée au démarrage du serveur puis toutes les 24 h
+  (`PLAYER_EMAIL_PURGE_INTERVAL_HOURS`, minimum 1, `0` = désactivée), ou à la main avec
+  `npm run purge:emails`. Test d'intégration sur PostgreSQL dans la CI.
   US: us-rgpd-purge
 
 - Version testable : `npm run demo` à la racine (base, API, backoffice, écran de salle), seed de

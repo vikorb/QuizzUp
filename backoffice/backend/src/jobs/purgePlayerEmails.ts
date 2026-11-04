@@ -2,168 +2,124 @@ import type { Knex } from 'knex'
 
 import { PLAYER_EMAIL_RETENTION_YEARS } from '@quizzup/shared'
 
-/** Où l'email apparaît sur une ligne de `game_participants` : 1er joueur ou 2e joueur du pupitre. */
-export type PlayerEmailSlot = 'first' | 'second'
+/** Clé du verrou consultatif PostgreSQL : empêche deux purges (deux backends, purge manuelle) de se chevaucher. */
+export const PLAYER_EMAIL_PURGE_LOCK_KEY = 7_424_001
 
-type DateLike = Date | string | null | undefined
-
-/** Une occurrence d'un email dans une partie, avec les dates de cette partie. */
-export type EmailOccurrence = {
-  participantId: number | string
-  slot: PlayerEmailSlot
-  email: string
-  finishedAt: DateLike
-  startedAt: DateLike
-  gameCreatedAt: DateLike
-}
-
-/** Clé de comparaison d'un email : insensible à la casse et aux espaces autour. */
-export function normalizePlayerEmail(email: string): string {
-  return email.trim().toLowerCase()
-}
-
-/** Date limite : un email dont la dernière partie est antérieure à cette date doit être effacé. */
+/**
+ * Date limite : un email dont la dernière partie est antérieure à cette date doit être effacé.
+ * Le 29 février recule au 28 février quand l'année cible n'est pas bissextile.
+ */
 export function getPlayerEmailRetentionCutoff(
   now: Date,
   years: number = PLAYER_EMAIL_RETENTION_YEARS
 ): Date {
   const cutoff = new Date(now.getTime())
+  const month = cutoff.getUTCMonth()
+
   cutoff.setUTCFullYear(cutoff.getUTCFullYear() - years)
+
+  // 29/02 sans équivalent : JavaScript déborde sur le 1er mars, on revient au 28 février.
+  if (cutoff.getUTCMonth() !== month) {
+    cutoff.setUTCDate(0)
+  }
 
   return cutoff
 }
 
-function toTimestamp(value: DateLike): number | null {
-  if (value === null || value === undefined) {
-    return null
-  }
-
-  const time = (value instanceof Date ? value : new Date(value)).getTime()
-
-  return Number.isNaN(time) ? null : time
-}
-
 /**
- * Date de la partie : `COALESCE(finished_at, started_at, created_at)`. `null` si aucune date
- * exploitable (jamais attendu : `created_at` est NOT NULL).
+ * Sélection SQL des (compagnie, email) périmés. Chaque apparition d'un email (1er joueur ou 2e
+ * joueur d'un pupitre) est datée par `COALESCE(finished_at, started_at, created_at)` de sa partie ;
+ * l'email est comparé sans tenir compte de la casse ni des espaces autour.
+ *
+ * Les parties supprimées logiquement (status = 2) comptent : leurs participants, donc l'email,
+ * restent en base et la partie a bien eu lieu à cette date. Les ignorer pourrait effacer trop
+ * tôt l'email d'un joueur qui a joué récemment.
+ *
+ * Le périmètre est la compagnie (`games.company_id`) : chaque centre licencié est responsable de
+ * ses données et le consentement est donné au centre. Un email est donc effacé dans les parties
+ * d'une compagnie quand sa dernière partie DANS CETTE COMPAGNIE est trop ancienne, même s'il a
+ * joué récemment chez une autre.
+ *
+ * Tout est calculé par PostgreSQL (aucune ligne n'est chargée côté Node). La requête lit toute
+ * la table des participants ayant un email : acceptable pour une exécution quotidienne.
  */
-export function resolveGameTimestamp(
-  occurrence: Pick<EmailOccurrence, 'finishedAt' | 'startedAt' | 'gameCreatedAt'>
-): number | null {
-  return (
-    toTimestamp(occurrence.finishedAt) ??
-    toTimestamp(occurrence.startedAt) ??
-    toTimestamp(occurrence.gameCreatedAt)
+const EXPIRED_EMAILS_CTE = `
+  WITH occurrences AS (
+    SELECT
+      g.company_id,
+      lower(btrim(gp.email)) AS email_key,
+      COALESCE(g.finished_at, g.started_at, g.created_at) AS played_at
+    FROM game_participants gp
+    JOIN games g ON g.id = gp.game_id
+    WHERE gp.email IS NOT NULL
+    UNION ALL
+    SELECT
+      g.company_id,
+      lower(btrim(gp.second_email)) AS email_key,
+      COALESCE(g.finished_at, g.started_at, g.created_at) AS played_at
+    FROM game_participants gp
+    JOIN games g ON g.id = gp.game_id
+    WHERE gp.second_email IS NOT NULL
+  ),
+  expired AS (
+    SELECT company_id, email_key
+    FROM occurrences
+    GROUP BY company_id, email_key
+    HAVING max(played_at) < :cutoff
   )
+`
+
+// Seuls l'email et son consentement sont effacés ; noms et scores sont conservés.
+const CLEAR_FIRST_PLAYER_SQL = `
+  ${EXPIRED_EMAILS_CTE}
+  UPDATE game_participants gp
+  SET email = NULL, consent_at = NULL, updated_at = :now
+  FROM games g, expired e
+  WHERE g.id = gp.game_id
+    AND gp.email IS NOT NULL
+    AND e.company_id = g.company_id
+    AND e.email_key = lower(btrim(gp.email))
+`
+
+const CLEAR_SECOND_PLAYER_SQL = `
+  ${EXPIRED_EMAILS_CTE}
+  UPDATE game_participants gp
+  SET second_email = NULL, second_consent_at = NULL, updated_at = :now
+  FROM games g, expired e
+  WHERE g.id = gp.game_id
+    AND gp.second_email IS NOT NULL
+    AND e.company_id = g.company_id
+    AND e.email_key = lower(btrim(gp.second_email))
+`
+
+async function countUpdated(
+  trx: Knex.Transaction,
+  sql: string,
+  bindings: { cutoff: Date; now: Date }
+): Promise<number> {
+  const result = (await trx.raw(sql, bindings)) as { rowCount?: number | null }
+
+  return result.rowCount ?? 0
 }
 
 /**
- * Choisit les occurrences à effacer. Un email (normalisé) est périmé si sa partie la plus récente,
- * tous créneaux confondus (1er et 2e joueur), est antérieure à `cutoff` ; alors toutes ses
- * occurrences sont à effacer. Une date illisible compte comme « récente » : dans le doute, on
- * garde l'email plutôt que de l'effacer à tort.
- */
-export function selectExpiredOccurrences(
-  occurrences: readonly EmailOccurrence[],
-  cutoff: Date
-): EmailOccurrence[] {
-  const cutoffTime = cutoff.getTime()
-  const lastGameByEmail = new Map<string, number>()
-
-  for (const occurrence of occurrences) {
-    const key = normalizePlayerEmail(occurrence.email)
-    const time = resolveGameTimestamp(occurrence) ?? Number.POSITIVE_INFINITY
-    const previous = lastGameByEmail.get(key)
-
-    if (previous === undefined || time > previous) {
-      lastGameByEmail.set(key, time)
-    }
-  }
-
-  return occurrences.filter((occurrence) => {
-    const lastGame = lastGameByEmail.get(normalizePlayerEmail(occurrence.email))
-
-    return lastGame !== undefined && lastGame < cutoffTime
-  })
-}
-
-type OccurrenceRow = {
-  participantId: number | string
-  email: string
-  finishedAt: DateLike
-  startedAt: DateLike
-  gameCreatedAt: DateLike
-}
-
-async function loadOccurrences(
-  trx: Knex | Knex.Transaction,
-  slot: PlayerEmailSlot
-): Promise<EmailOccurrence[]> {
-  const emailColumn =
-    slot === 'first' ? 'game_participants.email' : 'game_participants.second_email'
-
-  // Une requête par créneau (plutôt qu'un OR) : chaque colonne email a son index.
-  const rows = (await trx('game_participants')
-    .join('games', 'games.id', 'game_participants.game_id')
-    .whereNotNull(emailColumn)
-    .select(
-      'game_participants.id as participantId',
-      `${emailColumn} as email`,
-      'games.finished_at as finishedAt',
-      'games.started_at as startedAt',
-      'games.created_at as gameCreatedAt'
-    )) as OccurrenceRow[]
-
-  // Les parties supprimées logiquement (status = 2) sont volontairement comptées : leurs
-  // participants (et donc l'email) restent en base, et la partie a bien eu lieu à cette date.
-  // Les ignorer pourrait effacer trop tôt l'email d'un joueur qui a joué récemment.
-  return rows.map((row) => ({ ...row, slot }))
-}
-
-async function clearSlot(
-  trx: Knex | Knex.Transaction,
-  slot: PlayerEmailSlot,
-  participantIds: Array<number | string>,
-  now: Date
-): Promise<void> {
-  if (participantIds.length === 0) {
-    return
-  }
-
-  // Seuls l'email et son consentement sont effacés ; noms et scores sont conservés.
-  const payload =
-    slot === 'first'
-      ? { email: null, consent_at: null, updated_at: now }
-      : { second_email: null, second_consent_at: null, updated_at: now }
-
-  await trx('game_participants').whereIn('id', participantIds).update(payload)
-}
-
-/**
- * Purge RGPD : efface les emails des joueurs (1er et 2e joueur) dont la dernière partie date de
- * plus de `PLAYER_EMAIL_RETENTION_YEARS` ans, partout où ils apparaissent, en une transaction.
- * Renvoie le nombre de lignes `game_participants` modifiées.
+ * Purge RGPD : efface les emails des joueurs (1er et 2e joueur) dont la dernière partie, dans
+ * une compagnie, date de plus de `PLAYER_EMAIL_RETENTION_YEARS` ans — partout où ils apparaissent
+ * dans les parties de cette compagnie. Une seule transaction, sous verrou consultatif.
+ *
+ * Renvoie le nombre d'emails effacés (un par colonne `email` / `second_email` modifiée : une ligne
+ * dont les deux joueurs sont purgés compte deux fois).
  */
 export async function purgeExpiredPlayerEmails(db: Knex, now: Date = new Date()): Promise<number> {
-  const cutoff = getPlayerEmailRetentionCutoff(now)
+  const bindings = { cutoff: getPlayerEmailRetentionCutoff(now), now }
 
   return db.transaction(async (trx) => {
-    const occurrences = [
-      ...(await loadOccurrences(trx, 'first')),
-      ...(await loadOccurrences(trx, 'second')),
-    ]
+    // Verrou libéré automatiquement à la fin de la transaction.
+    await trx.raw('SELECT pg_advisory_xact_lock(?)', [PLAYER_EMAIL_PURGE_LOCK_KEY])
 
-    const expired = selectExpiredOccurrences(occurrences, cutoff)
-    const idsFor = (slot: PlayerEmailSlot) =>
-      expired.filter((occurrence) => occurrence.slot === slot).map((o) => o.participantId)
+    const firstPlayers = await countUpdated(trx, CLEAR_FIRST_PLAYER_SQL, bindings)
+    const secondPlayers = await countUpdated(trx, CLEAR_SECOND_PLAYER_SQL, bindings)
 
-    const firstIds = idsFor('first')
-    const secondIds = idsFor('second')
-
-    await clearSlot(trx, 'first', firstIds, now)
-    await clearSlot(trx, 'second', secondIds, now)
-
-    // Une ligne dont les deux joueurs sont purgés ne compte qu'une fois.
-    return new Set([...firstIds, ...secondIds].map(String)).size
+    return firstPlayers + secondPlayers
   })
 }

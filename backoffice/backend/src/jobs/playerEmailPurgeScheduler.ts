@@ -1,6 +1,9 @@
 /** Fréquence par défaut de la purge RGPD des emails joueurs, en heures. */
 export const DEFAULT_PLAYER_EMAIL_PURGE_INTERVAL_HOURS = 24
 
+/** Intervalle minimum accepté, en heures (en dessous, la valeur est ignorée au profit du défaut). */
+export const MIN_PLAYER_EMAIL_PURGE_INTERVAL_HOURS = 1
+
 /** Délai avant la première purge, pour ne pas ralentir le démarrage du serveur. */
 export const PLAYER_EMAIL_PURGE_INITIAL_DELAY_MS = 30_000
 
@@ -15,7 +18,7 @@ type PurgeLogger = {
 }
 
 /**
- * Lit `PLAYER_EMAIL_PURGE_INTERVAL_HOURS` : absent ou invalide → 24 h ; `0` → désactivée (renvoie 0).
+ * Lit `PLAYER_EMAIL_PURGE_INTERVAL_HOURS` : absent, invalide ou inférieur à 1 h → 24 h ; `0` → désactivée (renvoie 0).
  */
 export function parsePlayerEmailPurgeIntervalHours(value: string | undefined): number {
   const trimmed = value?.trim()
@@ -26,7 +29,13 @@ export function parsePlayerEmailPurgeIntervalHours(value: string | undefined): n
 
   const hours = Number(trimmed)
 
-  if (!Number.isFinite(hours) || hours < 0) {
+  // 0 désactive ; une valeur invalide, négative ou inférieure à 1 h retombe sur le défaut
+  // (une purge plus fréquente que l'heure n'a pas de sens et chargerait la base).
+  if (hours === 0) {
+    return 0
+  }
+
+  if (!Number.isFinite(hours) || hours < MIN_PLAYER_EMAIL_PURGE_INTERVAL_HOURS) {
     return DEFAULT_PLAYER_EMAIL_PURGE_INTERVAL_HOURS
   }
 

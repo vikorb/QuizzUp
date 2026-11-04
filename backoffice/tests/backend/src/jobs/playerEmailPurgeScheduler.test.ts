@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   DEFAULT_PLAYER_EMAIL_PURGE_INTERVAL_HOURS,
+  MIN_PLAYER_EMAIL_PURGE_INTERVAL_HOURS,
   PLAYER_EMAIL_PURGE_INITIAL_DELAY_MS,
   parsePlayerEmailPurgeIntervalHours,
   startPlayerEmailPurgeScheduler,
@@ -20,7 +21,15 @@ describe('parsePlayerEmailPurgeIntervalHours', () => {
   it('lit une valeur en heures', () => {
     expect(parsePlayerEmailPurgeIntervalHours('6')).toBe(6)
     expect(parsePlayerEmailPurgeIntervalHours(' 12 ')).toBe(12)
-    expect(parsePlayerEmailPurgeIntervalHours('0.5')).toBe(0.5)
+    expect(parsePlayerEmailPurgeIntervalHours('1')).toBe(1)
+    expect(parsePlayerEmailPurgeIntervalHours('1.5')).toBe(1.5)
+  })
+
+  it('retombe sur 24 h pour une valeur positive inférieure à 1 h', () => {
+    expect(MIN_PLAYER_EMAIL_PURGE_INTERVAL_HOURS).toBe(1)
+    expect(parsePlayerEmailPurgeIntervalHours('0.5')).toBe(24)
+    expect(parsePlayerEmailPurgeIntervalHours('0.001')).toBe(24)
+    expect(parsePlayerEmailPurgeIntervalHours('0.99')).toBe(24)
   })
 
   it('0 désactive la purge', () => {
