@@ -4,7 +4,7 @@ import { QUESTION_MEDIA_TYPE_AUDIO } from '@quizzup/shared'
 /**
  * Contenu de démonstration (mode démo, sans backoffice) : des thèmes « sans
  * tubes » (bruitages, instruments…), conformes à la piste retenue pour les droits
- * musicaux. Les URL `demo://` sont jouées par le lecteur silencieux.
+ * musicaux. Les URL `demo://` ne pointent vers aucun fichier : les paliers restent muets.
  */
 type DemoTheme = { id: number; name: string; items: string[] }
 

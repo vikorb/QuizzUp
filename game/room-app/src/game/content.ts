@@ -11,12 +11,15 @@ export async function loadRoomThemes(): Promise<EngineTheme[]> {
   return getDemoThemes()
 }
 
+/** Extraits de démonstration : pas de fichier à télécharger, les paliers restent muets. */
+export const DEMO_MEDIA_PREFIX = 'demo://'
+
 /** URL des extraits à précharger avant la partie (lecture sans blanc, hors ligne). */
 export function collectMediaUrls(themes: EngineTheme[]): string[] {
   const urls = new Set<string>()
   for (const theme of themes) {
     for (const question of theme.questions) {
-      if (question.mediaUrl) {
+      if (question.mediaUrl && !question.mediaUrl.startsWith(DEMO_MEDIA_PREFIX)) {
         urls.add(question.mediaUrl)
       }
     }

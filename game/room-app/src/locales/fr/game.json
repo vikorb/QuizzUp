@@ -11,7 +11,7 @@
           "L’extrait joue 1 seconde, puis 5, puis 20.",
           "Le premier qui buzze répond seul avec A, B, C ou D.",
           "Plus tu trouves tôt, plus tu marques : 100, 50 ou 20 points.",
-          "Une erreur ne coûte rien, mais tu ne peux plus buzzer sur cet extrait."
+          "Une erreur ne coûte rien, mais tu ne peux plus buzzer avant le palier suivant."
         ]
       }
     },

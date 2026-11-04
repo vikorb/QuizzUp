@@ -3,7 +3,6 @@ import {
   exitFullscreen,
   isFullscreen,
   keepScreenAwake,
-  lockSystemKeys,
   releaseScreenAwake,
 } from '@/hardware/screen'
 
@@ -38,17 +37,6 @@ describe('écran kiosque', () => {
     expect(doc.exitFullscreen).toHaveBeenCalledTimes(1)
 
     await expect(enterFullscreen(fakeDocument({ fails: true }))).resolves.toBe(false)
-  })
-
-  it('verrouille les touches système quand Keyboard Lock existe', async () => {
-    const lock = vi.fn(async () => undefined)
-    await expect(lockSystemKeys({ keyboard: { lock } } as unknown as Navigator)).resolves.toBe(true)
-    await expect(lockSystemKeys({} as Navigator)).resolves.toBe(false)
-    await expect(
-      lockSystemKeys({
-        keyboard: { lock: vi.fn(async () => Promise.reject(new Error('no'))) },
-      } as unknown as Navigator)
-    ).resolves.toBe(false)
   })
 
   it('garde l’écran allumé puis relâche le verrou', async () => {

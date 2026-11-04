@@ -5,6 +5,7 @@ import { closeGame, configureRoomGame, useRoomGame } from '@/game/useRoomGame'
 import { enterDemo, syncRoomAuth } from '@/state/roomAuth'
 import LobbyView from '@/views/LobbyView.vue'
 
+import { pressKey } from '../_helpers/keyboard'
 import { mountWithApp } from '../_helpers/mount'
 
 function findButton(wrapper: Awaited<ReturnType<typeof mountWithApp>>['wrapper'], label: string) {
@@ -71,7 +72,7 @@ describe('LobbyView', () => {
   it('fait briller le pupitre dont un buzzer est pressé', async () => {
     const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyZ' }))
+    pressKey('KeyZ')
     await flushPromises()
 
     expect(wrapper.find('.desk--4').classes()).toContain('desk--ping')

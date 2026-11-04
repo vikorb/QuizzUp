@@ -1,0 +1,131 @@
+{
+  "hardware": {
+    "title": "Room hardware",
+    "open": "Room hardware",
+    "back": "Back",
+    "tabs": {
+      "buzzers": "Buzzers",
+      "lights": "Lights and smoke",
+      "advanced": "Advanced settings"
+    },
+    "localNote": "This configuration is saved on this PC.",
+    "buzzers": {
+      "title": "Buzzers",
+      "simulation": "No buzzer paired: the simulation keyboard is used (one row of keys per desk).",
+      "learned": "{n} buzzer paired | {n} buzzers paired",
+      "inactive": "The page lost focus: buzzers are not received. Click the page to enable them again.",
+      "learn": "Pair the buzzers",
+      "learnHint": "Each buzzer is requested, desk by desk: press it to pair it.",
+      "resetToSimulation": "Back to the simulation keyboard",
+      "resetConfirm": "Forget the paired buzzers and use the simulation keyboard?",
+      "step": "Buzzer {n} of {total}",
+      "prompt": "Press buzzer {button} on desk {desk}",
+      "assigned": "Buzzer {button} on desk {desk} paired (key {key}).",
+      "duplicate": "Key {key} is already used by buzzer {button} on desk {desk}.",
+      "forbidden": "Key {key} is reserved by the system and cannot be a buzzer.",
+      "back": "Previous buzzer",
+      "skip": "Skip this buzzer",
+      "restart": "Start over",
+      "cancel": "Cancel",
+      "done": "{n} buzzer paired. | {n} buzzers paired.",
+      "save": "Save pairing",
+      "saved": "Pairing saved.",
+      "testTitle": "Buzzer test",
+      "testHint": "Press a buzzer: it lights up here."
+    },
+    "lights": {
+      "title": "Lights",
+      "driver": "Output",
+      "drivers": {
+        "simulation": "Simulation (no interface)",
+        "usbpro": "DMX USB Pro interface",
+        "opendmx": "Open DMX interface (experimental)"
+      },
+      "status": {
+        "closed": "disconnected",
+        "opening": "connecting…",
+        "open": "connected",
+        "closing": "disconnecting…",
+        "error": "error"
+      },
+      "simulated": "Simulated room: lights are shown below.",
+      "connect": "Connect the DMX interface",
+      "connectFailed": "Could not open the DMX interface. Check the USB cable and try again.",
+      "useSimulation": "Switch to simulation",
+      "noWebSerial": "This browser cannot drive USB: use Chrome or Edge.",
+      "simulationDriver": "Pick a DMX interface in the advanced settings to drive real lights.",
+      "emergencyStop": "Emergency stop",
+      "emergencyActive": "Emergency stop active: lights off, smoke cut.",
+      "emergencyReset": "Turn the lights back on",
+      "emergencyResetConfirm": "Turn the lights back on? Check the room is safe first. Smoke stays disarmed.",
+      "physicalStop": "The software button does not replace the physical emergency stop required in the room.",
+      "scenes": "Test a scene",
+      "sceneDesk": "Desk",
+      "fixtures": "Fixtures",
+      "noFixtures": "No fixture declared. Add them in the advanced settings.",
+      "identify": "Identify",
+      "kinds": {
+        "par": "PAR",
+        "movingHead": "Moving head",
+        "dimmer": "Dimmer",
+        "strobe": "Strobe",
+        "smoke": "Smoke"
+      },
+      "warnings": {
+        "smoke_refused": "Smoke refused by the safety rules.",
+        "watchdog": "The page froze: smoke cut for safety.",
+        "output_error": "The DMX interface stopped responding.",
+        "page_hidden": "Tab hidden: smoke cut for safety.",
+        "unknown_scene": "Unknown scene in the configuration."
+      }
+    },
+    "scenes": {
+      "idle": "Idle",
+      "game-start": "Game start",
+      "round-start": "Round start",
+      "chooser": "Theme choice",
+      "question": "Question",
+      "clip-playing": "Clip",
+      "buzz": "Buzz",
+      "answer-correct": "Correct answer",
+      "answer-wrong": "Wrong answer",
+      "question-lost": "Lost for all",
+      "round-end": "Round end",
+      "victory": "Victory"
+    },
+    "smoke": {
+      "title": "Smoke",
+      "disabled": "Smoke is disabled in the room settings.",
+      "arm": "Smoke allowed for this session",
+      "armHint": "To be ticked by the operator once the room is checked. Smoke is disarmed by every emergency stop.",
+      "test": "Test 2 s",
+      "status": {
+        "disabled": "disabled",
+        "unarmed": "not allowed",
+        "ready": "ready",
+        "firing": "firing",
+        "cooldown": "safety pause",
+        "emergency": "blocked (emergency stop)"
+      },
+      "refused": {
+        "disabled": "Smoke is disabled.",
+        "not_armed": "Tick “Smoke allowed” first.",
+        "firing": "Smoke is already firing.",
+        "cooldown": "Safety pause, try again in a few seconds.",
+        "emergency": "Emergency stop active.",
+        "invalid_duration": "Duration refused.",
+        "page_hidden": "Tab hidden: smoke refused."
+      }
+    },
+    "advanced": {
+      "title": "Advanced settings",
+      "hint": "Full room configuration (JSON): DMX interface, fixtures, desk colours, smoke safety. See the hardware documentation.",
+      "save": "Save",
+      "reset": "Reload",
+      "invalidJson": "Invalid JSON: {message}",
+      "saved": "Configuration saved.",
+      "problems": "To fix",
+      "profiles": "Available fixture profiles"
+    }
+  }
+}
