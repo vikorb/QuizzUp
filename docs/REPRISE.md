@@ -68,7 +68,15 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
    Dans `room-app/src/hardware/roomHardware.ts`, s'assurer que `createGamepadBuzzerInput` reçoit
    bien le `gamepadMatcher` quand `buzzers.source.kind` vaut `'gamepad'`.
 4. **Recette VPS** : déployer `deploy/recette/` dès qu'Enzo donne l'IP et l'accès SSH du VPS.
-5. **Purge RGPD** des emails joueurs 3 ans après leur dernière partie.
+5. ~~**Purge RGPD** des emails joueurs 3 ans après leur dernière partie~~ : fait (branche
+   `feat/rgpd-purge-emails`). Purge planifiée dans le backend (30 s après le démarrage puis
+   toutes les 24 h, `PLAYER_EMAIL_PURGE_INTERVAL_HOURS=0` pour la couper) et
+   `npm run purge:emails` dans `backend/`. Purge **par compagnie** (le consentement est donné au
+   centre) : un joueur = son email (joueur 1 ou 2e joueur) dans une compagnie ; dernière partie
+   dans cette compagnie = `COALESCE(finished_at, started_at, created_at)`, parties supprimées
+   comprises ; au-delà de 3 ans, email et consentement effacés dans les parties de cette
+   compagnie seulement, noms et scores gardés. Tout se fait en SQL (verrou consultatif) ; test
+   d'intégration PostgreSQL dans la CI (job migrations).
 6. **6 pupitres** : décidé (6 au maximum, 4 par défaut).
    `game/hardware` gère déjà 1-6. À faire : `GAME_PODIUMS` 4 → 6 dans `@quizzup/shared`,
    `GAME_PARTICIPANTS_MAX`, `game_participants`, lobby de room-app (`DESKS` dans
