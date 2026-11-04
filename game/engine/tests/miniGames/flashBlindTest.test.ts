@@ -30,6 +30,20 @@ function press(
   return flashBlindTest.press(state, { participantId, button, at })
 }
 
+/** Tous les joueurs buzzent puis se trompent (bouton A, la bonne réponse est C). */
+function everyoneWrong(initial: FlashBlindTestState, from: number) {
+  let state = initial
+  let last: QuestionStep<FlashBlindTestState> = { state, events: [] }
+
+  for (const [index, participant] of PARTICIPANTS.entries()) {
+    state = press(state, participant.id, 0, from + index * 10).state
+    last = press(state, participant.id, 0, from + 5 + index * 10)
+    state = last.state
+  }
+
+  return last
+}
+
 describe('flashBlindTest.isQuestionEligible', () => {
   it('accepts audio questions with 2 to 4 answers and a correct one', () => {
     expect(flashBlindTest.isQuestionEligible(question)).toBe(true)
@@ -190,21 +204,48 @@ describe('flashBlindTest answers', () => {
     expect(timeout.state.lockedOutIds).toEqual([4])
   })
 
-  it('ends the question when every player is locked out', () => {
+  it('moves to the next stage, locks reset, only when everybody got it wrong', () => {
+    const stage1 = everyoneWrong(start().state, 100)
+
+    expect(stage1.state.status).toBe('playing')
+    expect(stage1.state.stageIndex).toBe(1)
+    expect(stage1.state.lockedOutIds).toEqual([])
+    expect(stage1.events.map((event) => event.type)).toEqual([
+      'answer_wrong',
+      'blind_test_stage_started',
+    ])
+    expect(stage1.events[1]?.payload).toMatchObject({ stage: 2, extractMs: 5000 })
+
+    // Le joueur 1, qui s'était trompé au palier 1, peut retenter au palier 2.
+    const buzz = press(stage1.state, PARTICIPANTS[0]!.id, 0, 1000)
+    const win = press(buzz.state, PARTICIPANTS[0]!.id, 2, 1100)
+
+    expect(win.state.status).toBe('done')
+    expect(win.answers?.filter((answer) => answer.participantId === PARTICIPANTS[0]!.id)).toEqual([
+      expect.objectContaining({ isCorrect: true, points: 50, stage: 2 }),
+    ])
+    expect(win.answers).toHaveLength(PARTICIPANTS.length)
+  })
+
+  it('keeps playing while someone can still buzz on the stage', () => {
     let { state } = start()
+    state = press(state, PARTICIPANTS[0]!.id, 0, 100).state
+    state = press(state, PARTICIPANTS[0]!.id, 0, 200).state
 
-    for (const [index, participant] of PARTICIPANTS.entries()) {
-      state = press(state, participant.id, 0, 100 + index * 10).state
-      const step = press(state, participant.id, 0, 105 + index * 10)
-      state = step.state
+    expect(state.stageIndex).toBe(0)
+    expect(state.lockedOutIds).toEqual([PARTICIPANTS[0]!.id])
+    expect(press(state, PARTICIPANTS[0]!.id, 0, 300).events).toEqual([])
+  })
 
-      if (index === PARTICIPANTS.length - 1) {
-        expect(step.answers).toHaveLength(4)
-        expect(step.answers?.every((answer) => !answer.isCorrect)).toBe(true)
-      }
-    }
+  it('is lost for everybody when everybody got it wrong on the last stage', () => {
+    let { state } = start()
+    state = everyoneWrong(state, 100).state
+    state = everyoneWrong(state, 1000).state
+    const last = everyoneWrong(state, 2000)
 
-    expect(state.status).toBe('done')
+    expect(last.state.status).toBe('done')
+    expect(last.answers).toHaveLength(PARTICIPANTS.length)
+    expect(last.answers?.every((answer) => !answer.isCorrect && answer.stage === 3)).toBe(true)
   })
 
   it('ignores unknown players and buttons without an answer', () => {

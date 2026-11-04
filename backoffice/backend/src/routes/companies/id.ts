@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 
-import { ADMIN_STATUS_DELETED, COMPANY_STATUS_DELETED } from '@quizzup/shared'
+import { ADMIN_ROLE_ROOM, ADMIN_STATUS_DELETED, COMPANY_STATUS_DELETED } from '@quizzup/shared'
 import db from '../../db'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
 import { requireApiPermission } from '../../security/requireApiPermission'
@@ -19,12 +19,7 @@ const companiesIdRoutes: FastifyPluginAsync = async (app) => {
     '/companies/:id',
     { preHandler: [app.authenticate] },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const hasPermission = requireApiPermission(
-        req,
-        reply,
-        API_RESOURCE.COMPANY,
-        API_ACTION.READ,
-      )
+      const hasPermission = requireApiPermission(req, reply, API_RESOURCE.COMPANY, API_ACTION.READ)
 
       if (!hasPermission) {
         return
@@ -45,7 +40,10 @@ const companiesIdRoutes: FastifyPluginAsync = async (app) => {
       const company = await db('companies')
         .leftJoin('admins', function joinAdmins() {
           this.on('admins.company_id', '=', 'companies.id').andOn(
-            db.raw('admins.status <> ?', [ADMIN_STATUS_DELETED]),
+            db.raw('admins.status <> ? AND admins.role <> ?', [
+              ADMIN_STATUS_DELETED,
+              ADMIN_ROLE_ROOM,
+            ])
           )
         })
         .where('companies.id', id)
@@ -58,7 +56,7 @@ const companiesIdRoutes: FastifyPluginAsync = async (app) => {
       }
 
       return { company: company as CompanyRow }
-    },
+    }
   )
 
   app.patch<{ Body: CompanyUpdateBody }>(
@@ -69,7 +67,7 @@ const companiesIdRoutes: FastifyPluginAsync = async (app) => {
         req,
         reply,
         API_RESOURCE.COMPANY,
-        API_ACTION.UPDATE,
+        API_ACTION.UPDATE
       )
 
       if (!hasPermission) {
@@ -169,7 +167,7 @@ const companiesIdRoutes: FastifyPluginAsync = async (app) => {
           accountsCount,
         } satisfies CompanyRow,
       })
-    },
+    }
   )
 }
 

@@ -1,8 +1,4 @@
-import {
-  ADMIN_ROLE_ADMIN,
-  ADMIN_ROLE_SUPERADMIN,
-  ADMIN_ROLE_USER,
-} from '@quizzup/shared'
+import { ADMIN_ROLE_ADMIN, ADMIN_ROLE_SUPERADMIN, ADMIN_ROLE_USER } from '@quizzup/shared'
 
 export const API_RESOURCE = {
   COMPANY: 'company',
@@ -10,6 +6,9 @@ export const API_RESOURCE = {
   THEME: 'theme',
   QUESTION: 'question',
   ANSWER: 'answer',
+  ROOM: 'room',
+  ROOM_ACCOUNT: 'roomAccount',
+  GAME: 'game',
 } as const
 
 export const API_ACTION = {
@@ -26,27 +25,27 @@ export type ApiResource = (typeof API_RESOURCE)[keyof typeof API_RESOURCE]
 export type ApiAction = (typeof API_ACTION)[keyof typeof API_ACTION]
 
 export type ApiRole =
-  | typeof ADMIN_ROLE_SUPERADMIN
-  | typeof ADMIN_ROLE_ADMIN
-  | typeof ADMIN_ROLE_USER
+  typeof ADMIN_ROLE_SUPERADMIN | typeof ADMIN_ROLE_ADMIN | typeof ADMIN_ROLE_USER
 
 type PermissionKey = `${ApiResource}:${ApiAction}`
 
 const contentReadPermissions: PermissionKey[] = [
   'theme:list',
   'theme:read',
-  'theme:create',
 
   'question:list',
   'question:read',
-  'question:create',
 
   'answer:list',
   'answer:read',
-  'answer:create',
 ]
 
+// US-PERM-01 : seuls le superadmin et l'admin d'une compagnie créent ou modifient du contenu.
 const contentWritePermissions: PermissionKey[] = [
+  'theme:create',
+  'question:create',
+  'answer:create',
+
   'theme:update',
   'theme:updateStatus',
   'theme:delete',
@@ -59,6 +58,24 @@ const contentWritePermissions: PermissionKey[] = [
   'answer:updateStatus',
   'answer:delete',
 ]
+
+// US-ROOM-01 : le staff (user) consulte les salles, l'admin les gère.
+const roomReadPermissions: PermissionKey[] = ['room:list', 'room:read']
+
+const roomWritePermissions: PermissionKey[] = [
+  'room:create',
+  'room:update',
+  'room:updateStatus',
+  'room:delete',
+
+  // US-ROOM-02 : compte de connexion du PC de la salle.
+  'roomAccount:read',
+  'roomAccount:create',
+  'roomAccount:delete',
+]
+
+// US-GAME-08 : tout le staff (opérateur compris) lance et suit les parties de sa compagnie.
+const gamePermissions: PermissionKey[] = ['game:list', 'game:read', 'game:create', 'game:update']
 
 const permissionsByRole: Record<ApiRole, PermissionKey[]> = {
   [ADMIN_ROLE_SUPERADMIN]: [
@@ -79,6 +96,11 @@ const permissionsByRole: Record<ApiRole, PermissionKey[]> = {
 
     ...contentReadPermissions,
     ...contentWritePermissions,
+
+    ...roomReadPermissions,
+    ...roomWritePermissions,
+
+    ...gamePermissions,
   ],
 
   [ADMIN_ROLE_ADMIN]: [
@@ -94,6 +116,11 @@ const permissionsByRole: Record<ApiRole, PermissionKey[]> = {
 
     ...contentReadPermissions,
     ...contentWritePermissions,
+
+    ...roomReadPermissions,
+    ...roomWritePermissions,
+
+    ...gamePermissions,
   ],
 
   [ADMIN_ROLE_USER]: [
@@ -103,6 +130,10 @@ const permissionsByRole: Record<ApiRole, PermissionKey[]> = {
     'companyAccount:update',
 
     ...contentReadPermissions,
+
+    ...roomReadPermissions,
+
+    ...gamePermissions,
   ],
 }
 

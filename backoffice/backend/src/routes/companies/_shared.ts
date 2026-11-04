@@ -1,4 +1,4 @@
-import { ADMIN_STATUS_DELETED } from '@quizzup/shared'
+import { ADMIN_ROLE_ROOM, ADMIN_STATUS_DELETED } from '@quizzup/shared'
 
 import db from '../../db'
 import type { AdminAccessRow } from '../../security/companiesPolicy'
@@ -38,6 +38,7 @@ export const adminSelect = [
 export async function getCompanyAdminsCount(companyId: number): Promise<number> {
   const adminsCount = await db('admins')
     .where('company_id', companyId)
+    .whereNot('role', ADMIN_ROLE_ROOM)
     .whereNot('status', ADMIN_STATUS_DELETED)
     .count<{ count: string }>('id as count')
     .first()
@@ -56,6 +57,8 @@ export async function findAdminInCompany(
   const admin = await db('admins')
     .where('company_id', companyId)
     .where('id', adminId)
+    // Les comptes de salle se gèrent depuis la fiche de leur salle (US-ROOM-02).
+    .whereNot('role', ADMIN_ROLE_ROOM)
     .first('id', 'role', 'status')
 
   return admin ? (admin as AdminAccessRow) : null
@@ -65,6 +68,7 @@ export async function getAdminRow(companyId: number, adminId: number): Promise<A
   const admin = await db('admins')
     .where('company_id', companyId)
     .where('id', adminId)
+    .whereNot('role', ADMIN_ROLE_ROOM)
     .first(adminSelect)
 
   return admin ? (admin as AdminRow) : null

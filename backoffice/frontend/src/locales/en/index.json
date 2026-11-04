@@ -1,5 +1,21 @@
 {
   "resetFilters": "Reset",
   "requiredLegend": "required field",
-  "filters": "Filters"
+  "filters": "Filters",
+  "errors": {
+    "room_name_already_exists": "A room with this name already exists in this company.",
+    "company_deleted": "This company is deleted: its rooms can no longer be changed.",
+    "room_account_already_exists": "This room already has a sign-in account: it is shown below.",
+    "room_account_not_found": "This room no longer has a sign-in account.",
+    "username_already_exists": "This username is already used by another account."
+  },
+  "success": {
+    "roomCreated": "The room {name} has been created.",
+    "roomRenamed": "The room {name} has been renamed.",
+    "roomActivated": "The room {name} has been enabled.",
+    "roomDisabled": "The room {name} has been disabled.",
+    "roomDeleted": "The room {name} has been deleted.",
+    "roomAccountCreated": "The room account {username} has been created for the room {name}.",
+    "roomAccountDeleted": "The room account {username} has been deleted: the PC of the room {name} is signed out."
+  }
 }

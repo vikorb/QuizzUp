@@ -77,7 +77,9 @@ Règles d'intégration :
 
 Un mini-jeu implémente `MiniGameDefinition` (`src/miniGames/miniGame.ts`) et s'enregistre dans
 `src/miniGames/index.ts`. V1 : **blind test éclair** — extraits de 1 s, 5 s puis 20 s, premier
-qui buzze répond seul, 100 / 50 / 20 points, pas de pénalité, joueur bloqué après une erreur.
+qui buzze répond seul, 100 / 50 / 20 points, pas de pénalité. Tout le monde joue en même temps ;
+un joueur qui se trompe est bloqué pour le reste du palier. On ne passe au palier suivant (verrous
+remis à zéro) que si personne n'a trouvé.
 
 ## Commandes
 

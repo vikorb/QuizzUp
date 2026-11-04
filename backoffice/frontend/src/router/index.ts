@@ -3,10 +3,14 @@ import { createWebHistory } from 'vue-router'
 
 import { isAuthenticated, me, refreshMe } from '@/state/authState'
 import { isCompanyAdminRole, isSuperadminRole } from '@/utils/company/details/permissions'
+import { canCreateQuestion } from '@/utils/question/permissions'
+import { canCreateTheme } from '@/utils/theme/permissions'
 import CreateAccountView from '@/views/clients/accounts/CreateAccountView.vue'
 import ClientDetailsView from '@/views/clients/ClientDetailsView.vue'
 import CreateClientView from '@/views/clients/CreateClientView.vue'
 import ClientsView from '@/views/ClientsView.vue'
+import CreateGameView from '@/views/games/CreateGameView.vue'
+import GameDetailView from '@/views/games/GameDetailView.vue'
 import GamesView from '@/views/GamesView.vue'
 import HomeView from '@/views/HomeView.vue'
 import LoginView from '@/views/LoginView.vue'
@@ -131,6 +135,7 @@ export const router = createRouter({
           path: '/themes/create',
           name: 'themes-create',
           component: ThemeDetailView,
+          meta: { requiresThemeCreation: true },
         },
         {
           path: '/themes/:themeId',
@@ -146,6 +151,7 @@ export const router = createRouter({
           path: '/questions/create',
           name: 'questions-create',
           component: CreateQuestionView,
+          meta: { requiresQuestionCreation: true },
         },
         {
           path: '/questions/:questionId/edit',
@@ -156,6 +162,18 @@ export const router = createRouter({
           path: 'games',
           name: 'games',
           component: GamesView,
+          meta: { requiresAuth: true },
+        },
+        {
+          path: 'games/create',
+          name: 'games-create',
+          component: CreateGameView,
+          meta: { requiresAuth: true },
+        },
+        {
+          path: 'games/:gameId',
+          name: 'games-detail',
+          component: GameDetailView,
           meta: { requiresAuth: true },
         },
         {
@@ -208,6 +226,14 @@ router.beforeEach(async (to) => {
 
   if (to.meta.requiresCompanyAdminAccess && !canManageCompany(to.params)) {
     return { name: 'home' }
+  }
+
+  if (to.meta.requiresThemeCreation && !canCreateTheme(me.value?.role)) {
+    return { name: 'themes' }
+  }
+
+  if (to.meta.requiresQuestionCreation && !canCreateQuestion(me.value?.role)) {
+    return { name: 'questions' }
   }
 
   return true

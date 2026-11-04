@@ -1,7 +1,6 @@
 import {
   ADMIN_ROLE_ADMIN,
   ADMIN_ROLE_SUPERADMIN,
-  ADMIN_ROLE_USER,
   QUESTION_STATUS_DELETED,
   THEME_SCOPE_COMPANY,
 } from '@quizzup/shared'
@@ -9,7 +8,8 @@ import {
 import type { Question } from '@/types/question'
 
 export function canCreateQuestion(role: string | null | undefined): boolean {
-  return role === ADMIN_ROLE_SUPERADMIN || role === ADMIN_ROLE_ADMIN || role === ADMIN_ROLE_USER
+  // US-PERM-01 : le rôle user garde la lecture seule.
+  return role === ADMIN_ROLE_SUPERADMIN || role === ADMIN_ROLE_ADMIN
 }
 
 export function canUpdateQuestion(question: Question, role: string | null | undefined): boolean {
