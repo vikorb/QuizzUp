@@ -18,6 +18,14 @@ Format inspiré de Keep a Changelog.
   `POST /room/games/:id/finish` (scores par pupitre) ; la partie passe « Terminée » et
   `game_participants.score` est rempli. Idempotent, partie de la salle uniquement, rien en mode démo.
 
+- Envoi des résultats de partie qui survit à une panne réseau : au podium, l'écran de salle met les
+  scores dans une file gardée dans le navigateur (elle survit au rechargement et à la partie
+  suivante) et les renvoie en arrière-plan (2 s, 5 s, 15 s, 30 s puis toutes les 60 s, ou dès le
+  retour du réseau, au démarrage et à la reconnexion de la salle). Un refus définitif du
+  backoffice (404, 409, 400) l'abandonne ; un jeton expiré (401/403) attend la reconnexion. État
+  discret sur le podium et bandeau dans le lobby du staff quand des résultats attendent.
+  US: us-room-finish-retry
+
 - Média selon le type de question (`getQuestionKindMediaError` dans `@quizzup/shared`) : une
   question vrai/faux ou estimation n'accepte qu'un texte ou une image, comme le moteur de jeu.
   Refus `question_kind_media_invalid` en création, en modification (type ou média changé, l'autre
