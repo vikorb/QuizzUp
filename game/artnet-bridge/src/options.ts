@@ -42,10 +42,12 @@ Options :
                        (ex. https://salle.quizzup.fr) ; répétable, ou séparée par des virgules ;
                        à défaut : variable d'environnement ${ORIGINS_ENV}
   --universe <u>       univers Art-Net de sortie quand il n'y a pas de --map :
-                       NET.SUB.UNI (ex. 0.0.1) ou adresse 15 bits (ex. 1) ; 0 par défaut
-  --map <plage>        mappage DEBUT-FIN:NET.SUB.UNI@DEPART, répétable
-                       ex. --map 1-72:0.0.1@1 --map 128-148:0.0.2@1
-                       (canaux internes 1 à 72 → univers 0.0.1 à partir du canal 1, etc.)
+                       NET.SUB.UNI (ex. 0.0.1) ou adresse 15 bits (ex. 1) ; 0 par défaut.
+                       Les univers 1 à 15 de l'écran de salle sortent sur <u> + 1, <u> + 2…
+  --map <plage>        mappage [UNIVERS/]DEBUT-FIN:NET.SUB.UNI@DEPART, répétable
+                       ex. --map 1-72:0.0.1@1 --map 128-148:0.0.2@1 --map 1/1-512:0.0.5
+                       (canaux internes 1 à 72 → univers 0.0.1 à partir du canal 1, etc. ;
+                       UNIVERS = univers de l'écran de salle 0-15, 0 par défaut)
   --config <fichier>   fichier JSON (mêmes réglages ; les options de la ligne de commande
                        sont prioritaires)
   --port <n>           port d'écoute WebSocket sur 127.0.0.1 (${DEFAULT_PORT} par défaut)
@@ -252,7 +254,11 @@ export function parseCliArgs(argv: readonly string[], deps: ParseDeps = {}): Cli
         universeValue === undefined ? undefined : parseUniverse(universeValue)
       )
     }
-    const plan = buildOutputPlan(mappings)
+    // Sans --map, les univers internes 1 à 15 suivent l'univers de sortie (--universe + n).
+    const plan = buildOutputPlan(
+      mappings,
+      mapValues === undefined ? mappings[0]!.output : undefined
+    )
 
     return {
       kind: 'run',

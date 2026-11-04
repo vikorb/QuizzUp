@@ -14,7 +14,8 @@ import { answerButtons, createGameDriver } from './gameDriver'
 /**
  * Banc lumières : vrai moteur + vrais buzzers clavier + vrai contrôleur de lumières de
  * `@quizzup/hardware`, sur la sortie DMX simulée. Une salle type : un PAR RGB par pupitre
- * (adresses 1, 4, 7, 10) et une machine à fumée DMX (adresse 20).
+ * (adresses 1, 4, 7, 10) et une machine à fumée DMX (adresse 20), plus un second PAR du
+ * pupitre 2 sur l'**univers 1** (adresse 1, comme le PAR du pupitre 1 sur l'univers 0).
  */
 const PARTICIPANTS: EngineParticipant[] = [
   { id: 1, podium: 1, displayName: 'Alice' },
@@ -51,14 +52,17 @@ config.fixtures = [
     desk,
   })),
   { id: 'smoke', name: 'Machine à fumée', profileId: 'smoke-dmx', address: 20 },
+  { id: 'par-fond', name: 'PAR du fond', profileId: 'par-rgb', address: 1, desk: 2, universe: 1 },
 ]
 
 const output = createSimulationOutput()
-/** Niveau maximal jamais envoyé à la machine à fumée (canal 20). */
+/** Niveau maximal jamais envoyé à la machine à fumée (canal 20, univers 0). */
 const SMOKE_INDEX = 19
 let smokeMax = 0
-output.onFrame((frame) => {
-  smokeMax = Math.max(smokeMax, frame[SMOKE_INDEX] ?? 0)
+output.onFrame((frame, universe) => {
+  if (universe === 0) {
+    smokeMax = Math.max(smokeMax, frame[SMOKE_INDEX] ?? 0)
+  }
 })
 const lights = createLightingController({
   config,
@@ -98,9 +102,9 @@ document.querySelector('#start')?.addEventListener('click', () => {
   })
 })
 
-/** Couleur (R, G, B) envoyée au PAR d'un pupitre dans la dernière trame DMX. */
-function parColor(desk: Desk): [number, number, number] {
-  const frame = output.lastFrame()
+/** Couleur (R, G, B) envoyée à un PAR (de l'univers 0 par défaut) dans la dernière trame DMX. */
+function parColor(desk: Desk, universe = 0): [number, number, number] {
+  const frame = output.lastFrame(universe)
   // Univers de 512 canaux : le canal DMX n est à l'index n - 1.
   const base = (desk - 1) * 3
   return [frame[base] ?? 0, frame[base + 1] ?? 0, frame[base + 2] ?? 0]
@@ -118,7 +122,7 @@ const harness = {
   },
   framesSent: () => output.framesSent(),
   parColor,
-  frameMax: () => Math.max(...output.lastFrame()),
+  frameMax: (universe = 0) => Math.max(...output.lastFrame(universe)),
   smokeMax: () => smokeMax,
   smokeRefusals: () => [...smokeRefusals],
   deskColor: (desk: Desk): [number, number, number] => {

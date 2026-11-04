@@ -167,6 +167,20 @@ for (const event of events) lights.handleGameEvent(event)
 | `opendmx`       | interfaces FTDI « Open DMX » sans microcontrôleur                | expérimental |
 | `artnet-bridge` | nœud **Art-Net** (réseau) via le pont local `game/artnet-bridge` | facultatif   |
 
+**Plusieurs univers DMX** : chaque appareil porte un `universe` facultatif (0 à 15, 0 par défaut :
+une config sans `universe` se relit à l'identique). Les chevauchements de canaux se cherchent
+univers par univers (même adresse sur deux univers = libre). `DmxOutput.write(data, universe = 0)`
+émet un univers à la fois ; le contrôleur envoie toujours l'univers 0, puis les autres univers
+utilisés, dans l'ordre. Capacités par pilote (`DMX_DRIVER_UNIVERSES`) : `simulation` et
+`artnet-bridge` 16, `usbpro` et `opendmx` **1** (univers 0 seulement). Sur USB, un appareil placé
+sur un autre univers n'est pas émis et remonte un problème (`getState().problems`,
+`parseRoomHardwareConfig(...).problems`, blocage de l'assistant et récapitulatif), sans planter ;
+la config est conservée si on change d'interface. Le diagnostic règle un canal brut sur un
+univers donné (`diagnostics.setChannel(canal, valeur, univers)`), et `getFrame(univers)` /
+`lastFrame(univers)` relisent la trame d'un univers. Face à un **ancien pont** Art-Net dont l'`ack` n'annonce pas `universes`, la sortie n'envoie que l'univers 0 (sans faire fermer la connexion) et les appareils des autres univers sont signalés comme problème (`DmxOutput.universeCount`). Un univers réglé à la main au diagnostic, même sans appareil, est remis à zéro à la fin du diagnostic et couvert par le noir (arrêt d'urgence, fermeture).
+Le comptage `framesSent` / `measuredHz`
+reste « une trame de jeu par tour » (univers 0).
+
 Web Serial n'existe que dans **Chrome et Edge**, en contexte sécurisé (HTTPS ou localhost).
 Art-Net (réseau) est impossible depuis un navigateur (pas d'UDP) : le pilote `artnet-bridge`
 passe par un petit pont local à installer sur le PC de la salle, **seulement** si elle possède
@@ -182,8 +196,8 @@ await lights.setOutput(createBridgeOutput({ url: config.lighting.bridgeUrl ?? DE
 ```
 
 `createBridgeOutput` ouvre `ws://127.0.0.1:<port>`, vérifie le pont (`hello` / `ack`, délai
-`openTimeoutMs`), envoie chaque univers en trame binaire de 515 octets (version, univers, 512
-canaux), saute une trame si la socket est encore pleine (`bufferedAmount`, jamais de retard
+`openTimeoutMs`), envoie chaque univers en trame binaire de 515 octets (version, univers 0 à 15, 512
+canaux ; tous les univers d'un tour sont sautés ensemble si la socket est saturée), saute une trame si la socket est encore pleine (`bufferedAmount`, jamais de retard
 accumulé) et signale une coupure par `onDisconnect` (le contrôleur coupe alors la fumée). Côté
 pont, un chien de garde envoie du noir si le navigateur se tait plus de 2,5 s.
 
@@ -309,7 +323,7 @@ la fumée coupée par l'erreur n'est pas relancée.
 
 Modèle pur, piloté par l'écran de salle, pour un centre sans connaissance DMX : navigateur →
 buzzers (clavier ou carte manette choisie par son nom) → interface → appareils (adresse libre
-proposée, chevauchements refusés, import de la salle 6 pupitres) → test de chaque appareil →
+proposée par univers, chevauchements refusés, import de la salle 6 pupitres) → test de chaque appareil →
 positions des lyres par pupitre (ou import de calibration) → fumée → récapitulatif.
 Les étapes lyres et fumée n'apparaissent que si la salle en a. `summary().config` s'enregistre
 avec `saveRoomHardwareConfig()` (compte de la salle, `rooms.config`).
@@ -342,6 +356,8 @@ gel réussi, consignes incendie du site. Changer d'interface oblige à refaire l
         "deskPositions": { "1": { "pan": 12000, "tilt": 30000 } },
       },
       { "id": "fumee", "name": "Fumée", "profileId": "smoke-relay", "address": 40 },
+      // "universe" (0-15, facultatif) : univers DMX de l'appareil ; USB = univers 0 seulement.
+      { "id": "fond", "name": "PAR fond", "profileId": "par-rgb", "address": 1, "universe": 1 },
     ],
     "customProfiles": [],
     "deskColors": { "1": { "r": 87, "g": 224, "b": 176 } },

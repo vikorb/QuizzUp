@@ -18,7 +18,13 @@ import { createFakeWebSocketClass } from '../_helpers/fakeWebSocket'
 import { advanceAsync, createManualClock, flushPromises } from '../_helpers/manualClock'
 import { lightingConfig } from '../_helpers/rig'
 
-const ACK = { type: 'ack', protocol: 1, bridge: 'quizzup-artnet-bridge', version: '0.1.0' }
+const ACK = {
+  type: 'ack',
+  protocol: 1,
+  bridge: 'quizzup-artnet-bridge',
+  version: '0.1.0',
+  universes: 16,
+}
 
 function setup(overrides: Partial<Parameters<typeof createBridgeOutput>[0]> = {}) {
   const fake = createFakeWebSocketClass()
@@ -121,7 +127,7 @@ describe('adresse du pont', () => {
 
 describe('sortie pont Art-Net : ouverture', () => {
   it('se présente au pont puis attend son accusé de réception', async () => {
-    const context = setup({ universe: 3 })
+    const context = setup()
     expect(context.output.driver).toBe('artnet-bridge')
     const opening = context.output.open()
     const socket = context.sockets[0]!
@@ -131,7 +137,7 @@ describe('sortie pont Art-Net : ouverture', () => {
     expect(JSON.parse(socket.sent[0] as string)).toEqual({
       type: 'hello',
       protocol: 1,
-      universe: 3,
+      universe: 0,
     })
     socket.serverSend(ACK)
     await expect(opening).resolves.toBeUndefined()
@@ -211,13 +217,6 @@ describe('sortie pont Art-Net : ouverture', () => {
     expect(context.sockets).toHaveLength(0)
   })
 
-  it('refuse un univers invalide', () => {
-    expect(() => createBridgeOutput({ url: DEFAULT_BRIDGE_URL, universe: -1 })).toThrow(
-      'Univers invalide'
-    )
-    expect(() => createBridgeOutput({ url: DEFAULT_BRIDGE_URL, universe: 70_000 })).toThrow()
-  })
-
   it('remonte une erreur du constructeur WebSocket', async () => {
     const thrown = createFakeWebSocketClass({ throwOnCreate: new SyntaxError('URL invalide') })
     const output = createBridgeOutput({
@@ -260,6 +259,66 @@ describe('sortie pont Art-Net : écriture', () => {
     const frame = socket.sent[1] as Uint8Array
     expect(frame).toBeInstanceOf(Uint8Array)
     expect([...frame.subarray(0, 4)]).toEqual([1, 0, 0, 42])
+  })
+
+  it('envoie un univers par trame, numéro dans l’en-tête, univers 0 en premier', async () => {
+    const context = setup()
+    const socket = await openWithAck(context)
+    const first = createUniverse()
+    first[0] = 7
+    const second = createUniverse()
+    second[511] = 9
+    await context.output.write(first, 0)
+    await context.output.write(second, 15)
+    const [frame0, frame15] = [socket.sent[1] as Uint8Array, socket.sent[2] as Uint8Array]
+    expect([...frame0.subarray(0, 4)]).toEqual([1, 0, 0, 7])
+    expect([...frame15.subarray(0, 3)]).toEqual([1, 0, 15])
+    expect(frame15[BRIDGE_FRAME_BYTES - 1]).toBe(9)
+  })
+
+  it('ancien pont sans `universes` dans l’ack : seul l’univers 0 part, sans fermeture', async () => {
+    const context = setup()
+    const opening = context.output.open()
+    const socket = context.sockets.at(-1)!
+    socket.serverOpen()
+    const { universes: _ignored, ...legacyAck } = ACK
+    socket.serverSend(legacyAck)
+    await opening
+    expect(context.output.universeCount?.()).toBe(1)
+    await context.output.write(createUniverse(), 0)
+    await context.output.write(createUniverse(), 1)
+    // hello + une seule trame ; la connexion reste ouverte.
+    expect(socket.sent).toHaveLength(2)
+    expect(socket.closedWith).toBeNull()
+  })
+
+  it('pont récent : annonce 16 univers', async () => {
+    const context = setup()
+    await openWithAck(context)
+    expect(context.output.universeCount?.()).toBe(16)
+  })
+
+  it('refuse un numéro d’univers hors 0-15', async () => {
+    const context = setup()
+    const socket = await openWithAck(context)
+    await expect(context.output.write(createUniverse(), 16)).rejects.toThrow('Univers invalide')
+    await expect(context.output.write(createUniverse(), -1)).rejects.toThrow('Univers invalide')
+    await expect(context.output.write(createUniverse(), 1.5)).rejects.toThrow('Univers invalide')
+    expect(socket.sent).toHaveLength(1)
+  })
+
+  it('saute un tour entier : les univers suivants suivent l’univers 0, sans compter deux fois', async () => {
+    const context = setup({ maxBufferedBytes: 1000 })
+    const socket = await openWithAck(context)
+    socket.setBufferedAmount(1001)
+    await context.output.write(createUniverse(), 0)
+    await context.output.write(createUniverse(), 1)
+    expect(socket.sent).toHaveLength(1)
+    expect(context.output.skippedFrames()).toBe(1)
+    socket.setBufferedAmount(0)
+    await context.output.write(createUniverse(), 0)
+    await context.output.write(createUniverse(), 1)
+    expect(socket.sent).toHaveLength(3)
   })
 
   it('échoue proprement avant ouverture, après fermeture ou socket fermée', async () => {

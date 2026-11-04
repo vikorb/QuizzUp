@@ -277,6 +277,9 @@
         "desk": "Pupitre",
         "deskReserve": "Pupitre {n} (réserve)",
         "address": "Adresse",
+        "universe": "Univers",
+        "universeLabel": "Univers {n}",
+        "universeHint": "Chaque univers compte 512 canaux : une même adresse peut servir sur deux univers. Une interface USB n’en gère qu’un (le 0) ; au-delà, il faut un pont Art-Net.",
         "add": "Ajouter",
         "remove": "Retirer",
         "addressHint": "Laisse l’adresse vide pour prendre la première libre ({n}).",
@@ -284,6 +287,7 @@
           "unknown_profile": "Type d’appareil inconnu.",
           "no_room": "Plus de place dans l’univers DMX (512 canaux).",
           "invalid_address": "Adresse invalide : l’appareil doit tenir entre 1 et 512.",
+          "invalid_universe": "Univers invalide (0 à 15).",
           "conflict": "Adresse déjà utilisée."
         }
       },

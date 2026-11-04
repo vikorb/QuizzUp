@@ -55,6 +55,7 @@ describe('protocole navigateur → pont', () => {
       protocol: 1,
       bridge: 'quizzup-artnet-bridge',
       version: '1.2.3',
+      universes: 16,
     })
     expect(JSON.parse(errorMessage('universe', 'non'))).toEqual({
       type: 'error',

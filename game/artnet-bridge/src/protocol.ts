@@ -4,19 +4,23 @@ import { DMX_CHANNELS } from './artnet.js'
  * Protocole écran de salle → pont, version 1. Miroir de `game/hardware/src/dmx/bridgeOutput.ts`
  * (les deux côtés sont testés octet par octet sur le même format).
  *
- * 1. Le navigateur envoie un message **texte** `{"type":"hello","protocol":1,"universe":0}`.
+ * 1. Le navigateur envoie un message **texte** `{"type":"hello","protocol":1,"universe":0}`
+ *    (`universe` : champ historique, accepté de 0 à 15).
  * 2. Le pont répond `{"type":"ack","protocol":1,"bridge":"quizzup-artnet-bridge","version":"…"}`
  *    ou `{"type":"error","code":"…","message":"…"}` puis ferme.
- * 3. Chaque trame est un message **binaire** de 515 octets : version (1), univers interne sur
- *    2 octets gros-boutiste, puis les 512 canaux.
+ * 3. Chaque trame est un message **binaire** de 515 octets : version (1), univers interne (0 à 15)
+ *    sur 2 octets gros-boutiste, puis les 512 canaux. Une trame par univers utilisé, au fil de l'eau.
  */
 export const BRIDGE_PROTOCOL_VERSION = 1
 export const BRIDGE_FRAME_HEADER_BYTES = 3
 export const BRIDGE_FRAME_BYTES = BRIDGE_FRAME_HEADER_BYTES + DMX_CHANNELS
 export const BRIDGE_NAME = 'quizzup-artnet-bridge'
 
-/** Le pont v1 ne traite qu'un univers interne : le 0 (le champ prépare l'évolution). */
-export const SUPPORTED_INTERNAL_UNIVERSE = 0
+/** Univers internes acceptés : 0 à 15 (le protocole reste la version 1, d'abord limitée au 0). */
+export const MAX_INTERNAL_UNIVERSES = 16
+
+export const isInternalUniverse = (universe: number) =>
+  Number.isInteger(universe) && universe >= 0 && universe < MAX_INTERNAL_UNIVERSES
 
 /** Codes de fermeture WebSocket propres au pont (plage 4000-4999 réservée aux applications). */
 export const CLOSE_CODES = {
@@ -76,12 +80,19 @@ export function parseHello(text: string): Hello | null {
   }
   return {
     protocol: raw.protocol,
-    universe: typeof raw.universe === 'number' ? raw.universe : SUPPORTED_INTERNAL_UNIVERSE,
+    universe: typeof raw.universe === 'number' ? raw.universe : 0,
   }
 }
 
+/** `universes` : nombre d'univers internes acceptés (un ancien pont ne l'annonce pas : 1 seul). */
 export const ackMessage = (version: string) =>
-  JSON.stringify({ type: 'ack', protocol: BRIDGE_PROTOCOL_VERSION, bridge: BRIDGE_NAME, version })
+  JSON.stringify({
+    type: 'ack',
+    protocol: BRIDGE_PROTOCOL_VERSION,
+    bridge: BRIDGE_NAME,
+    version,
+    universes: MAX_INTERNAL_UNIVERSES,
+  })
 
 export const errorMessage = (code: string, message: string) =>
   JSON.stringify({ type: 'error', code, message })

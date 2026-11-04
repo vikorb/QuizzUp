@@ -95,6 +95,7 @@ describe('pont : poignée de main et sécurité', () => {
       protocol: 1,
       bridge: 'quizzup-artnet-bridge',
       version: '9.9.9',
+      universes: 16,
     })
     expect(bridge.hasClient()).toBe(true)
     expect(logs).toContain(`Écran de salle connecté (${ORIGIN})`)
@@ -187,7 +188,7 @@ describe('pont : poignée de main et sécurité', () => {
     await vi.waitFor(() => expect(bridge.hasClient()).toBe(false))
 
     const other = await openRawClient(port)
-    other.send(OPCODE.text, JSON.stringify({ type: 'hello', protocol: 1, universe: 3 }))
+    other.send(OPCODE.text, JSON.stringify({ type: 'hello', protocol: 1, universe: 16 }))
     expect(JSON.parse((await other.next()).payload.toString('utf8')).code).toBe('universe')
     expect((await other.next()).payload.readUInt16BE(0)).toBe(4002)
   })
@@ -257,7 +258,7 @@ describe('pont : WebSocket → Art-Net (UDP)', () => {
     await client.closed()
     await vi.waitFor(() => expect(bridge.hasClient()).toBe(false))
     const wrong = await connectReady()
-    wrong.send(OPCODE.binary, frameBytes(1, 4))
+    wrong.send(OPCODE.binary, frameBytes(1, 16))
     expect(JSON.parse((await wrong.next()).payload.toString('utf8')).code).toBe('universe')
   })
 

@@ -77,21 +77,29 @@ Dans le backoffice, la salle utilise alors le pilote **`artnet-bridge`**
 (`rooms.config.lighting.driver`) et, si le port n'est pas 7654,
 `"bridgeUrl": "ws://127.0.0.1:<port>"` (seuls `127.0.0.1` et `localhost` sont acceptés).
 
-### Mappage : un univers interne, plusieurs univers Art-Net
+### Mappage : des univers internes vers des univers Art-Net
 
-L'écran de salle envoie **un seul univers de 512 canaux** (l'univers « interne », celui des
-adresses saisies dans le backoffice). Sans `--map`, il est recopié tel quel dans l'univers
-`--universe`. Avec `--map`, chaque plage de canaux internes part vers l'univers Art-Net de son
-choix, à partir du canal de son choix :
+L'écran de salle envoie jusqu'à **16 univers de 512 canaux** (les univers « internes » 0 à 15 :
+celui d'un appareil se règle dans l'assistant d'installation, 0 par défaut). Sans `--map`,
+l'univers interne 0 est recopié tel quel dans l'univers `--universe`, et les univers internes 1 à
+15 dans les univers Art-Net suivants (`--universe` + 1, + 2…), s'ils sont reçus. Avec `--map`,
+chaque plage de canaux d'un univers interne part vers l'univers Art-Net de son choix, à partir
+du canal de son choix. Syntaxe : `[UNIVERS/]DEBUT-FIN:NET.SUB.UNI[@DEPART]` ; sans `UNIVERS/`,
+c'est l'univers interne 0.
 
 - `1-72:0.0.1@1` : canaux internes 1 à 72 → univers Art-Net `0.0.1` (net 0, sub-net 0,
   univers 1), canaux 1 à 72 ;
 - `128-148:0.0.2@1` : canaux internes 128 à 148 → univers `0.0.2`, canaux 1 à 21 ;
-- `40:0.0.3` : un seul canal ; sans `@DEPART`, il garde son numéro (canal 40).
+- `40:0.0.3` : un seul canal ; sans `@DEPART`, il garde son numéro (canal 40) ;
+- `1/1-512:0.0.5` : **univers interne 1**, canaux 1 à 512 → univers Art-Net `0.0.5`.
 
 Un **paquet ArtDMX par univers de sortie** est envoyé à chaque trame, chacun avec son propre
 numéro de séquence ; les canaux non mappés valent 0. Deux plages qui écriraient sur les mêmes
-canaux d'un même univers sont refusées au démarrage. Le pont affiche le plan au lancement.
+canaux d'un même univers, ou un univers Art-Net alimenté par deux univers internes, sont refusés
+au démarrage. Le pont n'émet que les univers internes réellement reçus (plus le 0) : un univers
+Art-Net que l'écran de salle ne pilote pas ne reçoit jamais de zéros. Un univers interne qui se
+tait pendant que les autres continuent est remis à zéro ; si plus rien n'arrive, c'est le noir
+de sécurité sur tous les univers. Le pont affiche le plan au lancement.
 
 ### Exemple prêt à copier : salle avec Showtec NET-2/3 Pocket
 
@@ -124,7 +132,8 @@ réseau du PC doit être dans la même plage que le boîtier (ici `192.168.200.x
 `255.255.255.0`).
 
 Les mappages s'écrivent aussi en objets dans le fichier :
-`{ "from": 128, "to": 148, "output": "0.0.2", "start": 1 }`. Autres clés reconnues : `universe`,
+`{ "from": 128, "to": 148, "output": "0.0.2", "start": 1 }` (clé `universe` : univers interne
+source, 0 par défaut). Autres clés reconnues : `universe` (sortie, sans `--map`),
 `port`, `artnetPort`, `timeoutMs`, `blackoutMs`.
 
 ## Lancement au démarrage
@@ -213,11 +222,13 @@ et il est testé avec un client brut et avec le client WebSocket intégré à No
 ## Protocole navigateur → pont (version 1)
 
 1. Message texte du navigateur : `{"type":"hello","protocol":1,"universe":0}`.
-2. Réponse du pont : `{"type":"ack","protocol":1,"bridge":"quizzup-artnet-bridge","version":"0.1.0"}`
+2. Réponse du pont : `{"type":"ack","protocol":1,"bridge":"quizzup-artnet-bridge","version":"0.1.0","universes":16}`
+   (`universes` : nombre d'univers internes acceptés ; un ancien pont ne l'annonce pas)
    ou `{"type":"error","code":"…","message":"…"}` suivi d'une fermeture (codes 4000 hello
    attendu, 4001 protocole, 4002 univers, 4003 trame invalide, 4004 écran déjà connecté).
 3. Trames binaires de **515 octets** : octet 0 = version (1), octets 1-2 = univers interne
-   (gros-boutiste, 0 en v1), octets 3-514 = canaux 1 à 512.
+   (gros-boutiste, 0 à 15), octets 3-514 = canaux 1 à 512. Le `hello` annonce toujours
+   `universe: 0` ; un univers interne supérieur à 15 ferme la connexion (4002).
 
 Côté navigateur : `createBridgeOutput({ url })` de `@quizzup/hardware`
 (`game/hardware/src/dmx/bridgeOutput.ts`).
