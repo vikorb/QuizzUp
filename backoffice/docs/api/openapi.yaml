@@ -3184,7 +3184,15 @@ components:
           type: string
           enum: [qcm, true_false, estimate]
           default: qcm
-          description: Type de question, utilisé par le moteur pour l'éligibilité des mini-jeux (`question_kind_invalid` sinon)
+          description: |
+            Type de question, utilisé par le moteur pour l'éligibilité des mini-jeux (`question_kind_invalid` sinon).
+            Règles de réponses : `true_false` = exactement « Vrai » et « Faux », une seule juste
+            (`question_true_false_answers_invalid`) ; `estimate` = 3 ou 4 fourchettes commençant par
+            un nombre (« Moins de 100 », « 100 à 199 »), une seule juste (`question_estimate_answers_invalid`).
+            Changer le type revalide les réponses existantes (actives ou en brouillon). Les routes
+            unitaires `/questions/{questionId}/answers…` appliquent les mêmes règles à l'état final.
+            Préfixes de fourchette reconnus : moins de, plus de, entre, de, environ, au moins, au plus,
+            jusqu'à, avant, après, ou un symbole (<, >, ≤, ≥, ~).
         mediaUrl:
           type: string
           nullable: true
@@ -3224,7 +3232,15 @@ components:
           type: string
           enum: [qcm, true_false, estimate]
           default: qcm
-          description: Type de question, utilisé par le moteur pour l'éligibilité des mini-jeux (`question_kind_invalid` sinon)
+          description: |
+            Type de question, utilisé par le moteur pour l'éligibilité des mini-jeux (`question_kind_invalid` sinon).
+            Règles de réponses : `true_false` = exactement « Vrai » et « Faux », une seule juste
+            (`question_true_false_answers_invalid`) ; `estimate` = 3 ou 4 fourchettes commençant par
+            un nombre (« Moins de 100 », « 100 à 199 »), une seule juste (`question_estimate_answers_invalid`).
+            Changer le type revalide les réponses existantes (actives ou en brouillon). Les routes
+            unitaires `/questions/{questionId}/answers…` appliquent les mêmes règles à l'état final.
+            Préfixes de fourchette reconnus : moins de, plus de, entre, de, environ, au moins, au plus,
+            jusqu'à, avant, après, ou un symbole (<, >, ≤, ≥, ~).
         mediaUrl:
           type: string
           nullable: true

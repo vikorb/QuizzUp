@@ -6,6 +6,7 @@ import {
   ANSWER_STATUS_ACTIVE,
   ANSWER_STATUS_DELETED,
   ANSWER_STATUS_INACTIVE,
+  QUESTION_KIND_TRUE_FALSE,
 } from '@quizzup/shared'
 import questionsRoutes from '@backend/routes/questions'
 import { dbState, MOCK_NOW } from '../_helpers/mockDb'
@@ -175,5 +176,70 @@ describe('routes/questions/answers — multiple correct answers', () => {
     expect(isCorrect(10)).toBe(true)
 
     await app.close()
+  })
+})
+
+describe('routes/questions/answers — rules of the question kind', () => {
+  // Question 2 devient un vrai/faux valide : « Vrai » (juste) et « Faux ».
+  beforeEach(() => {
+    const question = dbState.questions.find((row) => row.id === 2)!
+    question.kind = QUESTION_KIND_TRUE_FALSE
+    dbState.answers.find((row) => row.id === 10)!.response = 'Vrai'
+    dbState.answers.find((row) => row.id === 11)!.response = 'Faux'
+  })
+
+  async function send(method: 'POST' | 'PATCH' | 'DELETE', url: string, payload?: object) {
+    const app = await createRouteApp(questionsRoutes)
+    const response = await app.inject({
+      method,
+      url,
+      headers: authHeaders(companyAdminUser),
+      ...(payload ? { payload } : {}),
+    })
+    await app.close()
+
+    return response
+  }
+
+  it('refuses every unit change that breaks a true/false question', async () => {
+    const attempts = [
+      await send('POST', '/questions/2/answers', { response: 'Peut-être' }),
+      await send('PATCH', '/questions/2/answers/11', { response: 'Peut-être' }),
+      await send('PATCH', '/questions/2/answers/11', { isCorrect: true }),
+    ]
+
+    for (const response of attempts) {
+      expect(response.statusCode).toBe(400)
+      expect(parseJson(response)).toEqual({ error: 'question_true_false_answers_invalid' })
+    }
+
+    expect(dbState.answers.filter((row) => row.question_id === 2)).toHaveLength(3)
+    expect(dbState.answers.find((row) => row.id === 11)).toMatchObject({
+      response: 'Faux',
+      is_correct: false,
+      status: ANSWER_STATUS_ACTIVE,
+    })
+  })
+
+  it('accepts a unit change that keeps the true/false rules', async () => {
+    const response = await send('PATCH', '/questions/2/answers/11', { response: 'FAUX' })
+
+    expect(response.statusCode).toBe(200)
+    expect(dbState.answers.find((row) => row.id === 11)).toMatchObject({ response: 'FAUX' })
+  })
+
+  it('refuses to delete an answer of a true/false question, by either route', async () => {
+    addActiveAnswer(13, false)
+    dbState.answers.find((row) => row.id === 13)!.status = ANSWER_STATUS_INACTIVE
+
+    const responses = [
+      await send('DELETE', '/questions/2/answers/11'),
+      await send('PATCH', '/questions/2/answers/11/status', { status: ANSWER_STATUS_DELETED }),
+    ]
+
+    for (const response of responses) {
+      expect(response.statusCode).toBe(400)
+      expect(parseJson(response)).toEqual({ error: 'question_true_false_answers_invalid' })
+    }
   })
 })

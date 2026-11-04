@@ -5,7 +5,9 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   ANSWER_STATUS_ACTIVE,
   ANSWER_STATUS_DELETED,
+  ANSWER_STATUS_INACTIVE,
   QUESTION_KIND_ESTIMATE,
+  QUESTION_KIND_TRUE_FALSE,
 } from '@quizzup/shared'
 import questionsRoutes from '@backend/routes/questions'
 import { dbState } from '../_helpers/mockDb'
@@ -75,7 +77,21 @@ describe('routes/questions/id.ts', () => {
       method: 'PATCH',
       url: '/questions/2',
       headers: authHeaders(companyAdminUser),
-      payload: { kind: QUESTION_KIND_ESTIMATE },
+      payload: {
+        kind: QUESTION_KIND_ESTIMATE,
+        answers: [
+          { response: 'Moins de 10', isCorrect: false },
+          { response: '10 à 99', isCorrect: true },
+          { response: '100 ou plus', isCorrect: false },
+        ],
+      },
+    })
+    // Repasser en vrai/faux sans changer les réponses : elles ne sont pas « Vrai » / « Faux ».
+    const kindOnly = await app.inject({
+      method: 'PATCH',
+      url: '/questions/2',
+      headers: authHeaders(companyAdminUser),
+      payload: { kind: QUESTION_KIND_TRUE_FALSE },
     })
     const invalid = await app.inject({
       method: 'PATCH',
@@ -88,8 +104,53 @@ describe('routes/questions/id.ts', () => {
     expect(dbState.questions.find((row) => row.id === 2)).toMatchObject({
       kind: QUESTION_KIND_ESTIMATE,
     })
+    expect(kindOnly.statusCode).toBe(400)
+    expect(parseJson(kindOnly)).toEqual({ error: 'question_true_false_answers_invalid' })
     expect(invalid.statusCode).toBe(400)
     expect(parseJson(invalid)).toEqual({ error: 'question_kind_invalid' })
+
+    await app.close()
+  })
+
+  it('ignores inactive answers when only the kind changes', async () => {
+    const app = await createRouteApp(questionsRoutes)
+    dbState.answers.find((row) => row.id === 10)!.response = 'Vrai'
+    dbState.answers.find((row) => row.id === 11)!.response = 'Faux'
+    dbState.answers.push({
+      id: 13,
+      admin_id: 2,
+      question_id: 2,
+      response: 'Peut-être',
+      is_correct: false,
+      status: ANSWER_STATUS_INACTIVE,
+      deleted_at: null,
+    })
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/questions/2',
+      headers: authHeaders(companyAdminUser),
+      payload: { kind: QUESTION_KIND_TRUE_FALSE },
+    })
+
+    // La salle ne reçoit que « Vrai » et « Faux » : la réponse inactive ne compte pas.
+    expect(response.statusCode).toBe(200)
+
+    await app.close()
+  })
+
+  it('reports the generic answer errors before the kind rules', async () => {
+    const app = await createRouteApp(questionsRoutes)
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/questions/2',
+      headers: authHeaders(companyAdminUser),
+      payload: { kind: QUESTION_KIND_TRUE_FALSE, answers: [{ response: 'Vrai', isCorrect: true }] },
+    })
+
+    expect(response.statusCode).toBe(400)
+    expect(parseJson(response)).toEqual({ error: 'question_answers_min_required' })
 
     await app.close()
   })

@@ -7,6 +7,7 @@ import {
   QUESTION_STATUS_ACTIVE,
   THEME_SCOPE_COMPANY,
   THEME_SCOPE_GLOBAL,
+  QUESTION_KIND_ESTIMATE,
   QUESTION_KIND_QCM,
   QUESTION_KIND_TRUE_FALSE,
 } from '@quizzup/shared'
@@ -230,7 +231,13 @@ describe('routes/questions.ts', () => {
       method: 'POST',
       url: '/questions',
       headers: authHeaders(superadminUser),
-      payload: questionBody({ kind: QUESTION_KIND_TRUE_FALSE }),
+      payload: questionBody({
+        kind: QUESTION_KIND_TRUE_FALSE,
+        answers: [
+          { response: 'Vrai', isCorrect: true },
+          { response: 'Faux', isCorrect: false },
+        ],
+      }),
     })
     const invalid = await app.inject({
       method: 'POST',
@@ -254,6 +261,30 @@ describe('routes/questions.ts', () => {
     expect(
       parseJson<{ questions: QuestionPayload[] }>(filtered).questions.map((item) => item.id)
     ).toEqual([created.id])
+
+    await app.close()
+  })
+
+  it('applies the answer rules of the question kind on creation', async () => {
+    const app = await createRouteApp(questionsRoutes)
+
+    const trueFalse = await app.inject({
+      method: 'POST',
+      url: '/questions',
+      headers: authHeaders(superadminUser),
+      payload: questionBody({ kind: QUESTION_KIND_TRUE_FALSE }),
+    })
+    const estimate = await app.inject({
+      method: 'POST',
+      url: '/questions',
+      headers: authHeaders(superadminUser),
+      payload: questionBody({ kind: QUESTION_KIND_ESTIMATE }),
+    })
+
+    expect(trueFalse.statusCode).toBe(400)
+    expect(parseJson(trueFalse)).toEqual({ error: 'question_true_false_answers_invalid' })
+    expect(estimate.statusCode).toBe(400)
+    expect(parseJson(estimate)).toEqual({ error: 'question_estimate_answers_invalid' })
 
     await app.close()
   })

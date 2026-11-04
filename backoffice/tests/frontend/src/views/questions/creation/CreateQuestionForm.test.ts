@@ -154,6 +154,25 @@ describe('views/questions/creation/CreateQuestionForm.vue', () => {
     ).toBe(QUESTION_KIND_ESTIMATE)
   })
 
+  it('applies the rules of the question kind before calling the API', async () => {
+    const wrapper = mountWithFrontendMocks(CreateQuestionForm, {
+      props: { question: null, themes, mode: 'create', initialThemeIds: [1] },
+    })
+
+    wrapper
+      .findAllComponents(SelectField)
+      .find((field) => field.attributes('id') === 'question-kind')
+      ?.vm.$emit('update:modelValue', QUESTION_KIND_ESTIMATE)
+    await nextTick()
+    await findInput(wrapper, 'question').setValue('Hauteur de la tour Eiffel ?')
+    await findInput(wrapper, 'answer-0').setValue('Beaucoup')
+    await findInput(wrapper, 'answer-1').setValue('Peu')
+    await submitForm(wrapper)
+
+    expect(createQuestionServiceMock).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('questions.form.errors.estimateAnswers')
+  })
+
   it('keeps existing answer ids when updating a question (B3)', async () => {
     updateQuestionServiceMock.mockResolvedValue(savedQuestion({ id: 2 }))
 

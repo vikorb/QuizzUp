@@ -154,6 +154,79 @@ export type QuestionKind = (typeof QUESTION_KIND)[keyof typeof QUESTION_KIND]
 
 export const DEFAULT_QUESTION_KIND = QUESTION_KIND_QCM
 
+const ESTIMATE_RANGE_PREFIXES = [
+  'moins de',
+  'plus de',
+  'entre',
+  'de',
+  'environ',
+  'au moins',
+  'au plus',
+  "jusqu'a",
+  'avant',
+  'apres',
+]
+
+// Une fourchette commence par un nombre, éventuellement précédé d'un mot (« Moins de 100 ») ou
+// d'un symbole (« ≥ 1 000 »). Le texte est comparé sans accents ni casse, espaces insécables
+// comprises ; la liste de mots est celle que reconnaît le moteur de jeu (`isRangeAnswer`).
+const ESTIMATE_RANGE_PATTERN = new RegExp(
+  String.raw`^(?:(?:${ESTIMATE_RANGE_PREFIXES.join('|')})\s+|[<>≤≥~]\s*)?-?\d`
+)
+
+function normalizeAnswerLabel(value: string): string {
+  return value
+    .normalize('NFD')
+    .replaceAll(/[\u0300-\u036F]/g, '')
+    .replaceAll('’', "'")
+    .replaceAll(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
+
+export function isEstimateRange(response: string): boolean {
+  return ESTIMATE_RANGE_PATTERN.test(normalizeAnswerLabel(response))
+}
+
+export const QUESTION_KIND_ANSWERS_ERROR_TRUE_FALSE = 'question_true_false_answers_invalid' as const
+export const QUESTION_KIND_ANSWERS_ERROR_ESTIMATE = 'question_estimate_answers_invalid' as const
+
+export type QuestionKindAnswersError =
+  typeof QUESTION_KIND_ANSWERS_ERROR_TRUE_FALSE | typeof QUESTION_KIND_ANSWERS_ERROR_ESTIMATE
+
+/**
+ * Règles de réponses propres au type de question, calées sur le moteur de jeu (back et front) :
+ * - vrai/faux : exactement « Vrai » et « Faux » (casse et accents libres), une seule juste ;
+ * - estimation : 3 ou 4 fourchettes commençant par un nombre, une seule juste ;
+ * - QCM : seulement les règles communes (2 réponses ou plus, au moins une juste).
+ */
+export function getQuestionKindAnswersError(
+  kind: QuestionKind,
+  answers: ReadonlyArray<{ response: string; isCorrect: boolean }>
+): QuestionKindAnswersError | null {
+  const correctCount = answers.filter((answer) => answer.isCorrect).length
+
+  if (kind === QUESTION_KIND_TRUE_FALSE) {
+    const labels = new Set(answers.map((answer) => normalizeAnswerLabel(answer.response)))
+
+    return answers.length === 2 && correctCount === 1 && labels.has('vrai') && labels.has('faux')
+      ? null
+      : QUESTION_KIND_ANSWERS_ERROR_TRUE_FALSE
+  }
+
+  if (kind === QUESTION_KIND_ESTIMATE) {
+    const validCount = answers.length >= 3 && answers.length <= 4
+
+    return validCount &&
+      correctCount === 1 &&
+      answers.every((answer) => isEstimateRange(answer.response))
+      ? null
+      : QUESTION_KIND_ANSWERS_ERROR_ESTIMATE
+  }
+
+  return null
+}
+
 export const ANSWER_STATUS_INACTIVE = 0 as const
 export const ANSWER_STATUS_ACTIVE = 1 as const
 export const ANSWER_STATUS_DELETED = 2 as const
