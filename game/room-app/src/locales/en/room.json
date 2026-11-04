@@ -79,7 +79,8 @@
       "resume": "Resume the game",
       "restart": "Restart from the beginning",
       "restartConfirm": "Restart the game from the beginning? The scores already earned on this PC will be lost.",
-      "duo": "{first} & {second}"
+      "duo": "{first} & {second}",
+      "pendingResults": "{n} game result waiting to be sent to the backoffice: automatic retry. | {n} game results waiting to be sent to the backoffice: automatic retry."
     }
   }
 }

@@ -71,7 +71,7 @@ const questionAnswerIdRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const result = await db.transaction(async (trx) => {
-        const activeAnswers = await lockQuestionAnswers(trx, questionId)
+        const { kind, answers: activeAnswers } = await lockQuestionAnswers(trx, questionId)
         const existingAnswer = activeAnswers.find((answer) => Number(answer.id) === answerId)
 
         if (!existingAnswer) {
@@ -87,7 +87,7 @@ const questionAnswerIdRoutes: FastifyPluginAsync = async (app) => {
         }
 
         const kindError = validateLockedAnswersForKind(
-          question.kind,
+          kind,
           activeAnswers.map((answer) =>
             Number(answer.id) === answerId
               ? {
@@ -153,7 +153,7 @@ const questionAnswerIdRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const result = await db.transaction(async (trx) => {
-        const activeAnswers = await lockQuestionAnswers(trx, questionId)
+        const { kind, answers: activeAnswers } = await lockQuestionAnswers(trx, questionId)
         const answerToDelete = activeAnswers.find((answer) => Number(answer.id) === answerId)
 
         if (!answerToDelete) {
@@ -169,7 +169,7 @@ const questionAnswerIdRoutes: FastifyPluginAsync = async (app) => {
         }
 
         const kindError = validateLockedAnswersForKind(
-          question.kind,
+          kind,
           activeAnswers.filter((answer) => Number(answer.id) !== answerId)
         )
 

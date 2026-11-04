@@ -15,7 +15,7 @@ export function isCompanyDeletedStatus(status: CompanyStatus): boolean {
 
 export function hasCompanyStatusChanged(
   currentStatus: CompanyStatus,
-  savedStatus: CompanyStatus | null | undefined,
+  savedStatus: CompanyStatus | null | undefined
 ): boolean {
   return savedStatus !== null && savedStatus !== undefined && currentStatus !== savedStatus
 }
@@ -30,7 +30,7 @@ export function getNextCompanyStatus(status: CompanyStatus): CompanyStatus {
 
 export function getCompanyStatusHelpKey(
   currentStatus: CompanyStatus,
-  savedStatus: CompanyStatus | null | undefined,
+  savedStatus: CompanyStatus | null | undefined
 ): string {
   if (hasCompanyStatusChanged(currentStatus, savedStatus)) {
     return currentStatus === COMPANY_STATUS_ACTIVE

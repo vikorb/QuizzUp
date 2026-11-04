@@ -6,13 +6,14 @@ import {
   ANSWER_STATUS_ACTIVE,
   ANSWER_STATUS_DELETED,
   ANSWER_STATUS_INACTIVE,
+  QUESTION_KIND_ESTIMATE,
   QUESTION_KIND_TRUE_FALSE,
 } from '@quizzup/shared'
 import questionsRoutes from '@backend/routes/questions'
 import { dbState, MOCK_NOW } from '../_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
 import { authHeaders, companyAdminUser, createRouteApp, parseJson } from '../_helpers/testApp'
-import { seedQuestionsData } from './_fixtures'
+import { concurrentWriteBeforeTransaction, seedQuestionsData } from './_fixtures'
 
 resetRouteMocksBeforeEach()
 
@@ -241,5 +242,78 @@ describe('routes/questions/answers — rules of the question kind', () => {
       expect(response.statusCode).toBe(400)
       expect(parseJson(response)).toEqual({ error: 'question_true_false_answers_invalid' })
     }
+  })
+})
+
+describe('routes/questions/answers — kind changed during the request (row lock)', () => {
+  const toEstimate = () => {
+    concurrentWriteBeforeTransaction(() => {
+      const row = dbState.questions.find((question) => question.id === 2)!
+      row.kind = QUESTION_KIND_ESTIMATE
+    })
+  }
+
+  it('checks a new answer against the kind read under the lock', async () => {
+    const app = await createRouteApp(questionsRoutes)
+    toEstimate()
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/questions/2/answers',
+      headers: authHeaders(companyAdminUser),
+      payload: { response: 'C', isCorrect: false },
+    })
+
+    expect(response.statusCode).toBe(400)
+    expect(parseJson(response)).toEqual({ error: 'question_estimate_answers_invalid' })
+    expect(dbState.answers.filter((row) => row.question_id === 2)).toHaveLength(3)
+
+    await app.close()
+  })
+
+  it('checks an edited answer against the kind read under the lock', async () => {
+    const app = await createRouteApp(questionsRoutes)
+    toEstimate()
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/questions/2/answers/11',
+      headers: authHeaders(companyAdminUser),
+      payload: { response: 'Autre' },
+    })
+
+    expect(response.statusCode).toBe(400)
+    expect(parseJson(response)).toEqual({ error: 'question_estimate_answers_invalid' })
+    expect(dbState.answers.find((row) => row.id === 11)!.response).toBe('B')
+
+    await app.close()
+  })
+
+  it('checks a status change and a deletion against the kind read under the lock', async () => {
+    const app = await createRouteApp(questionsRoutes)
+    addActiveAnswer(13, false)
+    addActiveAnswer(14, false)
+
+    toEstimate()
+    const status = await app.inject({
+      method: 'PATCH',
+      url: '/questions/2/answers/13/status',
+      headers: authHeaders(companyAdminUser),
+      payload: { status: ANSWER_STATUS_DELETED },
+    })
+    expect(status.statusCode).toBe(400)
+    expect(parseJson(status)).toEqual({ error: 'question_estimate_answers_invalid' })
+
+    toEstimate()
+    const removal = await app.inject({
+      method: 'DELETE',
+      url: '/questions/2/answers/14',
+      headers: authHeaders(companyAdminUser),
+    })
+    expect(removal.statusCode).toBe(400)
+    expect(parseJson(removal)).toEqual({ error: 'question_estimate_answers_invalid' })
+    expect(dbState.answers.find((row) => row.id === 14)!.status).toBe(ANSWER_STATUS_ACTIVE)
+
+    await app.close()
   })
 })

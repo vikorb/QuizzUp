@@ -1,19 +1,16 @@
 import type {
   COMPANY_STATUS_ACTIVE,
   COMPANY_STATUS_DELETED,
-  COMPANY_STATUS_INACTIVE} from '@quizzup/shared';
-import {
-  type CompanyStatus as SharedCompanyStatus,
+  COMPANY_STATUS_INACTIVE,
 } from '@quizzup/shared'
+import { type CompanyStatus as SharedCompanyStatus } from '@quizzup/shared'
 
-import type { createCompanyDetailsForm } from '@/utils/company/details/form';
+import type { createCompanyDetailsForm } from '@/utils/company/details/form'
 
 export type CompanyStatus = SharedCompanyStatus
 
 export type CompanySwitchStatus =
-  | typeof COMPANY_STATUS_INACTIVE
-  | typeof COMPANY_STATUS_ACTIVE
-  | typeof COMPANY_STATUS_DELETED
+  typeof COMPANY_STATUS_INACTIVE | typeof COMPANY_STATUS_ACTIVE | typeof COMPANY_STATUS_DELETED
 
 export type ClientStatusFilter = CompanySwitchStatus | 'all'
 
@@ -52,10 +49,7 @@ export type CreateCompanyResponse = {
 }
 
 export type CreateCompanyErrorCode =
-  | 'email_already_exists'
-  | 'name_already_exists'
-  | 'invalid_body'
-  | 'unknown_error'
+  'email_already_exists' | 'name_already_exists' | 'invalid_body' | 'unknown_error'
 
 export type CreateCompanyResult =
   | {

@@ -55,7 +55,12 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
 ## 4. Lots restants, par priorité
 
 1. ~~**Mini-jeux dans une partie lancée du backoffice**~~ : fait (PR #91).
-2. **Fin de partie** (#88 mergée) : réessai de l'envoi des scores après une panne réseau.
+2. ~~**Fin de partie** : réessai de l'envoi des scores après une panne réseau~~ : fait (branche
+   `fix/room-finish-retry`). File persistante `quizzup_room_pending_finishes`
+   (`room-app/src/game/pendingFinishes.ts`) : survit au rechargement et à une nouvelle partie ;
+   essais à 2 s, 5 s, 15 s, 30 s puis toutes les 60 s, essai immédiat sur `online`, vidage au
+   démarrage et à la connexion du compte de salle ; 404/409/400 abandonnés, 401/403 attendent une
+   reconnexion. État affiché au podium, bandeau dans le lobby staff.
 3. **Tests matériel réels** sur TERMIVAVOR2 : buzzers (clavier AZERTY, carte manette), interface
    USB DMX quand Enzo l'aura (tout est testable en simulation d'ici là), relais fumée temporisé
    10 s maximum. En salle compatible concurrent : vérifier l'ordre des canaux des lyres 9 canaux
@@ -63,7 +68,15 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
    Dans `room-app/src/hardware/roomHardware.ts`, s'assurer que `createGamepadBuzzerInput` reçoit
    bien le `gamepadMatcher` quand `buzzers.source.kind` vaut `'gamepad'`.
 4. **Recette VPS** : déployer `deploy/recette/` dès qu'Enzo donne l'IP et l'accès SSH du VPS.
-5. **Purge RGPD** des emails joueurs 3 ans après leur dernière partie.
+5. ~~**Purge RGPD** des emails joueurs 3 ans après leur dernière partie~~ : fait (branche
+   `feat/rgpd-purge-emails`). Purge planifiée dans le backend (30 s après le démarrage puis
+   toutes les 24 h, `PLAYER_EMAIL_PURGE_INTERVAL_HOURS=0` pour la couper) et
+   `npm run purge:emails` dans `backend/`. Purge **par compagnie** (le consentement est donné au
+   centre) : un joueur = son email (joueur 1 ou 2e joueur) dans une compagnie ; dernière partie
+   dans cette compagnie = `COALESCE(finished_at, started_at, created_at)`, parties supprimées
+   comprises ; au-delà de 3 ans, email et consentement effacés dans les parties de cette
+   compagnie seulement, noms et scores gardés. Tout se fait en SQL (verrou consultatif) ; test
+   d'intégration PostgreSQL dans la CI (job migrations).
 6. ~~**6 pupitres**~~ : fait (branche `feat/six-podiums`). `GAME_PODIUMS` = 6 (`@quizzup/shared`) ;
    migration `20261104040000` (CHECK `podium` 1..6, retour arrière refusé si un pupitre 5 ou 6 est
    utilisé) ; nombre de pupitres d'une salle = `rooms.config.desksCount` (1 à 6, absent = 4), réglé
@@ -79,8 +92,7 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
 7. Plus tard : SACEM, pricing, mode hors ligne (V2).
 
 Petits suivis connus : pas de Keyboard Lock avec la carte manette ; `LaunchView` reprend
-n'importe quelle sauvegarde ; le synthé de démo n'a pas de fondu ; course de concurrence si deux admins changent en même temps le type et le
-média d'une question (noté `ponytail:` dans `routes/questions/id.ts` et `media.ts`) ; migration
+n'importe quelle sauvegarde ; le synthé de démo n'a pas de fondu ; migration
 de données qui typerait l'ancien contenu (le moteur sait déjà déduire le type).
 
 ## 5. Process de travail

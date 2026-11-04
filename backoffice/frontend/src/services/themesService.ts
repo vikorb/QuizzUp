@@ -49,9 +49,7 @@ function buildThemesQuery(filters: ThemeFilters = {}): string {
   return query ? `?${query}` : ''
 }
 
-export async function listThemesService(
-  filters: ThemeFilters = {},
-): Promise<ThemesResult> {
+export async function listThemesService(filters: ThemeFilters = {}): Promise<ThemesResult> {
   return apiRequestJson<ThemesResponse>({
     path: `/themes${buildThemesQuery(filters)}`,
     authenticated: true,
@@ -79,7 +77,7 @@ export async function createThemeService(payload: ThemePayload): Promise<ThemeRe
 
 export async function updateThemeService(
   themeId: number,
-  payload: ThemePayload,
+  payload: ThemePayload
 ): Promise<ThemeResult> {
   return apiRequestJson<ThemeResponse>({
     path: `/themes/${themeId}`,
@@ -94,7 +92,7 @@ export async function updateThemeService(
 
 export async function updateThemeStatusService(
   themeId: number,
-  status: ThemeStatus,
+  status: ThemeStatus
 ): Promise<ThemeStatusUpdateResult> {
   const result = await apiRequestJson<ThemeResponse>({
     path: `/themes/${themeId}/status`,

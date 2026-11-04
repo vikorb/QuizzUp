@@ -80,15 +80,15 @@ const canEditTheme = computed(() => {
 })
 
 const title = computed(() =>
-  mode.value === 'edit' ? t('themes.edit.title') : t('themes.create.title'),
+  mode.value === 'edit' ? t('themes.edit.title') : t('themes.create.title')
 )
 
 const subtitle = computed(() =>
-  mode.value === 'edit' ? t('themes.edit.subtitle') : t('themes.create.subtitle'),
+  mode.value === 'edit' ? t('themes.edit.subtitle') : t('themes.create.subtitle')
 )
 
 const cardTitle = computed(() =>
-  mode.value === 'edit' ? t('themes.edit.cardTitle') : t('themes.create.cardTitle'),
+  mode.value === 'edit' ? t('themes.edit.cardTitle') : t('themes.create.cardTitle')
 )
 
 async function loadPage(): Promise<void> {

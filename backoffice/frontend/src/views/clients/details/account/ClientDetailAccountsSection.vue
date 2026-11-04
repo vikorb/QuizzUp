@@ -37,8 +37,15 @@ import { loadCompanyAccountsService } from '@/services/accountsService'
 import type { Account, AccountStatusFilter } from '@/types/account'
 import type { ActionBanner } from '@/types/banner'
 import type { TimerHandle } from '@/types/timer'
-import { createAccountDeletedBanner, createAccountUpdatedBanner } from '@/utils/account/detailsBanner'
-import { DEFAULT_ACCOUNT_STATUS_FILTER, filterAccounts, filterAccountsByStatus } from '@/utils/account/filters'
+import {
+  createAccountDeletedBanner,
+  createAccountUpdatedBanner,
+} from '@/utils/account/detailsBanner'
+import {
+  DEFAULT_ACCOUNT_STATUS_FILTER,
+  filterAccounts,
+  filterAccountsByStatus,
+} from '@/utils/account/filters'
 import { updateAccountInList } from '@/utils/account/list'
 import { createErrorBanner, getBannerMessage, getBannerVariant } from '@/utils/banner'
 import { clearTimer, scheduleTimer } from '@/utils/timer'
@@ -181,7 +188,7 @@ watch(
 
     loadAccounts()
   },
-  { immediate: true },
+  { immediate: true }
 )
 
 onBeforeUnmount(() => {

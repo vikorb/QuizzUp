@@ -4,7 +4,13 @@ import { describe, expect, it } from 'vitest'
 
 import { COMPANY_STATUS_ACTIVE } from '@quizzup/shared'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
-import { authHeaders, companyAdminUser, createRouteApp, parseJson, superadminUser } from '../_helpers/testApp'
+import {
+  authHeaders,
+  companyAdminUser,
+  createRouteApp,
+  parseJson,
+  superadminUser,
+} from '../_helpers/testApp'
 import companiesRoutes from '@backend/routes/companies'
 import { securityState } from '../_helpers/mockSecurity'
 import { dbState } from '../_helpers/mockDb'
@@ -55,7 +61,7 @@ describe('routes/companies.ts', () => {
       expect.arrayContaining([
         expect.objectContaining({ id: 1, accountsCount: 2 }),
         expect.objectContaining({ id: 2, accountsCount: 1 }),
-      ]),
+      ])
     )
 
     await app.close()

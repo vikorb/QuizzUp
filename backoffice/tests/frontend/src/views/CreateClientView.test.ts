@@ -20,8 +20,12 @@ describe('views/clients/CreateClientView.vue', () => {
     })
 
     expect(wrapper.find('[data-test="section-layout-title"]').text()).toBe('clients.create.title')
-    expect(wrapper.find('[data-test="section-layout-subtitle"]').text()).toBe('clients.create.subtitle')
-    expect(wrapper.find('[data-test="base-card"]').attributes('data-title')).toBe('clients.create.cardTitle')
+    expect(wrapper.find('[data-test="section-layout-subtitle"]').text()).toBe(
+      'clients.create.subtitle'
+    )
+    expect(wrapper.find('[data-test="base-card"]').attributes('data-title')).toBe(
+      'clients.create.cardTitle'
+    )
     expect(wrapper.find('[data-test="create-client-form-stub"]').exists()).toBe(true)
   })
 })

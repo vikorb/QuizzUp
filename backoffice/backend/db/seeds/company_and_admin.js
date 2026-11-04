@@ -33,13 +33,11 @@ exports.seed = async function (knex) {
 
     company = insertedCompanies[0]
   } else {
-    await knex('companies')
-      .where('id', company.id)
-      .update({
-        status: COMPANY_STATUS_ACTIVE,
-        deleted_at: null,
-        updated_at: knex.fn.now(),
-      })
+    await knex('companies').where('id', company.id).update({
+      status: COMPANY_STATUS_ACTIVE,
+      deleted_at: null,
+      updated_at: knex.fn.now(),
+    })
   }
 
   const companyId = company.id

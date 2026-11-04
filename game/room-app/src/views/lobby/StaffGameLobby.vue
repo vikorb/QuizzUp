@@ -5,6 +5,15 @@
     </RoomTopBar>
 
     <section class="staff-lobby__body">
+      <p
+        v-if="pendingResults > 0"
+        class="staff-lobby__notice"
+        role="status"
+        data-test="pending-results"
+      >
+        {{ $t('room.staffLobby.pendingResults', pendingResults) }}
+      </p>
+
       <p v-if="status === 'loading'" class="staff-lobby__wait" role="status">
         {{ $t('room.staffLobby.loading') }}
       </p>
@@ -117,6 +126,7 @@ import UiButton from '@/components/ui/UiButton.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import { readBackofficeGameId, rememberBackofficeGameId } from '@/game/backofficeGame'
 import { sanitizeMiniGames } from '@/game/miniGamesSetting'
+import { usePendingFinishes } from '@/game/pendingFinishes'
 import { createEmptyRegistration, type Registration } from '@/game/registrations'
 import {
   hasSavedGame,
@@ -157,6 +167,9 @@ type StartError =
 const router = useRouter()
 const { t } = useI18n()
 const { confirm } = useConfirm()
+
+/** Résultats de parties terminées pas encore enregistrés au backoffice (réseau coupé). */
+const { count: pendingResults } = usePendingFinishes()
 
 const status = ref<Status>('loading')
 const game = shallowRef<RoomGame | null>(null)
@@ -478,6 +491,16 @@ onBeforeUnmount(() => {
 .player__ping {
   color: var(--desk-color);
   font-weight: 800;
+}
+
+.staff-lobby__notice {
+  margin: 0;
+  padding: 8px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--warn);
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-size: var(--stage-small);
 }
 
 .staff-lobby__error {

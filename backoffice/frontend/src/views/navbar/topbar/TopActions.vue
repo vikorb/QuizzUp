@@ -4,11 +4,7 @@
 
     <div class="divider-v"></div>
 
-    <RouterLink
-      v-if="isAuthenticated"
-      class="profile-link"
-      :to="{ name: 'profile' }"
-    >
+    <RouterLink v-if="isAuthenticated" class="profile-link" :to="{ name: 'profile' }">
       {{ $t('home.profile') }}
     </RouterLink>
 

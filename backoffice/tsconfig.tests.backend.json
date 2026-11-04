@@ -11,10 +11,5 @@
     "shared/src/**/*.ts",
     "vitest.backend.config.ts"
   ],
-  "exclude": [
-    "node_modules",
-    "frontend",
-    "dist",
-    "coverage"
-  ]
+  "exclude": ["node_modules", "frontend", "dist", "coverage"]
 }

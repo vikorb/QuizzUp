@@ -108,12 +108,10 @@ export const createdCompanyFixture: CompanyMock = {
   deletedAt: null,
 }
 
-export const loadCompaniesServiceMock = vi.fn(
-  async (): Promise<LoadCompaniesResult> => ({
-    ok: true,
-    companies: companiesFixture,
-  }),
-)
+export const loadCompaniesServiceMock = vi.fn(async (): Promise<LoadCompaniesResult> => ({
+  ok: true,
+  companies: companiesFixture,
+}))
 
 export const loadCompanyDetailsServiceMock = vi.fn(
   async (_companyId: number): Promise<LoadCompanyDetailsResult> => ({
@@ -121,7 +119,7 @@ export const loadCompanyDetailsServiceMock = vi.fn(
     data: {
       company: companiesFixture[0],
     },
-  }),
+  })
 )
 
 export const createCompanyMock = vi.fn(
@@ -130,7 +128,7 @@ export const createCompanyMock = vi.fn(
     data: {
       company: createdCompanyFixture,
     },
-  }),
+  })
 )
 
 export const updateCompanyStatusServiceMock = vi.fn(
@@ -142,7 +140,7 @@ export const updateCompanyStatusServiceMock = vi.fn(
       updatedAt: '2026-03-01T00:00:00.000Z',
       deletedAt: status === COMPANY_STATUS_DELETED ? '2026-03-01T00:00:00.000Z' : null,
     },
-  }),
+  })
 )
 
 export const deleteCompanyPermanentlyServiceMock = vi.fn(
@@ -153,7 +151,7 @@ export const deleteCompanyPermanentlyServiceMock = vi.fn(
       adminsCount: 0,
       companiesCount: 1,
     },
-  }),
+  })
 )
 
 export function mockLoadCompaniesSuccess(companies: CompanyMock[] = companiesFixture): void {
@@ -213,7 +211,7 @@ export function mockUpdateCompanyStatusSuccess(company: Partial<CompanyMock> = {
         updatedAt: '2026-03-01T00:00:00.000Z',
         deletedAt: status === COMPANY_STATUS_DELETED ? '2026-03-01T00:00:00.000Z' : null,
       },
-    }),
+    })
   )
 }
 
