@@ -110,7 +110,7 @@
 
 <script setup lang="ts">
 import { mdiAlertOctagonOutline, mdiStopCircleOutline } from '@mdi/js'
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
 
@@ -119,6 +119,7 @@ import ScoreBoard from '@/components/game/ScoreBoard.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { useConfirm } from '@/composables/useConfirm'
+import { reportFinishedGame } from '@/game/backofficeGame'
 import { getMiniGameView } from '@/game/miniGameViews'
 import {
   getBlindTestView,
@@ -210,6 +211,21 @@ const activeId = computed(() => {
 })
 
 useBuzzers(pressBuzzer)
+
+// Podium : le backoffice passe la partie « terminée » avec les scores (aussi après une reprise).
+// ponytail: un seul essai, la partie reste « en cours » côté backoffice si le réseau est coupé
+// (l'opérateur peut l'arrêter) ; réessayer en arrière-plan si ça arrive en salle.
+watch(
+  () => phase.value.name === 'finished' && state.value,
+  (finished) => {
+    if (finished) {
+      reportFinishedGame(finished).catch((error: unknown) => {
+        console.warn('Fin de partie non envoyée au backoffice', error)
+      })
+    }
+  },
+  { immediate: true }
+)
 
 onMounted(async () => {
   // Après un rechargement, la reprise passe par l'écran de lancement : il faut un clic

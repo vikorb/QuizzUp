@@ -260,6 +260,8 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
     await wrapper.find('[data-test="start-game"]').trigger('click')
     useConfirm().accept()
     await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('play'))
-    expect(localStorage.getItem('quizzup_room_backoffice_game')).toBe('42')
+    expect(JSON.parse(localStorage.getItem('quizzup_room_backoffice_game') ?? '')).toMatchObject({
+      id: 42,
+    })
   })
 })

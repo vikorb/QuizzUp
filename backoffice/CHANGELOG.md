@@ -14,6 +14,10 @@ Format inspiré de Keep a Changelog.
   blind test de 10 extraits générés libres de droits), recette VPS en
   HTTPS (`deploy/recette/`) et guide de test (`docs/recette/guide-de-test.md`).
 
+- Fin de partie envoyée au backoffice : au podium, l'écran de salle appelle
+  `POST /room/games/:id/finish` (scores par pupitre) ; la partie passe « Terminée » et
+  `game_participants.score` est rempli. Idempotent, partie de la salle uniquement, rien en mode démo.
+
 - Média selon le type de question (`getQuestionKindMediaError` dans `@quizzup/shared`) : une
   question vrai/faux ou estimation n'accepte qu'un texte ou une image, comme le moteur de jeu.
   Refus `question_kind_media_invalid` en création, en modification (type ou média changé, l'autre
