@@ -177,7 +177,8 @@ sur un autre univers n'est pas émis et remonte un problème (`getState().proble
 `parseRoomHardwareConfig(...).problems`, blocage de l'assistant et récapitulatif), sans planter ;
 la config est conservée si on change d'interface. Le diagnostic règle un canal brut sur un
 univers donné (`diagnostics.setChannel(canal, valeur, univers)`), et `getFrame(univers)` /
-`lastFrame(univers)` relisent la trame d'un univers. Le comptage `framesSent` / `measuredHz`
+`lastFrame(univers)` relisent la trame d'un univers. Face à un **ancien pont** Art-Net dont l'`ack` n'annonce pas `universes`, la sortie n'envoie que l'univers 0 (sans faire fermer la connexion) et les appareils des autres univers sont signalés comme problème (`DmxOutput.universeCount`). Un univers réglé à la main au diagnostic, même sans appareil, est remis à zéro à la fin du diagnostic et couvert par le noir (arrêt d'urgence, fermeture).
+Le comptage `framesSent` / `measuredHz`
 reste « une trame de jeu par tour » (univers 0).
 
 Web Serial n'existe que dans **Chrome et Edge**, en contexte sécurisé (HTTPS ou localhost).

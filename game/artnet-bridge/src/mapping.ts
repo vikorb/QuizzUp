@@ -7,7 +7,7 @@ import {
   portAddressFromNumber,
   portAddressToNumber,
 } from './artnet.js'
-import { MAX_INTERNAL_UNIVERSES } from './protocol.js'
+import { isInternalUniverse, MAX_INTERNAL_UNIVERSES } from './protocol.js'
 
 /**
  * Mappage déclaratif : une plage de canaux d'un univers **interne** (celui que l'écran de salle
@@ -110,10 +110,16 @@ export function parseMappingEntry(entry: unknown): ChannelMapping {
       `Mappage invalide : ${JSON.stringify(entry)} (attendu { from, to, output: "0.0.1", start })`
     )
   }
+  const { universe } = raw
+  if (universe !== undefined && (typeof universe !== 'number' || !isInternalUniverse(universe))) {
+    throw new MappingError(
+      `Mappage invalide : ${JSON.stringify(entry)} (« universe » : entier de 0 à ${MAX_INTERNAL_UNIVERSES - 1})`
+    )
+  }
   const to = typeof raw.to === 'number' ? raw.to : raw.from
   const start = typeof raw.start === 'number' ? raw.start : raw.from
   return {
-    ...(typeof raw.universe === 'number' ? { universe: raw.universe } : {}),
+    ...(universe === undefined ? {} : { universe }),
     from: raw.from,
     to,
     output,

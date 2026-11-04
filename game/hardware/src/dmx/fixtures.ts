@@ -157,9 +157,9 @@ export function renderUniverses(
  */
 export function unsupportedUniverseProblems(
   fixtures: readonly Pick<FixtureConfig, 'name' | 'universe'>[],
-  driver: DmxDriver
+  driver: DmxDriver,
+  count: number = DMX_DRIVER_UNIVERSES[driver]
 ): string[] {
-  const count = DMX_DRIVER_UNIVERSES[driver]
   const range = count === 1 ? 'univers 0 seulement' : `univers 0 à ${count - 1}`
   return fixtures
     .filter((fixture) => fixtureUniverse(fixture) >= count)

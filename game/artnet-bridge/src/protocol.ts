@@ -84,8 +84,15 @@ export function parseHello(text: string): Hello | null {
   }
 }
 
+/** `universes` : nombre d'univers internes acceptés (un ancien pont ne l'annonce pas : 1 seul). */
 export const ackMessage = (version: string) =>
-  JSON.stringify({ type: 'ack', protocol: BRIDGE_PROTOCOL_VERSION, bridge: BRIDGE_NAME, version })
+  JSON.stringify({
+    type: 'ack',
+    protocol: BRIDGE_PROTOCOL_VERSION,
+    bridge: BRIDGE_NAME,
+    version,
+    universes: MAX_INTERNAL_UNIVERSES,
+  })
 
 export const errorMessage = (code: string, message: string) =>
   JSON.stringify({ type: 'error', code, message })

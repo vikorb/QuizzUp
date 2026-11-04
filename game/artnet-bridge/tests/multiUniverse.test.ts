@@ -37,6 +37,17 @@ describe('mappage : univers interne', () => {
     })
   })
 
+  it('refuse une clé universe invalide dans un mappage du fichier', () => {
+    for (const universe of [16, -1, 1.5, '1', null]) {
+      expect(() => parseMappingEntry({ universe, from: 1, to: 8, output: '0.0.4' })).toThrow(
+        MappingError
+      )
+    }
+    expect(parseMappingEntry({ universe: 15, from: 1, output: '0.0.4' })).toMatchObject({
+      universe: 15,
+    })
+  })
+
   it('refuse un univers interne hors 0-15', () => {
     expect(() => buildOutputPlan([parseMappingSpec('16/1-8:0.0.1')])).toThrow(MappingError)
   })
@@ -124,6 +135,31 @@ describe('cœur du pont : plusieurs univers', () => {
     expect(tail.map((packet) => packet.universe).sort()).toEqual(['0.0.1', '0.0.2'])
     expect(tail.every((packet) => packet.first === 0)).toBe(true)
     expect(core.getStatus().mode).toBe('blackout')
+  })
+
+  it('perte du client : noir immédiat sur tous les univers', () => {
+    const { sent, core } = setup(['1-512:0.0.1', '1/1-512:0.0.2'])
+    core.start()
+    core.frame(fill(5), 0)
+    core.frame(fill(6), 1)
+    const before = sent.length
+    core.clientDisconnected()
+    const tail = sent.slice(before)
+    expect(tail.map((packet) => packet.universe).sort()).toEqual(['0.0.1', '0.0.2'])
+    expect(tail.every((packet) => packet.first === 0)).toBe(true)
+    expect(core.getStatus().mode).toBe('blackout')
+  })
+
+  it('arrêt du pont : noir sur tous les univers', () => {
+    const { sent, core } = setup(['1-512:0.0.1', '1/1-512:0.0.2'])
+    core.start()
+    core.frame(fill(5), 0)
+    core.frame(fill(6), 1)
+    const before = sent.length
+    core.stop()
+    const tail = sent.slice(before)
+    expect(tail.map((packet) => packet.universe).sort()).toEqual(['0.0.1', '0.0.2'])
+    expect(tail.every((packet) => packet.first === 0)).toBe(true)
   })
 
   it('renvoie la dernière trame de chaque univers pour garder les nœuds', () => {

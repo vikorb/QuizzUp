@@ -52,6 +52,7 @@ export function createMeteredOutput(output: DmxOutput, clock: Clock = browserClo
 
   return {
     driver: output.driver,
+    ...(output.universeCount ? { universeCount: () => output.universeCount!() } : {}),
     async open() {
       reset()
       await output.open()

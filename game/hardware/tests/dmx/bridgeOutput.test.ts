@@ -18,7 +18,13 @@ import { createFakeWebSocketClass } from '../_helpers/fakeWebSocket'
 import { advanceAsync, createManualClock, flushPromises } from '../_helpers/manualClock'
 import { lightingConfig } from '../_helpers/rig'
 
-const ACK = { type: 'ack', protocol: 1, bridge: 'quizzup-artnet-bridge', version: '0.1.0' }
+const ACK = {
+  type: 'ack',
+  protocol: 1,
+  bridge: 'quizzup-artnet-bridge',
+  version: '0.1.0',
+  universes: 16,
+}
 
 function setup(overrides: Partial<Parameters<typeof createBridgeOutput>[0]> = {}) {
   const fake = createFakeWebSocketClass()
@@ -268,6 +274,28 @@ describe('sortie pont Art-Net : écriture', () => {
     expect([...frame0.subarray(0, 4)]).toEqual([1, 0, 0, 7])
     expect([...frame15.subarray(0, 3)]).toEqual([1, 0, 15])
     expect(frame15[BRIDGE_FRAME_BYTES - 1]).toBe(9)
+  })
+
+  it('ancien pont sans `universes` dans l’ack : seul l’univers 0 part, sans fermeture', async () => {
+    const context = setup()
+    const opening = context.output.open()
+    const socket = context.sockets.at(-1)!
+    socket.serverOpen()
+    const { universes: _ignored, ...legacyAck } = ACK
+    socket.serverSend(legacyAck)
+    await opening
+    expect(context.output.universeCount?.()).toBe(1)
+    await context.output.write(createUniverse(), 0)
+    await context.output.write(createUniverse(), 1)
+    // hello + une seule trame ; la connexion reste ouverte.
+    expect(socket.sent).toHaveLength(2)
+    expect(socket.closedWith).toBeNull()
+  })
+
+  it('pont récent : annonce 16 univers', async () => {
+    const context = setup()
+    await openWithAck(context)
+    expect(context.output.universeCount?.()).toBe(16)
   })
 
   it('refuse un numéro d’univers hors 0-15', async () => {

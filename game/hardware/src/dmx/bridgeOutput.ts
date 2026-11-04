@@ -9,8 +9,10 @@ import { DMX_CHANNELS, MAX_UNIVERSES } from './universe'
  *
  * 1. Le navigateur ouvre `ws://127.0.0.1:<port>` et envoie un message **texte** JSON
  *    `{"type":"hello","protocol":1,"universe":0}` (le champ `universe` est historique : toujours 0).
- * 2. Le pont répond `{"type":"ack","protocol":1,"bridge":"quizzup-artnet-bridge","version":"…"}`,
- *    ou `{"type":"error","code":"…","message":"…"}` puis ferme la connexion.
+ * 2. Le pont répond `{"type":"ack","protocol":1,"bridge":"quizzup-artnet-bridge","version":"…",
+ *    "universes":16}`, ou `{"type":"error","code":"…","message":"…"}` puis ferme la connexion.
+ *    `universes` (nombre d'univers acceptés) est absent d'un ancien pont : seul l'univers 0 lui
+ *    est alors envoyé, les autres sont ignorés et signalés comme problème (`universeCount`).
  * 3. Chaque trame DMX est ensuite un message **binaire** de 515 octets :
  *
  *    | Octet  | Contenu                                         |
@@ -132,6 +134,7 @@ type BridgeMessage = {
   type?: unknown
   protocol?: unknown
   version?: unknown
+  universes?: unknown
   code?: unknown
   message?: unknown
 }
@@ -179,6 +182,8 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
   /** Le tour courant est sauté : ses univers suivants le sont aussi (cohérence d'un même tour). */
   let skippingRound = false
   let version: string | null = null
+  /** Univers que le pont dit gérer (`ack`) ; un ancien pont n'en dit rien : 1 seul (l'univers 0). */
+  let capacity: number | null = null
 
   /** Fermeture en cours (volontaire ou après une coupure) : une réouverture l'attend. */
   let closing: Promise<void> | null = null
@@ -327,6 +332,10 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
         settled = true
         clock.clearTimeout(timeout)
         version = typeof message.version === 'string' ? message.version : null
+        capacity =
+          typeof message.universes === 'number' && Number.isInteger(message.universes)
+            ? Math.min(MAX_UNIVERSES, Math.max(1, message.universes))
+            : 1
         ready = true
         resolve()
       }
@@ -334,6 +343,7 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
 
   return {
     driver: 'artnet-bridge',
+    universeCount: () => capacity ?? MAX_UNIVERSES,
     open() {
       const url = parseBridgeUrl(options.url)
       if (!url) {
@@ -360,6 +370,11 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
       }
       if (!Number.isInteger(universe) || universe < 0 || universe >= MAX_UNIVERSES) {
         throw new Error(`Univers invalide pour le pont Art-Net : ${String(universe)}`)
+      }
+      // Ancien pont (univers 0 seulement) : les autres univers ne partent pas, sinon il fermerait
+      // la connexion ; ils sont signalés dans les problèmes du contrôleur.
+      if (universe >= (capacity ?? MAX_UNIVERSES)) {
+        return
       }
       // La saturation se juge sur l'univers 0, écrit en premier à chaque tour.
       if (universe === 0) {

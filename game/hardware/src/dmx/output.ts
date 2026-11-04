@@ -33,4 +33,13 @@ export type DmxOutput = {
   close: () => Promise<void>
   /** Prévenu quand la sortie tombe (interface débranchée, erreur USB). */
   onDisconnect: (listener: (error: unknown) => void) => Unsubscribe
+  /**
+   * Nombre d'univers que la sortie sait émettre en ce moment, quand il dépend de ce qu'elle a
+   * appris à l'ouverture (ancien pont Art-Net : 1). Absent : valeur du pilote (`DMX_DRIVER_UNIVERSES`).
+   */
+  universeCount?: () => number
 }
+
+/** Nombre d'univers qu'une sortie sait émettre. */
+export const outputUniverses = (output: Pick<DmxOutput, 'driver' | 'universeCount'>) =>
+  output.universeCount?.() ?? DMX_DRIVER_UNIVERSES[output.driver]

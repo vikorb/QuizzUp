@@ -76,6 +76,19 @@ describe('contrôleur lumières sur plusieurs univers', () => {
     ])
   })
 
+  it('pont ancien (1 univers annoncé) : seul l’univers 0 part et les autres sont signalés', async () => {
+    const recorder = recordingOutput('artnet-bridge')
+    current = setup({ ...recorder.output, universeCount: () => 1 })
+    const { controller, clock } = current
+    await controller.start()
+    await advanceAsync(clock, 200)
+    expect(new Set(recorder.writes.map((write) => write.universe))).toEqual(new Set([0]))
+    expect(controller.getState().problems).toEqual([
+      expect.stringContaining('« Ambiance » : univers 1 non pris en charge'),
+      expect.stringContaining('« Fumée » : univers 1 non pris en charge'),
+    ])
+  })
+
   it('le problème suit la sortie quand on change d’interface', async () => {
     current = setup()
     const { controller } = current
@@ -140,5 +153,59 @@ describe('contrôleur lumières sur plusieurs univers', () => {
     controller.diagnostics.clear()
     await advanceAsync(clock, 100)
     expect(sim.lastFrame(1)[19]).toBe(0)
+  })
+
+  it('sécurité : un univers sans appareil réglé au diagnostic passe au noir à l’arrêt d’urgence', async () => {
+    const recorder = recordingOutput('artnet-bridge')
+    current = setup(recorder.output)
+    const { controller, clock } = current
+    await controller.start()
+    expect(controller.diagnostics.begin({ allowUnknownChannels: true })).toEqual({ ok: true })
+    expect(controller.diagnostics.setChannel(7, 200, 3)).toEqual({ ok: true })
+    await advanceAsync(clock, 200)
+    expect(recorder.writes.findLast((write) => write.universe === 3)!.data[6]).toBe(200)
+
+    controller.emergencyStop()
+    await advanceAsync(clock, 100)
+    const last = recorder.writes.findLast((write) => write.universe === 3)!
+    expect(last.data.every((value) => value === 0)).toBe(true)
+  })
+
+  it('la fin du diagnostic remet à zéro l’univers sans appareil', async () => {
+    const recorder = recordingOutput('artnet-bridge')
+    current = setup(recorder.output)
+    const { controller, clock } = current
+    await controller.start()
+    controller.diagnostics.begin({ allowUnknownChannels: true })
+    controller.diagnostics.setChannel(7, 200, 3)
+    await advanceAsync(clock, 200)
+    controller.diagnostics.end()
+    await advanceAsync(clock, 200)
+    const last = recorder.writes.findLast((write) => write.universe === 3)!
+    expect(last.data.every((value) => value === 0)).toBe(true)
+  })
+
+  it('un univers retiré de la config passe au noir quand l’ancien contrôleur s’arrête', async () => {
+    const recorder = recordingOutput('artnet-bridge')
+    current = setup(recorder.output)
+    const { controller, clock } = current
+    await controller.start()
+    controller.playScene(SCENE_IDS.IDLE)
+    await advanceAsync(clock, 200)
+    expect(recorder.writes.findLast((write) => write.universe === 1)!.data[19]).toBeGreaterThan(0)
+    await controller.stop()
+    // Nouvelle config sans univers 1 sur la même sortie : l'univers 1 est déjà au noir.
+    const last = recorder.writes.findLast((write) => write.universe === 1)!
+    expect(last.data.every((value) => value === 0)).toBe(true)
+    const next = createLightingController({
+      config: lightingConfig({ fixtures: RIG }),
+      output: recorder.output,
+      clock,
+      doc: document,
+    })
+    await next.start()
+    await advanceAsync(clock, 200)
+    await next.stop()
+    expect(recorder.writes.findLast((write) => write.universe === 1)).toBe(last)
   })
 })

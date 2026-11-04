@@ -12,7 +12,7 @@ import {
   usedUniverses,
 } from '../dmx/fixtures'
 import type { DmxDriver, DmxOutput, DmxOutputStatus } from '../dmx/output'
-import { DMX_DRIVER_UNIVERSES } from '../dmx/output'
+import { outputUniverses } from '../dmx/output'
 import type { FixtureKind } from '../dmx/profiles'
 import { createUniverse, DMX_CHANNELS, MAX_UNIVERSES } from '../dmx/universe'
 import { createEmitter } from '../emitter'
@@ -249,7 +249,13 @@ export function createLightingController(options: LightingControllerOptions): Li
   const fixtureChannels = new Set<string>()
   const smokeChannels = new Set<string>()
   const universes = usedUniverses(fixtures)
-  const blackFrames = () => blackFramesFor(universes)
+  /**
+   * Univers écrits pendant la session : ceux des appareils, plus ceux réglés à la main au
+   * diagnostic. Le noir (arrêt d'urgence, fermeture, erreur) les couvre tous, et un univers
+   * touché au diagnostic repasse à zéro à la fin au lieu de rester figé sur le nœud.
+   */
+  const touched = new Set(universes)
+  const blackFrames = () => blackFramesFor([...touched].sort((first, second) => first - second))
   for (const fixture of fixtures) {
     fixture.profile.channels.forEach((spec, offset) => {
       const key = channelKey(fixtureUniverse(fixture), fixture.address + offset)
@@ -275,7 +281,10 @@ export function createLightingController(options: LightingControllerOptions): Li
     currentSceneId: player.currentSceneId(),
     smoke: smoke.getState(),
     // Les appareils sur un univers que la sortie ne sait pas émettre dépendent de la sortie courante.
-    problems: [...rig.problems, ...unsupportedUniverseProblems(fixtures, output.driver)],
+    problems: [
+      ...rig.problems,
+      ...unsupportedUniverseProblems(fixtures, output.driver, outputUniverses(output)),
+    ],
     lastWarning,
   })
 
@@ -293,7 +302,14 @@ export function createLightingController(options: LightingControllerOptions): Li
    * une trame d'arrêt d'urgence n'est donc jamais perdue.
    */
   const send = (frames: ReadonlyMap<number, Uint8Array>) => {
-    frame = frames
+    const missing = [...touched].filter((number) => !frames.has(number))
+    frame =
+      missing.length === 0
+        ? frames
+        : new Map([
+            ...frames,
+            ...missing.map((number): [number, Uint8Array] => [number, createUniverse()]),
+          ])
     pending = true
     flush()
   }
@@ -303,7 +319,7 @@ export function createLightingController(options: LightingControllerOptions): Li
    * émettre sont ignorés : ils figurent déjà dans `problems`.
    */
   const writeFrames = async (target: DmxOutput, frames: ReadonlyMap<number, Uint8Array>) => {
-    const limit = DMX_DRIVER_UNIVERSES[target.driver]
+    const limit = outputUniverses(target)
     for (const [number, data] of frames) {
       if (number < limit) {
         await target.write(data, number)
@@ -546,6 +562,7 @@ export function createLightingController(options: LightingControllerOptions): Li
       const manual = manualChannels.get(universe) ?? createUniverse()
       manual[address - 1] = clampByte(value)
       manualChannels.set(universe, manual)
+      touched.add(universe)
       return { ok: true }
     },
     setFixture(fixtureId, state) {

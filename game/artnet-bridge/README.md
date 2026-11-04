@@ -222,7 +222,8 @@ et il est testé avec un client brut et avec le client WebSocket intégré à No
 ## Protocole navigateur → pont (version 1)
 
 1. Message texte du navigateur : `{"type":"hello","protocol":1,"universe":0}`.
-2. Réponse du pont : `{"type":"ack","protocol":1,"bridge":"quizzup-artnet-bridge","version":"0.1.0"}`
+2. Réponse du pont : `{"type":"ack","protocol":1,"bridge":"quizzup-artnet-bridge","version":"0.1.0","universes":16}`
+   (`universes` : nombre d'univers internes acceptés ; un ancien pont ne l'annonce pas)
    ou `{"type":"error","code":"…","message":"…"}` suivi d'une fermeture (codes 4000 hello
    attendu, 4001 protocole, 4002 univers, 4003 trame invalide, 4004 écran déjà connecté).
 3. Trames binaires de **515 octets** : octet 0 = version (1), octets 1-2 = univers interne

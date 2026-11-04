@@ -95,6 +95,7 @@ describe('pont : poignée de main et sécurité', () => {
       protocol: 1,
       bridge: 'quizzup-artnet-bridge',
       version: '9.9.9',
+      universes: 16,
     })
     expect(bridge.hasClient()).toBe(true)
     expect(logs).toContain(`Écran de salle connecté (${ORIGIN})`)
