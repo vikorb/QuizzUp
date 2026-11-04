@@ -102,3 +102,41 @@
   margin: 0;
   color: var(--ok);
 }
+
+.hw-field {
+  display: grid;
+  gap: 4px;
+  color: var(--text-1);
+  font-size: 14px;
+}
+
+.hw-field--grow {
+  flex: 1 1 200px;
+}
+
+.hw-field input:not([type='range']),
+.hw-field select {
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-ui);
+  background: var(--bg-field);
+  color: var(--text-0);
+  font: inherit;
+}
+
+.hw-field input[type='range'] {
+  accent-color: var(--accent-purple);
+}
+
+.hw-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.hw-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent-purple);
+}

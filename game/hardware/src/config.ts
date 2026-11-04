@@ -1,5 +1,6 @@
 import type { BuzzerKeymap } from './buzzers/keymap'
 import { parseKeymap } from './buzzers/keymap'
+import { parseBridgeUrl } from './dmx/bridgeOutput'
 import type { FixtureConfig, ResolvedFixture } from './dmx/fixtures'
 import { parseRig } from './dmx/fixtures'
 import type { DmxDriver } from './dmx/output'
@@ -18,6 +19,11 @@ export const DMX_REFRESH_LIMITS = { min: 10, max: 40, default: 30 } as const
 
 export type LightingConfig = {
   driver: DmxDriver
+  /**
+   * Adresse du pont Art-Net local (pilote `artnet-bridge`) : `ws://127.0.0.1:<port>` ou
+   * `ws://localhost:<port>`. Absente = `DEFAULT_BRIDGE_URL`.
+   */
+  bridgeUrl?: string
   refreshHz: number
   fixtures: FixtureConfig[]
   customProfiles: FixtureProfile[]
@@ -27,10 +33,17 @@ export type LightingConfig = {
   smoke: SmokeSafetyConfig
 }
 
+/**
+ * Origine des buzzers : clavier (boîtier qui émule un clavier) ou carte d'entrées USB vue comme
+ * une manette. `match` est un morceau du nom de la carte, pour la retrouver quand plusieurs
+ * manettes sont branchées.
+ */
+export type BuzzerSource = { kind: 'keyboard' } | { kind: 'gamepad'; match?: string }
+
 /** Configuration matérielle d'une salle, stockée dans `rooms.config` (JSONB). */
 export type RoomHardwareConfig = {
   version: number
-  buzzers: { keymap: BuzzerKeymap }
+  buzzers: { keymap: BuzzerKeymap; source?: BuzzerSource }
   lighting: LightingConfig
 }
 
@@ -76,6 +89,30 @@ function parseDeskColors(input: unknown): Record<Desk, Rgb> {
   return colors
 }
 
+function parseBuzzerSource(input: unknown): BuzzerSource | undefined {
+  const raw = asRecord(input)
+  if (raw.kind === 'keyboard') {
+    return { kind: 'keyboard' }
+  }
+  if (raw.kind === 'gamepad') {
+    return typeof raw.match === 'string' && raw.match.trim()
+      ? { kind: 'gamepad', match: raw.match.trim() }
+      : { kind: 'gamepad' }
+  }
+  return undefined
+}
+
+/** Filtre `match` de `createGamepadBuzzerInput` correspondant à la source enregistrée. */
+export function gamepadMatcher(
+  source: BuzzerSource | undefined
+): ((id: string) => boolean) | undefined {
+  if (source?.kind !== 'gamepad' || !source.match) {
+    return undefined
+  }
+  const needle = source.match.toLowerCase()
+  return (id) => id.toLowerCase().includes(needle)
+}
+
 function parseBindings(input: unknown): Record<string, string | null> {
   const bindings: Record<string, string | null> = {}
   for (const [event, scene] of Object.entries(asRecord(input))) {
@@ -99,6 +136,11 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
   const { keymap, problems: keymapProblems } = parseKeymap(buzzers.keymap)
   problems.push(...keymapProblems)
 
+  const source = parseBuzzerSource(buzzers.source)
+  if (buzzers.source !== undefined && !source) {
+    problems.push('Origine des buzzers inconnue (clavier utilisé)')
+  }
+
   const rig = parseRig(lighting.fixtures, lighting.customProfiles)
   problems.push(...rig.problems)
 
@@ -111,6 +153,17 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
     }
   }
 
+  let bridgeUrl: string | null = null
+  if (lighting.bridgeUrl !== undefined) {
+    bridgeUrl = parseBridgeUrl(lighting.bridgeUrl)
+    if (!bridgeUrl) {
+      problems.push(
+        `Adresse du pont Art-Net refusée : ${String(lighting.bridgeUrl)} ` +
+          '(ws://127.0.0.1:<port> ou ws://localhost:<port> uniquement)'
+      )
+    }
+  }
+
   const refreshHz =
     typeof lighting.refreshHz === 'number' && Number.isFinite(lighting.refreshHz)
       ? Math.min(DMX_REFRESH_LIMITS.max, Math.max(DMX_REFRESH_LIMITS.min, lighting.refreshHz))
@@ -118,9 +171,10 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
 
   const config: RoomHardwareConfig = {
     version: ROOM_HARDWARE_CONFIG_VERSION,
-    buzzers: { keymap },
+    buzzers: { keymap, ...(source ? { source } : {}) },
     lighting: {
       driver,
+      ...(bridgeUrl ? { bridgeUrl } : {}),
       refreshHz,
       fixtures: rig.fixtures.map(({ profile: _profile, ...fixture }) => fixture),
       customProfiles: rig.customProfiles,

@@ -18,6 +18,7 @@ en **mode simulation** sans aucun matériel branché.
 | Profils d'appareils génériques                           | `src/dmx/profiles.ts`                            | #64              |
 | Appareils de la salle, rendu DMX                         | `src/dmx/fixtures.ts`                            | #64              |
 | Sorties Web Serial / simulation                          | `src/dmx/serialOutput.ts`, `simulationOutput.ts` | #64              |
+| Sortie pont Art-Net (WebSocket local)                    | `src/dmx/bridgeOutput.ts`                        | #64              |
 | Scènes et liaisons événement → scène                     | `src/lighting/scenes.ts`, `scenePlayer.ts`       | #64              |
 | Fumée sécurisée                                          | `src/lighting/smoke.ts`                          | #64              |
 | Contrôleur (boucle DMX, chien de garde, arrêt d'urgence) | `src/lighting/lightingController.ts`             | #64              |
@@ -141,14 +142,30 @@ for (const event of events) lights.handleGameEvent(event)
 
 ### Sorties DMX
 
-| `driver`     | Matériel                                                      | Statut       |
-| ------------ | ------------------------------------------------------------- | ------------ |
-| `simulation` | aucun ; `getFixtureViews()` alimente la vue « salle simulée » | par défaut   |
-| `usbpro`     | interfaces compatibles **DMX USB Pro** (Enttec et clones)     | recommandé   |
-| `opendmx`    | interfaces FTDI « Open DMX » sans microcontrôleur             | expérimental |
+| `driver`        | Matériel                                                         | Statut       |
+| --------------- | ---------------------------------------------------------------- | ------------ |
+| `simulation`    | aucun ; `getFixtureViews()` alimente la vue « salle simulée »    | par défaut   |
+| `usbpro`        | interfaces compatibles **DMX USB Pro** (Enttec et clones)        | recommandé   |
+| `opendmx`       | interfaces FTDI « Open DMX » sans microcontrôleur                | expérimental |
+| `artnet-bridge` | nœud **Art-Net** (réseau) via le pont local `game/artnet-bridge` | facultatif   |
 
 Web Serial n'existe que dans **Chrome et Edge**, en contexte sécurisé (HTTPS ou localhost).
-Art-Net (réseau) est impossible depuis un navigateur : il faudra un pont local optionnel.
+Art-Net (réseau) est impossible depuis un navigateur (pas d'UDP) : le pilote `artnet-bridge`
+passe par un petit pont local à installer sur le PC de la salle, **seulement** si elle possède
+déjà un nœud Art-Net (voir `game/artnet-bridge/README.md` ; l'USB-DMX reste recommandé).
+
+```ts
+import { createBridgeOutput, DEFAULT_BRIDGE_URL } from '@quizzup/hardware'
+
+// Bouton « Connecter le pont Art-Net » (geste utilisateur : Chrome peut demander l'accès au réseau local)
+await lights.setOutput(createBridgeOutput({ url: config.lighting.bridgeUrl ?? DEFAULT_BRIDGE_URL }))
+```
+
+`createBridgeOutput` ouvre `ws://127.0.0.1:<port>`, vérifie le pont (`hello` / `ack`, délai
+`openTimeoutMs`), envoie chaque univers en trame binaire de 515 octets (version, univers, 512
+canaux), saute une trame si la socket est encore pleine (`bufferedAmount`, jamais de retard
+accumulé) et signale une coupure par `onDisconnect` (le contrôleur coupe alors la fumée). Côté
+pont, un chien de garde envoie du noir si le navigateur se tait plus de 2,5 s.
 
 ### Profils d'appareils
 
@@ -208,18 +225,90 @@ Le contrôleur de fumée applique, quoi que dise la configuration :
 > machine à fumée et des lumières. Le bouton logiciel ne suffit pas : si le PC ou le navigateur
 > plante, plus aucune trame n'est envoyée.
 >
-> **Fortement recommandé** : une interface DMX ou un relais qui **coupe la fumée en cas de perte
-> de signal** (beaucoup d'appareils gardent la dernière valeur reçue), ou à défaut une machine à
-> fumée avec temporisation matérielle.
+> **Montage retenu** : la fumée passe par un **relais DMX** suivi d'un **relais temporisé
+> physique réglé à 10 s maximum**. Une interface DMX USB Pro répète la dernière trame reçue :
+> si le PC plante pendant une émission, seul le relais temporisé coupe la fumée. Vérifier ce
+> montage avec le test de gel du diagnostic.
+
+## Fiabilité des interfaces USB DMX (Web Serial)
+
+- **DMX USB Pro** : l'interface fabrique elle-même le signal DMX, le PC lui envoie un paquet
+  par trame. C'est le choix recommandé : timing stable sous Windows comme sous macOS.
+- **Open DMX** (FTDI sans microcontrôleur) : le navigateur fabrique le signal. Chaque trame
+  envoie un _break_ (`setSignals({ break: true })` puis `{ break: false }`) puis les 513 octets.
+  Aucune attente par minuteur dans la trame : Chrome bride les minuteurs d'un onglet masqué à
+  environ 1 s, et une trame qui dormirait pour le break puis après l'envoi durerait plus de 2 s
+  (le contrôleur, qui laisse 500 ms à une écriture, passerait la sortie en erreur). Le break
+  tient donc dans l'aller-retour USB des deux `await setSignals()`, bien plus long que les
+  88 µs exigées par le standard ; et avant la trame suivante, on n'attend que le **reste** de
+  la durée de transmission (`OPEN_DMX_FRAME_MS` = 23 ms à 250 kbit/s) depuis la fin de
+  l'écriture précédente, rien si elle est écoulée (horloge injectable : option `now`). Le
+  timing dépend du PC et du pilote : **expérimental**, scintillements possibles.
+- Un port resté ouvert (rechargement de page) est refermé puis rouvert automatiquement.
+  `describeSerialError(error)` traduit les erreurs Web Serial (`busy` : port pris par QLC+ ou
+  le logiciel Enttec, `forbidden`, `disconnected`…) avec un conseil à afficher.
+- Après une erreur d'écriture, un débranchement ou à la fermeture, le flux d'écriture est
+  libéré (`writer.abort()` jette les octets en file, puis `releaseLock()`) avant
+  `port.close()` : sinon la fermeture est refusée (flux verrouillé) et le même port ne peut
+  plus être rouvert. `close()` est borné à 1 s (`SERIAL_CLOSE_TIMEOUT_MS`) : une interface
+  figée ne bloque pas l'écran. Un port ouvert sans flux d'écriture est refermé aussitôt.
+- `getGrantedDmxPort(serial, { match })` retrouve sans clic l'interface déjà autorisée : le même
+  port, sinon le même modèle USB, sinon une puce USB-série DMX connue (`DMX_USB_VENDOR_IDS`),
+  sinon rien ; jamais un autre port série (Arduino des buzzers…) quand `match` est donné.
+- `watchDmxPortReconnection({ onReconnect })` prévient quand l'interface est rebranchée (même
+  port ou même modèle USB) : l'écran peut relancer `setOutput` sans redemander le port.
+- `createMeteredOutput(output)` mesure les trames réellement envoyées (Hz mesurés, durée
+  moyenne et max d'écriture, échecs) pour l'écran de diagnostic.
+
+## Diagnostic matériel (`lights.diagnostics`)
+
+Pendant un diagnostic, les scènes et les événements de jeu sont suspendus :
+
+- `setChannel(adresse, valeur)` pilote un canal brut. Les canaux d'appareils inconnus sont
+  refusés sauf `begin({ allowUnknownChannels: true })` (recherche d'adresse) : **débrancher la
+  machine à fumée avant** une recherche sur des canaux inconnus ;
+- `setFixture(id, { color, intensity, position, strobe })` règle un appareil configuré ;
+- les canaux de **fumée sont toujours refusés** : la fumée se teste uniquement par
+  `lights.smoke` (armement, durée max, pause) ;
+- `freezeOutput(ms, { confirm: true })` arrête l'envoi des trames (15 s max) pour simuler un
+  plantage : l'interface répète la dernière trame et **le relais temporisé doit couper la
+  fumée tout seul**. La trame courante (fumée comprise) part juste avant le gel. Double
+  confirmation dans l'écran. À la fin du gel, la fumée est **désarmée** ;
+- `smoke.stop()`, `smoke.disarm()`, `diagnostics.end()` et l'arrêt d'urgence annulent le gel
+  tout de suite ; sans action pendant 10 minutes, le diagnostic se termine et l'ambiance revient ;
+- avec le pont Art-Net, le test de gel est refusé par l'écran : le pont envoie lui-même du noir
+  quand le navigateur se tait, le relais ne serait pas vérifié.
+
+Une sortie passée en erreur (écriture bloquée plus de 500 ms) reprend toute seule après
+`OUTPUT_RECOVERY_WRITES` trames noires acceptées d'affilée (avertissement `output_recovered`) ;
+la fumée coupée par l'erreur n'est pas relancée.
+
+## Assistant d'installation (`createSetupWizard`)
+
+Modèle pur, piloté par l'écran de salle, pour un centre sans connaissance DMX : navigateur →
+buzzers (clavier ou carte manette choisie par son nom) → interface → appareils (adresse libre
+proposée, chevauchements refusés, import de la salle 6 pupitres) → test de chaque appareil →
+positions des lyres par pupitre (ou import de calibration) → fumée → récapitulatif.
+Les étapes lyres et fumée n'apparaissent que si la salle en a. `summary().config` s'enregistre
+avec `saveRoomHardwareConfig()` (compte de la salle, `rooms.config`).
+
+La fumée n'est enregistrée **active** que si les 4 vérifications humaines sont cochées
+(`SMOKE_CHECKS`) : arrêt d'urgence physique, relais temporisé réglé à **10 s maximum**, test de
+gel réussi, consignes incendie du site. Changer d'interface oblige à refaire le test de gel.
 
 ## Configuration de salle (`rooms.config`, JSONB)
 
 ```jsonc
 {
   "version": 1,
-  "buzzers": { "keymap": { "KeyQ": { "desk": 1, "button": "A" } } },
+  "buzzers": {
+    "keymap": { "KeyQ": { "desk": 1, "button": "A" } },
+    // Facultatif : "keyboard" (défaut) ou carte manette retrouvée par un morceau de son nom.
+    "source": { "kind": "gamepad", "match": "BU0836" },
+  },
   "lighting": {
     "driver": "usbpro",
+    "bridgeUrl": "ws://127.0.0.1:7654", // pilote artnet-bridge uniquement (facultatif)
     "refreshHz": 30,
     "fixtures": [
       { "id": "par1", "name": "PAR pupitre 1", "profileId": "par-rgbw", "address": 1, "desk": 1 },

@@ -3,11 +3,15 @@ import {
   type BuzzerInput,
   type BuzzerInputState,
   type BuzzerKeymap,
+  createBridgeOutput,
   createKeyboardBuzzerInput,
   createLightingController,
+  createMeteredOutput,
   createSerialOutput,
   createSimulationOutput,
+  DEFAULT_BRIDGE_URL,
   defaultRoomHardwareConfig,
+  type DmxDriver,
   type DmxOutput,
   getGrantedDmxPort,
   isDesk,
@@ -15,10 +19,14 @@ import {
   type KeyboardBuzzerInput,
   type LightingController,
   type LightingState,
+  type MeteredOutput,
+  type OutputStats,
   type ParsedRoomHardwareConfig,
   parseRoomHardwareConfig,
   requestDmxPort,
   type RoomHardwareConfig,
+  type SerialPortLike,
+  watchDmxPortReconnection,
 } from '@quizzup/hardware'
 import { computed, shallowRef } from 'vue'
 
@@ -147,15 +155,94 @@ function resolveDesk(participantId: number) {
   return isDesk(participantId) ? participantId : null
 }
 
+/** Sortie USB réellement branchée, mesurée pour l'écran de diagnostic. */
+let meteredOutput: MeteredOutput | null = null
+let dmxPort: SerialPortLike | null = null
+let stopReconnectWatch: (() => void) | null = null
+/** Le pont Art-Net a été connecté par un clic : on le reprend après un redémarrage des lumières. */
+let bridgeConnected = false
+
+async function useBridge(controller: LightingController): Promise<void> {
+  const output = createMeteredOutput(
+    createBridgeOutput({ url: parsed.value.config.lighting.bridgeUrl ?? DEFAULT_BRIDGE_URL })
+  )
+  meteredOutput = output
+  dmxPort = null
+  await controller.setOutput(output)
+  bridgeConnected = true
+}
+
+async function useSerialPort(
+  controller: LightingController,
+  port: SerialPortLike,
+  driver: 'usbpro' | 'opendmx'
+): Promise<void> {
+  const output = createMeteredOutput(createSerialOutput({ port, driver }))
+  meteredOutput = output
+  dmxPort = port
+  await controller.setOutput(output)
+}
+
+/** Mesures de la sortie USB en cours (`null` en simulation). */
+export function getDmxStats(): OutputStats | null {
+  const state = lighting?.getState()
+  return meteredOutput && state && !state.simulation ? meteredOutput.getStats() : null
+}
+
+/** Port USB utilisé par les lumières, pour l'afficher (« FTDI 0403:6001 »). */
+export function getDmxPort(): SerialPortLike | null {
+  return lighting?.getState().simulation === false ? dmxPort : null
+}
+
 async function reconnectGrantedPort(controller: LightingController): Promise<void> {
   const { driver } = parsed.value.config.lighting
-  if (driver === 'simulation' || preferSimulation || !isWebSerialSupported()) {
+  if (driver === 'simulation' || preferSimulation) {
     return
   }
-  const port = await getGrantedDmxPort().catch(() => null)
-  if (port && controller === lighting) {
-    await controller.setOutput(createSerialOutput({ port, driver }))
+  // Le pont se connecte la première fois au clic (Chrome peut demander l'accès au réseau
+  // local), puis il est repris sans clic à chaque redémarrage des lumières.
+  if (driver === 'artnet-bridge') {
+    if (bridgeConnected && controller === lighting) {
+      await useBridge(controller)
+    }
+    return
   }
+  if (!isWebSerialSupported()) {
+    return
+  }
+  // On reprend la même interface (jamais un autre appareil USB autorisé, Arduino…).
+  const port = await getGrantedDmxPort(undefined, { match: dmxPort ?? undefined }).catch(() => null)
+  if (port && controller === lighting) {
+    await useSerialPort(controller, port, driver)
+  }
+}
+
+/** Interface débranchée puis rebranchée : on la reprend sans clic (même port ou même modèle). */
+function watchReconnection(controller: LightingController): void {
+  stopReconnectWatch?.()
+  stopReconnectWatch = null
+  // Sans interface connue, on ne prend pas n'importe quel port USB qui apparaît.
+  if (!isWebSerialSupported() || !dmxPort) {
+    return
+  }
+  stopReconnectWatch = watchDmxPortReconnection({
+    match: dmxPort,
+    onReconnect: (port) => {
+      const { driver } = parsed.value.config.lighting
+      const state = controller.getState()
+      if (
+        controller !== lighting ||
+        driver === 'simulation' ||
+        driver === 'artnet-bridge' ||
+        preferSimulation
+      ) {
+        return
+      }
+      if (state.simulation || state.outputStatus === 'error' || state.outputStatus === 'closed') {
+        void useSerialPort(controller, port, driver).catch(() => undefined)
+      }
+    },
+  })
 }
 
 async function createLighting(
@@ -189,6 +276,7 @@ async function createLighting(
   lightingState.value = controller.getState()
   // Interface déjà autorisée lors d'une visite précédente : reconnexion sans clic.
   await reconnectGrantedPort(controller).catch(() => undefined)
+  watchReconnection(controller)
   return controller
 }
 
@@ -200,6 +288,9 @@ async function shutdownLighting(): Promise<void> {
   stopLightingEvents = null
   stopLightingState?.()
   stopLightingState = null
+  stopReconnectWatch?.()
+  stopReconnectWatch = null
+  meteredOutput = null
   lightingState.value = null
   closingLighting = controller
   try {
@@ -257,16 +348,24 @@ async function restartLighting(): Promise<void> {
  * Bouton « Connecter l'interface DMX » : doit être appelé dans un clic (le
  * navigateur demande quelle interface USB utiliser).
  */
-export async function connectDmxInterface(): Promise<void> {
-  const { driver } = parsed.value.config.lighting
+export async function connectDmxInterface(
+  driver: DmxDriver = parsed.value.config.lighting.driver
+): Promise<void> {
   if (driver === 'simulation') {
     throw new Error('simulation_driver')
+  }
+  if (driver === 'artnet-bridge') {
+    const controller = await startLighting()
+    preferSimulation = false
+    await useBridge(controller)
+    return
   }
   // La fenêtre de choix doit s'ouvrir dans le clic, avant toute autre attente.
   const port = await requestDmxPort()
   const controller = await startLighting()
   preferSimulation = false
-  await controller.setOutput(createSerialOutput({ port, driver }))
+  await useSerialPort(controller, port, driver)
+  watchReconnection(controller)
 }
 
 /** Revient à la salle simulée (débranchement volontaire de l'interface). */
@@ -274,6 +373,7 @@ export async function switchToSimulatedLights(
   output: DmxOutput = createSimulationOutput()
 ): Promise<void> {
   preferSimulation = true
+  bridgeConnected = false
   await lighting?.setOutput(output)
 }
 
@@ -392,16 +492,21 @@ export function isHardwareCopyForeign(): boolean {
   return foreignCopy
 }
 
-async function applyConfig(input: unknown): Promise<ParsedRoomHardwareConfig> {
+async function applyConfig(
+  input: unknown,
+  options: { persist?: boolean } = {}
+): Promise<ParsedRoomHardwareConfig> {
   const previousLighting = stableStringify(parsed.value.config.lighting)
   const next = parseRoomHardwareConfig(input)
   parsed.value = next
 
   // Copie locale de secours (backoffice injoignable au prochain démarrage).
-  try {
-    getStorage()?.setItem(HARDWARE_STORAGE_KEY, JSON.stringify(next.config))
-  } catch {
-    // Stockage indisponible : la config vaut jusqu'au rechargement.
+  if (options.persist !== false) {
+    try {
+      getStorage()?.setItem(HARDWARE_STORAGE_KEY, JSON.stringify(next.config))
+    } catch {
+      // Stockage indisponible : la config vaut jusqu'au rechargement.
+    }
   }
 
   keyboardInput?.setKeymap(effectiveKeymap(next.config))
@@ -462,7 +567,15 @@ export function pushHardwareConfig(
  * Elle part ensuite sur le compte de la salle ; en cas d'échec, elle reste sur ce PC
  * et sera renvoyée au prochain démarrage.
  */
-export async function saveRoomHardwareConfig(input: unknown): Promise<ParsedRoomHardwareConfig> {
+export async function saveRoomHardwareConfig(
+  input: unknown,
+  options: { persist?: boolean } = {}
+): Promise<ParsedRoomHardwareConfig> {
+  // `persist: false` : config appliquée à la page seulement (test de coupure de la fumée),
+  // jamais gardée sur ce PC ni envoyée au compte de la salle.
+  if (options.persist === false) {
+    return applyConfig(input, { persist: false })
+  }
   saveGeneration += 1
   const generation = saveGeneration
   const next = await applyConfig(input)
@@ -496,7 +609,10 @@ export function getRoomHardwareConfig(): RoomHardwareConfig {
 
 /** Enregistre seulement le mapping des buzzers (fin de l'apprentissage). */
 export async function saveBuzzerKeymap(keymap: BuzzerKeymap): Promise<ParsedRoomHardwareConfig> {
-  return saveRoomHardwareConfig({ ...parsed.value.config, buzzers: { keymap } })
+  return saveRoomHardwareConfig({
+    ...parsed.value.config,
+    buzzers: { ...parsed.value.config.buzzers, keymap },
+  })
 }
 
 /** Remet à zéro tout le matériel de la page (tests). */
@@ -505,6 +621,8 @@ export async function resetRoomHardware(options: { storage?: HardwareStorage | n
   setBuzzerInput(null)
   preferSimulation = false
   pendingEmergency = null
+  dmxPort = null
+  bridgeConnected = false
   remoteSaver = null
   binding = null
   foreignCopy = false
