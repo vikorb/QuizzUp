@@ -201,3 +201,67 @@ describe('outils de comparaison de config', () => {
     expect(isDefaultHardwareConfig({ lighting: { fixtures: [FIXTURE] } })).toBe(false)
   })
 })
+
+describe('buzzers sur une carte USB vue comme une manette', () => {
+  const pad = {
+    index: 0,
+    id: 'Generic USB Joystick (Vendor: 0079)',
+    connected: true,
+    timestamp: 0,
+    buttons: [{ pressed: false }, { pressed: false }],
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    Object.defineProperty(navigator, 'getGamepads', {
+      configurable: true,
+      value: () => [pad],
+    })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    Reflect.deleteProperty(navigator, 'getGamepads')
+    pad.buttons[0] = { pressed: false }
+  })
+
+  it('lit la carte choisie dans la config, sans perdre les abonnés au changement de source', async () => {
+    const listener = vi.fn()
+    getBuzzerInput().onPress(listener)
+    expect(useRoomHardware().usesGamepad.value).toBe(false)
+
+    await saveRoomHardwareConfig({
+      buzzers: {
+        keymap: Object.fromEntries([['GamepadButton0', { desk: 2, button: 'C' } as const]]),
+        source: { kind: 'gamepad', match: 'joystick' },
+      },
+    })
+    expect(useRoomHardware().usesGamepad.value).toBe(true)
+
+    await vi.advanceTimersByTimeAsync(10)
+    pad.buttons[0] = { pressed: true }
+    await vi.advanceTimersByTimeAsync(10)
+
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({ desk: 2, button: 'C', code: 'GamepadButton0' })
+    )
+    expect(useRoomHardware().buzzerState.value?.active).toBe(true)
+  })
+
+  it('ignore une carte qui ne correspond pas au filtre', async () => {
+    const listener = vi.fn()
+    await saveRoomHardwareConfig({
+      buzzers: {
+        keymap: Object.fromEntries([['GamepadButton0', { desk: 1, button: 'A' } as const]]),
+        source: { kind: 'gamepad', match: 'autre carte' },
+      },
+    })
+    getBuzzerInput().onPress(listener)
+    await vi.advanceTimersByTimeAsync(10)
+    pad.buttons[0] = { pressed: true }
+    await vi.advanceTimersByTimeAsync(10)
+
+    expect(listener).not.toHaveBeenCalled()
+    expect(useRoomHardware().buzzerState.value?.active).toBe(false)
+  })
+})

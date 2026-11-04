@@ -3,7 +3,9 @@ import {
   type BuzzerInput,
   type BuzzerInputState,
   type BuzzerKeymap,
+  type BuzzerPress,
   createBridgeOutput,
+  createGamepadBuzzerInput,
   createKeyboardBuzzerInput,
   createLightingController,
   createMeteredOutput,
@@ -13,6 +15,8 @@ import {
   defaultRoomHardwareConfig,
   type DmxDriver,
   type DmxOutput,
+  type GamepadBuzzerInput,
+  gamepadMatcher,
   getGrantedDmxPort,
   isDesk,
   isWebSerialSupported,
@@ -23,6 +27,7 @@ import {
   type OutputStats,
   type ParsedRoomHardwareConfig,
   parseRoomHardwareConfig,
+  type RawKeyPress,
   requestDmxPort,
   type RoomHardwareConfig,
   type SerialPortLike,
@@ -81,7 +86,6 @@ function effectiveKeymap(config: RoomHardwareConfig): BuzzerKeymap {
 // ── Buzzers ────────────────────────────────────────────────────────────────
 
 let buzzerInput: BuzzerInput | null = null
-let keyboardInput: KeyboardBuzzerInput | null = null
 let stopBuzzerState: (() => void) | null = null
 const buzzerState = shallowRef<BuzzerInputState | null>(null)
 
@@ -93,11 +97,89 @@ function watchBuzzers(input: BuzzerInput): void {
   })
 }
 
-/** Entrée buzzers de la page (clavier, avec le mapping appris de la salle). */
+/**
+ * Lecteur réel des buzzers : clavier (ou boîtier qui tape des touches), ou carte
+ * d'entrées USB vue comme une manette (`buzzers.source.kind === 'gamepad'`).
+ */
+type BuzzerDevice = KeyboardBuzzerInput | GamepadBuzzerInput
+
+let device: BuzzerDevice | null = null
+let deviceKey = ''
+let detachDevice: (() => void) | null = null
+const pressListeners = new Set<(press: BuzzerPress) => void>()
+const keyListeners = new Set<(key: RawKeyPress) => void>()
+const changeListeners = new Set<(state: BuzzerInputState) => void>()
+
+function buzzerSourceKey(config: RoomHardwareConfig): string {
+  const source = config.buzzers.source
+  return source?.kind === 'gamepad' ? `gamepad:${source.match ?? ''}` : 'keyboard'
+}
+
+function emitTo<T>(listeners: Set<(value: T) => void>, value: T): void {
+  for (const listener of [...listeners]) {
+    listener(value)
+  }
+}
+
+function releaseDevice(): void {
+  detachDevice?.()
+  detachDevice = null
+  device?.dispose()
+  device = null
+  deviceKey = ''
+}
+
+/** (Re)crée le lecteur pour la source de la config ; les abonnés de la page sont gardés. */
+function attachDevice(config: RoomHardwareConfig): BuzzerDevice {
+  releaseDevice()
+  const keymap = effectiveKeymap(config)
+  const source = config.buzzers.source
+  const next: BuzzerDevice =
+    source?.kind === 'gamepad'
+      ? createGamepadBuzzerInput({ keymap, match: gamepadMatcher(source) })
+      : createKeyboardBuzzerInput({ keymap })
+  const offs = [
+    next.onPress((press) => emitTo(pressListeners, press)),
+    next.onKey((key) => emitTo(keyListeners, key)),
+    next.onChange((state) => emitTo(changeListeners, state)),
+  ]
+  detachDevice = () => {
+    for (const off of offs) {
+      off()
+    }
+  }
+  device = next
+  deviceKey = buzzerSourceKey(config)
+  emitTo(changeListeners, next.getState())
+  return next
+}
+
+function subscribe<T>(listeners: Set<(value: T) => void>, listener: (value: T) => void) {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
+
+/** Entrée buzzers stable de la page : elle suit le lecteur choisi dans la config. */
+const roomBuzzers: BuzzerInput = {
+  onPress: (listener) => subscribe(pressListeners, listener),
+  onKey: (listener) => subscribe(keyListeners, listener),
+  onChange: (listener) => subscribe(changeListeners, listener),
+  getState: () => (device ?? attachDevice(parsed.value.config)).getState(),
+  dispose: () => {
+    releaseDevice()
+    pressListeners.clear()
+    keyListeners.clear()
+    changeListeners.clear()
+  },
+}
+
+/** Entrée buzzers de la page (clavier ou carte manette, avec le mapping appris de la salle). */
 export function getBuzzerInput(): BuzzerInput {
   if (!buzzerInput) {
-    keyboardInput = createKeyboardBuzzerInput({ keymap: effectiveKeymap(parsed.value.config) })
-    buzzerInput = keyboardInput
+    attachDevice(parsed.value.config)
+    buzzerInput = roomBuzzers
     watchBuzzers(buzzerInput)
   }
   return buzzerInput
@@ -111,17 +193,28 @@ export function setBuzzerInput(input: BuzzerInput | null): void {
     buzzerInput.dispose()
   }
   buzzerInput = input
-  keyboardInput = null
   buzzerState.value = null
   if (input) {
     watchBuzzers(input)
   }
 }
 
+/** Nouvelle config : même lecteur avec le nouveau mapping, ou nouveau lecteur si la source change. */
+function applyBuzzerConfig(config: RoomHardwareConfig): void {
+  if (buzzerInput !== roomBuzzers || !device) {
+    return
+  }
+  if (buzzerSourceKey(config) === deviceKey) {
+    device.setKeymap(effectiveKeymap(config))
+  } else {
+    attachDevice(config)
+  }
+}
+
 /** Capte Échap, Alt+Tab… en plein écran (Chrome / Edge), pour ne pas sortir du jeu. */
 export async function lockBuzzerSystemKeys(): Promise<boolean> {
   getBuzzerInput()
-  return keyboardInput ? keyboardInput.lockSystemKeys() : false
+  return device && 'lockSystemKeys' in device ? device.lockSystemKeys() : false
 }
 
 // ── Lumières ───────────────────────────────────────────────────────────────
@@ -509,7 +602,7 @@ async function applyConfig(
     }
   }
 
-  keyboardInput?.setKeymap(effectiveKeymap(next.config))
+  applyBuzzerConfig(next.config)
 
   if (stableStringify(next.config.lighting) !== previousLighting) {
     await restartLighting()
@@ -637,6 +730,7 @@ export function useRoomHardware() {
   return {
     hardware: computed(() => parsed.value),
     keymap: computed(() => effectiveKeymap(parsed.value.config)),
+    usesGamepad: computed(() => parsed.value.config.buzzers.source?.kind === 'gamepad'),
     usesSimulationKeys: computed(
       () => Object.keys(parsed.value.config.buzzers.keymap).length === 0
     ),
