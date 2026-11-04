@@ -87,7 +87,15 @@ function toOptionalNumber(value: unknown): number | undefined {
 
 /** `jsonb` relu par `pg` (tableau) ou texte : seuls les mini-jeux connus, `null` = tous. */
 function toMiniGames(value: unknown): MiniGame[] | null {
-  const list: unknown = typeof value === 'string' ? JSON.parse(value) : value
+  let list: unknown = value
+
+  if (typeof value === 'string') {
+    try {
+      list = JSON.parse(value)
+    } catch {
+      return null
+    }
+  }
 
   if (!Array.isArray(list)) {
     return null

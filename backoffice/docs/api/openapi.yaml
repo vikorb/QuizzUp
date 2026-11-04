@@ -3678,8 +3678,10 @@ components:
             $ref: '#/components/schemas/MiniGame'
           description: >-
             Mini-jeux tirés au sort à chaque manche, avec la même probabilité (dans l'ordre de
-            `MINI_GAMES`). `null` : aucun choix au lancement, tous les mini-jeux (y compris les
-            futurs) sont tirés. Renvoyé aussi par `GET /room/games/current`.
+            `MINI_GAMES`). `null` = tous les mini-jeux, y compris les futurs : c'est aussi ce qui est
+            enregistré quand la création reçoit la liste complète. À la relecture, les codes
+            inconnus sont ignorés et une liste qui devient vide est renvoyée comme `null`.
+            Renvoyé aussi par `GET /room/games/current`.
         seed:
           type: integer
           minimum: 0
@@ -3813,8 +3815,9 @@ components:
             $ref: '#/components/schemas/MiniGame'
           description: >-
             Mini-jeux autorisés pour la partie. Facultatif : omis, la partie les autorise tous
-            (stocké `null`). Un code inconnu, un doublon ou un tableau vide donnent
-            `400 invalid_body`.
+            (stocké `null`) ; la liste complète est elle aussi enregistrée comme `null`, pour
+            inclure d'office les futurs mini-jeux. Un code inconnu, un doublon ou un tableau
+            vide donnent `400 invalid_body`.
         participants:
           type: array
           minItems: 1

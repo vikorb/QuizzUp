@@ -122,6 +122,28 @@ describe('views/games/creation/CreateGameForm.vue', () => {
       expect(wrapper.find('[data-test="game-mini-games-error"]').exists()).toBe(false)
     })
 
+    it('links every box to the help text, then to the error', async () => {
+      const wrapper = mountForm()
+      const describedBy = () =>
+        MINI_GAMES.map((miniGame) => miniGameBox(wrapper, miniGame).attributes('aria-describedby'))
+
+      expect(describedBy()).toEqual(MINI_GAMES.map(() => 'game-mini-games_hint'))
+      expect(wrapper.get('#game-mini-games_hint').text()).toContain('games.form.miniGamesHint')
+
+      for (const miniGame of MINI_GAMES) {
+        await miniGameBox(wrapper, miniGame).setValue(false)
+      }
+      await submit(wrapper)
+
+      expect(describedBy()).toEqual(MINI_GAMES.map(() => 'game-mini-games_error'))
+      expect(wrapper.get('#game-mini-games_error').text()).toBe(
+        'games.form.errors.miniGamesRequired'
+      )
+      expect(wrapper.get('fieldset.mini-games').attributes('aria-describedby')).toBe(
+        'game-mini-games_error'
+      )
+    })
+
     it('does not send miniGames while every mini-game stays ticked', async () => {
       const wrapper = mountForm()
 

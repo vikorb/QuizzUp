@@ -77,7 +77,7 @@
       "roundsHint": "Between 1 and {max}",
       "questionsPerRound": "Questions per round",
       "questionsHint": "Between 1 and {max}",
-      "miniGamesHint": "Drawn at random for each round, with equal probability.",
+      "miniGamesHint": "Drawn at random for each round, with equal probability (at least one).",
       "participantsHint": "From 1 to {max} podiums, with 1 or 2 players per podium.",
       "participant": "Participant {index}",
       "podium": "Podium",

@@ -116,9 +116,11 @@ import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import { readBackofficeGameId, rememberBackofficeGameId } from '@/game/backofficeGame'
+import { sanitizeMiniGames } from '@/game/miniGamesSetting'
 import { createEmptyRegistration, type Registration } from '@/game/registrations'
 import {
   hasSavedGame,
+  NoPlayableMiniGameError,
   preloadExtracts,
   resumeSavedGame,
   startNewGame,
@@ -144,7 +146,13 @@ const OFFLINE_AFTER_FAILURES = 3
 
 type Status = 'loading' | 'waiting' | 'offline' | 'ready'
 type StartError =
-  'noContent' | 'gameGone' | 'startFailed' | 'invalidGame' | 'noPlayers' | 'invalidSetup'
+  | 'noContent'
+  | 'gameGone'
+  | 'startFailed'
+  | 'invalidGame'
+  | 'noPlayers'
+  | 'invalidSetup'
+  | 'noPlayableMiniGame'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -285,7 +293,7 @@ async function onStart(): Promise<void> {
       roundsCount: current.roundsCount,
       questionsPerRound: current.questionsPerRound,
       // Le choix du backoffice prime ; sans lui, le réglage local de la salle, sinon tous.
-      miniGames: current.miniGames ?? undefined,
+      miniGames: sanitizeMiniGames(current.miniGames),
     }
     // Le moteur valide la partie avant que le backoffice ne la passe « en cours ».
     validateNewGame(options)
@@ -311,6 +319,9 @@ async function onStart(): Promise<void> {
 }
 
 function toStartError(caught: unknown): StartError {
+  if (caught instanceof NoPlayableMiniGameError) {
+    return 'noPlayableMiniGame'
+  }
   if (caught instanceof GameSetupError) {
     return 'invalidSetup'
   }

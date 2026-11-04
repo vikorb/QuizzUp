@@ -396,11 +396,19 @@ describe('routes/games.ts (US-GAME-08)', () => {
       expect(dbState.games[0]!.mini_games).toBe(JSON.stringify([MINI_GAME_FLASH_BLIND_TEST]))
     })
 
-    it('accepts every known mini-game', async () => {
-      const response = await launch({ miniGames: [...MINI_GAMES] })
+    it('stores null when the whole list is sent, whatever its order', async () => {
+      const response = await launch({ miniGames: [...MINI_GAMES].reverse() })
 
       expect(response.statusCode).toBe(201)
-      expect(parseJson<GameBody>(response).game.miniGames).toEqual([...MINI_GAMES])
+      expect(dbState.games[0]!.mini_games ?? null).toBeNull()
+      expect(parseJson<GameBody>(response).game.miniGames).toBeNull()
+    })
+
+    it('stores the list when only one mini-game is missing', async () => {
+      const response = await launch({ miniGames: MINI_GAMES.slice(1) })
+
+      expect(response.statusCode).toBe(201)
+      expect(dbState.games[0]!.mini_games).toBe(JSON.stringify(MINI_GAMES.slice(1)))
     })
 
     it('stores null (= every mini-game) when the field is omitted', async () => {
@@ -577,6 +585,7 @@ describe('routes/games/_shared.ts', () => {
     })
 
     it.each([
+      ['invalid JSON text', 'not json'],
       ['null', null],
       ['undefined', undefined],
       ['an empty array', []],

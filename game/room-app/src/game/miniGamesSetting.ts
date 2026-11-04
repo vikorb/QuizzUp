@@ -7,6 +7,19 @@ import { MINI_GAMES, type MiniGame } from '@quizzup/shared'
  */
 export const MINI_GAMES_STORAGE_KEY = 'quizzup_room_mini_games'
 
+/**
+ * Garde les mini-jeux connus, dans l'ordre du moteur et sans doublon ; codes inconnus
+ * ignorés. Pas de liste exploitable (absente, vide, illisible) : `undefined` = tous.
+ */
+export function sanitizeMiniGames(value: unknown): MiniGame[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined
+  }
+
+  const miniGames = MINI_GAMES.filter((miniGame) => value.includes(miniGame))
+  return miniGames.length > 0 ? miniGames : undefined
+}
+
 export function readMiniGamesSetting(): MiniGame[] | undefined {
   let raw: string | null
   try {
@@ -24,10 +37,5 @@ export function readMiniGamesSetting(): MiniGame[] | undefined {
   } catch {
     return undefined
   }
-  if (!Array.isArray(parsed)) {
-    return undefined
-  }
-
-  const miniGames = MINI_GAMES.filter((miniGame) => parsed.includes(miniGame))
-  return miniGames.length > 0 ? miniGames : undefined
+  return sanitizeMiniGames(parsed)
 }

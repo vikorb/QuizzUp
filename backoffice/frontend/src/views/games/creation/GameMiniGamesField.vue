@@ -23,6 +23,7 @@
           :checked="isChecked(miniGame)"
           :disabled="disabled"
           :aria-invalid="!!error"
+          :aria-describedby="describedBy"
           @change="onChange(miniGame, $event)"
         />
         <span class="mini-game__text">{{ $t(getGameMiniGameLabelKey(miniGame)) }}</span>
