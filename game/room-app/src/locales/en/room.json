@@ -42,6 +42,10 @@
       },
       "startFailed": "Could not start the game (content unavailable). Try again or use demo mode."
     },
+    "alreadyOpen": {
+      "title": "QuizzUp is already open on this PC",
+      "text": "Another window is already driving the buzzers and lights. Close this tab and use the window that is already open."
+    },
     "focus": {
       "title": "Buzzers inactive",
       "text": "The game window lost focus: buzzers are no longer received.",

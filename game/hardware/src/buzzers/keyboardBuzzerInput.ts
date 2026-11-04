@@ -28,6 +28,24 @@ export type KeyboardBuzzerInput = BuzzerInput & {
   unlockSystemKeys: () => void
 }
 
+/**
+ * Instant de l'appui : `event.timeStamp` (posé par le navigateur à la réception de la touche, même
+ * base que `performance.now()`), donc insensible au retard du thread principal. Repli sur
+ * `now` si la valeur est absente, nulle, non finie ou dans le futur (base d'horloge différente).
+ */
+// ponytail: le moteur (`reduceGame`) ramène tout appui en retard sur le dernier instant connu
+// (`max(at, lastAt)`). Si un tick ou un appui manette passe avant ce handler, l'appui clavier
+// antérieur perd son avance (palier ou ordre faussés). Piste : trier les appuis d'une même tâche
+// par `at` avant de les envoyer au moteur.
+export function eventTime(timeStamp: number | undefined, now: number): number {
+  return typeof timeStamp === 'number' &&
+    Number.isFinite(timeStamp) &&
+    timeStamp > 0 &&
+    timeStamp <= now
+    ? timeStamp
+    : now
+}
+
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!target || typeof (target as Partial<HTMLElement>).tagName !== 'string') {
     return false
@@ -80,7 +98,7 @@ export function createKeyboardBuzzerInput(
   const notify = () => changeEmitter.emit(getState())
 
   const onKeyDown = (event: KeyboardEvent) => {
-    const at = clock.now()
+    const at = eventTime(event.timeStamp, clock.now())
     const { code } = event
     // Saisie dans un champ (formulaire de la page) ou raccourci (Ctrl+R…) : pas un buzz.
     if (isEditableTarget(event.target) || event.ctrlKey || event.altKey || event.metaKey) {
