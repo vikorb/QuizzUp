@@ -70,6 +70,8 @@ export const DEFAULT_DESK_COLORS: Record<Desk, Rgb> = {
   2: NEON.violet,
   3: NEON.warn,
   4: NEON.danger,
+  5: NEON.blue,
+  6: { r: 255, g: 255, b: 255 },
 }
 
 export const SCENE_IDS = {

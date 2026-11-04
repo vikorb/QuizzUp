@@ -68,7 +68,7 @@ describe('keymap des buzzers', () => {
     it('écarte les entrées invalides, interdites et en double', () => {
       const result = parseKeymap({
         KeyA: { desk: 1, button: 'A' },
-        KeyB: { desk: 5, button: 'A' },
+        KeyB: { desk: 7, button: 'A' },
         KeyC: { desk: 1, button: 'E' },
         KeyD: null,
         Escape: { desk: 2, button: 'A' },

@@ -1,6 +1,12 @@
-/** Pupitres de la salle : 4 joueurs maximum. */
-export const DESKS = [1, 2, 3, 4] as const
+/**
+ * Pupitres possibles : jusqu'à 6, pour accueillir les salles déjà équipées de 6 pupitres
+ * (voir `src/presets/sixDeskRoom.ts`). Une salle neuve en a 4 (`DEFAULT_DESKS`).
+ */
+export const DESKS = [1, 2, 3, 4, 5, 6] as const
 export type Desk = (typeof DESKS)[number]
+
+/** Pupitres d'une salle standard : apprentissage, mapping de démonstration. */
+export const DEFAULT_DESKS: readonly Desk[] = [1, 2, 3, 4]
 
 /** Buzzers d'un pupitre : A, B, C, D. */
 export const BUZZER_BUTTONS = ['A', 'B', 'C', 'D'] as const

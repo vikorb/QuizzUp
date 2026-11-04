@@ -1,6 +1,6 @@
 import { createEmitter } from '../emitter'
 import type { Desk, Unsubscribe } from '../types'
-import { DESKS } from '../types'
+import { DEFAULT_DESKS } from '../types'
 import type { BuzzerKeymap, BuzzerSlot } from './keymap'
 import { findSlot, isAllowedBuzzerCode, listSlots } from './keymap'
 
@@ -31,7 +31,7 @@ export type BuzzerLearning = {
 }
 
 export type BuzzerLearningOptions = {
-  /** Pupitres à associer (4 par défaut ; une petite salle peut n'en avoir que 2). */
+  /** Pupitres à associer (1 à 4 par défaut ; jusqu'à 6, ou 2 pour une petite salle). */
   desks?: readonly Desk[]
 }
 
@@ -40,7 +40,7 @@ export type BuzzerLearningOptions = {
  * Machine d'état pure, alimentée par les codes de touches (voir `BuzzerInput.onKey`).
  */
 export function createBuzzerLearning(options: BuzzerLearningOptions = {}): BuzzerLearning {
-  const slots = listSlots(options.desks ?? DESKS)
+  const slots = listSlots(options.desks ?? DEFAULT_DESKS)
   const emitter = createEmitter<BuzzerLearningState>()
   let stepIndex = 0
   let keymap: BuzzerKeymap = {}
