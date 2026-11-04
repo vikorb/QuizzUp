@@ -6,14 +6,14 @@
 
 ## 1. Ce que contient cette version
 
-| Brique                  | Ce qu'on peut tester                                                                              |
-| ----------------------- | ------------------------------------------------------------------------------------------------- |
-| Backoffice              | Comptes, compagnies, salles et comptes de salle, thèmes, questions, extraits audio, parties      |
-| Écran de salle          | Connexion de la salle, lobby RGPD, blind test éclair complet, podium, reprise après rechargement |
-| Moteur de jeu           | Blind test éclair : paliers 1 s / 5 s / 20 s, 100 / 50 / 20 points, premier buzz juste gagne      |
-| Audio                   | Extraits joués au palier près (Web Audio), sons d'interface                                       |
-| Matériel                | Buzzers (clavier, carte manette), lumières USB DMX, fumée sécurisée, arrêt d'urgence              |
-| Données de démo         | Une compagnie, une salle, un compte de salle, deux thèmes blind test de 10 extraits chacun       |
+| Brique          | Ce qu'on peut tester                                                                             |
+| --------------- | ------------------------------------------------------------------------------------------------ |
+| Backoffice      | Comptes, compagnies, salles et comptes de salle, thèmes, questions, extraits audio, parties      |
+| Écran de salle  | Connexion de la salle, lobby RGPD, blind test éclair complet, podium, reprise après rechargement |
+| Moteur de jeu   | Blind test éclair : paliers 1 s / 5 s / 20 s, 100 / 50 / 20 points, premier buzz juste gagne     |
+| Audio           | Extraits joués au palier près (Web Audio), sons d'interface                                      |
+| Matériel        | Buzzers (clavier, carte manette), lumières USB DMX, fumée sécurisée, arrêt d'urgence             |
+| Données de démo | Une compagnie, une salle, un compte de salle, deux thèmes blind test de 10 extraits chacun       |
 
 Les extraits de démo sont **fabriqués par calcul** (`scripts/demo/generate-demo-audio.py`) :
 des mélodies du domaine public jouées note par note, et des sons du quotidien synthétisés.
@@ -43,30 +43,30 @@ npm run demo
 Le premier lancement prend **3 à 6 minutes** (téléchargements, installation, base de données,
 données de démo). Les suivants prennent quelques secondes. Ensuite :
 
-| Adresse                       | Quoi                                    |
-| ----------------------------- | --------------------------------------- |
-| <http://localhost:4173>       | Backoffice                              |
-| <http://localhost:4174>       | Écran de salle                          |
-| <http://localhost:3001/docs>  | Documentation de l'API (Swagger)        |
+| Adresse                      | Quoi                             |
+| ---------------------------- | -------------------------------- |
+| <http://localhost:4173>      | Backoffice                       |
+| <http://localhost:4174>      | Écran de salle                   |
+| <http://localhost:3001/docs> | Documentation de l'API (Swagger) |
 
 Autres commandes utiles :
 
-| Commande             | Effet                                                                    |
-| -------------------- | ------------------------------------------------------------------------ |
-| `npm run demo:logs`  | Voir ce qui se passe (Ctrl+C pour quitter, QuizzUP continue de tourner)  |
-| `npm run demo:stop`  | Arrêter QuizzUP (les données sont gardées)                               |
-| `npm run demo:reset` | **Tout effacer** (base et extraits) ; le prochain `demo` repart à neuf   |
+| Commande             | Effet                                                                   |
+| -------------------- | ----------------------------------------------------------------------- |
+| `npm run demo:logs`  | Voir ce qui se passe (Ctrl+C pour quitter, QuizzUP continue de tourner) |
+| `npm run demo:stop`  | Arrêter QuizzUP (les données sont gardées)                              |
+| `npm run demo:reset` | **Tout effacer** (base et extraits) ; le prochain `demo` repart à neuf  |
 
 Si une page ne s'ouvre pas tout de suite, attendre une minute puis recharger : le premier
 démarrage installe encore des dépendances (`npm run demo:logs` pour suivre).
 
 ## 4. Comptes de démo
 
-| Rôle                        | Identifiant   | Mot de passe   | Où se connecter |
-| --------------------------- | ------------- | -------------- | --------------- |
-| Gérant du centre (admin)    | `demo-admin`  | `Demo1234!`    | Backoffice      |
-| Compte de la salle « Salle 1 » | `salle1-demo` | `Demo1234!` | Écran de salle  |
-| Superadmin (éditeur)        | `admin`       | `ChangeMe123!` | Backoffice      |
+| Rôle                           | Identifiant   | Mot de passe   | Où se connecter |
+| ------------------------------ | ------------- | -------------- | --------------- |
+| Gérant du centre (admin)       | `demo-admin`  | `Demo1234!`    | Backoffice      |
+| Compte de la salle « Salle 1 » | `salle1-demo` | `Demo1234!`    | Écran de salle  |
+| Superadmin (éditeur)           | `admin`       | `ChangeMe123!` | Backoffice      |
 
 Compagnie de démo : **QuizzUP Démo**. Thèmes blind test : **Mélodies du domaine public**
 (Frère Jacques, Ode à la joie, Lettre à Élise…) et **Sons synthétiques** (sirène de pompiers,
@@ -170,11 +170,33 @@ déjà utilisée ou réservée au système est refusée avec un message clair.
   "lighting": {
     "driver": "usbpro",
     "fixtures": [
-      { "id": "par1", "name": "PAR pupitre 1", "profileId": "par-rgbw", "address": 1, "desk": 1 },
-      { "id": "par2", "name": "PAR pupitre 2", "profileId": "par-rgbw", "address": 5, "desk": 2 },
-      { "id": "fumee", "name": "Fumée", "profileId": "smoke-relay", "address": 40 }
+      {
+        "id": "par1",
+        "name": "PAR pupitre 1",
+        "profileId": "par-rgbw",
+        "address": 1,
+        "desk": 1
+      },
+      {
+        "id": "par2",
+        "name": "PAR pupitre 2",
+        "profileId": "par-rgbw",
+        "address": 5,
+        "desk": 2
+      },
+      {
+        "id": "fumee",
+        "name": "Fumée",
+        "profileId": "smoke-relay",
+        "address": 40
+      }
     ],
-    "smoke": { "enabled": true, "maxDurationMs": 3000, "cooldownMs": 30000, "requireConfirmation": true }
+    "smoke": {
+      "enabled": true,
+      "maxDurationMs": 3000,
+      "cooldownMs": 30000,
+      "requireConfirmation": true
+    }
   }
 }
 ```
