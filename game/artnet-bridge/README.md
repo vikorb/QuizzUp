@@ -56,22 +56,38 @@ Prérequis : **Node.js 22 LTS** (ou plus récent). Le pont n'a **aucune dépenda
 ## Lancement
 
 ```bash
+npx quizzup-artnet-bridge --origin https://salle.quizzup.fr
+```
+
+`--origin` suffit : l'IP du nœud se règle dans l'écran de salle (vue Matériel, champ « IP du nœud
+Art-Net »), enregistrée dans `rooms.config.lighting.artnet` et transmise au pont à chaque
+connexion. `--target` reste possible pour imposer une cible depuis la ligne de commande :
+
+```bash
 npx quizzup-artnet-bridge --target 192.168.1.50 --universe 0 --port 7654 --origin https://salle.quizzup.fr
 ```
 
-| Option                        | Rôle                                                                              |
-| ----------------------------- | --------------------------------------------------------------------------------- |
-| `--target <ip>`               | IP du nœud (unicast, recommandé) ou adresse de diffusion (ex. `192.168.1.255`)    |
-| `--origin <url>`              | origine de l'écran de salle autorisée ; répétable ; ou `QUIZZUP_BRIDGE_ORIGINS`   |
-| `--universe <u>`              | univers de sortie sans `--map` : `NET.SUB.UNI` (`0.0.1`) ou adresse 15 bits (`1`) |
-| `--map <plage>`               | mappage `DEBUT-FIN:NET.SUB.UNI@DEPART`, répétable (voir plus bas)                 |
-| `--config <fichier>`          | réglages dans un fichier JSON ; la ligne de commande reste prioritaire            |
-| `--port <n>`                  | port WebSocket sur 127.0.0.1 (7654)                                               |
-| `--bind <ip>`                 | IP locale d'émission (PC avec Wi-Fi + Ethernet : choisir la carte du nœud)        |
-| `--timeout <ms>`              | silence du navigateur avant le noir de sécurité (2500)                            |
-| `--blackout <ms>`             | durée des trames à zéro après une coupure (3000)                                  |
-| `--artnet-port <n>`           | port UDP Art-Net (6454, à ne changer que pour un test)                            |
-| `-h, --help`, `-v, --version` | aide en français, version                                                         |
+| Option                        | Rôle                                                                                      |
+| ----------------------------- | ----------------------------------------------------------------------------------------- |
+| `--target <ip>`               | facultatif : impose l'IP du nœud (prioritaire sur l'écran de salle), unicast ou diffusion |
+| `--origin <url>`              | origine de l'écran de salle autorisée ; répétable ; ou `QUIZZUP_BRIDGE_ORIGINS`           |
+| `--universe <u>`              | univers de sortie sans `--map` : `NET.SUB.UNI` (`0.0.1`) ou adresse 15 bits (`1`)         |
+| `--map <plage>`               | mappage `DEBUT-FIN:NET.SUB.UNI@DEPART`, répétable (voir plus bas)                         |
+| `--config <fichier>`          | réglages dans un fichier JSON ; la ligne de commande reste prioritaire                    |
+| `--port <n>`                  | port WebSocket sur 127.0.0.1 (7654)                                                       |
+| `--bind <ip>`                 | IP locale d'émission (PC avec Wi-Fi + Ethernet : choisir la carte du nœud)                |
+| `--timeout <ms>`              | silence du navigateur avant le noir de sécurité (2500)                                    |
+| `--blackout <ms>`             | durée des trames à zéro après une coupure (3000)                                          |
+| `--artnet-port <n>`           | port UDP Art-Net (6454, à ne changer que pour un test)                                    |
+| `-h, --help`, `-v, --version` | aide en français, version                                                                 |
+
+**Priorité de la cible** : `--target` (ligne de commande ou fichier `--config`) > IP réglée dans
+l'écran de salle > aucune. Sans cible, le pont n'envoie rien et le dit dans son journal. La cible
+reçue de l'écran de salle doit être une IPv4 d'un réseau local : `10.0.0.0/8`, `172.16.0.0/12`,
+`192.168.0.0/16`, lien local `169.254.0.0/16` ou boucle locale `127.0.0.0/8`. Toute autre adresse
+(`8.8.8.8`, …) est refusée et rien n'est envoyé. Le port Art-Net reçu de l'écran de salle n'est
+appliqué que si `--artnet-port` n'a pas été changé. La plage n'est pas contrôlée pour
+`--target`, choisi par l'opérateur du PC.
 
 Dans le backoffice, la salle utilise alors le pilote **`artnet-bridge`**
 (`rooms.config.lighting.driver`) et, si le port n'est pas 7654,
@@ -190,6 +206,10 @@ puis `launchctl load ~/Library/LaunchAgents/fr.quizzup.artnet-bridge.plist` (che
 - **Un seul écran de salle à la fois** : une deuxième connexion reçoit le message d'erreur
   `busy` puis est fermée (code 4004) ; l'écran affiche « un autre onglet est déjà connecté au
   pont ». (Un refus HTTP `409` serait vu par le navigateur comme un pont injoignable.)
+- **Cible Art-Net limitée au réseau local** : l'IP reçue de l'écran de salle (protocole v2) est
+  refusée hors `10/8`, `172.16/12`, `192.168/16`, `169.254/16` et `127/8` (erreur `target`,
+  fermeture 4005, aucune trame envoyée). Une page de salle compromise ne peut donc pas faire
+  émettre le pont vers Internet.
 - **Présentation obligatoire** : le navigateur envoie `hello` (version du protocole) et le pont
   répond `ack` ; sans cela, la connexion est fermée au bout de 2 s. Trames de taille, de version
   ou d'univers inattendus : connexion fermée.
@@ -219,13 +239,22 @@ et une future version en exécutable unique (Node SEA) triviale. Le code suit la
 (masquage obligatoire, trames de contrôle, fragmentation, codes de fermeture, limite de taille)
 et il est testé avec un client brut et avec le client WebSocket intégré à Node (undici).
 
-## Protocole navigateur → pont (version 1)
+## Protocole navigateur → pont (`protocol` 1, `version` 1 ou 2)
 
-1. Message texte du navigateur : `{"type":"hello","protocol":1,"universe":0}`.
+1. Message texte du navigateur, v1 : `{"type":"hello","protocol":1,"universe":0}`.
+   v2 (cible de la salle) :
+   `{"type":"hello","protocol":1,"version":2,"universe":0,"artnet":{"target":"192.168.1.50","port":6454}}`.
+   `artnet` n'est présent que si la salle a réglé une IP, `port` que s'il est réglé. Un `hello`
+   sans `version` est lu comme v1 et se comporte exactement comme avant.
 2. Réponse du pont : `{"type":"ack","protocol":1,"bridge":"quizzup-artnet-bridge","version":"0.1.0","universes":16}`
-   (`universes` : nombre d'univers internes acceptés ; un ancien pont ne l'annonce pas)
-   ou `{"type":"error","code":"…","message":"…"}` suivi d'une fermeture (codes 4000 hello
-   attendu, 4001 protocole, 4002 univers, 4003 trame invalide, 4004 écran déjà connecté).
+   (`universes` : nombre d'univers internes acceptés ; un ancien pont ne l'annonce pas).
+   À un `hello` v2, l'ack ajoute la cible effective et sa provenance :
+   `"artnet":{"target":"192.168.1.50","port":6454,"source":"room"}`. `source` vaut `cli`
+   (`--target` impose), `room` (réglage de la salle) ou `none` (aucune cible, `target` est alors
+   `null`). Un ack sans `artnet` signale un pont ancien.
+   Sinon : `{"type":"error","code":"…","message":"…"}` suivi d'une fermeture (codes 4000 hello
+   attendu, 4001 protocole, 4002 univers, 4003 trame invalide, 4004 écran déjà connecté, 4005
+   cible Art-Net refusée, code d'erreur `target`).
 3. Trames binaires de **515 octets** : octet 0 = version (1), octets 1-2 = univers interne
    (gros-boutiste, 0 à 15), octets 3-514 = canaux 1 à 512. Le `hello` annonce toujours
    `universe: 0` ; un univers interne supérieur à 15 ferme la connexion (4002).
@@ -242,6 +271,8 @@ Côté navigateur : `createBridgeOutput({ url })` de `@quizzup/hardware`
 | Chrome demande « accéder aux autres applications et services de cet appareil » | Permission **Accès au réseau local** de Chrome : cliquer **Autoriser** (une fois par site). Si elle a été bloquée : icône à gauche de l'adresse → Paramètres du site. |
 | Journal « un écran de salle est déjà connecté »                                | Un autre onglet ou navigateur est ouvert sur l'écran de salle : le fermer.                                                                                            |
 | « le port 7654 est déjà utilisé »                                              | Un pont tourne déjà (démarrage automatique + lancement manuel) : n'en garder qu'un.                                                                                   |
+| « cible Art-Net … refusée » dans l'écran de salle                              | L'IP saisie n'est pas d'un réseau local (10.x, 172.16-31.x, 192.168.x, 169.254.x, 127.x). Saisir l'IP du nœud sur le réseau de la salle.                              |
+| Journal « Aucune cible Art-Net : rien n’est envoyé »                           | Ni `--target` ni IP réglée dans l'écran de salle (vue Matériel) : la saisir.                                                                                          |
 | Le pont reçoit (journal « Trames reçues ») mais rien ne s'allume               | IP du nœud, plage réseau du PC, `--bind` sur la bonne carte, pare-feu (autoriser Node.js), univers du nœud (`Primary`, base 0), adresse DMX des appareils.            |
 | « Envoi Art-Net impossible … EHOSTUNREACH / ENETUNREACH »                      | Câble débranché ou PC hors de la plage du nœud.                                                                                                                       |
 | Lumières qui clignotent au noir toutes les secondes                            | L'écran de salle est passé en arrière-plan (onglet masqué : Chrome ralentit la page). Le garder au premier plan, en plein écran.                                      |

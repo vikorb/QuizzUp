@@ -72,6 +72,12 @@ src/
   config. S'il est absent ou occupé (autre onglet), les lumières restent en simulation (fumée
   coupée), l'écran Matériel affiche le bandeau « Connecter le pont » (nouvel essai au clic) et un
   nouvel essai part seul toutes les 10 s (`BRIDGE_RETRY_MS`), sans jamais retarder la partie.
+  **IP du nœud Art-Net** : l'assistant (étape interface, pilote `artnet-bridge`) propose le champ
+  « IP du nœud Art-Net », enregistré dans `rooms.config.lighting.artnet` comme le reste de la config
+  (IPv4 d'un réseau local uniquement) et envoyé au pont dans le `hello` v2 à chaque (re)connexion ;
+  les lumières redémarrent quand elle change. L'écran affiche la cible effective annoncée par le pont
+  et sa provenance (`--target` du pont, réglage de la salle ou aucune). Le pont n'a plus besoin
+  de `--target`, seulement de `--origin` ; s'il est lancé avec `--target`, celui-ci l'emporte.
   La copie de secours de la config est gardée dans le navigateur (`quizzup_room_hardware`).
   **Arrêt d'urgence maintenu** : `triggerEmergencyStop` pose la clé `quizzup_room_emergency`
   (le motif) ; après un plantage ou un rechargement, le contrôleur de lumières est créé déjà en

@@ -192,11 +192,19 @@ import { createBridgeOutput, DEFAULT_BRIDGE_URL } from '@quizzup/hardware'
 // Reprise sans clic au démarrage (l'écran de salle réessaie toutes les 10 s si le pont est absent,
 // et propose un bouton « Connecter le pont »). `setOutput` ne lève pas : l'échec se lit dans
 // `lights.getState().outputStatus === 'error'` (message dans `outputError`).
-await lights.setOutput(createBridgeOutput({ url: config.lighting.bridgeUrl ?? DEFAULT_BRIDGE_URL }))
+// `artnet` (config.lighting.artnet) part dans le hello v2 : le pont l'applique sauf si --target.
+const bridge = createBridgeOutput({
+  url: config.lighting.bridgeUrl ?? DEFAULT_BRIDGE_URL,
+  artnet: config.lighting.artnet,
+})
+await lights.setOutput(bridge)
+bridge.artnetStatus() // { target, port, source: 'cli' | 'room' | 'none' }, null avec un pont ancien
 ```
 
 `createBridgeOutput` ouvre `ws://127.0.0.1:<port>`, vérifie le pont (`hello` / `ack`, délai
-`openTimeoutMs`), envoie chaque univers en trame binaire de 515 octets (version, univers 0 à 15, 512
+`openTimeoutMs` ; le `hello` v2 porte `version: 2` et, si réglée, la cible `artnet: { target, port? }` ;
+l'`ack` renvoie la cible effective et sa provenance, lisibles par `artnetStatus()` ; un pont qui refuse
+la cible répond `error` / `target`, et l'ouverture échoue avec son message), envoie chaque univers en trame binaire de 515 octets (version, univers 0 à 15, 512
 canaux ; tous les univers d'un tour sont sautés ensemble si la socket est saturée), saute une trame si la socket est encore pleine (`bufferedAmount`, jamais de retard
 accumulé) et signale une coupure par `onDisconnect` (le contrôleur coupe alors la fumée). Côté
 pont, un chien de garde envoie du noir si le navigateur se tait plus de 2,5 s.
@@ -345,6 +353,9 @@ gel réussi, consignes incendie du site. Changer d'interface oblige à refaire l
   "lighting": {
     "driver": "usbpro",
     "bridgeUrl": "ws://127.0.0.1:7654", // pilote artnet-bridge uniquement (facultatif)
+    // Pilote artnet-bridge (facultatif) : IPv4 d'un réseau local (10/8, 172.16/12, 192.168/16,
+    // 169.254/16, 127/8) ; une autre adresse est écartée avec un problème. `port` : 1 à 65535.
+    "artnet": { "target": "192.168.1.50", "port": 6454 },
     "refreshHz": 30,
     "fixtures": [
       { "id": "par1", "name": "PAR pupitre 1", "profileId": "par-rgbw", "address": 1, "desk": 1 },
