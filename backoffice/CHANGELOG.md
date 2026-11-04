@@ -196,6 +196,13 @@ Format inspiré de Keep a Changelog.
 
 ### Fixed
 
+- Droits d'un admin de compagnie : il n'obtient plus de 403 (`forbidden`, `question_theme_forbidden`) sur
+  ses propres thèmes et peut de nouveau créer des questions. Cause : `pg` renvoyait les `bigint`
+  (ids, `company_id`) en chaîne, donc `"10" === 10` (JWT / session) était faux dans les contrôles de
+  portée (`routes/_shared/scope.ts`, `themes/id.ts`, `questions/_shared.ts`). Le parseur int8 est
+  maintenant posé une seule fois dans `backend/src/db.ts`. Tests : `tests/backend/src/db/bigintIds.test.ts`
+  (+ étape PostgreSQL de la CI). La page Statistiques affiche son titre (clé i18n `navbar.statistics`).
+
 - Écran de salle : le verrou clavier (Keyboard Lock, Échap et raccourcis système captés en plein
   écran) s'applique aussi quand les buzzers sont lus sur une carte manette, et il est repris si
   la source des buzzers change en cours de séance. Le synthé du mode démo ajoute un court fondu
