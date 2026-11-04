@@ -3,6 +3,7 @@ import path from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import type { purgeExpiredPlayerEmails as PurgeFn } from '@backend/jobs/purgePlayerEmails'
+import { assertTestDatabase } from '../../setup/assertTestDatabase'
 
 /**
  * Test d'intégration sur un vrai PostgreSQL : ignoré sans `PG_INTEGRATION_URL`.
@@ -35,6 +36,7 @@ describe.skipIf(!PG_INTEGRATION_URL)('purgeExpiredPlayerEmails sur PostgreSQL', 
     db = (await import('@backend/db')).default
     purge = (await import('@backend/jobs/purgePlayerEmails')).purgeExpiredPlayerEmails
 
+    await assertTestDatabase(db)
     await db.migrate.latest({ directory: path.resolve(process.cwd(), 'backend/db/migrations') })
   }, 120_000)
 
