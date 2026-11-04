@@ -26,8 +26,11 @@ async function waitForEvent(page: Page, type: string, count = 1): Promise<void> 
     .toBeGreaterThanOrEqual(count)
 }
 
-function parColor(page: Page, desk: 1 | 2 | 3 | 4): Promise<Rgb> {
-  return page.evaluate((value) => window.dmxHarness.parColor(value), desk)
+function parColor(page: Page, desk: 1 | 2 | 3 | 4, universe = 0): Promise<Rgb> {
+  return page.evaluate(([value, number]) => window.dmxHarness.parColor(value, number), [
+    desk,
+    universe,
+  ] as const)
 }
 
 const SIMULATION_KEYS = {
@@ -68,6 +71,9 @@ test.describe('Lumières — simulation DMX', () => {
     const desk2Color = await page.evaluate(() => window.dmxHarness.deskColor(2))
     await expect.poll(() => parColor(page, 2)).toEqual(desk2Color)
     expect(Math.max(...(await parColor(page, 1)))).toBeLessThan(40)
+    // Univers 1 : le second PAR du pupitre 2 (même adresse 1 que le PAR du pupitre 1 sur
+    // l'univers 0) prend la couleur du pupitre sans toucher à l'univers 0.
+    await expect.poll(() => parColor(page, 1, 1)).toEqual(desk2Color)
 
     // Bonne réponse de Bob : scène « bonne réponse ».
     const correct = await page.evaluate(() => window.dmxHarness.correctButton())
@@ -88,6 +94,7 @@ test.describe('Lumières — simulation DMX', () => {
     await page.evaluate(() => window.dmxHarness.emergencyStop())
     await expect.poll(() => page.evaluate(() => window.dmxHarness.frameMax())).toBe(0)
     expect((await page.evaluate(() => window.dmxHarness.lightingState())).emergency).toBe(true)
+    await expect.poll(() => page.evaluate(() => window.dmxHarness.frameMax(1))).toBe(0)
     await press(page, 2, 0)
     await waitForEvent(page, 'buzzer_pressed', 3)
     await page.waitForTimeout(500)

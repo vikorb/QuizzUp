@@ -274,6 +274,9 @@
         "desk": "Desk",
         "deskReserve": "Desk {n} (reserve)",
         "address": "Address",
+        "universe": "Universe",
+        "universeLabel": "Universe {n}",
+        "universeHint": "Each universe has 512 channels: the same address can be used on two universes. A USB interface drives only one (universe 0); beyond that you need an Art-Net bridge.",
         "add": "Add",
         "remove": "Remove",
         "addressHint": "Leave the address empty to take the first free one ({n}).",
@@ -281,6 +284,7 @@
           "unknown_profile": "Unknown fixture type.",
           "no_room": "No room left in the DMX universe (512 channels).",
           "invalid_address": "Invalid address: the fixture must fit between 1 and 512.",
+          "invalid_universe": "Invalid universe (0 to 15).",
           "conflict": "Address already used."
         }
       },

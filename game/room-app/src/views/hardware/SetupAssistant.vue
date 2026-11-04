@@ -138,6 +138,14 @@
           </select>
         </label>
         <label class="hw-field">
+          {{ $t('hardware.assistant.fixtures.universe') }}
+          <select v-model.number="draft.universe" data-test="fixture-universe">
+            <option v-for="number in universeChoices" :key="number" :value="number">
+              {{ number }}
+            </option>
+          </select>
+        </label>
+        <label class="hw-field">
           {{ $t('hardware.assistant.fixtures.address') }}
           <input
             v-model.number="draft.address"
@@ -154,6 +162,7 @@
       </div>
       <p class="hw-hint">
         {{ $t('hardware.assistant.fixtures.addressHint', { n: suggested ?? '—' }) }}
+        {{ $t('hardware.assistant.fixtures.universeHint') }}
       </p>
       <p v-if="fixtureError" class="hw-alert hw-alert--danger" role="alert">
         {{ fixtureError }}
@@ -165,6 +174,9 @@
             <strong>{{ fixture.name }}</strong>
             <small>
               {{ $t('hardware.diagnostic.address', { n: fixture.address }) }}
+              <template v-if="fixture.universe">
+                · {{ $t('hardware.assistant.fixtures.universeLabel', { n: fixture.universe }) }}
+              </template>
               <template v-if="fixture.desk">
                 ·
                 {{
@@ -404,6 +416,7 @@ import {
   describeSerialError,
   type Desk,
   DESKS,
+  DMX_DRIVER_UNIVERSES,
   type DmxDriver,
   findProfile,
   GENERIC_PROFILES,
@@ -454,7 +467,8 @@ const draft = reactive<{
   name: string
   desk: Desk | null
   address: number | ''
-}>({ profileId: 'par-rgb', name: '', desk: null, address: '' })
+  universe: number
+}>({ profileId: 'par-rgb', name: '', desk: null, address: '', universe: 0 })
 const fixtureError = ref<string | null>(null)
 const calibrationNote = ref<string | null>(null)
 const connecting = ref(false)
@@ -494,7 +508,19 @@ const profiles = computed(() => [...GENERIC_PROFILES, ...view.value.config.light
 const suggested = computed(() => {
   void view.value
   const profile = findProfile(draft.profileId, view.value.config.lighting.customProfiles)
-  return profile ? wizard.suggestAddress(profile.channels.length) : null
+  return profile ? wizard.suggestAddress(profile.channels.length, draft.universe) : null
+})
+// Univers proposés : ceux que l'interface choisie sait émettre (USB : 0 seulement).
+const universeChoices = computed(() =>
+  Array.from(
+    { length: DMX_DRIVER_UNIVERSES[view.value.config.lighting.driver] },
+    (_unused, index) => index
+  )
+)
+watch(universeChoices, (choices) => {
+  if (!choices.includes(draft.universe)) {
+    draft.universe = 0
+  }
 })
 const kindOf = (profileId: string) =>
   findProfile(profileId, view.value.config.lighting.customProfiles)?.kind
@@ -586,6 +612,7 @@ function onAddFixture(): void {
     name: draft.name,
     ...(draft.desk === null ? {} : { desk: draft.desk }),
     ...(draft.address === '' ? {} : { address: draft.address }),
+    universe: draft.universe,
   })
   if (result.ok) {
     draft.name = ''
