@@ -18,6 +18,7 @@ en **mode simulation** sans aucun matériel branché.
 | Profils d'appareils génériques                           | `src/dmx/profiles.ts`                            | #64              |
 | Appareils de la salle, rendu DMX                         | `src/dmx/fixtures.ts`                            | #64              |
 | Sorties Web Serial / simulation                          | `src/dmx/serialOutput.ts`, `simulationOutput.ts` | #64              |
+| Sortie pont Art-Net (WebSocket local)                    | `src/dmx/bridgeOutput.ts`                        | #64              |
 | Scènes et liaisons événement → scène                     | `src/lighting/scenes.ts`, `scenePlayer.ts`       | #64              |
 | Fumée sécurisée                                          | `src/lighting/smoke.ts`                          | #64              |
 | Contrôleur (boucle DMX, chien de garde, arrêt d'urgence) | `src/lighting/lightingController.ts`             | #64              |
@@ -141,14 +142,30 @@ for (const event of events) lights.handleGameEvent(event)
 
 ### Sorties DMX
 
-| `driver`     | Matériel                                                      | Statut       |
-| ------------ | ------------------------------------------------------------- | ------------ |
-| `simulation` | aucun ; `getFixtureViews()` alimente la vue « salle simulée » | par défaut   |
-| `usbpro`     | interfaces compatibles **DMX USB Pro** (Enttec et clones)     | recommandé   |
-| `opendmx`    | interfaces FTDI « Open DMX » sans microcontrôleur             | expérimental |
+| `driver`        | Matériel                                                         | Statut       |
+| --------------- | ---------------------------------------------------------------- | ------------ |
+| `simulation`    | aucun ; `getFixtureViews()` alimente la vue « salle simulée »    | par défaut   |
+| `usbpro`        | interfaces compatibles **DMX USB Pro** (Enttec et clones)        | recommandé   |
+| `opendmx`       | interfaces FTDI « Open DMX » sans microcontrôleur                | expérimental |
+| `artnet-bridge` | nœud **Art-Net** (réseau) via le pont local `game/artnet-bridge` | facultatif   |
 
 Web Serial n'existe que dans **Chrome et Edge**, en contexte sécurisé (HTTPS ou localhost).
-Art-Net (réseau) est impossible depuis un navigateur : il faudra un pont local optionnel.
+Art-Net (réseau) est impossible depuis un navigateur (pas d'UDP) : le pilote `artnet-bridge`
+passe par un petit pont local à installer sur le PC de la salle, **seulement** si elle possède
+déjà un nœud Art-Net (voir `game/artnet-bridge/README.md` ; l'USB-DMX reste recommandé).
+
+```ts
+import { createBridgeOutput, DEFAULT_BRIDGE_URL } from '@quizzup/hardware'
+
+// Bouton « Connecter le pont Art-Net » (geste utilisateur : Chrome peut demander l'accès au réseau local)
+await lights.setOutput(createBridgeOutput({ url: config.lighting.bridgeUrl ?? DEFAULT_BRIDGE_URL }))
+```
+
+`createBridgeOutput` ouvre `ws://127.0.0.1:<port>`, vérifie le pont (`hello` / `ack`, délai
+`openTimeoutMs`), envoie chaque univers en trame binaire de 515 octets (version, univers, 512
+canaux), saute une trame si la socket est encore pleine (`bufferedAmount`, jamais de retard
+accumulé) et signale une coupure par `onDisconnect` (le contrôleur coupe alors la fumée). Côté
+pont, un chien de garde envoie du noir si le navigateur se tait plus de 1 s.
 
 ### Profils d'appareils
 
@@ -271,6 +288,7 @@ gel réussi, consignes incendie du site. Changer d'interface oblige à refaire l
   },
   "lighting": {
     "driver": "usbpro",
+    "bridgeUrl": "ws://127.0.0.1:7654", // pilote artnet-bridge uniquement (facultatif)
     "refreshHz": 30,
     "fixtures": [
       { "id": "par1", "name": "PAR pupitre 1", "profileId": "par-rgbw", "address": 1, "desk": 1 },

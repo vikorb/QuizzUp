@@ -47,6 +47,23 @@ export {
   parseRoomHardwareConfig,
   ROOM_HARDWARE_CONFIG_VERSION,
 } from './config'
+export type {
+  BridgeOutput,
+  BridgeOutputOptions,
+  WebSocketConstructorLike,
+  WebSocketLike,
+} from './dmx/bridgeOutput'
+export {
+  BRIDGE_FRAME_BYTES,
+  BRIDGE_MAX_BUFFERED_BYTES,
+  BRIDGE_OPEN_TIMEOUT_MS,
+  BRIDGE_PROTOCOL_VERSION,
+  createBridgeOutput,
+  DEFAULT_BRIDGE_PORT,
+  DEFAULT_BRIDGE_URL,
+  encodeBridgeFrame,
+  parseBridgeUrl,
+} from './dmx/bridgeOutput'
 export type { FixtureConfig, FixtureState, PanTilt, ResolvedFixture } from './dmx/fixtures'
 export { parseRig, renderUniverse } from './dmx/fixtures'
 export type { MeteredOutput, OutputStats } from './dmx/meteredOutput'

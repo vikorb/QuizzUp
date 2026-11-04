@@ -1,5 +1,6 @@
 import type { BuzzerKeymap } from './buzzers/keymap'
 import { parseKeymap } from './buzzers/keymap'
+import { parseBridgeUrl } from './dmx/bridgeOutput'
 import type { FixtureConfig, ResolvedFixture } from './dmx/fixtures'
 import { parseRig } from './dmx/fixtures'
 import type { DmxDriver } from './dmx/output'
@@ -18,6 +19,11 @@ export const DMX_REFRESH_LIMITS = { min: 10, max: 40, default: 30 } as const
 
 export type LightingConfig = {
   driver: DmxDriver
+  /**
+   * Adresse du pont Art-Net local (pilote `artnet-bridge`) : `ws://127.0.0.1:<port>` ou
+   * `ws://localhost:<port>`. Absente = `DEFAULT_BRIDGE_URL`.
+   */
+  bridgeUrl?: string
   refreshHz: number
   fixtures: FixtureConfig[]
   customProfiles: FixtureProfile[]
@@ -147,6 +153,17 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
     }
   }
 
+  let bridgeUrl: string | null = null
+  if (lighting.bridgeUrl !== undefined) {
+    bridgeUrl = parseBridgeUrl(lighting.bridgeUrl)
+    if (!bridgeUrl) {
+      problems.push(
+        `Adresse du pont Art-Net refusée : ${String(lighting.bridgeUrl)} ` +
+          '(ws://127.0.0.1:<port> ou ws://localhost:<port> uniquement)'
+      )
+    }
+  }
+
   const refreshHz =
     typeof lighting.refreshHz === 'number' && Number.isFinite(lighting.refreshHz)
       ? Math.min(DMX_REFRESH_LIMITS.max, Math.max(DMX_REFRESH_LIMITS.min, lighting.refreshHz))
@@ -157,6 +174,7 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
     buzzers: { keymap, ...(source ? { source } : {}) },
     lighting: {
       driver,
+      ...(bridgeUrl ? { bridgeUrl } : {}),
       refreshHz,
       fixtures: rig.fixtures.map(({ profile: _profile, ...fixture }) => fixture),
       customProfiles: rig.customProfiles,
