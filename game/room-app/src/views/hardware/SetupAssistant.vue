@@ -390,6 +390,7 @@
 import { mdiDeleteOutline, mdiUsb } from '@mdi/js'
 import {
   type BrowserCheck,
+  type BuzzerSource,
   checkBrowser,
   createSetupWizard,
   describeSerialError,
@@ -415,6 +416,7 @@ import UiButton from '@/components/ui/UiButton.vue'
 import {
   connectDmxInterface,
   getLighting,
+  saveBuzzerSource,
   saveRoomHardwareConfig,
   startLighting,
   triggerEmergencyStop,
@@ -535,12 +537,17 @@ function onDeskCount(event: Event): void {
 
 function onSourceKind(event: Event): void {
   const kind = (event.target as HTMLSelectElement).value
-  run(() => wizard.setBuzzerSource(kind === 'gamepad' ? { kind: 'gamepad' } : { kind: 'keyboard' }))
+  const source: BuzzerSource = kind === 'gamepad' ? { kind: 'gamepad' } : { kind: 'keyboard' }
+  run(() => wizard.setBuzzerSource(source))
+  // L'apprentissage de l'étape doit déjà lire la carte choisie.
+  void saveBuzzerSource(source)
 }
 
 function onGamepadMatch(event: Event): void {
   const match = (event.target as HTMLInputElement).value.trim()
-  run(() => wizard.setBuzzerSource({ kind: 'gamepad', ...(match ? { match } : {}) }))
+  const source: BuzzerSource = { kind: 'gamepad', ...(match ? { match } : {}) }
+  run(() => wizard.setBuzzerSource(source))
+  void saveBuzzerSource(source)
 }
 
 function onDriver(driver: DmxDriver): void {

@@ -12,7 +12,9 @@
     </header>
 
     <p v-if="buzzerState && !buzzerState.active" class="hw-alert" role="alert">
-      {{ $t('hardware.buzzers.inactive') }}
+      {{
+        usesGamepad ? $t('hardware.assistant.buzzers.gamepadWake') : $t('hardware.buzzers.inactive')
+      }}
     </p>
 
     <div v-if="learningState" class="learn neon neon--no-hover" data-test="learning">
@@ -131,7 +133,7 @@ const FLASH_MS = 450
 
 const { t } = useI18n()
 const { confirm } = useConfirm()
-const { hardware, keymap, usesSimulationKeys, buzzerState } = useRoomHardware()
+const { hardware, keymap, usesSimulationKeys, usesGamepad, buzzerState } = useRoomHardware()
 
 const learning = shallowRef<BuzzerLearning | null>(null)
 const learningState = shallowRef<BuzzerLearningState | null>(null)
