@@ -73,8 +73,13 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
 
 Petits suivis connus : pas de Keyboard Lock avec la carte manette ; `LaunchView` reprend
 n'importe quelle sauvegarde ; le synthé de démo n'a pas de fondu ; course de concurrence si deux admins changent en même temps le type et le
-média d'une question (noté `ponytail:` dans `routes/questions/id.ts` et `media.ts`) ; migration
-de données qui typerait l'ancien contenu (le moteur sait déjà déduire le type).
+média d'une question (noté `ponytail:` dans `routes/questions/id.ts` et `media.ts`) ; typage
+de l'ancien contenu : **décision d'Enzo à prendre**. La migration `20261104020000_add_kind_to_questions`
+a rempli toutes les anciennes questions avec `kind = 'qcm'` (défaut `NOT NULL`), donc rien n'est à
+`NULL` et une ancienne question est indiscernable d'un QCM choisi exprès. Le moteur déduit déjà le
+vrai/faux et l'estimation (`game/engine/src/miniGames/questionRules.ts`). Seule option si on veut le
+faire : retyper les `qcm` qui suivent la règle du moteur (attention, `true_false` et `estimate`
+verrouillent ensuite les réponses dans le backoffice).
 
 ## 5. Process de travail
 
