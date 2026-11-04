@@ -4,6 +4,8 @@ import {
   ANSWER_STATUS_DELETED,
   DEFAULT_QUESTION_KIND,
   getQuestionKindMediaError,
+  type QuestionKind,
+  type QuestionStatus,
   QUESTION_MEDIA_TYPE_AUDIO,
   QUESTION_STATUS_DELETED,
 } from '@quizzup/shared'
@@ -34,7 +36,12 @@ import {
   type QuestionBody,
   type QuestionParams,
 } from './_shared'
-import { applyQuestionMediaPatch, QuestionMediaPatchError, removeStoredMediaFile } from './_media'
+import {
+  applyQuestionMediaPatch,
+  lockQuestionMediaRow,
+  QuestionRuleError,
+  removeStoredMediaFile,
+} from './_media'
 
 const questionIdRoutes: FastifyPluginAsync = async (app) => {
   app.get<{ Params: QuestionParams }>(
@@ -233,7 +240,9 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
         }
       }
 
-      // Le type et les réponses se valident ensemble : changer l'un revérifie l'autre.
+      // Le type et les réponses se valident ensemble : changer l'un revérifie l'autre. Contrôle
+      // rapide sur la lecture non verrouillée ; la règle fait foi dans la transaction, sur le type
+      // et les réponses relus ligne verrouillée (transaction ci-dessous).
       if (req.body.kind !== undefined || bodyAnswers) {
         const nextKind = req.body.kind ?? accessQuestion.kind ?? DEFAULT_QUESTION_KIND
         const nextAnswers = bodyAnswers ?? (await getQuestionAnswersForValidation(questionId))
@@ -244,81 +253,92 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
         }
       }
 
+      // Ordre des verrous commun à toutes les routes : la question, puis ses réponses.
       try {
-        if (bodyAnswers) {
-          const answers = bodyAnswers
-          const answerStatus = getAnswerStatusFromQuestionStatus(accessQuestion.status)
+        await db.transaction(async (trx) => {
+          const locked = await lockQuestionMediaRow(trx, questionId)
 
-          await db.transaction(async (trx) => {
-            detachedMediaKey = await applyQuestionMediaPatch(trx, questionId, mediaRequest)
-            await trx('questions').where({ id: questionId }).update(patch)
+          if (!locked) {
+            throw new QuestionRuleError('question_not_found', 404)
+          }
 
-            if (nextThemeIds !== null) {
-              await syncQuestionThemes(trx, questionId, nextThemeIds)
+          if (req.body.kind !== undefined || bodyAnswers) {
+            const nextKind =
+              req.body.kind ?? (locked.kind as QuestionKind | null) ?? DEFAULT_QUESTION_KIND
+            const nextAnswers =
+              bodyAnswers ?? (await getQuestionAnswersForValidation(questionId, trx))
+            const kindError = validateAnswersForKind(nextKind, nextAnswers)
+
+            if (kindError) {
+              throw new QuestionRuleError(kindError)
+            }
+          }
+
+          // Contrôles avant toute écriture : rien à défaire si une règle refuse.
+          detachedMediaKey = await applyQuestionMediaPatch(trx, questionId, locked, mediaRequest)
+          await trx('questions').where({ id: questionId }).update(patch)
+
+          if (nextThemeIds !== null) {
+            await syncQuestionThemes(trx, questionId, nextThemeIds)
+          }
+
+          if (!bodyAnswers) {
+            return
+          }
+
+          const answerStatus = getAnswerStatusFromQuestionStatus(
+            Number(locked.status ?? accessQuestion.status) as QuestionStatus
+          )
+          const existingAnswers = await trx('answers')
+            .where({ question_id: questionId })
+            .whereNot('status', ANSWER_STATUS_DELETED)
+
+          const existingIds = new Set(existingAnswers.map((answer) => Number(answer.id)))
+          const keptIds = new Set<number>()
+
+          // Diff : on conserve les réponses existantes par id, on met à jour celles
+          // modifiées, on insère les nouvelles et on soft-delete uniquement les retirées.
+          for (const answer of bodyAnswers) {
+            const existingId =
+              answer.id !== undefined && existingIds.has(answer.id) ? answer.id : null
+
+            if (existingId !== null) {
+              keptIds.add(existingId)
+
+              await trx('answers').where({ id: existingId, question_id: questionId }).update({
+                response: answer.response,
+                is_correct: answer.isCorrect,
+                status: answerStatus,
+                updated_at: trx.fn.now(),
+                deleted_at: null,
+              })
+            } else {
+              await trx('answers').insert({
+                admin_id: adminId,
+                question_id: questionId,
+                response: answer.response,
+                is_correct: answer.isCorrect,
+                status: answerStatus,
+                deleted_at: null,
+              })
+            }
+          }
+
+          for (const existingAnswer of existingAnswers) {
+            if (keptIds.has(Number(existingAnswer.id))) {
+              continue
             }
 
-            const existingAnswers = await trx('answers')
-              .where({ question_id: questionId })
-              .whereNot('status', ANSWER_STATUS_DELETED)
-
-            const existingIds = new Set(existingAnswers.map((answer) => Number(answer.id)))
-            const keptIds = new Set<number>()
-
-            // Diff : on conserve les réponses existantes par id, on met à jour celles
-            // modifiées, on insère les nouvelles et on soft-delete uniquement les retirées.
-            for (const answer of answers) {
-              const existingId =
-                answer.id !== undefined && existingIds.has(answer.id) ? answer.id : null
-
-              if (existingId !== null) {
-                keptIds.add(existingId)
-
-                await trx('answers').where({ id: existingId, question_id: questionId }).update({
-                  response: answer.response,
-                  is_correct: answer.isCorrect,
-                  status: answerStatus,
-                  updated_at: trx.fn.now(),
-                  deleted_at: null,
-                })
-              } else {
-                await trx('answers').insert({
-                  admin_id: adminId,
-                  question_id: questionId,
-                  response: answer.response,
-                  is_correct: answer.isCorrect,
-                  status: answerStatus,
-                  deleted_at: null,
-                })
-              }
-            }
-
-            for (const existingAnswer of existingAnswers) {
-              if (keptIds.has(Number(existingAnswer.id))) {
-                continue
-              }
-
-              await trx('answers')
-                .where({ id: existingAnswer.id, question_id: questionId })
-                .update({
-                  status: ANSWER_STATUS_DELETED,
-                  updated_at: trx.fn.now(),
-                  deleted_at: trx.fn.now(),
-                })
-            }
-          })
-        } else {
-          await db.transaction(async (trx) => {
-            detachedMediaKey = await applyQuestionMediaPatch(trx, questionId, mediaRequest)
-            await trx('questions').where({ id: questionId }).update(patch)
-
-            if (nextThemeIds !== null) {
-              await syncQuestionThemes(trx, questionId, nextThemeIds)
-            }
-          })
-        }
+            await trx('answers').where({ id: existingAnswer.id, question_id: questionId }).update({
+              status: ANSWER_STATUS_DELETED,
+              updated_at: trx.fn.now(),
+              deleted_at: trx.fn.now(),
+            })
+          }
+        })
       } catch (error) {
-        if (error instanceof QuestionMediaPatchError) {
-          return reply.code(400).send({ error: error.code })
+        if (error instanceof QuestionRuleError) {
+          return reply.code(error.statusCode).send({ error: error.code })
         }
 
         throw error

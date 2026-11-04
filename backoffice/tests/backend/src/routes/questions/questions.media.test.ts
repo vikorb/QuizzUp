@@ -8,6 +8,7 @@ import {
   QUESTION_KIND_ESTIMATE,
   QUESTION_MEDIA_TYPE_AUDIO,
   QUESTION_MEDIA_TYPE_NONE,
+  QUESTION_STATUS_DELETED,
 } from '@quizzup/shared'
 import questionsRoutes from '@backend/routes/questions'
 import { type MediaStorage, setMediaStorage } from '@backend/storage/mediaStorage'
@@ -159,6 +160,24 @@ describe('routes/questions/media — upload', () => {
     expect(response.statusCode).toBe(400)
     expect(parseJson(response)).toEqual({ error: 'question_kind_media_invalid' })
     expect(lockedTables).toContain('questions')
+    expect(questionRow(2).type_media).not.toBe(QUESTION_MEDIA_TYPE_AUDIO)
+    expect(questionRow(2).media_key ?? null).toBeNull()
+    expect(storage.files.size).toBe(0)
+    expect(storage.removed).toHaveLength(1)
+  })
+
+  it('refuses and cleans the file when the question was deleted during the write', async () => {
+    const realSave = storage.save.bind(storage)
+
+    storage.save = async (key, content) => {
+      await realSave(key, content)
+      questionRow(2).status = QUESTION_STATUS_DELETED
+    }
+
+    const response = await upload(2)
+
+    expect(response.statusCode).toBe(404)
+    expect(parseJson(response)).toEqual({ error: 'question_not_found' })
     expect(questionRow(2).type_media).not.toBe(QUESTION_MEDIA_TYPE_AUDIO)
     expect(questionRow(2).media_key ?? null).toBeNull()
     expect(storage.files.size).toBe(0)

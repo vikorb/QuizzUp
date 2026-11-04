@@ -26,7 +26,7 @@ import {
   assertKindMediaAllowed,
   buildClearedMediaPatch,
   lockQuestionMediaRow,
-  QuestionMediaPatchError,
+  QuestionRuleError,
   type QuestionMediaRow,
   removeStoredMediaFile,
 } from './_media'
@@ -275,6 +275,11 @@ const questionMediaRoutes: FastifyPluginAsync = async (app) => {
         replacedKey = await db.transaction(async (trx) => {
           const previous = await lockQuestionMediaRow(trx, access.questionId)
 
+          // Question supprimée pendant l'écriture du fichier : même réponse que les autres routes.
+          if (!previous || Number(previous.status) === QUESTION_STATUS_DELETED) {
+            throw new QuestionRuleError('question_not_found', 404)
+          }
+
           // Un extrait audio bascule la question en type audio : refusé hors QCM. Contrôle sur
           // la ligne verrouillée, car un PATCH du type a pu passer pendant l'écriture du fichier.
           assertKindMediaAllowed(previous, { typeMedia: QUESTION_MEDIA_TYPE_AUDIO })
@@ -302,8 +307,8 @@ const questionMediaRoutes: FastifyPluginAsync = async (app) => {
         // Fichier écrit avant le verrou (pas d'écriture disque dans une transaction) : on le retire.
         await removeStoredMediaFile(req, key)
 
-        if (error instanceof QuestionMediaPatchError) {
-          return reply.code(400).send({ error: error.code })
+        if (error instanceof QuestionRuleError) {
+          return reply.code(error.statusCode).send({ error: error.code })
         }
 
         throw error

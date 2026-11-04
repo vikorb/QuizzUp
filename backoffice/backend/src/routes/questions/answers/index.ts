@@ -102,8 +102,8 @@ const questionAnswersRoutes: FastifyPluginAsync = async (app) => {
       // ne modifie pas les autres. Les règles du type (vrai/faux, estimation)
       // portent sur l'ensemble des réponses, revérifié question verrouillée.
       const result = await db.transaction(async (trx) => {
-        const currentAnswers = await lockQuestionAnswers(trx, questionId)
-        const kindError = validateLockedAnswersForKind(question.kind, [
+        const { kind, answers: currentAnswers } = await lockQuestionAnswers(trx, questionId)
+        const kindError = validateLockedAnswersForKind(kind, [
           ...currentAnswers,
           { id: 0, response, is_correct: isCorrect, status },
         ])

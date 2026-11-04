@@ -152,7 +152,11 @@ Format inspiré de Keep a Changelog.
   type (`PATCH /questions/:id`) et l'extrait audio (`PUT /questions/:id/media`) ne peuvent plus
   laisser une question incohérente. La règle `question_kind_media_invalid` est contrôlée sur la
   ligne relue en `SELECT … FOR UPDATE` dans la transaction ; l'extrait est écrit hors
-  transaction et retiré si le contrôle échoue.
+  transaction et retiré si le contrôle échoue (y compris si la question est supprimée entre-temps,
+  réponse 404). Même famille de course pour les réponses : le type et les réponses sont
+  revalidés sur le type relu sous verrou pour `PATCH /questions/:id` et pour les routes unitaires
+  de réponses (ajout, modification, statut, suppression), toujours dans l'ordre de verrous
+  question puis réponses.
   US: us-question-kind-race
 
 - Compte de salle : connexion refusée et PC déconnecté si la compagnie n'est plus active ;

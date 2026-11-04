@@ -1,6 +1,6 @@
 import '../_helpers/registerRouteMocks'
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
   ANSWER_STATUS_ACTIVE,
@@ -13,10 +13,10 @@ import {
   QUESTION_MEDIA_TYPE_VIDEO,
 } from '@quizzup/shared'
 import questionsRoutes from '@backend/routes/questions'
-import { db, dbState, lockedTables } from '../_helpers/mockDb'
+import { dbState, lockedTables } from '../_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
 import { authHeaders, companyAdminUser, createRouteApp, parseJson } from '../_helpers/testApp'
-import { seedQuestionsData } from './_fixtures'
+import { concurrentWriteBeforeTransaction, seedQuestionsData } from './_fixtures'
 
 resetRouteMocksBeforeEach()
 
@@ -306,17 +306,6 @@ describe('routes/questions/id.ts', () => {
   })
 
   describe('concurrent kind / media changes (row lock)', () => {
-    /** Fait jouer une écriture concurrente juste avant que la transaction du PATCH ne démarre. */
-    function concurrentWriteBeforeTransaction(write: () => void) {
-      const realTransaction = db.transaction
-
-      vi.spyOn(db, 'transaction').mockImplementationOnce((callback) => {
-        write()
-
-        return realTransaction(callback)
-      })
-    }
-
     const estimateAnswers = [
       { response: 'Moins de 10', isCorrect: false },
       { response: '10 à 99', isCorrect: true },
@@ -358,6 +347,58 @@ describe('routes/questions/id.ts', () => {
       expect(parseJson(response)).toEqual({ error: 'question_kind_media_invalid' })
       expect(row.kind).not.toBe(QUESTION_KIND_ESTIMATE)
       expect(row.type_media).toBe(QUESTION_MEDIA_TYPE_AUDIO)
+
+      await app.close()
+    })
+
+    it('revalidates the sent answers against the kind read under the lock', async () => {
+      const app = await createRouteApp(questionsRoutes)
+
+      // A est passé en estimation entre-temps : les réponses QCM de B doivent être refusées.
+      concurrentWriteBeforeTransaction(() => {
+        dbState.questions.find((row) => row.id === 2)!.kind = QUESTION_KIND_ESTIMATE
+      })
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/questions/2',
+        headers: authHeaders(companyAdminUser),
+        payload: {
+          answers: [
+            { response: 'Paris', isCorrect: true },
+            { response: 'Lyon', isCorrect: false },
+          ],
+        },
+      })
+
+      expect(response.statusCode).toBe(400)
+      expect(parseJson(response)).toEqual({ error: 'question_estimate_answers_invalid' })
+      expect(dbState.answers.find((row) => row.id === 10)!.response).toBe('A')
+      expect(dbState.answers.filter((row) => row.question_id === 2)).toHaveLength(3)
+
+      await app.close()
+    })
+
+    it('revalidates the stored answers when only the kind is sent', async () => {
+      const app = await createRouteApp(questionsRoutes)
+
+      // Une réponse hors « Vrai / Faux » apparaît pendant que le type passe en vrai/faux.
+      dbState.answers.find((row) => row.id === 10)!.response = 'Vrai'
+      dbState.answers.find((row) => row.id === 11)!.response = 'Faux'
+      concurrentWriteBeforeTransaction(() => {
+        dbState.answers.find((row) => row.id === 11)!.response = 'Peut-être'
+      })
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/questions/2',
+        headers: authHeaders(companyAdminUser),
+        payload: { kind: QUESTION_KIND_TRUE_FALSE },
+      })
+
+      expect(response.statusCode).toBe(400)
+      expect(parseJson(response)).toEqual({ error: 'question_true_false_answers_invalid' })
+      expect(dbState.questions.find((row) => row.id === 2)!.kind).not.toBe(QUESTION_KIND_TRUE_FALSE)
 
       await app.close()
     })

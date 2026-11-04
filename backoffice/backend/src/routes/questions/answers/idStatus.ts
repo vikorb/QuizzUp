@@ -65,7 +65,7 @@ const questionAnswerIdStatusRoutes: FastifyPluginAsync = async (app) => {
       const nextStatus = req.body.status
 
       const result = await db.transaction(async (trx) => {
-        const activeAnswers = await lockQuestionAnswers(trx, questionId)
+        const { kind, answers: activeAnswers } = await lockQuestionAnswers(trx, questionId)
         const existingAnswer = activeAnswers.find((answer) => Number(answer.id) === answerId)
 
         if (!existingAnswer) {
@@ -85,7 +85,7 @@ const questionAnswerIdStatusRoutes: FastifyPluginAsync = async (app) => {
         }
 
         const kindError = validateLockedAnswersForKind(
-          question.kind,
+          kind,
           activeAnswers.map((answer) =>
             Number(answer.id) === answerId ? { ...answer, status: nextStatus } : answer
           )

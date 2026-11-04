@@ -12,6 +12,7 @@ import { getMediaStorage, isValidMediaKey } from '../../storage/mediaStorage'
 import { DEFAULT_QUESTION_MEDIA_TYPE, validateMediaStartMs } from './_shared'
 
 export type QuestionMediaRow = {
+  status?: number | string | null
   kind?: string | null
   type_media?: string | null
   media_key: string | null
@@ -48,6 +49,7 @@ export async function lockQuestionMediaRow(
 ): Promise<QuestionMediaRow | null> {
   const row = await trx('questions')
     .select(
+      'status',
       'kind',
       'type_media',
       'media_key',
@@ -78,16 +80,20 @@ export async function removeStoredMediaFile(
   }
 }
 
-export class QuestionMediaPatchError extends Error {
-  constructor(public readonly code: string) {
+/** Règle de la question refusée sous verrou : 400 par défaut, annule la transaction. */
+export class QuestionRuleError extends Error {
+  constructor(
+    public readonly code: string,
+    public readonly statusCode = 400
+  ) {
     super(code)
-    this.name = 'QuestionMediaPatchError'
+    this.name = 'QuestionRuleError'
   }
 }
 
 /**
  * Règle type / média sur la ligne verrouillée. `kind` et `typeMedia` sont les valeurs demandées
- * (`undefined` = inchangé, on garde alors celle de la base). Lève `QuestionMediaPatchError`.
+ * (`undefined` = inchangé, on garde alors celle de la base). Lève `QuestionRuleError`.
  */
 export function assertKindMediaAllowed(
   row: QuestionMediaRow | null,
@@ -101,7 +107,7 @@ export function assertKindMediaAllowed(
   )
 
   if (kindMediaError) {
-    throw new QuestionMediaPatchError(kindMediaError)
+    throw new QuestionRuleError(kindMediaError)
   }
 }
 
@@ -113,14 +119,16 @@ export type QuestionMediaPatchRequest = {
 }
 
 /**
- * Partie type / média d'un `PATCH /questions/:id`, à appeler dans sa transaction. La ligne est
- * verrouillée, puis le couple type / média et le point de départ sont contrôlés sur cet état.
+ * Partie type / média d'un `PATCH /questions/:id`, à appeler dans sa transaction avec la ligne
+ * déjà verrouillée (`lockQuestionMediaRow`) : le couple type / média et le point de départ sont
+ * contrôlés sur cet état.
  * Renvoie la clé du fichier détaché (à supprimer après le commit) ; lève
- * `QuestionMediaPatchError` si la règle est refusée, ce qui annule toute la transaction.
+ * `QuestionRuleError` si la règle est refusée, ce qui annule toute la transaction.
  */
 export async function applyQuestionMediaPatch(
   trx: Knex.Transaction,
   questionId: number,
+  row: QuestionMediaRow | null,
   request: QuestionMediaPatchRequest
 ): Promise<string | null> {
   const checksKindMedia = request.kind !== undefined || request.typeMedia !== undefined
@@ -128,8 +136,6 @@ export async function applyQuestionMediaPatch(
   if (!checksKindMedia && !request.leavesAudio && request.startMs === undefined) {
     return null
   }
-
-  const row = await lockQuestionMediaRow(trx, questionId)
 
   if (checksKindMedia) {
     assertKindMediaAllowed(row, request)
@@ -150,14 +156,14 @@ export async function applyQuestionMediaPatch(
   }
 
   if (!row?.media_key) {
-    throw new QuestionMediaPatchError('question_media_not_found')
+    throw new QuestionRuleError('question_media_not_found')
   }
 
   const durationMs = row.media_duration_ms === null ? null : Number(row.media_duration_ms)
   const startError = validateMediaStartMs(request.startMs, durationMs)
 
   if (startError) {
-    throw new QuestionMediaPatchError(startError)
+    throw new QuestionRuleError(startError)
   }
 
   await trx('questions').where({ id: questionId }).update({ media_start_ms: request.startMs })
