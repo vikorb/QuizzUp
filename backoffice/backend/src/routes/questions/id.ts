@@ -2,6 +2,7 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 
 import {
   ANSWER_STATUS_DELETED,
+  DEFAULT_QUESTION_KIND,
   QUESTION_MEDIA_TYPE_AUDIO,
   QUESTION_STATUS_DELETED,
 } from '@quizzup/shared'
@@ -25,7 +26,9 @@ import {
   parsePositiveId,
   parseQuestionThemeIds,
   syncQuestionThemes,
+  getQuestionAnswersForValidation,
   validateAnswers,
+  validateAnswersForKind,
   type QuestionBody,
   type QuestionParams,
 } from './_shared'
@@ -197,19 +200,34 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
       }
       let detachedMediaKey: string | null = null
 
+      const bodyAnswers = req.body.answers === undefined ? null : normalizeAnswers(req.body.answers)
+
+      if (bodyAnswers) {
+        const answersError = validateAnswers(bodyAnswers)
+
+        if (answersError) {
+          return reply.code(400).send({ error: answersError })
+        }
+
+        if (hasInvalidAnswerStatus(bodyAnswers)) {
+          return reply.code(400).send({ error: 'question_answer_status_invalid' })
+        }
+      }
+
+      // Le type et les réponses se valident ensemble : changer l'un revérifie l'autre.
+      if (req.body.kind !== undefined || bodyAnswers) {
+        const nextKind = req.body.kind ?? accessQuestion.kind ?? DEFAULT_QUESTION_KIND
+        const nextAnswers = bodyAnswers ?? (await getQuestionAnswersForValidation(questionId))
+        const kindError = validateAnswersForKind(nextKind, nextAnswers)
+
+        if (kindError) {
+          return reply.code(400).send({ error: kindError })
+        }
+      }
+
       try {
-        if (req.body.answers !== undefined) {
-          const answers = normalizeAnswers(req.body.answers)
-          const answersError = validateAnswers(answers)
-
-          if (answersError) {
-            return reply.code(400).send({ error: answersError })
-          }
-
-          if (hasInvalidAnswerStatus(answers)) {
-            return reply.code(400).send({ error: 'question_answer_status_invalid' })
-          }
-
+        if (bodyAnswers) {
+          const answers = bodyAnswers
           const answerStatus = getAnswerStatusFromQuestionStatus(accessQuestion.status)
 
           await db.transaction(async (trx) => {

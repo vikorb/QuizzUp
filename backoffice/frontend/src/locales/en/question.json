@@ -44,7 +44,15 @@
         },
         "measuring": "reading duration…"
       },
-      "kind": "Question type"
+      "kind": "Question type",
+      "errors": {
+        "trueFalseAnswers": "A true / false question has exactly two answers, « Vrai » and « Faux », with one correct.",
+        "estimateAnswers": "An estimate has 3 or 4 ranges starting with a number (e.g. « Moins de 100 », « 100 à 199 »), with one correct."
+      },
+      "kindRules": {
+        "true_false": "True / false: two answers « Vrai » and « Faux », one correct.",
+        "estimate": "Estimate: 3 or 4 ranges starting with a number (« Moins de 100 », « 100 à 199 », « 1 000 ou plus »), one correct. Entry order does not matter."
+      }
     },
     "kinds": {
       "qcm": "Multiple choice",

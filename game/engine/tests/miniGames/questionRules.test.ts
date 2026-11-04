@@ -12,6 +12,7 @@ import {
   parseLeadingNumber,
 } from '@engine/miniGames/questionRules'
 import {
+  isEstimateRange,
   QUESTION_KIND_ESTIMATE,
   QUESTION_KIND_QCM,
   QUESTION_KIND_TRUE_FALSE,
@@ -35,6 +36,7 @@ describe('normalizeText', () => {
     expect(normalizeText('  VRAI ')).toBe('vrai')
     expect(normalizeText('Électricité')).toBe('electricite')
     expect(normalizeText('Faux')).toBe('faux')
+    expect(normalizeText('Moins\u00A0de\u202F100')).toBe('moins de 100')
   })
 })
 
@@ -318,5 +320,26 @@ describe('question kind from the backoffice', () => {
         answers: numbers(['Peu', 'Beaucoup', 'Énormément']),
       })
     ).toBe(false)
+  })
+})
+
+describe('estimate ranges accepted by the backoffice', () => {
+  it('are all recognised by the engine, so a saved estimate is always playable', () => {
+    for (const text of [
+      'Moins de 100',
+      'Moins\u00A0de 100',
+      'Plus de 5',
+      'Au moins 3',
+      'Jusqu’à 10',
+      '≥ 1 000',
+      '100 à 199',
+      '-5',
+      'Environ 12',
+      'Avant 1900',
+      'Après 2000',
+    ]) {
+      expect(isEstimateRange(text)).toBe(true)
+      expect(isRangeAnswer(answer(text))).toBe(true)
+    }
   })
 })

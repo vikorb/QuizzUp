@@ -12,6 +12,7 @@ import {
   hasCorrectAnswerBesides,
   lockQuestionAnswers,
   parsePositiveId,
+  validateLockedAnswersForKind,
   type AnswerBody,
   type AnswerParams,
 } from '../_shared'
@@ -85,6 +86,23 @@ const questionAnswerIdRoutes: FastifyPluginAsync = async (app) => {
           return { ok: false, status: 400, error: 'answer_correct_required' } as const
         }
 
+        const kindError = validateLockedAnswersForKind(
+          question.kind,
+          activeAnswers.map((answer) =>
+            Number(answer.id) === answerId
+              ? {
+                  ...answer,
+                  response: (patch.response as string | undefined) ?? answer.response,
+                  is_correct: req.body.isCorrect ?? answer.is_correct,
+                }
+              : answer
+          )
+        )
+
+        if (kindError) {
+          return { ok: false, status: 400, error: kindError } as const
+        }
+
         const [updatedAnswer] = await trx('answers')
           .where({ id: answerId, question_id: questionId })
           .update(patch)
@@ -148,6 +166,15 @@ const questionAnswerIdRoutes: FastifyPluginAsync = async (app) => {
 
         if (answerToDelete.is_correct && !hasCorrectAnswerBesides(activeAnswers, answerId)) {
           return { ok: false, status: 400, error: 'answer_correct_delete_forbidden' } as const
+        }
+
+        const kindError = validateLockedAnswersForKind(
+          question.kind,
+          activeAnswers.filter((answer) => Number(answer.id) !== answerId)
+        )
+
+        if (kindError) {
+          return { ok: false, status: 400, error: kindError } as const
         }
 
         const [deletedAnswer] = await trx('answers')

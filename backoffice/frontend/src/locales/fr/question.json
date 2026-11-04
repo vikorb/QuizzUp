@@ -89,7 +89,9 @@
         "questionRequired": "La question est obligatoire.",
         "answersMinRequired": "Au moins deux réponses sont nécessaires.",
         "answerRequired": "Toutes les réponses doivent être renseignées.",
-        "oneCorrectRequired": "Au moins une bonne réponse doit être sélectionnée."
+        "oneCorrectRequired": "Au moins une bonne réponse doit être sélectionnée.",
+        "trueFalseAnswers": "Une question vrai/faux a exactement deux réponses, « Vrai » et « Faux », dont une seule juste.",
+        "estimateAnswers": "Une estimation a 3 ou 4 fourchettes qui commencent par un nombre (ex : « Moins de 100 », « 100 à 199 »), dont une seule juste."
       },
       "audio": {
         "title": "Extrait audio",
@@ -134,7 +136,11 @@
         },
         "measuring": "durée en cours de lecture…"
       },
-      "kind": "Type de question"
+      "kind": "Type de question",
+      "kindRules": {
+        "true_false": "Vrai/faux : deux réponses « Vrai » et « Faux », une seule juste.",
+        "estimate": "Estimation : 3 ou 4 fourchettes commençant par un nombre (« Moins de 100 », « 100 à 199 », « 1 000 ou plus »), une seule juste. L'ordre de saisie n'a pas d'importance."
+      }
     },
     "themeModes": {
       "classic": "Classique",

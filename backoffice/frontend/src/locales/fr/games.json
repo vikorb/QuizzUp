@@ -71,7 +71,7 @@
       "displayName": "Nom affiché",
       "displayNamePlaceholder": "Ex : Les Quizzeurs",
       "email": "Email",
-      "emailPlaceholder": "Ex : joueur@exemple.fr (facultatif)",
+      "emailPlaceholder": "Ex : joueur{'@'}exemple.fr (facultatif)",
       "emailHint": "Facultatif.",
       "consent": "J'accepte que mon adresse email soit utilisée pour recevoir les résultats de la partie et des offres du centre.",
       "consentHint": "Obligatoire si un email est saisi. Le joueur peut retirer son consentement à tout moment.",

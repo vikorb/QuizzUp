@@ -71,7 +71,7 @@
       <div class="question-form__answers-header">
         <div class="question-form__answers-title">
           <h3>{{ $t('questions.form.answers') }}</h3>
-          <Tooltip :text="$t('questions.form.answersRules')" />
+          <Tooltip :text="answersRulesText" />
         </div>
 
         <UiButton
@@ -139,6 +139,8 @@
 import { mdiTrashCanOutline } from '@mdi/js'
 import {
   DEFAULT_QUESTION_KIND,
+  getQuestionKindAnswersError,
+  QUESTION_KIND_ANSWERS_ERROR_TRUE_FALSE,
   QUESTION_KIND_ESTIMATE,
   QUESTION_KIND_QCM,
   QUESTION_KIND_TRUE_FALSE,
@@ -294,6 +296,12 @@ const statusHelp = computed(() => {
     : t('questions.form.status.inactiveHelp')
 })
 
+const answersRulesText = computed(() =>
+  form.kind === QUESTION_KIND_QCM
+    ? t('questions.form.answersRules')
+    : t(`questions.form.kindRules.${form.kind}`)
+)
+
 const kindOptions = computed<SelectFieldOption[]>(() => [
   { label: t('questions.kinds.qcm'), value: QUESTION_KIND_QCM },
   { label: t('questions.kinds.true_false'), value: QUESTION_KIND_TRUE_FALSE },
@@ -431,6 +439,16 @@ function validateForm(): boolean {
 
   if (form.answers.filter((answer) => answer.isCorrect).length < 1) {
     errors.answers = 'questions.form.errors.oneCorrectRequired'
+  }
+
+  // Règles du type de question (vrai/faux, estimation), les mêmes que l'API et le moteur.
+  const kindError = errors.answers ? null : getQuestionKindAnswersError(form.kind, form.answers)
+
+  if (kindError) {
+    errors.answers =
+      kindError === QUESTION_KIND_ANSWERS_ERROR_TRUE_FALSE
+        ? 'questions.form.errors.trueFalseAnswers'
+        : 'questions.form.errors.estimateAnswers'
   }
 
   if (isAudio.value && form.audio.file && form.audio.measuring) {
