@@ -200,7 +200,7 @@
           {{ $t('setup.done.saveError') }}
         </p>
         <div class="setup__actions">
-          <UiButton :disabled="saving" data-test="setup-lights" @click="onFinish('assistant')">
+          <UiButton :disabled="saving" data-test="setup-lights" @click="onFinish('lights')">
             {{ $t('setup.done.lights') }}
           </UiButton>
           <UiButton
@@ -377,14 +377,12 @@ async function onQuit(): Promise<void> {
   }
 }
 
-async function onFinish(tab?: 'assistant'): Promise<void> {
+async function onFinish(next?: 'lights'): Promise<void> {
   saving.value = true
   saveError.value = false
   try {
     await saveRoomSetup({ layout: draft.value, desksCount: desksCount.value, keymap: keymap.value })
-    await (tab
-      ? router.push({ name: 'hardware', query: { tab } })
-      : router.push({ name: 'launch' }))
+    await router.push({ name: next === 'lights' ? 'setup-lights' : 'launch' })
   } catch {
     saveError.value = true
   } finally {

@@ -18,6 +18,11 @@ export const routes: RouteRecordRaw[] = [
     component: () => import('@/views/hardware/HardwareView.vue'),
   },
   { path: '/setup', name: 'setup', component: () => import('@/views/SetupView.vue') },
+  {
+    path: '/setup/lights',
+    name: 'setup-lights',
+    component: () => import('@/views/SetupLightsView.vue'),
+  },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 

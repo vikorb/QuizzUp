@@ -37,4 +37,30 @@ for (const viewport of SCREENS) {
     )
     expect(Math.round(lines)).toBe(1)
   })
+
+  test(`Configuration des lumières — tient sans défiler en ${viewport.width}x${viewport.height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport)
+    await enterDemo(page)
+    await page.goto('/setup/lights')
+    await expect(page.getByRole('heading', { name: 'Passons aux lumières !' })).toBeVisible()
+    await page.locator('[data-test="lights-scan-next"]').click()
+    await page.locator('[data-test="lights-six-desk"]').click()
+    // Si la démo a déjà des lumières, la confirmation de remplacement s'ouvre.
+    const dialog = page.getByRole('dialog')
+    if (
+      await dialog.waitFor({ state: 'visible', timeout: 1000 }).then(
+        () => true,
+        () => false
+      )
+    ) {
+      await dialog.getByRole('button').last().click()
+    }
+    await expect(page.locator('[data-test="lights-fixture"]')).toBeVisible()
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollHeight - window.innerHeight
+    )
+    expect(overflow).toBeLessThanOrEqual(0)
+  })
 }

@@ -126,5 +126,58 @@
       "lights": "Set up the lights",
       "saveError": "Could not save. Check the connection and try again."
     }
+  },
+  "setupLights": {
+    "scan": {
+      "title": "Let’s do the lights!",
+      "text": "We look for your DMX interface. The lights themselves do not answer a search: we will test them one by one right after.",
+      "usb": "Look for a USB interface",
+      "noSerial": "This browser cannot use USB: use Chrome or Edge.",
+      "searching": "Looking for a network box…",
+      "usbFound": "USB interface found",
+      "nodeFound": "Network box {ip} found",
+      "usbNone": "No USB interface chosen.",
+      "none": "No interface: we carry on in simulation",
+      "nextSimulation": "Continue in simulation"
+    },
+    "equip": {
+      "title": "How is your room equipped?",
+      "sixDesk": "6-desk room",
+      "sixDeskHint": "The QuizzUp model",
+      "keep": "Keep my current fixtures",
+      "keepHint": "{n} fixture(s) already set",
+      "later": "I will set it up later",
+      "laterHint": "You can do it from Hardware.",
+      "smokeConflict": "The model overlaps your smoke machine’s address. Keep your fixtures, or change the smoke address in Hardware.",
+      "replaceConfirm": "Your current fixtures will be replaced by the 6-desk model. Continue?"
+    },
+    "test": {
+      "progress": "Fixture {n} of {total}",
+      "ambient": "Ambient",
+      "address": "address {address}",
+      "question": "Is it lighting up?",
+      "yes": "Yes!",
+      "no": "No",
+      "helpTitle": "No worries, let’s check together:",
+      "helpAddress": "The DMX address set on the fixture must be {address}.",
+      "helpCable": "The DMX cable is plugged in and the fixture is powered.",
+      "retry": "Try again",
+      "skip": "Skip"
+    },
+    "smoke": {
+      "title": "A smoke machine is planned",
+      "text": "For safety, it stays disabled here. It only turns on after the Hardware assistant checks: physical emergency stop, timed relay and cut-off test.",
+      "link": "Set up the smoke",
+      "next": "Continue"
+    },
+    "done": {
+      "title": "Your lights are ready!",
+      "titleLater": "Lights, later",
+      "recap": "{ok} fixture(s) OK, {ko} to check.",
+      "textLater": "Nothing was tested. You can set up your lights from Hardware.",
+      "ok": "OK",
+      "ko": "To check",
+      "koHint": "You can fix the fixtures to check from Hardware, Lights tab."
+    }
   }
 }
