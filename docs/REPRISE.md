@@ -48,9 +48,23 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
     écoutées aussi sur le port 6454 ; IP = expéditeur, locale, 64 nœuds et 16 univers max ;
     **à valider sur un vrai nœud** Showtec NET-2/3) ;
   - #116 (tests room-app qui attendaient une navigation : écrans paresseux préchargés depuis
-    `routes`, fin de l'instabilité « expected 'lobby' to be 'play' » sous charge).
-  - En attente d'une décision d'Enzo : L6 (kit poste Windows : Chrome ou Edge ?), L7 (fumée
-    seulement avec relais, recommandé), L11 (`.exe` du pont : signature ?), L14 (cache hors ligne).
+    `routes`, fin de l'instabilité « expected 'lobby' to be 'play' » sous charge) ;
+  - #118 (L11 exécutable Windows unique du pont, Node SEA, **sans signature** ; job CI
+    `windows-latest` qui le construit, le teste et analyse les scripts PowerShell) ;
+  - #119 (L6 kit « poste de salle » `deploy/poste-salle/` : politiques Chrome, pont en tâche
+    SYSTEM au démarrage, pare-feu UDP 6454 ; **Chrome seul, Windows Pro et Home**) ;
+  - #120 (L7 fumée : autorisée avec un relais (tous les canaux fumée `binary`, jugé sur les
+    canaux et non sur `kind`), ou sans relais si la case « la machine coupe sur perte de signal »
+    est cochée **et** le test guidé de vrai débranchement DMX réussi ; gel du pont `hold`
+    plafonné à 15 s, `release` envoyé si la confirmation tarde).
+  - **L14 (cache hors ligne) reporté en V2.**
+  - **À valider sur TERMIVAVOR2** : scripts PowerShell (jamais exécutés en vrai),
+    `chrome://policy` sous Home, Local Network Access, Smart App Control, vrai nœud Art-Net,
+    roue de couleurs, calage des lyres, 2 univers, test de débranchement de la fumée.
+  - **Prochain lot demandé par Enzo** : configuration guidée des buzzers (« appuie sur le buzzer
+    vert du joueur 1… ») puis plan de salle 2D où l'on place chaque pupitre et buzzer. Reprendre
+    le plan 2D/3D du dépôt « QuizUp Fable » (sur GitLab, accès à fournir : copie GitHub ou jeton
+    `read_repository` dans les secrets de l'environnement).
 - **Décisions d'Enzo du 2026-11-04 (soir), mergées** : #101 (`backoffice/backend/.env` sorti de
   git ; les tests backend se replient sur `.env.example` ; **sauvegarder son `.env` avant le
   pull**, git le supprime du disque), #102 (baisser le nombre de pupitres garde en **réserve** les
