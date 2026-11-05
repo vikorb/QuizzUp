@@ -239,4 +239,17 @@ describe('parcours de configuration plein écran', () => {
     await click(wrapper, 'setup-finish')
     await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('launch'))
   })
+
+  it('« Régler les lumières » ouvre le parcours des lumières', async () => {
+    const { wrapper, router } = await mountWithApp(SetupView, { route: '/setup' })
+    await click(wrapper, 'setup-start')
+    await click(wrapper, 'setup-layout-ok')
+    await click(wrapper, 'setup-desks-1')
+    await click(wrapper, 'setup-desks-ok')
+    for (const _step of [1, 2, 3, 4]) {
+      await click(wrapper, 'setup-skip')
+    }
+    await click(wrapper, 'setup-lights')
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('setup-lights'))
+  })
 })

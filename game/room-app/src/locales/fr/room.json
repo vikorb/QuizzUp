@@ -126,5 +126,57 @@
       "lights": "Régler les lumières",
       "saveError": "Impossible d’enregistrer. Vérifie la connexion et réessaie."
     }
+  },
+  "setupLights": {
+    "scan": {
+      "title": "Passons aux lumières !",
+      "text": "On cherche ton interface DMX. Les projecteurs, eux, ne répondent pas à la recherche : on les testera un par un, juste après.",
+      "usb": "Chercher une interface USB",
+      "noSerial": "Ce navigateur ne gère pas l’USB : utilise Chrome ou Edge.",
+      "searching": "Recherche d’un boîtier réseau…",
+      "usbFound": "Interface USB trouvée",
+      "nodeFound": "Boîtier réseau {ip} trouvé",
+      "usbNone": "Aucune interface USB choisie.",
+      "none": "Aucune interface : on continue en simulation",
+      "nextSimulation": "Continuer en simulation"
+    },
+    "equip": {
+      "title": "Comment est équipée ta salle ?",
+      "sixDesk": "Salle 6 pupitres",
+      "sixDeskHint": "Le modèle QuizzUp",
+      "keep": "Je garde mes appareils actuels",
+      "keepHint": "{n} appareil(s) déjà réglé(s)",
+      "later": "Je configurerai plus tard",
+      "laterHint": "Tu pourras le faire depuis Matériel.",
+      "replaceConfirm": "Tes appareils actuels seront remplacés par ceux du modèle 6 pupitres. Continuer ?"
+    },
+    "test": {
+      "progress": "Appareil {n} sur {total}",
+      "ambient": "Ambiance",
+      "address": "adresse {address}",
+      "question": "Est-ce que ça s’allume ?",
+      "yes": "Oui !",
+      "no": "Non",
+      "helpTitle": "Pas de souci, vérifions ensemble :",
+      "helpAddress": "L’adresse DMX réglée sur l’appareil doit être {address}.",
+      "helpCable": "Le câble DMX est bien branché et l’appareil est sous tension.",
+      "retry": "Réessayer",
+      "skip": "Passer"
+    },
+    "smoke": {
+      "title": "Une machine à fumée est prévue",
+      "text": "Par sécurité, elle reste désactivée ici. Elle ne s’active qu’après les contrôles de l’assistant Matériel : arrêt d’urgence physique, relais temporisé et test de coupure.",
+      "link": "Régler la fumée",
+      "next": "Continuer"
+    },
+    "done": {
+      "title": "Tes lumières sont prêtes !",
+      "titleLater": "Les lumières, plus tard",
+      "recap": "{ok} appareil(s) OK, {ko} à vérifier.",
+      "textLater": "Rien n’a été testé. Tu pourras régler tes lumières depuis Matériel.",
+      "ok": "OK",
+      "ko": "À vérifier",
+      "koHint": "Tu pourras corriger les appareils à vérifier depuis Matériel, onglet Lumières."
+    }
   }
 }
