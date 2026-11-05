@@ -392,9 +392,10 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
             item.desk === calibrationSelected.desk
         )
       : -1
+    // Jamais -1 en mémoire : une liste vidée puis remplie repart d'un rang valide.
     calibrationIndex =
-      found >= 0 ? found : Math.max(-1, Math.min(calibrationIndex, targets.length - 1))
-    return calibrationIndex
+      found >= 0 ? found : Math.max(0, Math.min(calibrationIndex, targets.length - 1))
+    return targets.length === 0 ? -1 : calibrationIndex
   }
   const selectIndex = (targets: readonly CalibrationTarget[], index: number) => {
     calibrationIndex = index

@@ -669,6 +669,21 @@ describe('assistant d’installation : calage des lyres au clavier', () => {
     expect(wizard.validateCalibration()).toEqual({ ok: false, reason: 'no_target' })
   })
 
+  it('repart de la première cible quand on rajoute une lyre après les avoir toutes retirées', () => {
+    const wizard = atPositions()
+    wizard.selectCalibration({ fixtureId: 'lyre-deux', desk: 2 })
+    wizard.removeFixture('lyre')
+    wizard.removeFixture('lyre-deux')
+    expect(wizard.getState().calibration.current).toBeNull()
+
+    wizard.addFixture({ profileId: 'moving-head-8', name: 'Nouvelle' })
+    expect(wizard.getState().calibration.current).toEqual({ fixtureId: 'nouvelle', desk: 1 })
+    expect(wizard.validateCalibration()).toMatchObject({
+      ok: true,
+      current: { fixtureId: 'nouvelle', desk: 2 },
+    })
+  })
+
   it('garde la même cible quand la liste change (retient lyre + pupitre, pas le rang)', () => {
     const wizard = atPositions()
     wizard.selectCalibration({ fixtureId: 'lyre-deux', desk: 2 })
