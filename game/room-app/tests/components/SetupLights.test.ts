@@ -4,9 +4,11 @@ import { flushPromises } from '@vue/test-utils'
 import { useConfirm } from '@/composables/useConfirm'
 import type * as Hardware from '@/hardware/roomHardware'
 import {
+  getLighting,
   getRoomHardwareConfig,
   saveBuzzerKeymap,
   saveRoomHardwareConfig,
+  startLighting,
 } from '@/hardware/roomHardware'
 import { enterDemo, syncRoomAuth } from '@/state/roomAuth'
 import SetupLightsView from '@/views/SetupLightsView.vue'
@@ -100,6 +102,7 @@ describe('lumières plein écran : interface', () => {
   })
 
   it('sans interface, continue en simulation', async () => {
+    const before = getRoomHardwareConfig().lighting
     const { wrapper, router } = await mountLights()
     expect(sel(wrapper, 'lights-usb').attributes('disabled')).toBeDefined()
     expect(sel(wrapper, 'lights-none').text()).toBe('Aucune interface : on continue en simulation')
@@ -109,7 +112,17 @@ describe('lumières plein écran : interface', () => {
     expect(sel(wrapper, 'lights-done').text()).toBe('Les lumières, plus tard')
     await click(wrapper, 'lights-finish')
     await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('launch'))
-    expect(getRoomHardwareConfig().lighting.driver).toBe('simulation')
+    // « Plus tard » n'enregistre rien.
+    expect(getRoomHardwareConfig().lighting).toEqual(before)
+  })
+
+  it('quitter après une recherche USB referme la connexion ouverte', async () => {
+    installFakeSerial(createFakeUsbPort())
+    const { wrapper } = await mountLights()
+    await click(wrapper, 'lights-usb')
+    expect(getLighting()?.getState().simulation).toBe(false)
+    wrapper.unmount()
+    await vi.waitFor(() => expect(getLighting()?.getState().simulation).toBe(true))
   })
 })
 
@@ -159,6 +172,17 @@ describe('lumières plein écran : appareils', () => {
     expect(config.buzzers.keymap).toEqual(Object.fromEntries([['KeyB', { desk: 1, button: 'A' }]]))
   })
 
+  it('quitter pendant l’application des lumières ne lance pas le test', async () => {
+    await seedLighting({ fixtures: [] })
+    const { wrapper } = await toEquip()
+    const controller = await startLighting()
+    const begin = vi.spyOn(controller.diagnostics, 'begin')
+    void sel(wrapper, 'lights-six-desk').trigger('click')
+    wrapper.unmount()
+    await flushPromises()
+    expect(begin).not.toHaveBeenCalled()
+  })
+
   it('quitter en cours de test n’enregistre rien', async () => {
     await seedLighting({ fixtures: [] })
     const { wrapper, router } = await toEquip()
@@ -175,6 +199,38 @@ describe('lumières plein écran : appareils', () => {
 })
 
 describe('lumières plein écran : fumée', () => {
+  it('fumée conservée après le modèle 6 pupitres', async () => {
+    await seedLighting({
+      fixtures: [
+        { id: 'par1', name: 'PAR du fond', profileId: 'par-rgb', address: 1 },
+        { id: 'fumee', name: 'Fumée', profileId: 'smoke-dmx', address: 400 },
+      ],
+    })
+    const { wrapper } = await toEquip()
+    await click(wrapper, 'lights-six-desk')
+    await vi.waitFor(() => expect(useConfirm().state.open).toBe(true))
+    useConfirm().accept()
+    await flushPromises()
+    for (let remaining = RIG_SIZE; remaining > 0; remaining -= 1) {
+      await click(wrapper, 'lights-yes')
+    }
+    await click(wrapper, 'lights-smoke-next')
+    await click(wrapper, 'lights-finish')
+    const fixtures = getRoomHardwareConfig().lighting.fixtures
+    expect(fixtures).toHaveLength(RIG_SIZE + 1)
+    expect(fixtures.find((item) => item.profileId === 'smoke-dmx')?.address).toBe(400)
+  })
+
+  it('refuse le modèle si une adresse chevauche la machine à fumée', async () => {
+    await seedLighting({
+      fixtures: [{ id: 'fumee', name: 'Fumée', profileId: 'smoke-dmx', address: 20 }],
+    })
+    const { wrapper } = await toEquip()
+    await click(wrapper, 'lights-six-desk')
+    expect(sel(wrapper, 'lights-equip-error').exists()).toBe(true)
+    expect(sel(wrapper, 'lights-fixture').exists()).toBe(false)
+  })
+
   it('renvoie vers l’assistant et laisse la fumée désactivée', async () => {
     await seedLighting(SMOKE_ROOM)
     const { wrapper, router } = await mountLights()

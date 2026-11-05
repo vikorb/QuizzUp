@@ -61,6 +61,9 @@
 
       <section v-else-if="step === 'equip'" key="equip" class="lights__stage">
         <h1 class="lights__title">{{ $t('setupLights.equip.title') }}</h1>
+        <p v-if="equipError" class="lights__error" role="alert" data-test="lights-equip-error">
+          {{ $t('setupLights.equip.smokeConflict') }}
+        </p>
         <div class="choices">
           <button type="button" class="choice" data-test="lights-six-desk" @click="onSixDesk">
             <strong>{{ $t('setupLights.equip.sixDesk') }}</strong>
@@ -156,6 +159,7 @@
           <UiButton
             variant="primary"
             class="lights__big"
+            :disabled="saving"
             data-test="lights-smoke-next"
             @click="goDone"
           >
@@ -215,6 +219,7 @@ import {
   describeSerialError,
   findProfile,
   type FixtureConfig,
+  type SetupWizard,
 } from '@quizzup/hardware'
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -230,6 +235,8 @@ import {
   pollArtnetNodes,
   saveRoomHardwareConfig,
   startLighting,
+  stopLighting,
+  switchToSimulatedLights,
   useRoomHardware,
 } from '@/hardware/roomHardware'
 
@@ -277,7 +284,12 @@ const index = ref(0)
 const phase = ref<'asking' | 'help'>('asking')
 const saving = ref(false)
 const saveError = ref(false)
+const equipError = ref(false)
 let confirming = false
+let leaving = false
+// Une connexion (pont ou USB) a été ouverte pendant la recherche : à refermer si on quitte.
+let opened = false
+const wasSimulation = lightingState.value?.simulation === true
 let finished = false
 
 const current = computed(() => tests.value[index.value])
@@ -312,6 +324,7 @@ async function findNodes(): Promise<ArtnetNode[]> {
   if (usbFound.value) {
     return []
   }
+  opened = true
   await connectDmxInterface('artnet-bridge')
   try {
     return await pollArtnetNodes()
@@ -348,6 +361,7 @@ async function onUsb(): Promise<void> {
   usbMessage.value = null
   try {
     await connectDmxInterface('usbpro')
+    opened = true
     usbFound.value = true
     chosenIp.value = null
     run(() => wizard.setDriver('usbpro'))
@@ -380,11 +394,32 @@ async function onSixDesk(): Promise<void> {
   }
   // Le modèle compte 6 pupitres, mais le nombre de pupitres réglé avec les buzzers fait foi.
   const desksCount = view.value.config.desksCount
-  run(() => {
-    wizard.importSixDeskPreset()
-    wizard.setDesksCount(desksCount)
-  })
+  const smokes = view.value.config.lighting.fixtures.filter(
+    (item) => kindOf(item.profileId) === 'smoke'
+  )
+  // Essai à blanc : une machine à fumée dont l'adresse chevauche le modèle bloque l'import.
+  equipError.value = !importModel(createSetupWizard(view.value.config), smokes, desksCount)
+  if (equipError.value) {
+    return
+  }
+  run(() => importModel(wizard, smokes, desksCount))
   await startTests()
+}
+
+/** Remplace les appareils par le modèle 6 pupitres, en gardant les machines à fumée existantes. */
+function importModel(target: SetupWizard, smokes: FixtureConfig[], desksCount: number): boolean {
+  target.importSixDeskPreset()
+  target.setDesksCount(desksCount)
+  return smokes.every(
+    (smoke) =>
+      target.addFixture({
+        profileId: smoke.profileId,
+        name: smoke.name,
+        address: smoke.address,
+        ...(smoke.universe === undefined ? {} : { universe: smoke.universe }),
+        ...(smoke.desk === undefined ? {} : { desk: smoke.desk }),
+      }).ok
+  )
 }
 
 async function onKeep(): Promise<void> {
@@ -418,6 +453,9 @@ async function startTests(): Promise<void> {
     return
   }
   await applyToPage()
+  if (leaving) {
+    return
+  }
   getLighting()?.diagnostics.begin()
   phase.value = 'asking'
   step.value = 'test'
@@ -500,7 +538,8 @@ async function save(): Promise<boolean> {
 }
 
 async function onFinish(): Promise<void> {
-  if (await save()) {
+  // « Plus tard » : rien n'a été réglé, rien n'est enregistré (le pilote reste celui de départ).
+  if (later.value || (await save())) {
     await router.push({ name: 'launch' })
   }
 }
@@ -529,13 +568,27 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  leaving = true
   window.removeEventListener('keydown', onEscape)
   getLighting()?.diagnostics.end()
-  if (!finished && step.value !== 'scan') {
-    // Parcours quitté : la page reprend les lumières enregistrées.
-    void saveRoomHardwareConfig(initial, { persist: false })
+  if (!finished) {
+    void restoreStart()
   }
 })
+
+/** Parcours quitté : la page reprend les lumières enregistrées et l'état de connexion de départ. */
+async function restoreStart(): Promise<void> {
+  await saveRoomHardwareConfig(initial, { persist: false })
+  if (!opened) {
+    return
+  }
+  if (wasSimulation) {
+    await switchToSimulatedLights()
+  } else {
+    await stopLighting()
+    await startLighting()
+  }
+}
 </script>
 
 <style scoped>

@@ -47,6 +47,16 @@ for (const viewport of SCREENS) {
     await expect(page.getByRole('heading', { name: 'Passons aux lumières !' })).toBeVisible()
     await page.locator('[data-test="lights-scan-next"]').click()
     await page.locator('[data-test="lights-six-desk"]').click()
+    // Si la démo a déjà des lumières, la confirmation de remplacement s'ouvre.
+    const dialog = page.getByRole('dialog')
+    if (
+      await dialog.waitFor({ state: 'visible', timeout: 1000 }).then(
+        () => true,
+        () => false
+      )
+    ) {
+      await dialog.getByRole('button').last().click()
+    }
     await expect(page.locator('[data-test="lights-fixture"]')).toBeVisible()
     const overflow = await page.evaluate(
       () => document.documentElement.scrollHeight - window.innerHeight

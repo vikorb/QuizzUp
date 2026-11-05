@@ -148,6 +148,7 @@
       "keepHint": "{n} appareil(s) déjà réglé(s)",
       "later": "Je configurerai plus tard",
       "laterHint": "Tu pourras le faire depuis Matériel.",
+      "smokeConflict": "Le modèle chevauche l’adresse de ta machine à fumée. Garde tes appareils, ou change l’adresse de la fumée dans Matériel.",
       "replaceConfirm": "Tes appareils actuels seront remplacés par ceux du modèle 6 pupitres. Continuer ?"
     },
     "test": {

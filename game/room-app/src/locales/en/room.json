@@ -148,6 +148,7 @@
       "keepHint": "{n} fixture(s) already set",
       "later": "I will set it up later",
       "laterHint": "You can do it from Hardware.",
+      "smokeConflict": "The model overlaps your smoke machine’s address. Keep your fixtures, or change the smoke address in Hardware.",
       "replaceConfirm": "Your current fixtures will be replaced by the 6-desk model. Continue?"
     },
     "test": {
