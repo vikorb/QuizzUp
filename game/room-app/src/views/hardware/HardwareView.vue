@@ -3,6 +3,9 @@
     <RoomTopBar>
       <span>{{ $t('hardware.title') }}</span>
       <template #actions>
+        <UiButton data-test="reconfigure-room" @click="router.push({ name: 'setup' })">
+          {{ $t('room.launch.reconfigure') }}
+        </UiButton>
         <UiButton
           variant="icon"
           :aria-label="$t('hardware.back')"
@@ -54,7 +57,7 @@
 <script setup lang="ts">
 import { mdiArrowLeft } from '@mdi/js'
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import RoomTopBar from '@/components/game/RoomTopBar.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
@@ -71,7 +74,9 @@ const TABS = ['assistant', 'buzzers', 'plan', 'lights', 'diagnostic', 'advanced'
 
 const router = useRouter()
 const { syncStatus } = useRoomHardware()
-const current = ref<(typeof TABS)[number]>('buzzers')
+const route = useRoute()
+const requestedTab = TABS.find((tab) => tab === route.query.tab)
+const current = ref<(typeof TABS)[number]>(requestedTab ?? 'buzzers')
 
 async function onBack(): Promise<void> {
   await router.push({ name: 'launch' })

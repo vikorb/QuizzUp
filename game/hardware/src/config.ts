@@ -70,6 +70,8 @@ export type RoomHardwareConfig = {
   lighting: LightingConfig
   /** Plan de salle vu du dessus : écran, pupitres et appareils DMX (positions de 0 à 1). */
   plan: RoomPlan
+  /** Parcours de configuration plein écran terminé (sinon l'accueil le propose). */
+  setupDone?: boolean
 }
 
 export type ParsedRoomHardwareConfig = {
@@ -379,6 +381,7 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
       raw.plan,
       rig.fixtures.map((fixture) => fixture.id)
     ),
+    ...(raw.setupDone === true ? { setupDone: true } : {}),
   }
 
   return { config, fixtures: rig.fixtures, problems, smokeDisabledReason }

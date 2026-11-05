@@ -17,6 +17,7 @@ export const routes: RouteRecordRaw[] = [
     name: 'hardware',
     component: () => import('@/views/hardware/HardwareView.vue'),
   },
+  { path: '/setup', name: 'setup', component: () => import('@/views/SetupView.vue') },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 

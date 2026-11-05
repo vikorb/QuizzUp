@@ -960,6 +960,22 @@ export async function saveRoomDesksCount(count: number): Promise<ParsedRoomHardw
   return saveRoomHardwareConfig(withDesksCount(parsed.value.config, count))
 }
 
+/**
+ * Fin du parcours plein écran : disposition, nombre de pupitres et buzzers appris, enregistrés en
+ * une seule fois (un seul envoi au compte de la salle), et configuration marquée faite.
+ */
+export async function saveRoomSetup(setup: {
+  layout: BuzzerLayout
+  desksCount: number
+  keymap: BuzzerKeymap
+}): Promise<ParsedRoomHardwareConfig> {
+  const sized = withDesksCount(
+    withBuzzerLayout(parsed.value.config, setup.layout),
+    setup.desksCount
+  )
+  return saveRoomHardwareConfig({ ...withLearnedKeymap(sized, setup.keymap), setupDone: true })
+}
+
 /** Enregistre la couleur et la place des buzzers (écran de jeu, apprentissage et plan suivent). */
 export async function saveBuzzerLayout(layout: BuzzerLayout): Promise<ParsedRoomHardwareConfig> {
   return saveRoomHardwareConfig(withBuzzerLayout(parsed.value.config, layout))
@@ -1002,6 +1018,12 @@ export function useRoomHardware() {
     hardware: computed(() => parsed.value),
     /** Pupitres de la salle : 1 à `desksCount` (4 par défaut). */
     desks: computed(() => desksForCount(parsed.value.config.desksCount)),
+    /** Aucun buzzer associé et parcours de configuration jamais terminé : première connexion. */
+    setupNeeded: computed(
+      () =>
+        Object.keys(parsed.value.config.buzzers.keymap).length === 0 &&
+        !parsed.value.config.setupDone
+    ),
     keymap: computed(() => effectiveKeymap(parsed.value.config)),
     usesGamepad: computed(() => parsed.value.config.buzzers.source?.kind === 'gamepad'),
     // La carte manette ne lit pas le clavier : pas de touches de simulation avec elle.

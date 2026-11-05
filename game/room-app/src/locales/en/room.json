@@ -14,7 +14,9 @@
       "discard": "Abandon this game",
       "discardConfirm": "Abandon the current game for good?",
       "browserHint": "Use Chrome or Edge: they are the only browsers that can drive USB lights.",
-      "fullscreenFailed": "The browser refused fullscreen. You can retry with the F11 key."
+      "fullscreenFailed": "The browser refused fullscreen. You can retry with the F11 key.",
+      "setup": "Start the room setup",
+      "reconfigure": "Set up the room again"
     },
     "lobby": {
       "title": "Player registration",
@@ -85,6 +87,43 @@
       "restartConfirm": "Restart the game from the beginning? The scores already earned on this PC will be lost.",
       "duo": "{first} & {second}",
       "pendingResults": "{n} game result waiting to be sent to the backoffice: automatic retry. | {n} game results waiting to be sent to the backoffice: automatic retry."
+    }
+  },
+  "setup": {
+    "quit": "Quit",
+    "quitConfirm": "Quit the setup without saving? What you just set will be lost.",
+    "ok": "Looks good",
+    "welcome": {
+      "title": "Hello!",
+      "text": "Welcome to your room setup. Let’s start with the buzzers!",
+      "start": "Let’s go"
+    },
+    "layout": {
+      "title": "Choose your buzzer colors",
+      "hint": "Tap a buzzer, then pick its color. A color already taken goes to the other buzzer. To change a buzzer’s place, drag it onto another one or use “Swap place”.",
+      "pad": "A desk seen from above",
+      "colors": "Available colors",
+      "cell": "Buzzer {button}, {color}, {place}",
+      "swap": "Swap place",
+      "swapping": "Tap the other buzzer…"
+    },
+    "desks": {
+      "title": "How many desks do you have?"
+    },
+    "learn": {
+      "progress": "Buzzer {n} of {total}",
+      "prompt": "Press the {color} buzzer ({button})",
+      "assigned": "Got it! (key {key})",
+      "duplicate": "Key {key} is already used by buzzer {button} of desk {desk}. Press the right buzzer.",
+      "forbidden": "Key {key} is reserved by the system. Press the buzzer.",
+      "back": "Back",
+      "skip": "Skip"
+    },
+    "done": {
+      "title": "Your room is ready!",
+      "text": "Here are your desks, with each buzzer’s key.",
+      "finish": "Finish",
+      "lights": "Set up the lights"
     }
   }
 }

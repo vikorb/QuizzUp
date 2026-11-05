@@ -625,3 +625,11 @@ describe('plan de salle (`config.plan`)', () => {
     })
   })
 })
+
+describe('parcours de configuration (`setupDone`)', () => {
+  it('reste absent par défaut et ne vaut vrai que pour true', () => {
+    expect(parseRoomHardwareConfig({}).config.setupDone).toBeUndefined()
+    expect(parseRoomHardwareConfig({ setupDone: 'yes' }).config.setupDone).toBeUndefined()
+    expect(parseRoomHardwareConfig({ setupDone: true }).config.setupDone).toBe(true)
+  })
+})

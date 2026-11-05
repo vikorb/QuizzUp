@@ -53,6 +53,13 @@ let clock: () => number = () => performance.now()
 let ticker: ReturnType<typeof setInterval> | null = null
 let unsubscribe: (() => void) | null = null
 
+let uiSounds: UiSoundOutput | null = null
+
+/** Joue un son d'interface (sans effet tant que l'audio n'est pas configuré). */
+export function playUiSound(name: Parameters<UiSoundOutput['play']>[0]): void {
+  uiSounds?.play(name)
+}
+
 export function configureRoomGame(options: {
   storage?: SessionStorage
   player?: ExtractPlayer
@@ -63,6 +70,7 @@ export function configureRoomGame(options: {
   now?: () => number
 }): void {
   if (options.sounds) {
+    uiSounds = options.sounds
     soundBridge = createUiSoundBridge(options.sounds)
   }
   if (options.fetchMedia) {
