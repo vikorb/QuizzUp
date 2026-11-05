@@ -61,10 +61,17 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
   - **À valider sur TERMIVAVOR2** : scripts PowerShell (jamais exécutés en vrai),
     `chrome://policy` sous Home, Local Network Access, Smart App Control, vrai nœud Art-Net,
     roue de couleurs, calage des lyres, 2 univers, test de débranchement de la fumée.
-  - **Prochain lot demandé par Enzo** : configuration guidée des buzzers (« appuie sur le buzzer
-    vert du joueur 1… ») puis plan de salle 2D où l'on place chaque pupitre et buzzer. Reprendre
-    le plan 2D/3D du dépôt « QuizUp Fable » (sur GitLab, accès à fournir : copie GitHub ou jeton
-    `read_repository` dans les secrets de l'environnement).
+  - #122 (L15 couleurs et coins des buzzers `buzzers.layout`, plan de salle 2D `config.plan` en
+    glisser-déposer et au clavier, réponses de jeu dans la couleur et la place du vrai buzzer ;
+    inspiré de `GameShowStage.tsx` du dépôt `enzodrissi/quizzup-fableversion`) ;
+  - #123 (L16 configuration plein écran « façon jeu » `/setup` : bienvenue → couleurs → nombre
+    de pupitres → « Appuie sur le buzzer violet (B) » pupitre par pupitre ; bouton sur l'accueil
+    tant que `setupDone` est faux) ;
+  - #124 (L17 lumières plein écran `/setup/lights` : recherche USB / Art-Net, modèle 6 pupitres
+    (fumée existante conservée), « Est-ce que ça s'allume ? Oui / Non » appareil par appareil ;
+    la fumée reste réglée dans l'assistant détaillé, garde-fous non dupliqués).
+  - **Pistes suivantes** : plan de salle en perspective (fausse 3D) ; placement des appareils
+    depuis `/setup/lights` ; validation sur TERMIVAVOR2 du parcours complet avec de vrais buzzers.
 - **Décisions d'Enzo du 2026-11-04 (soir), mergées** : #101 (`backoffice/backend/.env` sorti de
   git ; les tests backend se replient sur `.env.example` ; **sauvegarder son `.env` avant le
   pull**, git le supprime du disque), #102 (baisser le nombre de pupitres garde en **réserve** les
