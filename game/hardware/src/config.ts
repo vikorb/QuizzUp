@@ -7,6 +7,7 @@ import { parseRig, unsupportedUniverseProblems } from './dmx/fixtures'
 import type { DmxDriver } from './dmx/output'
 import { DMX_DRIVERS } from './dmx/output'
 import type { FixtureProfile } from './dmx/profiles'
+import { hasSmokeRelay } from './dmx/profiles'
 import { DEFAULT_DESK_COLORS } from './lighting/scenes'
 import type { SmokeSafetyConfig } from './lighting/smoke'
 import { DEFAULT_SMOKE_SAFETY, normalizeSmokeSafety } from './lighting/smoke'
@@ -66,7 +67,25 @@ export type ParsedRoomHardwareConfig = {
   fixtures: ResolvedFixture[]
   /** Problèmes à afficher dans l'écran de configuration (rien n'est bloquant). */
   problems: string[]
+  /**
+   * Fumée désactivée à la relecture parce que la machine n'est pas sur relais et que la case
+   * « la machine coupe sur perte de signal » n'est pas cochée (`null` sinon).
+   */
+  smokeDisabledReason: 'relay_required' | null
 }
+
+/** Une machine à fumée de l'installation n'est pas sur relais (profil sans canal fumée `binary`). */
+export const smokeLacksRelay = (fixtures: readonly Pick<ResolvedFixture, 'profile'>[]): boolean =>
+  fixtures.some((fixture) => fixture.profile.kind === 'smoke' && !hasSmokeRelay(fixture.profile))
+
+/**
+ * Garde-fou fumée : activable avec un profil à relais, ou sans relais si l'installateur a coché
+ * « la machine coupe toute seule sur perte de signal DMX ».
+ */
+export const smokeRelayRuleMet = (
+  smoke: Pick<SmokeSafetyConfig, 'cutsOnSignalLoss'>,
+  fixtures: readonly Pick<ResolvedFixture, 'profile'>[]
+): boolean => smoke.cutsOnSignalLoss === true || !smokeLacksRelay(fixtures)
 
 /** Salle neuve : rien d'associé, simulation, fumée désactivée. */
 export function defaultRoomHardwareConfig(): RoomHardwareConfig {
@@ -292,6 +311,19 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
       ? Math.min(DMX_REFRESH_LIMITS.max, Math.max(DMX_REFRESH_LIMITS.min, lighting.refreshHz))
       : DMX_REFRESH_LIMITS.default
 
+  // Config d'avant le garde-fou : fumée DMX sans relais ni case cochée. Elle se relit sans erreur,
+  // les autres réglages fumée sont gardés, seule l'activation est retirée (et signalée).
+  let smoke = normalizeSmokeSafety(asRecord(lighting.smoke) as Partial<SmokeSafetyConfig>)
+  let smokeDisabledReason: ParsedRoomHardwareConfig['smokeDisabledReason'] = null
+  if (smoke.enabled && !smokeRelayRuleMet(smoke, rig.fixtures)) {
+    smoke = { ...smoke, enabled: false }
+    smokeDisabledReason = 'relay_required'
+    problems.push(
+      'Fumée désactivée : la machine à fumée n’est pas sur relais (profil « tout ou rien »). ' +
+        'Choisir un profil à relais, ou cocher « la machine coupe toute seule sur perte de signal DMX ».'
+    )
+  }
+
   const config: RoomHardwareConfig = {
     version: ROOM_HARDWARE_CONFIG_VERSION,
     desksCount,
@@ -305,9 +337,9 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
       customProfiles: rig.customProfiles,
       deskColors: parseDeskColors(lighting.deskColors),
       bindings: parseBindings(lighting.bindings),
-      smoke: normalizeSmokeSafety(asRecord(lighting.smoke) as Partial<SmokeSafetyConfig>),
+      smoke,
     },
   }
 
-  return { config, fixtures: rig.fixtures, problems }
+  return { config, fixtures: rig.fixtures, problems, smokeDisabledReason }
 }

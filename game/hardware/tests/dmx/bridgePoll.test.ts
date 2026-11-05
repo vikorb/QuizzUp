@@ -1,5 +1,7 @@
 import {
+  BRIDGE_HOLD_TIMEOUT_MS,
   BRIDGE_POLL_TIMEOUT_MS,
+  BridgeHoldError,
   BridgePollError,
   createBridgeOutput,
   DEFAULT_BRIDGE_URL,
@@ -168,5 +170,71 @@ describe('sortie pont : découverte des nœuds (poll)', () => {
     const polling = output.poll()
     socket.serverSend({ type: 'nodes', nodes: [] })
     await expect(polling).resolves.toEqual([])
+  })
+})
+
+describe('sortie pont : gel de la sortie (hold)', () => {
+  const HOLD_ACK = { ...ACK, features: ['poll', 'hold'] }
+  const HOLD = (ms: number) => JSON.stringify({ type: 'hold', ms })
+
+  it('envoie {"type":"hold","ms":N} et se résout à la confirmation du pont', async () => {
+    const { output, socket } = await openBridge(HOLD_ACK)
+    expect(output.features()).toEqual(['poll', 'hold'])
+    const holding = output.hold(15_000)
+    expect(socket.sent).toContain(HOLD(15_000))
+    socket.serverSend({ type: 'held', ms: 15_000 })
+    await expect(holding).resolves.toBeUndefined()
+  })
+
+  it('refuse une durée hors bornes sans rien envoyer', async () => {
+    const { output, socket } = await openBridge(HOLD_ACK)
+    for (const ms of [999, 30_001, 0, -1, 1500.5, Number.NaN]) {
+      await expect(output.hold(ms)).rejects.toMatchObject({ code: 'invalid_duration' })
+    }
+    const holding = output.hold(1000)
+    socket.serverSend({ type: 'held', ms: 1000 })
+    await holding
+    expect(socket.sent.filter((message) => String(message).includes('"hold"'))).toEqual([
+      HOLD(1000),
+    ])
+  })
+
+  it('rejette proprement un pont trop ancien (sans hold dans features)', async () => {
+    for (const ack of [{ ...ACK }, { ...ACK, features: ['poll'] }]) {
+      const { output, socket } = await openBridge(ack)
+      const error = await output.hold(5000).catch((caught: unknown) => caught)
+      expect(error).toBeInstanceOf(BridgeHoldError)
+      expect(error).toMatchObject({ code: 'unsupported' })
+      expect(socket.sent.some((message) => String(message).includes('"hold"'))).toBe(false)
+      output.release()
+      expect(socket.sent.some((message) => String(message).includes('release'))).toBe(false)
+    }
+  })
+
+  it('rejette hors connexion, sur refus du pont (connexion gardée), au délai et à la coupure', async () => {
+    const closed = await openBridge(HOLD_ACK)
+    await closed.output.close()
+    await expect(closed.output.hold(5000)).rejects.toMatchObject({ code: 'not_connected' })
+
+    const { output, socket, clock } = await openBridge(HOLD_ACK)
+    const refused = output.hold(5000)
+    socket.serverSend({ type: 'error', code: 'hold', message: 'gel refusé' })
+    await expect(refused).rejects.toMatchObject({ code: 'refused' })
+    expect(socket.closedWith).toBeNull()
+
+    const slow = output.hold(5000)
+    clock.advance(BRIDGE_HOLD_TIMEOUT_MS)
+    await expect(slow).rejects.toMatchObject({ code: 'timeout' })
+
+    const cut = output.hold(5000)
+    await expect(output.hold(5000)).rejects.toMatchObject({ code: 'refused' })
+    socket.serverClose(1006)
+    await expect(cut).rejects.toMatchObject({ code: 'not_connected' })
+  })
+
+  it('release envoie {"type":"release"}', async () => {
+    const { output, socket } = await openBridge(HOLD_ACK)
+    output.release()
+    expect(socket.sent).toContain('{"type":"release"}')
   })
 })

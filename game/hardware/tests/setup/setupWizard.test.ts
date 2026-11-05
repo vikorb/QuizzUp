@@ -15,6 +15,7 @@ import {
   PAN_TILT_COARSE_STEP,
   PAN_TILT_FINE_STEP,
   SMOKE_CHECKS,
+  SMOKE_RELAY_REQUIRED,
   TIMED_RELAY_MAX_MS,
 } from '@hardware/setup/setupWizard'
 
@@ -451,6 +452,114 @@ describe('assistant d’installation : fumée', () => {
     const summary = wizard.summary()
     expect(summary.config.lighting.smoke.enabled).toBe(false)
     expect(summary.smokeDisabled).toBe('no_device')
+  })
+})
+
+describe('assistant d’installation : fumée sans relais', () => {
+  const withDmxSmoke = (initial?: Parameters<typeof createSetupWizard>[0]) => {
+    const wizard = initial ? createSetupWizard(initial) : atFixtures()
+    if (!initial) {
+      wizard.addFixture({ profileId: 'smoke-dmx', name: 'Fumée' })
+    }
+    wizard.setBrowserCheck(goodBrowser)
+    expect(wizard.goTo('smoke')).toEqual({ ok: true })
+    return wizard
+  }
+  const allChecksDone = (wizard: ReturnType<typeof createSetupWizard>) => {
+    for (const check of SMOKE_CHECKS) {
+      wizard.checkSmoke(check, true)
+    }
+  }
+
+  it('refuse la fumée DMX sans relais ni case, et dit pourquoi', () => {
+    const wizard = withDmxSmoke()
+    expect(wizard.getState().smokeLacksRelay).toBe(true)
+    wizard.setSmoke({ enabled: true })
+    allChecksDone(wizard)
+    expect(wizard.blockers()).toEqual([SMOKE_RELAY_REQUIRED])
+    expect(wizard.next()).toEqual({ ok: false, reason: 'blocked' })
+    const summary = wizard.summary()
+    expect(summary.config.lighting.smoke.enabled).toBe(false)
+    expect(summary.smokeDisabled).toBe('relay_required')
+    // Même pour le test de gel : sans la case, pas de fumée.
+    wizard.checkSmoke('timedRelay', true)
+    expect(wizard.summary({ forFreezeTest: true }).config.lighting.smoke.enabled).toBe(false)
+  })
+
+  it('accepte la fumée avec un profil à relais', () => {
+    const wizard = createSetupWizard()
+    wizard.setBrowserCheck(goodBrowser)
+    wizard.setDriver('usbpro')
+    wizard.addFixture({ profileId: 'smoke-relay', name: 'Fumée' })
+    wizard.setSmoke({ enabled: true })
+    allChecksDone(wizard)
+    expect(wizard.getState().smokeLacksRelay).toBe(false)
+    expect(wizard.getState().smokeChecksRequired).toEqual([...SMOKE_CHECKS])
+    const summary = wizard.summary()
+    expect(summary.config.lighting.smoke.enabled).toBe(true)
+    expect(summary.smokeDisabled).toBeNull()
+    expect(summary.config.lighting.smoke).not.toHaveProperty('cutsOnSignalLoss')
+  })
+
+  it('accepte la fumée DMX avec la case cochée, sans exiger de relais temporisé', () => {
+    const wizard = withDmxSmoke()
+    wizard.setSmoke({ enabled: true, cutsOnSignalLoss: true })
+    expect(wizard.getState().smokeChecksRequired).toEqual([
+      'physicalStop',
+      'freezeTest',
+      'siteRules',
+    ])
+    // Test de gel possible dès l'arrêt d'urgence physique coché.
+    wizard.checkSmoke('physicalStop', true)
+    expect(wizard.summary({ forFreezeTest: true }).config.lighting.smoke.enabled).toBe(true)
+    expect(wizard.summary().config.lighting.smoke.enabled).toBe(false)
+    expect(wizard.summary().smokeDisabled).toBe('checks_incomplete')
+    wizard.checkSmoke('freezeTest', true)
+    wizard.checkSmoke('siteRules', true)
+    expect(wizard.blockers()).toEqual([])
+    const summary = wizard.summary()
+    expect(summary.config.lighting.smoke).toMatchObject({ enabled: true, cutsOnSignalLoss: true })
+    expect(summary.smokeDisabled).toBeNull()
+  })
+
+  it('refait le test de gel quand la case est cochée ou décochée', () => {
+    const wizard = withDmxSmoke()
+    wizard.checkSmoke('freezeTest', true)
+    wizard.setSmoke({ cutsOnSignalLoss: true })
+    expect(wizard.getState().smokeChecks.freezeTest).toBe(false)
+    wizard.checkSmoke('freezeTest', true)
+    wizard.setSmoke({ maxDurationMs: 2000 })
+    expect(wizard.getState().smokeChecks.freezeTest).toBe(true)
+    wizard.setSmoke({ cutsOnSignalLoss: false })
+    expect(wizard.getState().smokeChecks.freezeTest).toBe(false)
+    expect(wizard.getState().config.lighting.smoke).not.toHaveProperty('cutsOnSignalLoss')
+  })
+
+  it('relit une ancienne salle à fumée DMX : désactivée avec sa raison, réglages gardés', () => {
+    const old = {
+      version: 1,
+      desksCount: 2,
+      buzzers: { keymap: createDefaultKeymap() },
+      lighting: {
+        driver: 'usbpro',
+        fixtures: [{ id: 'fumee', name: 'Fumée', profileId: 'smoke-dmx', address: 30 }],
+        smoke: { enabled: true, maxDurationMs: 4000, cooldownMs: 60_000 },
+      },
+    }
+    const wizard = withDmxSmoke(old as never)
+    expect(wizard.getState().config.lighting.smoke).toMatchObject({
+      enabled: false,
+      maxDurationMs: 4000,
+      cooldownMs: 60_000,
+    })
+    const summary = wizard.summary()
+    expect(summary.smokeDisabled).toBe('relay_required')
+    expect(summary.config.lighting.smoke.maxDurationMs).toBe(4000)
+    // Cocher la case lève la raison ; réactiver explicitement aussi la remplace par le calcul normal.
+    wizard.setSmoke({ cutsOnSignalLoss: true })
+    expect(wizard.summary().smokeDisabled).toBeNull()
+    wizard.setSmoke({ enabled: true })
+    expect(wizard.summary().smokeDisabled).toBe('checks_incomplete')
   })
 })
 

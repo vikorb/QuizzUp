@@ -209,6 +209,16 @@ canaux ; tous les univers d'un tour sont sautés ensemble si la socket est satur
 accumulé) et signale une coupure par `onDisconnect` (le contrôleur coupe alors la fumée). Côté
 pont, un chien de garde envoie du noir si le navigateur se tait plus de 2,5 s.
 
+**Gel pour le test de perte de signal** : un pont qui annonce `"hold"` dans `features` (`bridge.features()`)
+sait geler sa sortie. `bridge.hold(ms)` envoie `{"type":"hold","ms":15000}` (entier de 1 000 à 30 000 ms,
+`BRIDGE_HOLD_LIMITS`) : le pont garde la dernière trame (renvoyée à plus de 1 Hz, comme une interface USB
+Pro), ignore les trames reçues pendant `ms`, puis passe au noir à la fin du gel ou à la déconnexion, et
+répond `{"type":"held","ms":15000}` (la promesse se résout alors). Rejet par une `BridgeHoldError` :
+`invalid_duration`, `not_connected`, `unsupported` (pont trop ancien, rien n'est envoyé), `refused`
+(rien à geler, gel déjà actif ; connexion gardée) ou `timeout`. `bridge.release()` envoie
+`{"type":"release"}` et met fin au gel tout de suite (noir). `DmxOutput.hold?` / `release?` sont
+facultatifs : une interface USB, qui répète déjà la dernière trame, n'en a pas.
+
 ### Profils d'appareils
 
 Profils génériques (`GENERIC_PROFILES`) : PAR RGB, RGBW, gradateur + RGB, gradateur + RGBW +
@@ -289,6 +299,18 @@ Le contrôleur de fumée applique, quoi que dise la configuration :
 > physique réglé à 10 s maximum**. Une interface DMX USB Pro répète la dernière trame reçue :
 > si le PC plante pendant une émission, seul le relais temporisé coupe la fumée. Vérifier ce
 > montage avec le test de gel du diagnostic.
+>
+> **Relais obligatoire, sauf case explicite.** La fumée n'est activable qu'avec un **profil à
+> relais** (`smoke-relay`, ou un profil sur mesure dont le canal `smoke` est `binary`). Une
+> machine à fumée **DMX progressive** (`smoke-dmx`) n'est acceptée que si l'installateur coche
+> « la machine coupe toute seule sur perte de signal DMX » (`lighting.smoke.cutsOnSignalLoss`,
+> absent = faux). Sans l'un ni l'autre, la fumée reste désactivée et l'assistant dit pourquoi
+> (`SetupSummary.smokeDisabled === 'relay_required'`, point bloquant `SMOKE_RELAY_REQUIRED`).
+> Avec la case et sans relais, le relais temporisé n'est plus exigé (`smokeChecksRequired`), le test
+> de gel reste obligatoire : c'est lui qui vérifie que la machine coupe. Cocher ou décocher la
+> case oblige à le refaire. Une salle existante à fumée DMX sans relais ni case est relue **sans
+> erreur** : `parseRoomHardwareConfig` désactive la fumée (`smokeDisabledReason: 'relay_required'`,
+> un problème « Fumée désactivée… ») et garde tous les autres réglages (durée, pause, niveau).
 
 ## Fiabilité des interfaces USB DMX (Web Serial)
 
@@ -336,8 +358,12 @@ Pendant un diagnostic, les scènes et les événements de jeu sont suspendus :
   confirmation dans l'écran. À la fin du gel, la fumée est **désarmée** ;
 - `smoke.stop()`, `smoke.disarm()`, `diagnostics.end()` et l'arrêt d'urgence annulent le gel
   tout de suite ; sans action pendant 10 minutes, le diagnostic se termine et l'ambiance revient ;
-- avec le pont Art-Net, le test de gel est refusé par l'écran : le pont envoie lui-même du noir
-  quand le navigateur se tait, le relais ne serait pas vérifié.
+- avec le pont Art-Net, le gel passe par le message `hold` du pont (voir « Sorties DMX ») : le
+  contrôleur, une fois la trame du gel écrite, appelle `output.hold(ms)` (le pont garde cette
+  trame et ignore les suivantes, sans noir) ; le gel est levé (`output.release()`) par l'arrêt
+  d'urgence, `smoke.stop()`, `smoke.disarm()` et `diagnostics.end()`. Si le pont ne prend pas le gel
+  en compte (trop ancien, refus, délai), le test est annulé, la fumée coupée et désarmée,
+  avertissement `output_error`. Un pont sans `hold` dans `features` est refusé avant toute fumée ;
 
 Une sortie passée en erreur (écriture bloquée plus de 500 ms) reprend toute seule après
 `OUTPUT_RECOVERY_WRITES` trames noires acceptées d'affilée (avertissement `output_recovered`) ;
@@ -395,6 +421,9 @@ retirer une lyre ne la déplace pas.
 La fumée n'est enregistrée **active** que si les 4 vérifications humaines sont cochées
 (`SMOKE_CHECKS`) : arrêt d'urgence physique, relais temporisé réglé à **10 s maximum**, test de
 gel réussi, consignes incendie du site. Changer d'interface oblige à refaire le test de gel.
+S'y ajoute la règle relais-ou-case (voir « Sécurité fumée ») : machine sans relais et case
+`cutsOnSignalLoss` non cochée = fumée enregistrée désactivée (`smokeDisabled: 'relay_required'`).
+Avec la case et sans relais, le relais temporisé n'est pas exigé (`getState().smokeChecksRequired`).
 
 ## Configuration de salle (`rooms.config`, JSONB)
 
@@ -436,6 +465,9 @@ gel réussi, consignes incendie du site. Changer d'interface oblige à refaire l
       "cooldownMs": 30000,
       "maxLevel": 255,
       "requireConfirmation": true,
+      // Facultatif, absent = faux : la machine à fumée DMX (sans relais) coupe seule sur perte de
+      // signal. Sans relais (profil « binary »), la fumée reste désactivée si elle n'est pas cochée.
+      "cutsOnSignalLoss": false,
     },
   },
 }

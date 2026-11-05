@@ -4,6 +4,8 @@ import type { BuzzerSource, RoomHardwareConfig } from '../config'
 import {
   activeLightingConfig,
   parseRoomHardwareConfig,
+  smokeLacksRelay,
+  smokeRelayRuleMet,
   withArtnetTarget,
   withDesksCount,
 } from '../config'
@@ -11,7 +13,7 @@ import type { FixtureConfig, PanTilt } from '../dmx/fixtures'
 import { fixtureUniverse, parseRig, unsupportedUniverseProblems } from '../dmx/fixtures'
 import type { DmxDriver } from '../dmx/output'
 import type { FixtureProfile } from '../dmx/profiles'
-import { findProfile } from '../dmx/profiles'
+import { findProfile, hasSmokeRelay } from '../dmx/profiles'
 import { DMX_CHANNELS, MAX_UNIVERSES } from '../dmx/universe'
 import type { SmokeSafetyConfig } from '../lighting/smoke'
 import { normalizeSmokeSafety } from '../lighting/smoke'
@@ -132,6 +134,10 @@ export const SMOKE_CHECK_LABELS: Readonly<Record<SmokeCheckId, string>> = {
   siteRules: 'Détection incendie et consignes du site vérifiées avec le responsable',
 }
 
+/** Point bloquant : machine à fumée sans relais et case « coupe sur perte de signal » non cochée. */
+export const SMOKE_RELAY_REQUIRED =
+  'Fumée : machine sans relais. Choisir un profil à relais, ou cocher « la machine coupe toute seule sur perte de signal DMX »'
+
 /** Durée maximale acceptée pour le relais temporisé. */
 export const TIMED_RELAY_MAX_MS = 10_000
 
@@ -147,6 +153,10 @@ export type SetupWizardState = {
   desks: Desk[]
   fixtureTests: Record<string, FixtureTestResult>
   smokeChecks: Record<SmokeCheckId, boolean>
+  /** Une machine à fumée n'est pas sur relais : la case « coupe sur perte de signal » est alors exigée. */
+  smokeLacksRelay: boolean
+  /** Vérifications exigées : le relais temporisé ne l'est pas quand la machine coupe seule (aucun relais). */
+  smokeChecksRequired: SmokeCheckId[]
   /** Calage des lyres : tous les couples lyre × pupitre dans l'ordre, et celui en cours de réglage. */
   calibration: { targets: CalibrationTarget[]; current: CalibrationTarget | null }
 }
@@ -186,7 +196,13 @@ export type AddFixtureResult =
       detail?: string
     }
 
-export type SmokeDisabledReason = 'no_device' | 'checks_incomplete'
+/**
+ * - `no_device` : aucune machine à fumée dans l'installation.
+ * - `relay_required` : machine sans relais (profil DMX progressif) et la case « la machine coupe
+ *   toute seule sur perte de signal DMX » n'est pas cochée.
+ * - `checks_incomplete` : vérifications humaines pas toutes faites.
+ */
+export type SmokeDisabledReason = 'no_device' | 'relay_required' | 'checks_incomplete'
 
 export type SetupSummary = {
   config: RoomHardwareConfig
@@ -342,6 +358,9 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
   let desks: Desk[] = desksForCount(config.desksCount)
   let fixtureTests: Record<string, FixtureTestResult> = {}
   let smokeChecks = allChecks(false)
+  // Fumée retirée à la relecture (machine sans relais, case non cochée) : la raison reste affichée
+  // tant que l'installateur n'a pas touché à l'activation.
+  let smokeDisabledOnLoad = parsed.smokeDisabledReason
   // Cible en cours de calage, retenue par lyre + pupitre (pas par rang : la liste change quand on
   // ajoute ou retire une lyre ou un pupitre). `calibrationIndex` ne sert que de repli si elle disparaît.
   let calibrationSelected: CalibrationTarget | null = null
@@ -484,7 +503,17 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
     }
   }
 
-  const smokeReady = () => SMOKE_CHECKS.every((check) => smokeChecks[check])
+  const resolvedFixtures = () =>
+    parseRig(config.lighting.fixtures, config.lighting.customProfiles).fixtures
+  const lacksRelay = () => smokeLacksRelay(resolvedFixtures())
+  /** Le relais temporisé n'est exigé que si une machine est sur relais (sinon elle coupe seule). */
+  const requiredChecks = (): SmokeCheckId[] => {
+    const smokeFixtures = resolvedFixtures().filter((fixture) => fixture.profile.kind === 'smoke')
+    const anyRelay = smokeFixtures.some((fixture) => hasSmokeRelay(fixture.profile))
+    return SMOKE_CHECKS.filter((check) => check !== 'timedRelay' || anyRelay || !lacksRelay())
+  }
+  const relayRuleMet = () => smokeRelayRuleMet(config.lighting.smoke, resolvedFixtures())
+  const smokeReady = () => relayRuleMet() && requiredChecks().every((check) => smokeChecks[check])
 
   const stepBlockers = (id: SetupStepId): string[] => {
     switch (id) {
@@ -535,9 +564,12 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
         if (!config.lighting.smoke.enabled || smokeReady()) {
           return []
         }
-        return SMOKE_CHECKS.filter((check) => !smokeChecks[check]).map(
-          (check) => `Sécurité fumée à valider : ${SMOKE_CHECK_LABELS[check]}`
-        )
+        return [
+          ...(relayRuleMet() ? [] : [SMOKE_RELAY_REQUIRED]),
+          ...requiredChecks()
+            .filter((check) => !smokeChecks[check])
+            .map((check) => `Sécurité fumée à valider : ${SMOKE_CHECK_LABELS[check]}`),
+        ]
       }
       case 'summary': {
         break
@@ -586,6 +618,8 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
         desks: [...desks],
         fixtureTests: { ...fixtureTests },
         smokeChecks: { ...smokeChecks },
+        smokeLacksRelay: lacksRelay(),
+        smokeChecksRequired: requiredChecks(),
         calibration: { targets: calibrationTargets(), current: currentTarget() },
       }
     },
@@ -859,6 +893,16 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
     },
 
     setSmoke: (patch) => {
+      if ('enabled' in patch) {
+        smokeDisabledOnLoad = null
+      }
+      if (
+        'cutsOnSignalLoss' in patch &&
+        (patch.cutsOnSignalLoss === true) !== (config.lighting.smoke.cutsOnSignalLoss === true)
+      ) {
+        // Ce que la machine fait sur perte de signal change : le test de gel est à refaire.
+        smokeChecks = { ...smokeChecks, freezeTest: false }
+      }
       config = {
         ...config,
         lighting: {
@@ -903,12 +947,22 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
 
       let smoke = config.lighting.smoke
       let smokeDisabled: SmokeDisabledReason | null = null
-      const testReady = smokeChecks.physicalStop && smokeChecks.timedRelay
-      const allowed = smokeReady() || (options.forFreezeTest === true && testReady)
+      // Pour le test de gel : arrêt d'urgence physique, et relais temporisé si la machine en a un.
+      const testReady = requiredChecks()
+        .filter((check) => check !== 'freezeTest' && check !== 'siteRules')
+        .every((check) => smokeChecks[check])
+      const allowed =
+        smokeReady() || (options.forFreezeTest === true && relayRuleMet() && testReady)
       if (smoke.enabled && (!hasKind('smoke') || !allowed)) {
         // Jamais de fumée active sans les vérifications humaines : on l'enregistre désactivée.
         smoke = { ...smoke, enabled: false }
-        smokeDisabled = hasKind('smoke') ? 'checks_incomplete' : 'no_device'
+        if (!hasKind('smoke')) {
+          smokeDisabled = 'no_device'
+        } else {
+          smokeDisabled = relayRuleMet() ? 'checks_incomplete' : 'relay_required'
+        }
+      } else if (!smoke.enabled && smokeDisabledOnLoad && !relayRuleMet()) {
+        smokeDisabled = smokeDisabledOnLoad
       }
       if (smoke.enabled && smoke.maxDurationMs > TIMED_RELAY_MAX_MS) {
         warnings.push('La durée d’émission dépasse le réglage du relais temporisé (10 s)')

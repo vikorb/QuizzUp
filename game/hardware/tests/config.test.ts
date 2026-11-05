@@ -275,3 +275,91 @@ describe('configuration matérielle de salle', () => {
     })
   })
 })
+
+describe('configuration matérielle : garde-fou relais de la fumée', () => {
+  const smokeRoom = (profileId: string, smoke: Record<string, unknown>) => ({
+    version: 1,
+    desksCount: 2,
+    buzzers: { keymap: { KeyA: { desk: 1, button: 'A' } } },
+    lighting: {
+      driver: 'usbpro',
+      fixtures: [
+        { id: 'par', name: 'PAR', profileId: 'par-rgb', address: 1 },
+        { id: 'fumee', name: 'Fumée', profileId, address: 30 },
+      ],
+      smoke,
+    },
+  })
+
+  it('relit une ancienne salle à fumée DMX sans relais ni case : sans erreur, fumée désactivée', () => {
+    const parsed = parseRoomHardwareConfig(
+      smokeRoom('smoke-dmx', {
+        enabled: true,
+        maxDurationMs: 4000,
+        cooldownMs: 45_000,
+        maxLevel: 200,
+      })
+    )
+    expect(parsed.smokeDisabledReason).toBe('relay_required')
+    expect(parsed.problems.some((problem) => problem.startsWith('Fumée désactivée'))).toBe(true)
+    // Seule l'activation est retirée : tous les autres réglages et le reste de la salle sont gardés.
+    expect(parsed.config.lighting.smoke).toEqual({
+      enabled: false,
+      maxDurationMs: 4000,
+      cooldownMs: 45_000,
+      maxLevel: 200,
+      requireConfirmation: true,
+    })
+    expect(parsed.config.desksCount).toBe(2)
+    expect(parsed.config.buzzers.keymap).toEqual({ KeyA: { desk: 1, button: 'A' } })
+    expect(parsed.config.lighting.fixtures.map((fixture) => fixture.id)).toEqual(['par', 'fumee'])
+    expect(parsed.fixtures).toHaveLength(2)
+  })
+
+  it('garde la fumée activée avec un profil à relais', () => {
+    const parsed = parseRoomHardwareConfig(smokeRoom('smoke-relay', { enabled: true }))
+    expect(parsed.smokeDisabledReason).toBeNull()
+    expect(parsed.config.lighting.smoke.enabled).toBe(true)
+    expect(parsed.problems).toEqual([])
+    expect(parsed.config.lighting.smoke).not.toHaveProperty('cutsOnSignalLoss')
+  })
+
+  it('garde la fumée DMX activée quand la case « coupe sur perte de signal » est cochée', () => {
+    const parsed = parseRoomHardwareConfig(
+      smokeRoom('smoke-dmx', { enabled: true, cutsOnSignalLoss: true })
+    )
+    expect(parsed.smokeDisabledReason).toBeNull()
+    expect(parsed.config.lighting.smoke).toMatchObject({ enabled: true, cutsOnSignalLoss: true })
+    // Roundtrip : la config normalisée se relit à l'identique.
+    expect(parseRoomHardwareConfig(parsed.config).config).toEqual(parsed.config)
+  })
+
+  it('ne retient la case que si elle vaut exactement vrai (absente ou autre = faux)', () => {
+    for (const value of [undefined, false, 'true', 1, null]) {
+      const parsed = parseRoomHardwareConfig(
+        smokeRoom('smoke-dmx', { enabled: true, cutsOnSignalLoss: value })
+      )
+      expect(parsed.config.lighting.smoke.enabled).toBe(false)
+      expect(parsed.config.lighting.smoke).not.toHaveProperty('cutsOnSignalLoss')
+    }
+  })
+
+  it('un profil sur mesure compte comme relais si son canal fumée est « binary »', () => {
+    const custom = (binary: boolean) => ({
+      ...smokeRoom('ma-fumee', { enabled: true }),
+      lighting: {
+        ...smokeRoom('ma-fumee', { enabled: true }).lighting,
+        customProfiles: [
+          {
+            id: 'ma-fumee',
+            name: 'Ma fumée',
+            kind: 'smoke',
+            channels: [{ role: 'smoke', ...(binary ? { binary: true } : {}) }],
+          },
+        ],
+      },
+    })
+    expect(parseRoomHardwareConfig(custom(true)).config.lighting.smoke.enabled).toBe(true)
+    expect(parseRoomHardwareConfig(custom(false)).config.lighting.smoke.enabled).toBe(false)
+  })
+})

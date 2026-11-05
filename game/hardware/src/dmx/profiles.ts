@@ -181,6 +181,18 @@ export function findProfile(
   )
 }
 
+/**
+ * Machine à fumée sur relais (tout ou rien) : son canal fumée est `binary`. Sans relais (fumée DMX
+ * progressive), seule la machine elle-même peut couper sur perte de signal : voir
+ * `SmokeSafetyConfig.cutsOnSignalLoss`.
+ */
+export function hasSmokeRelay(profile: FixtureProfile): boolean {
+  return (
+    profile.kind === 'smoke' &&
+    profile.channels.some((channel) => channel.role === 'smoke' && channel.binary === true)
+  )
+}
+
 export function hasRole(profile: FixtureProfile, role: ChannelRole): boolean {
   return profile.channels.some((channel) => channel.role === role)
 }

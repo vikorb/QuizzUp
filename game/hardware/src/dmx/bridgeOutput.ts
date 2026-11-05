@@ -37,6 +37,14 @@ import { DMX_CHANNELS, MAX_UNIVERSES } from './universe'
  * les réponses ~3 s puis répond `{"type":"nodes","nodes":[{"ip":"192.168.1.50","shortName":"…",
  * "longName":"…","universes":["0.0.1"]}]}` (`universes` facultatif). Une erreur `code:"poll"` (ArtPoll
  * non parti) fait échouer `poll()` (`poll_failed`) sans fermer la connexion.
+ *
+ * Gel pour le test de perte de signal : l'ack d'un pont qui le gère porte aussi `"hold"` dans
+ * `features`. `hold(ms)` envoie `{"type":"hold","ms":15000}` (entier de 1 000 à 30 000 ms, borné aussi
+ * ici) ; le pont garde la dernière trame (sans passer au noir), ignore les trames reçues pendant `ms`,
+ * puis passe au noir (fin du gel ou déconnexion), et répond `{"type":"held","ms":15000}`. Un refus
+ * est une erreur `code:"hold"`, sans fermer la connexion. `release()` envoie `{"type":"release"}` :
+ * le gel s'arrête tout de suite (noir). Un ancien pont (sans `hold` dans `features()`) est refusé
+ * proprement (`BridgeHoldError` `unsupported`).
  */
 export const BRIDGE_PROTOCOL_VERSION = 1
 /** Version du `hello` qui porte la cible Art-Net. */
@@ -68,6 +76,15 @@ export const BRIDGE_CLOSE_TIMEOUT_MS = 1000
 
 /** Capacité annoncée dans l'ack par un pont qui sait chercher les nœuds Art-Net. */
 export const BRIDGE_FEATURE_POLL = 'poll'
+
+/** Capacité annoncée dans l'ack par un pont qui sait geler sa sortie (test de perte de signal). */
+export const BRIDGE_FEATURE_HOLD = 'hold'
+
+/** Durée d'un gel acceptée par le pont (ms, entier). */
+export const BRIDGE_HOLD_LIMITS = { min: 1000, max: 30_000 } as const
+
+/** Attente maximale de la confirmation `held` du pont. */
+export const BRIDGE_HOLD_TIMEOUT_MS = 2000
 
 /** Attente maximale de la réponse `nodes` (le pont collecte pendant ~3 s). */
 export const BRIDGE_POLL_TIMEOUT_MS = 6000
@@ -104,6 +121,7 @@ export type BridgeOutputOptions = {
   maxSkippedFrames?: number
   closeTimeoutMs?: number
   pollTimeoutMs?: number
+  holdTimeoutMs?: number
 }
 
 export type BridgeOutput = DmxOutput & {
@@ -128,6 +146,15 @@ export type BridgeOutput = DmxOutput & {
    * ouverte).
    */
   poll: () => Promise<ArtnetNode[]>
+  /**
+   * Gèle la sortie du pont `ms` ms (1 000 à 30 000) sur la dernière trame, sans noir, puis noir.
+   * Rejette avec une `BridgeHoldError` : `invalid_duration`, `not_connected`, `unsupported` (pont
+   * sans `hold` dans `features()`), `refused` (le pont refuse : rien à geler, gel déjà actif),
+   * `timeout` (pas de confirmation à temps).
+   */
+  hold: (ms: number) => Promise<void>
+  /** Interrompt le gel en cours : le pont passe au noir tout de suite. Sans effet sans gel. */
+  release: () => void
 }
 
 /** Raison d'un échec de `poll()` (traduite par l'écran de salle, pas de texte français à afficher). */
@@ -143,6 +170,20 @@ export class BridgePollError extends Error {
   constructor(code: BridgePollErrorCode, message: string) {
     super(message)
     this.name = 'BridgePollError'
+    this.code = code
+  }
+}
+
+/** Raison d'un échec de `hold()` (traduite par l'écran de salle). */
+export type BridgeHoldErrorCode =
+  'invalid_duration' | 'not_connected' | 'unsupported' | 'refused' | 'timeout'
+
+export class BridgeHoldError extends Error {
+  readonly code: BridgeHoldErrorCode
+
+  constructor(code: BridgeHoldErrorCode, message: string) {
+    super(message)
+    this.name = 'BridgeHoldError'
     this.code = code
   }
 }
@@ -247,6 +288,7 @@ type BridgeMessage = {
   artnet?: unknown
   features?: unknown
   nodes?: unknown
+  ms?: unknown
   code?: unknown
   message?: unknown
 }
@@ -329,6 +371,7 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
   const maxSkippedFrames = options.maxSkippedFrames ?? BRIDGE_MAX_SKIPPED_FRAMES
   const closeTimeoutMs = options.closeTimeoutMs ?? BRIDGE_CLOSE_TIMEOUT_MS
   const pollTimeoutMs = options.pollTimeoutMs ?? BRIDGE_POLL_TIMEOUT_MS
+  const holdTimeoutMs = options.holdTimeoutMs ?? BRIDGE_HOLD_TIMEOUT_MS
   const disconnectEmitter = createEmitter<unknown>()
 
   let socket: WebSocketLike | null = null
@@ -352,6 +395,18 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
   const failPoll = (error: Error) => {
     pendingPoll?.reject(
       error instanceof BridgePollError ? error : new BridgePollError('not_connected', error.message)
+    )
+  }
+
+  /** Gel demandé, en attente de la confirmation `held` du pont. */
+  let pendingHold: {
+    resolve: () => void
+    reject: (error: Error) => void
+  } | null = null
+
+  const failHold = (error: Error) => {
+    pendingHold?.reject(
+      error instanceof BridgeHoldError ? error : new BridgeHoldError('not_connected', error.message)
     )
   }
 
@@ -406,6 +461,7 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
     socket = null
     ready = false
     failPoll(error)
+    failHold(error)
     if (current) {
       void shutdown(current)
     }
@@ -476,7 +532,12 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
       target.onmessage = (event) => {
         const message = parseMessage(event.data)
         if (settled) {
-          if (message?.type === 'error' && message.code === 'poll' && socket === target) {
+          if (message?.type === 'error' && message.code === 'hold' && socket === target) {
+            // Gel refusé : la connexion reste valable (les trames DMX continuent).
+            failHold(new BridgeHoldError('refused', describeBridgeError(message)))
+          } else if (message?.type === 'held' && socket === target) {
+            pendingHold?.resolve()
+          } else if (message?.type === 'error' && message.code === 'poll' && socket === target) {
             // ArtPoll non parti : la connexion reste valable (les trames DMX continuent).
             failPoll(new BridgePollError('poll_failed', describeBridgeError(message)))
           } else if (message?.type === 'error' && socket === target) {
@@ -580,6 +641,7 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
       socket = null
       ready = false
       failPoll(new Error('Pont Art-Net fermé'))
+      failHold(new Error('Pont Art-Net fermé'))
       if (current) {
         await shutdown(current, 1000, 'Fermeture par l’écran de salle')
       } else if (closing) {
@@ -591,6 +653,80 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
     bridgeVersion: () => version,
     artnetStatus: () => artnet,
     features: () => [...features],
+    hold(ms) {
+      if (!Number.isInteger(ms) || ms < BRIDGE_HOLD_LIMITS.min || ms > BRIDGE_HOLD_LIMITS.max) {
+        return Promise.reject(
+          new BridgeHoldError(
+            'invalid_duration',
+            `Durée de gel refusée : ${ms} ms (entier de ${BRIDGE_HOLD_LIMITS.min} à ${BRIDGE_HOLD_LIMITS.max})`
+          )
+        )
+      }
+      const current = socket
+      if (!ready || !current || current.readyState !== WS_OPEN) {
+        return Promise.reject(new BridgeHoldError('not_connected', 'Pont Art-Net non connecté'))
+      }
+      if (!features.includes(BRIDGE_FEATURE_HOLD)) {
+        return Promise.reject(
+          new BridgeHoldError('unsupported', 'Ce pont est trop ancien pour geler la sortie')
+        )
+      }
+      if (pendingHold) {
+        return Promise.reject(new BridgeHoldError('refused', 'Un gel est déjà en attente'))
+      }
+      return new Promise<void>((resolve, reject) => {
+        const timer = clock.setTimeout(
+          () =>
+            entry.reject(
+              new BridgeHoldError(
+                'timeout',
+                `Le pont n'a pas confirmé le gel en ${holdTimeoutMs} ms`
+              )
+            ),
+          holdTimeoutMs
+        )
+        const settle = () => {
+          clock.clearTimeout(timer)
+          pendingHold = null
+        }
+        const entry = {
+          resolve: () => {
+            settle()
+            resolve()
+          },
+          reject: (error: Error) => {
+            settle()
+            reject(error)
+          },
+        }
+        pendingHold = entry
+        try {
+          current.send(JSON.stringify({ type: 'hold', ms }))
+        } catch (error) {
+          entry.reject(
+            new BridgeHoldError(
+              'not_connected',
+              error instanceof Error ? error.message : String(error)
+            )
+          )
+        }
+      })
+    },
+    release() {
+      const current = socket
+      if (
+        ready &&
+        current &&
+        current.readyState === WS_OPEN &&
+        features.includes(BRIDGE_FEATURE_HOLD)
+      ) {
+        try {
+          current.send(JSON.stringify({ type: 'release' }))
+        } catch {
+          // Connexion tombée : le pont passe de toute façon au noir à la déconnexion.
+        }
+      }
+    },
     poll() {
       if (pendingPoll) {
         return pendingPoll.promise

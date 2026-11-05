@@ -26,6 +26,12 @@ export type SmokeSafetyConfig = {
   maxLevel: number
   /** Un humain doit armer la fumée (case « fumée autorisée pour cette partie ») avant usage. */
   requireConfirmation: boolean
+  /**
+   * Case cochée par l'installateur : « la machine coupe toute seule sur perte de signal DMX ».
+   * Seule dérogation à l'exigence d'un profil à relais pour la fumée. Absente = faux ; écrite
+   * seulement quand elle est vraie, pour ne pas modifier les configs existantes.
+   */
+  cutsOnSignalLoss?: boolean
 }
 
 export const DEFAULT_SMOKE_SAFETY: SmokeSafetyConfig = {
@@ -102,6 +108,7 @@ export function normalizeSmokeSafety(input: Partial<SmokeSafetyConfig> = {}): Sm
     maxLevel: Math.max(1, clampByte(pick(input.maxLevel, DEFAULT_SMOKE_SAFETY.maxLevel))),
     // Seule une valeur explicitement `false` retire la confirmation.
     requireConfirmation: input.requireConfirmation !== false,
+    ...(input.cutsOnSignalLoss === true ? { cutsOnSignalLoss: true } : {}),
   }
 }
 
