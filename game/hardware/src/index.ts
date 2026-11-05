@@ -53,6 +53,7 @@ export {
   withLearnedKeymap,
 } from './config'
 export type {
+  ArtnetNode,
   ArtnetTargetConfig,
   BridgeArtnetStatus,
   BridgeOutput,
@@ -61,6 +62,7 @@ export type {
   WebSocketLike,
 } from './dmx/bridgeOutput'
 export {
+  BRIDGE_FEATURE_POLL,
   BRIDGE_FRAME_BYTES,
   BRIDGE_MAX_BUFFERED_BYTES,
   BRIDGE_OPEN_TIMEOUT_MS,

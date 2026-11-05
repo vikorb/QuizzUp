@@ -31,6 +31,11 @@ import { DMX_CHANNELS, MAX_UNIVERSES } from './universe'
  * prioritaire) et la renvoie dans l'ack :
  * `"artnet":{"target":"192.168.1.50","port":6454,"source":"room"}` (`source` : `cli`, `room` ou
  * `none`). Un ancien pont ignore ces champs : l'ack n'a pas d'`artnet`, `artnetStatus()` vaut `null`.
+ *
+ * Découverte des nœuds : l'ack d'un pont qui la gère porte `"features":["poll"]` (absent d'un ancien
+ * pont : `features()` vaut `[]`). `poll()` envoie `{"type":"poll"}` ; le pont diffuse un ArtPoll, collecte
+ * les réponses ~3 s puis répond `{"type":"nodes","nodes":[{"ip":"192.168.1.50","shortName":"…",
+ * "longName":"…","universes":["0.0.1"]}]}` (`universes` facultatif).
  */
 export const BRIDGE_PROTOCOL_VERSION = 1
 /** Version du `hello` qui porte la cible Art-Net. */
@@ -59,6 +64,12 @@ export const BRIDGE_MAX_SKIPPED_FRAMES = 15
  * se reconnecter avant que l'ancienne socket soit fermée serait refusé (« un autre onglet… »).
  */
 export const BRIDGE_CLOSE_TIMEOUT_MS = 1000
+
+/** Capacité annoncée dans l'ack par un pont qui sait chercher les nœuds Art-Net. */
+export const BRIDGE_FEATURE_POLL = 'poll'
+
+/** Attente maximale de la réponse `nodes` (le pont collecte pendant ~3 s). */
+export const BRIDGE_POLL_TIMEOUT_MS = 6000
 
 const WS_OPEN = 1
 const WS_CLOSED = 3
@@ -91,6 +102,7 @@ export type BridgeOutputOptions = {
   maxBufferedBytes?: number
   maxSkippedFrames?: number
   closeTimeoutMs?: number
+  pollTimeoutMs?: number
 }
 
 export type BridgeOutput = DmxOutput & {
@@ -105,6 +117,23 @@ export type BridgeOutput = DmxOutput & {
   bridgeVersion: () => string | null
   /** Cible effective annoncée par le pont (`null` avant l'ack, ou pont ancien qui ne l'annonce pas). */
   artnetStatus: () => BridgeArtnetStatus | null
+  /** Capacités annoncées par le pont (`poll`…) ; vide avant l'ack ou pour un ancien pont. */
+  features: () => string[]
+  /**
+   * Cherche les nœuds Art-Net du réseau local (~3 s). Un appel pendant une recherche en cours en
+   * attend le résultat. Rejette si le pont n'est pas connecté, s'il est trop ancien (pas de `poll`
+   * dans `features()`), si la connexion tombe ou si le pont ne répond pas à temps.
+   */
+  poll: () => Promise<ArtnetNode[]>
+}
+
+/** Nœud Art-Net trouvé par le pont (IP d'un réseau local uniquement). */
+export type ArtnetNode = {
+  ip: string
+  shortName: string
+  longName: string
+  /** Univers de sortie (`net.sub.uni`) ; absent si le nœud n'en annonce aucun. */
+  universes?: string[]
 }
 
 /** Cible Art-Net réglée dans la salle (`lighting.artnet` de `rooms.config`). */
@@ -196,6 +225,8 @@ type BridgeMessage = {
   version?: unknown
   universes?: unknown
   artnet?: unknown
+  features?: unknown
+  nodes?: unknown
   code?: unknown
   message?: unknown
 }
@@ -231,6 +262,30 @@ function parseArtnetStatus(input: unknown): BridgeArtnetStatus | null {
   }
 }
 
+/** Nœuds bien formés d'une réponse `nodes` ; une IP hors réseau local est écartée (jamais proposée). */
+function parseNodes(input: unknown): ArtnetNode[] {
+  if (!Array.isArray(input)) {
+    return []
+  }
+  const nodes: ArtnetNode[] = []
+  for (const raw of input as unknown[]) {
+    const entry = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : null
+    if (!entry || !isLocalArtnetTarget(entry.ip)) {
+      continue
+    }
+    const universes = Array.isArray(entry.universes)
+      ? (entry.universes as unknown[]).filter((value): value is string => typeof value === 'string')
+      : []
+    nodes.push({
+      ip: entry.ip,
+      shortName: typeof entry.shortName === 'string' ? entry.shortName : '',
+      longName: typeof entry.longName === 'string' ? entry.longName : '',
+      ...(universes.length > 0 ? { universes } : {}),
+    })
+  }
+  return nodes
+}
+
 const describeClose = (event: { code: number; reason: string }) =>
   event.reason ? `${event.reason} (code ${event.code})` : `code ${event.code}`
 
@@ -253,6 +308,7 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
   const maxBufferedBytes = options.maxBufferedBytes ?? BRIDGE_MAX_BUFFERED_BYTES
   const maxSkippedFrames = options.maxSkippedFrames ?? BRIDGE_MAX_SKIPPED_FRAMES
   const closeTimeoutMs = options.closeTimeoutMs ?? BRIDGE_CLOSE_TIMEOUT_MS
+  const pollTimeoutMs = options.pollTimeoutMs ?? BRIDGE_POLL_TIMEOUT_MS
   const disconnectEmitter = createEmitter<unknown>()
 
   let socket: WebSocketLike | null = null
@@ -265,6 +321,17 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
   /** Univers que le pont dit gérer (`ack`) ; un ancien pont n'en dit rien : 1 seul (l'univers 0). */
   let capacity: number | null = null
   let artnet: BridgeArtnetStatus | null = null
+  let features: string[] = []
+  /** Recherche de nœuds en cours : les appels concurrents à `poll()` en partagent le résultat. */
+  let pendingPoll: {
+    promise: Promise<ArtnetNode[]>
+    resolve: (nodes: ArtnetNode[]) => void
+    reject: (error: Error) => void
+  } | null = null
+
+  const failPoll = (error: Error) => {
+    pendingPoll?.reject(error)
+  }
 
   /** Fermeture en cours (volontaire ou après une coupure) : une réouverture l'attend. */
   let closing: Promise<void> | null = null
@@ -316,6 +383,7 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
     const current = socket
     socket = null
     ready = false
+    failPoll(error)
     if (current) {
       void shutdown(current)
     }
@@ -339,6 +407,7 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
       skippingRound = false
       version = null
       artnet = null
+      features = []
       target.binaryType = 'arraybuffer'
 
       const fail = (message: string) => {
@@ -387,6 +456,8 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
         if (settled) {
           if (message?.type === 'error' && socket === target) {
             drop(new Error(describeBridgeError(message)))
+          } else if (message?.type === 'nodes' && socket === target) {
+            pendingPoll?.resolve(parseNodes(message.nodes))
           }
           return
         }
@@ -409,6 +480,11 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
         clock.clearTimeout(timeout)
         version = typeof message.version === 'string' ? message.version : null
         artnet = parseArtnetStatus(message.artnet)
+        features = Array.isArray(message.features)
+          ? (message.features as unknown[]).filter(
+              (name): name is string => typeof name === 'string'
+            )
+          : []
         capacity =
           typeof message.universes === 'number' && Number.isInteger(message.universes)
             ? Math.min(MAX_UNIVERSES, Math.max(1, message.universes))
@@ -478,6 +554,7 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
       const current = socket
       socket = null
       ready = false
+      failPoll(new Error('Pont Art-Net fermé'))
       if (current) {
         await shutdown(current, 1000, 'Fermeture par l’écran de salle')
       } else if (closing) {
@@ -488,5 +565,53 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
     skippedFrames: () => skipped,
     bridgeVersion: () => version,
     artnetStatus: () => artnet,
+    features: () => [...features],
+    poll() {
+      if (pendingPoll) {
+        return pendingPoll.promise
+      }
+      const current = socket
+      if (!ready || !current || current.readyState !== WS_OPEN) {
+        return Promise.reject(new Error('Pont Art-Net non connecté'))
+      }
+      if (!features.includes(BRIDGE_FEATURE_POLL)) {
+        return Promise.reject(
+          new Error('Ce pont est trop ancien pour chercher les nœuds : mets-le à jour')
+        )
+      }
+      let resolve!: (nodes: ArtnetNode[]) => void
+      let reject!: (error: Error) => void
+      const promise = new Promise<ArtnetNode[]>((resolvePromise, rejectPromise) => {
+        resolve = resolvePromise
+        reject = rejectPromise
+      })
+      const timer = clock.setTimeout(
+        () =>
+          entry.reject(new Error(`Le pont n'a pas répondu à la recherche en ${pollTimeoutMs} ms`)),
+        pollTimeoutMs
+      )
+      const settle = () => {
+        clock.clearTimeout(timer)
+        pendingPoll = null
+      }
+      const entry = {
+        promise,
+        resolve: (nodes: ArtnetNode[]) => {
+          settle()
+          resolve(nodes)
+        },
+        reject: (error: Error) => {
+          settle()
+          reject(error)
+        },
+      }
+      pendingPoll = entry
+      try {
+        current.send(JSON.stringify({ type: 'poll' }))
+      } catch (error) {
+        entry.reject(error instanceof Error ? error : new Error(String(error)))
+      }
+      return promise
+    },
   }
 }
