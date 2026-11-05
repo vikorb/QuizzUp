@@ -37,6 +37,17 @@
         </div>
       </div>
 
+      <UiButton
+        v-if="setupNeeded"
+        class="launch__setup"
+        variant="primary"
+        data-test="start-setup"
+        @click="router.push({ name: 'setup' })"
+      >
+        <MdIcon :path="mdiWizardHat" :size="28" />
+        {{ $t('room.launch.setup') }}
+      </UiButton>
+
       <h1 class="launch__title">{{ $t('room.launch.title') }}</h1>
       <p class="launch__subtitle">{{ $t('room.launch.subtitle') }}</p>
 
@@ -44,6 +55,16 @@
         <MdIcon :path="mdiRocketLaunchOutline" :size="28" />
         {{ launching ? $t('room.launch.starting') : $t('room.launch.start') }}
       </UiButton>
+
+      <button
+        v-if="!setupNeeded"
+        type="button"
+        class="launch__reconfigure"
+        data-test="reconfigure-room"
+        @click="router.push({ name: 'setup' })"
+      >
+        {{ $t('room.launch.reconfigure') }}
+      </button>
 
       <p v-if="fullscreenRefused" class="launch__warn" role="status">
         {{ $t('room.launch.fullscreenFailed') }}
@@ -54,7 +75,13 @@
 </template>
 
 <script setup lang="ts">
-import { mdiLogout, mdiRestore, mdiRocketLaunchOutline, mdiTuneVariant } from '@mdi/js'
+import {
+  mdiLogout,
+  mdiRestore,
+  mdiRocketLaunchOutline,
+  mdiTuneVariant,
+  mdiWizardHat,
+} from '@mdi/js'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -70,12 +97,13 @@ import {
   hasSavedGame,
   resumeSavedGame,
 } from '@/game/useRoomGame'
-import { lockBuzzerSystemKeys, startLighting } from '@/hardware/roomHardware'
+import { lockBuzzerSystemKeys, startLighting, useRoomHardware } from '@/hardware/roomHardware'
 import { enterFullscreen, keepScreenAwake } from '@/hardware/screen'
 import { signOut } from '@/state/roomAuth'
 
 const { t } = useI18n()
 const router = useRouter()
+const { setupNeeded } = useRoomHardware()
 const { confirm } = useConfirm()
 
 // Une sauvegarde d'un autre contexte (démo, autre compte, partie close) n'est ni proposée ni gardée.
@@ -214,5 +242,20 @@ async function onLogout(): Promise<void> {
   justify-content: center;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.launch__setup {
+  padding: 18px 40px;
+  font-size: var(--stage-text);
+  font-weight: 800;
+}
+
+.launch__reconfigure {
+  background: none;
+  border: 0;
+  color: var(--text-2);
+  font-size: var(--stage-small);
+  text-decoration: underline;
+  cursor: pointer;
 }
 </style>

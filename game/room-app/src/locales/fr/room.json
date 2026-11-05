@@ -14,7 +14,9 @@
       "discard": "Abandonner cette partie",
       "discardConfirm": "Abandonner définitivement la partie en cours ?",
       "browserHint": "Utilise Chrome ou Edge : ce sont les seuls navigateurs qui pilotent les lumières en USB.",
-      "fullscreenFailed": "Le plein écran a été refusé par le navigateur. Tu peux le relancer avec la touche F11."
+      "fullscreenFailed": "Le plein écran a été refusé par le navigateur. Tu peux le relancer avec la touche F11.",
+      "setup": "Lancer la configuration de la salle",
+      "reconfigure": "Reconfigurer la salle"
     },
     "lobby": {
       "title": "Inscription des joueurs",
@@ -85,6 +87,44 @@
       "restartConfirm": "Recommencer la partie depuis le début ? Les scores déjà marqués sur ce PC seront perdus.",
       "duo": "{first} & {second}",
       "pendingResults": "{n} résultat de partie en attente d’envoi au backoffice : nouvel essai automatique. | {n} résultats de parties en attente d’envoi au backoffice : nouvel essai automatique."
+    }
+  },
+  "setup": {
+    "quit": "Quitter",
+    "quitConfirm": "Quitter la configuration sans enregistrer ? Ce que tu viens de régler sera perdu.",
+    "ok": "C’est bon",
+    "welcome": {
+      "title": "Bonjour !",
+      "text": "Bienvenue dans la configuration de ta salle. C’est parti pour les buzzers !",
+      "start": "C’est parti"
+    },
+    "layout": {
+      "title": "Choisis les couleurs",
+      "hint": "Touche un buzzer, puis sa couleur. Glisse un buzzer pour changer sa place.",
+      "pad": "Un pupitre vu du dessus",
+      "colors": "Couleurs possibles",
+      "cell": "Buzzer {button}, {color}, {place}",
+      "swap": "Échanger la place",
+      "swapping": "Touche l’autre buzzer…"
+    },
+    "desks": {
+      "title": "Combien as-tu de pupitres ?"
+    },
+    "learn": {
+      "progress": "Buzzer {n} sur {total}",
+      "prompt": "Appuie sur le buzzer {color} ({button})",
+      "assigned": "C’est noté ! (touche {key})",
+      "duplicate": "La touche {key} est déjà prise par le buzzer {button} du pupitre {desk}. Appuie sur le bon buzzer.",
+      "forbidden": "La touche {key} est réservée au système. Appuie sur le buzzer.",
+      "back": "Retour",
+      "skip": "Passer"
+    },
+    "done": {
+      "title": "Ta salle est prête !",
+      "text": "Voilà tes pupitres, avec la touche de chaque buzzer.",
+      "finish": "Terminer",
+      "lights": "Régler les lumières",
+      "saveError": "Impossible d’enregistrer. Vérifie la connexion et réessaie."
     }
   }
 }
