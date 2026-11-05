@@ -38,6 +38,15 @@ export type DmxOutput = {
    * appris à l'ouverture (ancien pont Art-Net : 1). Absent : valeur du pilote (`DMX_DRIVER_UNIVERSES`).
    */
   universeCount?: () => number
+  /**
+   * Sortie qui ne garde pas d'elle-même la dernière trame quand le navigateur se tait (pont
+   * Art-Net : noir après 2,5 s) : demande de geler la sortie `ms` millisecondes sur la dernière
+   * trame, pour le test de gel. Se résout quand le gel est pris en compte, rejette sinon. Absente
+   * d'une interface USB, qui répète déjà la dernière trame.
+   */
+  hold?: (ms: number) => Promise<void>
+  /** Met fin à un gel (`hold`) en cours tout de suite : la sortie passe au noir. Sans effet sinon. */
+  release?: () => void
 }
 
 /** Nombre d'univers qu'une sortie sait émettre. */

@@ -181,6 +181,23 @@ export function findProfile(
   )
 }
 
+/** Le profil a au moins un canal fumée progressif (non `binary`), quel que soit son `kind`. */
+export const hasProgressiveSmokeChannel = (profile: FixtureProfile): boolean =>
+  profile.channels.some((channel) => channel.role === 'smoke' && channel.binary !== true)
+
+/**
+ * Machine à fumée sur relais (tout ou rien) : elle a un canal fumée et tous ses canaux fumée sont
+ * `binary`. Un seul canal fumée progressif suffit à la classer sans relais (jugé sur les canaux,
+ * jamais sur `kind`). Sans relais, seule la machine elle-même peut couper sur perte de signal :
+ * voir `SmokeSafetyConfig.cutsOnSignalLoss`.
+ */
+export function hasSmokeRelay(profile: FixtureProfile): boolean {
+  return (
+    profile.channels.some((channel) => channel.role === 'smoke') &&
+    !hasProgressiveSmokeChannel(profile)
+  )
+}
+
 export function hasRole(profile: FixtureProfile, role: ChannelRole): boolean {
   return profile.channels.some((channel) => channel.role === role)
 }

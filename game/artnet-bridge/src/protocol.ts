@@ -93,18 +93,49 @@ export const POLL_MAX_UNIVERSES = 16
 /** Paquets UDP traités par poll : au-delà, le reste est ignoré (protège contre un flot de réponses). */
 export const POLL_MAX_PACKETS = 1024
 
-export function isPollMessage(text: string): boolean {
+/** Type d'un message texte du navigateur (`null` si ce n'est pas un objet JSON typé). */
+function messageType(text: string): string | null {
   try {
     const parsed: unknown = JSON.parse(text)
-    return (
-      Boolean(parsed) &&
-      typeof parsed === 'object' &&
-      (parsed as { type?: unknown }).type === 'poll'
-    )
+    const type = parsed && typeof parsed === 'object' ? (parsed as { type?: unknown }).type : null
+    return typeof type === 'string' ? type : null
   } catch {
-    return false
+    return null
   }
 }
+
+export function isPollMessage(text: string): boolean {
+  return messageType(text) === 'poll'
+}
+
+/**
+ * Gel de la sortie (capacité `hold`, annoncée dans `features` de l'ack), pour le test de perte de
+ * signal de la fumée : `{"type":"hold","ms":15000}`. Pendant `ms` (`HOLD_LIMITS`, entier ; sinon
+ * `{"type":"error","code":"hold","message":"…"}` sans fermer la connexion), le pont **garde la
+ * dernière trame** (renvoyée à plus de 1 Hz, comme une interface USB Pro) et **ignore les trames
+ * reçues**, sans passer au noir : une machine à fumée qui coupe sur perte de signal doit s'arrêter
+ * seule. À la fin du gel, ou à la déconnexion, le pont passe au noir comme au chien de garde.
+ * Réponse `{"type":"held","ms":15000}` quand le gel est pris en compte. `{"type":"release"}` (même
+ * capacité) met fin au gel tout de suite (arrêt d'urgence) : noir, comme à la fin du gel.
+ * Un gel refusé (hors bornes, déjà en cours, rien à geler) répond `error` `code:"hold"`.
+ */
+export const HOLD_FEATURE = 'hold'
+export const HOLD_LIMITS = { min: 1000, max: 15_000 } as const
+
+export const isHoldDuration = (ms: unknown): ms is number =>
+  typeof ms === 'number' && Number.isInteger(ms) && ms >= HOLD_LIMITS.min && ms <= HOLD_LIMITS.max
+
+/** Lit un message `hold` : `ms` est brut (à valider avec `isHoldDuration`) ; `null` si ce n'en est pas un. */
+export function parseHold(text: string): { ms: unknown } | null {
+  if (messageType(text) !== 'hold') {
+    return null
+  }
+  return { ms: (JSON.parse(text) as { ms?: unknown }).ms }
+}
+
+export const isReleaseMessage = (text: string): boolean => messageType(text) === 'release'
+
+export const heldMessage = (ms: number) => JSON.stringify({ type: 'held', ms })
 
 export const nodesMessage = (nodes: readonly ArtNode[]) => JSON.stringify({ type: 'nodes', nodes })
 
@@ -196,7 +227,7 @@ export type ArtnetAck = { target: string | null; port: number; source: ArtnetSou
 
 /**
  * `universes` : nombre d'univers internes acceptés (un ancien pont ne l'annonce pas : 1 seul).
- * `features` : capacités facultatives (`poll`) ; un ancien pont ne l'annonce pas.
+ * `features` : capacités facultatives (`poll`, `hold`) ; un ancien pont ne l'annonce pas.
  */
 export const ackMessage = (version: string, artnet: ArtnetAck) =>
   JSON.stringify({
@@ -206,7 +237,7 @@ export const ackMessage = (version: string, artnet: ArtnetAck) =>
     version,
     universes: MAX_INTERNAL_UNIVERSES,
     artnet,
-    features: [POLL_FEATURE],
+    features: [POLL_FEATURE, HOLD_FEATURE],
   })
 
 export const errorMessage = (code: string, message: string) =>

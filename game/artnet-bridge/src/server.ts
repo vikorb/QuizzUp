@@ -23,12 +23,17 @@ import {
   CLOSE_CODES,
   decodeFrame,
   errorMessage,
+  heldMessage,
+  HOLD_LIMITS,
+  isHoldDuration,
   isInternalUniverse,
   isPlausibleNode,
   isPollMessage,
+  isReleaseMessage,
   MAX_INTERNAL_UNIVERSES,
   nodesMessage,
   parseHello,
+  parseHold,
   POLL_MAX_NODES,
   POLL_MAX_PACKETS,
   POLL_MAX_UNIVERSES,
@@ -453,6 +458,28 @@ export function createBridgeServer(options: BridgeServerOptions): BridgeServer {
         return
       }
       if (message.kind === 'text') {
+        const hold = parseHold(message.data)
+        if (hold) {
+          if (!isHoldDuration(hold.ms)) {
+            connection.sendText(
+              errorMessage(
+                'hold',
+                `durée de gel refusée : entier de ${HOLD_LIMITS.min} à ${HOLD_LIMITS.max} ms attendu`
+              )
+            )
+          } else if (core.hold(hold.ms)) {
+            connection.sendText(heldMessage(hold.ms))
+          } else {
+            connection.sendText(
+              errorMessage('hold', 'gel refusé : aucune trame en cours, ou un gel est déjà actif')
+            )
+          }
+          return
+        }
+        if (isReleaseMessage(message.data)) {
+          core.release()
+          return
+        }
         if (isPollMessage(message.data) && !pollPending) {
           // Une seule réponse en attente par connexion : un poll redemandé pendant la collecte
           // est ignoré (le navigateur partage de son côté la réponse en cours).

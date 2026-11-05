@@ -254,3 +254,94 @@ describe('diagnostic matériel', () => {
     await controller.stop()
   })
 })
+
+describe('diagnostic matériel : gel sur une sortie qui gèle de son côté (pont Art-Net)', () => {
+  const setupHold = async (hold: (ms: number) => Promise<void> = async () => undefined) => {
+    const clock = createManualClock(10_000)
+    const simulation = createSimulationOutput()
+    const events: string[] = []
+    const release = vi.fn(() => {
+      events.push('release')
+    })
+    const holdSpy = vi.fn(async (ms: number) => {
+      events.push(`hold:${ms}`)
+      await hold(ms)
+    })
+    const output = {
+      ...simulation,
+      async write(data: Uint8Array, universe?: number) {
+        events.push(`write:${data[SMOKE - 1]}`)
+        await simulation.write(data, universe)
+      },
+      hold: holdSpy,
+      release,
+    }
+    const controller = createLightingController({
+      config: lightingConfig(),
+      output,
+      clock,
+      doc: null,
+    })
+    await controller.start()
+    controller.diagnostics.begin()
+    controller.smoke.arm()
+    controller.smoke.fire(3_000)
+    return { clock, controller, events, holdSpy, release, simulation }
+  }
+
+  it('demande le gel à la sortie une fois la trame de fumée écrite, sans trame pendant le gel', async () => {
+    const { controller, clock, events, holdSpy, simulation } = await setupHold()
+    expect(controller.diagnostics.freezeOutput(10_000, { confirm: true })).toEqual({ ok: true })
+    await advanceAsync(clock, 100)
+    expect(holdSpy).toHaveBeenCalledExactlyOnceWith(10_000)
+    // La trame qui porte la fumée part avant la demande de gel : c'est elle que le pont garde.
+    expect(events.indexOf('hold:10000')).toBeGreaterThan(events.lastIndexOf('write:180'))
+    expect(
+      events.slice(events.indexOf('hold:10000')).some((event) => event.startsWith('write'))
+    ).toBe(false)
+    const sent = simulation.framesSent()
+    await advanceAsync(clock, 5_000)
+    expect(simulation.framesSent()).toBe(sent)
+    await advanceAsync(clock, 6_000)
+    expect(simulation.framesSent()).toBeGreaterThan(sent)
+    // Fin naturelle du gel : le navigateur lève aussi le gel du pont (une seule fois), pour rester
+    // d'accord avec lui.
+    expect(events.filter((event) => event === 'release')).toHaveLength(1)
+    expect(events.indexOf('release')).toBeGreaterThan(events.indexOf('hold:10000'))
+    await controller.stop()
+  })
+
+  it('annule le test, coupe et désarme la fumée si le gel n’est pas pris en compte', async () => {
+    const { controller, clock, events, release } = await setupHold(() =>
+      Promise.reject(new Error('Ce pont est trop ancien pour geler la sortie'))
+    )
+    expect(controller.diagnostics.freezeOutput(10_000, { confirm: true })).toEqual({ ok: true })
+    await advanceAsync(clock, 100)
+    // Le gel a pu être pris en compte par le pont sans que la confirmation arrive (délai) : on
+    // le lève avant de couper la fumée.
+    expect(release).toHaveBeenCalledTimes(1)
+    expect(events.indexOf('release')).toBeGreaterThan(events.indexOf('hold:10000'))
+    expect(controller.diagnostics.getState().frozenUntil).toBeNull()
+    expect(controller.getState().smoke).toMatchObject({ armed: false })
+    expect(controller.getState().smoke.status).not.toBe('firing')
+    expect(controller.getState().lastWarning).toMatchObject({ kind: 'output_error' })
+    expect(JSON.stringify(controller.getState().lastWarning)).toContain('trop ancien')
+    await controller.stop()
+  })
+
+  it('lève le gel de la sortie sur arrêt d’urgence, arrêt ou désarmement de la fumée', async () => {
+    for (const action of ['emergency', 'stop', 'disarm'] as const) {
+      const { controller, clock, release } = await setupHold()
+      controller.diagnostics.freezeOutput(10_000, { confirm: true })
+      await advanceAsync(clock, 500)
+      expect(release).not.toHaveBeenCalled()
+      if (action === 'emergency') {
+        controller.emergencyStop()
+      } else {
+        controller.smoke[action]()
+      }
+      expect(release).toHaveBeenCalledTimes(1)
+      await controller.stop()
+    }
+  })
+})

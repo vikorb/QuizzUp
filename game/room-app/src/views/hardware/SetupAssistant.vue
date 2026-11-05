@@ -457,6 +457,20 @@
       <p v-if="summary.smokeDisabled" class="hw-alert" role="status" data-test="smoke-disabled">
         {{ $t(`hardware.assistant.smoke.willBeDisabled.${summary.smokeDisabled}`) }}
       </p>
+      <div v-if="view.smokeLacksRelay" class="stack" data-test="smoke-no-relay">
+        <p class="hw-alert hw-alert--danger" role="alert">
+          {{ $t('hardware.assistant.smoke.noRelayWarning') }}
+        </p>
+        <label class="hw-check">
+          <input
+            type="checkbox"
+            :checked="view.config.lighting.smoke.cutsOnSignalLoss === true"
+            data-test="smoke-cuts-on-signal-loss"
+            @change="onCutsOnSignalLoss"
+          />
+          <span>{{ $t('hardware.assistant.smoke.cutsOnSignalLoss') }}</span>
+        </label>
+      </div>
       <div class="hw-actions">
         <label class="hw-field">
           {{ $t('hardware.assistant.smoke.maxDuration') }}
@@ -480,7 +494,7 @@
         </label>
       </div>
       <h3 class="hw-panel__subtitle">{{ $t('hardware.assistant.smoke.checklist') }}</h3>
-      <label v-for="check in SMOKE_CHECKS" :key="check" class="hw-check">
+      <label v-for="check in requiredSmokeChecks" :key="check" class="hw-check">
         <input
           type="checkbox"
           :checked="view.smokeChecks[check]"
@@ -490,7 +504,15 @@
         />
         <span>{{ $t(`hardware.assistant.smoke.checks.${check}`) }}</span>
       </label>
-      <p class="hw-hint">{{ $t('hardware.diagnostic.freezeHint') }}</p>
+      <p class="hw-hint" data-test="freeze-hint">
+        {{
+          $t(
+            signalLossTest
+              ? 'hardware.diagnostic.freezeHintSignal'
+              : 'hardware.diagnostic.freezeHint'
+          )
+        }}
+      </p>
       <p v-if="freezeRefusal" class="hw-alert" role="status">{{ freezeRefusal }}</p>
       <div class="hw-actions">
         <UiButton
@@ -499,7 +521,9 @@
           data-test="assistant-freeze"
           @click="onFreezeTest"
         >
-          {{ $t('hardware.diagnostic.freeze') }}
+          {{
+            $t(signalLossTest ? 'hardware.diagnostic.freezeSignal' : 'hardware.diagnostic.freeze')
+          }}
         </UiButton>
       </div>
       <div
@@ -508,7 +532,13 @@
         role="status"
         data-test="freeze-running"
       >
-        {{ $t('hardware.assistant.smoke.freezeRunning') }}
+        {{
+          $t(
+            signalLossTest
+              ? 'hardware.assistant.smoke.freezeRunningSignal'
+              : 'hardware.assistant.smoke.freezeRunning'
+          )
+        }}
         <div class="hw-actions">
           <UiButton variant="danger" data-test="freeze-abort" @click="onFreezeAnswer(false)">
             {{ $t('hardware.assistant.smoke.freezeAbort') }}
@@ -521,7 +551,13 @@
         role="status"
         data-test="freeze-question"
       >
-        {{ $t('hardware.assistant.smoke.freezeQuestion') }}
+        {{
+          $t(
+            signalLossTest
+              ? 'hardware.assistant.smoke.freezeQuestionSignal'
+              : 'hardware.assistant.smoke.freezeQuestion'
+          )
+        }}
         <div class="hw-actions">
           <UiButton variant="primary" data-test="freeze-ok" @click="onFreezeAnswer(true)">
             {{ $t('hardware.assistant.smoke.freezeYes') }}
@@ -532,7 +568,13 @@
         </div>
       </div>
       <p v-if="freezeFailed" class="hw-alert hw-alert--danger" role="alert">
-        {{ $t('hardware.assistant.smoke.freezeFailed') }}
+        {{
+          $t(
+            freezeFailedSignal
+              ? 'hardware.assistant.smoke.freezeFailedSignal'
+              : 'hardware.assistant.smoke.freezeFailed'
+          )
+        }}
       </p>
     </div>
 
@@ -722,6 +764,8 @@ const connectError = ref<SerialErrorDescription | null>(null)
 const freezeStage = ref<'idle' | 'running' | 'question'>('idle')
 let freezeTimer: ReturnType<typeof setTimeout> | null = null
 const freezeFailed = ref(false)
+// L'échec concernait le test de perte de signal (la case est ensuite décochée).
+const freezeFailedSignal = ref(false)
 const saving = ref(false)
 const saved = ref(false)
 /** La config enregistrée a la fumée active pour le test de gel : à refermer en quittant. */
@@ -794,7 +838,16 @@ const canFreezeTest = computed(
   () =>
     view.value.config.lighting.smoke.enabled &&
     view.value.smokeChecks.physicalStop &&
-    view.value.smokeChecks.timedRelay
+    (view.value.smokeChecks.timedRelay || !view.value.smokeChecksRequired.includes('timedRelay'))
+)
+// Machine sans relais dont la case « coupe sur perte de signal » est cochée : le test de gel devient
+// un test guidé de vraie perte de signal (câble DMX débranché).
+const signalLossTest = computed(
+  () => view.value.smokeLacksRelay && view.value.config.lighting.smoke.cutsOnSignalLoss === true
+)
+// Sans relais, « relais temporisé » n'a pas de sens : seules les vérifications exigées sont listées.
+const requiredSmokeChecks = computed(() =>
+  SMOKE_CHECKS.filter((check) => view.value.smokeChecksRequired.includes(check))
 )
 
 const isBefore = (id: SetupStepId) =>
@@ -1145,6 +1198,11 @@ function onSmokeEnabled(event: Event): void {
   run(() => wizard.setSmoke({ enabled }))
 }
 
+function onCutsOnSignalLoss(event: Event): void {
+  const cutsOnSignalLoss = (event.target as HTMLInputElement).checked
+  run(() => wizard.setSmoke({ cutsOnSignalLoss }))
+}
+
 function onSmokeSeconds(key: 'maxDurationMs' | 'cooldownMs', event: Event): void {
   const seconds = Number((event.target as HTMLInputElement).value)
   if (Number.isFinite(seconds)) {
@@ -1179,6 +1237,12 @@ function onFreezeAnswer(ok: boolean): void {
   if (!ok) {
     // La fumée continue : on coupe tout, sans attendre la fin du gel.
     triggerEmergencyStop('freeze_test_failed')
+    // Machine sans relais qui ne coupe pas sur perte de signal : la case est décochée, la fumée
+    // reste désactivée (raison « relais requis ») tant que le test n'est pas réussi.
+    freezeFailedSignal.value = signalLossTest.value
+    if (signalLossTest.value) {
+      run(() => wizard.setSmoke({ cutsOnSignalLoss: false }))
+    }
   }
   // Fin du test : on remet tout de suite la config sûre (fumée active seulement si les quatre
   // vérifications sont faites), en mémoire comme dans l'enregistrement.

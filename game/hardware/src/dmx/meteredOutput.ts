@@ -81,6 +81,8 @@ export function createMeteredOutput(output: DmxOutput, clock: Clock = browserClo
       }
       writes += 1
     },
+    ...(output.hold ? { hold: (ms: number) => output.hold!(ms) } : {}),
+    ...(output.release ? { release: () => output.release!() } : {}),
     close: () => output.close(),
     onDisconnect: output.onDisconnect,
     getStats() {

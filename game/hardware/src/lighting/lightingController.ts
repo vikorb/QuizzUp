@@ -243,6 +243,17 @@ export function createLightingController(options: LightingControllerOptions): Li
   let diagnosticsTouchedAt = 0
   let frozenUntil: number | null = null
   let recoveredWrites = 0
+  /**
+   * Interrompt un gel avant son terme. Sur une sortie qui gèle de son côté (pont Art-Net : il
+   * ignore les trames pendant le gel), le gel y est aussi levé, sinon le noir ou l'arrêt de la
+   * fumée n'y arriverait pas.
+   */
+  const cancelFreeze = () => {
+    if (frozenUntil !== null) {
+      frozenUntil = null
+      output.release?.()
+    }
+  }
   /** Canaux réglés à la main, par numéro d'univers. */
   let manualChannels = new Map<number, Uint8Array>()
   const manualFixtures = new Map<string, FixtureState>()
@@ -432,7 +443,7 @@ export function createLightingController(options: LightingControllerOptions): Li
     lastFrameAt = now
 
     if (emergency || outputStatus === 'error') {
-      frozenUntil = null
+      cancelFreeze()
       send(blackFrames())
       return
     }
@@ -441,7 +452,8 @@ export function createLightingController(options: LightingControllerOptions): Li
         // Gel volontaire : aucune trame, l'interface répète la dernière reçue.
         return
       }
-      frozenUntil = null
+      // Le gel du pont se termine aussi de son côté : on le lève (noir) pour rester d'accord avec lui.
+      cancelFreeze()
       // Fin d'un test de coupure : la fumée doit être réautorisée par un humain.
       smoke.disarm()
       notify()
@@ -513,7 +525,7 @@ export function createLightingController(options: LightingControllerOptions): Li
       smoke.stop('manual')
       smoke.disarm()
     }
-    frozenUntil = null
+    cancelFreeze()
     manualChannels = new Map()
     manualFixtures.clear()
     player.blackout()
@@ -612,13 +624,49 @@ export function createLightingController(options: LightingControllerOptions): Li
       // La trame en cours (fumée comprise) part avant le gel : c'est elle que l'interface
       // répétera. Sans cela, le gel figerait l'avant-dernière trame.
       send(renderDiagnostics(clock.now()))
-      frozenUntil = clock.now() + durationMs
+      const deadline = clock.now() + durationMs
+      frozenUntil = deadline
       // Le chien de garde ne doit pas compter le gel comme un plantage.
       lastFrameAt = null
+      holdOutput(durationMs, deadline)
       notify()
       return { ok: true }
     },
     getState: () => ({ active: diagnosticsActive, allowUnknownChannels, frozenUntil }),
+  }
+
+  /**
+   * Sortie qui ne répète pas la dernière trame d'elle-même (pont Art-Net) : on lui demande de geler
+   * une fois la trame du gel écrite, pour que le silence ne la fasse pas passer au noir. Si le gel
+   * n'est pas pris en compte (pont trop ancien, refus, délai), le test n'a aucune valeur : il est
+   * annulé, la fumée coupée et réarmement exigé.
+   */
+  const holdOutput = (durationMs: number, deadline: number) => {
+    const target = output
+    if (!target.hold) {
+      return
+    }
+    const idle = (): Promise<void> => (inFlight ? inFlight.then(idle) : Promise.resolve())
+    void idle()
+      .then(() =>
+        frozenUntil === deadline && output === target ? target.hold!(durationMs) : undefined
+      )
+      .catch((error: unknown) => {
+        if (frozenUntil !== deadline) {
+          return
+        }
+        frozenUntil = null
+        // Le gel a pu être pris en compte sans que nous l'ayons su (délai) : on le lève avant tout.
+        target.release?.()
+        smoke.stop('manual')
+        smoke.disarm()
+        warn({
+          kind: 'output_error',
+          message: `Gel refusé par la sortie : ${error instanceof Error ? error.message : String(error)}`,
+          at: clock.now(),
+        })
+        notify()
+      })
   }
 
   const openOutput = async () => {
@@ -834,7 +882,7 @@ export function createLightingController(options: LightingControllerOptions): Li
       disarm() {
         smoke.disarm()
         // Couper la fumée pendant un gel doit agir tout de suite : on reprend l'envoi.
-        frozenUntil = null
+        cancelFreeze()
         notify()
       },
       fire(durationMs) {
@@ -848,13 +896,13 @@ export function createLightingController(options: LightingControllerOptions): Li
           // Arrêt pendant un test de coupure : la fumée doit être réautorisée par un humain.
           smoke.disarm()
         }
-        frozenUntil = null
+        cancelFreeze()
         notify()
       },
     },
     emergencyStop(reason = 'Arrêt d’urgence') {
       emergency = true
-      frozenUntil = null
+      cancelFreeze()
       emergencyReason = reason
       smoke.emergencyStop()
       player.blackout()

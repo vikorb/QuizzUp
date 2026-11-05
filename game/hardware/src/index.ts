@@ -48,6 +48,8 @@ export {
   gamepadMatcher,
   parseRoomHardwareConfig,
   ROOM_HARDWARE_CONFIG_VERSION,
+  smokeLacksRelay,
+  smokeRelayRuleMet,
   withArtnetTarget,
   withDesksCount,
   withLearnedKeymap,
@@ -56,6 +58,7 @@ export type {
   ArtnetNode,
   ArtnetTargetConfig,
   BridgeArtnetStatus,
+  BridgeHoldErrorCode,
   BridgeOutput,
   BridgeOutputOptions,
   BridgePollErrorCode,
@@ -63,11 +66,14 @@ export type {
   WebSocketLike,
 } from './dmx/bridgeOutput'
 export {
+  BRIDGE_FEATURE_HOLD,
   BRIDGE_FEATURE_POLL,
   BRIDGE_FRAME_BYTES,
+  BRIDGE_HOLD_LIMITS,
   BRIDGE_MAX_BUFFERED_BYTES,
   BRIDGE_OPEN_TIMEOUT_MS,
   BRIDGE_PROTOCOL_VERSION,
+  BridgeHoldError,
   BridgePollError,
   createBridgeOutput,
   DEFAULT_BRIDGE_PORT,
@@ -102,6 +108,8 @@ export {
   findProfile,
   FIXTURE_KINDS,
   GENERIC_PROFILES,
+  hasProgressiveSmokeChannel,
+  hasSmokeRelay,
   MAX_COLOR_SLOTS,
 } from './dmx/profiles'
 export type {
@@ -211,6 +219,7 @@ export {
   SETUP_STEPS,
   SMOKE_CHECK_LABELS,
   SMOKE_CHECKS,
+  SMOKE_RELAY_REQUIRED,
   TIMED_RELAY_MAX_MS,
 } from './setup/setupWizard'
 export type { ButtonIndex, BuzzerButton, Desk, Rgb, Rgbw, Unsubscribe } from './types'

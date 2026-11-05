@@ -219,3 +219,88 @@ describe('cœur du pont : chien de garde', () => {
     expect(sent.length).toBe(count + 2)
   })
 })
+
+describe('cœur du pont : gel (test de perte de signal)', () => {
+  const HOLD_MS = 5000
+
+  it('garde la dernière trame sans passer au noir, ignore les trames reçues', () => {
+    const { clock, sent, core } = setup()
+    core.start()
+    core.frame(universeWith(7))
+    expect(core.hold(HOLD_MS)).toBe(true)
+    expect(core.getStatus().mode).toBe('hold')
+    const before = sent.length
+    core.frame(universeWith(99))
+    expect(core.getStatus().framesReceived).toBe(1)
+    // Bien plus longtemps que le silence : pas de noir, la trame de départ est renvoyée.
+    clock.advance(SILENCE_TIMEOUT_MS + 1000)
+    expect(sent.length).toBeGreaterThan(before)
+    expect(sent.slice(before).every((packet) => packet.data[0] === 7)).toBe(true)
+    expect(sent.some(isBlack)).toBe(false)
+    expect(core.getStatus()).toMatchObject({ mode: 'hold', blackouts: 0 })
+  })
+
+  it('émet avant le gel la trame reçue mais retenue par la cadence', () => {
+    const { clock, sent, core } = setup()
+    core.start()
+    core.frame(universeWith(1))
+    core.frame(universeWith(2))
+    expect(sent).toHaveLength(1)
+    expect(core.hold(HOLD_MS)).toBe(true)
+    expect(sent.at(-1)!.data[0]).toBe(2)
+    clock.advance(KEEPALIVE_MS)
+    expect(sent.at(-1)!.data[0]).toBe(2)
+  })
+
+  it('passe au noir à la fin du gel, puis reprend aux trames suivantes', () => {
+    const { clock, sent, core } = setup()
+    core.start()
+    core.frame(universeWith(7))
+    core.hold(HOLD_MS)
+    clock.advance(HOLD_MS - TICK_MS)
+    expect(core.getStatus().mode).toBe('hold')
+    expect(sent.some(isBlack)).toBe(false)
+    clock.advance(TICK_MS)
+    expect(core.getStatus()).toMatchObject({ mode: 'blackout', blackouts: 1 })
+    expect(isBlack(sent.at(-1)!)).toBe(true)
+    clock.advance(MIN_INTERVAL_MS)
+    core.frame(universeWith(8))
+    expect(core.getStatus().mode).toBe('live')
+    expect(sent.at(-1)!.data[0]).toBe(8)
+  })
+
+  it('passe au noir à la déconnexion pendant le gel', () => {
+    const { clock, sent, core } = setup()
+    core.start()
+    core.frame(universeWith(7))
+    core.hold(HOLD_MS)
+    clock.advance(1000)
+    core.clientDisconnected()
+    expect(core.getStatus()).toMatchObject({ mode: 'blackout', blackouts: 1 })
+    expect(isBlack(sent.at(-1)!)).toBe(true)
+    clock.advance(BLACKOUT_MS + TICK_MS)
+    expect(core.getStatus().mode).toBe('waiting')
+  })
+
+  it('release met fin au gel tout de suite, sans effet hors gel', () => {
+    const { sent, core } = setup()
+    core.start()
+    core.release()
+    core.frame(universeWith(7))
+    core.release()
+    expect(core.getStatus().mode).toBe('live')
+    core.hold(HOLD_MS)
+    core.release()
+    expect(core.getStatus().mode).toBe('blackout')
+    expect(isBlack(sent.at(-1)!)).toBe(true)
+  })
+
+  it('refuse le gel sans trame en cours ou si un gel est déjà actif', () => {
+    const { core } = setup()
+    core.start()
+    expect(core.hold(HOLD_MS)).toBe(false)
+    core.frame(universeWith(7))
+    expect(core.hold(HOLD_MS)).toBe(true)
+    expect(core.hold(HOLD_MS)).toBe(false)
+  })
+})

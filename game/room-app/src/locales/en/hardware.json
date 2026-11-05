@@ -167,10 +167,13 @@
       "clear": "All off",
       "end": "End diagnostics",
       "freezeTitle": "Smoke cut-off test",
-      "freezeHint": "Simulates a crash: a short smoke burst, then no frames at all for 15 s. The timed relay must cut the smoke on its own, within 10 s. Do it in an empty room, with the physical emergency stop within reach.",
+      "freezeHint": "Simulates a controller crash: a short smoke burst, then no frames at all for 15 s. The USB interface or the Art-Net bridge then repeats the last frame: the DMX signal does not disappear. This test therefore checks the timed relay, which must cut the smoke on its own, within 10 s. Do it in an empty room, with the physical emergency stop within reach.",
+      "freezeHintSignal": "Real signal-loss test (machine without relay): the smoke starts, then you unplug the DMX cable from the machine (or from the interface). The machine must cut out by itself in under 10 s. Do it in an empty room, with the physical emergency stop within reach.",
       "freeze": "Run the simulated crash",
+      "freezeSignal": "Run the signal-loss test",
       "freezeConfirm1": "Smoke will really be released. Is the room empty and the physical emergency stop within reach?",
       "freezeConfirm2": "Last confirmation: no frames will be sent for 15 s. If the smoke does not stop on its own, press the physical emergency stop.",
+      "freezeConfirm2Signal": "Last confirmation: the smoke will start, then you will have to unplug the DMX cable from the machine. If it does not stop by itself in under 10 s, press the physical emergency stop.",
       "freezeGo": "Run the test",
       "frozen": "No frames sent: {n} s left. The smoke must have stopped on its own.",
       "refused": {
@@ -192,7 +195,7 @@
         "disconnected": "The interface was unplugged.",
         "unknown": "Could not open the DMX interface."
       },
-      "freezeBridge": "With the Art-Net bridge, the bridge itself cuts the smoke when the browser goes quiet: this test would not check the timed relay. Run it with the USB interface, or stop the bridge program during a burst.",
+      "freezeBridgeOld": "This Art-Net bridge is too old: it cannot freeze its output (it would go to black and the test would prove nothing). Update the bridge, or run the test with the USB interface.",
       "freezeNoInterface": "Connect the real DMX interface first: in simulation no smoke would come out and the test would prove nothing."
     },
     "assistant": {
@@ -360,16 +363,22 @@
         "checks": {
           "physicalStop": "A physical emergency stop cuts the machine's power and is within staff reach.",
           "timedRelay": "The timed relay is set to 10 seconds at most.",
-          "freezeTest": "The simulated crash test passed (ticked automatically).",
+          "freezeTest": "The smoke cut-off test passed (timed relay, or signal loss for a machine without relay; ticked automatically).",
           "siteRules": "Fire detection and site rules were checked with the manager."
         },
         "freezeQuestion": "Did the smoke stop on its own within 10 seconds?",
-        "freezeYes": "Yes, it stopped",
-        "freezeNo": "No",
+        "freezeQuestionSignal": "After unplugging the DMX cable, did the smoke stop on its own in under 10 seconds?",
+        "freezeYes": "It stopped",
+        "freezeNo": "It keeps going",
         "freezeFailed": "Do not use the smoke: check the wiring and the timed relay setting, then run the test again.",
-        "freezeRunning": "No frames are sent for 15 s. Watch the machine: the smoke must stop on its own within 10 s.",
+        "freezeFailedSignal": "The machine does not cut out by itself on signal loss: smoke is disabled and the “cuts out on signal loss” box is unticked. Use a machine on a timed relay, or one that really cuts out without a signal.",
+        "freezeRunning": "No frames are sent for 15 s (the interface repeats the last one). Watch the machine: the timed relay must cut the smoke within 10 s.",
+        "freezeRunningSignal": "The smoke is running. Unplug the DMX cable from the machine (or from the interface) now: it must stop by itself in under 10 s.",
         "freezeAbort": "The smoke does not stop: cut everything",
+        "noRelayWarning": "This machine has no timed relay: if the controller crashes, the interface repeats the last frame and the smoke may run on forever. Only tick the box below if you checked in the manual that the machine stops by itself as soon as the DMX signal disappears.",
+        "cutsOnSignalLoss": "I confirm the machine cuts out by itself on DMX signal loss (checked in the manual and with the simulated crash test).",
         "willBeDisabled": {
+          "relay_required": "Smoke will be saved as disabled: without a timed relay, you must tick that the machine cuts out by itself on DMX signal loss, then pass the signal-loss test.",
           "no_device": "Smoke will be saved as disabled: no smoke machine is configured.",
           "checks_incomplete": "Smoke will be saved as disabled: the safety checklist is not fully validated."
         }
