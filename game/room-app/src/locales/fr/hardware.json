@@ -64,14 +64,22 @@
     },
     "plan": {
       "title": "Plan de salle",
-      "hint": "Vue du dessus de la salle. Glisse l’écran, les pupitres et les appareils à leur place. Au clavier : Tab pour en choisir un, flèches pour le déplacer.",
+      "hint": "Glisse l’écran, les pupitres et les appareils à leur place. Au clavier : Tab pour en choisir un, flèches pour le déplacer.",
       "screen": "Écran",
       "desk": "Pupitre {n}",
       "fixture": "Appareil {name}",
       "item": "{label}, position {x} % à droite, {y} % vers le bas. Flèches pour déplacer.",
       "room": "Plan de la salle, vue du dessus",
       "draggable": "élément déplaçable",
-      "moved": "{label} déplacé : {x} % à droite, {y} % vers le bas."
+      "draggableKeyboard": "élément déplaçable au clavier",
+      "roomPerspective": "Plan de la salle, vue en perspective",
+      "moved": "{label} déplacé : {x} % à droite, {y} % vers le bas.",
+      "view": {
+        "label": "Vue du plan",
+        "top": "Vue de dessus",
+        "perspective": "Perspective",
+        "help": "Passe en vue de dessus pour déplacer à la souris. Les flèches du clavier restent actives."
+      }
     },
     "lights": {
       "title": "Lumières",
