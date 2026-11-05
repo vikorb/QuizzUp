@@ -7,7 +7,7 @@ import { parseRig, unsupportedUniverseProblems } from './dmx/fixtures'
 import type { DmxDriver } from './dmx/output'
 import { DMX_DRIVERS } from './dmx/output'
 import type { FixtureProfile } from './dmx/profiles'
-import { hasSmokeRelay } from './dmx/profiles'
+import { hasProgressiveSmokeChannel } from './dmx/profiles'
 import { DEFAULT_DESK_COLORS } from './lighting/scenes'
 import type { SmokeSafetyConfig } from './lighting/smoke'
 import { DEFAULT_SMOKE_SAFETY, normalizeSmokeSafety } from './lighting/smoke'
@@ -74,9 +74,12 @@ export type ParsedRoomHardwareConfig = {
   smokeDisabledReason: 'relay_required' | null
 }
 
-/** Une machine à fumée de l'installation n'est pas sur relais (profil sans canal fumée `binary`). */
+/**
+ * Un appareil de l'installation, quel que soit son `kind`, a un canal fumée qui n'est pas `binary` :
+ * pas de relais. (Jugé sur les canaux : un profil `par` avec un canal fumée progressif compte.)
+ */
 export const smokeLacksRelay = (fixtures: readonly Pick<ResolvedFixture, 'profile'>[]): boolean =>
-  fixtures.some((fixture) => fixture.profile.kind === 'smoke' && !hasSmokeRelay(fixture.profile))
+  fixtures.some((fixture) => hasProgressiveSmokeChannel(fixture.profile))
 
 /**
  * Garde-fou fumée : activable avec un profil à relais, ou sans relais si l'installateur a coché

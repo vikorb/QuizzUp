@@ -563,6 +563,50 @@ describe('assistant d’installation : fumée sans relais', () => {
   })
 })
 
+describe('assistant d’installation : relais jugé sur les canaux', () => {
+  const withCustom = (kind: string, channels: Record<string, unknown>[]) => {
+    const wizard = createSetupWizard({
+      version: 1,
+      desksCount: 2,
+      buzzers: { keymap: createDefaultKeymap() },
+      lighting: {
+        driver: 'usbpro',
+        fixtures: [{ id: 'fumee', name: 'Fumée', profileId: 'ma-fumee', address: 30 }],
+        customProfiles: [{ id: 'ma-fumee', name: 'Ma fumée', kind, channels }],
+        smoke: { enabled: true },
+      },
+    } as never)
+    wizard.setBrowserCheck(goodBrowser)
+    return wizard
+  }
+
+  it('un profil « par » à canal fumée progressif est sans relais : refusé sans la case', () => {
+    const wizard = withCustom('par', [{ role: 'smoke' }])
+    expect(wizard.getState().smokeLacksRelay).toBe(true)
+    expect(wizard.getState().smokeChecksRequired).not.toContain('timedRelay')
+    expect(wizard.summary().smokeDisabled).toBe('relay_required')
+    // Case cochée : la règle relais est levée, mais le moteur ne pilote la fumée que d'un appareil
+    // de kind « smoke » (ici aucun).
+    wizard.setSmoke({ enabled: true, cutsOnSignalLoss: true })
+    expect(wizard.summary().smokeDisabled).toBe('no_device')
+  })
+
+  it('un profil « smoke » avec un canal binary et un canal progressif est sans relais', () => {
+    const wizard = withCustom('smoke', [{ role: 'smoke', binary: true }, { role: 'smoke' }])
+    expect(wizard.getState().smokeLacksRelay).toBe(true)
+    expect(wizard.summary().smokeDisabled).toBe('relay_required')
+  })
+
+  it('tous les canaux fumée binary : relais, relais temporisé exigé', () => {
+    const wizard = withCustom('smoke', [
+      { role: 'smoke', binary: true },
+      { role: 'smoke', binary: true },
+    ])
+    expect(wizard.getState().smokeLacksRelay).toBe(false)
+    expect(wizard.getState().smokeChecksRequired).toContain('timedRelay')
+  })
+})
+
 describe('assistant d’installation : récapitulatif', () => {
   it('produit une config relisible et liste les points à corriger', () => {
     const wizard = createSetupWizard()

@@ -188,7 +188,7 @@ describe('sortie pont : gel de la sortie (hold)', () => {
 
   it('refuse une durée hors bornes sans rien envoyer', async () => {
     const { output, socket } = await openBridge(HOLD_ACK)
-    for (const ms of [999, 30_001, 0, -1, 1500.5, Number.NaN]) {
+    for (const ms of [999, 15_001, 0, -1, 1500.5, Number.NaN]) {
       await expect(output.hold(ms)).rejects.toMatchObject({ code: 'invalid_duration' })
     }
     const holding = output.hold(1000)

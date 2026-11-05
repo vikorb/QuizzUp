@@ -106,6 +106,25 @@ async function openSmokeStep(driver: 'usbpro' | 'artnet-bridge', profile: string
   return wrapper
 }
 
+/** Lance le test de perte de signal (machine sans relais) jusqu'à la question finale. */
+async function runSignalLossTest(wrapper: Wrapper) {
+  await sel(wrapper, 'smoke-cuts-on-signal-loss').setValue(true)
+  await sel(wrapper, 'check-physicalStop').setValue(true)
+  expect(sel(wrapper, 'freeze-hint').text()).toContain('vraie perte de signal')
+  expect(sel(wrapper, 'assistant-freeze').text()).toContain('perte de signal')
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  const freeze = sel(wrapper, 'assistant-freeze').trigger('click')
+  await acceptConfirmations(2)
+  await freeze
+  await flushPromises()
+  // Guidage : débrancher le câble pendant que l'interface répète la fumée.
+  expect(sel(wrapper, 'freeze-running').text()).toContain('Débranche')
+  await vi.advanceTimersByTimeAsync(MAX_FREEZE_MS)
+  vi.useRealTimers()
+  await flushPromises()
+  expect(sel(wrapper, 'freeze-question').text()).toContain('débranchement')
+}
+
 describe('assistant : garde-fous de la fumée', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -141,6 +160,38 @@ describe('assistant : garde-fous de la fumée', () => {
     // Décocher la case rétablit le refus.
     await sel(wrapper, 'smoke-cuts-on-signal-loss').setValue(false)
     expect(sel(wrapper, 'smoke-disabled').text()).toContain('sans relais temporisé')
+  })
+
+  it('sans relais : test guidé de perte de signal, « elle continue » désactive la fumée', async () => {
+    installFakeSerial(createFakeUsbPort())
+    const wrapper = await openSmokeStep('usbpro', 'smoke-dmx')
+    await runSignalLossTest(wrapper)
+    await click(wrapper, 'freeze-ko')
+    expect(wrapper.text()).toContain('ne coupe pas toute seule sur perte de signal')
+    expect(getLighting()?.getState().emergency).toBe(true)
+    // La case est décochée : la fumée reste désactivée, avec la raison.
+    const box = sel(wrapper, 'smoke-cuts-on-signal-loss').element as HTMLInputElement
+    expect(box.checked).toBe(false)
+    expect(sel(wrapper, 'smoke-disabled').text()).toContain('sans relais temporisé')
+    expect(wrapper.text()).toContain('réussir le test de perte de signal')
+  })
+
+  it('sans relais : « elle s’est arrêtée » valide le test de gel', async () => {
+    installFakeSerial(createFakeUsbPort())
+    const wrapper = await openSmokeStep('usbpro', 'smoke-dmx')
+    await runSignalLossTest(wrapper)
+    await click(wrapper, 'freeze-ok')
+    expect((sel(wrapper, 'check-freezeTest').element as HTMLInputElement).checked).toBe(true)
+    expect(wrapper.text()).not.toContain('ne coupe pas toute seule')
+    await sel(wrapper, 'check-siteRules').setValue(true)
+    expect(sel(wrapper, 'smoke-disabled').exists()).toBe(false)
+  })
+
+  it('machine à relais : le test de gel garde son texte (relais temporisé)', async () => {
+    installFakeSerial(createFakeUsbPort())
+    const wrapper = await openSmokeStep('usbpro', 'smoke-relay')
+    expect(sel(wrapper, 'freeze-hint').text()).toContain('relais temporisé')
+    expect(sel(wrapper, 'freeze-hint').text()).not.toContain('vraie perte de signal')
   })
 
   it('machine à relais : ni case ni avertissement', async () => {

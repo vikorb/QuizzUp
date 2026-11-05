@@ -202,11 +202,11 @@ describe('message hold', () => {
     expect(JSON.parse(heldMessage(5000))).toEqual({ type: 'held', ms: 5000 })
   })
 
-  it('borne la durée de 1 000 à 30 000 ms, entier', () => {
-    for (const ms of [1000, 15_000, 30_000]) {
+  it('borne la durée de 1 000 à 15 000 ms, entier', () => {
+    for (const ms of [1000, 10_000, 15_000]) {
       expect(isHoldDuration(ms)).toBe(true)
     }
-    for (const ms of [999, 30_001, 0, -5, 1500.5, NaN, Infinity, '5000', null, undefined]) {
+    for (const ms of [999, 15_001, 0, -5, 1500.5, NaN, Infinity, '5000', null, undefined]) {
       expect(isHoldDuration(ms)).toBe(false)
     }
   })

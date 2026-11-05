@@ -506,10 +506,13 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
   const resolvedFixtures = () =>
     parseRig(config.lighting.fixtures, config.lighting.customProfiles).fixtures
   const lacksRelay = () => smokeLacksRelay(resolvedFixtures())
-  /** Le relais temporisé n'est exigé que si une machine est sur relais (sinon elle coupe seule). */
+  /**
+   * Le relais temporisé n'est exigé que si une machine est sur relais (jugé sur les canaux fumée,
+   * pas sur `kind`) ; sans relais, c'est le test guidé de vraie perte de signal (`freezeTest`) qui
+   * prouve que la machine coupe seule.
+   */
   const requiredChecks = (): SmokeCheckId[] => {
-    const smokeFixtures = resolvedFixtures().filter((fixture) => fixture.profile.kind === 'smoke')
-    const anyRelay = smokeFixtures.some((fixture) => hasSmokeRelay(fixture.profile))
+    const anyRelay = resolvedFixtures().some((fixture) => hasSmokeRelay(fixture.profile))
     return SMOKE_CHECKS.filter((check) => check !== 'timedRelay' || anyRelay || !lacksRelay())
   }
   const relayRuleMet = () => smokeRelayRuleMet(config.lighting.smoke, resolvedFixtures())
@@ -956,10 +959,10 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
       if (smoke.enabled && (!hasKind('smoke') || !allowed)) {
         // Jamais de fumée active sans les vérifications humaines : on l'enregistre désactivée.
         smoke = { ...smoke, enabled: false }
-        if (!hasKind('smoke')) {
-          smokeDisabled = 'no_device'
+        if (!relayRuleMet()) {
+          smokeDisabled = 'relay_required'
         } else {
-          smokeDisabled = relayRuleMet() ? 'checks_incomplete' : 'relay_required'
+          smokeDisabled = hasKind('smoke') ? 'checks_incomplete' : 'no_device'
         }
       } else if (!smoke.enabled && smokeDisabledOnLoad && !relayRuleMet()) {
         smokeDisabled = smokeDisabledOnLoad

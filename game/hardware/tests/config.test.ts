@@ -362,4 +362,38 @@ describe('configuration matérielle : garde-fou relais de la fumée', () => {
     expect(parseRoomHardwareConfig(custom(true)).config.lighting.smoke.enabled).toBe(true)
     expect(parseRoomHardwareConfig(custom(false)).config.lighting.smoke.enabled).toBe(false)
   })
+
+  it('juge le relais sur les canaux, pas sur le kind : un profil « par » à canal fumée progressif est sans relais', () => {
+    const room = (kind: string, channels: Record<string, unknown>[], smoke: object = {}) => ({
+      ...smokeRoom('ma-fumee', { enabled: true, ...smoke }),
+      lighting: {
+        ...smokeRoom('ma-fumee', {}).lighting,
+        smoke: { enabled: true, ...smoke },
+        customProfiles: [{ id: 'ma-fumee', name: 'Ma fumée', kind, channels }],
+      },
+    })
+    // kind « par » avec un canal fumée progressif : désactivée sans la case.
+    const par = parseRoomHardwareConfig(room('par', [{ role: 'smoke' }]))
+    expect(par.smokeDisabledReason).toBe('relay_required')
+    expect(par.config.lighting.smoke.enabled).toBe(false)
+    expect(
+      parseRoomHardwareConfig(room('par', [{ role: 'smoke' }], { cutsOnSignalLoss: true })).config
+        .lighting.smoke.enabled
+    ).toBe(true)
+
+    // kind « smoke » avec un canal binary ET un canal progressif : sans relais.
+    const mixed = parseRoomHardwareConfig(
+      room('smoke', [{ role: 'smoke', binary: true }, { role: 'smoke' }])
+    )
+    expect(mixed.smokeDisabledReason).toBe('relay_required')
+    expect(mixed.config.lighting.smoke.enabled).toBe(false)
+    // Tous les canaux fumée binary : relais.
+    const relay = parseRoomHardwareConfig(
+      room('smoke', [
+        { role: 'smoke', binary: true },
+        { role: 'smoke', binary: true },
+      ])
+    )
+    expect(relay.config.lighting.smoke.enabled).toBe(true)
+  })
 })

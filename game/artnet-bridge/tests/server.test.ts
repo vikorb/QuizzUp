@@ -297,7 +297,7 @@ describe('pont : WebSocket → Art-Net (UDP)', () => {
     const client = await connectReady()
     client.send(OPCODE.binary, frameBytes(9))
     await receiver.waitFor(1)
-    for (const ms of [999, 30_001, 1500.5, '5000', null]) {
+    for (const ms of [999, 15_001, 1500.5, '5000', null]) {
       client.send(OPCODE.text, JSON.stringify({ type: 'hold', ms }))
       expect(JSON.parse((await client.next()).payload.toString('utf8'))).toMatchObject({
         type: 'error',
@@ -323,7 +323,7 @@ describe('pont : WebSocket → Art-Net (UDP)', () => {
     const client = await connectReady()
     client.send(OPCODE.binary, frameBytes(255))
     await receiver.waitFor(1)
-    client.send(OPCODE.text, JSON.stringify({ type: 'hold', ms: 30_000 }))
+    client.send(OPCODE.text, JSON.stringify({ type: 'hold', ms: 15_000 }))
     await client.next()
     client.send(OPCODE.text, JSON.stringify({ type: 'release' }))
     await vi.waitFor(() => expect(receiver.packets.at(-1)![18]).toBe(0))
@@ -331,7 +331,7 @@ describe('pont : WebSocket → Art-Net (UDP)', () => {
 
     client.send(OPCODE.binary, frameBytes(200))
     await vi.waitFor(() => expect(receiver.packets.at(-1)![18]).toBe(200))
-    client.send(OPCODE.text, JSON.stringify({ type: 'hold', ms: 30_000 }))
+    client.send(OPCODE.text, JSON.stringify({ type: 'hold', ms: 15_000 }))
     await client.next()
     client.socket.destroy()
     await vi.waitFor(() => expect(receiver.packets.at(-1)![18]).toBe(0))

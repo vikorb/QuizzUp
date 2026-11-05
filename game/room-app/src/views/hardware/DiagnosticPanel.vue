@@ -145,7 +145,13 @@
 
       <template v-if="hasSmoke">
         <h3 class="hw-panel__subtitle">{{ $t('hardware.diagnostic.freezeTitle') }}</h3>
-        <p class="hw-hint">{{ $t('hardware.diagnostic.freezeHint') }}</p>
+        <p class="hw-hint">
+          {{
+            $t(
+              signalLoss ? 'hardware.diagnostic.freezeHintSignal' : 'hardware.diagnostic.freezeHint'
+            )
+          }}
+        </p>
         <p v-if="frozenLeft > 0" class="hw-alert" role="status" data-test="diag-frozen">
           {{ $t('hardware.diagnostic.frozen', { n: Math.ceil(frozenLeft / 1000) }) }}
         </p>
@@ -159,7 +165,7 @@
             data-test="diag-freeze"
             @click="onFreezeTest"
           >
-            {{ $t('hardware.diagnostic.freeze') }}
+            {{ $t(signalLoss ? 'hardware.diagnostic.freezeSignal' : 'hardware.diagnostic.freeze') }}
           </UiButton>
         </div>
       </template>
@@ -210,7 +216,7 @@ const COLOR_PRESETS: readonly ColorPreset[] = [
 const { t } = useI18n()
 const { hardware, lightingState: state, lighting } = useRoomHardware()
 const emergency = useEmergencyStop()
-const { run: runFreezeTest, refusal: freezeRefusal } = useFreezeTest()
+const { run: runFreezeTest, refusal: freezeRefusal, signalLoss } = useFreezeTest()
 const webSerial = isWebSerialSupported()
 
 const diag = shallowRef<DiagnosticsState>({

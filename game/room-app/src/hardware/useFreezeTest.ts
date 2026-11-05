@@ -1,5 +1,5 @@
-import { MAX_FREEZE_MS } from '@quizzup/hardware'
-import { ref } from 'vue'
+import { MAX_FREEZE_MS, parseRig, smokeLacksRelay } from '@quizzup/hardware'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { useConfirm } from '@/composables/useConfirm'
@@ -10,15 +10,28 @@ export const FREEZE_SMOKE_MS = 3000
 
 /**
  * Plantage simulé, pour vérifier le relais temporisé de la fumée : une courte émission,
- * puis plus aucune trame pendant 15 s. L'interface répète la dernière trame reçue (fumée
- * allumée) : seul le relais temporisé doit couper la machine, en 10 s au plus.
+ * puis plus aucune trame pendant 15 s. L'interface (ou le pont) répète la dernière trame reçue
+ * (fumée allumée) : le signal DMX ne disparaît pas, seul le relais temporisé doit couper la
+ * machine, en 10 s au plus.
+ *
+ * Pour une machine sans relais qui « coupe toute seule sur perte de signal » (`signalLoss`), le
+ * même déroulé sert de test guidé de **vraie** perte de signal : pendant que l'interface répète la
+ * fumée, l'installateur débranche le câble DMX et la machine doit s'arrêter seule en 10 s.
  * Double confirmation, car la fumée part vraiment.
  */
 export function useFreezeTest() {
   const { t } = useI18n()
   const { confirm } = useConfirm()
   const refusal = ref<string | null>(null)
-  const { bridgeFeatures } = useRoomHardware()
+  const { bridgeFeatures, hardware } = useRoomHardware()
+  /** Machine sans relais dont l'installateur a coché « coupe toute seule sur perte de signal ». */
+  const signalLoss = computed(() => {
+    const { fixtures, customProfiles, smoke } = hardware.value.config.lighting
+    return (
+      smoke.cutsOnSignalLoss === true &&
+      smokeLacksRelay(parseRig(fixtures, customProfiles).fixtures)
+    )
+  })
 
   /** Raison de refuser le test avant même de demander confirmation, `null` sinon. */
   function precheck(): string | null {
@@ -48,7 +61,11 @@ export function useFreezeTest() {
       return false
     }
     const second = await confirm({
-      message: t('hardware.diagnostic.freezeConfirm2'),
+      message: t(
+        signalLoss.value
+          ? 'hardware.diagnostic.freezeConfirm2Signal'
+          : 'hardware.diagnostic.freezeConfirm2'
+      ),
       confirmLabel: t('hardware.diagnostic.freezeGo'),
       variant: 'danger',
     })
@@ -85,5 +102,5 @@ export function useFreezeTest() {
     return true
   }
 
-  return { run, refusal }
+  return { run, refusal, signalLoss }
 }

@@ -108,6 +108,7 @@ export {
   findProfile,
   FIXTURE_KINDS,
   GENERIC_PROFILES,
+  hasProgressiveSmokeChannel,
   hasSmokeRelay,
   MAX_COLOR_SLOTS,
 } from './dmx/profiles'

@@ -304,17 +304,23 @@ describe('diagnostic matériel : gel sur une sortie qui gèle de son côté (pon
     expect(simulation.framesSent()).toBe(sent)
     await advanceAsync(clock, 6_000)
     expect(simulation.framesSent()).toBeGreaterThan(sent)
-    // Fin naturelle du gel : le pont repasse au noir de lui-même, pas de release.
-    expect(events).not.toContain('release')
+    // Fin naturelle du gel : le navigateur lève aussi le gel du pont (une seule fois), pour rester
+    // d'accord avec lui.
+    expect(events.filter((event) => event === 'release')).toHaveLength(1)
+    expect(events.indexOf('release')).toBeGreaterThan(events.indexOf('hold:10000'))
     await controller.stop()
   })
 
   it('annule le test, coupe et désarme la fumée si le gel n’est pas pris en compte', async () => {
-    const { controller, clock } = await setupHold(() =>
+    const { controller, clock, events, release } = await setupHold(() =>
       Promise.reject(new Error('Ce pont est trop ancien pour geler la sortie'))
     )
     expect(controller.diagnostics.freezeOutput(10_000, { confirm: true })).toEqual({ ok: true })
     await advanceAsync(clock, 100)
+    // Le gel a pu être pris en compte par le pont sans que la confirmation arrive (délai) : on
+    // le lève avant de couper la fumée.
+    expect(release).toHaveBeenCalledTimes(1)
+    expect(events.indexOf('release')).toBeGreaterThan(events.indexOf('hold:10000'))
     expect(controller.diagnostics.getState().frozenUntil).toBeNull()
     expect(controller.getState().smoke).toMatchObject({ armed: false })
     expect(controller.getState().smoke.status).not.toBe('firing')

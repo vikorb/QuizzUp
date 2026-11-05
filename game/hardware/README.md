@@ -210,7 +210,7 @@ accumulé) et signale une coupure par `onDisconnect` (le contrôleur coupe alors
 pont, un chien de garde envoie du noir si le navigateur se tait plus de 2,5 s.
 
 **Gel pour le test de perte de signal** : un pont qui annonce `"hold"` dans `features` (`bridge.features()`)
-sait geler sa sortie. `bridge.hold(ms)` envoie `{"type":"hold","ms":15000}` (entier de 1 000 à 30 000 ms,
+sait geler sa sortie. `bridge.hold(ms)` envoie `{"type":"hold","ms":15000}` (entier de 1 000 à 15 000 ms,
 `BRIDGE_HOLD_LIMITS`) : le pont garde la dernière trame (renvoyée à plus de 1 Hz, comme une interface USB
 Pro), ignore les trames reçues pendant `ms`, puis passe au noir à la fin du gel ou à la déconnexion, et
 répond `{"type":"held","ms":15000}` (la promesse se résout alors). Rejet par une `BridgeHoldError` :
@@ -306,9 +306,14 @@ Le contrôleur de fumée applique, quoi que dise la configuration :
 > « la machine coupe toute seule sur perte de signal DMX » (`lighting.smoke.cutsOnSignalLoss`,
 > absent = faux). Sans l'un ni l'autre, la fumée reste désactivée et l'assistant dit pourquoi
 > (`SetupSummary.smokeDisabled === 'relay_required'`, point bloquant `SMOKE_RELAY_REQUIRED`).
-> Avec la case et sans relais, le relais temporisé n'est plus exigé (`smokeChecksRequired`), le test
-> de gel reste obligatoire : c'est lui qui vérifie que la machine coupe. Cocher ou décocher la
-> case oblige à le refaire. Une salle existante à fumée DMX sans relais ni case est relue **sans
+> Le relais se juge sur les **canaux**, jamais sur `kind` : tous les canaux `smoke` du profil doivent
+> être `binary` (`hasSmokeRelay`), et un seul canal `smoke` progressif sur un appareil quelconque
+> suffit à le classer sans relais (`smokeLacksRelay`).
+> Avec la case et sans relais, le relais temporisé n'est plus exigé (`smokeChecksRequired`). Le test
+> de gel ne prouve pas la coupure sur perte de signal (l'interface et le pont répètent la dernière
+> trame) : il devient un test guidé de **vraie** perte de signal (la fumée part, l'installateur
+> débranche le câble DMX, la machine doit s'arrêter en moins de 10 s ; « elle continue » décoche la
+> case et désactive la fumée). Cocher ou décocher la case oblige à le refaire. Une salle existante à fumée DMX sans relais ni case est relue **sans
 > erreur** : `parseRoomHardwareConfig` désactive la fumée (`smokeDisabledReason: 'relay_required'`,
 > un problème « Fumée désactivée… ») et garde tous les autres réglages (durée, pause, niveau).
 
@@ -423,7 +428,7 @@ La fumée n'est enregistrée **active** que si les 4 vérifications humaines son
 gel réussi, consignes incendie du site. Changer d'interface oblige à refaire le test de gel.
 S'y ajoute la règle relais-ou-case (voir « Sécurité fumée ») : machine sans relais et case
 `cutsOnSignalLoss` non cochée = fumée enregistrée désactivée (`smokeDisabled: 'relay_required'`).
-Avec la case et sans relais, le relais temporisé n'est pas exigé (`getState().smokeChecksRequired`).
+Avec la case et sans relais, le relais temporisé n'est pas exigé (`getState().smokeChecksRequired`) et le test de gel est un test guidé de vraie perte de signal.
 
 ## Configuration de salle (`rooms.config`, JSONB)
 

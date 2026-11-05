@@ -120,7 +120,7 @@ export function isPollMessage(text: string): boolean {
  * Un gel refusé (hors bornes, déjà en cours, rien à geler) répond `error` `code:"hold"`.
  */
 export const HOLD_FEATURE = 'hold'
-export const HOLD_LIMITS = { min: 1000, max: 30_000 } as const
+export const HOLD_LIMITS = { min: 1000, max: 15_000 } as const
 
 export const isHoldDuration = (ms: unknown): ms is number =>
   typeof ms === 'number' && Number.isInteger(ms) && ms >= HOLD_LIMITS.min && ms <= HOLD_LIMITS.max

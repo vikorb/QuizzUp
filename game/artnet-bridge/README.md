@@ -249,7 +249,7 @@ puis `launchctl load ~/Library/LaunchAgents/fr.quizzup.artnet-bridge.plist` (che
   court car Chrome bride les minuteurs d'un onglet masqué à environ 1 par seconde : à 1 s, la
   lumière clignoterait au noir dès que l'opérateur change d'onglet.
 - **Gel pour le test de perte de signal** (`hold`) : le navigateur peut demander
-  `{"type":"hold","ms":N}` (entier de **1 000 à 30 000 ms** ; sinon `{"type":"error","code":"hold",…}`
+  `{"type":"hold","ms":N}` (entier de **1 000 à 15 000 ms** ; sinon `{"type":"error","code":"hold",…}`
   sans fermer). Pendant le gel, le pont **garde la dernière trame** (renvoyée à plus de 1 Hz,
   comme le ferait une interface USB Pro) **sans passer au noir**, et **ignore les trames reçues**.
   À la fin du gel, ou à la déconnexion, il envoie du noir comme le chien de garde. Cela permet de

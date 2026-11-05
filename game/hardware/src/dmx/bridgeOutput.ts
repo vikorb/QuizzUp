@@ -39,7 +39,7 @@ import { DMX_CHANNELS, MAX_UNIVERSES } from './universe'
  * non parti) fait échouer `poll()` (`poll_failed`) sans fermer la connexion.
  *
  * Gel pour le test de perte de signal : l'ack d'un pont qui le gère porte aussi `"hold"` dans
- * `features`. `hold(ms)` envoie `{"type":"hold","ms":15000}` (entier de 1 000 à 30 000 ms, borné aussi
+ * `features`. `hold(ms)` envoie `{"type":"hold","ms":15000}` (entier de 1 000 à 15 000 ms, borné aussi
  * ici) ; le pont garde la dernière trame (sans passer au noir), ignore les trames reçues pendant `ms`,
  * puis passe au noir (fin du gel ou déconnexion), et répond `{"type":"held","ms":15000}`. Un refus
  * est une erreur `code:"hold"`, sans fermer la connexion. `release()` envoie `{"type":"release"}` :
@@ -81,7 +81,7 @@ export const BRIDGE_FEATURE_POLL = 'poll'
 export const BRIDGE_FEATURE_HOLD = 'hold'
 
 /** Durée d'un gel acceptée par le pont (ms, entier). */
-export const BRIDGE_HOLD_LIMITS = { min: 1000, max: 30_000 } as const
+export const BRIDGE_HOLD_LIMITS = { min: 1000, max: 15_000 } as const
 
 /** Attente maximale de la confirmation `held` du pont. */
 export const BRIDGE_HOLD_TIMEOUT_MS = 2000
@@ -147,7 +147,7 @@ export type BridgeOutput = DmxOutput & {
    */
   poll: () => Promise<ArtnetNode[]>
   /**
-   * Gèle la sortie du pont `ms` ms (1 000 à 30 000) sur la dernière trame, sans noir, puis noir.
+   * Gèle la sortie du pont `ms` ms (1 000 à 15 000) sur la dernière trame, sans noir, puis noir.
    * Rejette avec une `BridgeHoldError` : `invalid_duration`, `not_connected`, `unsupported` (pont
    * sans `hold` dans `features()`), `refused` (le pont refuse : rien à geler, gel déjà actif),
    * `timeout` (pas de confirmation à temps).

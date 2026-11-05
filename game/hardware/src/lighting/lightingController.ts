@@ -452,7 +452,8 @@ export function createLightingController(options: LightingControllerOptions): Li
         // Gel volontaire : aucune trame, l'interface répète la dernière reçue.
         return
       }
-      frozenUntil = null
+      // Le gel du pont se termine aussi de son côté : on le lève (noir) pour rester d'accord avec lui.
+      cancelFreeze()
       // Fin d'un test de coupure : la fumée doit être réautorisée par un humain.
       smoke.disarm()
       notify()
@@ -655,6 +656,8 @@ export function createLightingController(options: LightingControllerOptions): Li
           return
         }
         frozenUntil = null
+        // Le gel a pu être pris en compte sans que nous l'ayons su (délai) : on le lève avant tout.
+        target.release?.()
         smoke.stop('manual')
         smoke.disarm()
         warn({
