@@ -64,7 +64,7 @@
     },
     "plan": {
       "title": "Room plan",
-      "hint": "Top view of the room. Drag the screen, the desks and the fixtures into place. With the keyboard: Tab to pick one, arrow keys to move it.",
+      "hint": "Drag the screen, the desks and the fixtures into place. With the keyboard: Tab to pick one, arrow keys to move it.",
       "screen": "Screen",
       "desk": "Desk {n}",
       "fixture": "Fixture {name}",

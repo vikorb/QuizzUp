@@ -289,6 +289,7 @@ onBeforeUnmount(commit)
 
 <style scoped>
 .plan-wrap {
+  --tilt: 50deg;
   display: grid;
   gap: 8px;
 }
@@ -313,8 +314,10 @@ onBeforeUnmount(commit)
 }
 
 .plan-views__btn[aria-pressed='true'] {
+  border-radius: 9px;
   color: var(--text-0);
-  background: var(--bg-card-hi);
+  background: linear-gradient(135deg, var(--glow-blue), var(--glow-pink)), var(--bg-card-hi);
+  box-shadow: 0 0 12px var(--glow-soft);
 }
 
 .plan-views__btn:focus-visible {
@@ -347,17 +350,21 @@ onBeforeUnmount(commit)
   touch-action: none;
 }
 
-/* Perspective : le sol est couché (rotateX), les éléments sont redressés par contre-rotation. */
+/* Perspective : le sol est couché (rotateX) au pied de la scène, les éléments sont redressés par
+   contre-rotation. La scène a la hauteur du sol projeté, pas celle du sol à plat. */
 .plan-wrap--perspective .plan-stage {
-  perspective: 900px;
-  perspective-origin: 50% 0%;
+  position: relative;
+  aspect-ratio: 16 / 4.9;
+  perspective: 1100px;
+  perspective-origin: 50% 100%;
   overflow: hidden;
-  padding: 12% 0 4%;
-  background: linear-gradient(var(--bg-card-hi), var(--surface-0) 40%);
+  background: linear-gradient(var(--bg-card-hi), var(--surface-0) 60%);
 }
 
 .plan-wrap--perspective .plan {
-  transform: rotateX(55deg);
+  position: absolute;
+  inset: auto 0 0;
+  transform: rotateX(var(--tilt));
   transform-origin: 50% 100%;
   transform-style: preserve-3d;
   overflow: visible;
@@ -370,10 +377,21 @@ onBeforeUnmount(commit)
 }
 
 .plan-wrap--perspective .item {
-  transform: translate(-50%, -100%) rotateX(-55deg);
+  transform: translate(-50%, -100%) rotateX(calc(-1 * var(--tilt)));
   transform-origin: 50% 100%;
   cursor: default;
   touch-action: auto;
+}
+
+/* L'écran se dresse au fond comme un mur : plus large, plus haut. */
+.plan-wrap--perspective .item--screen {
+  min-width: 36%;
+  padding: 34px 0 10px;
+}
+
+.plan-wrap--perspective .item__label {
+  max-width: none;
+  overflow: visible;
 }
 
 @media (prefers-reduced-motion: no-preference) {
