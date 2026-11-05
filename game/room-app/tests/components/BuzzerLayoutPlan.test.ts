@@ -168,6 +168,13 @@ async function openPlan() {
   return wrapper
 }
 
+async function openPerspective() {
+  const wrapper = await openPlan()
+  sizeFloor(wrapper)
+  await click(wrapper, 'plan-view-perspective')
+  return wrapper
+}
+
 describe('plan de salle', () => {
   it('place les pupitres en rangée et déplace un élément aux flèches', async () => {
     await saveRoomHardwareConfig({
@@ -389,6 +396,41 @@ describe('plan de salle', () => {
     expect(percent(sel(wrapper, 'plan-fixture-fond').element)('top')).toBeLessThan(desk('top'))
     expect(linked.attributes('title')).toBe('Projecteur très long du pupitre 1')
     expect(linked.attributes('aria-label')).toContain('Projecteur très long du pupitre 1')
+  })
+
+  describe('vue en perspective', () => {
+    it('bascule en perspective, vue de dessus par défaut, et mémorise le choix', async () => {
+      const wrapper = await openPlan()
+      expect(sel(wrapper, 'plan-view-top').attributes('aria-pressed')).toBe('true')
+      expect(wrapper.find('.plan-wrap--perspective').exists()).toBe(false)
+      await click(wrapper, 'plan-view-perspective')
+      expect(sel(wrapper, 'plan-view-perspective').attributes('aria-pressed')).toBe('true')
+      expect(sel(wrapper, 'plan-view-top').attributes('aria-pressed')).toBe('false')
+      expect(wrapper.find('.plan-wrap--perspective').exists()).toBe(true)
+      expect(sel(wrapper, 'plan-perspective-help').exists()).toBe(true)
+      expect(localStorage.getItem('quizzup.roomPlanView')).toBe('perspective')
+    })
+
+    it('ne déplace pas à la souris en perspective', async () => {
+      const wrapper = await openPerspective()
+      const screen = sel(wrapper, 'plan-screen').element
+      pointer(screen, 'pointerdown', { clientX: 300, clientY: 70 })
+      pointer(screen, 'pointermove', { clientX: 200, clientY: 150 })
+      pointer(screen, 'pointerup', { clientX: 200, clientY: 150 })
+      await flushPromises()
+      expect(wrapper.findComponent(RoomPlan).emitted('move')).toBeUndefined()
+      expect(getRoomHardwareConfig().plan.screen).toEqual({ x: 0.5, y: 0.08 })
+    })
+
+    it('déplace encore aux flèches en perspective', async () => {
+      await saveRoomHardwareConfig({ desksCount: 2 })
+      const wrapper = await openPerspective()
+      await sel(wrapper, 'plan-desk-1').trigger('keydown', { key: 'ArrowRight' })
+      await sel(wrapper, 'plan-desk-1').trigger('keyup', { key: 'ArrowRight' })
+      await flushPromises()
+      expect(wrapper.findComponent(RoomPlan).emitted('move')).toHaveLength(1)
+      expect(getRoomHardwareConfig().plan.desks[1]?.x).toBeCloseTo(1 / 3 + 0.02)
+    })
   })
 
   it('apparaît dans l’assistant, juste après les appareils', async () => {

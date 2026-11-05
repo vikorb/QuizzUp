@@ -1,40 +1,67 @@
 <template>
-  <div
-    ref="floor"
-    class="plan"
-    role="group"
-    :aria-label="$t('hardware.plan.room')"
-    data-test="room-plan"
-  >
-    <div
-      v-for="item in items"
-      :key="item.key"
-      class="item"
-      :class="`item--${item.target.kind}`"
-      :style="{ left: toPercent(item.point.x), top: toPercent(item.point.y) }"
-      role="button"
-      tabindex="0"
-      :aria-roledescription="$t('hardware.plan.draggable')"
-      :aria-label="ariaLabel(item)"
-      :title="item.label"
-      :data-test="`plan-${item.key}`"
-      @pointerdown="onPointerDown($event, item)"
-      @pointermove="onPointerMove($event, item)"
-      @pointerup="onPointerUp($event, item)"
-      @pointercancel="cancelDrag"
-      @lostpointercapture="cancelDrag"
-      @keydown="onKeyDown($event, item)"
-      @keyup="onKeyUp"
-    >
-      <BuzzerSquare
-        v-if="item.target.kind === 'desk'"
-        :layout="config.buzzers.layout"
-        style="--square-size: 44px"
-      />
-      <span v-else-if="item.target.kind === 'fixture'" class="item__dot" />
-      <span class="item__label">{{ item.label }}</span>
+  <div class="plan-wrap" :class="{ 'plan-wrap--perspective': perspective }">
+    <div class="plan-views" role="group" :aria-label="$t('hardware.plan.view.label')">
+      <button
+        type="button"
+        class="plan-views__btn"
+        :aria-pressed="!perspective"
+        data-test="plan-view-top"
+        @click="setPerspective(false)"
+      >
+        {{ $t('hardware.plan.view.top') }}
+      </button>
+      <button
+        type="button"
+        class="plan-views__btn"
+        :aria-pressed="perspective"
+        data-test="plan-view-perspective"
+        @click="setPerspective(true)"
+      >
+        {{ $t('hardware.plan.view.perspective') }}
+      </button>
     </div>
-    <p class="sr-only" role="status" aria-live="polite">{{ announcement }}</p>
+    <p v-if="perspective" class="plan-help" data-test="plan-perspective-help">
+      {{ $t('hardware.plan.view.help') }}
+    </p>
+    <div class="plan-stage">
+      <div
+        ref="floor"
+        class="plan"
+        role="group"
+        :aria-label="$t('hardware.plan.room')"
+        data-test="room-plan"
+      >
+        <div
+          v-for="item in items"
+          :key="item.key"
+          class="item"
+          :class="`item--${item.target.kind}`"
+          :style="{ left: toPercent(item.point.x), top: toPercent(item.point.y) }"
+          role="button"
+          tabindex="0"
+          :aria-roledescription="$t('hardware.plan.draggable')"
+          :aria-label="ariaLabel(item)"
+          :title="item.label"
+          :data-test="`plan-${item.key}`"
+          @pointerdown="onPointerDown($event, item)"
+          @pointermove="onPointerMove($event, item)"
+          @pointerup="onPointerUp($event, item)"
+          @pointercancel="cancelDrag"
+          @lostpointercapture="cancelDrag"
+          @keydown="onKeyDown($event, item)"
+          @keyup="onKeyUp"
+        >
+          <BuzzerSquare
+            v-if="item.target.kind === 'desk'"
+            :layout="config.buzzers.layout"
+            style="--square-size: 44px"
+          />
+          <span v-else-if="item.target.kind === 'fixture'" class="item__dot" />
+          <span class="item__label">{{ item.label }}</span>
+        </div>
+        <p class="sr-only" role="status" aria-live="polite">{{ announcement }}</p>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -68,6 +95,7 @@ const MARGIN = 0.05
 const DRAG_THRESHOLD = 4
 /** Pause (ms) après la dernière flèche avant d'enregistrer, si la touche n'est pas relâchée. */
 const KEY_COMMIT_DELAY = 300
+const VIEW_KEY = 'quizzup.roomPlanView'
 
 const props = defineProps<{ config: RoomHardwareConfig }>()
 const emit = defineEmits<{ move: [target: PlanTarget, point: PlanPoint] }>()
@@ -77,6 +105,8 @@ const floor = ref<HTMLElement | null>(null)
 /** Position affichée pendant un glisser ou une rafale de flèches, avant enregistrement. */
 const preview = ref<PlanItem | null>(null)
 const announcement = ref('')
+/** Vue en perspective : le glisser à la souris est coupé (la projection fausserait les coordonnées). */
+const perspective = ref(readPerspective())
 /** Glisser en cours (un seul pointeur à la fois) ; pas besoin de réactivité. */
 let session: { key: string; pointerId: number; x: number; y: number; moved: boolean } | null = null
 let keyTimer: ReturnType<typeof setTimeout> | undefined
@@ -111,6 +141,26 @@ const items = computed<PlanItem[]>(() => {
   const shown = preview.value
   return list.map((item) => (shown?.key === item.key ? { ...item, point: shown.point } : item))
 })
+
+/** Choix mémorisé par confort seulement : le plan marche sans localStorage. */
+function readPerspective(): boolean {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'perspective'
+  } catch {
+    return false
+  }
+}
+
+function setPerspective(value: boolean): void {
+  commit()
+  session = null
+  perspective.value = value
+  try {
+    localStorage.setItem(VIEW_KEY, value ? 'perspective' : 'top')
+  } catch {
+    // Stockage indisponible : le choix vaut pour cette session seulement.
+  }
+}
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
 
@@ -154,7 +204,7 @@ function commit(): void {
 
 function onPointerDown(event: PointerEvent, item: PlanItem): void {
   // Bouton principal seulement, et un seul pointeur à la fois.
-  if (event.button !== 0 || session) {
+  if (perspective.value || event.button !== 0 || session) {
     return
   }
   commit()
@@ -238,6 +288,51 @@ onBeforeUnmount(commit)
 </script>
 
 <style scoped>
+.plan-wrap {
+  display: grid;
+  gap: 8px;
+}
+
+.plan-views {
+  display: inline-flex;
+  justify-self: start;
+  border: 1px solid var(--border-ui);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.plan-views__btn {
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-1);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.plan-views__btn[aria-pressed='true'] {
+  color: var(--text-0);
+  background: var(--bg-card-hi);
+}
+
+.plan-views__btn:focus-visible {
+  outline: 3px solid var(--text-0);
+  outline-offset: -3px;
+}
+
+.plan-help {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-1);
+}
+
+.plan-stage {
+  width: 100%;
+  border-radius: 18px;
+}
+
 .plan {
   position: relative;
   width: 100%;
@@ -250,6 +345,42 @@ onBeforeUnmount(commit)
     var(--surface-0);
   overflow: hidden;
   touch-action: none;
+}
+
+/* Perspective : le sol est couché (rotateX), les éléments sont redressés par contre-rotation. */
+.plan-wrap--perspective .plan-stage {
+  perspective: 900px;
+  perspective-origin: 50% 0%;
+  overflow: hidden;
+  padding: 12% 0 4%;
+  background: linear-gradient(var(--bg-card-hi), var(--surface-0) 40%);
+}
+
+.plan-wrap--perspective .plan {
+  transform: rotateX(55deg);
+  transform-origin: 50% 100%;
+  transform-style: preserve-3d;
+  overflow: visible;
+  border-color: var(--accent-blue);
+  background:
+    linear-gradient(var(--border-ui) 1px, transparent 1px) 0 0 / 10% 10%,
+    linear-gradient(90deg, var(--border-ui) 1px, transparent 1px) 0 0 / 10% 10%,
+    linear-gradient(to top, var(--surface-0), var(--bg-card-hi));
+  touch-action: auto;
+}
+
+.plan-wrap--perspective .item {
+  transform: translate(-50%, -100%) rotateX(-55deg);
+  transform-origin: 50% 100%;
+  cursor: default;
+  touch-action: auto;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .plan,
+  .item {
+    transition: transform 0.4s ease;
+  }
 }
 
 .item {

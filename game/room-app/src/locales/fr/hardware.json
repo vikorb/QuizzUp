@@ -71,7 +71,13 @@
       "item": "{label}, position {x} % à droite, {y} % vers le bas. Flèches pour déplacer.",
       "room": "Plan de la salle, vue du dessus",
       "draggable": "élément déplaçable",
-      "moved": "{label} déplacé : {x} % à droite, {y} % vers le bas."
+      "moved": "{label} déplacé : {x} % à droite, {y} % vers le bas.",
+      "view": {
+        "label": "Vue du plan",
+        "top": "Vue de dessus",
+        "perspective": "Perspective",
+        "help": "Passe en vue de dessus pour déplacer à la souris. Les flèches du clavier restent actives."
+      }
     },
     "lights": {
       "title": "Lumières",

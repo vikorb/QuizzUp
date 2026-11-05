@@ -71,7 +71,13 @@
       "item": "{label}, position {x}% from the left, {y}% from the top. Arrow keys to move.",
       "room": "Room plan, top view",
       "draggable": "draggable item",
-      "moved": "{label} moved: {x}% from the left, {y}% from the top."
+      "moved": "{label} moved: {x}% from the left, {y}% from the top.",
+      "view": {
+        "label": "Plan view",
+        "top": "Top view",
+        "perspective": "Perspective",
+        "help": "Switch to top view to move items with the mouse. Keyboard arrows still work."
+      }
     },
     "lights": {
       "title": "Lights",
