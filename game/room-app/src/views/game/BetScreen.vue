@@ -11,7 +11,7 @@
         v-for="(option, index) in options"
         :key="option.key"
         class="bet__option"
-        :class="`bet__option--${letters[index]?.toLowerCase()}`"
+        :style="styleOf(letters[index])"
       >
         <span class="bet__letter">{{ letters[index] }}</span>
         <span class="bet__name">{{ $t(`game.bet.options.${option.key}`) }}</span>
@@ -39,11 +39,13 @@ import { useI18n } from 'vue-i18n'
 import TimerBar from '@/components/game/TimerBar.vue'
 import type { BetView } from '@/game/miniGameViews'
 import { BUZZER_BUTTONS } from '@/hardware/buzzers'
+import { useBuzzerStyle } from '@/hardware/useBuzzerStyle'
 
 defineProps<{ view: BetView; playersCount: number }>()
 
 const { t } = useI18n()
 const letters = BUZZER_BUTTONS
+const { styleOf } = useBuzzerStyle()
 
 const options = computed(() => [
   { key: 'pass', detail: t('game.points', { n: DOUBLE_OR_NOTHING_STAKES[0] }) },
@@ -110,18 +112,6 @@ const options = computed(() => [
   border-top: 6px solid var(--answer-color);
   background: linear-gradient(180deg, var(--bg-card-hi), var(--bg-card));
   text-align: center;
-}
-
-.bet__option--b {
-  --answer-color: var(--answer-b);
-}
-
-.bet__option--c {
-  --answer-color: var(--answer-c);
-}
-
-.bet__option--d {
-  --answer-color: var(--answer-d);
 }
 
 .bet__letter {

@@ -32,6 +32,7 @@
 
       <SetupAssistant v-if="current === 'assistant'" />
       <BuzzerSetup v-else-if="current === 'buzzers'" />
+      <PlanSetup v-else-if="current === 'plan'" />
       <LightingSetup v-else-if="current === 'lights'" />
       <DiagnosticPanel v-else-if="current === 'diagnostic'" />
       <AdvancedConfig v-else />
@@ -63,9 +64,10 @@ import AdvancedConfig from '@/views/hardware/AdvancedConfig.vue'
 import BuzzerSetup from '@/views/hardware/BuzzerSetup.vue'
 import DiagnosticPanel from '@/views/hardware/DiagnosticPanel.vue'
 import LightingSetup from '@/views/hardware/LightingSetup.vue'
+import PlanSetup from '@/views/hardware/PlanSetup.vue'
 import SetupAssistant from '@/views/hardware/SetupAssistant.vue'
 
-const TABS = ['assistant', 'buzzers', 'lights', 'diagnostic', 'advanced'] as const
+const TABS = ['assistant', 'buzzers', 'plan', 'lights', 'diagnostic', 'advanced'] as const
 
 const router = useRouter()
 const { syncStatus } = useRoomHardware()
@@ -95,7 +97,7 @@ async function onBack(): Promise<void> {
 
 .hardware__tabs {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
 }
 

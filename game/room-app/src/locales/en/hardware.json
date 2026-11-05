@@ -8,21 +8,22 @@
       "buzzers": "Buzzers",
       "lights": "Lights and smoke",
       "advanced": "Advanced settings",
-      "diagnostic": "Diagnostics"
+      "diagnostic": "Diagnostics",
+      "plan": "Room plan"
     },
     "buzzers": {
       "title": "Buzzers",
+      "configure": "Start the buzzer setup",
       "desksCount": "Number of desks",
       "desksCountHint": "4 by default, 6 at most. The backoffice only offers these desks when launching a game. Buzzers and lights of removed desks are kept in reserve, inactive, and come back if you raise the number again.",
       "simulation": "No buzzer paired: the simulation keyboard is used (one row of keys per desk: 1-4, Q-R, A-F, Z-V, then 5-8 and T-I).",
       "learned": "{n} buzzer paired | {n} buzzers paired",
       "inactive": "The page lost focus: buzzers are not received. Click the page to enable them again.",
-      "learn": "Pair the buzzers",
-      "learnHint": "Each buzzer is requested, desk by desk: press it to pair it.",
+      "learnHint": "First, choose the color and position of each buzzer. Then each buzzer is requested, desk by desk: press it to pair it.",
       "resetToSimulation": "Back to the simulation keyboard",
       "resetConfirm": "Forget the paired buzzers, including those kept in reserve for removed desks, and use the simulation keyboard?",
       "step": "Buzzer {n} of {total}",
-      "prompt": "Press buzzer {button} on desk {desk}",
+      "prompt": "Press the {color} buzzer ({button}) on desk {desk}",
       "assigned": "Buzzer {button} on desk {desk} paired (key {key}).",
       "duplicate": "Key {key} is already used by buzzer {button} on desk {desk}.",
       "forbidden": "Key {key} is reserved by the system and cannot be a buzzer.",
@@ -35,6 +36,42 @@
       "saved": "Pairing saved.",
       "testTitle": "Buzzer test",
       "testHint": "Press a buzzer: it lights up here."
+    },
+    "layout": {
+      "title": "Buzzer colors and layout",
+      "hint": "Choose the color of each buzzer and its place in the square, as on your desks. The setting is the same for every desk. A color already taken goes to the other buzzer.",
+      "buzzer": "Buzzer {button}",
+      "color": "Color",
+      "place": "Place in the square",
+      "preview": "A desk seen from above",
+      "continue": "Continue: pair the buzzers"
+    },
+    "colors": {
+      "green": "green",
+      "red": "red",
+      "blue": "blue",
+      "yellow": "yellow",
+      "white": "white",
+      "orange": "orange",
+      "purple": "purple",
+      "pink": "pink"
+    },
+    "corners": {
+      "tl": "Top left",
+      "tr": "Top right",
+      "bl": "Bottom left",
+      "br": "Bottom right"
+    },
+    "plan": {
+      "title": "Room plan",
+      "hint": "Top view of the room. Drag the screen, the desks and the fixtures into place. With the keyboard: Tab to pick one, arrow keys to move it.",
+      "screen": "Screen",
+      "desk": "Desk {n}",
+      "fixture": "Fixture {name}",
+      "item": "{label}, position {x}% from the left, {y}% from the top. Arrow keys to move.",
+      "room": "Room plan, top view",
+      "draggable": "draggable item",
+      "moved": "{label} moved: {x}% from the left, {y}% from the top."
     },
     "lights": {
       "title": "Lights",
@@ -225,6 +262,11 @@
           "title": "Declare the fixtures",
           "hint": "Add each light. The address is the one set on the fixture (display or DIP switches): the first free one is suggested."
         },
+        "plan": {
+          "short": "Plan",
+          "title": "Place the room on the plan",
+          "hint": "Place the screen, the desks and the fixtures as in the real room. This is optional: you can also do it later in the Room plan tab."
+        },
         "fixtureTest": {
           "short": "Test",
           "title": "Test each fixture",
@@ -338,7 +380,10 @@
           "invertedOn": "{axis}: direction reversed. The beam does not move.",
           "invertedOff": "{axis}: normal direction. The beam does not move.",
           "taken": "key used by a buzzer: use the button",
-          "keys": { "shift": "Shift", "enter": "Enter" },
+          "keys": {
+            "shift": "Shift",
+            "enter": "Enter"
+          },
           "buttons": {
             "invertPan": "Reverse pan",
             "invertTilt": "Reverse tilt",

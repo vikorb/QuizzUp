@@ -4,6 +4,7 @@
       v-for="(answer, index) in answers"
       :key="answer.id"
       class="answer"
+      :style="styleOf(letters[index], true)"
       :class="[
         `answer--${letters[index]?.toLowerCase()}`,
         {
@@ -30,6 +31,7 @@ import type { EngineAnswer } from '@quizzup/game-engine'
 
 import MdIcon from '@/components/ui/MdIcon.vue'
 import { BUZZER_BUTTONS } from '@/hardware/buzzers'
+import { useBuzzerStyle } from '@/hardware/useBuzzerStyle'
 
 defineProps<{
   /** Dans l'ordre de l'état du moteur (mélangé avec la graine), jamais réordonnées ici. */
@@ -40,6 +42,7 @@ defineProps<{
 }>()
 
 const letters = BUZZER_BUTTONS
+const { styleOf } = useBuzzerStyle()
 </script>
 
 <style scoped>
@@ -69,18 +72,6 @@ const letters = BUZZER_BUTTONS
   border-left: 6px solid var(--answer-color);
   background: linear-gradient(180deg, var(--bg-card-hi), var(--bg-card));
   transition: var(--tr);
-}
-
-.answer--b {
-  --answer-color: var(--answer-b);
-}
-
-.answer--c {
-  --answer-color: var(--answer-c);
-}
-
-.answer--d {
-  --answer-color: var(--answer-d);
 }
 
 .answer__letter {

@@ -19,6 +19,28 @@ function mockSave() {
 
 const ACCOUNT = { id: 10, companyId: 1, role: 'room' }
 
+/** Couleurs, places et plan de salle réglés sur un autre poste du compte. */
+const REMOTE_LOOK = {
+  buzzers: {
+    layout: {
+      A: { color: 'red', corner: 'br' },
+      B: { color: 'white', corner: 'tr' },
+      C: { color: 'blue', corner: 'bl' },
+      D: { color: 'orange', corner: 'tl' },
+    },
+  },
+  plan: { screen: { x: 0.3, y: 0.1 }, desks: { 2: { x: 0.9, y: 0.6 } }, fixtures: {} },
+}
+
+function expectRemoteLook(
+  config: ReturnType<typeof useRoomHardware>['hardware']['value']['config']
+) {
+  expect(config.buzzers.layout.A).toEqual({ color: 'red', corner: 'br' })
+  expect(config.buzzers.layout.D).toEqual({ color: 'orange', corner: 'tl' })
+  expect(config.plan.screen).toEqual({ x: 0.3, y: 0.1 })
+  expect(config.plan.desks[2]).toEqual({ x: 0.9, y: 0.6 })
+}
+
 /** Réponse 409 du backoffice : un autre poste a enregistré, voici la config courante. */
 function conflict(config: Record<string, unknown>, configRevision: number) {
   return new roomApi.RoomApiError(409, 'room_config_conflict', {
@@ -67,7 +89,7 @@ describe('config matérielle sur le compte de la salle', () => {
     await saveBuzzerKeymap({})
     expect(save).toHaveBeenCalledWith(
       'tok',
-      expect.objectContaining({ buzzers: { keymap: {} } }),
+      expect.objectContaining({ buzzers: expect.objectContaining({ keymap: {} }) }),
       null
     )
     expect(syncStatus.value).toBe('saved')
@@ -76,6 +98,19 @@ describe('config matérielle sur le compte de la salle', () => {
     await saveBuzzerKeymap(SERVER_KEYMAP)
     expect(syncStatus.value).toBe('error')
     expect(localStorage.getItem('quizzup_room_hardware')).toContain('KeyP')
+  })
+
+  it('applique la disposition des buzzers et le plan de salle du compte', async () => {
+    vi.spyOn(roomApi, 'fetchRoomInfo').mockResolvedValue({
+      ...ROOM,
+      config: REMOTE_LOOK,
+    })
+    mockSave()
+
+    await syncHardwareWithRoom()
+
+    expectRemoteLook(useRoomHardware().hardware.value.config)
+    expect(localStorage.getItem('quizzup_room_hardware')).toContain('"orange"')
   })
 
   it('remonte la config du PC quand la salle est vierge, et ne touche à rien hors ligne', async () => {
@@ -90,7 +125,7 @@ describe('config matérielle sur le compte de la salle', () => {
     await syncHardwareWithRoom()
     expect(save).toHaveBeenCalledWith(
       'tok',
-      expect.objectContaining({ buzzers: { keymap: SERVER_KEYMAP } }),
+      expect.objectContaining({ buzzers: expect.objectContaining({ keymap: SERVER_KEYMAP }) }),
       null
     )
 
@@ -118,7 +153,7 @@ describe('config matérielle sur le compte de la salle', () => {
     expect(hardware.value.config.buzzers.keymap).toEqual(LOCAL_KEYMAP)
     expect(save).toHaveBeenLastCalledWith(
       'tok',
-      expect.objectContaining({ buzzers: { keymap: LOCAL_KEYMAP } }),
+      expect.objectContaining({ buzzers: expect.objectContaining({ keymap: LOCAL_KEYMAP }) }),
       1
     )
     expect(syncStatus.value).toBe('saved')
@@ -215,7 +250,7 @@ describe('config matérielle sur le compte de la salle', () => {
     expect(useRoomHardware().hardware.value.config.buzzers.keymap).toEqual(LOCAL_KEYMAP)
     expect(save).toHaveBeenLastCalledWith(
       'tok',
-      expect.objectContaining({ buzzers: { keymap: LOCAL_KEYMAP } }),
+      expect.objectContaining({ buzzers: expect.objectContaining({ keymap: LOCAL_KEYMAP }) }),
       1
     )
   })
@@ -349,6 +384,21 @@ describe('config matérielle sur le compte de la salle', () => {
       expect(localStorage.getItem('quizzup_room_hardware')).not.toContain('KeyL')
       expect(getHardwareSyncMeta()).toMatchObject({ revision: 7, pending: false, accountId: 10 })
       expect(save).toHaveBeenCalledTimes(1)
+    })
+
+    it('sur un 409, reprend aussi la disposition des buzzers et le plan du compte', async () => {
+      vi.spyOn(roomApi, 'fetchRoomInfo').mockResolvedValue({
+        ...ROOM,
+        config: {},
+        configRevision: 3,
+      })
+      vi.spyOn(roomApi, 'saveRoomConfig').mockRejectedValue(conflict(REMOTE_LOOK, 8))
+      await syncHardwareWithRoom()
+
+      await saveBuzzerKeymap(LOCAL_KEYMAP)
+
+      expect(useRoomHardware().syncStatus.value).toBe('conflict')
+      expectRemoteLook(useRoomHardware().hardware.value.config)
     })
 
     it('ne renvoie rien après un 409, même les envois déjà en file', async () => {

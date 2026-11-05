@@ -23,6 +23,18 @@ export {
   missingSlots,
   parseKeymap,
 } from './buzzers/keymap'
+export type { BuzzerColor, BuzzerCorner, BuzzerLayout, BuzzerStyle } from './buzzers/layout'
+export {
+  buttonsByCorner,
+  BUZZER_COLORS,
+  BUZZER_CORNERS,
+  cloneBuzzerLayout,
+  DEFAULT_BUZZER_LAYOUT,
+  defaultBuzzerLayout,
+  moveBuzzerToCorner,
+  parseBuzzerLayout,
+  setBuzzerColor,
+} from './buzzers/layout'
 export type {
   BuzzerLearning,
   BuzzerLearningOptions,
@@ -51,8 +63,10 @@ export {
   smokeLacksRelay,
   smokeRelayRuleMet,
   withArtnetTarget,
+  withBuzzerLayout,
   withDesksCount,
   withLearnedKeymap,
+  withPlanPoint,
 } from './config'
 export type {
   ArtnetNode,
@@ -182,6 +196,8 @@ export {
   normalizeSmokeSafety,
   SMOKE_HARD_LIMITS,
 } from './lighting/smoke'
+export type { PlanFixture, PlanPoint, PlanTarget, RoomPlan } from './plan'
+export { DEFAULT_SCREEN_POINT, defaultRoomPlan, parseRoomPlan, resolveRoomPlan } from './plan'
 export type { PanTiltCalibration, SixDeskRig, SixDeskRigOptions } from './presets/sixDeskRoom'
 export {
   createSixDeskKeyboardKeymap,

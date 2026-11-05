@@ -28,8 +28,8 @@
         :class="{
           'steal__target--off': !view.targetIds.includes(participant.id),
           'steal__target--picked': scrolling && view.highlightedId === participant.id,
-          [`steal__target--${letters[participant.podium - 1]?.toLowerCase()}`]: !scrolling,
         }"
+        :style="scrolling ? undefined : styleOf(letters[participant.podium - 1])"
         :data-test="`steal-target-${participant.podium}`"
       >
         <span v-if="!scrolling" class="steal__letter">{{ letters[participant.podium - 1] }}</span>
@@ -56,10 +56,12 @@ import DeskBadge from '@/components/game/DeskBadge.vue'
 import TimerBar from '@/components/game/TimerBar.vue'
 import type { StealView } from '@/game/miniGameViews'
 import { BUZZER_BUTTONS } from '@/hardware/buzzers'
+import { useBuzzerStyle } from '@/hardware/useBuzzerStyle'
 
 const props = defineProps<{ view: StealView; participants: EngineParticipant[] }>()
 
 const letters = BUZZER_BUTTONS
+const { styleOf } = useBuzzerStyle()
 /** Pupitre 5 ou 6 dans la partie : plus assez de lettres, on fait défiler la cible. */
 const scrolling = computed(() => props.view.targeting === 'scroll')
 const thief = computed(() =>
@@ -116,18 +118,6 @@ const thief = computed(() =>
   border-left: 6px solid var(--answer-color);
   background: linear-gradient(180deg, var(--bg-card-hi), var(--bg-card));
   transition: var(--tr);
-}
-
-.steal__target--b {
-  --answer-color: var(--answer-b);
-}
-
-.steal__target--c {
-  --answer-color: var(--answer-c);
-}
-
-.steal__target--d {
-  --answer-color: var(--answer-d);
 }
 
 .steal__target--off {

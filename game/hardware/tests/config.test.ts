@@ -1,14 +1,23 @@
 import {
+  buttonsByCorner,
+  DEFAULT_BUZZER_LAYOUT,
+  moveBuzzerToCorner,
+  setBuzzerColor,
+} from '@hardware/buzzers/layout'
+import {
   activeKeymap,
   activeLightingConfig,
   defaultRoomHardwareConfig,
   DMX_REFRESH_LIMITS,
   parseRoomHardwareConfig,
+  withBuzzerLayout,
   withDesksCount,
   withLearnedKeymap,
+  withPlanPoint,
 } from '@hardware/config'
 import { DEFAULT_DESK_COLORS } from '@hardware/lighting/scenes'
 import { DEFAULT_SMOKE_SAFETY } from '@hardware/lighting/smoke'
+import { resolveRoomPlan } from '@hardware/plan'
 
 describe('configuration matérielle de salle', () => {
   it('donne une salle neuve en simulation, fumée désactivée', () => {
@@ -395,5 +404,224 @@ describe('configuration matérielle : garde-fou relais de la fumée', () => {
       ])
     )
     expect(relay.config.lighting.smoke.enabled).toBe(true)
+  })
+})
+
+describe('disposition des buzzers (`buzzers.layout`)', () => {
+  const layoutOf = (layout: unknown) => parseRoomHardwareConfig({ buzzers: { layout } })
+
+  it('donne le défaut sans disposition, avec la grille A B / C D', () => {
+    const { config, problems } = layoutOf(undefined)
+    expect(config.buzzers.layout).toEqual(DEFAULT_BUZZER_LAYOUT)
+    expect(problems).toEqual([])
+    expect(buttonsByCorner(config.buzzers.layout)).toEqual({ tl: 'A', tr: 'B', bl: 'C', br: 'D' })
+  })
+
+  it('garde une disposition valide', () => {
+    const layout = {
+      A: { color: 'red', corner: 'br' },
+      B: { color: 'white', corner: 'bl' },
+      C: { color: 'pink', corner: 'tr' },
+      D: { color: 'orange', corner: 'tl' },
+    }
+    const { config, problems } = layoutOf(layout)
+    expect(config.buzzers.layout).toEqual(layout)
+    expect(problems).toEqual([])
+    expect(buttonsByCorner(config.buzzers.layout).tl).toBe('D')
+  })
+
+  it('reprend la couleur par défaut d’un buzzer hors palette ou absent', () => {
+    const { config, problems } = layoutOf({
+      A: { color: 'cyan', corner: 'tl' },
+      B: { corner: 'tr' },
+      C: { color: 'red', corner: 'bl' },
+      D: { color: 3, corner: 'br' },
+    })
+    expect(config.buzzers.layout.A.color).toBe('blue')
+    expect(config.buzzers.layout.B.color).toBe('purple')
+    expect(config.buzzers.layout.C.color).toBe('red')
+    expect(config.buzzers.layout.D.color).toBe('yellow')
+    expect(problems).toHaveLength(2)
+  })
+
+  it('reprend les coins par défaut quand deux buzzers partagent un coin', () => {
+    const { config, problems } = layoutOf({
+      A: { color: 'red', corner: 'tl' },
+      B: { color: 'green', corner: 'tl' },
+      C: { color: 'blue', corner: 'bl' },
+      D: { color: 'white', corner: 'br' },
+    })
+    expect(config.buzzers.layout.A).toEqual({ color: 'red', corner: 'tl' })
+    expect(config.buzzers.layout.B).toEqual({ color: 'green', corner: 'tr' })
+    expect(config.buzzers.layout.C.corner).toBe('bl')
+    expect(problems).toEqual([
+      'Disposition des buzzers invalide (quatre places distinctes attendues)',
+    ])
+  })
+
+  it('reprend les coins par défaut pour un coin inconnu ou incomplet', () => {
+    for (const layout of [
+      { A: { corner: 'middle' } },
+      { A: { corner: 'br' } },
+      'x',
+      [],
+      { A: 1, B: null },
+    ]) {
+      expect(layoutOf(layout).config.buzzers.layout).toEqual(DEFAULT_BUZZER_LAYOUT)
+    }
+  })
+
+  it('moveBuzzerToCorner échange avec l’occupant du coin', () => {
+    const moved = moveBuzzerToCorner(DEFAULT_BUZZER_LAYOUT, 'A', 'br')
+    expect(buttonsByCorner(moved)).toEqual({ tl: 'D', tr: 'B', bl: 'C', br: 'A' })
+    expect(moved.A.color).toBe('blue')
+    // Même coin : rien ne change.
+    expect(moveBuzzerToCorner(DEFAULT_BUZZER_LAYOUT, 'B', 'tr')).toEqual(DEFAULT_BUZZER_LAYOUT)
+  })
+
+  it('reprend les couleurs par défaut quand deux buzzers ont la même couleur', () => {
+    const { config, problems } = layoutOf({
+      A: { color: 'red', corner: 'br' },
+      B: { color: 'red', corner: 'tr' },
+      C: { color: 'blue', corner: 'bl' },
+      D: { color: 'white', corner: 'tl' },
+    })
+    expect(Object.values(config.buzzers.layout).map((style) => style.color)).toEqual([
+      'blue',
+      'purple',
+      'green',
+      'yellow',
+    ])
+    // Les places valides sont conservées.
+    expect(buttonsByCorner(config.buzzers.layout)).toEqual({ tl: 'D', tr: 'B', bl: 'C', br: 'A' })
+    expect(problems).toEqual([
+      'Couleurs des buzzers en double (quatre couleurs distinctes attendues)',
+    ])
+  })
+
+  it('setBuzzerColor échange avec le buzzer qui avait la couleur', () => {
+    const swapped = setBuzzerColor(DEFAULT_BUZZER_LAYOUT, 'A', 'green')
+    expect(swapped.A.color).toBe('green')
+    expect(swapped.C.color).toBe('blue')
+    expect(new Set(Object.values(swapped).map((style) => style.color)).size).toBe(4)
+    // Couleur libre : simple changement. Même couleur : rien ne change.
+    expect(setBuzzerColor(DEFAULT_BUZZER_LAYOUT, 'A', 'red').A.color).toBe('red')
+    expect(setBuzzerColor(DEFAULT_BUZZER_LAYOUT, 'A', 'blue')).toEqual(DEFAULT_BUZZER_LAYOUT)
+    expect(DEFAULT_BUZZER_LAYOUT.A.color).toBe('blue')
+  })
+
+  it('withBuzzerLayout enregistre une copie', () => {
+    const config = withBuzzerLayout(defaultRoomHardwareConfig(), {
+      ...DEFAULT_BUZZER_LAYOUT,
+      A: { color: 'red', corner: 'tl' },
+    })
+    expect(config.buzzers.layout.A.color).toBe('red')
+    expect(DEFAULT_BUZZER_LAYOUT.A.color).toBe('blue')
+  })
+})
+
+describe('plan de salle (`config.plan`)', () => {
+  const room = (plan: unknown, extra: Record<string, unknown> = {}) =>
+    parseRoomHardwareConfig({
+      desksCount: 3,
+      lighting: {
+        fixtures: [
+          { id: 'par', name: 'PAR', profileId: 'par-rgb', address: 1 },
+          { id: 'par2', name: 'PAR 2', profileId: 'par-rgb', address: 10 },
+        ],
+      },
+      plan,
+      ...extra,
+    })
+
+  it('une ancienne config sans plan reste valide, avec les défauts', () => {
+    const { config, problems } = room(undefined)
+    expect(config.plan).toEqual({ screen: { x: 0.5, y: 0.08 }, desks: {}, fixtures: {} })
+    expect(problems).toEqual([])
+    const resolved = resolveRoomPlan(config.plan, 3, [{ id: 'par' }, { id: 'par2' }])
+    expect(resolved.screen).toEqual({ x: 0.5, y: 0.08 })
+    // Pupitres en rangée face à l'écran, appareils répartis en haut.
+    expect(Object.values(resolved.desks).map((point) => point.x)).toEqual([0.25, 0.5, 0.75])
+    expect(new Set(Object.values(resolved.desks).map((point) => point.y)).size).toBe(1)
+    expect(Object.keys(resolved.fixtures)).toEqual(['par', 'par2'])
+    expect(resolved.fixtures.par?.y).toBeLessThan(resolved.desks[1]?.y ?? 0)
+  })
+
+  it('ramène x et y dans [0,1] et écarte les valeurs invalides', () => {
+    const { config } = room({
+      screen: { x: 2, y: -1 },
+      desks: { 1: { x: 0.2, y: 0.9 }, 2: { x: 'a', y: 0.5 }, 3: { x: Number.NaN, y: 0 } },
+      fixtures: { par: { x: -0.5, y: 3 }, par2: 'x' },
+    })
+    expect(config.plan.screen).toEqual({ x: 1, y: 0 })
+    expect(config.plan.desks).toEqual({ 1: { x: 0.2, y: 0.9 } })
+    expect(config.plan.fixtures).toEqual({ par: { x: 0, y: 1 } })
+  })
+
+  it('retire les appareils inconnus et garde en réserve les pupitres au-delà de desksCount', () => {
+    const plan = {
+      desks: {
+        1: { x: 0.1, y: 0.1 },
+        4: { x: 0.4, y: 0.4 },
+        6: { x: 0.6, y: 0.6 },
+        7: { x: 0, y: 0 },
+      },
+      fixtures: { par: { x: 0.3, y: 0.3 }, gone: { x: 0.5, y: 0.5 } },
+    }
+    const { config } = room(plan)
+    expect(Object.keys(config.plan.desks)).toEqual(['1', '4', '6'])
+    expect(Object.keys(config.plan.fixtures)).toEqual(['par'])
+    // Affichage : seuls les 3 pupitres existants ; les positions en réserve ne reviennent que si
+    // desksCount remonte.
+    const fixtures = [{ id: 'par' }, { id: 'par2' }]
+    expect(Object.keys(resolveRoomPlan(config.plan, 3, fixtures).desks)).toEqual(['1', '2', '3'])
+    const more = resolveRoomPlan(config.plan, 6, fixtures)
+    expect(more.desks[4]).toEqual({ x: 0.4, y: 0.4 })
+    expect(more.desks[6]).toEqual({ x: 0.6, y: 0.6 })
+    // Ré-enregistrer avec 3 pupitres ne perd pas la réserve.
+    const again = parseRoomHardwareConfig({ ...config, desksCount: 3 }).config
+    expect(again.plan.desks[4]).toEqual({ x: 0.4, y: 0.4 })
+  })
+
+  it('place un appareil rattaché au-dessus de son pupitre, les autres en rangée en haut', () => {
+    const { config } = room(undefined)
+    const resolved = resolveRoomPlan(config.plan, 3, [
+      { id: 'a', desk: 2 },
+      { id: 'b', desk: 2 },
+      { id: 'c' },
+      { id: 'd', desk: 5 },
+    ])
+    const desk = resolved.desks[2]!
+    expect(resolved.fixtures.a!.y).toBeLessThan(desk.y)
+    expect(resolved.fixtures.a!.x).toBeLessThan(desk.x)
+    expect(resolved.fixtures.b!.x).toBeGreaterThan(desk.x)
+    expect(resolved.fixtures.a!.y).toBe(resolved.fixtures.b!.y)
+    // Non rattaché, ou rattaché à un pupitre qui n'existe pas : rangée du haut.
+    expect(resolved.fixtures.c!.y).toBe(0.28)
+    expect(resolved.fixtures.d!.y).toBe(0.28)
+    expect(resolved.fixtures.c!.x).not.toBe(resolved.fixtures.d!.x)
+  })
+
+  it('répartit les appareils non rattachés sur deux rangées au-delà de six', () => {
+    const { config } = room(undefined)
+    const ids = Array.from({ length: 8 }, (_item, index) => ({ id: `f${index}` }))
+    const resolved = resolveRoomPlan(config.plan, 6, ids)
+    const rows = new Set(Object.values(resolved.fixtures).map((point) => point.y))
+    expect(rows.size).toBe(2)
+    expect(Math.max(...rows)).toBeLessThan(resolved.desks[1]!.y)
+    const points = Object.values(resolved.fixtures).map((point) => `${point.x}/${point.y}`)
+    expect(new Set(points).size).toBe(8)
+  })
+
+  it('withPlanPoint déplace un élément, borné', () => {
+    let config = defaultRoomHardwareConfig()
+    config = withPlanPoint(config, { kind: 'desk', id: 2 }, { x: 1.5, y: 0.4 })
+    config = withPlanPoint(config, { kind: 'screen' }, { x: 0.1, y: 0.2 })
+    config = withPlanPoint(config, { kind: 'fixture', id: 'par' }, { x: 0.3, y: -2 })
+    expect(config.plan).toEqual({
+      screen: { x: 0.1, y: 0.2 },
+      desks: { 2: { x: 1, y: 0.4 } },
+      fixtures: { par: { x: 0.3, y: 0 } },
+    })
   })
 })

@@ -9,6 +9,7 @@ import {
   type BuzzerInput,
   type BuzzerInputState,
   type BuzzerKeymap,
+  type BuzzerLayout,
   type BuzzerPress,
   type BuzzerSource,
   createBridgeOutput,
@@ -35,14 +36,18 @@ import {
   type OutputStats,
   type ParsedRoomHardwareConfig,
   parseRoomHardwareConfig,
+  type PlanPoint,
+  type PlanTarget,
   type RawKeyPress,
   requestDmxPort,
   type RoomHardwareConfig,
   type SerialPortLike,
   watchDmxPortReconnection,
   withArtnetTarget,
+  withBuzzerLayout,
   withDesksCount,
   withLearnedKeymap,
+  withPlanPoint,
 } from '@quizzup/hardware'
 import { computed, shallowRef } from 'vue'
 
@@ -953,6 +958,19 @@ export async function saveLearnedBuzzers(learned: BuzzerKeymap): Promise<ParsedR
  */
 export async function saveRoomDesksCount(count: number): Promise<ParsedRoomHardwareConfig> {
   return saveRoomHardwareConfig(withDesksCount(parsed.value.config, count))
+}
+
+/** Enregistre la couleur et la place des buzzers (écran de jeu, apprentissage et plan suivent). */
+export async function saveBuzzerLayout(layout: BuzzerLayout): Promise<ParsedRoomHardwareConfig> {
+  return saveRoomHardwareConfig(withBuzzerLayout(parsed.value.config, layout))
+}
+
+/** Enregistre la position d'un élément du plan de salle (écran, pupitre ou appareil). */
+export async function saveRoomPlanPoint(
+  target: PlanTarget,
+  point: PlanPoint
+): Promise<ParsedRoomHardwareConfig> {
+  return saveRoomHardwareConfig(withPlanPoint(parsed.value.config, target, point))
 }
 
 /** Remet à zéro tout le matériel de la page (tests). */

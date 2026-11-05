@@ -15,7 +15,7 @@
         v-for="(theme, index) in themes"
         :key="theme.id"
         class="choice__theme"
-        :class="`choice__theme--${letters[index]?.toLowerCase()}`"
+        :style="styleOf(letters[index], true)"
       >
         <span class="choice__letter">{{ letters[index] }}</span>
         <span class="choice__name">{{ theme.name }}</span>
@@ -39,6 +39,7 @@ import type { RoundChooserReason } from '@quizzup/shared'
 import DeskBadge from '@/components/game/DeskBadge.vue'
 import TimerBar from '@/components/game/TimerBar.vue'
 import { BUZZER_BUTTONS } from '@/hardware/buzzers'
+import { useBuzzerStyle } from '@/hardware/useBuzzerStyle'
 
 defineProps<{
   themes: { id: number; name: string }[]
@@ -48,6 +49,7 @@ defineProps<{
 }>()
 
 const letters = BUZZER_BUTTONS
+const { styleOf } = useBuzzerStyle()
 </script>
 
 <style scoped>
@@ -99,18 +101,6 @@ const letters = BUZZER_BUTTONS
   border: 1px solid var(--border-2);
   background: linear-gradient(135deg, var(--surface-2), transparent), var(--bg-card-hi);
   box-shadow: 0 0 32px -16px var(--answer-color);
-}
-
-.choice__theme--b {
-  --answer-color: var(--answer-b);
-}
-
-.choice__theme--c {
-  --answer-color: var(--answer-c);
-}
-
-.choice__theme--d {
-  --answer-color: var(--answer-d);
 }
 
 .choice__letter {
