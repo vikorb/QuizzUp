@@ -270,7 +270,7 @@ describe('pont Art-Net de la salle', () => {
 
   it('envoie l’IP du nœud de la salle au pont (hello v2) et affiche la cible effective', async () => {
     await saveRoomHardwareConfig({
-      lighting: { driver: 'artnet-bridge', artnet: { target: '192.168.1.50', port: 6455 } },
+      lighting: { driver: 'artnet-bridge', artnet: { target: '192.168.1.50' } },
     })
     const { bridgeArtnet } = useRoomHardware()
     await startLighting()
@@ -279,7 +279,7 @@ describe('pont Art-Net de la salle', () => {
       protocol: 1,
       version: 2,
       universe: 0,
-      artnet: { target: '192.168.1.50', port: 6455 },
+      artnet: { target: '192.168.1.50' },
     })
     expect(bridgeArtnet.value).toEqual({ target: '192.168.1.50', port: 6454, source: 'room' })
 
@@ -287,7 +287,7 @@ describe('pont Art-Net de la salle', () => {
     await saveArtnetTarget('192.168.1.60')
     await vi.waitFor(() =>
       expect(FakeBridgeSocket.last?.hellos[0]).toMatchObject({
-        artnet: { target: '192.168.1.60', port: 6455 },
+        artnet: { target: '192.168.1.60' },
       })
     )
     await vi.waitFor(() => expect(bridgeArtnet.value?.target).toBe('192.168.1.60'))
@@ -296,6 +296,27 @@ describe('pont Art-Net de la salle', () => {
     await saveArtnetTarget('')
     await vi.waitFor(() => expect(FakeBridgeSocket.last?.hellos[0]).not.toHaveProperty('artnet'))
     await vi.waitFor(() => expect(bridgeArtnet.value?.source).toBe('none'))
+  })
+
+  it('ne garde jamais de port de la salle : une config trafiquée n’en envoie pas', async () => {
+    await saveRoomHardwareConfig({
+      lighting: { driver: 'artnet-bridge', artnet: { target: '192.168.1.50', port: 53 } },
+    })
+    expect(getRoomHardwareConfig().lighting.artnet).toEqual({ target: '192.168.1.50' })
+    await startLighting()
+    expect(FakeBridgeSocket.last?.hellos[0]).toMatchObject({ artnet: { target: '192.168.1.50' } })
+    expect(FakeBridgeSocket.last?.hellos[0]?.artnet).not.toHaveProperty('port')
+  })
+
+  it('n’affiche plus de cible effective quand le pont est tombé', async () => {
+    await saveRoomHardwareConfig({
+      lighting: { driver: 'artnet-bridge', artnet: { target: '192.168.1.50' } },
+    })
+    const { bridgeArtnet } = useRoomHardware()
+    await startLighting()
+    expect(bridgeArtnet.value).not.toBeNull()
+    FakeBridgeSocket.last?.onclose?.({ code: 1006, reason: '' })
+    await vi.waitFor(() => expect(bridgeArtnet.value).toBeNull())
   })
 
   it('la ligne de commande du pont reste prioritaire et l’écran l’affiche', async () => {

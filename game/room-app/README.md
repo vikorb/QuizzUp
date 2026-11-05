@@ -74,7 +74,7 @@ src/
   nouvel essai part seul toutes les 10 s (`BRIDGE_RETRY_MS`), sans jamais retarder la partie.
   **IP du nœud Art-Net** : l'assistant (étape interface, pilote `artnet-bridge`) propose le champ
   « IP du nœud Art-Net », enregistré dans `rooms.config.lighting.artnet` comme le reste de la config
-  (IPv4 d'un réseau local uniquement) et envoyé au pont dans le `hello` v2 à chaque (re)connexion ;
+  (IPv4 d'un réseau local uniquement, jamais de port : celui du pont) et envoyé au pont dans le `hello` v2 à chaque (re)connexion ;
   les lumières redémarrent quand elle change. L'écran affiche la cible effective annoncée par le pont
   et sa provenance (`--target` du pont, réglage de la salle ou aucune). Le pont n'a plus besoin
   de `--target`, seulement de `--origin` ; s'il est lancé avec `--target`, celui-ci l'emporte.

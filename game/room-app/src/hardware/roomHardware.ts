@@ -979,7 +979,13 @@ export function useRoomHardware() {
     conflictCount: computed(() => conflictCount.value),
     /** Pourquoi le pont Art-Net n'est pas connecté (`null` : connecté, ou pas essayé). */
     bridgeError: computed(() => bridgeError.value),
-    /** Cible Art-Net effective annoncée par le pont (`source` : `cli`, `room` ou `none`), ou `null`. */
-    bridgeArtnet: computed(() => bridgeArtnet.value),
+    /**
+     * Cible Art-Net effective annoncée par le pont (`source` : `cli`, `room` ou `none`). `null` dès que
+     * le pont n'est plus connecté (sortie fermée, en erreur, ou simulation) : plus de cible affichée.
+     */
+    bridgeArtnet: computed(() => {
+      const state = lightingState.value
+      return state && !state.simulation && state.outputStatus === 'open' ? bridgeArtnet.value : null
+    }),
   }
 }

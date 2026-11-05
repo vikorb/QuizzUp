@@ -573,8 +573,12 @@ const gamepadMatch = computed(() => {
 const artnetTarget = computed(() => view.value.config.lighting.artnet?.target ?? '')
 // Texte en cours de saisie : gardé tel quel tant qu'il est refusé (sinon le champ se viderait).
 const artnetDraft = ref(artnetTarget.value)
-watch(artnetTarget, (target) => (artnetDraft.value = target))
 const artnetInvalid = ref(false)
+// La valeur enregistrée change (saisie validée, autre poste, réinitialisation) : le brouillon la suit.
+watch(artnetTarget, (target) => {
+  artnetDraft.value = target
+  artnetInvalid.value = false
+})
 const profiles = computed(() => [...GENERIC_PROFILES, ...view.value.config.lighting.customProfiles])
 const suggested = computed(() => {
   void view.value
@@ -674,7 +678,7 @@ function onArtnetTarget(): void {
     return
   }
   run(() => wizard.setArtnetTarget(target))
-  void saveArtnetTarget(target)
+  saveArtnetTarget(target).catch(() => undefined)
 }
 
 function onDriver(driver: DmxDriver): void {
