@@ -1,4 +1,4 @@
-> **Suivi (2026-11-05)** : lots faits : L1-L5, L8, L9, L12 (PR #105 à #112). En cours : L10, L13.
+> **Suivi (2026-11-05)** : lots faits : L1-L5, L8-L10, L12, L13 (PR #105 à #115).
 > En attente de décision : L6, L7, L11, L14. Ce document est l'audit du 2026-11-04 ; les numéros
 > de ligne cités sont ceux de `7227393` et ont pu bouger depuis.
 

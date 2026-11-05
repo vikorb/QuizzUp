@@ -40,8 +40,15 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
   - #111 (L12 roue de couleurs, shutter, inversion et butées pan/tilt, lyres génériques 9/11/16
     canaux, éditeur de profil ; valeurs de roue **à relever sur la notice**) ;
   - #112 (L9 l'IP du nœud Art-Net se règle dans l'écran de salle, `lighting.artnet.target` ; le
-    pont n'accepte que des IP locales, jamais un port choisi par la salle, `--target` prioritaire).
-  - En cours : L10 (découverte ArtPoll) et L13 (calibrage des lyres au clavier).
+    pont n'accepte que des IP locales, jamais un port choisi par la salle, `--target` prioritaire) ;
+  - #114 (L13 calage des lyres au clavier dans l'assistant : flèches, Maj = pas fin, Entrée valide,
+    P copie le pupitre précédent, G/H inversent ; boutons cliquables équivalents, car G/H sont des
+    buzzers du préréglage 6 pupitres ; valeur bornée à `panRange`/`tiltRange`) ;
+  - #115 (L10 découverte des nœuds Art-Net : `{"type":"poll"}` → ArtPoll en diffusion, réponses
+    écoutées aussi sur le port 6454 ; IP = expéditeur, locale, 64 nœuds et 16 univers max ;
+    **à valider sur un vrai nœud** Showtec NET-2/3) ;
+  - #116 (tests room-app qui attendaient une navigation : écrans paresseux préchargés depuis
+    `routes`, fin de l'instabilité « expected 'lobby' to be 'play' » sous charge).
   - En attente d'une décision d'Enzo : L6 (kit poste Windows : Chrome ou Edge ?), L7 (fumée
     seulement avec relais, recommandé), L11 (`.exe` du pont : signature ?), L14 (cache hors ligne).
 - **Décisions d'Enzo du 2026-11-04 (soir), mergées** : #101 (`backoffice/backend/.env` sorti de
