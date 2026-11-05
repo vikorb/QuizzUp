@@ -67,7 +67,7 @@ describe('config matérielle sur le compte de la salle', () => {
     await saveBuzzerKeymap({})
     expect(save).toHaveBeenCalledWith(
       'tok',
-      expect.objectContaining({ buzzers: { keymap: {} } }),
+      expect.objectContaining({ buzzers: expect.objectContaining({ keymap: {} }) }),
       null
     )
     expect(syncStatus.value).toBe('saved')
@@ -90,7 +90,7 @@ describe('config matérielle sur le compte de la salle', () => {
     await syncHardwareWithRoom()
     expect(save).toHaveBeenCalledWith(
       'tok',
-      expect.objectContaining({ buzzers: { keymap: SERVER_KEYMAP } }),
+      expect.objectContaining({ buzzers: expect.objectContaining({ keymap: SERVER_KEYMAP }) }),
       null
     )
 
@@ -118,7 +118,7 @@ describe('config matérielle sur le compte de la salle', () => {
     expect(hardware.value.config.buzzers.keymap).toEqual(LOCAL_KEYMAP)
     expect(save).toHaveBeenLastCalledWith(
       'tok',
-      expect.objectContaining({ buzzers: { keymap: LOCAL_KEYMAP } }),
+      expect.objectContaining({ buzzers: expect.objectContaining({ keymap: LOCAL_KEYMAP }) }),
       1
     )
     expect(syncStatus.value).toBe('saved')
@@ -215,7 +215,7 @@ describe('config matérielle sur le compte de la salle', () => {
     expect(useRoomHardware().hardware.value.config.buzzers.keymap).toEqual(LOCAL_KEYMAP)
     expect(save).toHaveBeenLastCalledWith(
       'tok',
-      expect.objectContaining({ buzzers: { keymap: LOCAL_KEYMAP } }),
+      expect.objectContaining({ buzzers: expect.objectContaining({ keymap: LOCAL_KEYMAP }) }),
       1
     )
   })

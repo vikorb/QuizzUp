@@ -32,7 +32,19 @@
       <p class="hw-hint">{{ $t('hardware.buzzers.desksCountHint') }}</p>
     </div>
 
-    <div v-if="learningState" class="learn neon neon--no-hover" data-test="learning">
+    <div v-if="choosingLayout" class="learn neon neon--no-hover" data-test="layout-step">
+      <h3 class="hw-panel__subtitle">{{ $t('hardware.layout.title') }}</h3>
+      <p class="hw-hint">{{ $t('hardware.layout.hint') }}</p>
+      <BuzzerLayoutPicker v-model="draftLayout" />
+      <div class="hw-actions">
+        <UiButton variant="primary" data-test="layout-continue" @click="onLayoutContinue">
+          {{ $t('hardware.layout.continue') }}
+        </UiButton>
+        <UiButton @click="choosingLayout = false">{{ $t('hardware.buzzers.cancel') }}</UiButton>
+      </div>
+    </div>
+
+    <div v-else-if="learningState" class="learn neon neon--no-hover" data-test="learning">
       <template v-if="learningState.current">
         <p class="learn__step">
           {{
@@ -42,14 +54,28 @@
             })
           }}
         </p>
-        <p class="learn__prompt" :class="`learn__prompt--${learningState.current.desk}`">
-          {{
-            $t('hardware.buzzers.prompt', {
-              button: learningState.current.button,
-              desk: learningState.current.desk,
-            })
-          }}
-        </p>
+        <div class="learn__ask">
+          <BuzzerSquare
+            :layout="layout"
+            :active="learningState.current.button"
+            style="--square-size: 96px"
+          />
+          <i18n-t
+            keypath="hardware.buzzers.prompt"
+            tag="p"
+            class="learn__prompt"
+            :class="`learn__prompt--${learningState.current.desk}`"
+            data-test="learn-prompt"
+          >
+            <template #color>
+              <strong>{{
+                $t(`hardware.colors.${layout[learningState.current.button].color}`)
+              }}</strong>
+            </template>
+            <template #button>{{ learningState.current.button }}</template>
+            <template #desk>{{ learningState.current.desk }}</template>
+          </i18n-t>
+        </div>
       </template>
       <p v-else class="learn__prompt">
         {{ $t('hardware.buzzers.done', { n: learnedInSession }, learnedInSession) }}
@@ -82,9 +108,9 @@
     </div>
 
     <div v-else class="hw-actions">
-      <UiButton variant="primary" @click="startLearning">
-        <MdIcon :path="mdiGestureTapButton" :size="18" />
-        {{ $t('hardware.buzzers.learn') }}
+      <UiButton variant="primary" class="start" data-test="start-config" @click="openLayout">
+        <MdIcon :path="mdiGestureTapButton" :size="28" />
+        {{ $t('hardware.buzzers.configure') }}
       </UiButton>
       <UiButton v-if="!usesSimulationKeys" @click="onResetToSimulation">
         {{ $t('hardware.buzzers.resetToSimulation') }}
@@ -123,14 +149,18 @@
 import { mdiGestureTapButton } from '@mdi/js'
 import {
   activeKeymap,
+  type BuzzerLayout,
   type BuzzerLearning,
   type BuzzerLearningState,
+  cloneBuzzerLayout,
   createBuzzerLearning,
 } from '@quizzup/hardware'
 import { computed, onBeforeUnmount, reactive, ref, shallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import DeskBadge from '@/components/game/DeskBadge.vue'
+import BuzzerLayoutPicker from '@/components/hardware/BuzzerLayoutPicker.vue'
+import BuzzerSquare from '@/components/hardware/BuzzerSquare.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { useConfirm } from '@/composables/useConfirm'
@@ -145,6 +175,7 @@ import {
 import {
   getBuzzerInput,
   saveBuzzerKeymap,
+  saveBuzzerLayout,
   saveLearnedBuzzers,
   saveRoomDesksCount,
   useRoomHardware,
@@ -160,11 +191,14 @@ const { hardware, desks, keymap, usesSimulationKeys, usesGamepad, buzzerState } 
 const learning = shallowRef<BuzzerLearning | null>(null)
 const learningState = shallowRef<BuzzerLearningState | null>(null)
 const saved = ref(false)
+const choosingLayout = ref(false)
+const draftLayout = ref<BuzzerLayout>(cloneBuzzerLayout(hardware.value.config.buzzers.layout))
 const flashes = reactive(new Set<string>())
 const flashTimers = new Set<ReturnType<typeof setTimeout>>()
 let offLearning: (() => void) | null = null
 let offKeys: (() => void) | null = null
 
+const layout = computed(() => hardware.value.config.buzzers.layout)
 const learnedCount = computed(() => Object.keys(activeKeymap(hardware.value.config)).length)
 const learnedInSession = computed(() => Object.keys(learningState.value?.keymap ?? {}).length)
 const keysByDesk = computed(() =>
@@ -207,6 +241,18 @@ useBuzzers((press) => {
   }, FLASH_MS)
   flashTimers.add(timer)
 })
+
+function openLayout(): void {
+  saved.value = false
+  draftLayout.value = cloneBuzzerLayout(layout.value)
+  choosingLayout.value = true
+}
+
+async function onLayoutContinue(): Promise<void> {
+  await saveBuzzerLayout(draftLayout.value)
+  choosingLayout.value = false
+  startLearning()
+}
 
 function startLearning(): void {
   stopLearning()
@@ -268,6 +314,18 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.start {
+  padding: 20px 36px;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.learn__ask {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
 .learn {
   display: grid;
   gap: 12px;

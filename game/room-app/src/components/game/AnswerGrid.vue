@@ -4,6 +4,7 @@
       v-for="(answer, index) in answers"
       :key="answer.id"
       class="answer"
+      :style="styleOf(letters[index])"
       :class="[
         `answer--${letters[index]?.toLowerCase()}`,
         {
@@ -27,9 +28,11 @@
 <script setup lang="ts">
 import { mdiCheckCircle } from '@mdi/js'
 import type { EngineAnswer } from '@quizzup/game-engine'
+import { BUZZER_CORNERS } from '@quizzup/hardware'
 
 import MdIcon from '@/components/ui/MdIcon.vue'
-import { BUZZER_BUTTONS } from '@/hardware/buzzers'
+import { BUZZER_BUTTONS, type BuzzerButton } from '@/hardware/buzzers'
+import { useRoomHardware } from '@/hardware/roomHardware'
 
 defineProps<{
   /** Dans l'ordre de l'état du moteur (mélangé avec la graine), jamais réordonnées ici. */
@@ -40,6 +43,21 @@ defineProps<{
 }>()
 
 const letters = BUZZER_BUTTONS
+const { hardware } = useRoomHardware()
+
+/**
+ * Couleur et place du buzzer dans le carré 2×2 de la salle : l'ordre CSS suit tl, tr, bl, br, donc
+ * la grille à deux colonnes reproduit la disposition du pupitre (A B / C D par défaut).
+ */
+function styleOf(letter: BuzzerButton | undefined) {
+  const style = letter && hardware.value.config.buzzers.layout[letter]
+  return style
+    ? {
+        '--answer-color': `var(--buzzer-${style.color})`,
+        order: BUZZER_CORNERS.indexOf(style.corner),
+      }
+    : undefined
+}
 </script>
 
 <style scoped>
@@ -69,18 +87,6 @@ const letters = BUZZER_BUTTONS
   border-left: 6px solid var(--answer-color);
   background: linear-gradient(180deg, var(--bg-card-hi), var(--bg-card));
   transition: var(--tr);
-}
-
-.answer--b {
-  --answer-color: var(--answer-b);
-}
-
-.answer--c {
-  --answer-color: var(--answer-c);
-}
-
-.answer--d {
-  --answer-color: var(--answer-d);
 }
 
 .answer__letter {

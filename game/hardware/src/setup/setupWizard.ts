@@ -1,5 +1,6 @@
 import type { BuzzerKeymap } from '../buzzers/keymap'
 import { missingSlots } from '../buzzers/keymap'
+import type { BuzzerLayout } from '../buzzers/layout'
 import type { BuzzerSource, RoomHardwareConfig } from '../config'
 import {
   activeLightingConfig,
@@ -7,7 +8,9 @@ import {
   smokeLacksRelay,
   smokeRelayRuleMet,
   withArtnetTarget,
+  withBuzzerLayout,
   withDesksCount,
+  withPlanPoint,
 } from '../config'
 import type { FixtureConfig, PanTilt } from '../dmx/fixtures'
 import { fixtureUniverse, parseRig, unsupportedUniverseProblems } from '../dmx/fixtures'
@@ -17,6 +20,7 @@ import { findProfile, hasSmokeRelay } from '../dmx/profiles'
 import { DMX_CHANNELS, MAX_UNIVERSES } from '../dmx/universe'
 import type { SmokeSafetyConfig } from '../lighting/smoke'
 import { normalizeSmokeSafety } from '../lighting/smoke'
+import type { PlanPoint, PlanTarget } from '../plan'
 import type { PanTiltCalibration, SixDeskRigOptions } from '../presets/sixDeskRoom'
 import { createSixDeskRoomRig } from '../presets/sixDeskRoom'
 import type { Desk } from '../types'
@@ -34,6 +38,7 @@ export const SETUP_STEPS = [
   'buzzers',
   'interface',
   'fixtures',
+  'plan',
   'fixtureTest',
   'positions',
   'smoke',
@@ -228,6 +233,9 @@ export type SetupWizard = {
   setDesksCount: (count: number) => void
   setBuzzerSource: (source: BuzzerSource) => void
   setKeymap: (keymap: BuzzerKeymap) => void
+  setBuzzerLayout: (layout: BuzzerLayout) => void
+  /** Déplace un élément du plan de salle (position de 0 à 1). */
+  setPlanPoint: (target: PlanTarget, point: PlanPoint) => void
 
   setDriver: (driver: DmxDriver) => WizardResult
   /**
@@ -673,6 +681,12 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
     },
     setKeymap: (keymap) => {
       config = { ...config, buzzers: { ...config.buzzers, keymap: { ...keymap } } }
+    },
+    setBuzzerLayout: (layout) => {
+      config = withBuzzerLayout(config, layout)
+    },
+    setPlanPoint: (target, point) => {
+      config = withPlanPoint(config, target, point)
     },
 
     setDriver: (driver) => {

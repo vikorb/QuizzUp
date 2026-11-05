@@ -164,6 +164,8 @@ describe('onglet Assistant', () => {
     expect(sel(wrapper, 'fixture-list').text()).toContain('Adresse 4')
 
     await click(wrapper, 'assistant-next')
+    expect(sel(wrapper, 'step-plan').exists()).toBe(true)
+    await click(wrapper, 'assistant-next')
     expect(sel(wrapper, 'step-test').exists()).toBe(true)
     await vi.waitFor(() => expect(getLighting()?.diagnostics.getState().active).toBe(true))
     await click(wrapper, 'light-par-pupitre-1')
@@ -235,6 +237,7 @@ describe('onglet Assistant', () => {
     await sel(wrapper, 'fixture-profile').setValue('smoke-relay')
     await click(wrapper, 'fixture-add')
     await click(wrapper, 'assistant-next')
+    await click(wrapper, 'assistant-next')
     expect(sel(wrapper, 'step-smoke').exists()).toBe(true)
     await sel(wrapper, 'check-physicalStop').setValue(true)
     await sel(wrapper, 'check-timedRelay').setValue(true)
@@ -249,9 +252,11 @@ describe('onglet Assistant', () => {
 
     await click(wrapper, 'assistant-back')
     await click(wrapper, 'assistant-back')
+    await click(wrapper, 'assistant-back')
     await sel(wrapper, 'driver-usbpro').setValue(true)
     await click(wrapper, 'assistant-connect')
     await vi.waitFor(() => expect(wrapper.text()).toContain('Interface connectée'))
+    await click(wrapper, 'assistant-next')
     await click(wrapper, 'assistant-next')
     await click(wrapper, 'assistant-next')
     expect(sel(wrapper, 'step-smoke').exists()).toBe(true)

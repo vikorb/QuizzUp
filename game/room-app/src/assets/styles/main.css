@@ -20,6 +20,16 @@
   --answer-c: var(--desk-3);
   --answer-d: var(--desk-4);
 
+  /* ---- Palette des buzzers (`BUZZER_COLORS`) : bleu, violet, vert et jaune = couleurs A-D par défaut ---- */
+  --buzzer-blue: var(--answer-a);
+  --buzzer-purple: var(--answer-b);
+  --buzzer-green: var(--answer-c);
+  --buzzer-yellow: var(--answer-d);
+  --buzzer-red: #ef5a5a;
+  --buzzer-white: #f4f6ff;
+  --buzzer-orange: #ff8a3d;
+  --buzzer-pink: #ff7ab8;
+
   /* ---- Typographie « plateau TV », lisible à 5 m ---- */
   --stage-title: clamp(34px, 5.2vw, 84px);
   --stage-text: clamp(20px, 2.4vw, 40px);

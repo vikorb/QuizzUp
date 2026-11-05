@@ -295,6 +295,14 @@
       </ul>
     </div>
 
+    <!-- 4 bis. Plan de salle -->
+    <div v-else-if="view.step === 'plan'" class="stack" data-test="step-plan">
+      <RoomPlan
+        :config="view.config"
+        @move="(target, point) => run(() => wizard.setPlanPoint(target, point))"
+      />
+    </div>
+
     <!-- 5. Test des appareils -->
     <div v-else-if="view.step === 'fixtureTest'" class="stack" data-test="step-test">
       <ul class="list">
@@ -676,6 +684,7 @@ import {
 } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import RoomPlan from '@/components/hardware/RoomPlan.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { useConfirm } from '@/composables/useConfirm'
@@ -866,6 +875,12 @@ watch(conflictCount, () => {
 watch(
   () => hardware.value.config.buzzers.keymap,
   (keymap) => run(() => wizard.setKeymap(keymap))
+)
+
+// La disposition choisie dans l'étape 2 est enregistrée par l'écran Buzzers : on la reprend aussi.
+watch(
+  () => hardware.value.config.buzzers.layout,
+  (layout) => run(() => wizard.setBuzzerLayout(layout))
 )
 
 /** Applique la config en cours au contrôleur de lumières (nécessaire pour tester). */

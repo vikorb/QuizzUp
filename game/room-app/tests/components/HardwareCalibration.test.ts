@@ -46,8 +46,8 @@ async function atPositions(map: ReturnType<typeof learnedKeymap> = learnedKeymap
   })
   const { wrapper } = await mountWithApp(HardwareView, { route: '/hardware' })
   await click(wrapper, 'tab-assistant')
-  // Navigateur, buzzers, interface, appareils : pas de saisie à faire.
-  for (let step = 0; step < 4; step += 1) {
+  // Navigateur, buzzers, interface, appareils, plan : pas de saisie à faire.
+  for (let step = 0; step < 5; step += 1) {
     await click(wrapper, 'assistant-next')
   }
   expect(sel(wrapper, 'step-test').exists()).toBe(true)
@@ -285,7 +285,7 @@ describe('étape Lyres : calage au clavier', () => {
     expect(fixture().deskPositions).toBeUndefined()
     expect(sel(wrapper, 'step-browser').exists()).toBe(true)
 
-    for (let step = 0; step < 4; step += 1) {
+    for (let step = 0; step < 5; step += 1) {
       await click(wrapper, 'assistant-next')
     }
     await click(wrapper, 'ok-lyre')

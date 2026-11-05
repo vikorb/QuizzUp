@@ -285,6 +285,9 @@ describe('assistant d’installation : tests et positions', () => {
     wizard.addFixture({ profileId: 'par-rgb', name: 'A' })
     wizard.addFixture({ profileId: 'smoke-dmx', name: 'Fumée' })
     expect(wizard.next()).toEqual({ ok: true })
+    expect(wizard.getState().step).toBe('plan')
+    expect(wizard.blockers()).toEqual([])
+    expect(wizard.next()).toEqual({ ok: true })
     expect(wizard.getState().step).toBe('fixtureTest')
     expect(wizard.blockers()).toEqual(['« A » pas encore testé'])
     wizard.markFixtureTest('a', 'ko')
@@ -310,9 +313,12 @@ describe('assistant d’installation : tests et positions', () => {
       'buzzers',
       'interface',
       'fixtures',
+      'plan',
       'summary',
     ])
     expect(wizard.goTo('smoke')).toEqual({ ok: false, reason: 'step_hidden' })
+    expect(wizard.next()).toEqual({ ok: true })
+    expect(wizard.getState().step).toBe('plan')
     expect(wizard.next()).toEqual({ ok: true })
     expect(wizard.getState().step).toBe('summary')
     expect(wizard.next()).toEqual({ ok: false, reason: 'last_step' })
@@ -887,5 +893,23 @@ describe('assistant d’installation : calage des lyres au clavier', () => {
       wizard.nudgeDeskPosition('lyre', 1, 'tilt', -1, true)
       expect(fixtureOf(wizard, 'lyre').deskPositions?.[1]?.tilt).toBe(10_000)
     })
+  })
+})
+
+describe('assistant d’installation : disposition et plan', () => {
+  it('enregistre la disposition des buzzers et le plan de salle dans la config', () => {
+    const wizard = atFixtures()
+    wizard.addFixture({ profileId: 'par-rgb', name: 'A' })
+    wizard.setBuzzerLayout({
+      ...defaultRoomHardwareConfig().buzzers.layout,
+      A: { color: 'red', corner: 'tl' },
+    })
+    wizard.setPlanPoint({ kind: 'fixture', id: 'a' }, { x: 0.2, y: 0.3 })
+    wizard.setPlanPoint({ kind: 'desk', id: 1 }, { x: 4, y: 0.3 })
+    const { config } = wizard.summary()
+    expect(config.buzzers.layout.A.color).toBe('red')
+    expect(config.plan.fixtures).toEqual({ a: { x: 0.2, y: 0.3 } })
+    expect(config.plan.desks).toEqual({ 1: { x: 1, y: 0.3 } })
+    expect(parseRoomHardwareConfig(config).config.plan).toEqual(config.plan)
   })
 })

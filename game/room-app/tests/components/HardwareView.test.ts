@@ -25,6 +25,13 @@ async function openTab(wrapper: Awaited<ReturnType<typeof mountWithApp>>['wrappe
   await flushPromises()
 }
 
+/** « Lancer la configuration » puis « Continuer » : l'apprentissage commence après le choix des couleurs. */
+async function startLearning(wrapper: Awaited<ReturnType<typeof mountWithApp>>['wrapper']) {
+  await wrapper.find('[data-test="start-config"]').trigger('click')
+  await wrapper.find('[data-test="layout-continue"]').trigger('click')
+  await flushPromises()
+}
+
 describe('HardwareView', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -36,12 +43,9 @@ describe('HardwareView', () => {
     const { wrapper } = await mountWithApp(HardwareView, { route: '/hardware' })
     expect(wrapper.text()).toContain('Aucun buzzer associé')
 
-    await wrapper
-      .findAll('button')
-      .find((button) => button.text().includes('Associer'))!
-      .trigger('click')
+    await startLearning(wrapper)
     expect(wrapper.find('[data-test="learning"]').text()).toContain(
-      'Appuie sur le buzzer A du pupitre 1'
+      'Appuie sur le buzzer bleu (A) du pupitre 1'
     )
 
     pressKey(LEARN_CODES[0]!)
@@ -75,10 +79,7 @@ describe('HardwareView', () => {
 
   it('annule l’apprentissage sans rien changer', async () => {
     const { wrapper } = await mountWithApp(HardwareView, { route: '/hardware' })
-    await wrapper
-      .findAll('button')
-      .find((button) => button.text().includes('Associer'))!
-      .trigger('click')
+    await startLearning(wrapper)
     pressKey(LEARN_CODES[0]!)
     await wrapper
       .findAll('button')
@@ -253,10 +254,7 @@ describe('HardwareView — nombre de pupitres', () => {
 
     await wrapper.find('[data-test="desks-count"]').setValue('6')
     await flushPromises()
-    await wrapper
-      .findAll('button')
-      .find((button) => button.text().includes('Associer'))!
-      .trigger('click')
+    await startLearning(wrapper)
 
     expect(wrapper.find('[data-test="learning"]').text()).toContain('Buzzer 1 sur 24')
     // Le nombre de pupitres ne se change pas en plein apprentissage.
@@ -266,10 +264,7 @@ describe('HardwareView — nombre de pupitres', () => {
     const smaller = await mountWithApp(HardwareView, { route: '/hardware' })
     await smaller.wrapper.find('[data-test="desks-count"]').setValue('2')
     await flushPromises()
-    await smaller.wrapper
-      .findAll('button')
-      .find((button) => button.text().includes('Associer'))!
-      .trigger('click')
+    await startLearning(smaller.wrapper)
     expect(smaller.wrapper.find('[data-test="learning"]').text()).toContain('Buzzer 1 sur 8')
     smaller.wrapper.unmount()
   })
@@ -324,10 +319,7 @@ describe('HardwareView — nombre de pupitres', () => {
     await saveRoomDesksCount(4)
     const { wrapper } = await mountWithApp(HardwareView, { route: '/hardware' })
 
-    await wrapper
-      .findAll('button')
-      .find((button) => button.text().includes('Associer'))!
-      .trigger('click')
+    await startLearning(wrapper)
     for (const code of LEARN_CODES) {
       pressKey(code)
     }

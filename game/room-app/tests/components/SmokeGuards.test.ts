@@ -101,6 +101,7 @@ async function openSmokeStep(driver: 'usbpro' | 'artnet-bridge', profile: string
   await sel(wrapper, 'fixture-profile').setValue(profile)
   await click(wrapper, 'fixture-add')
   await click(wrapper, 'assistant-next')
+  await click(wrapper, 'assistant-next')
   expect(sel(wrapper, 'step-smoke').exists()).toBe(true)
   await sel(wrapper, 'smoke-enable').setValue(true)
   return wrapper

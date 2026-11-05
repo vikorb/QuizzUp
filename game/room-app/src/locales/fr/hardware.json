@@ -8,21 +8,22 @@
       "buzzers": "Buzzers",
       "lights": "Lumières et fumée",
       "advanced": "Configuration avancée",
-      "diagnostic": "Diagnostic"
+      "diagnostic": "Diagnostic",
+      "plan": "Plan de salle"
     },
     "buzzers": {
       "title": "Buzzers",
+      "configure": "Lancer la configuration des buzzers",
       "desksCount": "Nombre de pupitres",
       "desksCountHint": "4 par défaut, 6 au maximum. Le backoffice ne propose que ces pupitres au lancement d’une partie. Les buzzers et lumières des pupitres retirés sont gardés en réserve, sans effet, et reviennent si tu remontes le nombre.",
       "simulation": "Aucun buzzer associé : le clavier de simulation est utilisé (une rangée de touches par pupitre : 1-4, Q-R, A-F, Z-V, puis 5-8 et T-I).",
       "learned": "{n} buzzer associé | {n} buzzers associés",
       "inactive": "La page n’a plus le focus : les buzzers ne sont pas reçus. Clique dans la page pour les réactiver.",
-      "learn": "Associer les buzzers",
-      "learnHint": "On te demande chaque buzzer, pupitre par pupitre : appuie dessus pour l’associer.",
+      "learnHint": "D’abord, tu choisis la couleur et la place de chaque buzzer. Ensuite on te demande chaque buzzer, pupitre par pupitre : appuie dessus pour l’associer.",
       "resetToSimulation": "Revenir au clavier de simulation",
       "resetConfirm": "Oublier les buzzers associés, y compris ceux gardés en réserve pour les pupitres retirés, et revenir au clavier de simulation ?",
       "step": "Buzzer {n} sur {total}",
-      "prompt": "Appuie sur le buzzer {button} du pupitre {desk}",
+      "prompt": "Appuie sur le buzzer {color} ({button}) du pupitre {desk}",
       "assigned": "Buzzer {button} du pupitre {desk} associé (touche {key}).",
       "duplicate": "La touche {key} est déjà utilisée par le buzzer {button} du pupitre {desk}.",
       "forbidden": "La touche {key} est réservée au système et ne peut pas servir de buzzer.",
@@ -35,6 +36,40 @@
       "saved": "Association enregistrée.",
       "testTitle": "Test des buzzers",
       "testHint": "Appuie sur un buzzer : il s’allume ici."
+    },
+    "layout": {
+      "title": "Couleurs et disposition des buzzers",
+      "hint": "Choisis la couleur de chaque buzzer et sa place dans le carré, comme sur tes pupitres. C’est le même réglage pour tous les pupitres.",
+      "buzzer": "Buzzer {button}",
+      "color": "Couleur",
+      "place": "Place dans le carré",
+      "preview": "Un pupitre vu du dessus",
+      "continue": "Continuer : associer les buzzers"
+    },
+    "colors": {
+      "green": "vert",
+      "red": "rouge",
+      "blue": "bleu",
+      "yellow": "jaune",
+      "white": "blanc",
+      "orange": "orange",
+      "purple": "violet",
+      "pink": "rose"
+    },
+    "corners": {
+      "tl": "En haut à gauche",
+      "tr": "En haut à droite",
+      "bl": "En bas à gauche",
+      "br": "En bas à droite"
+    },
+    "plan": {
+      "title": "Plan de salle",
+      "hint": "Vue du dessus de la salle. Glisse l’écran, les pupitres et les appareils à leur place. Au clavier : Tab pour en choisir un, flèches pour le déplacer.",
+      "screen": "Écran",
+      "desk": "Pupitre {n}",
+      "fixture": "Appareil {name}",
+      "item": "{label}, position {x} % à droite, {y} % vers le bas. Flèches pour déplacer.",
+      "room": "Plan de la salle, vue du dessus"
     },
     "lights": {
       "title": "Lumières",
@@ -225,6 +260,11 @@
           "title": "Déclarer les appareils",
           "hint": "Ajoute chaque projecteur. L’adresse est celle réglée sur l’appareil (afficheur ou petits interrupteurs) : on te propose la première libre."
         },
+        "plan": {
+          "short": "Plan",
+          "title": "Placer la salle sur le plan",
+          "hint": "Place l’écran, les pupitres et les appareils comme dans la vraie salle. C’est facultatif : tu peux aussi le faire plus tard dans l’onglet Plan de salle."
+        },
         "fixtureTest": {
           "short": "Test",
           "title": "Tester chaque appareil",
@@ -338,7 +378,10 @@
           "invertedOn": "{axis} : sens inversé. Le faisceau ne bouge pas.",
           "invertedOff": "{axis} : sens normal. Le faisceau ne bouge pas.",
           "taken": "touche occupée par un buzzer : utilise le bouton",
-          "keys": { "shift": "Maj", "enter": "Entrée" },
+          "keys": {
+            "shift": "Maj",
+            "enter": "Entrée"
+          },
           "buttons": {
             "invertPan": "Inverser pan",
             "invertTilt": "Inverser tilt",

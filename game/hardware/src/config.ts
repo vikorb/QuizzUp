@@ -1,5 +1,7 @@
 import type { BuzzerKeymap } from './buzzers/keymap'
 import { parseKeymap } from './buzzers/keymap'
+import type { BuzzerLayout } from './buzzers/layout'
+import { cloneBuzzerLayout, defaultBuzzerLayout, parseBuzzerLayout } from './buzzers/layout'
 import type { ArtnetTargetConfig } from './dmx/bridgeOutput'
 import { isLocalArtnetTarget, parseBridgeUrl } from './dmx/bridgeOutput'
 import type { FixtureConfig, ResolvedFixture } from './dmx/fixtures'
@@ -11,6 +13,8 @@ import { hasProgressiveSmokeChannel } from './dmx/profiles'
 import { DEFAULT_DESK_COLORS } from './lighting/scenes'
 import type { SmokeSafetyConfig } from './lighting/smoke'
 import { DEFAULT_SMOKE_SAFETY, normalizeSmokeSafety } from './lighting/smoke'
+import type { PlanPoint, PlanTarget, RoomPlan } from './plan'
+import { defaultRoomPlan, parseRoomPlan, withPlanPoint as movePlanPoint } from './plan'
 import type { Desk, Rgb } from './types'
 import { clampByte, clampDeskCount, DEFAULT_DESK_COUNT, DESKS } from './types'
 
@@ -57,8 +61,15 @@ export type RoomHardwareConfig = {
    * propose que ces pupitres au lancement d'une partie : le champ reste à la racine de la config.
    */
   desksCount: number
-  buzzers: { keymap: BuzzerKeymap; source?: BuzzerSource }
+  buzzers: {
+    keymap: BuzzerKeymap
+    source?: BuzzerSource
+    /** Couleur et place (carré 2×2) de chaque buzzer, identiques pour tous les pupitres. */
+    layout: BuzzerLayout
+  }
   lighting: LightingConfig
+  /** Plan de salle vu du dessus : écran, pupitres et appareils DMX (positions de 0 à 1). */
+  plan: RoomPlan
 }
 
 export type ParsedRoomHardwareConfig = {
@@ -95,7 +106,7 @@ export function defaultRoomHardwareConfig(): RoomHardwareConfig {
   return {
     version: ROOM_HARDWARE_CONFIG_VERSION,
     desksCount: DEFAULT_DESK_COUNT,
-    buzzers: { keymap: {} },
+    buzzers: { keymap: {}, layout: defaultBuzzerLayout() },
     lighting: {
       driver: 'simulation',
       refreshHz: DMX_REFRESH_LIMITS.default,
@@ -105,6 +116,7 @@ export function defaultRoomHardwareConfig(): RoomHardwareConfig {
       bindings: {},
       smoke: { ...DEFAULT_SMOKE_SAFETY },
     },
+    plan: defaultRoomPlan(),
   }
 }
 
@@ -158,6 +170,23 @@ export function withArtnetTarget(config: RoomHardwareConfig, target: string): Ro
     ...config,
     lighting: { ...lighting, ...(trimmed ? { artnet: { target: trimmed } } : {}) },
   }
+}
+
+/** Enregistre la couleur et la place des buzzers (valeurs jugées à la relecture). */
+export function withBuzzerLayout(
+  config: RoomHardwareConfig,
+  layout: BuzzerLayout
+): RoomHardwareConfig {
+  return { ...config, buzzers: { ...config.buzzers, layout: cloneBuzzerLayout(layout) } }
+}
+
+/** Enregistre la position d'un élément du plan de salle (ramenée dans [0,1]). */
+export function withPlanPoint(
+  config: RoomHardwareConfig,
+  target: PlanTarget,
+  point: PlanPoint
+): RoomHardwareConfig {
+  return { ...config, plan: movePlanPoint(config.plan, target, point) }
 }
 
 /** Buzzers des pupitres de la salle : ceux des pupitres au-delà de `desksCount` (réserve) sont ignorés. */
@@ -330,7 +359,11 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
   const config: RoomHardwareConfig = {
     version: ROOM_HARDWARE_CONFIG_VERSION,
     desksCount,
-    buzzers: { keymap, ...(source ? { source } : {}) },
+    buzzers: {
+      keymap,
+      ...(source ? { source } : {}),
+      layout: parseBuzzerLayout(buzzers.layout, problems),
+    },
     lighting: {
       driver,
       ...(bridgeUrl ? { bridgeUrl } : {}),
@@ -342,6 +375,11 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
       bindings: parseBindings(lighting.bindings),
       smoke,
     },
+    plan: parseRoomPlan(
+      raw.plan,
+      desksCount,
+      rig.fixtures.map((fixture) => fixture.id)
+    ),
   }
 
   return { config, fixtures: rig.fixtures, problems, smokeDisabledReason }
