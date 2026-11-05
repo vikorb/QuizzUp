@@ -35,7 +35,8 @@ import { DMX_CHANNELS, MAX_UNIVERSES } from './universe'
  * Découverte des nœuds : l'ack d'un pont qui la gère porte `"features":["poll"]` (absent d'un ancien
  * pont : `features()` vaut `[]`). `poll()` envoie `{"type":"poll"}` ; le pont diffuse un ArtPoll, collecte
  * les réponses ~3 s puis répond `{"type":"nodes","nodes":[{"ip":"192.168.1.50","shortName":"…",
- * "longName":"…","universes":["0.0.1"]}]}` (`universes` facultatif).
+ * "longName":"…","universes":["0.0.1"]}]}` (`universes` facultatif). Une erreur `code:"poll"` (ArtPoll
+ * non parti) fait échouer `poll()` (`poll_failed`) sans fermer la connexion.
  */
 export const BRIDGE_PROTOCOL_VERSION = 1
 /** Version du `hello` qui porte la cible Art-Net. */
@@ -121,10 +122,29 @@ export type BridgeOutput = DmxOutput & {
   features: () => string[]
   /**
    * Cherche les nœuds Art-Net du réseau local (~3 s). Un appel pendant une recherche en cours en
-   * attend le résultat. Rejette si le pont n'est pas connecté, s'il est trop ancien (pas de `poll`
-   * dans `features()`), si la connexion tombe ou si le pont ne répond pas à temps.
+   * attend le résultat. Rejette avec une `BridgePollError` : `not_connected` (pont absent ou
+   * connexion tombée), `unsupported` (pont sans `poll` dans `features()`), `timeout` (pas de
+   * réponse à temps) ou `poll_failed` (le pont n'a pas pu envoyer l'ArtPoll ; la connexion reste
+   * ouverte).
    */
   poll: () => Promise<ArtnetNode[]>
+}
+
+/** Raison d'un échec de `poll()` (traduite par l'écran de salle, pas de texte français à afficher). */
+export type BridgePollErrorCode = 'not_connected' | 'unsupported' | 'timeout' | 'poll_failed'
+
+/**
+ * Échec de `poll()` : `code` est stable (traduction côté interface), `message` n'est qu'un détail
+ * technique pour les journaux.
+ */
+export class BridgePollError extends Error {
+  readonly code: BridgePollErrorCode
+
+  constructor(code: BridgePollErrorCode, message: string) {
+    super(message)
+    this.name = 'BridgePollError'
+    this.code = code
+  }
 }
 
 /** Nœud Art-Net trouvé par le pont (IP d'un réseau local uniquement). */
@@ -330,7 +350,9 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
   } | null = null
 
   const failPoll = (error: Error) => {
-    pendingPoll?.reject(error)
+    pendingPoll?.reject(
+      error instanceof BridgePollError ? error : new BridgePollError('not_connected', error.message)
+    )
   }
 
   /** Fermeture en cours (volontaire ou après une coupure) : une réouverture l'attend. */
@@ -454,7 +476,10 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
       target.onmessage = (event) => {
         const message = parseMessage(event.data)
         if (settled) {
-          if (message?.type === 'error' && socket === target) {
+          if (message?.type === 'error' && message.code === 'poll' && socket === target) {
+            // ArtPoll non parti : la connexion reste valable (les trames DMX continuent).
+            failPoll(new BridgePollError('poll_failed', describeBridgeError(message)))
+          } else if (message?.type === 'error' && socket === target) {
             drop(new Error(describeBridgeError(message)))
           } else if (message?.type === 'nodes' && socket === target) {
             pendingPoll?.resolve(parseNodes(message.nodes))
@@ -572,11 +597,11 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
       }
       const current = socket
       if (!ready || !current || current.readyState !== WS_OPEN) {
-        return Promise.reject(new Error('Pont Art-Net non connecté'))
+        return Promise.reject(new BridgePollError('not_connected', 'Pont Art-Net non connecté'))
       }
       if (!features.includes(BRIDGE_FEATURE_POLL)) {
         return Promise.reject(
-          new Error('Ce pont est trop ancien pour chercher les nœuds : mets-le à jour')
+          new BridgePollError('unsupported', 'Ce pont est trop ancien pour chercher les nœuds')
         )
       }
       let resolve!: (nodes: ArtnetNode[]) => void
@@ -587,7 +612,12 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
       })
       const timer = clock.setTimeout(
         () =>
-          entry.reject(new Error(`Le pont n'a pas répondu à la recherche en ${pollTimeoutMs} ms`)),
+          entry.reject(
+            new BridgePollError(
+              'timeout',
+              `Le pont n'a pas répondu à la recherche en ${pollTimeoutMs} ms`
+            )
+          ),
         pollTimeoutMs
       )
       const settle = () => {
@@ -609,7 +639,9 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
       try {
         current.send(JSON.stringify({ type: 'poll' }))
       } catch (error) {
-        entry.reject(error instanceof Error ? error : new Error(String(error)))
+        entry.reject(
+          new BridgePollError('poll_failed', error instanceof Error ? error.message : String(error))
+        )
       }
       return promise
     },

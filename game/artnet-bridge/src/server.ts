@@ -1,3 +1,4 @@
+import type { RemoteInfo, Socket } from 'node:dgram'
 import { createSocket } from 'node:dgram'
 import type { IncomingMessage, Server } from 'node:http'
 import { createServer } from 'node:http'
@@ -22,13 +23,15 @@ import {
   CLOSE_CODES,
   decodeFrame,
   errorMessage,
-  isAllowedArtnetTarget,
   isInternalUniverse,
+  isPlausibleNode,
   isPollMessage,
   MAX_INTERNAL_UNIVERSES,
   nodesMessage,
   parseHello,
   POLL_MAX_NODES,
+  POLL_MAX_PACKETS,
+  POLL_MAX_UNIVERSES,
   POLL_MIN_INTERVAL_MS,
   POLL_WINDOW_MS,
 } from './protocol.js'
@@ -68,6 +71,11 @@ export type BridgeServerOptions = {
    * diffusion locale comme 192.168.1.255). Le port est celui de `artnetPort`.
    */
   pollBroadcast?: string
+  /**
+   * Filtre des nœuds d'un ArtPollReply (IP annoncée, IP de l'expéditeur). Par défaut
+   * `isPlausibleNode` ; les tests d'intégration, tous en boucle locale, le remplacent.
+   */
+  acceptNode?: (ip: string, remoteAddress: string) => boolean
   clock?: Clock
   log?: (message: string) => void
   version: string
@@ -191,65 +199,160 @@ export function createBridgeServer(options: BridgeServerOptions): BridgeServer {
     source: target === null ? 'none' : targetFromCli ? 'cli' : 'room',
   })
 
-  // Découverte : un seul poll à la fois (un second poll pendant le premier attend la même réponse) ;
-  // moins d'1 s après la fin du précédent, on renvoie son résultat sans nouvel ArtPoll.
+  // Découverte : un seul poll à la fois ; moins d'1 s après la fin du précédent, on renvoie son
+  // résultat sans nouvel ArtPoll. Un nœud Art-Net conforme répond sur le port Art-Net (pas sur le
+  // port source éphémère du socket d'envoi) : pendant la collecte, un socket temporaire écoute donc
+  // sur `artnetPort` (`reuseAddr`, pour cohabiter avec une autre application Art-Net). S'il ne peut
+  // pas s'ouvrir, on retombe sur le seul socket d'envoi (réponses au port source).
   const pollBroadcast = options.pollBroadcast ?? LIMITED_BROADCAST
-  let poll: {
-    nodes: Map<string, ArtNode>
-    replies: ((nodes: ArtNode[]) => void)[]
-    timer: TimerHandle
-  } | null = null
+  const acceptNode = options.acceptNode ?? isPlausibleNode
+  type PollNode = { shortName: string; longName: string; universes: Set<string> }
+  // État du poll en cours (il n'y en a qu'un). `pollId` identifie la collecte : un callback tardif
+  // d'une collecte terminée est ignoré.
+  let pollId = 0
+  let pollActive = false
+  let pollNodes = new Map<string, PollNode>()
+  let pollPackets = 0
+  let pollTimer: TimerHandle | null = null
+  let pollListener: Socket | null = null
+  /** Une seule réponse en attente (un seul écran de salle à la fois). */
+  let pollOnNodes: ((nodes: ArtNode[]) => void) | null = null
+  let pollOnError: ((reason: string) => void) | null = null
   let lastPoll: { endedAt: number; nodes: ArtNode[] } | null = null
 
-  const finishPoll = () => {
-    const current = poll
-    poll = null
-    if (!current) {
-      return
-    }
-    const nodes = [...current.nodes.values()]
-    lastPoll = { endedAt: clock.now(), nodes }
-    for (const reply of current.replies) {
-      reply(nodes)
+  const closeListener = () => {
+    const listener = pollListener
+    pollListener = null
+    try {
+      listener?.close()
+    } catch {
+      // déjà fermé
     }
   }
 
-  const requestPoll = (reply: (nodes: ArtNode[]) => void) => {
-    if (poll) {
-      poll.replies.push(reply)
+  /** Termine la collecte en cours et rend ses callbacks. */
+  const endPoll = () => {
+    if (pollTimer !== null) {
+      clock.clearTimeout(pollTimer)
+      pollTimer = null
+    }
+    closeListener()
+    pollActive = false
+    const callbacks = { onNodes: pollOnNodes, onError: pollOnError }
+    pollOnNodes = null
+    pollOnError = null
+    return callbacks
+  }
+
+  const finishPoll = (id: number) => {
+    if (!pollActive || id !== pollId) {
+      return
+    }
+    const nodes = [...pollNodes].map(([ip, node]): ArtNode => ({
+      ip,
+      shortName: node.shortName,
+      longName: node.longName,
+      ...(node.universes.size > 0 ? { universes: [...node.universes] } : {}),
+    }))
+    lastPoll = { endedAt: clock.now(), nodes }
+    endPoll().onNodes?.(nodes)
+  }
+
+  const failPoll = (id: number, reason: string) => {
+    if (!pollActive || id !== pollId) {
+      return
+    }
+    endPoll().onError?.(reason)
+  }
+
+  // Réponses d'un ArtPollReply : seuls les nœuds plausibles sont gardés (`acceptNode`), au plus
+  // POLL_MAX_NODES, POLL_MAX_UNIVERSES univers chacun et POLL_MAX_PACKETS paquets par poll. Les nœuds
+  // à plusieurs ports répondent plusieurs fois : une entrée par IP, univers fusionnés.
+  const collectReply = (message: Buffer, remote: RemoteInfo) => {
+    if (!pollActive || pollPackets >= POLL_MAX_PACKETS) {
+      return
+    }
+    pollPackets += 1
+    const node = decodeArtPollReply(message)
+    if (!node || !acceptNode(node.ip, remote.address)) {
+      return
+    }
+    let known = pollNodes.get(node.ip)
+    if (!known) {
+      if (pollNodes.size >= POLL_MAX_NODES) {
+        return
+      }
+      known = { shortName: node.shortName, longName: node.longName, universes: new Set() }
+      pollNodes.set(node.ip, known)
+    }
+    for (const universe of node.universes ?? []) {
+      if (known.universes.size < POLL_MAX_UNIVERSES) {
+        known.universes.add(universe)
+      }
+    }
+  }
+
+  const requestPoll = (onNodes: (nodes: ArtNode[]) => void, onError: (reason: string) => void) => {
+    if (pollActive) {
+      // Le poll en cours sert la nouvelle demande (un seul écran de salle : l'ancienne est caduque).
+      pollOnNodes = onNodes
+      pollOnError = onError
       return
     }
     if (lastPoll && clock.now() - lastPoll.endedAt < POLL_MIN_INTERVAL_MS) {
-      reply(lastPoll.nodes)
+      onNodes(lastPoll.nodes)
       return
     }
-    poll = {
-      nodes: new Map(),
-      replies: [reply],
-      timer: clock.setTimeout(finishPoll, POLL_WINDOW_MS),
-    }
-    udp.send(encodeArtPoll(), artnetPort, pollBroadcast, (error) => {
-      if (error) {
+    pollId += 1
+    const id = pollId
+    pollActive = true
+    pollNodes = new Map()
+    pollPackets = 0
+    pollOnNodes = onNodes
+    pollOnError = onError
+    pollTimer = clock.setTimeout(() => finishPoll(id), POLL_WINDOW_MS)
+    let sent = false
+    // L'ArtPoll part une fois l'écoute ouverte (ou abandonnée) : aucune réponse rapide n'est perdue.
+    const sendPoll = () => {
+      if (sent || !pollActive || id !== pollId) {
+        return
+      }
+      sent = true
+      const fail = (error: Error) => {
         log(`ArtPoll impossible vers ${pollBroadcast} : ${error.message}`)
+        failPoll(id, error.message)
+      }
+      try {
+        udp.send(encodeArtPoll(), artnetPort, pollBroadcast, (error) => {
+          if (error) {
+            fail(error)
+          }
+        })
+      } catch (error) {
+        fail(error as Error)
+      }
+    }
+    const listener = createSocket({ type: 'udp4', reuseAddr: true })
+    pollListener = listener
+    listener.on('message', (message, remote) => {
+      if (id === pollId) {
+        collectReply(message, remote)
       }
     })
+    listener.on('error', (error) => {
+      log(
+        `Écoute des réponses Art-Net sur le port ${artnetPort} impossible (${error.message}) : ` +
+          'seules les réponses au port source seront lues'
+      )
+      if (pollListener === listener) {
+        closeListener()
+      }
+      sendPoll()
+    })
+    listener.bind({ address: '0.0.0.0', port: artnetPort }, sendPoll)
   }
 
-  // Réponses d'un ArtPollReply : seuls les nœuds d'une IP locale sont gardés, au plus POLL_MAX_NODES.
-  // Les nœuds à plusieurs ports répondent plusieurs fois : une entrée par IP, univers fusionnés.
-  udp.on('message', (message) => {
-    const node = poll ? decodeArtPollReply(message) : null
-    if (!poll || !node || !isAllowedArtnetTarget(node.ip)) {
-      return
-    }
-    const known = poll.nodes.get(node.ip)
-    if (known) {
-      const universes = [...new Set([...(known.universes ?? []), ...(node.universes ?? [])])]
-      poll.nodes.set(node.ip, { ...known, ...(universes.length > 0 ? { universes } : {}) })
-    } else if (poll.nodes.size < POLL_MAX_NODES) {
-      poll.nodes.set(node.ip, node)
-    }
-  })
+  udp.on('message', (message, remote) => collectReply(message, remote))
 
   let server: Server | null = null
   let listeningPort = options.port
@@ -290,6 +393,7 @@ export function createBridgeServer(options: BridgeServerOptions): BridgeServer {
     const current = { connection, socket }
     client = current
     let ready = false
+    let pollPending = false
 
     const refuse = (code: number, kind: string, message: string) => {
       log(`Écran de salle refusé : ${message}`)
@@ -349,12 +453,24 @@ export function createBridgeServer(options: BridgeServerOptions): BridgeServer {
         return
       }
       if (message.kind === 'text') {
-        if (isPollMessage(message.data)) {
-          requestPoll((nodes) => {
-            if (connection.isOpen()) {
-              connection.sendText(nodesMessage(nodes))
+        if (isPollMessage(message.data) && !pollPending) {
+          // Une seule réponse en attente par connexion : un poll redemandé pendant la collecte
+          // est ignoré (le navigateur partage de son côté la réponse en cours).
+          pollPending = true
+          requestPoll(
+            (nodes) => {
+              pollPending = false
+              if (connection.isOpen()) {
+                connection.sendText(nodesMessage(nodes))
+              }
+            },
+            (reason) => {
+              pollPending = false
+              if (connection.isOpen()) {
+                connection.sendText(errorMessage('poll', `ArtPoll impossible : ${reason}`))
+              }
             }
-          })
+          )
         }
         return
       }
@@ -446,9 +562,8 @@ export function createBridgeServer(options: BridgeServerOptions): BridgeServer {
         return
       }
       core.stop()
-      if (poll) {
-        clock.clearTimeout(poll.timer)
-        poll = null
+      if (pollActive) {
+        endPoll()
       }
       const current = client
       client = null

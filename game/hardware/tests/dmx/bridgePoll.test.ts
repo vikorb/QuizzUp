@@ -1,5 +1,6 @@
 import {
   BRIDGE_POLL_TIMEOUT_MS,
+  BridgePollError,
   createBridgeOutput,
   DEFAULT_BRIDGE_URL,
 } from '@hardware/dmx/bridgeOutput'
@@ -91,7 +92,7 @@ describe('sortie pont : découverte des nœuds (poll)', () => {
 
   it('rejette au bout du délai si le pont ne répond pas, puis accepte une nouvelle recherche', async () => {
     const { output, socket, clock } = await openBridge()
-    const outcome = expect(output.poll()).rejects.toThrow('pas répondu')
+    const outcome = expect(output.poll()).rejects.toMatchObject({ code: 'timeout' })
     clock.advance(BRIDGE_POLL_TIMEOUT_MS)
     await outcome
     const retry = output.poll()
@@ -101,12 +102,12 @@ describe('sortie pont : découverte des nœuds (poll)', () => {
 
   it('rejette quand la connexion tombe ou quand la sortie est fermée pendant la recherche', async () => {
     const dropped = await openBridge()
-    const first = expect(dropped.output.poll()).rejects.toThrow('déconnecté')
+    const first = expect(dropped.output.poll()).rejects.toMatchObject({ code: 'not_connected' })
     dropped.socket.serverClose(1006)
     await first
 
     const closed = await openBridge()
-    const second = expect(closed.output.poll()).rejects.toThrow('fermé')
+    const second = expect(closed.output.poll()).rejects.toMatchObject({ code: 'not_connected' })
     await closed.output.close()
     await second
   })
@@ -118,10 +119,11 @@ describe('sortie pont : découverte des nœuds (poll)', () => {
       WebSocketImpl: fake.WebSocketImpl,
       clock: createManualClock(),
     })
-    await expect(idle.poll()).rejects.toThrow('non connecté')
+    await expect(idle.poll()).rejects.toMatchObject({ code: 'not_connected' })
+    await expect(idle.poll()).rejects.toBeInstanceOf(BridgePollError)
 
     const old = await openBridge({ ...ACK })
-    await expect(old.output.poll()).rejects.toThrow('trop ancien')
+    await expect(old.output.poll()).rejects.toMatchObject({ code: 'unsupported' })
     expect(old.socket.sent).not.toContain(POLL_MESSAGE)
   })
 
@@ -130,7 +132,34 @@ describe('sortie pont : découverte des nœuds (poll)', () => {
     socket.send = () => {
       throw new Error('socket cassée')
     }
-    await expect(output.poll()).rejects.toThrow('socket cassée')
+    await expect(output.poll()).rejects.toMatchObject({
+      code: 'poll_failed',
+      message: 'socket cassée',
+    })
+  })
+
+  it('code "poll" du pont : la recherche échoue (poll_failed) sans couper la connexion', async () => {
+    const { output, socket } = await openBridge()
+    const disconnected = vi.fn()
+    output.onDisconnect(disconnected)
+    const polling = output.poll()
+    socket.serverSend({ type: 'error', code: 'poll', message: 'ArtPoll impossible : ENETUNREACH' })
+    await expect(polling).rejects.toMatchObject({ code: 'poll_failed' })
+    expect(disconnected).not.toHaveBeenCalled()
+    // La connexion sert encore : une nouvelle recherche repart et aboutit.
+    const retry = output.poll()
+    socket.serverSend({ type: 'nodes', nodes: [] })
+    await expect(retry).resolves.toEqual([])
+  })
+
+  it('un autre code d’erreur du pont coupe la connexion et fait échouer la recherche', async () => {
+    const { output, socket } = await openBridge()
+    const disconnected = vi.fn()
+    output.onDisconnect(disconnected)
+    const polling = expect(output.poll()).rejects.toMatchObject({ code: 'not_connected' })
+    socket.serverSend({ type: 'error', code: 'frame', message: 'trame invalide' })
+    await polling
+    expect(disconnected).toHaveBeenCalledTimes(1)
   })
 
   it('ignore un message nodes sans recherche en cours', async () => {

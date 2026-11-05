@@ -58,6 +58,7 @@ export type {
   BridgeArtnetStatus,
   BridgeOutput,
   BridgeOutputOptions,
+  BridgePollErrorCode,
   WebSocketConstructorLike,
   WebSocketLike,
 } from './dmx/bridgeOutput'
@@ -67,6 +68,7 @@ export {
   BRIDGE_MAX_BUFFERED_BYTES,
   BRIDGE_OPEN_TIMEOUT_MS,
   BRIDGE_PROTOCOL_VERSION,
+  BridgePollError,
   createBridgeOutput,
   DEFAULT_BRIDGE_PORT,
   DEFAULT_BRIDGE_URL,

@@ -194,26 +194,39 @@ export type UdpReceiver = {
   close: () => Promise<void>
 }
 
-/** Faux nœud Art-Net : écoute en UDP sur 127.0.0.1 (port choisi par le système). */
+export type UdpReceiverOptions = {
+  /** Adresse d'écoute (127.0.0.1 par défaut). */
+  address?: string
+  /** Pour partager le port avec un autre socket (`SO_REUSEADDR`). */
+  reuseAddr?: boolean
+  /** Où partent les réponses automatiques ; par défaut l'adresse et le port de l'expéditeur. */
+  replyTo?: (remote: { address: string; port: number }) => { address: string; port: number }
+}
+
 /**
+ * Faux nœud Art-Net : écoute en UDP (port choisi par le système).
  * `reply` : réponses automatiques à chaque paquet reçu, renvoyées à l'expéditeur (comme un nœud
- * qui répond à un ArtPoll).
+ * qui répond à un ArtPoll), ou à `options.replyTo`.
  */
-export function openUdpReceiver(reply?: (message: Buffer) => Buffer[]): Promise<UdpReceiver> {
+export function openUdpReceiver(
+  reply?: (message: Buffer) => Buffer[],
+  options: UdpReceiverOptions = {}
+): Promise<UdpReceiver> {
   return new Promise((resolve) => {
-    const socket: UdpSocket = createSocket('udp4')
+    const socket: UdpSocket = createSocket({ type: 'udp4', reuseAddr: options.reuseAddr ?? false })
     const packets: Buffer[] = []
     const listeners: (() => void)[] = []
     socket.on('message', (message, remote) => {
       packets.push(message)
       for (const answer of reply?.(message) ?? []) {
-        socket.send(answer, remote.port, remote.address)
+        const to = options.replyTo?.(remote) ?? remote
+        socket.send(answer, to.port, to.address)
       }
       for (const listener of [...listeners]) {
         listener()
       }
     })
-    socket.bind(0, '127.0.0.1', () => {
+    socket.bind(0, options.address ?? '127.0.0.1', () => {
       resolve({
         port: socket.address().port,
         packets,
@@ -237,7 +250,14 @@ export function openUdpReceiver(reply?: (message: Buffer) => Buffer[]): Promise<
             listeners.push(listener)
           })
         },
-        close: () => new Promise((resolveClose) => socket.close(() => resolveClose())),
+        close: () =>
+          new Promise((resolveClose) => {
+            try {
+              socket.close(() => resolveClose())
+            } catch {
+              resolveClose() // déjà fermé
+            }
+          }),
       })
     })
   })

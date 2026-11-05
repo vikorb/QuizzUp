@@ -101,12 +101,22 @@ connexion, ou une connexion refusée (écran déjà connecté), ne change rien.
 **Recherche des nœuds** : l'assistant de l'écran de salle propose un bouton « Chercher les nœuds ».
 Le pont diffuse un **ArtPoll** (OpCode 0x2000, ProtVer 14) vers `--poll-broadcast` (port
 `--artnet-port`), collecte les **ArtPollReply** (0x2100) pendant 3 s puis renvoie la liste. Seuls les
-nœuds dont l'IP est d'un réseau local (mêmes plages que la cible) sont gardés, 64 au plus ; un nœud à
-plusieurs ports n'apparaît qu'une fois, avec ses univers de sortie réunis. Un seul poll tourne à la
-fois (un second poll pendant le premier reçoit la même réponse) et un poll lancé moins d'1 s après la
-fin du précédent reçoit son résultat sans nouvel ArtPoll. Les réponses sont attendues sur le port UDP
-d'émission du pont : un nœud qui ne répond qu'en diffusion sur le port 6454 n'est pas vu (saisir alors
-son IP à la main).
+nœuds plausibles sont gardés : IP d'un réseau local (mêmes plages que la cible), égale à l'adresse
+d'où vient la réponse, ni en 127.x, ni terminée par .0 ou .255. Plafonds par poll : 64 nœuds, 16
+univers par nœud, 1024 paquets traités (le reste est ignoré) ; les noms sont débarrassés de leurs
+caractères de contrôle. Un nœud à plusieurs ports n'apparaît qu'une fois, avec ses univers de sortie
+réunis. Un seul poll tourne à la fois (une connexion n'a qu'une réponse en attente : un poll
+redemandé pendant la collecte est ignoré) et un poll lancé moins d'1 s après la fin du précédent
+reçoit son résultat sans nouvel ArtPoll.
+
+Un nœud Art-Net conforme répond à l'ArtPoll **sur le port Art-Net** (6454 ou `--artnet-port`), en
+unicast vers le PC (Art-Net 4) ou en diffusion (Art-Net 3), pas au port source du pont. Pendant la
+collecte, le pont ouvre donc un socket d'écoute temporaire sur ce port (`0.0.0.0`, `reuseAddr`,
+refermé à la fin) et lit aussi les réponses arrivant au port source de l'ArtPoll. Si l'écoute ne
+peut pas s'ouvrir (port pris par une application qui ne le partage pas), le pont le journalise et
+garde le seul port source : saisir alors l'IP du nœud à la main si rien n'apparaît. Si l'ArtPoll ne
+peut pas partir (réseau injoignable), le pont répond `{"type":"error","code":"poll",…}` sans
+fermer la connexion.
 
 Dans le backoffice, la salle utilise alors le pilote **`artnet-bridge`**
 (`rooms.config.lighting.driver`) et, si le port n'est pas 7654,
@@ -281,7 +291,9 @@ et il est testé avec un client brut et avec le client WebSocket intégré à No
    manquant, code 4000) : le navigateur envoie `{"type":"poll"}`, le pont répond au bout de 3 s
    `{"type":"nodes","nodes":[{"ip":"192.168.1.50","shortName":"NET-3","longName":"Showtec NET-3",
 "universes":["0.0.0","0.0.1"]}]}` (`universes` : sorties DMX `net.sub.uni`, absent si aucune).
-   Pas de `status` périodique : le pont ne pousse rien sans demande.
+   Si l'ArtPoll ne peut pas partir : `{"type":"error","code":"poll","message":"…"}`, **sans fermer**
+   la connexion (les trames DMX continuent). Pas de `status` périodique : le pont ne pousse rien
+   sans demande.
 4. Trames binaires de **515 octets** : octet 0 = version (1), octets 1-2 = univers interne
    (gros-boutiste, 0 à 15), octets 3-514 = canaux 1 à 512. Le `hello` annonce toujours
    `universe: 0` ; un univers interne supérieur à 15 ferme la connexion (4002).
@@ -317,7 +329,8 @@ npm test             # npm run test:coverage : seuils 90 % lignes / 85 % branche
 
 Les tests couvrent l'encodage ArtDMX et ArtPoll octet par octet, le décodage d'un ArtPollReply de
 référence (paquets malformés ignorés), la recherche de nœuds contre un faux nœud UDP (IP non locale
-filtrée, plafond, débit limité, poll avant le `hello` refusé), les mappages, les mappages, la ligne de commande et le
+filtrée, plafonds, réponses au port Art-Net ou au port source, débit limité, poll avant le `hello`
+refusé, client parti, ArtDmx pendant la collecte, échec d'envoi), les mappages, les mappages, la ligne de commande et le
 fichier de configuration, le chien de garde (horloge manuelle), et un test d'intégration
 WebSocket → UDP sur `127.0.0.1` (faux nœud Art-Net, origines refusées, client unique, noir à la
 déconnexion et à l'arrêt).

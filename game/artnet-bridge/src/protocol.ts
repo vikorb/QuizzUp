@@ -80,13 +80,18 @@ export function decodeFrame(message: Uint8Array): DecodedFrame {
  * accepté, le navigateur envoie `{"type":"poll"}` ; le pont diffuse un ArtPoll, collecte les
  * réponses pendant `POLL_WINDOW_MS` puis répond
  * `{"type":"nodes","nodes":[{"ip":"192.168.1.50","shortName":"…","longName":"…","universes":["0.0.1"]}]}`
- * (`universes` absent si le nœud n'annonce aucune sortie).
+ * (`universes` absent si le nœud n'annonce aucune sortie). Si l'ArtPoll ne part pas, le pont répond
+ * `{"type":"error","code":"poll","message":"…"}` sans fermer la connexion.
  */
 export const POLL_FEATURE = 'poll'
 export const POLL_WINDOW_MS = 3000
 /** Un poll lancé moins d'1 s après la fin du précédent reçoit le même résultat, sans nouvel ArtPoll. */
 export const POLL_MIN_INTERVAL_MS = 1000
 export const POLL_MAX_NODES = 64
+/** Univers retenus par nœud (un nœud n'en annonce que 4 par réponse, mais peut répondre souvent). */
+export const POLL_MAX_UNIVERSES = 16
+/** Paquets UDP traités par poll : au-delà, le reste est ignoré (protège contre un flot de réponses). */
+export const POLL_MAX_PACKETS = 1024
 
 export function isPollMessage(text: string): boolean {
   try {
@@ -153,6 +158,17 @@ export function isAllowedArtnetTarget(ip: string): boolean {
     (first === 192 && second === 168) ||
     (first === 169 && second === 254)
   )
+}
+
+/**
+ * Un nœud annoncé est plausible si l'IP de son ArtPollReply est bien celle de l'expéditeur, locale,
+ * ni de boucle locale (127.x), ni une adresse réseau ou de diffusion (.0 / .255).
+ */
+export function isPlausibleNode(ip: string, remoteAddress: string): boolean {
+  if (ip !== remoteAddress || !isAllowedArtnetTarget(ip) || ip.startsWith('127.')) {
+    return false
+  }
+  return !ip.endsWith('.0') && !ip.endsWith('.255')
 }
 
 export const ARTNET_TARGET_RANGES = '10.x.x.x, 172.16-31.x.x, 192.168.x.x, 169.254.x.x, 127.x.x.x'

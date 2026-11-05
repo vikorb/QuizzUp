@@ -5,6 +5,7 @@ import {
   type ArtnetNode,
   type BridgeArtnetStatus,
   type BridgeOutput,
+  BridgePollError,
   type BuzzerInput,
   type BuzzerInputState,
   type BuzzerKeymap,
@@ -316,7 +317,9 @@ const activeBridge = shallowRef<BridgeOutput | null>(null)
  */
 export function pollArtnetNodes(): Promise<ArtnetNode[]> {
   const bridge = activeBridge.value
-  return bridge ? bridge.poll() : Promise.reject(new Error('Pont Art-Net non connecté'))
+  return bridge
+    ? bridge.poll()
+    : Promise.reject(new BridgePollError('not_connected', 'Pont Art-Net non connecté'))
 }
 
 function clearBridgeRetry(): void {

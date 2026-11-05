@@ -283,7 +283,13 @@
         "artnetSearching": "Recherche en cours (environ 3 s)…",
         "artnetSearchOffline": "Connecte d’abord le pont (bouton ci-dessous) pour chercher les nœuds.",
         "artnetSearchOld": "Ce pont est trop ancien pour chercher les nœuds : mets-le à jour, ou saisis l’IP à la main.",
-        "artnetSearchError": "Recherche impossible : {error}",
+        "artnetSearchError": {
+          "not_connected": "Recherche impossible : le pont n’est pas (ou plus) connecté. Reconnecte-le puis relance la recherche.",
+          "unsupported": "Recherche impossible : ce pont est trop ancien, mets-le à jour ou saisis l’IP à la main.",
+          "timeout": "Le pont n’a pas répondu à la recherche. Vérifie qu’il tourne toujours, puis relance.",
+          "poll_failed": "Le pont n’a pas pu interroger le réseau (câble, carte réseau ou adresse de diffusion ?). La connexion reste ouverte : corrige puis relance.",
+          "unknown": "Recherche impossible pour une raison inconnue."
+        },
         "artnetNoNode": "Aucun nœud trouvé. Vérifie que le boîtier est alimenté et branché sur le même réseau que ce PC, ou saisis son IP à la main.",
         "artnetUniverses": "univers"
       },

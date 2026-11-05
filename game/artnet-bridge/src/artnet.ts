@@ -139,11 +139,16 @@ export type ArtNode = {
   universes?: string[]
 }
 
+// Texte du nœud, affiché tel quel dans l'écran de salle : sans caractère de contrôle.
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARACTERS = /[\x00-\x1f\x7f-\x9f]/g
+
 const cString = (buffer: Uint8Array, start: number, length: number) => {
   const field = buffer.subarray(start, start + length)
   const end = field.indexOf(0)
   return Buffer.from(end === -1 ? field : field.subarray(0, end))
     .toString('latin1')
+    .replace(CONTROL_CHARACTERS, '')
     .trim()
 }
 

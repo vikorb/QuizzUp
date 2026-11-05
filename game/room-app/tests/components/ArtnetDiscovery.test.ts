@@ -36,6 +36,8 @@ const bridge = {
   features: ['poll'] as string[] | undefined,
   nodes: NODES as unknown[],
   polls: 0,
+  /** `true` : le pont répond au poll par une erreur `poll` (ArtPoll impossible à envoyer). */
+  pollError: false,
 }
 
 class BridgeSocket {
@@ -71,7 +73,9 @@ class BridgeSocket {
       }
     } else if (message.type === 'poll') {
       bridge.polls += 1
-      reply = { type: 'nodes', nodes: bridge.nodes }
+      reply = bridge.pollError
+        ? { type: 'error', code: 'poll', message: 'ArtPoll impossible : ENETUNREACH' }
+        : { type: 'nodes', nodes: bridge.nodes }
     }
     queueMicrotask(() => this.onmessage?.({ data: JSON.stringify(reply) }))
   }
@@ -120,6 +124,7 @@ describe('assistant : recherche des nœuds Art-Net', () => {
     bridge.features = ['poll']
     bridge.nodes = NODES
     bridge.polls = 0
+    bridge.pollError = false
     vi.stubGlobal('WebSocket', BridgeSocket)
   })
   afterEach(async () => {
@@ -132,7 +137,7 @@ describe('assistant : recherche des nœuds Art-Net', () => {
     const wrapper = await openBridgeStep()
     expect(sel(wrapper, 'artnet-search').attributes('disabled')).toBeDefined()
     expect(sel(wrapper, 'artnet-search-offline').exists()).toBe(true)
-    await expect(pollArtnetNodes()).rejects.toThrow('non connecté')
+    await expect(pollArtnetNodes()).rejects.toMatchObject({ code: 'not_connected' })
   })
 
   it('affiche les nœuds trouvés ; un clic enregistre l’IP comme la saisie', async () => {
@@ -176,5 +181,26 @@ describe('assistant : recherche des nœuds Art-Net', () => {
     expect(sel(wrapper, 'artnet-search-old').text()).toContain('trop ancien')
     expect(sel(wrapper, 'artnet-search').attributes('disabled')).toBeDefined()
     expect(bridge.polls).toBe(0)
+  })
+
+  it('échec de la recherche : message traduit selon le code, connexion et bouton conservés', async () => {
+    bridge.pollError = true
+    const wrapper = await openBridgeStep()
+    await connectBridge(wrapper)
+    await click(wrapper, 'artnet-search')
+    await vi.waitFor(() => expect(sel(wrapper, 'artnet-search-error').exists()).toBe(true))
+    const alert = sel(wrapper, 'artnet-search-error').text()
+    expect(alert).toContain('n’a pas pu interroger le réseau')
+    // Le détail technique du pont n'est pas affiché tel quel.
+    expect(alert).not.toContain('ENETUNREACH')
+    expect(sel(wrapper, 'artnet-nodes').exists()).toBe(false)
+    // La connexion au pont reste ouverte : on peut relancer et la recherche aboutit.
+    expect(sel(wrapper, 'artnet-effective').exists()).toBe(true)
+    expect(sel(wrapper, 'artnet-search').attributes('disabled')).toBeUndefined()
+    bridge.pollError = false
+    await click(wrapper, 'artnet-search')
+    await vi.waitFor(() => expect(sel(wrapper, 'artnet-nodes').exists()).toBe(true))
+    expect(sel(wrapper, 'artnet-search-error').exists()).toBe(false)
+    expect(bridge.polls).toBe(2)
   })
 })

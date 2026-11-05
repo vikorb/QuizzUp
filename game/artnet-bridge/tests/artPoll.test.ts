@@ -62,6 +62,17 @@ describe('paquet ArtPollReply', () => {
     expect(node?.universes).toEqual(['127.3.15'])
   })
 
+  it('retire les caractères de contrôle des noms (ESC, BEL, retour chariot, C1)', () => {
+    const reply = buildPollReply({
+      ip: '10.0.0.8',
+      shortName: 'A\x1b[31mB\x07C',
+      longName: 'Ligne1\r\nLigne2\x85\x7f fin',
+    })
+    const node = decodeArtPollReply(reply)
+    expect(node?.shortName).toBe('A[31mBC')
+    expect(node?.longName).toBe('Ligne1Ligne2 fin')
+  })
+
   it('ignore sans exception les paquets malformés', () => {
     const good = buildPollReply({ ip: '10.0.0.9', ports: [{ type: 0x80, swOut: 1 }] })
     const wrongId = Buffer.from(good)

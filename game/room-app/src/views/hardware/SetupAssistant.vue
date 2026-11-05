@@ -133,7 +133,7 @@
           role="alert"
           data-test="artnet-search-error"
         >
-          {{ $t('hardware.assistant.interface.artnetSearchError', { error: searchError }) }}
+          {{ $t(`hardware.assistant.interface.artnetSearchError.${searchError}`) }}
         </p>
         <p
           v-else-if="nodes && nodes.length === 0"
@@ -519,6 +519,7 @@ import { mdiDeleteOutline, mdiUsb } from '@mdi/js'
 import {
   activeLightingConfig,
   type ArtnetNode,
+  BridgePollError,
   type BrowserCheck,
   type BuzzerSource,
   checkBrowser,
@@ -737,7 +738,9 @@ function onArtnetTarget(): void {
 /** Recherche des nœuds Art-Net par le pont (ArtPoll, ~3 s) ; `nodes` reste `null` tant qu'on n'a pas cherché. */
 const nodes = ref<ArtnetNode[] | null>(null)
 const searching = ref(false)
+/** Code de l'échec (`BridgePollError.code`), traduit dans les locales ; `unknown` sinon. */
 const searchError = ref<string | null>(null)
+const SEARCH_ERROR_CODES = ['not_connected', 'unsupported', 'timeout', 'poll_failed']
 
 async function onSearchNodes(): Promise<void> {
   searching.value = true
@@ -746,7 +749,8 @@ async function onSearchNodes(): Promise<void> {
     nodes.value = await pollArtnetNodes()
   } catch (error) {
     nodes.value = null
-    searchError.value = error instanceof Error ? error.message : String(error)
+    const code = error instanceof BridgePollError ? error.code : null
+    searchError.value = code !== null && SEARCH_ERROR_CODES.includes(code) ? code : 'unknown'
   } finally {
     searching.value = false
   }

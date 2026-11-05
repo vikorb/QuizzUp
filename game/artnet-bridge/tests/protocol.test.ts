@@ -5,6 +5,7 @@ import {
   decodeFrame,
   errorMessage,
   isAllowedArtnetTarget,
+  isPlausibleNode,
   parseHello,
 } from '@bridge/protocol'
 
@@ -160,5 +161,27 @@ describe('protocole v2 : cible Art-Net', () => {
     expect(
       JSON.parse(ackMessage('1.2.3', { target: '10.0.0.5', port: 6454, source: 'room' })).artnet
     ).toEqual({ target: '10.0.0.5', port: 6454, source: 'room' })
+  })
+})
+
+describe('isPlausibleNode', () => {
+  it('accepte une IP locale annoncée par son propre expéditeur', () => {
+    for (const ip of ['192.168.1.50', '10.0.0.4', '172.16.5.9', '169.254.3.7']) {
+      expect(isPlausibleNode(ip, ip), ip).toBe(true)
+    }
+  })
+
+  it('écarte une IP annoncée différente de celle de l’expéditeur', () => {
+    expect(isPlausibleNode('192.168.1.50', '192.168.1.51')).toBe(false)
+    expect(isPlausibleNode('192.168.1.50', '10.0.0.4')).toBe(false)
+  })
+
+  it('écarte la boucle locale, les adresses .0 et .255 et les IP hors réseau local', () => {
+    for (const ip of ['127.0.0.1', '127.0.0.2', '192.168.1.0', '192.168.1.255', '10.0.0.255']) {
+      expect(isPlausibleNode(ip, ip), ip).toBe(false)
+    }
+    for (const ip of ['8.8.8.8', '172.32.0.1', 'pas une ip', '']) {
+      expect(isPlausibleNode(ip, ip), ip).toBe(false)
+    }
   })
 })
