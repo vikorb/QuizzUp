@@ -311,7 +311,33 @@
       },
       "positions": {
         "pan": "Gauche / droite",
-        "tilt": "Haut / bas"
+        "tilt": "Haut / bas",
+        "calibration": {
+          "title": "Calage au clavier",
+          "target": "{fixture} : pupitre {desk} ({n} sur {total})",
+          "inverted": "sens inversé",
+          "finished": "Dernière position validée. Passe à l’étape suivante.",
+          "copied": "Position du pupitre {desk} copiée.",
+          "noPrevious": "Pas de pupitre précédent à copier pour cette lyre.",
+          "invertedOn": "{axis} : sens inversé. Le faisceau ne bouge pas.",
+          "invertedOff": "{axis} : sens normal. Le faisceau ne bouge pas.",
+          "taken": "touche occupée par un buzzer : utilise le bouton",
+          "keys": { "shift": "Maj", "enter": "Entrée" },
+          "buttons": {
+            "invertPan": "Inverser pan",
+            "invertTilt": "Inverser tilt",
+            "copy": "Copier le précédent",
+            "validate": "Valider"
+          },
+          "help": {
+            "move": "déplacer la lyre (grand pas)",
+            "fine": "petit pas",
+            "validate": "valider et passer au pupitre suivant (ou buzzer du pupitre)",
+            "copy": "copier la position du pupitre précédent de la même lyre",
+            "invertPan": "inverser gauche / droite",
+            "invertTilt": "inverser haut / bas"
+          }
+        }
       },
       "smoke": {
         "enable": "Utiliser la fumée dans cette salle",

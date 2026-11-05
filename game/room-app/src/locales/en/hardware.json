@@ -311,7 +311,33 @@
       },
       "positions": {
         "pan": "Left / right",
-        "tilt": "Up / down"
+        "tilt": "Up / down",
+        "calibration": {
+          "title": "Keyboard aiming",
+          "target": "{fixture}: desk {desk} ({n} of {total})",
+          "inverted": "reversed",
+          "finished": "Last position confirmed. Go to the next step.",
+          "copied": "Position of desk {desk} copied.",
+          "noPrevious": "No previous desk to copy from for this moving head.",
+          "invertedOn": "{axis}: direction reversed. The beam does not move.",
+          "invertedOff": "{axis}: normal direction. The beam does not move.",
+          "taken": "key used by a buzzer: use the button",
+          "keys": { "shift": "Shift", "enter": "Enter" },
+          "buttons": {
+            "invertPan": "Reverse pan",
+            "invertTilt": "Reverse tilt",
+            "copy": "Copy previous",
+            "validate": "Confirm"
+          },
+          "help": {
+            "move": "move the moving head (coarse step)",
+            "fine": "fine step",
+            "validate": "confirm and go to the next desk (or press the desk buzzer)",
+            "copy": "copy the position of the previous desk of the same moving head",
+            "invertPan": "reverse left / right",
+            "invertTilt": "reverse up / down"
+          }
+        }
       },
       "smoke": {
         "enable": "Use smoke in this room",

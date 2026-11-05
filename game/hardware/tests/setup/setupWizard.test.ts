@@ -10,6 +10,10 @@ import { parsePanTiltCalibration } from '@hardware/presets/sixDeskRoom'
 import {
   checkBrowser,
   createSetupWizard,
+  invertFixtureAxis,
+  nudgePanTilt,
+  PAN_TILT_COARSE_STEP,
+  PAN_TILT_FINE_STEP,
   SMOKE_CHECKS,
   TIMED_RELAY_MAX_MS,
 } from '@hardware/setup/setupWizard'
@@ -515,5 +519,220 @@ describe('assistant d’installation : cible Art-Net', () => {
     const saved = parseRoomHardwareConfig(wizard.summary().config)
     expect(saved.config.lighting).not.toHaveProperty('artnet')
     expect(saved.problems.join(' ')).toContain('IP du nœud Art-Net refusée')
+  })
+})
+
+describe('assistant d’installation : calage des lyres au clavier', () => {
+  /** Une lyre libre (pupitres 1 à 3) et une lyre dédiée au pupitre 2, étape lyres atteinte. */
+  const atPositions = () => {
+    const wizard = atFixtures()
+    wizard.setDesksCount(3)
+    wizard.addFixture({ profileId: 'moving-head-8', name: 'Lyre' })
+    wizard.addFixture({ profileId: 'moving-head-8', name: 'Lyre deux', desk: 2 })
+    for (const id of ['lyre', 'lyre-deux']) {
+      wizard.markFixtureTest(id, 'ok')
+    }
+    expect(wizard.goTo('positions')).toEqual({ ok: true })
+    return wizard
+  }
+  const fixtureOf = (wizard: ReturnType<typeof createSetupWizard>, id: string) =>
+    wizard.getState().config.lighting.fixtures.find((item) => item.id === id)!
+
+  it('déplace d’un pas grossier (1/64 de course) ou fin (1/1024) depuis le centre', () => {
+    expect(PAN_TILT_COARSE_STEP).toBe(65_536 / 64)
+    expect(PAN_TILT_FINE_STEP).toBe(65_536 / 1024)
+    const center = { pan: 32_768, tilt: 32_768 }
+    expect(nudgePanTilt(center, 'pan', 1)).toEqual({ pan: 33_792, tilt: 32_768 })
+    expect(nudgePanTilt(center, 'tilt', -1)).toEqual({ pan: 32_768, tilt: 31_744 })
+    expect(nudgePanTilt(center, 'pan', 1, true)).toEqual({ pan: 32_832, tilt: 32_768 })
+    expect(nudgePanTilt(center, 'tilt', -1, true)).toEqual({ pan: 32_768, tilt: 32_704 })
+  })
+
+  it('borne la position à 0 et 65535', () => {
+    expect(nudgePanTilt({ pan: 500, tilt: 10 }, 'pan', -1)).toEqual({ pan: 0, tilt: 10 })
+    expect(nudgePanTilt({ pan: 5, tilt: 10 }, 'tilt', -1, true)).toEqual({ pan: 5, tilt: 0 })
+    expect(nudgePanTilt({ pan: 65_000, tilt: 0 }, 'pan', 1)).toEqual({ pan: 65_535, tilt: 0 })
+    expect(nudgePanTilt({ pan: 65_530, tilt: 0 }, 'pan', 1, true)).toEqual({ pan: 65_535, tilt: 0 })
+  })
+
+  it('enregistre le déplacement par pupitre, depuis le centre puis cumulé', () => {
+    const wizard = atPositions()
+    wizard.nudgeDeskPosition('lyre', 1, 'pan', 1)
+    wizard.nudgeDeskPosition('lyre', 1, 'pan', 1, true)
+    wizard.nudgeDeskPosition('lyre', 1, 'tilt', -1)
+    expect(fixtureOf(wizard, 'lyre').deskPositions).toEqual({
+      1: { pan: 32_768 + 1024 + 64, tilt: 32_768 - 1024 },
+    })
+    expect(wizard.nudgeDeskPosition('inconnue', 1, 'pan', 1)).toEqual({
+      ok: false,
+      reason: 'not_a_moving_head',
+    })
+  })
+
+  it('bascule l’inversion et garde le faisceau en place (positions inversées avec)', () => {
+    const wizard = atPositions()
+    wizard.setDeskPosition('lyre', 1, { pan: 1000, tilt: 2000 })
+    wizard.updateFixture('lyre', { homePosition: { pan: 10, tilt: 20 } })
+
+    wizard.toggleInvert('lyre', 'pan')
+    let lyre = fixtureOf(wizard, 'lyre')
+    expect(lyre.invertPan).toBe(true)
+    expect(lyre.invertTilt).toBeUndefined()
+    expect(lyre.deskPositions?.[1]).toEqual({ pan: 64_535, tilt: 2000 })
+    expect(lyre.homePosition).toEqual({ pan: 65_525, tilt: 20 })
+
+    wizard.toggleInvert('lyre', 'pan')
+    lyre = fixtureOf(wizard, 'lyre')
+    expect(lyre).not.toHaveProperty('invertPan')
+    expect(lyre.deskPositions?.[1]).toEqual({ pan: 1000, tilt: 2000 })
+
+    wizard.toggleInvert('lyre', 'tilt')
+    expect(fixtureOf(wizard, 'lyre').invertTilt).toBe(true)
+    expect(fixtureOf(wizard, 'lyre').deskPositions?.[1]).toEqual({ pan: 1000, tilt: 63_535 })
+    expect(wizard.toggleInvert('nope', 'pan')).toEqual({ ok: false, reason: 'not_a_moving_head' })
+  })
+
+  it('inverse un appareil sans position enregistrée', () => {
+    const fixture = { id: 'x', name: 'X', profileId: 'moving-head-8', address: 1 }
+    expect(invertFixtureAxis(fixture, 'tilt')).toEqual({ ...fixture, invertTilt: true })
+  })
+
+  it('copie la position d’un pupitre vers un autre', () => {
+    const wizard = atPositions()
+    expect(wizard.copyDeskPosition('lyre', 1, 2)).toEqual({
+      ok: false,
+      reason: 'no_source_position',
+    })
+    wizard.setDeskPosition('lyre', 1, { pan: 4000, tilt: 5000 })
+    expect(wizard.copyDeskPosition('lyre', 1, 2)).toEqual({ ok: true })
+    expect(fixtureOf(wizard, 'lyre').deskPositions).toEqual({
+      1: { pan: 4000, tilt: 5000 },
+      2: { pan: 4000, tilt: 5000 },
+    })
+    // Une copie, pas une référence partagée.
+    wizard.nudgeDeskPosition('lyre', 2, 'pan', 1)
+    expect(fixtureOf(wizard, 'lyre').deskPositions?.[1]).toEqual({ pan: 4000, tilt: 5000 })
+  })
+
+  it('liste les cibles lyre × pupitre et démarre sur la première', () => {
+    const wizard = atPositions()
+    expect(wizard.getState().calibration).toEqual({
+      targets: [
+        { fixtureId: 'lyre', desk: 1 },
+        { fixtureId: 'lyre', desk: 2 },
+        { fixtureId: 'lyre', desk: 3 },
+        { fixtureId: 'lyre-deux', desk: 2 },
+      ],
+      current: { fixtureId: 'lyre', desk: 1 },
+    })
+    expect(wizard.selectCalibration({ fixtureId: 'lyre-deux', desk: 2 })).toEqual({ ok: true })
+    expect(wizard.getState().calibration.current).toEqual({ fixtureId: 'lyre-deux', desk: 2 })
+    expect(wizard.selectCalibration({ fixtureId: 'lyre-deux', desk: 3 })).toEqual({
+      ok: false,
+      reason: 'unknown_target',
+    })
+  })
+
+  it('valide la position puis passe au pupitre suivant, jusqu’au dernier', () => {
+    const wizard = atPositions()
+    wizard.nudgeDeskPosition('lyre', 1, 'pan', 1)
+    expect(wizard.validateCalibration()).toEqual({
+      ok: true,
+      finished: false,
+      current: { fixtureId: 'lyre', desk: 2 },
+    })
+    // Rien de réglé : le centre est enregistré pour que l’étape soit complète.
+    expect(wizard.validateCalibration()).toMatchObject({ finished: false })
+    expect(fixtureOf(wizard, 'lyre').deskPositions?.[2]).toEqual({ pan: 32_768, tilt: 32_768 })
+    expect(wizard.validateCalibration()).toMatchObject({
+      finished: false,
+      current: { fixtureId: 'lyre-deux', desk: 2 },
+    })
+    expect(wizard.validateCalibration()).toEqual({
+      ok: true,
+      finished: true,
+      current: { fixtureId: 'lyre-deux', desk: 2 },
+    })
+    // Dernier pupitre : on y reste, et tout est enregistré.
+    expect(wizard.getState().calibration.current).toEqual({ fixtureId: 'lyre-deux', desk: 2 })
+    expect(wizard.blockers()).toEqual([])
+    expect(fixtureOf(wizard, 'lyre').deskPositions?.[1]).toEqual({ pan: 33_792, tilt: 32_768 })
+  })
+
+  it('reste valide si la cible en cours disparaît ou s’il n’y a plus de lyre', () => {
+    const wizard = atPositions()
+    wizard.selectCalibration({ fixtureId: 'lyre-deux', desk: 2 })
+    wizard.removeFixture('lyre-deux')
+    expect(wizard.getState().calibration.current).toEqual({ fixtureId: 'lyre', desk: 3 })
+    wizard.removeFixture('lyre')
+    expect(wizard.getState().calibration).toEqual({ targets: [], current: null })
+    expect(wizard.validateCalibration()).toEqual({ ok: false, reason: 'no_target' })
+  })
+
+  it('repart de la première cible quand on rajoute une lyre après les avoir toutes retirées', () => {
+    const wizard = atPositions()
+    wizard.selectCalibration({ fixtureId: 'lyre-deux', desk: 2 })
+    wizard.removeFixture('lyre')
+    wizard.removeFixture('lyre-deux')
+    expect(wizard.getState().calibration.current).toBeNull()
+
+    wizard.addFixture({ profileId: 'moving-head-8', name: 'Nouvelle' })
+    expect(wizard.getState().calibration.current).toEqual({ fixtureId: 'nouvelle', desk: 1 })
+    expect(wizard.validateCalibration()).toMatchObject({
+      ok: true,
+      current: { fixtureId: 'nouvelle', desk: 2 },
+    })
+  })
+
+  it('garde la même cible quand la liste change (retient lyre + pupitre, pas le rang)', () => {
+    const wizard = atPositions()
+    wizard.selectCalibration({ fixtureId: 'lyre-deux', desk: 2 })
+    // Retirer la première lyre fait glisser la liste : la cible ne change pas.
+    wizard.removeFixture('lyre')
+    expect(wizard.getState().calibration.current).toEqual({ fixtureId: 'lyre-deux', desk: 2 })
+    // Ajouter une lyre ne la déplace pas non plus.
+    wizard.addFixture({ profileId: 'moving-head-8', name: 'Autre', desk: 1 })
+    expect(wizard.getState().calibration.current).toEqual({ fixtureId: 'lyre-deux', desk: 2 })
+  })
+
+  describe('bornes de la plage utile', () => {
+    const withRange = (patch: Record<string, unknown>) => {
+      const wizard = atPositions()
+      wizard.updateFixture('lyre', patch)
+      return wizard
+    }
+
+    it('borne à panRange / tiltRange sans inversion', () => {
+      const wizard = withRange({ panRange: [30_000, 34_000], tiltRange: [31_000, 40_000] })
+      // Depuis le centre (32768) : + grossier = 33792, puis 34816 est borné à 34000.
+      wizard.nudgeDeskPosition('lyre', 1, 'pan', 1)
+      expect(fixtureOf(wizard, 'lyre').deskPositions?.[1]?.pan).toBe(33_792)
+      wizard.nudgeDeskPosition('lyre', 1, 'pan', 1)
+      wizard.nudgeDeskPosition('lyre', 1, 'pan', 1)
+      expect(fixtureOf(wizard, 'lyre').deskPositions?.[1]?.pan).toBe(34_000)
+      for (let press = 0; press < 5; press += 1) {
+        wizard.nudgeDeskPosition('lyre', 1, 'tilt', -1)
+      }
+      expect(fixtureOf(wizard, 'lyre').deskPositions?.[1]?.tilt).toBe(31_000)
+    })
+
+    it('retourne la plage quand l’axe est inversé', () => {
+      const wizard = withRange({ panRange: [30_000, 34_000], invertPan: true })
+      // Plage logique : [65535 - 34000, 65535 - 30000] = [31535, 35535].
+      for (let press = 0; press < 10; press += 1) {
+        wizard.nudgeDeskPosition('lyre', 1, 'pan', 1)
+      }
+      expect(fixtureOf(wizard, 'lyre').deskPositions?.[1]?.pan).toBe(35_535)
+      for (let press = 0; press < 10; press += 1) {
+        wizard.nudgeDeskPosition('lyre', 1, 'pan', -1)
+      }
+      expect(fixtureOf(wizard, 'lyre').deskPositions?.[1]?.pan).toBe(31_535)
+    })
+
+    it('ramène dans la plage un centre qui en est hors', () => {
+      const wizard = withRange({ tiltRange: [0, 10_000] })
+      wizard.nudgeDeskPosition('lyre', 1, 'tilt', -1, true)
+      expect(fixtureOf(wizard, 'lyre').deskPositions?.[1]?.tilt).toBe(10_000)
+    })
   })
 })

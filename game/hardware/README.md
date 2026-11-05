@@ -352,6 +352,46 @@ positions des lyres par pupitre (ou import de calibration) → fumée → récap
 Les étapes lyres et fumée n'apparaissent que si la salle en a. `summary().config` s'enregistre
 avec `saveRoomHardwareConfig()` (compte de la salle, `rooms.config`).
 
+### Calage des lyres au clavier
+
+L'étape « lyres » se règle entièrement sans souris (les curseurs restent disponibles). Le modèle
+expose le curseur de calage (`getState().calibration` : `targets` = lyre × pupitre dans l'ordre,
+`current`) et des opérations pures :
+
+- `nudgePanTilt(position, axe, ±1, fin?)` : pas **grossier** `PAN_TILT_COARSE_STEP` = 1024 (1/64 de
+  course, environ 8° sur un pan de 540°) ou **fin** `PAN_TILT_FINE_STEP` = 64 (1/1024, environ
+  0,5°). Une seule unité 16 bits (0,008°) ne se voit pas : 64 est le plus petit pas utile à
+  l'œil. Bornée à 0..65535.
+- `wizard.nudgeDeskPosition(lyre, pupitre, axe, ±1, fin?)` : part de la position enregistrée
+  (centre sinon) et l'enregistre.
+- `wizard.toggleInvert(lyre, axe)` / `invertFixtureAxis` : bascule `invertPan` / `invertTilt`
+  (absent quand faux) **et** inverse (`65535 - valeur`) les positions déjà enregistrées de la lyre
+  (pupitres et repos) : le faisceau reste où il est, seul le sens des touches change. La plage
+  (`panRange`, `tiltRange`) s'applique après l'inversion et n'est pas touchée.
+- `wizard.copyDeskPosition(lyre, de, vers)`.
+- `wizard.selectCalibration(cible)` et `wizard.validateCalibration()` : enregistre la position en
+  cours (le centre si rien n'a été réglé) puis passe à la cible suivante ; sur la dernière, reste
+  dessus et répond `finished: true`.
+
+Raccourcis de l'écran de salle (actifs à cette étape seulement ; sans effet dans un champ de
+saisie, avec Ctrl/Alt/Méta, ni sur une touche apprise comme buzzer) : flèches = pan (gauche /
+droite) et tilt (haut / bas), `Maj` + flèche = pas fin, `Entrée` = valider et passer au pupitre
+suivant, `P` = copier la position du pupitre précédent **de la même lyre** (rien à copier sur le
+premier pupitre d'une lyre), `G` / `H` = inverser gauche-droite / haut-bas. Un buzzer du
+pupitre en cours valide aussi sa position. Les raccourcis sont aussi suspendus pendant qu'une
+fenêtre de confirmation est ouverte.
+
+G, H et P ne font pas partie du mapping de démonstration (chiffres 1-8, Q-R, A-F, Z-V, T-I),
+mais le préréglage 6 pupitres (`createSixDeskKeyboardKeymap`) met des buzzers sur G et H : une
+touche apprise comme buzzer garde la priorité. L'aide du panneau barre alors la touche
+(« occupée par un buzzer ») et quatre boutons font la même chose à la souris ou au doigt :
+Inverser pan, Inverser tilt, Copier le précédent, Valider.
+
+Le déplacement au clavier reste dans la plage utile de l'appareil : `panRange` / `tiltRange`, ou
+`[65535 - max, 65535 - min]` quand l'axe est inversé (la plage physique s'applique après
+l'inversion). Le curseur de calage retient la cible (lyre + pupitre), pas son rang : ajouter ou
+retirer une lyre ne la déplace pas.
+
 La fumée n'est enregistrée **active** que si les 4 vérifications humaines sont cochées
 (`SMOKE_CHECKS`) : arrêt d'urgence physique, relais temporisé réglé à **10 s maximum**, test de
 gel réussi, consignes incendie du site. Changer d'interface oblige à refaire le test de gel.

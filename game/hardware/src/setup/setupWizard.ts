@@ -147,7 +147,24 @@ export type SetupWizardState = {
   desks: Desk[]
   fixtureTests: Record<string, FixtureTestResult>
   smokeChecks: Record<SmokeCheckId, boolean>
+  /** Calage des lyres : tous les couples lyre × pupitre dans l'ordre, et celui en cours de réglage. */
+  calibration: { targets: CalibrationTarget[]; current: CalibrationTarget | null }
 }
+
+/** Une position à régler : une lyre pointée vers un pupitre. */
+export type CalibrationTarget = { fixtureId: string; desk: Desk }
+
+export type PanTiltAxis = 'pan' | 'tilt'
+
+export type ValidateCalibrationResult =
+  | {
+      ok: true
+      /** Vrai quand la position validée était la dernière : plus de pupitre suivant. */
+      finished: boolean
+      /** Cible désormais en cours (la même qu'avant si `finished`). */
+      current: CalibrationTarget
+    }
+  | { ok: false; reason: 'no_target' }
 
 export type WizardResult = { ok: true } | { ok: false; reason: string }
 
@@ -214,6 +231,29 @@ export type SetupWizard = {
   markFixtureTest: (id: string, result: FixtureTestResult) => WizardResult
 
   setDeskPosition: (fixtureId: string, desk: Desk, position: PanTilt) => WizardResult
+  /**
+   * Déplace un axe d'un pas (`nudgePanTilt`) depuis la position enregistrée du pupitre (centre
+   * si aucune) et l'enregistre, bornée à la plage utile de l'appareil (`panRange` / `tiltRange`,
+   * retournée si l'axe est inversé).
+   */
+  nudgeDeskPosition: (
+    fixtureId: string,
+    desk: Desk,
+    axis: PanTiltAxis,
+    direction: 1 | -1,
+    fine?: boolean
+  ) => WizardResult
+  /** Bascule `invertPan` / `invertTilt` de la lyre (voir `invertFixtureAxis`). */
+  toggleInvert: (fixtureId: string, axis: PanTiltAxis) => WizardResult
+  /** Copie la position d'un pupitre vers un autre pour la même lyre. */
+  copyDeskPosition: (fixtureId: string, from: Desk, to: Desk) => WizardResult
+  /** Choisit la position en cours de réglage. */
+  selectCalibration: (target: CalibrationTarget) => WizardResult
+  /**
+   * Valide la position en cours (le centre est enregistré si rien n'a été réglé) puis passe à la
+   * suivante. À la dernière, reste dessus et répond `finished: true`.
+   */
+  validateCalibration: () => ValidateCalibrationResult
   /** Reprend les positions des lyres spot de chaque pupitre depuis un fichier de calibration. */
   applyCalibration: (calibration: Pick<PanTiltCalibration, 'desks'>) => number
 
@@ -234,6 +274,56 @@ const allChecks = (value: boolean) =>
 
 const clampWord = (value: number) => Math.min(65_535, Math.max(0, Math.round(value)))
 
+/**
+ * Pas du calage des lyres, en unités 16 bits (course complète = 65 536). Grossier : 1/64 de course
+ * (environ 8° sur un pan de 540°), pour approcher vite. Fin : 1/1024 de course (environ 0,5°) ;
+ * une seule unité 16 bits (0,008°) ne se voit pas à l'œil, il faudrait des centaines d'appuis.
+ */
+export const PAN_TILT_COARSE_STEP = 1024
+export const PAN_TILT_FINE_STEP = 64
+export const PAN_TILT_CENTER: Readonly<PanTilt> = { pan: 32_768, tilt: 32_768 }
+
+/** Position décalée d'un pas sur un axe, bornée à 0..65535. `direction` : +1 ou -1. */
+export function nudgePanTilt(
+  position: PanTilt,
+  axis: PanTiltAxis,
+  direction: 1 | -1,
+  fine = false
+): PanTilt {
+  const step = fine ? PAN_TILT_FINE_STEP : PAN_TILT_COARSE_STEP
+  return { ...position, [axis]: clampWord(position[axis] + direction * step) }
+}
+
+/** Plage utile de la valeur logique d'un axe : la plage physique, retournée si l'axe est inversé. */
+function logicalRange(fixture: FixtureConfig, axis: PanTiltAxis): [number, number] {
+  const [min, max] = (axis === 'pan' ? fixture.panRange : fixture.tiltRange) ?? [0, 65_535]
+  const inverted = axis === 'pan' ? fixture.invertPan === true : fixture.invertTilt === true
+  return inverted ? [65_535 - max, 65_535 - min] : [min, max]
+}
+
+/**
+ * Bascule l'inversion d'un axe (`invertPan` / `invertTilt`, absent quand faux). Les positions
+ * enregistrées de la lyre (pupitres et repos) sont inversées en même temps (`65535 - valeur`) :
+ * le faisceau reste où il est, seul le sens des touches change.
+ */
+export function invertFixtureAxis(fixture: FixtureConfig, axis: PanTiltAxis): FixtureConfig {
+  const flag = axis === 'pan' ? 'invertPan' : 'invertTilt'
+  const mirror = (position: PanTilt): PanTilt => ({ ...position, [axis]: 65_535 - position[axis] })
+  const { [flag]: current, deskPositions, homePosition, ...rest } = fixture
+  return {
+    ...rest,
+    ...(current === true ? {} : { [flag]: true }),
+    ...(deskPositions
+      ? {
+          deskPositions: Object.fromEntries(
+            Object.entries(deskPositions).map(([desk, position]) => [desk, mirror(position)])
+          ),
+        }
+      : {}),
+    ...(homePosition ? { homePosition: mirror(homePosition) } : {}),
+  }
+}
+
 const slug = (text: string) =>
   text
     .normalize('NFD')
@@ -252,6 +342,10 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
   let desks: Desk[] = desksForCount(config.desksCount)
   let fixtureTests: Record<string, FixtureTestResult> = {}
   let smokeChecks = allChecks(false)
+  // Cible en cours de calage, retenue par lyre + pupitre (pas par rang : la liste change quand on
+  // ajoute ou retire une lyre ou un pupitre). `calibrationIndex` ne sert que de repli si elle disparaît.
+  let calibrationSelected: CalibrationTarget | null = null
+  let calibrationIndex = 0
   // Pas d'élargissement ici : une salle équipée avant le réglage du nombre de pupitres est déjà
   // élargie à la relecture (`parseRoomHardwareConfig`, seulement sans `desksCount`).
 
@@ -274,6 +368,48 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
       }
       return true
     })
+
+  /** Lyres actives (un pupitre retiré les détache) × leurs pupitres, dans l'ordre d'affichage. */
+  const calibrationTargets = (): CalibrationTarget[] =>
+    activeLightingConfig(config)
+      .fixtures.filter((fixture) => kindOf(fixture) === 'movingHead')
+      .flatMap((fixture) =>
+        (fixture.desk === undefined ? desks : [fixture.desk]).map((desk) => ({
+          fixtureId: fixture.id,
+          desk,
+        }))
+      )
+
+  /**
+   * Rang de la cible en cours : celle retenue si elle existe encore, sinon le dernier rang connu
+   * ramené dans la liste (-1 si la liste est vide).
+   */
+  const currentIndex = (targets: readonly CalibrationTarget[]) => {
+    const found = calibrationSelected
+      ? targets.findIndex(
+          (item) =>
+            item.fixtureId === calibrationSelected?.fixtureId &&
+            item.desk === calibrationSelected.desk
+        )
+      : -1
+    // Jamais -1 en mémoire : une liste vidée puis remplie repart d'un rang valide.
+    calibrationIndex =
+      found >= 0 ? found : Math.max(0, Math.min(calibrationIndex, targets.length - 1))
+    return targets.length === 0 ? -1 : calibrationIndex
+  }
+  const selectIndex = (targets: readonly CalibrationTarget[], index: number) => {
+    calibrationIndex = index
+    calibrationSelected = targets[index] ?? null
+  }
+  const currentTarget = (): CalibrationTarget | null => {
+    const targets = calibrationTargets()
+    return targets[currentIndex(targets)] ?? null
+  }
+
+  const movingHeadById = (id: string) => {
+    const fixture = config.lighting.fixtures.find((item) => item.id === id)
+    return fixture && kindOf(fixture) === 'movingHead' ? fixture : null
+  }
 
   const setFixtures = (fixtures: FixtureConfig[]) => {
     config = { ...config, lighting: { ...config.lighting, fixtures } }
@@ -439,7 +575,7 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
     return [...steps].reverse().find((id) => SETUP_STEPS.indexOf(id) < index) ?? 'browser'
   }
 
-  return {
+  const api: SetupWizard = {
     getState: () => {
       step = currentStep()
       return {
@@ -450,6 +586,7 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
         desks: [...desks],
         fixtureTests: { ...fixtureTests },
         smokeChecks: { ...smokeChecks },
+        calibration: { targets: calibrationTargets(), current: currentTarget() },
       }
     },
     blockers: () => stepBlockers(currentStep()),
@@ -641,6 +778,64 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
       )
       return { ok: true }
     },
+    nudgeDeskPosition: (fixtureId, desk, axis, direction, fine = false) => {
+      const fixture = movingHeadById(fixtureId)
+      if (!fixture) {
+        return { ok: false, reason: 'not_a_moving_head' }
+      }
+      const from = fixture.deskPositions?.[desk] ?? PAN_TILT_CENTER
+      const moved = nudgePanTilt(from, axis, direction, fine)
+      // Reste dans la plage utile de l'appareil : pas de valeur hors butées, pas d'appui « mort ».
+      const [low, high] = logicalRange(fixture, axis)
+      moved[axis] = Math.min(Math.max(low, high), Math.max(Math.min(low, high), moved[axis]))
+      return api.setDeskPosition(fixtureId, desk, moved)
+    },
+    toggleInvert: (fixtureId, axis) => {
+      const fixture = movingHeadById(fixtureId)
+      if (!fixture) {
+        return { ok: false, reason: 'not_a_moving_head' }
+      }
+      setFixtures(
+        config.lighting.fixtures.map((item) =>
+          item.id === fixtureId ? invertFixtureAxis(item, axis) : item
+        )
+      )
+      return { ok: true }
+    },
+    copyDeskPosition: (fixtureId, from, to) => {
+      const source = movingHeadById(fixtureId)?.deskPositions?.[from]
+      if (!source) {
+        return { ok: false, reason: 'no_source_position' }
+      }
+      return api.setDeskPosition(fixtureId, to, source)
+    },
+    selectCalibration: (target) => {
+      const index = calibrationTargets().findIndex(
+        (item) => item.fixtureId === target.fixtureId && item.desk === target.desk
+      )
+      if (index < 0) {
+        return { ok: false, reason: 'unknown_target' }
+      }
+      selectIndex(calibrationTargets(), index)
+      return { ok: true }
+    },
+    validateCalibration: () => {
+      const targets = calibrationTargets()
+      const index = currentIndex(targets)
+      const current = targets[index]
+      if (!current) {
+        return { ok: false, reason: 'no_target' }
+      }
+      const position = movingHeadById(current.fixtureId)?.deskPositions?.[current.desk]
+      api.setDeskPosition(current.fixtureId, current.desk, position ?? PAN_TILT_CENTER)
+      const next = targets[index + 1]
+      if (!next) {
+        selectIndex(targets, index)
+        return { ok: true, finished: true, current }
+      }
+      selectIndex(targets, index + 1)
+      return { ok: true, finished: false, current: next }
+    },
     applyCalibration: (calibration) => {
       let applied = 0
       setFixtures(
@@ -727,4 +922,5 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
       }
     },
   }
+  return api
 }
