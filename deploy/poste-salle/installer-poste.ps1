@@ -7,10 +7,11 @@
 .DESCRIPTION
   Idempotent : peut etre relance sans risque (par exemple pour changer l'adresse de la salle).
   1. importe les politiques Chrome (politiques-chrome.reg, origine remplacee) ;
-  2. cree le raccourci Chrome kiosque dans le dossier Demarrage de l'utilisateur courant ;
+  2. cree le raccourci Chrome kiosque dans le dossier Demarrage de l'utilisateur de la salle ;
   3. desactive la veille, l'ecran eteint et la mise en veille selective USB (sur secteur) ;
   4. regle les heures actives de Windows Update ;
-  5. cree la tache planifiee qui lance le pont Art-Net a l'ouverture de session.
+  5. verrouille les droits de C:\QuizzUp, ouvre UDP 6454 au pare-feu pour le pont Art-Net et
+     cree la tache planifiee SYSTEM qui le lance au demarrage de la machine (sans fenetre).
   Fichier volontairement en ASCII (PowerShell 5.1 lit mal l'UTF-8 sans BOM).
 
 .PARAMETER RoomUrl
@@ -18,6 +19,10 @@
 
 .PARAMETER BridgeTarget
   Adresse du noeud Art-Net (option --target du pont). Facultatif.
+
+.PARAMETER RoomUser
+  Compte Windows de la salle (DOMAINE\utilisateur ou PC\utilisateur) qui recoit le raccourci
+  et le profil Chrome. Defaut : l'utilisateur de la session ouverte, sinon le compte courant.
 
 .PARAMETER ActiveHoursStart
   Debut des heures actives de Windows Update (0-23). Defaut 9.
@@ -32,6 +37,7 @@
 param(
   [Parameter(Mandatory = $true)][string]$RoomUrl,
   [string]$BridgeTarget,
+  [string]$RoomUser,
   [ValidateRange(0, 23)][int]$ActiveHoursStart = 9,
   [ValidateRange(0, 23)][int]$ActiveHoursEnd = 3
 )
@@ -39,14 +45,48 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # Contrat avec le pont Art-Net (lot L11) : chemin et options ne changent pas sans accord.
+$BridgeDir = 'C:\QuizzUp'
 $BridgeExe = 'C:\QuizzUp\quizzup-artnet-bridge.exe'
+$ArtNetPort = 6454
 $TaskName = 'QuizzUp - Pont Art-Net'
-$ProfileDir = 'C:\QuizzUp\chrome-profile'
+$FirewallRuleName = 'QuizzUp - Pont Art-Net (UDP 6454)'
 $ShortcutName = 'QuizzUp - Ecran de salle.lnk'
 # Marqueur de politiques-chrome.reg, remplace par l'origine reelle.
 $OriginPlaceholder = 'https://salle.exemple.fr'
 
 function Write-Step([string]$Message) { Write-Host "==> $Message" -ForegroundColor Cyan }
+
+# Compte de la salle : Startup et LOCALAPPDATA de CE compte, meme si un autre admin eleve le script.
+function Resolve-RoomAccount([string]$Requested) {
+  $elevated = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+  $name = $Requested
+  if (-not $name) {
+    $session = (Get-CimInstance Win32_ComputerSystem).UserName
+    $name = if ($session) { $session } else { $elevated }
+  }
+  try {
+    $sid = (New-Object Security.Principal.NTAccount($name)).Translate([Security.Principal.SecurityIdentifier]).Value
+  }
+  catch {
+    throw "Compte Windows introuvable : '$name' (utilisez -RoomUser DOMAINE\utilisateur)."
+  }
+  $profileKey = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$sid"
+  $profilePath = (Get-ItemProperty -LiteralPath $profileKey -ErrorAction SilentlyContinue).ProfileImagePath
+  if ($profilePath) { $profilePath = [Environment]::ExpandEnvironmentVariables($profilePath) }
+  if (-not $profilePath -or -not (Test-Path -LiteralPath $profilePath)) {
+    throw "Profil Windows de '$name' introuvable : ce compte doit avoir ouvert une session au moins une fois (ou precisez -RoomUser)."
+  }
+  if ($name -ieq $elevated) {
+    $startup = [Environment]::GetFolderPath('Startup')
+    $localAppData = [Environment]::GetFolderPath('LocalApplicationData')
+  }
+  else {
+    Write-Host "Compte de la salle : $name (le script est eleve par $elevated)." -ForegroundColor Yellow
+    $startup = Join-Path $profilePath 'AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup'
+    $localAppData = Join-Path $profilePath 'AppData\Local'
+  }
+  [pscustomobject]@{ Name = $name; Startup = $startup; LocalAppData = $localAppData }
+}
 
 if ([Environment]::Is64BitOperatingSystem -and -not [Environment]::Is64BitProcess) {
   throw 'Lancez PowerShell 64 bits (pas la version x86).'
@@ -77,6 +117,9 @@ $chromeCandidates = @(
 $chrome = $chromeCandidates | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -First 1
 if (-not $chrome) { throw 'Google Chrome est introuvable : installez-le puis relancez ce script.' }
 
+$room = Resolve-RoomAccount $RoomUser
+$profileDir = Join-Path $room.LocalAppData 'QuizzUp\chrome-profile'
+
 # --- 1. Politiques Chrome ---------------------------------------------------------------------
 Write-Step "Politiques Chrome pour l'origine $origin"
 $template = Join-Path $PSScriptRoot 'politiques-chrome.reg'
@@ -85,7 +128,8 @@ $regText = $regText -replace "\r?\n", "`r`n"
 $tmpReg = Join-Path ([IO.Path]::GetTempPath()) 'quizzup-politiques-chrome.reg'
 Set-Content -LiteralPath $tmpReg -Value $regText -Encoding Unicode
 try {
-  & reg.exe import $tmpReg /reg:64 | Out-Null
+  # Via cmd : evite qu'un message sur stderr devienne une erreur terminante (PowerShell ISE).
+  & cmd.exe /c "reg.exe import `"$tmpReg`" /reg:64 >nul 2>nul"
   if ($LASTEXITCODE -ne 0) { throw "Import des politiques Chrome en echec (reg.exe code $LASTEXITCODE)." }
 }
 finally {
@@ -93,13 +137,14 @@ finally {
 }
 
 # --- 2. Raccourci kiosque dans le dossier Demarrage ------------------------------------------
-Write-Step 'Raccourci Chrome kiosque (dossier Demarrage)'
-New-Item -ItemType Directory -Path $ProfileDir -Force | Out-Null
+Write-Step "Raccourci Chrome kiosque (Demarrage de $($room.Name))"
+New-Item -ItemType Directory -Path $profileDir -Force | Out-Null
+New-Item -ItemType Directory -Path $room.Startup -Force | Out-Null
 # Les drapeaux doublent les politiques que Chrome ignore sur un Windows non gere (Home).
 $chromeArgs = @(
   '--kiosk',
   "--app=$($uri.AbsoluteUri)",
-  "--user-data-dir=`"$ProfileDir`"",
+  "--user-data-dir=`"$profileDir`"",
   '--no-first-run',
   '--no-default-browser-check',
   '--autoplay-policy=no-user-gesture-required',
@@ -110,7 +155,7 @@ $chromeArgs = @(
   '--disable-notifications',
   '--disable-features=Translate'
 )
-$shortcutPath = Join-Path ([Environment]::GetFolderPath('Startup')) $ShortcutName
+$shortcutPath = Join-Path $room.Startup $ShortcutName
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($shortcutPath)
 $shortcut.TargetPath = $chrome
@@ -138,24 +183,46 @@ $wuKey = 'HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings'
 if (-not (Test-Path -LiteralPath $wuKey)) { New-Item -Path $wuKey -Force | Out-Null }
 Set-ItemProperty -LiteralPath $wuKey -Name ActiveHoursStart -Value $ActiveHoursStart -Type DWord
 Set-ItemProperty -LiteralPath $wuKey -Name ActiveHoursEnd -Value $ActiveHoursEnd -Type DWord
+Set-ItemProperty -LiteralPath $wuKey -Name SmartActiveHoursState -Value 0 -Type DWord
 
-# --- 5. Tache planifiee du pont Art-Net -------------------------------------------------------
-Write-Step 'Tache planifiee du pont Art-Net (a l''ouverture de session)'
+# --- 5. Pont Art-Net : droits, pare-feu, tache SYSTEM -----------------------------------------
+# Le pont tourne en SYSTEM : un utilisateur qui pourrait remplacer l'exe obtiendrait SYSTEM.
+# SID : S-1-5-32-544 Administrateurs, S-1-5-18 SYSTEM, S-1-5-32-545 Utilisateurs (lecture seule).
+Write-Step "Droits de $BridgeDir (Administrateurs et SYSTEM : controle total ; Utilisateurs : lecture)"
+New-Item -ItemType Directory -Path $BridgeDir -Force | Out-Null
+& icacls.exe $BridgeDir /setowner '*S-1-5-32-544' /T /C | Out-Null
+& icacls.exe $BridgeDir /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "icacls en echec sur $BridgeDir (code $LASTEXITCODE)." }
+
+Write-Step "Pare-feu : UDP $ArtNetPort entrant pour le pont (profils Prive et Domaine)"
+Get-NetFirewallRule -DisplayName $FirewallRuleName -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+New-NetFirewallRule -DisplayName $FirewallRuleName -Program $BridgeExe -Direction Inbound -Protocol UDP `
+  -LocalPort $ArtNetPort -Profile Private, Domain -Action Allow | Out-Null
+
+Write-Step 'Tache planifiee du pont Art-Net (SYSTEM, au demarrage de la machine)'
 $bridgeArgs = "--origin $origin"
 if ($BridgeTarget) { $bridgeArgs += " --target $BridgeTarget" }
-$userName = [Security.Principal.WindowsIdentity]::GetCurrent().Name
-$taskAction = New-ScheduledTaskAction -Execute $BridgeExe -Argument $bridgeArgs -WorkingDirectory (Split-Path -Parent $BridgeExe)
-$taskTrigger = New-ScheduledTaskTrigger -AtLogOn -User $userName
-$taskPrincipal = New-ScheduledTaskPrincipal -UserId $userName -LogonType Interactive -RunLevel Limited
+$taskAction = New-ScheduledTaskAction -Execute $BridgeExe -Argument $bridgeArgs -WorkingDirectory $BridgeDir
+$taskTrigger = New-ScheduledTaskTrigger -AtStartup
+# Repetition chaque minute, sans fin : relance le pont s'il meurt en cours de route
+# (MultipleInstances IgnoreNew : rien ne se passe tant qu'il tourne). -AtStartup n'accepte pas
+# -RepetitionInterval, on copie donc la repetition d'un declencheur ponctuel.
+$taskTrigger.Repetition = (New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 1)).Repetition
+$taskPrincipal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
 $taskSettings = New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) `
   -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
   -StartWhenAvailable -MultipleInstances IgnoreNew
 Register-ScheduledTask -TaskName $TaskName -Action $taskAction -Trigger $taskTrigger `
   -Principal $taskPrincipal -Settings $taskSettings -Force | Out-Null
 
-if (-not (Test-Path -LiteralPath $BridgeExe)) {
-  Write-Warning "Pont Art-Net absent : $BridgeExe. La tache est creee ; copiez l'executable a cet emplacement (inutile avec une interface USB-DMX)."
+if (Test-Path -LiteralPath $BridgeExe) {
+  Unblock-File -LiteralPath $BridgeExe
+}
+else {
+  Write-Warning "Pont Art-Net absent : $BridgeExe. La tache est creee ; copiez l'executable a cet emplacement EN ADMINISTRATEUR puis relancez ce script (inutile avec une interface USB-DMX)."
 }
 
 Write-Host ''
-Write-Host "Poste installe pour $origin. Redemarrez le PC, puis suivez 'Verifier' dans README.md." -ForegroundColor Green
+Write-Host "Poste installe pour $origin (compte de la salle : $($room.Name))." -ForegroundColor Green
+Write-Host "Chrome n'est pas relance par ce script : redemarrez le PC (ou ouvrez le raccourci). Voir 'Verifier' dans README.md." -ForegroundColor Green
+Write-Host 'Le reseau du poste doit etre en profil Prive (regle pare-feu Art-Net).' -ForegroundColor Yellow

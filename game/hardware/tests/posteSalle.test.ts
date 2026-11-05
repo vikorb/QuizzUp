@@ -122,12 +122,14 @@ describe('kit poste de salle : scripts PowerShell', () => {
     expect(installer).toContain(`$OriginPlaceholder = '${PLACEHOLDER}'`)
     expect(installer).toMatch(/\.Replace\(\$OriginPlaceholder, \$origin\)/)
     expect(installer).toContain('politiques-chrome.reg')
-    expect(installer).toMatch(/reg\.exe import .* \/reg:64/)
+    expect(installer).toMatch(/cmd\.exe \/c "reg\.exe import .* \/reg:64 >nul 2>nul"/)
   })
 
   it('exige -RoomUrl et accepte -BridgeTarget facultatif', () => {
     expect(installer).toMatch(/\[Parameter\(Mandatory = \$true\)\]\[string\]\$RoomUrl/)
     expect(installer).toMatch(/\[string\]\$BridgeTarget/)
+    expect(installer).toMatch(/\[string\]\$RoomUser/)
+    expect(installer).not.toMatch(/Mandatory = \$true\)\]\[string\]\$RoomUser/)
     expect(installer).not.toMatch(/Mandatory = \$true\)\]\[string\]\$BridgeTarget/)
   })
 
@@ -136,9 +138,46 @@ describe('kit poste de salle : scripts PowerShell', () => {
     expect(installer).toContain('"--origin $origin"')
     expect(installer).toContain('" --target $BridgeTarget"')
     expect(installer).toMatch(/-RestartCount \d+/)
-    expect(installer).toMatch(/-AtLogOn/)
+    expect(installer).toContain('Unblock-File')
     // Exe absent : avertissement, pas d'échec.
     expect(installer).toMatch(/Write-Warning[^\n]*\$BridgeExe/)
+  })
+
+  it('lance le pont en SYSTEM au démarrage (sans fenêtre), avec répétition chaque minute', () => {
+    expect(installer).toContain(
+      "New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest"
+    )
+    expect(installer).toContain('New-ScheduledTaskTrigger -AtStartup')
+    expect(installer).not.toContain('-AtLogOn')
+    expect(installer).not.toContain('-LogonType Interactive')
+    expect(installer).toMatch(
+      /\$taskTrigger\.Repetition = .*-RepetitionInterval \(New-TimeSpan -Minutes 1\)/
+    )
+    expect(installer).toContain('-MultipleInstances IgnoreNew')
+  })
+
+  it('verrouille C:\\QuizzUp (SYSTEM exécute l’exe) et ouvre UDP 6454 au pare-feu', () => {
+    expect(installer).toContain("$BridgeDir = 'C:\\QuizzUp'")
+    expect(installer).toContain('/inheritance:r')
+    expect(installer).toContain("'*S-1-5-32-544:(OI)(CI)F'")
+    expect(installer).toContain("'*S-1-5-18:(OI)(CI)F'")
+    expect(installer).toContain("'*S-1-5-32-545:(OI)(CI)RX'")
+    expect(installer).toContain('/setowner')
+    expect(installer).toContain('$ArtNetPort = 6454')
+    expect(installer).toContain('Remove-NetFirewallRule')
+    expect(installer).toMatch(
+      /New-NetFirewallRule -DisplayName \$FirewallRuleName -Program \$BridgeExe -Direction Inbound -Protocol UDP `\s+-LocalPort \$ArtNetPort -Profile Private, Domain -Action Allow/
+    )
+  })
+
+  it('crée raccourci et profil Chrome pour le compte de la salle (LOCALAPPDATA)', () => {
+    expect(installer).toContain('Win32_ComputerSystem')
+    expect(installer).toContain('WindowsIdentity]::GetCurrent().Name')
+    expect(installer).toContain('ProfileList')
+    expect(installer).toContain("Join-Path $room.LocalAppData 'QuizzUp\\chrome-profile'")
+    expect(installer).toContain('Join-Path $room.Startup $ShortcutName')
+    expect(installer).not.toContain('C:\\QuizzUp\\chrome-profile')
+    expect(installer).toContain('SmartActiveHoursState -Value 0')
   })
 
   it('crée un raccourci kiosque Chrome (jamais Edge) avec les replis', () => {
@@ -165,7 +204,12 @@ describe('kit poste de salle : scripts PowerShell', () => {
   it('le désinstalleur relit le .reg, supprime tâche, raccourci et réglages', () => {
     expect(uninstaller).toContain('politiques-chrome.reg')
     expect(uninstaller).toContain('Unregister-ScheduledTask')
-    expect(uninstaller).toContain('ActiveHoursStart')
+    expect(uninstaller).toMatch(/ActiveHoursStart -Value 8 /)
+    expect(uninstaller).toMatch(/ActiveHoursEnd -Value 17 /)
+    expect(uninstaller).toContain('Remove-NetFirewallRule')
+    expect(uninstaller).toContain('Stop-Process -Name')
+    expect(uninstaller).toContain('hibernate-timeout-ac')
+    expect(uninstaller).toContain('[string]$RoomUser')
     // Mêmes noms de tâche et de raccourci des deux côtés.
     for (const line of [
       "$TaskName = 'QuizzUp - Pont Art-Net'",
@@ -179,6 +223,8 @@ describe('kit poste de salle : scripts PowerShell', () => {
   it('le README du kit et le guide de recette se renvoient l’un à l’autre', () => {
     const readme = readKitFile('README.md')
     expect(readme).toContain('SmartScreen')
+    expect(readme).toContain('Smart App Control')
+    expect(readme).toContain('profil **Privé**')
     expect(readme).toContain('Exécuter quand même')
     expect(readme).toContain('installer-poste.ps1')
     const guide = readFileSync(
