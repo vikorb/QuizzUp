@@ -99,8 +99,8 @@
       "start": "C’est parti"
     },
     "layout": {
-      "title": "Choisis les couleurs de tes buzzers",
-      "hint": "Touche un buzzer, puis choisis sa couleur. Une couleur déjà prise passe à l’autre buzzer. Pour changer la place d’un buzzer, glisse-le sur un autre ou utilise « Échanger la place ».",
+      "title": "Choisis les couleurs",
+      "hint": "Touche un buzzer, puis sa couleur. Glisse un buzzer pour changer sa place.",
       "pad": "Un pupitre vu du dessus",
       "colors": "Couleurs possibles",
       "cell": "Buzzer {button}, {color}, {place}",
@@ -123,7 +123,8 @@
       "title": "Ta salle est prête !",
       "text": "Voilà tes pupitres, avec la touche de chaque buzzer.",
       "finish": "Terminer",
-      "lights": "Régler les lumières"
+      "lights": "Régler les lumières",
+      "saveError": "Impossible d’enregistrer. Vérifie la connexion et réessaie."
     }
   }
 }

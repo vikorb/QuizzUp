@@ -969,11 +969,16 @@ export async function saveRoomSetup(setup: {
   desksCount: number
   keymap: BuzzerKeymap
 }): Promise<ParsedRoomHardwareConfig> {
-  const sized = withDesksCount(
-    withBuzzerLayout(parsed.value.config, setup.layout),
-    setup.desksCount
+  const { config } = parsed.value
+  const sized = withDesksCount(withBuzzerLayout(config, setup.layout), setup.desksCount)
+  // Une place laissée de côté (« Passer ») garde son ancienne touche, sauf si cette touche ou
+  // cette place a été reprise pendant le parcours.
+  const taken = new Set(Object.values(setup.keymap).map((slot) => `${slot.desk}${slot.button}`))
+  const kept = Object.entries(config.buzzers.keymap).filter(
+    ([code, slot]) => !Object.hasOwn(setup.keymap, code) && !taken.has(`${slot.desk}${slot.button}`)
   )
-  return saveRoomHardwareConfig({ ...withLearnedKeymap(sized, setup.keymap), setupDone: true })
+  const keymap = { ...Object.fromEntries(kept), ...setup.keymap }
+  return saveRoomHardwareConfig({ ...withLearnedKeymap(sized, keymap), setupDone: true })
 }
 
 /** Enregistre la couleur et la place des buzzers (écran de jeu, apprentissage et plan suivent). */

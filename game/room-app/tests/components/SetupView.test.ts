@@ -1,7 +1,13 @@
 import { flushPromises } from '@vue/test-utils'
 
 import { useConfirm } from '@/composables/useConfirm'
-import { getRoomHardwareConfig, saveBuzzerKeymap, useRoomHardware } from '@/hardware/roomHardware'
+import type * as Hardware from '@/hardware/roomHardware'
+import {
+  getRoomHardwareConfig,
+  saveBuzzerKeymap,
+  saveRoomHardwareConfig,
+  useRoomHardware,
+} from '@/hardware/roomHardware'
 import { enterDemo, syncRoomAuth } from '@/state/roomAuth'
 import LaunchView from '@/views/LaunchView.vue'
 import SetupView from '@/views/SetupView.vue'
@@ -10,6 +16,17 @@ import { pressKey } from '../_helpers/keyboard'
 import { mountWithApp, PRELOAD_TIMEOUT_MS, preloadRoutes } from '../_helpers/mount'
 
 beforeAll(preloadRoutes, PRELOAD_TIMEOUT_MS)
+
+// Permet de faire échouer l'enregistrement du parcours (panne du réseau, du compte…).
+const failure = vi.hoisted(() => ({ on: false }))
+vi.mock('@/hardware/roomHardware', async (importOriginal) => {
+  const actual = await importOriginal<typeof Hardware>()
+  return {
+    ...actual,
+    saveRoomSetup: (setup: Parameters<typeof actual.saveRoomSetup>[0]) =>
+      failure.on ? Promise.reject(new Error('réseau')) : actual.saveRoomSetup(setup),
+  }
+})
 
 type Wrapper = Awaited<ReturnType<typeof mountWithApp>>['wrapper']
 
@@ -26,6 +43,7 @@ async function press(code: string) {
 }
 
 beforeEach(() => {
+  failure.on = false
   localStorage.clear()
   syncRoomAuth()
   enterDemo()
@@ -147,5 +165,78 @@ describe('parcours de configuration plein écran', () => {
     expect(config.buzzers.keymap).toEqual({})
     expect(config.buzzers.layout.A.color).toBe('blue')
     expect(useRoomHardware().setupNeeded.value).toBe(true)
+  })
+
+  it('propose le nombre de pupitres déjà réglé', async () => {
+    await saveRoomHardwareConfig({ ...getRoomHardwareConfig(), desksCount: 3 })
+    const { wrapper } = await mountWithApp(SetupView, { route: '/setup' })
+    await click(wrapper, 'setup-start')
+    await click(wrapper, 'setup-layout-ok')
+    expect(sel(wrapper, 'setup-desks-3').attributes('aria-checked')).toBe('true')
+  })
+
+  it('Passer garde l’ancienne touche d’une place non reprise', async () => {
+    await saveBuzzerKeymap(
+      Object.fromEntries([
+        ['KeyB', { desk: 1, button: 'A' }],
+        ['KeyC', { desk: 1, button: 'B' }],
+      ])
+    )
+    const { wrapper, router } = await mountWithApp(SetupView, { route: '/setup' })
+    await click(wrapper, 'setup-start')
+    await click(wrapper, 'setup-layout-ok')
+    await click(wrapper, 'setup-desks-1')
+    await click(wrapper, 'setup-desks-ok')
+
+    // A est passé (garde KeyB) ; B reprend une autre touche (KeyC, son ancienne, est libérée).
+    await click(wrapper, 'setup-skip')
+    await press('KeyX')
+    await click(wrapper, 'setup-skip')
+    await click(wrapper, 'setup-skip')
+    expect(sel(wrapper, 'setup-done').exists()).toBe(true)
+    await click(wrapper, 'setup-finish')
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('launch'))
+
+    expect(getRoomHardwareConfig().buzzers.keymap).toEqual({
+      ...Object.fromEntries([
+        ['KeyB', { desk: 1, button: 'A' }],
+        ['KeyX', { desk: 1, button: 'B' }],
+      ]),
+    })
+  })
+
+  it('ignore les touches pendant la confirmation pour quitter', async () => {
+    const { wrapper } = await mountWithApp(SetupView, { route: '/setup' })
+    await click(wrapper, 'setup-start')
+    await click(wrapper, 'setup-layout-ok')
+    await click(wrapper, 'setup-desks-ok')
+
+    void sel(wrapper, 'setup-quit').trigger('click')
+    await vi.waitFor(() => expect(useConfirm().state.open).toBe(true))
+    await press('KeyB')
+    useConfirm().cancel()
+    await flushPromises()
+    expect(sel(wrapper, 'setup-prompt').text()).toContain('(A)')
+  })
+
+  it('affiche l’erreur d’enregistrement et réactive les boutons', async () => {
+    const { wrapper, router } = await mountWithApp(SetupView, { route: '/setup' })
+    await click(wrapper, 'setup-start')
+    await click(wrapper, 'setup-layout-ok')
+    await click(wrapper, 'setup-desks-1')
+    await click(wrapper, 'setup-desks-ok')
+    for (const _step of [1, 2, 3, 4]) {
+      await click(wrapper, 'setup-skip')
+    }
+
+    failure.on = true
+    await click(wrapper, 'setup-finish')
+    expect(sel(wrapper, 'setup-save-error').attributes('role')).toBe('alert')
+    expect(sel(wrapper, 'setup-finish').attributes('disabled')).toBeUndefined()
+    expect(router.currentRoute.value.name).toBe('setup')
+
+    failure.on = false
+    await click(wrapper, 'setup-finish')
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('launch'))
   })
 })

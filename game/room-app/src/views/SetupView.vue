@@ -22,46 +22,48 @@
       <section v-else-if="step === 'layout'" key="layout" class="setup__stage">
         <h1 class="setup__title">{{ $t('setup.layout.title') }}</h1>
         <p class="setup__text">{{ $t('setup.layout.hint') }}</p>
-        <div class="pad" role="group" :aria-label="$t('setup.layout.pad')">
-          <button
-            v-for="corner in BUZZER_CORNERS"
-            :key="corner"
-            type="button"
-            class="pad__cell"
-            :class="{ 'pad__cell--on': selected === corner }"
-            :style="{ '--cell-color': `var(--buzzer-${draft[byCorner[corner]].color})` }"
-            :aria-pressed="selected === corner"
-            :aria-label="
-              $t('setup.layout.cell', {
-                button: byCorner[corner],
-                color: $t(`hardware.colors.${draft[byCorner[corner]].color}`),
-                place: $t(`hardware.corners.${corner}`),
-              })
-            "
-            draggable="true"
-            :data-test="`setup-corner-${corner}`"
-            @click="onCorner(corner)"
-            @dragstart="dragFrom = corner"
-            @dragover.prevent
-            @drop.prevent="onDrop(corner)"
-          >
-            {{ byCorner[corner] }}
-          </button>
-        </div>
-        <div class="palette" role="group" :aria-label="$t('setup.layout.colors')">
-          <button
-            v-for="color in BUZZER_COLORS"
-            :key="color"
-            type="button"
-            class="palette__swatch"
-            :class="{ 'palette__swatch--on': draft[byCorner[selected]].color === color }"
-            :style="{ background: `var(--buzzer-${color})` }"
-            :aria-label="$t(`hardware.colors.${color}`)"
-            :aria-pressed="draft[byCorner[selected]].color === color"
-            :title="$t(`hardware.colors.${color}`)"
-            :data-test="`setup-color-${color}`"
-            @click="draft = setBuzzerColor(draft, byCorner[selected], color)"
-          />
+        <div class="layout">
+          <div class="pad" role="group" :aria-label="$t('setup.layout.pad')">
+            <button
+              v-for="corner in BUZZER_CORNERS"
+              :key="corner"
+              type="button"
+              class="pad__cell"
+              :class="{ 'pad__cell--on': selected === corner }"
+              :style="{ '--cell-color': `var(--buzzer-${draft[byCorner[corner]].color})` }"
+              :aria-pressed="selected === corner"
+              :aria-label="
+                $t('setup.layout.cell', {
+                  button: byCorner[corner],
+                  color: $t(`hardware.colors.${draft[byCorner[corner]].color}`),
+                  place: $t(`hardware.corners.${corner}`),
+                })
+              "
+              draggable="true"
+              :data-test="`setup-corner-${corner}`"
+              @click="onCorner(corner)"
+              @dragstart="dragFrom = corner"
+              @dragover.prevent
+              @drop.prevent="onDrop(corner)"
+            >
+              {{ byCorner[corner] }}
+            </button>
+          </div>
+          <div class="palette" role="group" :aria-label="$t('setup.layout.colors')">
+            <button
+              v-for="color in BUZZER_COLORS"
+              :key="color"
+              type="button"
+              class="palette__swatch"
+              :class="{ 'palette__swatch--on': draft[byCorner[selected]].color === color }"
+              :style="{ background: `var(--buzzer-${color})` }"
+              :aria-label="$t(`hardware.colors.${color}`)"
+              :aria-pressed="draft[byCorner[selected]].color === color"
+              :title="$t(`hardware.colors.${color}`)"
+              :data-test="`setup-color-${color}`"
+              @click="draft = setBuzzerColor(draft, byCorner[selected], color)"
+            />
+          </div>
         </div>
         <div class="setup__actions">
           <UiButton :aria-pressed="swapping" data-test="setup-swap" @click="swapping = !swapping">
@@ -134,7 +136,7 @@
           <BuzzerSquare
             :layout="draft"
             :active="state.current.button"
-            style="--square-size: min(36vh, 300px)"
+            style="--square-size: min(30vh, 260px)"
           />
         </div>
         <i18n-t
@@ -194,6 +196,9 @@
             />
           </article>
         </div>
+        <p v-if="saveError" class="feedback--error" role="alert" data-test="setup-save-error">
+          {{ $t('setup.done.saveError') }}
+        </p>
         <div class="setup__actions">
           <UiButton :disabled="saving" data-test="setup-lights" @click="onFinish('assistant')">
             {{ $t('setup.done.lights') }}
@@ -253,9 +258,10 @@ const step = ref<Step>('welcome')
 const draft = ref(cloneBuzzerLayout(hardware.value.config.buzzers.layout))
 const selected = ref<BuzzerCorner>('tl')
 const swapping = ref(false)
-const desksCount = ref(4)
+const desksCount = ref(hardware.value.config.desksCount)
 const keymap = ref<BuzzerKeymap>({})
 const saving = ref(false)
+const saveError = ref(false)
 const learning = shallowRef<BuzzerLearning | null>(null)
 const state = shallowRef<BuzzerLearningState | null>(null)
 const feedbackTick = ref(0)
@@ -287,6 +293,8 @@ const feedback = computed(() => {
 
 function go(next: Step): void {
   swapping.value = false
+  // Hors association, un buzzer qui envoie Entrée ou Espace ne doit pas cliquer un bouton.
+  blurFocus()
   step.value = next
 }
 
@@ -312,6 +320,12 @@ function onDrop(corner: BuzzerCorner): void {
   dragFrom = null
 }
 
+function blurFocus(): void {
+  if (document.activeElement instanceof HTMLElement) {
+    document.activeElement.blur()
+  }
+}
+
 function stopLearning(): void {
   offKeys?.()
   offLearning?.()
@@ -323,6 +337,7 @@ function startLearning(): void {
   const next = createBuzzerLearning({ desks: desks.value })
   learning.value = next
   state.value = next.getState()
+  blurFocus()
   step.value = 'learn'
   let lastResult = state.value.lastResult
   offLearning = next.onChange((current) => {
@@ -336,17 +351,16 @@ function startLearning(): void {
       keymap.value = next.getKeymap()
       stopLearning()
       playUiSound('tierUp')
+      blurFocus()
       step.value = 'done'
     }
   })
   offKeys = getBuzzerInput().onKey(({ code }) => {
-    if (code === 'Escape') {
+    if (code === 'Escape' || confirming) {
       return
     }
     // Un buzzer qui envoie Entrée ou Espace ne doit pas cliquer le bouton qui a le focus.
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur()
-    }
+    blurFocus()
     next.capture(code)
   })
 }
@@ -365,8 +379,17 @@ async function onQuit(): Promise<void> {
 
 async function onFinish(tab?: 'assistant'): Promise<void> {
   saving.value = true
-  await saveRoomSetup({ layout: draft.value, desksCount: desksCount.value, keymap: keymap.value })
-  await (tab ? router.push({ name: 'hardware', query: { tab } }) : router.push({ name: 'launch' }))
+  saveError.value = false
+  try {
+    await saveRoomSetup({ layout: draft.value, desksCount: desksCount.value, keymap: keymap.value })
+    await (tab
+      ? router.push({ name: 'hardware', query: { tab } })
+      : router.push({ name: 'launch' }))
+  } catch {
+    saveError.value = true
+  } finally {
+    saving.value = false
+  }
 }
 
 function onEscape(event: KeyboardEvent): void {
@@ -387,7 +410,7 @@ onBeforeUnmount(() => {
   min-height: 100vh;
   display: grid;
   place-items: center;
-  padding: 72px 24px 32px;
+  padding: 64px 24px 24px;
   text-align: center;
   color: var(--text-0);
 }
@@ -401,7 +424,7 @@ onBeforeUnmount(() => {
 .setup__stage {
   display: grid;
   justify-items: center;
-  gap: clamp(14px, 3vh, 32px);
+  gap: clamp(10px, 2.4vh, 28px);
   width: min(960px, 100%);
 }
 
@@ -411,7 +434,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   gap: 16px;
   margin: 0;
-  font-size: var(--stage-title);
+  font-size: clamp(30px, 4vw, 52px);
   font-weight: 900;
   line-height: 1.1;
 }
@@ -443,11 +466,19 @@ onBeforeUnmount(() => {
   font-weight: 800;
 }
 
+.layout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(16px, 4vw, 48px);
+}
+
 .pad {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-  width: min(44vh, 360px);
+  gap: 12px;
+  width: min(40vh, 320px);
 }
 
 .pad__cell {
@@ -469,15 +500,14 @@ onBeforeUnmount(() => {
 }
 
 .palette {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 14px;
+  display: grid;
+  grid-template-columns: repeat(4, auto);
+  gap: 12px;
 }
 
 .palette__swatch {
-  width: clamp(48px, 7vh, 68px);
-  height: clamp(48px, 7vh, 68px);
+  width: clamp(44px, 7vh, 60px);
+  height: clamp(44px, 7vh, 60px);
   border-radius: 50%;
   border: 4px solid transparent;
   cursor: pointer;
@@ -536,7 +566,7 @@ onBeforeUnmount(() => {
 
 .prompt {
   margin: 0;
-  font-size: var(--stage-title);
+  font-size: clamp(24px, 3.2vw, 42px);
   font-weight: 900;
   line-height: 1.15;
 }

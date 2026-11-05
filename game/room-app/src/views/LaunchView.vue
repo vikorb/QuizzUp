@@ -97,8 +97,7 @@ import {
   hasSavedGame,
   resumeSavedGame,
 } from '@/game/useRoomGame'
-import { useRoomHardware } from '@/hardware/roomHardware'
-import { lockBuzzerSystemKeys, startLighting } from '@/hardware/roomHardware'
+import { lockBuzzerSystemKeys, startLighting, useRoomHardware } from '@/hardware/roomHardware'
 import { enterFullscreen, keepScreenAwake } from '@/hardware/screen'
 import { signOut } from '@/state/roomAuth'
 

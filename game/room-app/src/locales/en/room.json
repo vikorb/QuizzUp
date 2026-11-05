@@ -99,8 +99,8 @@
       "start": "Let’s go"
     },
     "layout": {
-      "title": "Choose your buzzer colors",
-      "hint": "Tap a buzzer, then pick its color. A color already taken goes to the other buzzer. To change a buzzer’s place, drag it onto another one or use “Swap place”.",
+      "title": "Choose the colors",
+      "hint": "Tap a buzzer, then its color. Drag a buzzer to move it.",
       "pad": "A desk seen from above",
       "colors": "Available colors",
       "cell": "Buzzer {button}, {color}, {place}",
@@ -123,7 +123,8 @@
       "title": "Your room is ready!",
       "text": "Here are your desks, with each buzzer’s key.",
       "finish": "Finish",
-      "lights": "Set up the lights"
+      "lights": "Set up the lights",
+      "saveError": "Could not save. Check the connection and try again."
     }
   }
 }
