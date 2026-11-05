@@ -1,6 +1,7 @@
 /**
- * Encodage Art-Net 4 (Artistic Licence), limité au paquet **ArtDMX** (OpCode 0x5000) : le seul
- * dont le pont a besoin pour envoyer un univers DMX à un nœud.
+ * Encodage Art-Net 4 (Artistic Licence), limité aux paquets dont le pont a besoin : **ArtDMX**
+ * (OpCode 0x5000, envoi d'un univers DMX à un nœud), puis **ArtPoll** (0x2000, recherche des
+ * nœuds) et **ArtPollReply** (0x2100, leur réponse, en lecture seule), décrits plus bas.
  *
  * | Octet | Champ        | Valeur                                                    |
  * | ----- | ------------ | --------------------------------------------------------- |
@@ -20,6 +21,8 @@ export const ARTNET_OPCODE_DMX = 0x50_00
 export const ARTNET_PROTOCOL_VERSION = 14
 export const ARTDMX_HEADER_BYTES = 18
 export const DMX_CHANNELS = 512
+export const ARTNET_OPCODE_POLL = 0x20_00
+export const ARTNET_OPCODE_POLL_REPLY = 0x21_00
 
 /** Adresse de port Art-Net 15 bits : Net (0-127) . Sub-Net (0-15) . Universe (0-15). */
 export type PortAddress = { net: number; subnet: number; universe: number }
@@ -88,3 +91,95 @@ export function encodeArtDmx(packet: ArtDmxPacket): Buffer {
 
 /** Numéro de séquence suivant : 1, 2… 255, 1… (0 est réservé à « pas de séquence »). */
 export const nextSequence = (sequence: number) => (sequence >= 255 ? 1 : sequence + 1)
+
+/**
+ * **ArtPoll** (14 octets) : le contrôleur demande aux nœuds de se présenter.
+ *
+ * | Octet | Champ        | Valeur                                                          |
+ * | ----- | ------------ | --------------------------------------------------------------- |
+ * | 0-7   | ID           | « Art-Net » suivi d'un octet nul                                |
+ * | 8-9   | OpCode       | 0x2000, petit-boutiste (0x00 0x20)                              |
+ * | 10-11 | ProtVer      | 14, gros-boutiste (0x00 0x0E)                                   |
+ * | 12    | Flags        | 0 : réponse seulement à ce poll (pas de réponse spontanée)      |
+ * | 13    | DiagPriority | 0 (pas de diagnostic demandé)                                   |
+ */
+export const ARTPOLL_BYTES = 14
+
+export function encodeArtPoll(): Buffer {
+  const buffer = Buffer.alloc(ARTPOLL_BYTES)
+  buffer.write(ARTNET_ID, 0, 'latin1')
+  buffer.writeUInt16LE(ARTNET_OPCODE_POLL, 8)
+  buffer.writeUInt16BE(ARTNET_PROTOCOL_VERSION, 10)
+  return buffer
+}
+
+/**
+ * **ArtPollReply** : seuls les champs lus sont listés (le paquet complet fait 239 octets en Art-Net 4,
+ * un nœud ancien en envoie moins : on exige ceux qui vont jusqu'à `SwOut`).
+ *
+ * | Octet   | Champ      | Lecture                                                              |
+ * | ------- | ---------- | -------------------------------------------------------------------- |
+ * | 0-9     | ID, OpCode | « Art-Net » + octet nul, puis 0x2100 petit-boutiste (0x00 0x21)      |
+ * | 10-13   | IP         | adresse IPv4 du nœud                                                 |
+ * | 18      | NetSwitch  | bits 0-6 : Net des ports                                             |
+ * | 19      | SubSwitch  | bits 0-3 : Sub-Net des ports                                         |
+ * | 26-43   | ShortName  | 18 octets, texte terminé par un octet nul                            |
+ * | 44-107  | LongName   | 64 octets, texte terminé par un octet nul                            |
+ * | 172-173 | NumPorts   | gros-boutiste, 0 à 4 (les ports au-delà du 4e passent par BindIndex) |
+ * | 174-177 | PortTypes  | bit 7 : le port sort du DMX (sortie)                                 |
+ * | 190-193 | SwOut      | bits 0-3 : univers du port de sortie                                 |
+ */
+export const ARTPOLLREPLY_MIN_BYTES = 194
+
+export type ArtNode = {
+  ip: string
+  shortName: string
+  longName: string
+  /** Univers de sortie (`net.sub.uni`) ; absent si le nœud n'annonce aucune sortie. */
+  universes?: string[]
+}
+
+// Texte du nœud, affiché tel quel dans l'écran de salle : sans caractère de contrôle.
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARACTERS = /[\x00-\x1f\x7f-\x9f]/g
+
+const cString = (buffer: Uint8Array, start: number, length: number) => {
+  const field = buffer.subarray(start, start + length)
+  const end = field.indexOf(0)
+  return Buffer.from(end === -1 ? field : field.subarray(0, end))
+    .toString('latin1')
+    .replace(CONTROL_CHARACTERS, '')
+    .trim()
+}
+
+/** Lit un ArtPollReply ; `null` pour tout paquet qui n'en est pas un (ou trop court), sans exception. */
+export function decodeArtPollReply(message: Uint8Array): ArtNode | null {
+  if (
+    message.length < ARTPOLLREPLY_MIN_BYTES ||
+    Buffer.from(message.subarray(0, 8)).toString('latin1') !== ARTNET_ID
+  ) {
+    return null
+  }
+  const view = new DataView(message.buffer, message.byteOffset, message.byteLength)
+  if (view.getUint16(8, true) !== ARTNET_OPCODE_POLL_REPLY) {
+    return null
+  }
+  const net = message[18]! & 0x7f
+  const subnet = message[19]! & 0x0f
+  const ports = Math.min(view.getUint16(172, false), 4)
+  const universes: string[] = []
+  for (let port = 0; port < ports; port += 1) {
+    if (message[174 + port]! & 0x80) {
+      const universe = formatPortAddress({ net, subnet, universe: message[190 + port]! & 0x0f })
+      if (!universes.includes(universe)) {
+        universes.push(universe)
+      }
+    }
+  }
+  return {
+    ip: `${message[10]}.${message[11]}.${message[12]}.${message[13]}`,
+    shortName: cString(message, 26, 18),
+    longName: cString(message, 44, 64),
+    ...(universes.length > 0 ? { universes } : {}),
+  }
+}

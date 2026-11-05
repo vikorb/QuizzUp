@@ -53,18 +53,22 @@ export {
   withLearnedKeymap,
 } from './config'
 export type {
+  ArtnetNode,
   ArtnetTargetConfig,
   BridgeArtnetStatus,
   BridgeOutput,
   BridgeOutputOptions,
+  BridgePollErrorCode,
   WebSocketConstructorLike,
   WebSocketLike,
 } from './dmx/bridgeOutput'
 export {
+  BRIDGE_FEATURE_POLL,
   BRIDGE_FRAME_BYTES,
   BRIDGE_MAX_BUFFERED_BYTES,
   BRIDGE_OPEN_TIMEOUT_MS,
   BRIDGE_PROTOCOL_VERSION,
+  BridgePollError,
   createBridgeOutput,
   DEFAULT_BRIDGE_PORT,
   DEFAULT_BRIDGE_URL,

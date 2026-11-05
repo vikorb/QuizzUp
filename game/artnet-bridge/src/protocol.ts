@@ -1,5 +1,6 @@
 import { isIPv4 } from 'node:net'
 
+import type { ArtNode } from './artnet.js'
 import { DMX_CHANNELS } from './artnet.js'
 
 /**
@@ -74,6 +75,39 @@ export function decodeFrame(message: Uint8Array): DecodedFrame {
   }
 }
 
+/**
+ * Découverte des nœuds (capacité `poll`, annoncée dans `features` de l'ack). Une fois le `hello`
+ * accepté, le navigateur envoie `{"type":"poll"}` ; le pont diffuse un ArtPoll, collecte les
+ * réponses pendant `POLL_WINDOW_MS` puis répond
+ * `{"type":"nodes","nodes":[{"ip":"192.168.1.50","shortName":"…","longName":"…","universes":["0.0.1"]}]}`
+ * (`universes` absent si le nœud n'annonce aucune sortie). Si l'ArtPoll ne part pas, le pont répond
+ * `{"type":"error","code":"poll","message":"…"}` sans fermer la connexion.
+ */
+export const POLL_FEATURE = 'poll'
+export const POLL_WINDOW_MS = 3000
+/** Un poll lancé moins d'1 s après la fin du précédent reçoit le même résultat, sans nouvel ArtPoll. */
+export const POLL_MIN_INTERVAL_MS = 1000
+export const POLL_MAX_NODES = 64
+/** Univers retenus par nœud (un nœud n'en annonce que 4 par réponse, mais peut répondre souvent). */
+export const POLL_MAX_UNIVERSES = 16
+/** Paquets UDP traités par poll : au-delà, le reste est ignoré (protège contre un flot de réponses). */
+export const POLL_MAX_PACKETS = 1024
+
+export function isPollMessage(text: string): boolean {
+  try {
+    const parsed: unknown = JSON.parse(text)
+    return (
+      Boolean(parsed) &&
+      typeof parsed === 'object' &&
+      (parsed as { type?: unknown }).type === 'poll'
+    )
+  } catch {
+    return false
+  }
+}
+
+export const nodesMessage = (nodes: readonly ArtNode[]) => JSON.stringify({ type: 'nodes', nodes })
+
 /** Cible Art-Net demandée par l'écran de salle (valeurs brutes, validées par `checkArtnetRequest`). */
 export type ArtnetRequest = { target?: unknown }
 
@@ -126,6 +160,17 @@ export function isAllowedArtnetTarget(ip: string): boolean {
   )
 }
 
+/**
+ * Un nœud annoncé est plausible si l'IP de son ArtPollReply est bien celle de l'expéditeur, locale,
+ * ni de boucle locale (127.x), ni une adresse réseau ou de diffusion (.0 / .255).
+ */
+export function isPlausibleNode(ip: string, remoteAddress: string): boolean {
+  if (ip !== remoteAddress || !isAllowedArtnetTarget(ip) || ip.startsWith('127.')) {
+    return false
+  }
+  return !ip.endsWith('.0') && !ip.endsWith('.255')
+}
+
 export const ARTNET_TARGET_RANGES = '10.x.x.x, 172.16-31.x.x, 192.168.x.x, 169.254.x.x, 127.x.x.x'
 
 export type ArtnetCheck = { ok: true; target: string } | { ok: false; message: string }
@@ -149,7 +194,10 @@ export function checkArtnetRequest(request: ArtnetRequest): ArtnetCheck {
 export type ArtnetSource = 'cli' | 'room' | 'none'
 export type ArtnetAck = { target: string | null; port: number; source: ArtnetSource }
 
-/** `universes` : nombre d'univers internes acceptés (un ancien pont ne l'annonce pas : 1 seul). */
+/**
+ * `universes` : nombre d'univers internes acceptés (un ancien pont ne l'annonce pas : 1 seul).
+ * `features` : capacités facultatives (`poll`) ; un ancien pont ne l'annonce pas.
+ */
 export const ackMessage = (version: string, artnet: ArtnetAck) =>
   JSON.stringify({
     type: 'ack',
@@ -158,6 +206,7 @@ export const ackMessage = (version: string, artnet: ArtnetAck) =>
     version,
     universes: MAX_INTERNAL_UNIVERSES,
     artnet,
+    features: [POLL_FEATURE],
   })
 
 export const errorMessage = (code: string, message: string) =>

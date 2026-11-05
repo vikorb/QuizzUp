@@ -114,6 +114,23 @@ describe('ligne de commande', () => {
     }
   })
 
+  it('lit --poll-broadcast (CLI ou fichier), limité aux adresses locales et à la diffusion générale', () => {
+    expect(run(BASE).pollBroadcast).toBeUndefined()
+    expect(run([...BASE, '--poll-broadcast', '192.168.1.255']).pollBroadcast).toBe('192.168.1.255')
+    expect(run([...BASE, '--poll-broadcast', '255.255.255.255']).pollBroadcast).toBe(
+      '255.255.255.255'
+    )
+    expect(HELP_TEXT).toContain('--poll-broadcast')
+    expect(
+      run(['--origin', 'https://a.fr', '--config', 'c.json'], {
+        readFile: () => '{"pollBroadcast":"10.0.0.255"}',
+      }).pollBroadcast
+    ).toBe('10.0.0.255')
+    for (const bad of ['8.8.8.8', '255.255.255.254', 'localhost']) {
+      expect(() => run([...BASE, '--poll-broadcast', bad]), bad).toThrow('--poll-broadcast')
+    }
+  })
+
   it('explique chaque erreur', () => {
     const cases: [string[], string][] = [
       [['--target', '192.168.1.300', '--origin', 'https://a.fr'], "n'est pas une adresse IPv4"],
