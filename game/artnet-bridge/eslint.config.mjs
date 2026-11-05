@@ -9,7 +9,7 @@ import tseslint from 'typescript-eslint'
 // Mêmes règles que `game/hardware/eslint.config.mjs` (elles-mêmes reprises du backoffice).
 // Différence : code Node uniquement (pas de globales navigateur).
 export default [
-  { ignores: ['**/node_modules/**', '**/dist/**', '**/coverage/**'] },
+  { ignores: ['**/node_modules/**', '**/dist/**', '**/dist-sea/**', '**/coverage/**'] },
 
   js.configs.recommended,
 

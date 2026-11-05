@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs'
 
 import { runCli } from './cli.js'
 
-const exitCode = await runCli(process.argv.slice(2), {
+// Sans `await` de premier niveau : l'exécutable (SEA) est un unique script CommonJS.
+void runCli(process.argv.slice(2), {
   out: (line) => console.log(line),
   err: (line) => console.error(line),
   env: process.env,
@@ -13,5 +14,6 @@ const exitCode = await runCli(process.argv.slice(2), {
       process.on(signal, handler)
     }
   },
+}).then((exitCode) => {
+  process.exitCode = exitCode
 })
-process.exitCode = exitCode
