@@ -18,10 +18,16 @@ export type CliIo = {
   ) => BridgeServer
 }
 
+/** Version injectée par `scripts/build-sea.mjs` : dans l'exécutable, il n'y a pas de `package.json`. */
+declare const BUNDLED_VERSION: string | undefined
+
 /** Version du pont, lue dans `package.json` (une seule source de vérité). */
 export function readVersion(
   read: (path: string) => string = (path) => readFileSync(path, 'utf8')
 ): string {
+  if (typeof BUNDLED_VERSION === 'string') {
+    return BUNDLED_VERSION
+  }
   try {
     const raw = JSON.parse(read(fileURLToPath(new URL('../package.json', import.meta.url)))) as {
       version?: unknown
