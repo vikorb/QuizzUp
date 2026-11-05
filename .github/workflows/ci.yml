@@ -289,3 +289,41 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  artnet-bridge-exe:
+    name: Pont Art-Net (exécutable Windows)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: game/artnet-bridge
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: game/artnet-bridge/package-lock.json
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      # Node Single Executable Applications (esbuild -> blob SEA -> postject), sans signature de code.
+      - name: Construire l'exécutable
+        run: npm run build:sea
+
+      - name: Version de l'exécutable
+        run: .\dist-sea\quizzup-artnet-bridge.exe --version
+
+      # Démarre le pont avec --origin http://localhost:4174, puis : hello + ack depuis cette origine,
+      # refus (403) d'une autre origine.
+      - name: Test de fumée (WebSocket)
+        run: node scripts/smoke-bridge.mjs dist-sea/quizzup-artnet-bridge.exe http://localhost:4174
+
+      - name: Publier l'exécutable
+        uses: actions/upload-artifact@v4
+        with:
+          name: quizzup-artnet-bridge-windows-x64
+          path: game/artnet-bridge/dist-sea/quizzup-artnet-bridge.exe
+          if-no-files-found: error
+          retention-days: 7
