@@ -3,6 +3,7 @@
 // `hello`, et qu'une autre origine est refusée (403). Fonctionne sous Windows comme sous Linux.
 import { spawn } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { request } from 'node:http'
 import { setTimeout as sleep } from 'node:timers/promises'
 
@@ -12,6 +13,14 @@ if (!exe) {
   process.exit(2)
 }
 const PORT = 17_654
+const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+
+// Chien de garde global : un blocage ne doit jamais retenir le job CI.
+setTimeout(() => {
+  console.error('ÉCHEC : délai global de 60 s dépassé')
+  child.kill()
+  process.exit(1)
+}, 60_000).unref()
 
 /** Poignée de main WebSocket brute (le WebSocket de Node 22 n'envoie pas d'en-tête Origin). */
 function handshake(fromOrigin) {
@@ -32,6 +41,7 @@ function handshake(fromOrigin) {
       res.resume()
       resolve({ status: res.statusCode })
     })
+    req.setTimeout(5000, () => req.destroy(new Error('poignée de main WebSocket sans réponse')))
     req.on('error', reject)
     req.end()
   })
@@ -67,10 +77,18 @@ async function connectWhenReady(fromOrigin) {
   throw new Error('le pont ne répond pas sur 127.0.0.1')
 }
 
+let stopping = false
 const child = spawn(exe, ['--origin', origin, '--port', String(PORT)], { stdio: 'inherit' })
 child.on('error', (error) => {
   console.error(error)
   process.exit(1)
+})
+// Pont tombé au démarrage (ou en cours de test) : échec immédiat avec son code de sortie.
+child.on('exit', (code, signal) => {
+  if (!stopping) {
+    console.error(`ÉCHEC : le pont s'est arrêté (code ${code}, signal ${signal})`)
+    process.exit(1)
+  }
 })
 
 let failure
@@ -83,6 +101,9 @@ try {
   if (ack.type !== 'ack' || ack.bridge !== 'quizzup-artnet-bridge') {
     throw new Error(`réponse inattendue au hello : ${JSON.stringify(ack)}`)
   }
+  if (ack.version !== version) {
+    throw new Error(`version du pont ${ack.version} au lieu de ${version} (package.json)`)
+  }
   console.log(`OK : ack reçu (pont ${ack.bridge} ${ack.version})`)
   accepted.socket.destroy()
 
@@ -94,6 +115,7 @@ try {
 } catch (error) {
   failure = error
 } finally {
+  stopping = true
   child.kill()
 }
 if (failure) {

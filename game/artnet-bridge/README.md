@@ -31,13 +31,13 @@ n'a **aucune dépendance d'exécution**.
 ### Windows (exécutable, sans Node.js)
 
 Le pont existe en **un seul `.exe`** (Node.js embarqué, rien à installer). Il est construit par la
-CI GitHub à chaque PR.
+CI GitHub à chaque PR et à chaque push sur `main`.
 
 1. Télécharger l'exécutable : GitHub → onglet **Actions** → dernier run vert du workflow **CI**
    → section **Artifacts** → `quizzup-artnet-bridge-windows-x64` (zip contenant
    `quizzup-artnet-bridge.exe`). L'artefact est conservé 7 jours : au-delà, relancer le workflow.
 2. Créer le dossier `C:\QuizzUp\` et y copier **`C:\QuizzUp\quizzup-artnet-bridge.exe`** (chemin
-   attendu par le kit d'installation du poste).
+   attendu par le kit d'installation du poste, `deploy/poste-salle/`, PR #119 en cours).
 3. **Avertissement SmartScreen** : l'exécutable n'est **pas signé** (pas de certificat de
    signature de code). Au premier lancement, Windows affiche « Windows a protégé votre PC » :
    cliquer sur **Informations complémentaires**, puis **Exécuter quand même**. Si le fichier a été
@@ -211,7 +211,14 @@ source, 0 par défaut). Autres clés reconnues : `universe` (sortie, sans `--map
 
 Le pont doit tourner **avant** l'ouverture de l'écran de salle.
 
-**Windows** : créer `C:\QuizzUp\artnet-bridge\demarrer-pont.cmd` :
+**Windows, exécutable** : créer `C:\QuizzUp\demarrer-pont.cmd` :
+
+```bat
+@echo off
+C:\QuizzUp\quizzup-artnet-bridge.exe --config C:\QuizzUp\salle.json
+```
+
+**Windows, depuis les sources** : créer `C:\QuizzUp\artnet-bridge\demarrer-pont.cmd` :
 
 ```bat
 @echo off
@@ -219,7 +226,7 @@ cd /d C:\QuizzUp\artnet-bridge
 node dist\main.js --config salle.json
 ```
 
-puis l'ajouter au démarrage : `Win + R` → `shell:startup` → y placer un raccourci vers ce fichier
+puis (dans les deux cas) l'ajouter au démarrage : `Win + R` → `shell:startup` → y placer un raccourci vers ce fichier
 (la fenêtre du terminal affiche le journal ; la réduire, ne pas la fermer). Pour un démarrage sans
 session ouverte, utiliser le Planificateur de tâches (« Au démarrage », « Exécuter même si
 l'utilisateur n'est pas connecté »).
