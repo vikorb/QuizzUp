@@ -3,7 +3,7 @@ import type { Component } from 'vue'
 import { createMemoryHistory } from 'vue-router'
 
 import { createAppI18n, setCurrentLocale } from '@/plugins/i18n'
-import { createRoomRouter } from '@/router'
+import { createRoomRouter, routes } from '@/router'
 
 // Démonte après chaque test, même en échec : évite les écouteurs clavier orphelins.
 enableAutoUnmount(afterEach)
@@ -36,11 +36,12 @@ export const PRELOAD_TIMEOUT_MS = 60_000
  * `beforeAll(preloadRoutes, PRELOAD_TIMEOUT_MS)` dans les tests qui attendent une navigation.
  */
 export async function preloadRoutes(): Promise<void> {
-  await Promise.all([
-    import('@/views/GameView.vue'),
-    import('@/views/LaunchView.vue'),
-    import('@/views/LoginView.vue'),
-    import('@/views/LobbyView.vue'),
-    import('@/views/hardware/HardwareView.vue'),
-  ])
+  // Un SFC compilé est un objet : seul un import paresseux est une fonction.
+  await Promise.all(
+    routes.map((route) =>
+      typeof route.component === 'function'
+        ? (route.component as () => Promise<unknown>)()
+        : undefined
+    )
+  )
 }

@@ -11,7 +11,9 @@ import GameView from '@/views/GameView.vue'
 
 import { createManualClock, REGISTRATIONS } from '../_helpers/fixtures'
 import { pressKey } from '../_helpers/keyboard'
-import { mountWithApp } from '../_helpers/mount'
+import { mountWithApp, PRELOAD_TIMEOUT_MS, preloadRoutes } from '../_helpers/mount'
+
+beforeAll(preloadRoutes, PRELOAD_TIMEOUT_MS)
 
 const BLIND_TEST_ONLY = [MINI_GAME_FLASH_BLIND_TEST]
 
