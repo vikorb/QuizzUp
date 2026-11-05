@@ -4,9 +4,11 @@ import {
   BRIDGE_FRAME_BYTES,
   BRIDGE_MAX_SKIPPED_FRAMES,
   BRIDGE_OPEN_TIMEOUT_MS,
+  buildBridgeHello,
   createBridgeOutput,
   DEFAULT_BRIDGE_URL,
   encodeBridgeFrame,
+  isLocalArtnetTarget,
   parseBridgeUrl,
 } from '@hardware/dmx/bridgeOutput'
 import { DMX_DRIVERS } from '@hardware/dmx/output'
@@ -137,12 +139,75 @@ describe('sortie pont Art-Net : ouverture', () => {
     expect(JSON.parse(socket.sent[0] as string)).toEqual({
       type: 'hello',
       protocol: 1,
+      version: 2,
       universe: 0,
     })
     socket.serverSend(ACK)
     await expect(opening).resolves.toBeUndefined()
     expect(context.output.bridgeVersion()).toBe('0.1.0')
     expect(context.clock.pending()).toBe(0)
+  })
+
+  it('hello v2 : porte la cible Art-Net de la salle, jamais un port', async () => {
+    for (const [artnet, expected] of [
+      [{ target: '192.168.1.50' }, { target: '192.168.1.50' }],
+      // Une config trafiquée à la main ne peut pas faire passer de port.
+      [{ target: '10.0.0.7', port: 53 } as never, { target: '10.0.0.7' }],
+    ] as const) {
+      const context = setup({ artnet })
+      const opening = context.output.open()
+      context.sockets[0]!.serverOpen()
+      expect(JSON.parse(context.sockets[0]!.sent[0] as string)).toEqual({
+        type: 'hello',
+        protocol: 1,
+        version: 2,
+        universe: 0,
+        artnet: expected,
+      })
+      context.sockets[0]!.serverSend(ACK)
+      await opening
+    }
+  })
+
+  it('buildBridgeHello : sans cible, pas de champ artnet', () => {
+    expect(buildBridgeHello()).toEqual({ type: 'hello', protocol: 1, version: 2, universe: 0 })
+    expect(buildBridgeHello({ target: '192.168.1.50' })).toHaveProperty('artnet.target')
+  })
+
+  it('retient la cible effective annoncée par le pont (source cli, room ou none)', async () => {
+    for (const source of ['cli', 'room', 'none'] as const) {
+      const context = setup({ artnet: { target: '192.168.1.50' } })
+      expect(context.output.artnetStatus()).toBeNull()
+      const opening = context.output.open()
+      context.sockets[0]!.serverOpen()
+      const target = source === 'none' ? null : '192.168.1.60'
+      context.sockets[0]!.serverSend({ ...ACK, artnet: { target, port: 6454, source } })
+      await opening
+      expect(context.output.artnetStatus()).toEqual({ target, port: 6454, source })
+    }
+  })
+
+  it('ancien pont ou ack illisible : artnetStatus reste null', async () => {
+    for (const artnet of [undefined, 'x', { source: 'autre', port: 1 }, { source: 'cli' }]) {
+      const context = setup({ artnet: { target: '192.168.1.50' } })
+      const opening = context.output.open()
+      context.sockets[0]!.serverOpen()
+      context.sockets[0]!.serverSend({ ...ACK, artnet })
+      await opening
+      expect(context.output.artnetStatus()).toBeNull()
+    }
+  })
+
+  it('cible refusée par le pont : l’ouverture échoue avec son message', async () => {
+    const context = setup({ artnet: { target: '192.168.1.50' } })
+    const opening = context.output.open()
+    context.sockets[0]!.serverOpen()
+    context.sockets[0]!.serverSend({
+      type: 'error',
+      code: 'target',
+      message: 'cible Art-Net 8.8.8.8 refusée',
+    })
+    await expect(opening).rejects.toThrow('Pont Art-Net : cible Art-Net 8.8.8.8 refusée')
   })
 
   it('garde une version inconnue à null', async () => {
@@ -577,5 +642,40 @@ describe('pont Art-Net et contrôleur lumières', () => {
     expect(controller.getState().smoke.status).not.toBe('firing')
     expect(controller.getState().outputError).toContain('Pont Art-Net déconnecté')
     await controller.stop()
+  })
+})
+
+describe('cible Art-Net autorisée', () => {
+  it('accepte les réseaux locaux', () => {
+    for (const ip of [
+      '10.0.0.1',
+      '172.16.0.1',
+      '172.31.9.9',
+      '192.168.1.255',
+      '169.254.1.1',
+      '127.0.0.1',
+    ]) {
+      expect(isLocalArtnetTarget(ip), ip).toBe(true)
+    }
+  })
+
+  it('refuse le reste', () => {
+    for (const ip of [
+      '8.8.8.8',
+      '1.1.1.1',
+      '172.15.0.1',
+      '172.32.0.1',
+      '192.169.0.1',
+      '192.168.1.256',
+      '192.168.01.1',
+      ' 192.168.1.1',
+      'noeud.local',
+      '::1',
+      '',
+      42,
+      null,
+    ]) {
+      expect(isLocalArtnetTarget(ip), String(ip)).toBe(false)
+    }
   })
 })

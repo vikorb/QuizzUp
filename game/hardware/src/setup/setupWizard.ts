@@ -1,7 +1,12 @@
 import type { BuzzerKeymap } from '../buzzers/keymap'
 import { missingSlots } from '../buzzers/keymap'
 import type { BuzzerSource, RoomHardwareConfig } from '../config'
-import { activeLightingConfig, parseRoomHardwareConfig, withDesksCount } from '../config'
+import {
+  activeLightingConfig,
+  parseRoomHardwareConfig,
+  withArtnetTarget,
+  withDesksCount,
+} from '../config'
 import type { FixtureConfig, PanTilt } from '../dmx/fixtures'
 import { fixtureUniverse, parseRig, unsupportedUniverseProblems } from '../dmx/fixtures'
 import type { DmxDriver } from '../dmx/output'
@@ -192,6 +197,11 @@ export type SetupWizard = {
   setKeymap: (keymap: BuzzerKeymap) => void
 
   setDriver: (driver: DmxDriver) => WizardResult
+  /**
+   * IP du nœud Art-Net (pilote `artnet-bridge`), enregistrée dans `lighting.artnet` ; chaîne vide =
+   * pas de réglage (le pont garde sa cible). Le port éventuel est conservé.
+   */
+  setArtnetTarget: (target: string) => void
 
   addFixture: (input: AddFixtureInput) => AddFixtureResult
   updateFixture: (id: string, patch: Partial<Omit<FixtureConfig, 'id'>>) => WizardResult
@@ -500,6 +510,10 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
       fixtureTests = {}
       smokeChecks = { ...smokeChecks, freezeTest: false }
       return { ok: true }
+    },
+
+    setArtnetTarget: (target) => {
+      config = withArtnetTarget(config, target)
     },
 
     addFixture: (input) => {

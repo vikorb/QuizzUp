@@ -14,9 +14,11 @@ import type { OutputPlan } from './mapping.js'
 import { describePlan } from './mapping.js'
 import {
   ackMessage,
+  type ArtnetAck,
   BRIDGE_FRAME_BYTES,
   BRIDGE_PROTOCOL_VERSION,
   BUSY_MESSAGE,
+  checkArtnetRequest,
   CLOSE_CODES,
   decodeFrame,
   errorMessage,
@@ -36,14 +38,20 @@ export const HELLO_TIMEOUT_MS = 2000
 /** Attente maximale des derniers envois UDP (trames à zéro) à l'arrêt. */
 const SHUTDOWN_FLUSH_MS = 200
 
+/** Trames à zéro envoyées à l'ancienne cible quand la cible change (l'UDP n'est pas garanti). */
+const BLACKOUT_FRAMES_ON_SWITCH = 3
+
 export type BridgeServerOptions = {
   /** Port d'écoute WebSocket sur 127.0.0.1 (0 = choisi par le système, pour les tests). */
   port: number
   /** Origines autorisées, normalisées (`https://salle.quizzup.fr`). */
   origins: readonly string[]
   plan: OutputPlan
-  /** IP du nœud Art-Net (unicast) ou de diffusion (ex. 192.168.1.255). */
-  target: string
+  /**
+   * IP du nœud Art-Net (unicast) ou de diffusion (ex. 192.168.1.255), donnée en ligne de commande :
+   * elle est alors prioritaire. Absente, la cible vient de l'écran de salle (`hello` v2).
+   */
+  target?: string
   artnetPort?: number
   /** IP locale d'où partent les paquets (PC à plusieurs cartes réseau). */
   bind?: string
@@ -90,7 +98,11 @@ export function allowedHostHeaders(port: number): Set<string> {
 export function createBridgeServer(options: BridgeServerOptions): BridgeServer {
   const clock = options.clock ?? systemClock
   const log = options.log ?? (() => undefined)
+  // Le port est toujours celui de `--artnet-port` : l'écran de salle ne le choisit jamais.
   const artnetPort = options.artnetPort ?? ARTNET_PORT
+  const targetFromCli = options.target !== undefined
+  let target: string | null = options.target ?? null
+  let warnedNoTarget = false
   const origins = new Set(options.origins)
   const udp = createSocket({ type: 'udp4', reuseAddr: false })
   let pendingSends = 0
@@ -102,15 +114,23 @@ export function createBridgeServer(options: BridgeServerOptions): BridgeServer {
     if (closed) {
       return
     }
+    if (target === null) {
+      if (!warnedNoTarget) {
+        warnedNoTarget = true
+        log('Aucune cible Art-Net : rien n’est envoyé (IP du nœud à régler dans l’écran Matériel)')
+      }
+      return
+    }
     pendingSends += 1
-    udp.send(packet, artnetPort, options.target, (error) => {
+    const destination = target
+    udp.send(packet, artnetPort, destination, (error) => {
       pendingSends -= 1
       if (error) {
         const code = (error as NodeJS.ErrnoException).code ?? error.message
         if (code !== lastUdpError) {
           lastUdpError = code
           log(
-            `Envoi Art-Net impossible vers ${options.target} (univers ${formatPortAddress(address)}) : ${code}. ` +
+            `Envoi Art-Net impossible vers ${destination} (univers ${formatPortAddress(address)}) : ${code}. ` +
               'Câble réseau, IP du PC ou IP du nœud ?'
           )
         }
@@ -128,6 +148,33 @@ export function createBridgeServer(options: BridgeServerOptions): BridgeServer {
     silenceTimeoutMs: options.silenceTimeoutMs,
     blackoutMs: options.blackoutMs,
     log,
+  })
+
+  const describeTarget = () =>
+    target === null
+      ? 'aucune'
+      : `${target}:${artnetPort} (${targetFromCli ? 'ligne de commande' : 'écran de salle'})`
+  /**
+   * Change la cible reçue de l'écran de salle. L'UDP n'est pas garanti et un nœud garde sa dernière
+   * valeur (fumée comprise) : avant de quitter l'ancienne cible, on lui envoie 3 trames à zéro.
+   */
+  const switchTarget = (next: string | null) => {
+    if (next === target) {
+      return
+    }
+    if (target !== null) {
+      for (let count = 0; count < BLACKOUT_FRAMES_ON_SWITCH; count += 1) {
+        core.sendBlackout()
+      }
+    }
+    target = next
+    warnedNoTarget = false
+    log(`Cible Art-Net reçue de l’écran de salle : ${describeTarget()}`)
+  }
+  const artnetAck = (): ArtnetAck => ({
+    target,
+    port: artnetPort,
+    source: target === null ? 'none' : targetFromCli ? 'cli' : 'room',
   })
 
   let server: Server | null = null
@@ -211,8 +258,19 @@ export function createBridgeServer(options: BridgeServerOptions): BridgeServer {
           )
           return
         }
+        if (!targetFromCli) {
+          // La ligne de commande reste prioritaire. Sans elle, la cible est celle de ce hello : un
+          // hello v1 ou sans `artnet` l'efface, pour ne jamais émettre vers l'IP d'une salle précédente.
+          const requested =
+            hello.artnet?.target === undefined ? null : checkArtnetRequest(hello.artnet)
+          if (requested && !requested.ok) {
+            refuse(CLOSE_CODES.target, 'target', requested.message)
+            return
+          }
+          switchTarget(requested?.target ?? null)
+        }
         ready = true
-        connection.sendText(ackMessage(options.version))
+        connection.sendText(ackMessage(options.version, artnetAck()))
         log(`Écran de salle connecté (${origin})`)
         return
       }
@@ -294,7 +352,9 @@ export function createBridgeServer(options: BridgeServerOptions): BridgeServer {
       core.start()
       log(`Pont QuizzUp Art-Net ${options.version} : ws://${LISTEN_HOST}:${listeningPort}`)
       log(`Origines autorisées : ${[...origins].join(', ')}`)
-      log(`Cible Art-Net : ${options.target}:${artnetPort}`)
+      log(
+        `Cible Art-Net : ${target === null ? 'à régler dans l’écran de salle' : describeTarget()}`
+      )
       for (const line of describePlan(options.plan)) {
         log(`  ${line}`)
       }

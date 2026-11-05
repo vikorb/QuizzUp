@@ -24,8 +24,17 @@ import { DMX_CHANNELS, MAX_UNIVERSES } from './universe'
  * Un tour de boucle envoie une trame par univers utilisé, l'univers 0 d'abord.
  *
  * Le même format est décodé (et testé octet par octet) dans `game/artnet-bridge/src/protocol.ts`.
+ *
+ * Version 2 du `hello` : il porte `"version":2` (le format des trames ne change pas) et, si la config
+ * de la salle règle une cible, `"artnet":{"target":"192.168.1.50"}` (jamais de port : il reste celui de
+ * `--artnet-port` du pont). Le pont applique cette cible (sauf `--target` en ligne de commande,
+ * prioritaire) et la renvoie dans l'ack :
+ * `"artnet":{"target":"192.168.1.50","port":6454,"source":"room"}` (`source` : `cli`, `room` ou
+ * `none`). Un ancien pont ignore ces champs : l'ack n'a pas d'`artnet`, `artnetStatus()` vaut `null`.
  */
 export const BRIDGE_PROTOCOL_VERSION = 1
+/** Version du `hello` qui porte la cible Art-Net. */
+export const BRIDGE_HELLO_VERSION = 2
 export const BRIDGE_FRAME_HEADER_BYTES = 3
 export const BRIDGE_FRAME_BYTES = BRIDGE_FRAME_HEADER_BYTES + DMX_CHANNELS
 
@@ -72,6 +81,8 @@ export type WebSocketConstructorLike = new (url: string) => WebSocketLike
 export type BridgeOutputOptions = {
   /** `ws://127.0.0.1:<port>` ou `ws://localhost:<port>` (cf. `parseBridgeUrl`). */
   url: string
+  /** Cible Art-Net de la salle, envoyée au pont dans le `hello` (absente : le pont garde la sienne). */
+  artnet?: ArtnetTargetConfig
   /** Constructeur WebSocket (faux en test) ; `globalThis.WebSocket` par défaut. */
   // eslint-disable-next-line @typescript-eslint/naming-convention -- constructeur : PascalCase
   WebSocketImpl?: WebSocketConstructorLike
@@ -92,6 +103,55 @@ export type BridgeOutput = DmxOutput & {
   skippedFrames: () => number
   /** Version annoncée par le pont lors de l'accusé de réception (`null` avant). */
   bridgeVersion: () => string | null
+  /** Cible effective annoncée par le pont (`null` avant l'ack, ou pont ancien qui ne l'annonce pas). */
+  artnetStatus: () => BridgeArtnetStatus | null
+}
+
+/** Cible Art-Net réglée dans la salle (`lighting.artnet` de `rooms.config`). */
+export type ArtnetTargetConfig = { target: string }
+
+/** Cible effective annoncée par le pont dans l'ack, et d'où elle vient. */
+export type BridgeArtnetStatus = {
+  target: string | null
+  port: number
+  source: 'cli' | 'room' | 'none'
+}
+
+const IPV4 = /^(0|[1-9]\d{0,2})\.(0|[1-9]\d{0,2})\.(0|[1-9]\d{0,2})\.(0|[1-9]\d{0,2})$/
+
+/**
+ * Cible acceptée par le pont : IPv4 d'un réseau privé RFC 1918 (10/8, 172.16/12, 192.168/16),
+ * link-local (169.254/16) ou boucle locale (127/8). Miroir de `isAllowedArtnetTarget` du pont, qui
+ * refuse le reste : une config ne doit pas viser Internet.
+ */
+export function isLocalArtnetTarget(ip: unknown): ip is string {
+  const match = typeof ip === 'string' ? IPV4.exec(ip) : null
+  if (!match) {
+    return false
+  }
+  const octets = match.slice(1).map(Number) as [number, number, number, number]
+  if (octets.some((octet) => octet > 255)) {
+    return false
+  }
+  const [first, second] = octets
+  return (
+    first === 10 ||
+    first === 127 ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168) ||
+    (first === 169 && second === 254)
+  )
+}
+
+/** Message `hello` (version 2) envoyé au pont à chaque (re)connexion. */
+export function buildBridgeHello(artnet?: ArtnetTargetConfig) {
+  return {
+    type: 'hello',
+    protocol: BRIDGE_PROTOCOL_VERSION,
+    version: BRIDGE_HELLO_VERSION,
+    universe: 0,
+    ...(artnet ? { artnet: { target: artnet.target } } : {}),
+  }
 }
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost'])
@@ -135,6 +195,7 @@ type BridgeMessage = {
   protocol?: unknown
   version?: unknown
   universes?: unknown
+  artnet?: unknown
   code?: unknown
   message?: unknown
 }
@@ -148,6 +209,25 @@ function parseMessage(data: unknown): BridgeMessage | null {
     return parsed && typeof parsed === 'object' ? (parsed as BridgeMessage) : null
   } catch {
     return null
+  }
+}
+
+function parseArtnetStatus(input: unknown): BridgeArtnetStatus | null {
+  if (!input || typeof input !== 'object') {
+    return null
+  }
+  const raw = input as Record<string, unknown>
+  const { source } = raw
+  if (
+    (source !== 'cli' && source !== 'room' && source !== 'none') ||
+    typeof raw.port !== 'number'
+  ) {
+    return null
+  }
+  return {
+    target: typeof raw.target === 'string' ? raw.target : null,
+    port: raw.port,
+    source,
   }
 }
 
@@ -184,6 +264,7 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
   let version: string | null = null
   /** Univers que le pont dit gérer (`ack`) ; un ancien pont n'en dit rien : 1 seul (l'univers 0). */
   let capacity: number | null = null
+  let artnet: BridgeArtnetStatus | null = null
 
   /** Fermeture en cours (volontaire ou après une coupure) : une réouverture l'attend. */
   let closing: Promise<void> | null = null
@@ -257,6 +338,7 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
       skippedInARow = 0
       skippingRound = false
       version = null
+      artnet = null
       target.binaryType = 'arraybuffer'
 
       const fail = (message: string) => {
@@ -279,13 +361,7 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
       )
 
       target.onopen = () => {
-        target.send(
-          JSON.stringify({
-            type: 'hello',
-            protocol: BRIDGE_PROTOCOL_VERSION,
-            universe: 0,
-          })
-        )
+        target.send(JSON.stringify(buildBridgeHello(options.artnet)))
       }
       target.onerror = () => {
         // Le détail arrive avec `onclose` ; avant l'accusé de réception, c'est un échec d'ouverture.
@@ -332,6 +408,7 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
         settled = true
         clock.clearTimeout(timeout)
         version = typeof message.version === 'string' ? message.version : null
+        artnet = parseArtnetStatus(message.artnet)
         capacity =
           typeof message.universes === 'number' && Number.isInteger(message.universes)
             ? Math.min(MAX_UNIVERSES, Math.max(1, message.universes))
@@ -410,5 +487,6 @@ export function createBridgeOutput(options: BridgeOutputOptions): BridgeOutput {
     onDisconnect: disconnectEmitter.on,
     skippedFrames: () => skipped,
     bridgeVersion: () => version,
+    artnetStatus: () => artnet,
   }
 }

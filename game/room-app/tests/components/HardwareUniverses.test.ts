@@ -1,6 +1,6 @@
 import { flushPromises } from '@vue/test-utils'
 
-import { saveBuzzerKeymap } from '@/hardware/roomHardware'
+import { getRoomHardwareConfig, saveBuzzerKeymap } from '@/hardware/roomHardware'
 import { enterDemo, syncRoomAuth } from '@/state/roomAuth'
 import HardwareView from '@/views/hardware/HardwareView.vue'
 
@@ -66,5 +66,60 @@ describe('assistant : univers DMX par appareil', () => {
     expect(list).toContain('PAR salle')
     expect(list).toContain('PAR fond')
     expect(list.match(/Univers/g)).toHaveLength(1)
+  })
+})
+
+/** Assistant ouvert sur l'étape « interface » (buzzers déjà appris). */
+async function openInterfaceStep() {
+  await saveBuzzerKeymap(fullKeymap())
+  const { wrapper } = await mountWithApp(HardwareView, { route: '/hardware' })
+  await click(wrapper, 'tab-assistant')
+  await click(wrapper, 'assistant-next')
+  await sel(wrapper, 'buzzer-source').setValue('gamepad')
+  await sel(wrapper, 'gamepad-match').setValue('BU0836')
+  await click(wrapper, 'assistant-next')
+  return wrapper
+}
+
+describe('assistant : IP du nœud Art-Net', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    syncRoomAuth()
+    enterDemo()
+    installFakeSerial(createFakeUsbPort())
+  })
+  afterEach(() => uninstallFakeSerial())
+
+  it('affiche le champ seulement avec le pont Art-Net, et l’enregistre dans la config', async () => {
+    const wrapper = await openInterfaceStep()
+    expect(sel(wrapper, 'artnet-target').exists()).toBe(false)
+    await sel(wrapper, 'driver-artnet-bridge').setValue(true)
+    expect(sel(wrapper, 'artnet-target').exists()).toBe(true)
+
+    await sel(wrapper, 'artnet-target').setValue('192.168.1.50')
+    await sel(wrapper, 'artnet-target').trigger('change')
+    await flushPromises()
+    expect(getRoomHardwareConfig().lighting.artnet).toEqual({ target: '192.168.1.50' })
+    expect(sel(wrapper, 'artnet-invalid').exists()).toBe(false)
+
+    // Vider le champ retire le réglage.
+    await sel(wrapper, 'artnet-target').setValue('')
+    await sel(wrapper, 'artnet-target').trigger('change')
+    await flushPromises()
+    expect(getRoomHardwareConfig().lighting.artnet).toBeUndefined()
+  })
+
+  it('refuse une IP publique ou illisible sans l’enregistrer', async () => {
+    const wrapper = await openInterfaceStep()
+    await sel(wrapper, 'driver-artnet-bridge').setValue(true)
+    for (const value of ['8.8.8.8', 'noeud.local']) {
+      await sel(wrapper, 'artnet-target').setValue(value)
+      await sel(wrapper, 'artnet-target').trigger('change')
+      await flushPromises()
+      expect(sel(wrapper, 'artnet-invalid').exists(), value).toBe(true)
+      // La saisie refusée reste affichée pour être corrigée.
+      expect((sel(wrapper, 'artnet-target').element as HTMLInputElement).value).toBe(value)
+      expect(getRoomHardwareConfig().lighting.artnet).toBeUndefined()
+    }
   })
 })

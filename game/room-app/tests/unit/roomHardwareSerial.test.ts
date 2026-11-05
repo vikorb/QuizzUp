@@ -7,8 +7,10 @@ import {
   getDmxPort,
   getDmxStats,
   getLighting,
+  getRoomHardwareConfig,
   HARDWARE_STORAGE_KEY,
   resetRoomHardware,
+  saveArtnetTarget,
   saveRoomHardwareConfig,
   startLighting,
   stopLighting,
@@ -159,6 +161,9 @@ class FakeBridgeSocket {
   static last: FakeBridgeSocket | null = null
   static instances: FakeBridgeSocket[] = []
   static mode: BridgeMode = 'ready'
+  /** Cible imposée par la ligne de commande du faux pont (`--target`) ; `null` = aucune. */
+  static cliTarget: string | null = null
+  hellos: Record<string, unknown>[] = []
   readyState = 0
   bufferedAmount = 0
   binaryType = 'blob'
@@ -190,13 +195,22 @@ class FakeBridgeSocket {
       this.frames.push(new Uint8Array(data as ArrayBuffer))
       return
     }
+    const hello = JSON.parse(data) as { version?: number; artnet?: { target: string } }
+    this.hellos.push(hello)
     queueMicrotask(() => {
       const busy = FakeBridgeSocket.mode === 'busy'
+      const target = FakeBridgeSocket.cliTarget ?? hello.artnet?.target ?? null
+      const source = FakeBridgeSocket.cliTarget ? 'cli' : target ? 'room' : 'none'
       this.onmessage?.({
         data: JSON.stringify(
           busy
             ? { type: 'error', code: 'busy', message: 'occupé' }
-            : { type: 'ack', protocol: 1, bridge: 'quizzup-artnet-bridge' }
+            : {
+                type: 'ack',
+                protocol: 1,
+                bridge: 'quizzup-artnet-bridge',
+                ...(hello.version === 2 ? { artnet: { target, port: 6454, source } } : {}),
+              }
         ),
       })
     })
@@ -221,6 +235,7 @@ const isBlack = (frame: Uint8Array) => frame.subarray(3).every((value) => value 
 describe('pont Art-Net de la salle', () => {
   beforeEach(() => {
     FakeBridgeSocket.mode = 'ready'
+    FakeBridgeSocket.cliTarget = null
     FakeBridgeSocket.instances = []
     vi.stubGlobal('WebSocket', FakeBridgeSocket)
   })
@@ -251,6 +266,77 @@ describe('pont Art-Net de la salle', () => {
     await saveRoomHardwareConfig(BRIDGE_CONFIG)
     await vi.waitFor(() => expect(getLighting()?.getState().simulation).toBe(false))
     expect(FakeBridgeSocket.last).not.toBe(first)
+  })
+
+  it('envoie l’IP du nœud de la salle au pont (hello v2) et affiche la cible effective', async () => {
+    await saveRoomHardwareConfig({
+      lighting: { driver: 'artnet-bridge', artnet: { target: '192.168.1.50' } },
+    })
+    const { bridgeArtnet } = useRoomHardware()
+    await startLighting()
+    expect(FakeBridgeSocket.last?.hellos[0]).toEqual({
+      type: 'hello',
+      protocol: 1,
+      version: 2,
+      universe: 0,
+      artnet: { target: '192.168.1.50' },
+    })
+    expect(bridgeArtnet.value).toEqual({ target: '192.168.1.50', port: 6454, source: 'room' })
+
+    // Changer l'IP : les lumières redémarrent et la nouvelle cible part à la reconnexion.
+    await saveArtnetTarget('192.168.1.60')
+    await vi.waitFor(() =>
+      expect(FakeBridgeSocket.last?.hellos[0]).toMatchObject({
+        artnet: { target: '192.168.1.60' },
+      })
+    )
+    await vi.waitFor(() => expect(bridgeArtnet.value?.target).toBe('192.168.1.60'))
+
+    // Champ vidé : plus de cible dans le hello.
+    await saveArtnetTarget('')
+    await vi.waitFor(() => expect(FakeBridgeSocket.last?.hellos[0]).not.toHaveProperty('artnet'))
+    await vi.waitFor(() => expect(bridgeArtnet.value?.source).toBe('none'))
+  })
+
+  it('ne garde jamais de port de la salle : une config trafiquée n’en envoie pas', async () => {
+    await saveRoomHardwareConfig({
+      lighting: { driver: 'artnet-bridge', artnet: { target: '192.168.1.50', port: 53 } },
+    })
+    expect(getRoomHardwareConfig().lighting.artnet).toEqual({ target: '192.168.1.50' })
+    await startLighting()
+    expect(FakeBridgeSocket.last?.hellos[0]).toMatchObject({ artnet: { target: '192.168.1.50' } })
+    expect(FakeBridgeSocket.last?.hellos[0]?.artnet).not.toHaveProperty('port')
+  })
+
+  it('n’affiche plus de cible effective quand le pont est tombé', async () => {
+    await saveRoomHardwareConfig({
+      lighting: { driver: 'artnet-bridge', artnet: { target: '192.168.1.50' } },
+    })
+    const { bridgeArtnet } = useRoomHardware()
+    await startLighting()
+    expect(bridgeArtnet.value).not.toBeNull()
+    FakeBridgeSocket.last?.onclose?.({ code: 1006, reason: '' })
+    await vi.waitFor(() => expect(bridgeArtnet.value).toBeNull())
+  })
+
+  it('la ligne de commande du pont reste prioritaire et l’écran l’affiche', async () => {
+    FakeBridgeSocket.cliTarget = '10.1.1.1'
+    await saveRoomHardwareConfig({
+      lighting: { driver: 'artnet-bridge', artnet: { target: '192.168.1.50' } },
+    })
+    const { bridgeArtnet } = useRoomHardware()
+    await startLighting()
+    expect(bridgeArtnet.value).toEqual({ target: '10.1.1.1', port: 6454, source: 'cli' })
+  })
+
+  it('enregistre l’IP dans la config et écarte une IP publique', async () => {
+    await saveArtnetTarget(' 192.168.1.50 ')
+    expect(getRoomHardwareConfig().lighting.artnet).toEqual({ target: '192.168.1.50' })
+    const saved = JSON.parse(localStorage.getItem(HARDWARE_STORAGE_KEY) ?? '{}')
+    expect(saved.lighting.artnet).toEqual({ target: '192.168.1.50' })
+    const rejected = await saveArtnetTarget('8.8.8.8')
+    expect(rejected.config.lighting.artnet).toBeUndefined()
+    expect(rejected.problems.join(' ')).toContain('IP du nœud Art-Net refusée')
   })
 
   it('reste en simulation quand le pont est absent, puis le reprend dès qu’il est lancé', async () => {

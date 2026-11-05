@@ -48,10 +48,13 @@ export {
   gamepadMatcher,
   parseRoomHardwareConfig,
   ROOM_HARDWARE_CONFIG_VERSION,
+  withArtnetTarget,
   withDesksCount,
   withLearnedKeymap,
 } from './config'
 export type {
+  ArtnetTargetConfig,
+  BridgeArtnetStatus,
   BridgeOutput,
   BridgeOutputOptions,
   WebSocketConstructorLike,
@@ -66,6 +69,7 @@ export {
   DEFAULT_BRIDGE_PORT,
   DEFAULT_BRIDGE_URL,
   encodeBridgeFrame,
+  isLocalArtnetTarget,
   parseBridgeUrl,
 } from './dmx/bridgeOutput'
 export type { FixtureConfig, FixtureState, PanTilt, ResolvedFixture } from './dmx/fixtures'

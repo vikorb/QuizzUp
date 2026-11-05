@@ -106,9 +106,16 @@ describe('ligne de commande', () => {
     expect(options.origins).toEqual(['https://a.example', 'https://b.example'])
   })
 
+  it('--target est facultatif : la cible vient alors de l’écran de salle', () => {
+    const command = parseCliArgs(['--origin', 'https://a.fr'])
+    expect(command.kind).toBe('run')
+    if (command.kind === 'run') {
+      expect('target' in command.options).toBe(false)
+    }
+  })
+
   it('explique chaque erreur', () => {
     const cases: [string[], string][] = [
-      [['--origin', 'https://a.fr'], '--target est obligatoire'],
       [['--target', '192.168.1.300', '--origin', 'https://a.fr'], "n'est pas une adresse IPv4"],
       [['--target', '10.0.0.1'], '--origin est obligatoire'],
       [['--target', '10.0.0.1', '--origin', 'ftp://a.fr'], "n'est pas une origine http(s)"],
