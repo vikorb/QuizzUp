@@ -376,9 +376,21 @@ expose le curseur de calage (`getState().calibration` : `targets` = lyre × pupi
 Raccourcis de l'écran de salle (actifs à cette étape seulement ; sans effet dans un champ de
 saisie, avec Ctrl/Alt/Méta, ni sur une touche apprise comme buzzer) : flèches = pan (gauche /
 droite) et tilt (haut / bas), `Maj` + flèche = pas fin, `Entrée` = valider et passer au pupitre
-suivant, `P` = copier le pupitre précédent, `G` / `H` = inverser gauche-droite / haut-bas. Un
-buzzer du pupitre en cours valide aussi sa position. G, H et P ne font pas partie du mapping de
-démonstration (chiffres 1-8, Q-R, A-F, Z-V, T-I).
+suivant, `P` = copier la position du pupitre précédent **de la même lyre** (rien à copier sur le
+premier pupitre d'une lyre), `G` / `H` = inverser gauche-droite / haut-bas. Un buzzer du
+pupitre en cours valide aussi sa position. Les raccourcis sont aussi suspendus pendant qu'une
+fenêtre de confirmation est ouverte.
+
+G, H et P ne font pas partie du mapping de démonstration (chiffres 1-8, Q-R, A-F, Z-V, T-I),
+mais le préréglage 6 pupitres (`createSixDeskKeyboardKeymap`) met des buzzers sur G et H : une
+touche apprise comme buzzer garde la priorité. L'aide du panneau barre alors la touche
+(« occupée par un buzzer ») et quatre boutons font la même chose à la souris ou au doigt :
+Inverser pan, Inverser tilt, Copier le précédent, Valider.
+
+Le déplacement au clavier reste dans la plage utile de l'appareil : `panRange` / `tiltRange`, ou
+`[65535 - max, 65535 - min]` quand l'axe est inversé (la plage physique s'applique après
+l'inversion). Le curseur de calage retient la cible (lyre + pupitre), pas son rang : ajouter ou
+retirer une lyre ne la déplace pas.
 
 La fumée n'est enregistrée **active** que si les 4 vérifications humaines sont cochées
 (`SMOKE_CHECKS`) : arrêt d'urgence physique, relais temporisé réglé à **10 s maximum**, test de

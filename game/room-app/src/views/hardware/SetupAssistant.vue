@@ -322,10 +322,33 @@
             {{ aimingNote }}
           </p>
         </div>
+        <div class="hw-actions" data-test="calibration-actions">
+          <UiButton data-test="calibration-invert-pan" @click="invert('pan')">
+            {{ $t('hardware.assistant.positions.calibration.buttons.invertPan') }}
+          </UiButton>
+          <UiButton data-test="calibration-invert-tilt" @click="invert('tilt')">
+            {{ $t('hardware.assistant.positions.calibration.buttons.invertTilt') }}
+          </UiButton>
+          <UiButton :disabled="!hasPrevious" data-test="calibration-copy" @click="copyFromPrevious">
+            {{ $t('hardware.assistant.positions.calibration.buttons.copy') }}
+          </UiButton>
+          <UiButton variant="primary" data-test="calibration-validate" @click="validateCurrent">
+            {{ $t('hardware.assistant.positions.calibration.buttons.validate') }}
+          </UiButton>
+        </div>
         <ul id="calibration-help" class="calib__help" data-test="calibration-help">
-          <li v-for="item in CALIBRATION_HELP" :key="item.id">
-            <kbd v-for="label in item.keys" :key="label">{{ label }}</kbd>
+          <li v-for="item in helpItems" :key="item.id" :class="{ 'is-taken': item.taken }">
+            <kbd v-for="(key, index) in item.keys" :key="index" :class="{ taken: key.taken }">
+              {{
+                key.text
+                  ? $t(`hardware.assistant.positions.calibration.keys.${key.text}`)
+                  : key.label
+              }}
+            </kbd>
             {{ $t(`hardware.assistant.positions.calibration.help.${item.id}`) }}
+            <small v-if="item.taken" data-test="calibration-taken">
+              ({{ $t('hardware.assistant.positions.calibration.taken') }})
+            </small>
           </li>
         </ul>
       </div>
@@ -561,6 +584,7 @@ import { useI18n } from 'vue-i18n'
 
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import { useConfirm } from '@/composables/useConfirm'
 import {
   connectDmxInterface,
   getLighting,
@@ -582,19 +606,29 @@ const BROWSER_KEYS = [
 ] as const satisfies readonly (keyof BrowserCheck)[]
 const WHITE = { r: 255, g: 255, b: 255, w: 255 }
 
+type HelpKey = { label?: string; text?: 'shift' | 'enter'; code?: string }
+const ARROW_KEYS: HelpKey[] = [
+  { label: '←', code: 'ArrowLeft' },
+  { label: '→', code: 'ArrowRight' },
+  { label: '↑', code: 'ArrowUp' },
+  { label: '↓', code: 'ArrowDown' },
+]
+
 /**
- * Raccourcis du calage des lyres. Ni lettres ni chiffres des buzzers par défaut (1-8, Q-R, A-F,
- * Z-V, T-I) : G (gauche/droite), H (haut/bas) et P (pupitre précédent) sont libres. Un buzzer
- * appris sur l'une de ces touches (ou une flèche, Entrée) garde la priorité : voir `onCalibrationKey`.
+ * Raccourcis du calage des lyres. G (gauche/droite), H (haut/bas) et P (pupitre précédent) sont
+ * libres dans le mapping de démonstration (1-8, Q-R, A-F, Z-V, T-I) mais pas dans toutes les
+ * salles : le préréglage 6 pupitres met des buzzers sur G et H. Un buzzer appris sur une touche
+ * (lettre, flèche, Entrée) garde la priorité (voir `onCalibrationKey`) : l'aide la marque
+ * « occupée » et les boutons du panneau font la même chose à la souris ou au doigt.
  */
-const CALIBRATION_HELP = [
-  { id: 'move', keys: ['←', '→', '↑', '↓'] },
-  { id: 'fine', keys: ['Maj', '+', '←', '→', '↑', '↓'] },
-  { id: 'validate', keys: ['Entrée'] },
-  { id: 'copy', keys: ['P'] },
-  { id: 'invertPan', keys: ['G'] },
-  { id: 'invertTilt', keys: ['H'] },
-] as const
+const CALIBRATION_HELP: { id: string; keys: HelpKey[] }[] = [
+  { id: 'move', keys: ARROW_KEYS },
+  { id: 'fine', keys: [{ text: 'shift' }, { label: '+' }, ...ARROW_KEYS] },
+  { id: 'validate', keys: [{ text: 'enter', code: 'Enter' }] },
+  { id: 'copy', keys: [{ label: 'P', code: 'KeyP' }] },
+  { id: 'invertPan', keys: [{ label: 'G', code: 'KeyG' }] },
+  { id: 'invertTilt', keys: [{ label: 'H', code: 'KeyH' }] },
+]
 const ARROWS = new Map<string, [PanTiltAxis, 1 | -1]>([
   ['ArrowRight', ['pan', 1]],
   ['ArrowLeft', ['pan', -1]],
@@ -876,6 +910,27 @@ const current = computed(() => {
   }
 })
 
+const { state: confirmState } = useConfirm()
+
+/** Touches du calage avec, pour chacune, si un buzzer appris l'occupe (le buzzer a la priorité). */
+const helpItems = computed(() => {
+  const { keymap } = view.value.config.buzzers
+  return CALIBRATION_HELP.map((item) => {
+    const keys = item.keys.map((key) => ({
+      ...key,
+      taken: key.code !== undefined && findSlot(keymap, key.code) !== null,
+    }))
+    return { ...item, keys, taken: keys.some((key) => key.taken) }
+  })
+})
+
+/** Copier n'a de sens que s'il y a un pupitre précédent pour la même lyre. */
+const hasPrevious = computed(() => {
+  const target = current.value
+  const previous = target && view.value.calibration.targets[target.index - 1]
+  return Boolean(previous && previous.fixtureId === target.fixtureId)
+})
+
 /** Pointe la lyre sur la position de la cible en cours (enregistrée, sinon le centre). */
 function aimCurrent(): void {
   if (current.value) {
@@ -935,6 +990,10 @@ async function invert(axis: PanTiltAxis): Promise<void> {
       { axis: t(`hardware.assistant.positions.${axis}`) }
     )
     await apply()
+    // L'assistant a pu quitter l'étape pendant l'enregistrement : ne pas relancer les diagnostics.
+    if (view.value.step !== 'positions') {
+      return
+    }
     getLighting()?.diagnostics.begin()
     aimCurrent()
   } finally {
@@ -958,6 +1017,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
 function onCalibrationKey(event: KeyboardEvent): void {
   if (
     view.value.step !== 'positions' ||
+    confirmState.open ||
     event.ctrlKey ||
     event.altKey ||
     event.metaKey ||
@@ -992,7 +1052,7 @@ function onCalibrationKey(event: KeyboardEvent): void {
 
 // Le buzzer du pupitre en cours valide sa position.
 useBuzzers((press) => {
-  if (view.value.step === 'positions' && current.value?.desk === press.desk) {
+  if (view.value.step === 'positions' && !confirmState.open && current.value?.desk === press.desk) {
     validateCurrent()
   }
 })
@@ -1255,6 +1315,11 @@ onBeforeUnmount(() => {
   list-style: none;
   color: var(--text-2);
   font-size: 13px;
+}
+
+.calib kbd.taken {
+  text-decoration: line-through;
+  opacity: 0.6;
 }
 
 .calib kbd {

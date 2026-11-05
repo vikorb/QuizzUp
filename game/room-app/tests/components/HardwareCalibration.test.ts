@@ -1,5 +1,6 @@
 import { flushPromises } from '@vue/test-utils'
 
+import { useConfirm } from '@/composables/useConfirm'
 import { getLighting, saveRoomHardwareConfig, useRoomHardware } from '@/hardware/roomHardware'
 import { enterDemo, syncRoomAuth } from '@/state/roomAuth'
 import HardwareView from '@/views/hardware/HardwareView.vue'
@@ -35,9 +36,9 @@ function learnedKeymap() {
 }
 
 /** Monte l'assistant et l'amène à l'étape des lyres, avec une seule lyre libre (4 pupitres). */
-async function atPositions() {
+async function atPositions(map: ReturnType<typeof learnedKeymap> = learnedKeymap()) {
   await saveRoomHardwareConfig({
-    buzzers: { keymap: learnedKeymap() },
+    buzzers: { keymap: map },
     lighting: {
       driver: 'simulation',
       fixtures: [{ id: 'lyre', name: 'Lyre', profileId: 'moving-head-8', address: 1 }],
@@ -188,6 +189,85 @@ describe('étape Lyres : calage au clavier', () => {
     })
     expect(fixture().invertPan).toBeUndefined()
     expect(sel(wrapper, 'calibration-current').text()).toContain('pupitre 1 (1 sur 4)')
+  })
+
+  it('un buzzer appris sur G garde la priorité : l’aide barre la touche, le bouton inverse', async () => {
+    // Comme le préréglage 6 pupitres : G est le buzzer D du pupitre 4.
+    const withG = Object.fromEntries(
+      Object.entries(learnedKeymap()).filter(([code]) => code !== 'KeyS')
+    ) as ReturnType<typeof learnedKeymap>
+    withG.KeyG = { desk: 4, button: 'D' }
+    const wrapper = await atPositions(withG)
+
+    expect(sel(wrapper, 'calibration-taken').text()).toContain('occupée par un buzzer')
+    expect(wrapper.findAll('[data-test="calibration-taken"]')).toHaveLength(1)
+
+    await press('KeyG')
+    expect(fixture().invertPan).toBeUndefined()
+    expect(sel(wrapper, 'calibration-note').exists()).toBe(false)
+    expect(sel(wrapper, 'calibration-current').text()).toContain('pupitre 1 (1 sur 4)')
+
+    await click(wrapper, 'calibration-invert-pan')
+    await vi.waitFor(() => expect(fixture().invertPan).toBe(true))
+  })
+
+  it('les boutons du panneau valident, copient et inversent à la souris', async () => {
+    const wrapper = await atPositions()
+
+    // Rien à copier sur le premier pupitre de la lyre.
+    expect(sel(wrapper, 'calibration-copy').attributes('disabled')).toBeDefined()
+    await press('ArrowRight')
+    await click(wrapper, 'calibration-validate')
+    expect(sel(wrapper, 'calibration-current').text()).toContain('pupitre 2 (2 sur 4)')
+    expect(marked(wrapper)).toBe(1)
+
+    expect(sel(wrapper, 'calibration-copy').attributes('disabled')).toBeUndefined()
+    await click(wrapper, 'calibration-copy')
+    expect(sel(wrapper, 'calibration-note').text()).toContain('Position du pupitre 1 copiée')
+    expect(values(wrapper).pan).toBe('Gauche / droite : 33792')
+
+    await click(wrapper, 'calibration-invert-tilt')
+    await vi.waitFor(() => expect(fixture().invertTilt).toBe(true))
+    await click(wrapper, 'calibration-invert-pan')
+    await vi.waitFor(() => expect(fixture().invertPan).toBe(true))
+  })
+
+  it('Entrée sur un bouton garde son rôle de clic et ne valide pas', async () => {
+    const wrapper = await atPositions()
+
+    await press('Enter', {}, sel(wrapper, 'calibration-copy').element)
+    await press('Enter', {}, sel(wrapper, 'assistant-back').element)
+    expect(sel(wrapper, 'calibration-current').text()).toContain('pupitre 1 (1 sur 4)')
+    expect(marked(wrapper)).toBe(0)
+  })
+
+  it('suspend les raccourcis pendant une confirmation', async () => {
+    const wrapper = await atPositions()
+    const { confirm, cancel } = useConfirm()
+
+    void confirm({ message: 'Sûr ?' })
+    await press('ArrowRight')
+    await press('Enter')
+    expect(values(wrapper).pan).toBe('Gauche / droite : 32768')
+    expect(sel(wrapper, 'calibration-current').text()).toContain('pupitre 1 (1 sur 4)')
+
+    cancel()
+    await press('ArrowRight')
+    expect(values(wrapper).pan).toBe('Gauche / droite : 33792')
+  })
+
+  it('ne réagit plus aux touches une fois l’assistant démonté', async () => {
+    const wrapper = await atPositions()
+    const setFixture = vi.spyOn(getLighting()!.diagnostics, 'setFixture')
+
+    await press('ArrowRight')
+    expect(setFixture).toHaveBeenCalled()
+    setFixture.mockClear()
+
+    wrapper.unmount()
+    await press('ArrowRight')
+    await press('Enter')
+    expect(setFixture).not.toHaveBeenCalled()
   })
 
   it('n’écoute rien hors de l’étape des lyres, ni avec Ctrl', async () => {

@@ -668,4 +668,56 @@ describe('assistant d’installation : calage des lyres au clavier', () => {
     expect(wizard.getState().calibration).toEqual({ targets: [], current: null })
     expect(wizard.validateCalibration()).toEqual({ ok: false, reason: 'no_target' })
   })
+
+  it('garde la même cible quand la liste change (retient lyre + pupitre, pas le rang)', () => {
+    const wizard = atPositions()
+    wizard.selectCalibration({ fixtureId: 'lyre-deux', desk: 2 })
+    // Retirer la première lyre fait glisser la liste : la cible ne change pas.
+    wizard.removeFixture('lyre')
+    expect(wizard.getState().calibration.current).toEqual({ fixtureId: 'lyre-deux', desk: 2 })
+    // Ajouter une lyre ne la déplace pas non plus.
+    wizard.addFixture({ profileId: 'moving-head-8', name: 'Autre', desk: 1 })
+    expect(wizard.getState().calibration.current).toEqual({ fixtureId: 'lyre-deux', desk: 2 })
+  })
+
+  describe('bornes de la plage utile', () => {
+    const withRange = (patch: Record<string, unknown>) => {
+      const wizard = atPositions()
+      wizard.updateFixture('lyre', patch)
+      return wizard
+    }
+
+    it('borne à panRange / tiltRange sans inversion', () => {
+      const wizard = withRange({ panRange: [30_000, 34_000], tiltRange: [31_000, 40_000] })
+      // Depuis le centre (32768) : + grossier = 33792, puis 34816 est borné à 34000.
+      wizard.nudgeDeskPosition('lyre', 1, 'pan', 1)
+      expect(fixtureOf(wizard, 'lyre').deskPositions?.[1]?.pan).toBe(33_792)
+      wizard.nudgeDeskPosition('lyre', 1, 'pan', 1)
+      wizard.nudgeDeskPosition('lyre', 1, 'pan', 1)
+      expect(fixtureOf(wizard, 'lyre').deskPositions?.[1]?.pan).toBe(34_000)
+      for (let press = 0; press < 5; press += 1) {
+        wizard.nudgeDeskPosition('lyre', 1, 'tilt', -1)
+      }
+      expect(fixtureOf(wizard, 'lyre').deskPositions?.[1]?.tilt).toBe(31_000)
+    })
+
+    it('retourne la plage quand l’axe est inversé', () => {
+      const wizard = withRange({ panRange: [30_000, 34_000], invertPan: true })
+      // Plage logique : [65535 - 34000, 65535 - 30000] = [31535, 35535].
+      for (let press = 0; press < 10; press += 1) {
+        wizard.nudgeDeskPosition('lyre', 1, 'pan', 1)
+      }
+      expect(fixtureOf(wizard, 'lyre').deskPositions?.[1]?.pan).toBe(35_535)
+      for (let press = 0; press < 10; press += 1) {
+        wizard.nudgeDeskPosition('lyre', 1, 'pan', -1)
+      }
+      expect(fixtureOf(wizard, 'lyre').deskPositions?.[1]?.pan).toBe(31_535)
+    })
+
+    it('ramène dans la plage un centre qui en est hors', () => {
+      const wizard = withRange({ tiltRange: [0, 10_000] })
+      wizard.nudgeDeskPosition('lyre', 1, 'tilt', -1, true)
+      expect(fixtureOf(wizard, 'lyre').deskPositions?.[1]?.tilt).toBe(10_000)
+    })
+  })
 })
