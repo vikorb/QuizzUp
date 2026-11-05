@@ -281,9 +281,63 @@
 
     <!-- 6. Positions des lyres -->
     <div v-else-if="view.step === 'positions'" class="stack" data-test="step-positions">
+      <div
+        ref="calibrationPanel"
+        class="calib"
+        tabindex="-1"
+        role="group"
+        :aria-label="$t('hardware.assistant.positions.calibration.title')"
+        aria-describedby="calibration-help"
+        data-test="calibration"
+      >
+        <h3 class="hw-panel__subtitle">
+          {{ $t('hardware.assistant.positions.calibration.title') }}
+        </h3>
+        <div v-if="current" aria-live="polite" data-test="calibration-current">
+          <p class="calib__target">
+            {{
+              $t('hardware.assistant.positions.calibration.target', {
+                fixture: current.name,
+                desk: current.desk,
+                n: current.index + 1,
+                total: view.calibration.targets.length,
+              })
+            }}
+          </p>
+          <p class="calib__values">
+            <span data-test="calibration-pan">
+              {{ $t('hardware.assistant.positions.pan') }} : {{ current.position.pan }}
+              <small v-if="current.invertPan">
+                ({{ $t('hardware.assistant.positions.calibration.inverted') }})
+              </small>
+            </span>
+            <span data-test="calibration-tilt">
+              {{ $t('hardware.assistant.positions.tilt') }} : {{ current.position.tilt }}
+              <small v-if="current.invertTilt">
+                ({{ $t('hardware.assistant.positions.calibration.inverted') }})
+              </small>
+            </span>
+          </p>
+          <p v-if="aimingNote" class="hw-hint" data-test="calibration-note">
+            {{ aimingNote }}
+          </p>
+        </div>
+        <ul id="calibration-help" class="calib__help" data-test="calibration-help">
+          <li v-for="item in CALIBRATION_HELP" :key="item.id">
+            <kbd v-for="label in item.keys" :key="label">{{ label }}</kbd>
+            {{ $t(`hardware.assistant.positions.calibration.help.${item.id}`) }}
+          </li>
+        </ul>
+      </div>
       <article v-for="head in movingHeads" :key="head.id" class="head">
         <strong>{{ head.name }}</strong>
-        <div v-for="desk in head.desks" :key="desk" class="head__desk">
+        <div
+          v-for="desk in head.desks"
+          :key="desk"
+          class="head__desk"
+          :class="{ 'is-current': current?.fixtureId === head.id && current.desk === desk }"
+          :aria-current="(current?.fixtureId === head.id && current.desk === desk) || undefined"
+        >
           <span>{{ $t('room.desk', { n: desk }) }}</span>
           <label class="hw-field hw-field--grow">
             {{ $t('hardware.assistant.positions.pan') }}
@@ -453,6 +507,7 @@
       </UiButton>
       <UiButton
         v-if="view.step !== 'summary'"
+        ref="nextButton"
         variant="primary"
         :disabled="blockers.length > 0"
         data-test="assistant-next"
@@ -478,18 +533,30 @@ import {
   DMX_DRIVER_UNIVERSES,
   type DmxDriver,
   findProfile,
+  findSlot,
   GENERIC_PROFILES,
   INTERFACE_CHOICES,
   isLocalArtnetTarget,
   MAX_FREEZE_MS,
+  PAN_TILT_CENTER,
   type PanTilt,
+  type PanTiltAxis,
   parsePanTiltCalibration,
   type SerialErrorDescription,
   type SetupStepId,
   SMOKE_CHECKS,
   type SmokeCheckId,
 } from '@quizzup/hardware'
-import { computed, onBeforeUnmount, reactive, ref, shallowRef, watch } from 'vue'
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  shallowRef,
+  watch,
+} from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import MdIcon from '@/components/ui/MdIcon.vue'
@@ -504,6 +571,7 @@ import {
   triggerEmergencyStop,
   useRoomHardware,
 } from '@/hardware/roomHardware'
+import { useBuzzers } from '@/hardware/useBuzzers'
 import { useFreezeTest } from '@/hardware/useFreezeTest'
 import BuzzerSetup from '@/views/hardware/BuzzerSetup.vue'
 
@@ -512,7 +580,27 @@ const BROWSER_KEYS = [
   'secureContext',
   'gamepad',
 ] as const satisfies readonly (keyof BrowserCheck)[]
-const CENTER: PanTilt = { pan: 32_768, tilt: 32_768 }
+const WHITE = { r: 255, g: 255, b: 255, w: 255 }
+
+/**
+ * Raccourcis du calage des lyres. Ni lettres ni chiffres des buzzers par défaut (1-8, Q-R, A-F,
+ * Z-V, T-I) : G (gauche/droite), H (haut/bas) et P (pupitre précédent) sont libres. Un buzzer
+ * appris sur l'une de ces touches (ou une flèche, Entrée) garde la priorité : voir `onCalibrationKey`.
+ */
+const CALIBRATION_HELP = [
+  { id: 'move', keys: ['←', '→', '↑', '↓'] },
+  { id: 'fine', keys: ['Maj', '+', '←', '→', '↑', '↓'] },
+  { id: 'validate', keys: ['Entrée'] },
+  { id: 'copy', keys: ['P'] },
+  { id: 'invertPan', keys: ['G'] },
+  { id: 'invertTilt', keys: ['H'] },
+] as const
+const ARROWS = new Map<string, [PanTiltAxis, 1 | -1]>([
+  ['ArrowRight', ['pan', 1]],
+  ['ArrowLeft', ['pan', -1]],
+  ['ArrowUp', ['tilt', 1]],
+  ['ArrowDown', ['tilt', -1]],
+])
 
 const { t } = useI18n()
 const { hardware, lightingState, bridgeArtnet, syncStatus, conflictCount } = useRoomHardware()
@@ -745,17 +833,171 @@ function mark(id: string, result: 'ok' | 'ko'): void {
   run(() => wizard.markFixtureTest(id, result))
 }
 
+/** Allume la lyre en blanc et la pointe sur `position` (chemin commun aux curseurs et au clavier). */
+function aim(id: string, position: PanTilt): void {
+  getLighting()?.diagnostics.setFixture(id, { position, color: { ...WHITE }, intensity: 1 })
+}
+
 function onAim(id: string, desk: Desk, axis: 'pan' | 'tilt', event: Event): void {
   const value = Number((event.target as HTMLInputElement).value)
   const head = movingHeads.value.find((item) => item.id === id)
-  const position = { ...CENTER, ...head?.positions[desk], [axis]: value }
-  run(() => wizard.setDeskPosition(id, desk, position))
-  getLighting()?.diagnostics.setFixture(id, {
-    position,
-    color: { r: 255, g: 255, b: 255, w: 255 },
-    intensity: 1,
+  const position = { ...PAN_TILT_CENTER, ...head?.positions[desk], [axis]: value }
+  run(() => {
+    wizard.setDeskPosition(id, desk, position)
+    wizard.selectCalibration({ fixtureId: id, desk })
   })
+  aim(id, position)
 }
+
+// ── Calage au clavier ──────────────────────────────────────────────────────
+
+const calibrationPanel = ref<HTMLElement | null>(null)
+const nextButton = ref<{ $el: HTMLElement } | null>(null)
+const aimingNote = ref<string | null>(null)
+let inverting = false
+
+/** Cible en cours avec ce qu'il faut afficher : lyre, rang, position (centre si pas réglée), sens. */
+const current = computed(() => {
+  const target = view.value.calibration.current
+  const fixture =
+    target && view.value.config.lighting.fixtures.find((item) => item.id === target.fixtureId)
+  if (!target || !fixture) {
+    return null
+  }
+  return {
+    ...target,
+    name: fixture.name,
+    index: view.value.calibration.targets.findIndex(
+      (item) => item.fixtureId === target.fixtureId && item.desk === target.desk
+    ),
+    position: fixture.deskPositions?.[target.desk] ?? PAN_TILT_CENTER,
+    invertPan: fixture.invertPan === true,
+    invertTilt: fixture.invertTilt === true,
+  }
+})
+
+/** Pointe la lyre sur la position de la cible en cours (enregistrée, sinon le centre). */
+function aimCurrent(): void {
+  if (current.value) {
+    aim(current.value.fixtureId, current.value.position)
+  }
+}
+
+function nudge(axis: PanTiltAxis, direction: 1 | -1, fine: boolean): void {
+  const target = current.value
+  if (target) {
+    aimingNote.value = null
+    run(() => wizard.nudgeDeskPosition(target.fixtureId, target.desk, axis, direction, fine))
+    aimCurrent()
+  }
+}
+
+function validateCurrent(): void {
+  let finished = false
+  run(() => {
+    const result = wizard.validateCalibration()
+    finished = result.ok && result.finished
+  })
+  aimingNote.value = finished ? t('hardware.assistant.positions.calibration.finished') : null
+  aimCurrent()
+  if (finished) {
+    // Plus de pupitre à régler : le focus passe à « Suivant ».
+    void nextTick(() => nextButton.value?.$el.focus())
+  }
+}
+
+function copyFromPrevious(): void {
+  const target = current.value
+  const previous = target && view.value.calibration.targets[target.index - 1]
+  const result =
+    target && previous?.fixtureId === target.fixtureId
+      ? wizard.copyDeskPosition(target.fixtureId, previous.desk, target.desk)
+      : null
+  aimingNote.value = result?.ok
+    ? t('hardware.assistant.positions.calibration.copied', { desk: previous?.desk })
+    : t('hardware.assistant.positions.calibration.noPrevious')
+  sync()
+  aimCurrent()
+}
+
+/** Le sens est lu par le contrôleur : on le relance avec la config, puis on repointe la lyre. */
+async function invert(axis: PanTiltAxis): Promise<void> {
+  const target = current.value
+  if (!target || inverting) {
+    return
+  }
+  inverting = true
+  try {
+    run(() => wizard.toggleInvert(target.fixtureId, axis))
+    const on = current.value?.[axis === 'pan' ? 'invertPan' : 'invertTilt']
+    aimingNote.value = t(
+      `hardware.assistant.positions.calibration.${on ? 'invertedOn' : 'invertedOff'}`,
+      { axis: t(`hardware.assistant.positions.${axis}`) }
+    )
+    await apply()
+    getLighting()?.diagnostics.begin()
+    aimCurrent()
+  } finally {
+    inverting = false
+  }
+}
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  const element = target as HTMLElement | null
+  return Boolean(
+    element &&
+    (element.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName))
+  )
+}
+
+/**
+ * Raccourcis actifs à l'étape des lyres seulement. Sans effet dans un champ de saisie (les
+ * curseurs gardent leurs flèches), avec Ctrl/Alt/Méta, ni sur une touche qui est un buzzer appris.
+ * Entrée sur un bouton garde son rôle de clic.
+ */
+function onCalibrationKey(event: KeyboardEvent): void {
+  if (
+    view.value.step !== 'positions' ||
+    event.ctrlKey ||
+    event.altKey ||
+    event.metaKey ||
+    isTypingTarget(event.target) ||
+    findSlot(view.value.config.buzzers.keymap, event.code)
+  ) {
+    return
+  }
+  const arrow = ARROWS.get(event.code)
+  if (arrow) {
+    event.preventDefault()
+    nudge(arrow[0], arrow[1], event.shiftKey)
+    return
+  }
+  if (event.repeat || event.shiftKey) {
+    return
+  }
+  if (event.code === 'Enter' || event.code === 'NumpadEnter') {
+    const onButton = (event.target as HTMLElement | null)?.closest?.('button, a, summary')
+    if (!onButton) {
+      event.preventDefault()
+      validateCurrent()
+    }
+  } else if (event.code === 'KeyP') {
+    copyFromPrevious()
+  } else if (event.code === 'KeyG') {
+    void invert('pan')
+  } else if (event.code === 'KeyH') {
+    void invert('tilt')
+  }
+}
+
+// Le buzzer du pupitre en cours valide sa position.
+useBuzzers((press) => {
+  if (view.value.step === 'positions' && current.value?.desk === press.desk) {
+    validateCurrent()
+  }
+})
+
+onMounted(() => window.addEventListener('keydown', onCalibrationKey))
 
 function onSmokeEnabled(event: Event): void {
   const enabled = (event.target as HTMLInputElement).checked
@@ -808,6 +1050,13 @@ async function enterStep(step: SetupStepId): Promise<void> {
   if (step === 'fixtureTest' || step === 'positions') {
     await apply()
     getLighting()?.diagnostics.begin()
+    if (step === 'positions') {
+      // Les raccourcis marchent sans clic : le focus va sur le panneau de calage.
+      aimingNote.value = null
+      await nextTick()
+      calibrationPanel.value?.focus()
+      aimCurrent()
+    }
   } else if (step === 'smoke') {
     await apply()
   } else {
@@ -842,6 +1091,7 @@ async function onSave(): Promise<void> {
 }
 
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onCalibrationKey)
   if (freezeTimer !== null) {
     clearTimeout(freezeTimer)
   }
@@ -965,6 +1215,65 @@ onBeforeUnmount(() => {
   border-radius: 14px;
   border: 1px solid var(--border-ui);
   background: var(--surface-0);
+}
+
+.calib {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--accent-purple);
+  background: var(--surface-0);
+}
+
+.calib:focus-visible {
+  outline: 2px solid var(--accent-purple);
+  outline-offset: 2px;
+}
+
+.calib p {
+  margin: 0;
+}
+
+.calib__target {
+  font-weight: 700;
+}
+
+.calib__values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.calib__help {
+  display: grid;
+  gap: 4px 20px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.calib kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  margin-right: 4px;
+  padding: 1px 6px;
+  border: 1px solid var(--border-ui);
+  border-radius: 6px;
+  background: var(--surface-1);
+  color: var(--text-0);
+  font: inherit;
+  font-size: 12px;
+  text-align: center;
+}
+
+.head__desk.is-current {
+  box-shadow: -3px 0 0 var(--accent-purple);
+  padding-left: 8px;
 }
 
 .head__desk {
