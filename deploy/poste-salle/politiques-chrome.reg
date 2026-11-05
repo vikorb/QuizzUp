@@ -1,0 +1,30 @@
+Windows Registry Editor Version 5.00
+
+; Modele de politiques Chrome pour le poste de salle QuizzUp (ASCII uniquement).
+; https://salle.exemple.fr est un MARQUEUR : installer-poste.ps1 le remplace par l'origine reelle
+; de l'ecran de salle (-RoomUrl) avant import. Ne pas importer ce fichier tel quel.
+; Les VID de SerialAllowUsbDevicesForUrls (decimal) = DMX_USB_VENDOR_IDS de game/hardware
+; (0x0403 FTDI, 0x1a86 CH340, 0x10c4 CP210x, 0x2341 Arduino) ; un test le verifie.
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome]
+; Pas de restauration de session : politique "sensible", ignoree par Chrome sur un Windows
+; non gere (Home) -> repli par drapeaux dans le raccourci kiosque.
+"RestoreOnStartup"=dword:00000005
+"TranslateEnabled"=dword:00000000
+"DefaultNotificationsSetting"=dword:00000002
+"DefaultPopupsSetting"=dword:00000002
+"SerialAllowUsbDevicesForUrls"="[{\"devices\":[{\"vendor_id\":1027},{\"vendor_id\":6790},{\"vendor_id\":4292},{\"vendor_id\":9025}],\"urls\":[\"https://salle.exemple.fr\"]}]"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome\AutoplayAllowlist]
+"1"="https://salle.exemple.fr"
+
+; Local Network Access : Chrome 139+ (LocalNetworkAccess...), 146+ (LocalNetwork..., LoopbackNetwork...).
+; Les noms inconnus d'une version plus ancienne sont ignores sans effet.
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome\LocalNetworkAccessAllowedForUrls]
+"1"="https://salle.exemple.fr"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome\LocalNetworkAllowedForUrls]
+"1"="https://salle.exemple.fr"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome\LoopbackNetworkAllowedForUrls]
+"1"="https://salle.exemple.fr"
