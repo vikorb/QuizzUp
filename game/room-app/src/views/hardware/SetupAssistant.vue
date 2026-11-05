@@ -104,6 +104,56 @@
           />
         </label>
         <small class="hw-hint">{{ $t('hardware.assistant.interface.artnetTargetHint') }}</small>
+        <div class="hw-actions">
+          <UiButton
+            :disabled="searching || bridgeFeatures === null || !bridgeFeatures.includes('poll')"
+            data-test="artnet-search"
+            @click="onSearchNodes"
+          >
+            {{ $t('hardware.assistant.interface.artnetSearch') }}
+          </UiButton>
+          <small v-if="bridgeFeatures === null" class="hw-hint" data-test="artnet-search-offline">
+            {{ $t('hardware.assistant.interface.artnetSearchOffline') }}
+          </small>
+          <small v-else-if="searching" class="hw-hint" role="status" data-test="artnet-searching">
+            {{ $t('hardware.assistant.interface.artnetSearching') }}
+          </small>
+        </div>
+        <p
+          v-if="bridgeFeatures !== null && !bridgeFeatures.includes('poll')"
+          class="hw-alert"
+          role="status"
+          data-test="artnet-search-old"
+        >
+          {{ $t('hardware.assistant.interface.artnetSearchOld') }}
+        </p>
+        <p
+          v-if="searchError"
+          class="hw-alert hw-alert--danger"
+          role="alert"
+          data-test="artnet-search-error"
+        >
+          {{ $t('hardware.assistant.interface.artnetSearchError', { error: searchError }) }}
+        </p>
+        <p
+          v-else-if="nodes && nodes.length === 0"
+          class="hw-alert"
+          role="status"
+          data-test="artnet-nodes-empty"
+        >
+          {{ $t('hardware.assistant.interface.artnetNoNode') }}
+        </p>
+        <ul v-else-if="nodes" class="stack" data-test="artnet-nodes">
+          <li v-for="node in nodes" :key="node.ip">
+            <UiButton data-test="artnet-node" @click="onPickNode(node)">
+              {{ node.longName || node.shortName || node.ip }} · {{ node.ip }}
+              <template v-if="node.universes">
+                ({{ $t('hardware.assistant.interface.artnetUniverses') }}
+                {{ node.universes.join(', ') }})
+              </template>
+            </UiButton>
+          </li>
+        </ul>
         <p
           v-if="artnetInvalid"
           class="hw-alert hw-alert--danger"
@@ -468,6 +518,7 @@
 import { mdiDeleteOutline, mdiUsb } from '@mdi/js'
 import {
   activeLightingConfig,
+  type ArtnetNode,
   type BrowserCheck,
   type BuzzerSource,
   checkBrowser,
@@ -497,6 +548,7 @@ import UiButton from '@/components/ui/UiButton.vue'
 import {
   connectDmxInterface,
   getLighting,
+  pollArtnetNodes,
   saveArtnetTarget,
   saveBuzzerSource,
   saveRoomHardwareConfig,
@@ -515,7 +567,8 @@ const BROWSER_KEYS = [
 const CENTER: PanTilt = { pan: 32_768, tilt: 32_768 }
 
 const { t } = useI18n()
-const { hardware, lightingState, bridgeArtnet, syncStatus, conflictCount } = useRoomHardware()
+const { hardware, lightingState, bridgeArtnet, bridgeFeatures, syncStatus, conflictCount } =
+  useRoomHardware()
 const { run: runFreezeTest, refusal: freezeRefusal } = useFreezeTest()
 
 function newWizard() {
@@ -679,6 +732,30 @@ function onArtnetTarget(): void {
   }
   run(() => wizard.setArtnetTarget(target))
   saveArtnetTarget(target).catch(() => undefined)
+}
+
+/** Recherche des nœuds Art-Net par le pont (ArtPoll, ~3 s) ; `nodes` reste `null` tant qu'on n'a pas cherché. */
+const nodes = ref<ArtnetNode[] | null>(null)
+const searching = ref(false)
+const searchError = ref<string | null>(null)
+
+async function onSearchNodes(): Promise<void> {
+  searching.value = true
+  searchError.value = null
+  try {
+    nodes.value = await pollArtnetNodes()
+  } catch (error) {
+    nodes.value = null
+    searchError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    searching.value = false
+  }
+}
+
+/** Un clic sur un nœud trouvé : même chemin que la saisie de l'IP. */
+function onPickNode(node: ArtnetNode): void {
+  artnetDraft.value = node.ip
+  onArtnetTarget()
 }
 
 function onDriver(driver: DmxDriver): void {

@@ -78,6 +78,10 @@ src/
   les lumières redémarrent quand elle change. L'écran affiche la cible effective annoncée par le pont
   et sa provenance (`--target` du pont, réglage de la salle ou aucune). Le pont n'a plus besoin
   de `--target`, seulement de `--origin` ; s'il est lancé avec `--target`, celui-ci l'emporte.
+  **Recherche des nœuds** : le bouton « Chercher les nœuds » (assistant, étape interface, pont connecté)
+  appelle `pollArtnetNodes()` (`poll()` de `createBridgeOutput`, ~3 s) et liste les nœuds trouvés (nom,
+  IP, univers) ; un clic enregistre l'IP par le même chemin que la saisie. Messages dédiés : « aucun
+  nœud trouvé », « pont trop ancien » (l'ack n'annonce pas `poll`), pont non connecté.
   La copie de secours de la config est gardée dans le navigateur (`quizzup_room_hardware`).
   **Arrêt d'urgence maintenu** : `triggerEmergencyStop` pose la clé `quizzup_room_emergency`
   (le motif) ; après un plantage ou un rechargement, le contrôleur de lumières est créé déjà en

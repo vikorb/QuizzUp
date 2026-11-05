@@ -278,7 +278,14 @@
           "none": "no target: enter the node IP"
         },
         "artnetOldBridge": "This bridge is too old to receive the IP from the room screen: update it, or start it with --target.",
-        "artnetCliWins": "The bridge was started with --target: that address takes priority and the field above is ignored."
+        "artnetCliWins": "The bridge was started with --target: that address takes priority and the field above is ignored.",
+        "artnetSearch": "Find nodes",
+        "artnetSearching": "Searching (about 3 s)…",
+        "artnetSearchOffline": "Connect the bridge first (button below) to search for nodes.",
+        "artnetSearchOld": "This bridge is too old to search for nodes: update it, or enter the IP by hand.",
+        "artnetSearchError": "Search failed: {error}",
+        "artnetNoNode": "No node found. Check that the box is powered and on the same network as this PC, or enter its IP by hand.",
+        "artnetUniverses": "universes"
       },
       "fixtures": {
         "importSix": "Import a 6-desk room",

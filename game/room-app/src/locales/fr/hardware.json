@@ -278,7 +278,14 @@
           "none": "aucune cible : saisis l’IP du nœud"
         },
         "artnetOldBridge": "Ce pont est trop ancien pour recevoir l’IP depuis l’écran de salle : mets-le à jour, ou lance-le avec --target.",
-        "artnetCliWins": "Le pont a été lancé avec --target : cette adresse est prioritaire et le champ ci-dessus est ignoré."
+        "artnetCliWins": "Le pont a été lancé avec --target : cette adresse est prioritaire et le champ ci-dessus est ignoré.",
+        "artnetSearch": "Chercher les nœuds",
+        "artnetSearching": "Recherche en cours (environ 3 s)…",
+        "artnetSearchOffline": "Connecte d’abord le pont (bouton ci-dessous) pour chercher les nœuds.",
+        "artnetSearchOld": "Ce pont est trop ancien pour chercher les nœuds : mets-le à jour, ou saisis l’IP à la main.",
+        "artnetSearchError": "Recherche impossible : {error}",
+        "artnetNoNode": "Aucun nœud trouvé. Vérifie que le boîtier est alimenté et branché sur le même réseau que ce PC, ou saisis son IP à la main.",
+        "artnetUniverses": "univers"
       },
       "fixtures": {
         "importSix": "Importer une salle 6 pupitres",

@@ -2,7 +2,9 @@ import type { GameEvent } from '@quizzup/game-engine'
 import {
   activeKeymap,
   activeLightingConfig,
+  type ArtnetNode,
   type BridgeArtnetStatus,
+  type BridgeOutput,
   type BuzzerInput,
   type BuzzerInputState,
   type BuzzerKeymap,
@@ -305,6 +307,18 @@ const bridgeError = shallowRef<string | null>(null)
 /** Cible Art-Net effective annoncée par le pont à la connexion (et d'où elle vient) ; `null` si non connecté. */
 const bridgeArtnet = shallowRef<BridgeArtnetStatus | null>(null)
 
+/** Sortie pont connectée en ce moment (sert à chercher les nœuds Art-Net) ; `null` si non connecté. */
+const activeBridge = shallowRef<BridgeOutput | null>(null)
+
+/**
+ * Cherche les nœuds Art-Net du réseau local par le pont déjà connecté (le pont n'accepte qu'un seul
+ * écran : on réutilise sa connexion). Rejette si le pont n'est pas connecté ou trop ancien.
+ */
+export function pollArtnetNodes(): Promise<ArtnetNode[]> {
+  const bridge = activeBridge.value
+  return bridge ? bridge.poll() : Promise.reject(new Error('Pont Art-Net non connecté'))
+}
+
 function clearBridgeRetry(): void {
   if (bridgeRetryTimer !== null) {
     clearTimeout(bridgeRetryTimer)
@@ -324,6 +338,7 @@ async function useBridge(controller: LightingController): Promise<void> {
   const { outputStatus, outputError } = controller.getState()
   bridgeError.value = outputStatus === 'open' ? null : (outputError ?? 'bridge_unavailable')
   bridgeArtnet.value = outputStatus === 'open' ? bridge.artnetStatus() : null
+  activeBridge.value = outputStatus === 'open' ? bridge : null
 }
 
 /**
@@ -481,6 +496,7 @@ async function shutdownLighting(): Promise<void> {
   clearBridgeRetry()
   meteredOutput = null
   bridgeArtnet.value = null
+  activeBridge.value = null
   lightingState.value = null
   closingLighting = controller
   try {
@@ -568,6 +584,7 @@ export async function switchToSimulatedLights(
   clearBridgeRetry()
   bridgeError.value = null
   bridgeArtnet.value = null
+  activeBridge.value = null
   await lighting?.setOutput(output)
 }
 
@@ -944,6 +961,7 @@ export async function resetRoomHardware(options: { storage?: HardwareStorage | n
   dmxPort = null
   bridgeError.value = null
   bridgeArtnet.value = null
+  activeBridge.value = null
   remoteSaver = null
   binding = null
   foreignCopy = false
@@ -986,6 +1004,16 @@ export function useRoomHardware() {
     bridgeArtnet: computed(() => {
       const state = lightingState.value
       return state && !state.simulation && state.outputStatus === 'open' ? bridgeArtnet.value : null
+    }),
+    /**
+     * Capacités annoncées par le pont connecté (`poll` : recherche des nœuds) ; `null` tant que le
+     * pont n'est pas connecté, `[]` pour un pont ancien.
+     */
+    bridgeFeatures: computed(() => {
+      const state = lightingState.value
+      return state && !state.simulation && state.outputStatus === 'open'
+        ? (activeBridge.value?.features() ?? null)
+        : null
     }),
   }
 }
