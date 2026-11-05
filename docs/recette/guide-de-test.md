@@ -262,6 +262,14 @@ prêt dans `deploy/recette/` (procédure complète dans son `README.md`). Il fau
 
 Les mots de passe des comptes de démo sont alors ceux choisis dans `deploy/recette/.env`.
 
+### Préparer le PC de la salle (Windows, Chrome)
+
+Pour que le PC de la salle redémarre seul jusqu'à l'écran de salle en plein écran, avec
+l'interface DMX reconnectée et sans popup (Windows Pro **ou Home**, Chrome uniquement), utiliser
+le kit `deploy/poste-salle/` : un script PowerShell à lancer une fois en administrateur
+(`installer-poste.ps1 -RoomUrl https://salle.exemple.fr`). Procédure, différences Pro/Home,
+étapes manuelles et vérifications dans `deploy/poste-salle/README.md`.
+
 ## 9. Vérifications automatiques (développeurs)
 
 Depuis la racine, après les installations décrites dans `CLAUDE.md` :
