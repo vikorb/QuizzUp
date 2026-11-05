@@ -1,5 +1,6 @@
 import { isIPv4 } from 'node:net'
 
+import type { ArtNode } from './artnet.js'
 import { DMX_CHANNELS } from './artnet.js'
 
 /**
@@ -73,6 +74,34 @@ export function decodeFrame(message: Uint8Array): DecodedFrame {
     data: message.subarray(BRIDGE_FRAME_HEADER_BYTES),
   }
 }
+
+/**
+ * Découverte des nœuds (capacité `poll`, annoncée dans `features` de l'ack). Une fois le `hello`
+ * accepté, le navigateur envoie `{"type":"poll"}` ; le pont diffuse un ArtPoll, collecte les
+ * réponses pendant `POLL_WINDOW_MS` puis répond
+ * `{"type":"nodes","nodes":[{"ip":"192.168.1.50","shortName":"…","longName":"…","universes":["0.0.1"]}]}`
+ * (`universes` absent si le nœud n'annonce aucune sortie).
+ */
+export const POLL_FEATURE = 'poll'
+export const POLL_WINDOW_MS = 3000
+/** Un poll lancé moins d'1 s après la fin du précédent reçoit le même résultat, sans nouvel ArtPoll. */
+export const POLL_MIN_INTERVAL_MS = 1000
+export const POLL_MAX_NODES = 64
+
+export function isPollMessage(text: string): boolean {
+  try {
+    const parsed: unknown = JSON.parse(text)
+    return (
+      Boolean(parsed) &&
+      typeof parsed === 'object' &&
+      (parsed as { type?: unknown }).type === 'poll'
+    )
+  } catch {
+    return false
+  }
+}
+
+export const nodesMessage = (nodes: readonly ArtNode[]) => JSON.stringify({ type: 'nodes', nodes })
 
 /** Cible Art-Net demandée par l'écran de salle (valeurs brutes, validées par `checkArtnetRequest`). */
 export type ArtnetRequest = { target?: unknown }
@@ -149,7 +178,10 @@ export function checkArtnetRequest(request: ArtnetRequest): ArtnetCheck {
 export type ArtnetSource = 'cli' | 'room' | 'none'
 export type ArtnetAck = { target: string | null; port: number; source: ArtnetSource }
 
-/** `universes` : nombre d'univers internes acceptés (un ancien pont ne l'annonce pas : 1 seul). */
+/**
+ * `universes` : nombre d'univers internes acceptés (un ancien pont ne l'annonce pas : 1 seul).
+ * `features` : capacités facultatives (`poll`) ; un ancien pont ne l'annonce pas.
+ */
 export const ackMessage = (version: string, artnet: ArtnetAck) =>
   JSON.stringify({
     type: 'ack',
@@ -158,6 +190,7 @@ export const ackMessage = (version: string, artnet: ArtnetAck) =>
     version,
     universes: MAX_INTERNAL_UNIVERSES,
     artnet,
+    features: [POLL_FEATURE],
   })
 
 export const errorMessage = (code: string, message: string) =>

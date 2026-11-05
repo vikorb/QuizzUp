@@ -6,7 +6,8 @@ import { ARTNET_PORT, parsePortAddress } from './artnet.js'
 import { BLACKOUT_LIMITS, BLACKOUT_MS, SILENCE_LIMITS, SILENCE_TIMEOUT_MS } from './bridge.js'
 import type { ChannelMapping, OutputPlan } from './mapping.js'
 import { buildOutputPlan, defaultMappings, parseMappingEntry, parseMappingSpec } from './mapping.js'
-import { normalizeOrigin } from './server.js'
+import { isAllowedArtnetTarget } from './protocol.js'
+import { LIMITED_BROADCAST, normalizeOrigin } from './server.js'
 
 export const DEFAULT_PORT = 7654
 
@@ -19,6 +20,8 @@ export type BridgeOptions = {
   port: number
   artnetPort: number
   bind?: string
+  /** Adresse de diffusion de l'ArtPoll (découverte des nœuds) ; absente : 255.255.255.255. */
+  pollBroadcast?: string
   origins: string[]
   mappings: ChannelMapping[]
   plan: OutputPlan
@@ -55,6 +58,9 @@ Options :
                        sont prioritaires)
   --port <n>           port d'écoute WebSocket sur 127.0.0.1 (${DEFAULT_PORT} par défaut)
   --bind <ip>          IP locale d'où partent les paquets (PC à plusieurs cartes réseau)
+  --poll-broadcast <ip>
+                       adresse de diffusion de la recherche de nœuds (${LIMITED_BROADCAST} par défaut),
+                       ex. 192.168.1.255 ; réseaux locaux uniquement
   --artnet-port <n>    port UDP Art-Net (${ARTNET_PORT} par défaut, à ne changer que pour un test)
   --timeout <ms>       silence du navigateur avant le noir de sécurité (${SILENCE_TIMEOUT_MS} par défaut)
   --blackout <ms>      durée des trames à zéro après une coupure (${BLACKOUT_MS} par défaut)
@@ -78,6 +84,7 @@ const CLI_OPTIONS = {
   port: { type: 'string' },
   bind: { type: 'string' },
   'artnet-port': { type: 'string' },
+  'poll-broadcast': { type: 'string' },
   timeout: { type: 'string' },
   blackout: { type: 'string' },
   help: { type: 'boolean', short: 'h' },
@@ -97,6 +104,7 @@ const KNOWN_CONFIG_KEYS = new Set([
   'port',
   'bind',
   'artnetPort',
+  'pollBroadcast',
   'timeoutMs',
   'blackoutMs',
 ])
@@ -116,6 +124,16 @@ function parseIp(name: string, value: unknown): string {
     throw new OptionsError(`${name} : « ${String(value)} » n'est pas une adresse IPv4`)
   }
   return value.trim()
+}
+
+function parsePollBroadcast(value: unknown): string {
+  const ip = parseIp('--poll-broadcast', value)
+  if (ip !== LIMITED_BROADCAST && !isAllowedArtnetTarget(ip)) {
+    throw new OptionsError(
+      `--poll-broadcast : ${ip} refusée, seules les adresses du réseau local sont acceptées`
+    )
+  }
+  return ip
 }
 
 function parseOrigins(values: readonly string[]): string[] {
@@ -274,6 +292,9 @@ export function parseCliArgs(argv: readonly string[], deps: ParseDeps = {}): Cli
         ),
         ...((values.bind ?? file.bind)
           ? { bind: parseIp('--bind', values.bind ?? file.bind) }
+          : {}),
+        ...((values['poll-broadcast'] ?? file.pollBroadcast)
+          ? { pollBroadcast: parsePollBroadcast(values['poll-broadcast'] ?? file.pollBroadcast) }
           : {}),
         origins,
         mappings,

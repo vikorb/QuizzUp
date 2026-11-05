@@ -79,6 +79,7 @@ npx quizzup-artnet-bridge --target 192.168.1.50 --universe 0 --port 7654 --origi
 | `--timeout <ms>`              | silence du navigateur avant le noir de sécurité (2500)                                    |
 | `--blackout <ms>`             | durée des trames à zéro après une coupure (3000)                                          |
 | `--artnet-port <n>`           | port UDP Art-Net (6454, à ne changer que pour un test)                                    |
+| `--poll-broadcast <ip>`       | adresse où part la recherche de nœuds (255.255.255.255 ; ex. 192.168.1.255), réseau local |
 | `-h, --help`, `-v, --version` | aide en français, version                                                                 |
 
 **Priorité de la cible** : `--target` (ligne de commande ou fichier `--config`) > IP réglée dans
@@ -96,6 +97,16 @@ Quand la cible change entre deux connexions (autre IP, ou plus de cible), le pon
 valeur, fumée comprise. Un `hello` v1 (écran de salle ancien) sans `--target` remet la cible à
 « aucune » : le pont n'émet jamais vers l'IP d'une salle précédente. Un second `hello` en cours de
 connexion, ou une connexion refusée (écran déjà connecté), ne change rien.
+
+**Recherche des nœuds** : l'assistant de l'écran de salle propose un bouton « Chercher les nœuds ».
+Le pont diffuse un **ArtPoll** (OpCode 0x2000, ProtVer 14) vers `--poll-broadcast` (port
+`--artnet-port`), collecte les **ArtPollReply** (0x2100) pendant 3 s puis renvoie la liste. Seuls les
+nœuds dont l'IP est d'un réseau local (mêmes plages que la cible) sont gardés, 64 au plus ; un nœud à
+plusieurs ports n'apparaît qu'une fois, avec ses univers de sortie réunis. Un seul poll tourne à la
+fois (un second poll pendant le premier reçoit la même réponse) et un poll lancé moins d'1 s après la
+fin du précédent reçoit son résultat sans nouvel ArtPoll. Les réponses sont attendues sur le port UDP
+d'émission du pont : un nœud qui ne répond qu'en diffusion sur le port 6454 n'est pas vu (saisir alors
+son IP à la main).
 
 Dans le backoffice, la salle utilise alors le pilote **`artnet-bridge`**
 (`rooms.config.lighting.driver`) et, si le port n'est pas 7654,
@@ -257,6 +268,8 @@ et il est testé avec un client brut et avec le client WebSocket intégré à No
    « aucune »).
 2. Réponse du pont : `{"type":"ack","protocol":1,"bridge":"quizzup-artnet-bridge","version":"0.1.0","universes":16}`
    (`universes` : nombre d'univers internes acceptés ; un ancien pont ne l'annonce pas).
+   L'ack porte aussi `"features":["poll"]` (capacités facultatives ; absent d'un ancien pont, dont
+   l'écran de salle ne propose alors pas la recherche).
    L'ack ajoute toujours la cible effective et sa provenance (aussi pour un `hello` v1) :
    `"artnet":{"target":"192.168.1.50","port":6454,"source":"room"}`. `source` vaut `cli`
    (`--target` impose), `room` (réglage de la salle) ou `none` (aucune cible, `target` est alors
@@ -264,7 +277,12 @@ et il est testé avec un client brut et avec le client WebSocket intégré à No
    Sinon : `{"type":"error","code":"…","message":"…"}` suivi d'une fermeture (codes 4000 hello
    attendu, 4001 protocole, 4002 univers, 4003 trame invalide, 4004 écran déjà connecté, 4005
    cible Art-Net refusée, code d'erreur `target`).
-3. Trames binaires de **515 octets** : octet 0 = version (1), octets 1-2 = univers interne
+3. **Recherche des nœuds** (après le `hello`, connexion active seulement ; avant, c'est un `hello`
+   manquant, code 4000) : le navigateur envoie `{"type":"poll"}`, le pont répond au bout de 3 s
+   `{"type":"nodes","nodes":[{"ip":"192.168.1.50","shortName":"NET-3","longName":"Showtec NET-3",
+"universes":["0.0.0","0.0.1"]}]}` (`universes` : sorties DMX `net.sub.uni`, absent si aucune).
+   Pas de `status` périodique : le pont ne pousse rien sans demande.
+4. Trames binaires de **515 octets** : octet 0 = version (1), octets 1-2 = univers interne
    (gros-boutiste, 0 à 15), octets 3-514 = canaux 1 à 512. Le `hello` annonce toujours
    `universe: 0` ; un univers interne supérieur à 15 ferme la connexion (4002).
 
@@ -297,7 +315,9 @@ npm run type-check   # sources + tests, puis sources en NodeNext (comme le build
 npm test             # npm run test:coverage : seuils 90 % lignes / 85 % branches
 ```
 
-Les tests couvrent l'encodage ArtDMX octet par octet, les mappages, la ligne de commande et le
+Les tests couvrent l'encodage ArtDMX et ArtPoll octet par octet, le décodage d'un ArtPollReply de
+référence (paquets malformés ignorés), la recherche de nœuds contre un faux nœud UDP (IP non locale
+filtrée, plafond, débit limité, poll avant le `hello` refusé), les mappages, les mappages, la ligne de commande et le
 fichier de configuration, le chien de garde (horloge manuelle), et un test d'intégration
 WebSocket → UDP sur `127.0.0.1` (faux nœud Art-Net, origines refusées, client unique, noir à la
 déconnexion et à l'arrêt).

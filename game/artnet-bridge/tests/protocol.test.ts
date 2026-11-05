@@ -63,6 +63,7 @@ describe('protocole navigateur → pont', () => {
       bridge: 'quizzup-artnet-bridge',
       version: '1.2.3',
       universes: 16,
+      features: ['poll'],
       artnet: { target: null, port: 6454, source: 'none' },
     })
     expect(JSON.parse(errorMessage('universe', 'non'))).toEqual({

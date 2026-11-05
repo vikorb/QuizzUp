@@ -4,8 +4,8 @@ import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { Duplex } from 'node:stream'
 
-import type { PortAddress } from './artnet.js'
-import { ARTNET_PORT, formatPortAddress } from './artnet.js'
+import type { ArtNode, PortAddress } from './artnet.js'
+import { ARTNET_PORT, decodeArtPollReply, encodeArtPoll, formatPortAddress } from './artnet.js'
 import type { BridgeCore } from './bridge.js'
 import { createBridgeCore } from './bridge.js'
 import type { Clock, TimerHandle } from './clock.js'
@@ -22,9 +22,15 @@ import {
   CLOSE_CODES,
   decodeFrame,
   errorMessage,
+  isAllowedArtnetTarget,
   isInternalUniverse,
+  isPollMessage,
   MAX_INTERNAL_UNIVERSES,
+  nodesMessage,
   parseHello,
+  POLL_MAX_NODES,
+  POLL_MIN_INTERVAL_MS,
+  POLL_WINDOW_MS,
 } from './protocol.js'
 import type { WsConnection } from './websocket.js'
 import { acceptUpgrade, rejectUpgrade } from './websocket.js'
@@ -57,10 +63,18 @@ export type BridgeServerOptions = {
   bind?: string
   silenceTimeoutMs?: number
   blackoutMs?: number
+  /**
+   * Adresse où est envoyé l'ArtPoll de la découverte (255.255.255.255 par défaut, ou une adresse de
+   * diffusion locale comme 192.168.1.255). Le port est celui de `artnetPort`.
+   */
+  pollBroadcast?: string
   clock?: Clock
   log?: (message: string) => void
   version: string
 }
+
+/** Diffusion générale : seule adresse hors des plages locales acceptée pour `pollBroadcast`. */
+export const LIMITED_BROADCAST = '255.255.255.255'
 
 export type BridgeServer = {
   listen: () => Promise<number>
@@ -177,6 +191,66 @@ export function createBridgeServer(options: BridgeServerOptions): BridgeServer {
     source: target === null ? 'none' : targetFromCli ? 'cli' : 'room',
   })
 
+  // Découverte : un seul poll à la fois (un second poll pendant le premier attend la même réponse) ;
+  // moins d'1 s après la fin du précédent, on renvoie son résultat sans nouvel ArtPoll.
+  const pollBroadcast = options.pollBroadcast ?? LIMITED_BROADCAST
+  let poll: {
+    nodes: Map<string, ArtNode>
+    replies: ((nodes: ArtNode[]) => void)[]
+    timer: TimerHandle
+  } | null = null
+  let lastPoll: { endedAt: number; nodes: ArtNode[] } | null = null
+
+  const finishPoll = () => {
+    const current = poll
+    poll = null
+    if (!current) {
+      return
+    }
+    const nodes = [...current.nodes.values()]
+    lastPoll = { endedAt: clock.now(), nodes }
+    for (const reply of current.replies) {
+      reply(nodes)
+    }
+  }
+
+  const requestPoll = (reply: (nodes: ArtNode[]) => void) => {
+    if (poll) {
+      poll.replies.push(reply)
+      return
+    }
+    if (lastPoll && clock.now() - lastPoll.endedAt < POLL_MIN_INTERVAL_MS) {
+      reply(lastPoll.nodes)
+      return
+    }
+    poll = {
+      nodes: new Map(),
+      replies: [reply],
+      timer: clock.setTimeout(finishPoll, POLL_WINDOW_MS),
+    }
+    udp.send(encodeArtPoll(), artnetPort, pollBroadcast, (error) => {
+      if (error) {
+        log(`ArtPoll impossible vers ${pollBroadcast} : ${error.message}`)
+      }
+    })
+  }
+
+  // Réponses d'un ArtPollReply : seuls les nœuds d'une IP locale sont gardés, au plus POLL_MAX_NODES.
+  // Les nœuds à plusieurs ports répondent plusieurs fois : une entrée par IP, univers fusionnés.
+  udp.on('message', (message) => {
+    const node = poll ? decodeArtPollReply(message) : null
+    if (!poll || !node || !isAllowedArtnetTarget(node.ip)) {
+      return
+    }
+    const known = poll.nodes.get(node.ip)
+    if (known) {
+      const universes = [...new Set([...(known.universes ?? []), ...(node.universes ?? [])])]
+      poll.nodes.set(node.ip, { ...known, ...(universes.length > 0 ? { universes } : {}) })
+    } else if (poll.nodes.size < POLL_MAX_NODES) {
+      poll.nodes.set(node.ip, node)
+    }
+  })
+
   let server: Server | null = null
   let listeningPort = options.port
   let client: { connection: WsConnection; socket: Duplex } | null = null
@@ -274,7 +348,14 @@ export function createBridgeServer(options: BridgeServerOptions): BridgeServer {
         log(`Écran de salle connecté (${origin})`)
         return
       }
-      if (message.kind !== 'binary') {
+      if (message.kind === 'text') {
+        if (isPollMessage(message.data)) {
+          requestPoll((nodes) => {
+            if (connection.isOpen()) {
+              connection.sendText(nodesMessage(nodes))
+            }
+          })
+        }
         return
       }
       const frame = decodeFrame(message.data)
@@ -365,6 +446,10 @@ export function createBridgeServer(options: BridgeServerOptions): BridgeServer {
         return
       }
       core.stop()
+      if (poll) {
+        clock.clearTimeout(poll.timer)
+        poll = null
+      }
       const current = client
       client = null
       if (current) {

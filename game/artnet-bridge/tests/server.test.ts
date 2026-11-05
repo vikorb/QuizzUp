@@ -96,6 +96,7 @@ describe('pont : poignée de main et sécurité', () => {
       bridge: 'quizzup-artnet-bridge',
       version: '9.9.9',
       universes: 16,
+      features: ['poll'],
       artnet: { target: '127.0.0.1', port: receiver.port, source: 'cli' },
     })
     expect(bridge.hasClient()).toBe(true)

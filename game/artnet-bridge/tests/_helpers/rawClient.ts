@@ -195,13 +195,20 @@ export type UdpReceiver = {
 }
 
 /** Faux nœud Art-Net : écoute en UDP sur 127.0.0.1 (port choisi par le système). */
-export function openUdpReceiver(): Promise<UdpReceiver> {
+/**
+ * `reply` : réponses automatiques à chaque paquet reçu, renvoyées à l'expéditeur (comme un nœud
+ * qui répond à un ArtPoll).
+ */
+export function openUdpReceiver(reply?: (message: Buffer) => Buffer[]): Promise<UdpReceiver> {
   return new Promise((resolve) => {
     const socket: UdpSocket = createSocket('udp4')
     const packets: Buffer[] = []
     const listeners: (() => void)[] = []
-    socket.on('message', (message) => {
+    socket.on('message', (message, remote) => {
       packets.push(message)
+      for (const answer of reply?.(message) ?? []) {
+        socket.send(answer, remote.port, remote.address)
+      }
       for (const listener of [...listeners]) {
         listener()
       }
