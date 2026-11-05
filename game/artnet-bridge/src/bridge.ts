@@ -28,11 +28,13 @@ export const BLACKOUT_LIMITS = { min: 500, max: 60_000 } as const
 /**
  * - `waiting` : rien à envoyer (aucun navigateur, ou coupure terminée).
  * - `live` : le navigateur envoie des trames, elles partent en Art-Net.
+ * - `hold` : gel demandé par le navigateur (test de perte de signal), la dernière trame est
+ *   renvoyée et les trames reçues sont ignorées, jusqu'à la fin du gel (puis noir).
  * - `blackout` : coupure ou silence, des trames à zéro sont répétées pendant `blackoutMs`.
  */
-export type BridgeMode = 'waiting' | 'live' | 'blackout'
+export type BridgeMode = 'waiting' | 'live' | 'hold' | 'blackout'
 
-export type BlackoutReason = 'silence' | 'disconnected'
+export type BlackoutReason = 'silence' | 'disconnected' | 'holdEnd' | 'holdReleased'
 
 export type BridgeStatus = {
   mode: BridgeMode
@@ -57,6 +59,14 @@ export type BridgeCore = {
   stop: () => void
   /** Une trame de l'écran de salle : 512 canaux d'un univers interne (0-15, 0 par défaut). */
   frame: (data: Uint8Array, universe?: number) => void
+  /**
+   * Gèle la sortie pendant `ms` : garde la dernière trame, ignore les trames reçues, puis noir.
+   * Refusé (`false`) si le pont n'est pas en train d'émettre ou si un gel est déjà en cours ;
+   * les bornes de `ms` sont vérifiées par l'appelant (`isHoldDuration`).
+   */
+  hold: (ms: number) => boolean
+  /** Met fin à un gel en cours tout de suite (noir) ; sans effet hors gel. */
+  release: () => void
   /** Le navigateur s'est déconnecté : trames à zéro pendant `blackoutMs`. */
   clientDisconnected: () => void
   /** Envoie tout de suite une trame à zéro sur chaque univers de sortie. */
@@ -67,6 +77,8 @@ export type BridgeCore = {
 const REASONS: Record<BlackoutReason, string> = {
   silence: 'plus aucune trame du navigateur',
   disconnected: 'navigateur déconnecté',
+  holdEnd: 'fin du gel demandé par le navigateur',
+  holdReleased: 'gel interrompu par le navigateur',
 }
 
 /** Dernier état reçu pour un univers interne. */
@@ -108,6 +120,7 @@ export function createBridgeCore(options: BridgeCoreOptions): BridgeCore {
   let timer: TimerHandle | null = null
   let lastSentAt = Number.NEGATIVE_INFINITY
   let blackoutUntil = 0
+  let holdUntil = 0
   let framesReceived = 0
   let packetsSent = 0
   let blackouts = 0
@@ -156,6 +169,20 @@ export function createBridgeCore(options: BridgeCoreOptions): BridgeCore {
 
   const tick = () => {
     const now = clock.now()
+    if (mode === 'hold') {
+      if (now >= holdUntil) {
+        startBlackout('holdEnd')
+        return
+      }
+      // Dernière trame gardée, renvoyée à plus de 1 Hz : le nœud reste alimenté, rien ne passe au noir.
+      for (const [universe, source] of sources) {
+        if (now - source.sentAt >= KEEPALIVE_MS) {
+          sendSource(universe, source.data)
+          source.sentAt = now
+        }
+      }
+      return
+    }
     if (mode === 'live') {
       const isSilent = (source: Source) => now - source.frameAt > silenceTimeoutMs
       if ([...sources.values()].every((source) => source.stale || isSilent(source))) {
@@ -213,6 +240,9 @@ export function createBridgeCore(options: BridgeCoreOptions): BridgeCore {
       sendZeros()
     },
     frame(data, universe = 0) {
+      if (mode === 'hold') {
+        return
+      }
       const now = clock.now()
       if (mode !== 'live') {
         log('Trames reçues du navigateur : envoi Art-Net en cours')
@@ -235,6 +265,28 @@ export function createBridgeCore(options: BridgeCoreOptions): BridgeCore {
         source.dirty = false
         sendSource(universe, source.data)
         source.sentAt = now
+      }
+    },
+    hold(ms) {
+      if (mode !== 'live') {
+        return false
+      }
+      // Une trame reçue mais pas encore émise (cadence limitée) part avant le gel : c'est elle qu'on garde.
+      for (const [universe, source] of sources) {
+        if (source.dirty) {
+          source.dirty = false
+          sendSource(universe, source.data)
+          source.sentAt = clock.now()
+        }
+      }
+      mode = 'hold'
+      holdUntil = clock.now() + ms
+      log(`Gel de la sortie pendant ${ms} ms : dernière trame gardée, trames reçues ignorées`)
+      return true
+    },
+    release() {
+      if (mode === 'hold') {
+        startBlackout('holdReleased')
       }
     },
     clientDisconnected() {

@@ -4,9 +4,13 @@ import {
   checkArtnetRequest,
   decodeFrame,
   errorMessage,
+  heldMessage,
   isAllowedArtnetTarget,
+  isHoldDuration,
   isPlausibleNode,
+  isReleaseMessage,
   parseHello,
+  parseHold,
 } from '@bridge/protocol'
 
 /** Trame telle que l'encode `game/hardware` (`encodeBridgeFrame`) : même vecteur de test. */
@@ -64,7 +68,7 @@ describe('protocole navigateur → pont', () => {
       bridge: 'quizzup-artnet-bridge',
       version: '1.2.3',
       universes: 16,
-      features: ['poll'],
+      features: ['poll', 'hold'],
       artnet: { target: null, port: 6454, source: 'none' },
     })
     expect(JSON.parse(errorMessage('universe', 'non'))).toEqual({
@@ -182,6 +186,28 @@ describe('isPlausibleNode', () => {
     }
     for (const ip of ['8.8.8.8', '172.32.0.1', 'pas une ip', '']) {
       expect(isPlausibleNode(ip, ip), ip).toBe(false)
+    }
+  })
+})
+
+describe('message hold', () => {
+  it('lit hold et release, annonce la capacité', () => {
+    expect(parseHold('{"type":"hold","ms":5000}')).toEqual({ ms: 5000 })
+    expect(parseHold('{"type":"hold"}')).toEqual({ ms: undefined })
+    for (const text of ['', 'null', '[]', '{"type":"poll"}', 'bonjour']) {
+      expect(parseHold(text)).toBeNull()
+    }
+    expect(isReleaseMessage('{"type":"release"}')).toBe(true)
+    expect(isReleaseMessage('{"type":"hold","ms":5000}')).toBe(false)
+    expect(JSON.parse(heldMessage(5000))).toEqual({ type: 'held', ms: 5000 })
+  })
+
+  it('borne la durée de 1 000 à 30 000 ms, entier', () => {
+    for (const ms of [1000, 15_000, 30_000]) {
+      expect(isHoldDuration(ms)).toBe(true)
+    }
+    for (const ms of [999, 30_001, 0, -5, 1500.5, NaN, Infinity, '5000', null, undefined]) {
+      expect(isHoldDuration(ms)).toBe(false)
     }
   })
 })

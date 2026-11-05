@@ -96,7 +96,7 @@ describe('pont : poignée de main et sécurité', () => {
       bridge: 'quizzup-artnet-bridge',
       version: '9.9.9',
       universes: 16,
-      features: ['poll'],
+      features: ['poll', 'hold'],
       artnet: { target: '127.0.0.1', port: receiver.port, source: 'cli' },
     })
     expect(bridge.hasClient()).toBe(true)
@@ -271,6 +271,71 @@ describe('pont : WebSocket → Art-Net (UDP)', () => {
     client.send(OPCODE.binary, frameBytes(5))
     const [packet] = await receiver.waitFor(1)
     expect(packet![18]).toBe(5)
+  })
+
+  it('gèle la sortie sur demande : dernière trame gardée, trames ignorées, noir à la fin', async () => {
+    await startBridge(defaultMappings(), { silenceTimeoutMs: 200 })
+    const client = await connectReady()
+    client.send(OPCODE.binary, frameBytes(255))
+    await receiver.waitFor(1)
+    client.send(OPCODE.text, JSON.stringify({ type: 'hold', ms: 1000 }))
+    expect(JSON.parse((await client.next()).payload.toString('utf8'))).toEqual({
+      type: 'held',
+      ms: 1000,
+    })
+    client.send(OPCODE.binary, frameBytes(1))
+    // Plus de 200 ms de « silence » : sans gel le pont serait déjà au noir.
+    await new Promise((resolve) => setTimeout(resolve, 600))
+    expect(receiver.packets.every((packet) => packet[18] === 255)).toBe(true)
+    await vi.waitFor(() => expect(receiver.packets.at(-1)![18]).toBe(0), { timeout: 3000 })
+    expect(receiver.packets.some((packet) => packet[18] === 1)).toBe(false)
+    expect(logs.some((line) => line.includes('fin du gel'))).toBe(true)
+  })
+
+  it('refuse un gel hors bornes sans fermer la connexion', async () => {
+    await startBridge()
+    const client = await connectReady()
+    client.send(OPCODE.binary, frameBytes(9))
+    await receiver.waitFor(1)
+    for (const ms of [999, 30_001, 1500.5, '5000', null]) {
+      client.send(OPCODE.text, JSON.stringify({ type: 'hold', ms }))
+      expect(JSON.parse((await client.next()).payload.toString('utf8'))).toMatchObject({
+        type: 'error',
+        code: 'hold',
+      })
+    }
+    client.send(OPCODE.text, JSON.stringify({ type: 'hold' }))
+    expect(JSON.parse((await client.next()).payload.toString('utf8')).code).toBe('hold')
+    client.send(OPCODE.binary, frameBytes(10))
+    await vi.waitFor(() => expect(receiver.packets.at(-1)![18]).toBe(10))
+    expect(bridge.hasClient()).toBe(true)
+  })
+
+  it('refuse un gel sans trame reçue', async () => {
+    await startBridge()
+    const client = await connectReady()
+    client.send(OPCODE.text, JSON.stringify({ type: 'hold', ms: 2000 }))
+    expect(JSON.parse((await client.next()).payload.toString('utf8')).code).toBe('hold')
+  })
+
+  it('release met fin au gel (noir), la déconnexion aussi', async () => {
+    await startBridge()
+    const client = await connectReady()
+    client.send(OPCODE.binary, frameBytes(255))
+    await receiver.waitFor(1)
+    client.send(OPCODE.text, JSON.stringify({ type: 'hold', ms: 30_000 }))
+    await client.next()
+    client.send(OPCODE.text, JSON.stringify({ type: 'release' }))
+    await vi.waitFor(() => expect(receiver.packets.at(-1)![18]).toBe(0))
+    expect(logs.some((line) => line.includes('gel interrompu'))).toBe(true)
+
+    client.send(OPCODE.binary, frameBytes(200))
+    await vi.waitFor(() => expect(receiver.packets.at(-1)![18]).toBe(200))
+    client.send(OPCODE.text, JSON.stringify({ type: 'hold', ms: 30_000 }))
+    await client.next()
+    client.socket.destroy()
+    await vi.waitFor(() => expect(receiver.packets.at(-1)![18]).toBe(0))
+    expect(logs.some((line) => line.includes('navigateur déconnecté'))).toBe(true)
   })
 
   it('envoie du noir à l’arrêt du pont', async () => {

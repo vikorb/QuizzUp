@@ -93,7 +93,7 @@ describe('pont : cible Art-Net de l’écran de salle (protocole v2)', () => {
       bridge: 'quizzup-artnet-bridge',
       version: '9.9.9',
       universes: 16,
-      features: ['poll'],
+      features: ['poll', 'hold'],
       artnet: { target: null, port: receiver.port, source: 'none' },
     })
     client.send(OPCODE.binary, frame(7))
@@ -120,7 +120,7 @@ describe('pont : cible Art-Net de l’écran de salle (protocole v2)', () => {
       bridge: 'quizzup-artnet-bridge',
       version: '9.9.9',
       universes: 16,
-      features: ['poll'],
+      features: ['poll', 'hold'],
       artnet: { target: '127.0.0.1', port: receiver.port, source: 'room' },
     })
     client.send(OPCODE.binary, frame(42))
