@@ -85,9 +85,17 @@ npx quizzup-artnet-bridge --target 192.168.1.50 --universe 0 --port 7654 --origi
 l'écran de salle > aucune. Sans cible, le pont n'envoie rien et le dit dans son journal. La cible
 reçue de l'écran de salle doit être une IPv4 d'un réseau local : `10.0.0.0/8`, `172.16.0.0/12`,
 `192.168.0.0/16`, lien local `169.254.0.0/16` ou boucle locale `127.0.0.0/8`. Toute autre adresse
-(`8.8.8.8`, …) est refusée et rien n'est envoyé. Le port Art-Net reçu de l'écran de salle n'est
-appliqué que si `--artnet-port` n'a pas été changé. La plage n'est pas contrôlée pour
-`--target`, choisi par l'opérateur du PC.
+(`8.8.8.8`, …) est refusée et rien n'est envoyé. **La salle ne choisit que l'IP, dans les plages
+locales, jamais le port** : l'UDP part toujours vers le port `--artnet-port` (6454), et un `port`
+éventuellement présent dans le `hello` est ignoré. Sinon une page compromise pourrait faire émettre
+le pont vers un autre service du réseau local (DNS 53, SNMP 161…). La plage n'est pas contrôlée
+pour `--target`, choisi par l'opérateur du PC.
+
+Quand la cible change entre deux connexions (autre IP, ou plus de cible), le pont envoie d'abord
+**3 trames à zéro à l'ancienne cible** : l'UDP n'est pas garanti et un nœud garde sa dernière
+valeur, fumée comprise. Un `hello` v1 (écran de salle ancien) sans `--target` remet la cible à
+« aucune » : le pont n'émet jamais vers l'IP d'une salle précédente. Un second `hello` en cours de
+connexion, ou une connexion refusée (écran déjà connecté), ne change rien.
 
 Dans le backoffice, la salle utilise alors le pilote **`artnet-bridge`**
 (`rooms.config.lighting.driver`) et, si le port n'est pas 7654,
@@ -208,8 +216,8 @@ puis `launchctl load ~/Library/LaunchAgents/fr.quizzup.artnet-bridge.plist` (che
   pont ». (Un refus HTTP `409` serait vu par le navigateur comme un pont injoignable.)
 - **Cible Art-Net limitée au réseau local** : l'IP reçue de l'écran de salle (protocole v2) est
   refusée hors `10/8`, `172.16/12`, `192.168/16`, `169.254/16` et `127/8` (erreur `target`,
-  fermeture 4005, aucune trame envoyée). Une page de salle compromise ne peut donc pas faire
-  émettre le pont vers Internet.
+  fermeture 4005, aucune trame envoyée), et le port UDP n'est jamais choisi par la salle. Une page
+  de salle compromise ne peut donc faire émettre le pont ni vers Internet ni vers un autre port.
 - **Présentation obligatoire** : le navigateur envoie `hello` (version du protocole) et le pont
   répond `ack` ; sans cela, la connexion est fermée au bout de 2 s. Trames de taille, de version
   ou d'univers inattendus : connexion fermée.
@@ -243,15 +251,16 @@ et il est testé avec un client brut et avec le client WebSocket intégré à No
 
 1. Message texte du navigateur, v1 : `{"type":"hello","protocol":1,"universe":0}`.
    v2 (cible de la salle) :
-   `{"type":"hello","protocol":1,"version":2,"universe":0,"artnet":{"target":"192.168.1.50","port":6454}}`.
-   `artnet` n'est présent que si la salle a réglé une IP, `port` que s'il est réglé. Un `hello`
-   sans `version` est lu comme v1 et se comporte exactement comme avant.
+   `{"type":"hello","protocol":1,"version":2,"universe":0,"artnet":{"target":"192.168.1.50"}}`.
+   `artnet` n'est présent que si la salle a réglé une IP ; un `port` éventuel est ignoré. Un `hello`
+   sans `version` est lu comme v1 : il n'apporte aucune cible (sans `--target`, la cible redevient
+   « aucune »).
 2. Réponse du pont : `{"type":"ack","protocol":1,"bridge":"quizzup-artnet-bridge","version":"0.1.0","universes":16}`
    (`universes` : nombre d'univers internes acceptés ; un ancien pont ne l'annonce pas).
-   À un `hello` v2, l'ack ajoute la cible effective et sa provenance :
+   L'ack ajoute toujours la cible effective et sa provenance (aussi pour un `hello` v1) :
    `"artnet":{"target":"192.168.1.50","port":6454,"source":"room"}`. `source` vaut `cli`
    (`--target` impose), `room` (réglage de la salle) ou `none` (aucune cible, `target` est alors
-   `null`). Un ack sans `artnet` signale un pont ancien.
+   `null`) ; `port` est celui de `--artnet-port`. Un ack sans `artnet` signale un pont ancien.
    Sinon : `{"type":"error","code":"…","message":"…"}` suivi d'une fermeture (codes 4000 hello
    attendu, 4001 protocole, 4002 univers, 4003 trame invalide, 4004 écran déjà connecté, 4005
    cible Art-Net refusée, code d'erreur `target`).

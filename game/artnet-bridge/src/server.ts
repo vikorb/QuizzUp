@@ -16,7 +16,6 @@ import {
   ackMessage,
   type ArtnetAck,
   BRIDGE_FRAME_BYTES,
-  BRIDGE_HELLO_VERSION,
   BRIDGE_PROTOCOL_VERSION,
   BUSY_MESSAGE,
   checkArtnetRequest,
@@ -38,6 +37,9 @@ export const HELLO_TIMEOUT_MS = 2000
 
 /** Attente maximale des derniers envois UDP (trames à zéro) à l'arrêt. */
 const SHUTDOWN_FLUSH_MS = 200
+
+/** Trames à zéro envoyées à l'ancienne cible quand la cible change (l'UDP n'est pas garanti). */
+const BLACKOUT_FRAMES_ON_SWITCH = 3
 
 export type BridgeServerOptions = {
   /** Port d'écoute WebSocket sur 127.0.0.1 (0 = choisi par le système, pour les tests). */
@@ -96,10 +98,10 @@ export function allowedHostHeaders(port: number): Set<string> {
 export function createBridgeServer(options: BridgeServerOptions): BridgeServer {
   const clock = options.clock ?? systemClock
   const log = options.log ?? (() => undefined)
-  const cliArtnetPort = options.artnetPort ?? ARTNET_PORT
+  // Le port est toujours celui de `--artnet-port` : l'écran de salle ne le choisit jamais.
+  const artnetPort = options.artnetPort ?? ARTNET_PORT
   const targetFromCli = options.target !== undefined
   let target: string | null = options.target ?? null
-  let artnetPort = cliArtnetPort
   let warnedNoTarget = false
   const origins = new Set(options.origins)
   const udp = createSocket({ type: 'udp4', reuseAddr: false })
@@ -152,6 +154,23 @@ export function createBridgeServer(options: BridgeServerOptions): BridgeServer {
     target === null
       ? 'aucune'
       : `${target}:${artnetPort} (${targetFromCli ? 'ligne de commande' : 'écran de salle'})`
+  /**
+   * Change la cible reçue de l'écran de salle. L'UDP n'est pas garanti et un nœud garde sa dernière
+   * valeur (fumée comprise) : avant de quitter l'ancienne cible, on lui envoie 3 trames à zéro.
+   */
+  const switchTarget = (next: string | null) => {
+    if (next === target) {
+      return
+    }
+    if (target !== null) {
+      for (let count = 0; count < BLACKOUT_FRAMES_ON_SWITCH; count += 1) {
+        core.sendBlackout()
+      }
+    }
+    target = next
+    warnedNoTarget = false
+    log(`Cible Art-Net reçue de l’écran de salle : ${describeTarget()}`)
+  }
   const artnetAck = (): ArtnetAck => ({
     target,
     port: artnetPort,
@@ -239,28 +258,19 @@ export function createBridgeServer(options: BridgeServerOptions): BridgeServer {
           )
           return
         }
-        if (hello.version >= BRIDGE_HELLO_VERSION && !targetFromCli) {
-          // La ligne de commande reste prioritaire : sans elle, la cible est celle de l'écran de salle
-          // (et son absence efface la précédente). Le port du pont reste celui de `--artnet-port`.
+        if (!targetFromCli) {
+          // La ligne de commande reste prioritaire. Sans elle, la cible est celle de ce hello : un
+          // hello v1 ou sans `artnet` l'efface, pour ne jamais émettre vers l'IP d'une salle précédente.
           const requested =
             hello.artnet?.target === undefined ? null : checkArtnetRequest(hello.artnet)
           if (requested && !requested.ok) {
             refuse(CLOSE_CODES.target, 'target', requested.message)
             return
           }
-          target = requested?.target ?? null
-          artnetPort =
-            cliArtnetPort === ARTNET_PORT ? (requested?.port ?? ARTNET_PORT) : cliArtnetPort
-          warnedNoTarget = false
-          log(`Cible Art-Net reçue de l’écran de salle : ${describeTarget()}`)
+          switchTarget(requested?.target ?? null)
         }
         ready = true
-        connection.sendText(
-          ackMessage(
-            options.version,
-            hello.version >= BRIDGE_HELLO_VERSION ? artnetAck() : undefined
-          )
-        )
+        connection.sendText(ackMessage(options.version, artnetAck()))
         log(`Écran de salle connecté (${origin})`)
         return
       }

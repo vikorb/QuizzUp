@@ -57,12 +57,13 @@ describe('protocole navigateur → pont', () => {
   })
 
   it('formate ack et erreur', () => {
-    expect(JSON.parse(ackMessage('1.2.3'))).toEqual({
+    expect(JSON.parse(ackMessage('1.2.3', { target: null, port: 6454, source: 'none' }))).toEqual({
       type: 'ack',
       protocol: 1,
       bridge: 'quizzup-artnet-bridge',
       version: '1.2.3',
       universes: 16,
+      artnet: { target: null, port: 6454, source: 'none' },
     })
     expect(JSON.parse(errorMessage('universe', 'non'))).toEqual({
       type: 'error',
@@ -73,14 +74,19 @@ describe('protocole navigateur → pont', () => {
 })
 
 describe('protocole v2 : cible Art-Net', () => {
-  it('lit la version et la cible du hello v2, ignorées en v1', () => {
-    const artnet = { target: '192.168.1.50', port: 6454 }
+  it('lit la version et la cible du hello v2, ignorées en v1 ; le port reçu est écarté', () => {
+    const artnet = { target: '192.168.1.50' }
     expect(parseHello(JSON.stringify({ type: 'hello', protocol: 1, version: 2, artnet }))).toEqual({
       protocol: 1,
       universe: 0,
       version: 2,
       artnet,
     })
+    expect(
+      parseHello(
+        JSON.stringify({ type: 'hello', protocol: 1, version: 2, artnet: { ...artnet, port: 53 } })
+      )?.artnet
+    ).toEqual(artnet)
     expect(
       parseHello(JSON.stringify({ type: 'hello', protocol: 1, artnet }))?.artnet
     ).toBeUndefined()
@@ -119,6 +125,17 @@ describe('protocole v2 : cible Art-Net', () => {
       '::1',
       'salle.local',
       '',
+      // Formes exotiques que certains systèmes résolvent vers une adresse locale ou privée.
+      '127.1',
+      '0x7f.1',
+      '0x7f.0.0.1',
+      '2130706433',
+      '::ffff:10.0.0.1',
+      ' 10.0.0.1',
+      '10.0.0.1 ',
+      '10.0.0.1.evil',
+      '10.0.0.1/8',
+      '10.0.0.1:6454',
     ]) {
       expect(isAllowedArtnetTarget(ip), ip).toBe(false)
     }
@@ -126,22 +143,19 @@ describe('protocole v2 : cible Art-Net', () => {
 
   it('valide la demande complète avec un message lisible', () => {
     expect(checkArtnetRequest({ target: '10.0.0.5' })).toEqual({ ok: true, target: '10.0.0.5' })
-    expect(checkArtnetRequest({ target: '10.0.0.5', port: 6455 })).toEqual({
+    // Le port n'est plus une affaire de l'écran de salle : il est ignoré, jamais relayé.
+    expect(checkArtnetRequest({ target: '10.0.0.5', port: 53 } as never)).toEqual({
       ok: true,
       target: '10.0.0.5',
-      port: 6455,
     })
     expect(checkArtnetRequest({ target: '8.8.8.8' })).toMatchObject({
       ok: false,
       message: expect.stringContaining('8.8.8.8 refusée') as string,
     })
     expect(checkArtnetRequest({ target: 12 })).toMatchObject({ ok: false })
-    expect(checkArtnetRequest({ target: '10.0.0.5', port: 0 })).toMatchObject({ ok: false })
-    expect(checkArtnetRequest({ target: '10.0.0.5', port: '6454' })).toMatchObject({ ok: false })
   })
 
-  it('ajoute la cible effective à l’ack v2 seulement', () => {
-    expect(JSON.parse(ackMessage('1.2.3')).artnet).toBeUndefined()
+  it('l’ack annonce toujours la cible effective', () => {
     expect(
       JSON.parse(ackMessage('1.2.3', { target: '10.0.0.5', port: 6454, source: 'room' })).artnet
     ).toEqual({ target: '10.0.0.5', port: 6454, source: 'room' })

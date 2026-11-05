@@ -12,11 +12,12 @@ import { DMX_CHANNELS } from './artnet.js'
  *    ou `{"type":"error","code":"…","message":"…"}` puis ferme.
  *
  * Version 2 du `hello` (le format des trames ne change pas) : `{"type":"hello","protocol":1,
- * "version":2,"universe":0,"artnet":{"target":"192.168.1.50","port":6454}}`. `artnet` (facultatif)
- * porte la cible réglée dans l'écran de salle ; le pont l'applique sauf si `--target` a été donné
- * en ligne de commande, la refuse hors des réseaux locaux, et l'ack (v2 seulement) annonce la cible
- * effective : `"artnet":{"target":"192.168.1.50","port":6454,"source":"room"}`. Un `hello` sans
- * `version` est en v1 : traité et acquitté exactement comme avant.
+ * "version":2,"universe":0,"artnet":{"target":"192.168.1.50"}}`. `artnet` (facultatif) porte l'IP
+ * réglée dans l'écran de salle ; le pont l'applique sauf si `--target` a été donné en ligne de
+ * commande, la refuse hors des réseaux locaux, et l'ack annonce la cible effective :
+ * `"artnet":{"target":"192.168.1.50","port":6454,"source":"room"}`. Le port n'est jamais choisi par
+ * l'écran de salle (un éventuel `port` reçu est ignoré) : c'est `--artnet-port`, 6454 par défaut.
+ * Un `hello` sans `version` est en v1 : pas de cible de salle, donc aucune cible sans `--target`.
  * 3. Chaque trame est un message **binaire** de 515 octets : version (1), univers interne (0 à 15)
  *    sur 2 octets gros-boutiste, puis les 512 canaux. Une trame par univers utilisé, au fil de l'eau.
  */
@@ -74,7 +75,7 @@ export function decodeFrame(message: Uint8Array): DecodedFrame {
 }
 
 /** Cible Art-Net demandée par l'écran de salle (valeurs brutes, validées par `checkArtnetRequest`). */
-export type ArtnetRequest = { target?: unknown; port?: unknown }
+export type ArtnetRequest = { target?: unknown }
 
 export type Hello = { protocol: number; universe: number; version: number; artnet?: ArtnetRequest }
 
@@ -102,7 +103,7 @@ export function parseHello(text: string): Hello | null {
     protocol: raw.protocol,
     universe: typeof raw.universe === 'number' ? raw.universe : 0,
     version,
-    ...(artnet ? { artnet: { target: artnet.target, port: artnet.port } } : {}),
+    ...(artnet ? { artnet: { target: artnet.target } } : {}),
   }
 }
 
@@ -127,12 +128,11 @@ export function isAllowedArtnetTarget(ip: string): boolean {
 
 export const ARTNET_TARGET_RANGES = '10.x.x.x, 172.16-31.x.x, 192.168.x.x, 169.254.x.x, 127.x.x.x'
 
-export type ArtnetCheck =
-  { ok: true; target: string; port?: number } | { ok: false; message: string }
+export type ArtnetCheck = { ok: true; target: string } | { ok: false; message: string }
 
 /** Valide la cible demandée par l'écran de salle (message d'erreur lisible dans l'écran). */
 export function checkArtnetRequest(request: ArtnetRequest): ArtnetCheck {
-  const { target, port } = request
+  const { target } = request
   if (typeof target !== 'string' || !isIPv4(target)) {
     return { ok: false, message: `cible Art-Net « ${String(target)} » : adresse IPv4 attendue` }
   }
@@ -142,13 +142,7 @@ export function checkArtnetRequest(request: ArtnetRequest): ArtnetCheck {
       message: `cible Art-Net ${target} refusée : seules les adresses du réseau local sont acceptées (${ARTNET_TARGET_RANGES})`,
     }
   }
-  if (port === undefined) {
-    return { ok: true, target }
-  }
-  if (typeof port !== 'number' || !Number.isInteger(port) || port < 1 || port > 65_535) {
-    return { ok: false, message: `port Art-Net « ${String(port)} » : entier de 1 à 65535 attendu` }
-  }
-  return { ok: true, target, port }
+  return { ok: true, target }
 }
 
 /** D'où vient la cible effective : ligne de commande, écran de salle, ou aucune. */
@@ -156,14 +150,14 @@ export type ArtnetSource = 'cli' | 'room' | 'none'
 export type ArtnetAck = { target: string | null; port: number; source: ArtnetSource }
 
 /** `universes` : nombre d'univers internes acceptés (un ancien pont ne l'annonce pas : 1 seul). */
-export const ackMessage = (version: string, artnet?: ArtnetAck) =>
+export const ackMessage = (version: string, artnet: ArtnetAck) =>
   JSON.stringify({
     type: 'ack',
     protocol: BRIDGE_PROTOCOL_VERSION,
     bridge: BRIDGE_NAME,
     version,
     universes: MAX_INTERNAL_UNIVERSES,
-    ...(artnet ? { artnet } : {}),
+    artnet,
   })
 
 export const errorMessage = (code: string, message: string) =>
