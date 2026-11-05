@@ -18,19 +18,19 @@ export function useFreezeTest() {
   const { t } = useI18n()
   const { confirm } = useConfirm()
   const refusal = ref<string | null>(null)
-  const { hardware } = useRoomHardware()
+  const { bridgeFeatures } = useRoomHardware()
 
   /** Raison de refuser le test avant même de demander confirmation, `null` sinon. */
   function precheck(): string | null {
-    // Le pont Art-Net envoie du noir dès que le navigateur se tait : le test validerait le
-    // pont, pas le relais temporisé. On le fait sur l'interface USB, ou en coupant le pont.
-    if (hardware.value.config.lighting.driver === 'artnet-bridge') {
-      return t('hardware.diagnostic.freezeBridge')
-    }
     // Sans interface réelle ouverte, aucune fumée ne sortirait : le test ne prouverait rien.
     const state = getLighting()?.getState()
     if (!state || state.simulation || state.outputStatus !== 'open') {
       return t('hardware.diagnostic.freezeNoInterface')
+    }
+    // Pont Art-Net : il passe au noir dès que le navigateur se tait, ce qui fausserait le test.
+    // Il faut un pont qui sait geler sa sortie (message `hold`), sinon on refuse.
+    if (state.driver === 'artnet-bridge' && !bridgeFeatures.value?.includes('hold')) {
+      return t('hardware.diagnostic.freezeBridgeOld')
     }
     return null
   }

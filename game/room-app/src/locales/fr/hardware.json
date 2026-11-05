@@ -167,7 +167,7 @@
       "clear": "Tout éteindre",
       "end": "Terminer le diagnostic",
       "freezeTitle": "Test de coupure de la fumée",
-      "freezeHint": "Simule un plantage : une courte émission de fumée, puis plus aucune trame pendant 15 s. Le relais temporisé doit couper la fumée tout seul, en 10 s au plus. À faire salle vide, arrêt d’urgence physique à portée de main.",
+      "freezeHint": "Simule un plantage : une courte émission de fumée, puis plus aucune trame pendant 15 s (l’interface USB ou le pont Art-Net répète la dernière trame, sans passer au noir). Le relais temporisé, ou la machine elle-même si elle coupe sur perte de signal, doit couper la fumée tout seul, en 10 s au plus. À faire salle vide, arrêt d’urgence physique à portée de main.",
       "freeze": "Lancer le plantage simulé",
       "freezeConfirm1": "La fumée va vraiment partir. La salle est vide et l’arrêt d’urgence physique est à portée de main ?",
       "freezeConfirm2": "Dernière confirmation : plus aucune trame ne sera envoyée pendant 15 s. Si la fumée ne s’arrête pas seule, appuie sur l’arrêt d’urgence physique.",
@@ -192,7 +192,7 @@
         "disconnected": "L’interface a été débranchée.",
         "unknown": "Impossible d’ouvrir l’interface DMX."
       },
-      "freezeBridge": "Avec le pont Art-Net, le pont coupe lui-même la fumée quand le navigateur se tait : ce test ne vérifierait pas le relais temporisé. Fais-le avec l’interface USB, ou arrête le programme du pont pendant une émission.",
+      "freezeBridgeOld": "Ce pont Art-Net est trop ancien : il ne sait pas geler sa sortie (il passerait au noir et le test ne prouverait rien). Mets le pont à jour, ou fais le test avec l’interface USB.",
       "freezeNoInterface": "Connecte d’abord la vraie interface DMX : en simulation, aucune fumée ne sortirait et le test ne prouverait rien."
     },
     "assistant": {
@@ -369,7 +369,10 @@
         "freezeFailed": "La fumée ne doit pas être utilisée : vérifie le câblage et le réglage du relais temporisé, puis refais le test.",
         "freezeRunning": "Plus aucune trame n’est envoyée pendant 15 s. Regarde la machine : la fumée doit s’arrêter seule en 10 s au plus.",
         "freezeAbort": "La fumée ne s’arrête pas : tout couper",
+        "noRelayWarning": "Cette machine n’a pas de relais temporisé : si le contrôleur plante, l’interface répète la dernière trame et la fumée peut continuer sans fin. Ne coche la case ci-dessous que si tu as vérifié dans la notice que la machine s’arrête seule dès que le signal DMX disparaît.",
+        "cutsOnSignalLoss": "Je confirme que la machine coupe toute seule sur perte de signal DMX (vérifié dans la notice et par le test de plantage simulé).",
         "willBeDisabled": {
+          "relay_required": "La fumée sera enregistrée désactivée : sans relais temporisé, il faut cocher que la machine coupe toute seule sur perte de signal DMX.",
           "no_device": "La fumée sera enregistrée désactivée : aucune machine à fumée n’est configurée.",
           "checks_incomplete": "La fumée sera enregistrée désactivée : la liste de contrôle de sécurité n’est pas entièrement validée."
         }

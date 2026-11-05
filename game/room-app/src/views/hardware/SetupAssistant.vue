@@ -457,6 +457,20 @@
       <p v-if="summary.smokeDisabled" class="hw-alert" role="status" data-test="smoke-disabled">
         {{ $t(`hardware.assistant.smoke.willBeDisabled.${summary.smokeDisabled}`) }}
       </p>
+      <div v-if="view.smokeLacksRelay" class="stack" data-test="smoke-no-relay">
+        <p class="hw-alert hw-alert--danger" role="alert">
+          {{ $t('hardware.assistant.smoke.noRelayWarning') }}
+        </p>
+        <label class="hw-check">
+          <input
+            type="checkbox"
+            :checked="view.config.lighting.smoke.cutsOnSignalLoss === true"
+            data-test="smoke-cuts-on-signal-loss"
+            @change="onCutsOnSignalLoss"
+          />
+          <span>{{ $t('hardware.assistant.smoke.cutsOnSignalLoss') }}</span>
+        </label>
+      </div>
       <div class="hw-actions">
         <label class="hw-field">
           {{ $t('hardware.assistant.smoke.maxDuration') }}
@@ -480,7 +494,7 @@
         </label>
       </div>
       <h3 class="hw-panel__subtitle">{{ $t('hardware.assistant.smoke.checklist') }}</h3>
-      <label v-for="check in SMOKE_CHECKS" :key="check" class="hw-check">
+      <label v-for="check in requiredSmokeChecks" :key="check" class="hw-check">
         <input
           type="checkbox"
           :checked="view.smokeChecks[check]"
@@ -794,7 +808,11 @@ const canFreezeTest = computed(
   () =>
     view.value.config.lighting.smoke.enabled &&
     view.value.smokeChecks.physicalStop &&
-    view.value.smokeChecks.timedRelay
+    (view.value.smokeChecks.timedRelay || !view.value.smokeChecksRequired.includes('timedRelay'))
+)
+// Sans relais, « relais temporisé » n'a pas de sens : seules les vérifications exigées sont listées.
+const requiredSmokeChecks = computed(() =>
+  SMOKE_CHECKS.filter((check) => view.value.smokeChecksRequired.includes(check))
 )
 
 const isBefore = (id: SetupStepId) =>
@@ -1143,6 +1161,11 @@ onMounted(() => window.addEventListener('keydown', onCalibrationKey))
 function onSmokeEnabled(event: Event): void {
   const enabled = (event.target as HTMLInputElement).checked
   run(() => wizard.setSmoke({ enabled }))
+}
+
+function onCutsOnSignalLoss(event: Event): void {
+  const cutsOnSignalLoss = (event.target as HTMLInputElement).checked
+  run(() => wizard.setSmoke({ cutsOnSignalLoss }))
 }
 
 function onSmokeSeconds(key: 'maxDurationMs' | 'cooldownMs', event: Event): void {

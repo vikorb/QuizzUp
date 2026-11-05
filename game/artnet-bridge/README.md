@@ -248,6 +248,15 @@ puis `launchctl load ~/Library/LaunchAgents/fr.quizzup.artnet-bridge.plist` (che
   Le noir est aussi envoyé à l'arrêt du pont (Ctrl+C, arrêt du service). Le délai n'est pas plus
   court car Chrome bride les minuteurs d'un onglet masqué à environ 1 par seconde : à 1 s, la
   lumière clignoterait au noir dès que l'opérateur change d'onglet.
+- **Gel pour le test de perte de signal** (`hold`) : le navigateur peut demander
+  `{"type":"hold","ms":N}` (entier de **1 000 à 30 000 ms** ; sinon `{"type":"error","code":"hold",…}`
+  sans fermer). Pendant le gel, le pont **garde la dernière trame** (renvoyée à plus de 1 Hz,
+  comme le ferait une interface USB Pro) **sans passer au noir**, et **ignore les trames reçues**.
+  À la fin du gel, ou à la déconnexion, il envoie du noir comme le chien de garde. Cela permet de
+  vérifier en salle Art-Net que la machine à fumée coupe seule (relais temporisé, ou machine qui
+  coupe sur perte de signal). `{"type":"release"}` met fin au gel tout de suite (noir), utilisé
+  par l'arrêt d'urgence de l'écran de salle. Refusé (`error` `hold`) s'il n'y a pas de trame en
+  cours ou si un gel est déjà actif.
 - **Maintien des nœuds** : la dernière trame est renvoyée au moins toutes les 800 ms ; débit
   limité à ~44 trames/s par univers.
 - Après le noir de sécurité, le pont **n'envoie plus rien** tant que l'écran de salle ne parle
@@ -278,8 +287,8 @@ et il est testé avec un client brut et avec le client WebSocket intégré à No
    « aucune »).
 2. Réponse du pont : `{"type":"ack","protocol":1,"bridge":"quizzup-artnet-bridge","version":"0.1.0","universes":16}`
    (`universes` : nombre d'univers internes acceptés ; un ancien pont ne l'annonce pas).
-   L'ack porte aussi `"features":["poll"]` (capacités facultatives ; absent d'un ancien pont, dont
-   l'écran de salle ne propose alors pas la recherche).
+   L'ack porte aussi `"features":["poll","hold"]` (capacités facultatives ; absent d'un ancien pont,
+   dont l'écran de salle ne propose alors ni la recherche ni le test de gel).
    L'ack ajoute toujours la cible effective et sa provenance (aussi pour un `hello` v1) :
    `"artnet":{"target":"192.168.1.50","port":6454,"source":"room"}`. `source` vaut `cli`
    (`--target` impose), `room` (réglage de la salle) ou `none` (aucune cible, `target` est alors
@@ -294,6 +303,9 @@ et il est testé avec un client brut et avec le client WebSocket intégré à No
    Si l'ArtPoll ne peut pas partir : `{"type":"error","code":"poll","message":"…"}`, **sans fermer**
    la connexion (les trames DMX continuent). Pas de `status` périodique : le pont ne pousse rien
    sans demande.
+   **Gel** (capacité `hold`) : `{"type":"hold","ms":15000}` → `{"type":"held","ms":15000}` (voir
+   « Chien de garde fumée »), ou `{"type":"error","code":"hold","message":"…"}` sans fermer ;
+   `{"type":"release"}` interrompt le gel, sans réponse.
 4. Trames binaires de **515 octets** : octet 0 = version (1), octets 1-2 = univers interne
    (gros-boutiste, 0 à 15), octets 3-514 = canaux 1 à 512. Le `hello` annonce toujours
    `universe: 0` ; un univers interne supérieur à 15 ferme la connexion (4002).
@@ -333,4 +345,5 @@ filtrée, plafonds, réponses au port Art-Net ou au port source, débit limité,
 refusé, client parti, ArtDmx pendant la collecte, échec d'envoi), les mappages, les mappages, la ligne de commande et le
 fichier de configuration, le chien de garde (horloge manuelle), et un test d'intégration
 WebSocket → UDP sur `127.0.0.1` (faux nœud Art-Net, origines refusées, client unique, noir à la
-déconnexion et à l'arrêt).
+déconnexion et à l'arrêt), et le gel (`hold` : dernière trame gardée sans noir, trames ignorées,
+noir à la fin du gel et à la déconnexion, durées hors bornes refusées, horloge manuelle puis faux nœud).
