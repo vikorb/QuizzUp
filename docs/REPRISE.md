@@ -24,6 +24,26 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
 
 ## 2. Travail en cours au moment de l'arrêt
 
+- **Session du 2026-11-04 (nuit) → 2026-11-05 : plan « salle »** (audit et lots L1 à L14 dans
+  `docs/cadrage/plan-salle.md`). Recette Docker simulée faite dans le conteneur cloud (58 OK,
+  anomalies A0 à A2 corrigées). Mergé, aucune PR ouverte :
+  - #105 (L1 un seul onglet par poste, L2 horodatage des buzzs par `event.timeStamp`) ;
+  - #106 (L3 arrêt d'urgence conservé au redémarrage des lumières, L4 reprise automatique du pont) ;
+  - #107 (L8 plusieurs univers DMX : `FixtureConfig.universe` 0..15, USB limité à l'univers 0) ;
+  - #108 (A0 : `pg` lit les bigint en nombre, les admins de compagnie retrouvent leurs thèmes ;
+    les tests `*.pg.test.ts` refusent toute base dont le nom ne finit pas par `_test`) ;
+  - #109 (A1 statut de la fumée rafraîchi à la fin du jet et de la pause, A2 l'assistant explique
+    pourquoi il enregistre la fumée désactivée) ;
+  - #110 (L5 `rooms.config_revision` : `PUT /room/config` avec `revision`, 409 + config courante
+    si périmée ; le poste applique la config du compte et prévient, sans renvoi automatique ;
+    limite connue : le `PATCH` du backoffice n'envoie pas de révision) ;
+  - #111 (L12 roue de couleurs, shutter, inversion et butées pan/tilt, lyres génériques 9/11/16
+    canaux, éditeur de profil ; valeurs de roue **à relever sur la notice**) ;
+  - #112 (L9 l'IP du nœud Art-Net se règle dans l'écran de salle, `lighting.artnet.target` ; le
+    pont n'accepte que des IP locales, jamais un port choisi par la salle, `--target` prioritaire).
+  - En cours : L10 (découverte ArtPoll) et L13 (calibrage des lyres au clavier).
+  - En attente d'une décision d'Enzo : L6 (kit poste Windows : Chrome ou Edge ?), L7 (fumée
+    seulement avec relais, recommandé), L11 (`.exe` du pont : signature ?), L14 (cache hors ligne).
 - **Décisions d'Enzo du 2026-11-04 (soir), mergées** : #101 (`backoffice/backend/.env` sorti de
   git ; les tests backend se replient sur `.env.example` ; **sauvegarder son `.env` avant le
   pull**, git le supprime du disque), #102 (baisser le nombre de pupitres garde en **réserve** les
