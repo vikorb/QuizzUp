@@ -20,7 +20,7 @@
         {{ $t('hardware.plan.view.perspective') }}
       </button>
     </div>
-    <p v-if="perspective" class="plan-help" data-test="plan-perspective-help">
+    <p v-if="perspective" :id="helpId" class="plan-help" data-test="plan-perspective-help">
       {{ $t('hardware.plan.view.help') }}
     </p>
     <div class="plan-stage">
@@ -28,7 +28,8 @@
         ref="floor"
         class="plan"
         role="group"
-        :aria-label="$t('hardware.plan.room')"
+        :aria-label="$t(perspective ? 'hardware.plan.roomPerspective' : 'hardware.plan.room')"
+        :aria-describedby="perspective ? helpId : undefined"
         data-test="room-plan"
       >
         <div
@@ -39,7 +40,9 @@
           :style="{ left: toPercent(item.point.x), top: toPercent(item.point.y) }"
           role="button"
           tabindex="0"
-          :aria-roledescription="$t('hardware.plan.draggable')"
+          :aria-roledescription="
+            $t(perspective ? 'hardware.plan.draggableKeyboard' : 'hardware.plan.draggable')
+          "
           :aria-label="ariaLabel(item)"
           :title="item.label"
           :data-test="`plan-${item.key}`"
@@ -74,7 +77,7 @@ import {
   resolveRoomPlan,
   type RoomHardwareConfig,
 } from '@quizzup/hardware'
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import BuzzerSquare from '@/components/hardware/BuzzerSquare.vue'
@@ -102,6 +105,7 @@ const emit = defineEmits<{ move: [target: PlanTarget, point: PlanPoint] }>()
 
 const { t } = useI18n()
 const floor = ref<HTMLElement | null>(null)
+const helpId = useId()
 /** Position affichée pendant un glisser ou une rafale de flèches, avant enregistrement. */
 const preview = ref<PlanItem | null>(null)
 const announcement = ref('')
@@ -381,6 +385,10 @@ onBeforeUnmount(commit)
   transform-origin: 50% 100%;
   cursor: default;
   touch-action: auto;
+}
+
+.plan-wrap--perspective .item:active {
+  cursor: default;
 }
 
 /* L'écran se dresse au fond comme un mur : plus large, plus haut. */

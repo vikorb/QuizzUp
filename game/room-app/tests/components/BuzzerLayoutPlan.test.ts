@@ -411,6 +411,21 @@ describe('plan de salle', () => {
       expect(localStorage.getItem('quizzup.roomPlanView')).toBe('perspective')
     })
 
+    it('restaure la perspective mémorisée au montage', async () => {
+      localStorage.setItem('quizzup.roomPlanView', 'perspective')
+      try {
+        const wrapper = await openPlan()
+        expect(wrapper.find('.plan-wrap--perspective').exists()).toBe(true)
+        expect(sel(wrapper, 'plan-view-perspective').attributes('aria-pressed')).toBe('true')
+        expect(sel(wrapper, 'room-plan').attributes('aria-describedby')).toBe(
+          sel(wrapper, 'plan-perspective-help').attributes('id')
+        )
+        expect(sel(wrapper, 'plan-desk-1').attributes('aria-roledescription')).toContain('clavier')
+      } finally {
+        localStorage.removeItem('quizzup.roomPlanView')
+      }
+    })
+
     it('ne déplace pas à la souris en perspective', async () => {
       const wrapper = await openPerspective()
       const screen = sel(wrapper, 'plan-screen').element

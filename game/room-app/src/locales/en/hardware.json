@@ -71,6 +71,8 @@
       "item": "{label}, position {x}% from the left, {y}% from the top. Arrow keys to move.",
       "room": "Room plan, top view",
       "draggable": "draggable item",
+      "draggableKeyboard": "item movable with the keyboard",
+      "roomPerspective": "Room plan, perspective view",
       "moved": "{label} moved: {x}% from the left, {y}% from the top.",
       "view": {
         "label": "Plan view",

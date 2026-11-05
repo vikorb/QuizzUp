@@ -71,6 +71,8 @@
       "item": "{label}, position {x} % à droite, {y} % vers le bas. Flèches pour déplacer.",
       "room": "Plan de la salle, vue du dessus",
       "draggable": "élément déplaçable",
+      "draggableKeyboard": "élément déplaçable au clavier",
+      "roomPerspective": "Plan de la salle, vue en perspective",
       "moved": "{label} déplacé : {x} % à droite, {y} % vers le bas.",
       "view": {
         "label": "Vue du plan",
