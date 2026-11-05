@@ -25,9 +25,36 @@ ODE, DMXking eDMX) et qu'on ne veut pas le remplacer par une interface USB.
 
 ## Installation
 
-Prérequis : **Node.js 22 LTS** (ou plus récent). Le pont n'a **aucune dépendance d'exécution**.
+Prérequis : aucun avec l'exécutable Windows ; sinon **Node.js 22 LTS** (ou plus récent). Le pont
+n'a **aucune dépendance d'exécution**.
 
-### Windows
+### Windows (exécutable, sans Node.js)
+
+Le pont existe en **un seul `.exe`** (Node.js embarqué, rien à installer). Il est construit par la
+CI GitHub à chaque PR et à chaque push sur `main`.
+
+1. Télécharger l'exécutable : GitHub → onglet **Actions** → dernier run vert du workflow **CI**
+   → section **Artifacts** → `quizzup-artnet-bridge-windows-x64` (zip contenant
+   `quizzup-artnet-bridge.exe`). L'artefact est conservé 7 jours : au-delà, relancer le workflow.
+2. Créer le dossier `C:\QuizzUp\` et y copier **`C:\QuizzUp\quizzup-artnet-bridge.exe`** (chemin
+   attendu par le kit d'installation du poste, `deploy/poste-salle/`, PR #119 en cours).
+3. **Avertissement SmartScreen** : l'exécutable n'est **pas signé** (pas de certificat de
+   signature de code). Au premier lancement, Windows affiche « Windows a protégé votre PC » :
+   cliquer sur **Informations complémentaires**, puis **Exécuter quand même**. Si le fichier a été
+   bloqué au téléchargement : clic droit → Propriétés → cocher **Débloquer**. Un antivirus peut
+   aussi demander confirmation, pour la même raison.
+4. Lancement manuel, dans un terminal PowerShell :
+   ```powershell
+   C:\QuizzUp\quizzup-artnet-bridge.exe --version
+   C:\QuizzUp\quizzup-artnet-bridge.exe --origin https://salle.quizzup.fr
+   ```
+   Les options sont les mêmes que ci-dessous (`--origin`, `--target`, `--config`…).
+5. Au premier lancement, Windows demande d'autoriser le pont sur le réseau : cocher **Réseaux
+   privés** (il envoie de l'UDP vers le nœud ; il n'écoute rien sur le réseau).
+
+Pour l'exécuter automatiquement à l'ouverture de session, voir « Lancement au démarrage ».
+
+### Windows (depuis les sources)
 
 1. Installer Node.js 22 LTS depuis nodejs.org (installeur `.msi`, options par défaut).
 2. Copier le dossier `game/artnet-bridge` sur le PC (par exemple dans `C:\QuizzUp\artnet-bridge`).
@@ -37,8 +64,7 @@ Prérequis : **Node.js 22 LTS** (ou plus récent). Le pont n'a **aucune dépenda
    npm run build
    npx quizzup-artnet-bridge --help
    ```
-4. Au premier lancement, Windows demande d'autoriser Node.js sur le réseau : cocher **Réseaux
-   privés** (le pont envoie de l'UDP vers le nœud ; il n'écoute rien sur le réseau).
+4. Même autorisation réseau que ci-dessus.
 
 ### macOS
 
@@ -185,7 +211,14 @@ source, 0 par défaut). Autres clés reconnues : `universe` (sortie, sans `--map
 
 Le pont doit tourner **avant** l'ouverture de l'écran de salle.
 
-**Windows** : créer `C:\QuizzUp\artnet-bridge\demarrer-pont.cmd` :
+**Windows, exécutable** : créer `C:\QuizzUp\demarrer-pont.cmd` :
+
+```bat
+@echo off
+C:\QuizzUp\quizzup-artnet-bridge.exe --config C:\QuizzUp\salle.json
+```
+
+**Windows, depuis les sources** : créer `C:\QuizzUp\artnet-bridge\demarrer-pont.cmd` :
 
 ```bat
 @echo off
@@ -193,7 +226,7 @@ cd /d C:\QuizzUp\artnet-bridge
 node dist\main.js --config salle.json
 ```
 
-puis l'ajouter au démarrage : `Win + R` → `shell:startup` → y placer un raccourci vers ce fichier
+puis (dans les deux cas) l'ajouter au démarrage : `Win + R` → `shell:startup` → y placer un raccourci vers ce fichier
 (la fenêtre du terminal affiche le journal ; la réduire, ne pas la fermer). Pour un démarrage sans
 session ouverte, utiliser le Planificateur de tâches (« Au démarrage », « Exécuter même si
 l'utilisateur n'est pas connecté »).
@@ -333,6 +366,8 @@ Côté navigateur : `createBridgeOutput({ url })` de `@quizzup/hardware`
 ```bash
 npm install          # .npmrc : legacy-peer-deps (bug npm 10 sur les peers de vitest 4)
 npm run build        # dist/ (exécuté par npx quizzup-artnet-bridge)
+npm run build:sea    # dist-sea/quizzup-artnet-bridge[.exe] : exécutable unique pour la plateforme courante
+npm run smoke:sea    # test de fumée de ce binaire (démarrage, hello/ack, autre origine refusée)
 npm run lint
 npm run format:check
 npm run type-check   # sources + tests, puis sources en NodeNext (comme le build)
@@ -347,3 +382,9 @@ fichier de configuration, le chien de garde (horloge manuelle), et un test d'int
 WebSocket → UDP sur `127.0.0.1` (faux nœud Art-Net, origines refusées, client unique, noir à la
 déconnexion et à l'arrêt), et le gel (`hold` : dernière trame gardée sans noir, trames ignorées,
 noir à la fin du gel et à la déconnexion, durées hors bornes refusées, horloge manuelle puis faux nœud).
+
+L'exécutable est un Node Single Executable Application : `scripts/build-sea.mjs` regroupe `src/`
+en un fichier CommonJS (esbuild), génère le blob (`node --experimental-sea-config`) puis l'injecte
+dans une copie du binaire `node` (postject). Le job CI « Pont Art-Net (exécutable Windows) » le
+construit sur `windows-latest`, vérifie `--version`, puis lance `scripts/smoke-bridge.mjs`
+(WebSocket depuis `http://localhost:4174`, hello puis ack, autre origine refusée).
