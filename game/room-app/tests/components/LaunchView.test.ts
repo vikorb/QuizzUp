@@ -12,7 +12,9 @@ import * as roomApi from '@/utils/roomApi'
 import LaunchView from '@/views/LaunchView.vue'
 
 import { REGISTRATIONS } from '../_helpers/fixtures'
-import { mountWithApp } from '../_helpers/mount'
+import { mountWithApp, PRELOAD_TIMEOUT_MS, preloadRoutes } from '../_helpers/mount'
+
+beforeAll(preloadRoutes, PRELOAD_TIMEOUT_MS)
 
 vi.mock('@/hardware/roomHardware', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
