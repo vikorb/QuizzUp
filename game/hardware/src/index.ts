@@ -33,6 +33,7 @@ export {
   defaultBuzzerLayout,
   moveBuzzerToCorner,
   parseBuzzerLayout,
+  setBuzzerColor,
 } from './buzzers/layout'
 export type {
   BuzzerLearning,
@@ -195,7 +196,7 @@ export {
   normalizeSmokeSafety,
   SMOKE_HARD_LIMITS,
 } from './lighting/smoke'
-export type { PlanPoint, PlanTarget, RoomPlan } from './plan'
+export type { PlanFixture, PlanPoint, PlanTarget, RoomPlan } from './plan'
 export { DEFAULT_SCREEN_POINT, defaultRoomPlan, parseRoomPlan, resolveRoomPlan } from './plan'
 export type { PanTiltCalibration, SixDeskRig, SixDeskRigOptions } from './presets/sixDeskRoom'
 export {

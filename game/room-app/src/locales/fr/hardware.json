@@ -39,7 +39,7 @@
     },
     "layout": {
       "title": "Couleurs et disposition des buzzers",
-      "hint": "Choisis la couleur de chaque buzzer et sa place dans le carré, comme sur tes pupitres. C’est le même réglage pour tous les pupitres.",
+      "hint": "Choisis la couleur de chaque buzzer et sa place dans le carré, comme sur tes pupitres. C’est le même réglage pour tous les pupitres. Une couleur déjà prise passe à l’autre buzzer.",
       "buzzer": "Buzzer {button}",
       "color": "Couleur",
       "place": "Place dans le carré",
@@ -69,7 +69,9 @@
       "desk": "Pupitre {n}",
       "fixture": "Appareil {name}",
       "item": "{label}, position {x} % à droite, {y} % vers le bas. Flèches pour déplacer.",
-      "room": "Plan de la salle, vue du dessus"
+      "room": "Plan de la salle, vue du dessus",
+      "draggable": "élément déplaçable",
+      "moved": "{label} déplacé : {x} % à droite, {y} % vers le bas."
     },
     "lights": {
       "title": "Lumières",

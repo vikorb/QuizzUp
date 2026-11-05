@@ -39,7 +39,7 @@
     },
     "layout": {
       "title": "Buzzer colors and layout",
-      "hint": "Choose the color of each buzzer and its place in the square, as on your desks. The setting is the same for every desk.",
+      "hint": "Choose the color of each buzzer and its place in the square, as on your desks. The setting is the same for every desk. A color already taken goes to the other buzzer.",
       "buzzer": "Buzzer {button}",
       "color": "Color",
       "place": "Place in the square",
@@ -69,7 +69,9 @@
       "desk": "Desk {n}",
       "fixture": "Fixture {name}",
       "item": "{label}, position {x}% from the left, {y}% from the top. Arrow keys to move.",
-      "room": "Room plan, top view"
+      "room": "Room plan, top view",
+      "draggable": "draggable item",
+      "moved": "{label} moved: {x}% from the left, {y}% from the top."
     },
     "lights": {
       "title": "Lights",

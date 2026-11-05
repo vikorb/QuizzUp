@@ -11,16 +11,20 @@
       :key="item.key"
       class="item"
       :class="`item--${item.target.kind}`"
-      :style="{ left: `${item.point.x * 100}%`, top: `${item.point.y * 100}%` }"
+      :style="{ left: toPercent(item.point.x), top: toPercent(item.point.y) }"
       role="button"
       tabindex="0"
+      :aria-roledescription="$t('hardware.plan.draggable')"
       :aria-label="ariaLabel(item)"
+      :title="item.label"
       :data-test="`plan-${item.key}`"
       @pointerdown="onPointerDown($event, item)"
       @pointermove="onPointerMove($event, item)"
-      @pointerup="onPointerUp(item)"
-      @pointercancel="dragging = null"
+      @pointerup="onPointerUp($event, item)"
+      @pointercancel="cancelDrag"
+      @lostpointercapture="cancelDrag"
       @keydown="onKeyDown($event, item)"
+      @keyup="onKeyUp"
     >
       <BuzzerSquare
         v-if="item.target.kind === 'desk'"
@@ -30,6 +34,7 @@
       <span v-else-if="item.target.kind === 'fixture'" class="item__dot" />
       <span class="item__label">{{ item.label }}</span>
     </div>
+    <p class="sr-only" role="status" aria-live="polite">{{ announcement }}</p>
   </div>
 </template>
 
@@ -42,7 +47,7 @@ import {
   resolveRoomPlan,
   type RoomHardwareConfig,
 } from '@quizzup/hardware'
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import BuzzerSquare from '@/components/hardware/BuzzerSquare.vue'
@@ -57,20 +62,31 @@ const ARROWS = new Map<string, [number, number]>([
   ['ArrowUp', [0, -1]],
   ['ArrowDown', [0, 1]],
 ])
+/** Marge intérieure du plan : un élément en bordure (0 ou 1) reste entièrement visible. */
+const MARGIN = 0.05
+/** Distance (px) à partir de laquelle un appui devient un glisser ; en dessous, c'est un clic. */
+const DRAG_THRESHOLD = 4
+/** Pause (ms) après la dernière flèche avant d'enregistrer, si la touche n'est pas relâchée. */
+const KEY_COMMIT_DELAY = 300
 
 const props = defineProps<{ config: RoomHardwareConfig }>()
 const emit = defineEmits<{ move: [target: PlanTarget, point: PlanPoint] }>()
 
 const { t } = useI18n()
 const floor = ref<HTMLElement | null>(null)
-const dragging = ref<{ key: string; point: PlanPoint } | null>(null)
+/** Position affichée pendant un glisser ou une rafale de flèches, avant enregistrement. */
+const preview = ref<PlanItem | null>(null)
+const announcement = ref('')
+/** Glisser en cours (un seul pointeur à la fois) ; pas besoin de réactivité. */
+let session: { key: string; pointerId: number; x: number; y: number; moved: boolean } | null = null
+let keyTimer: ReturnType<typeof setTimeout> | undefined
 
 const items = computed<PlanItem[]>(() => {
   const { fixtures } = props.config.lighting
   const plan = resolveRoomPlan(
     props.config.plan,
     props.config.desksCount,
-    fixtures.map((fixture) => fixture.id)
+    fixtures.map(({ id, desk }) => ({ id, desk }))
   )
   const list: PlanItem[] = [
     {
@@ -92,18 +108,23 @@ const items = computed<PlanItem[]>(() => {
       point: plan.fixtures[fixture.id]!,
     })),
   ]
-  const drag = dragging.value
-  return list.map((item) => (drag?.key === item.key ? { ...item, point: drag.point } : item))
+  const shown = preview.value
+  return list.map((item) => (shown?.key === item.key ? { ...item, point: shown.point } : item))
 })
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
 
+/** Position normalisée (0 à 1) -> pourcentage CSS, en gardant la marge intérieure. */
+const toPercent = (value: number) => `${(MARGIN + value * (1 - 2 * MARGIN)) * 100}%`
+const fromFraction = (fraction: number) => clamp01((fraction - MARGIN) / (1 - 2 * MARGIN))
+
+const coordinates = (point: PlanPoint) => ({
+  x: Math.round(point.x * 100),
+  y: Math.round(point.y * 100),
+})
+
 function ariaLabel(item: PlanItem): string {
-  return t('hardware.plan.item', {
-    label: item.label,
-    x: Math.round(item.point.x * 100),
-    y: Math.round(item.point.y * 100),
-  })
+  return t('hardware.plan.item', { label: item.label, ...coordinates(item.point) })
 }
 
 function pointFrom(event: PointerEvent): PlanPoint | null {
@@ -112,43 +133,108 @@ function pointFrom(event: PointerEvent): PlanPoint | null {
     return null
   }
   return {
-    x: clamp01((event.clientX - rect.left) / rect.width),
-    y: clamp01((event.clientY - rect.top) / rect.height),
+    x: fromFraction((event.clientX - rect.left) / rect.width),
+    y: fromFraction((event.clientY - rect.top) / rect.height),
+  }
+}
+
+/** Enregistre la position affichée (une seule fois) et l'annonce aux lecteurs d'écran. */
+function commit(): void {
+  clearTimeout(keyTimer)
+  const shown = preview.value
+  preview.value = null
+  if (shown) {
+    emit('move', shown.target, shown.point)
+    announcement.value = t('hardware.plan.moved', {
+      label: shown.label,
+      ...coordinates(shown.point),
+    })
   }
 }
 
 function onPointerDown(event: PointerEvent, item: PlanItem): void {
+  // Bouton principal seulement, et un seul pointeur à la fois.
+  if (event.button !== 0 || session) {
+    return
+  }
+  commit()
   ;(event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId)
-  dragging.value = { key: item.key, point: item.point }
-}
-
-function onPointerMove(event: PointerEvent, item: PlanItem): void {
-  const point = dragging.value?.key === item.key ? pointFrom(event) : null
-  if (point) {
-    dragging.value = { key: item.key, point }
+  session = {
+    key: item.key,
+    pointerId: event.pointerId,
+    x: event.clientX,
+    y: event.clientY,
+    moved: false,
   }
 }
 
-function onPointerUp(item: PlanItem): void {
-  const drag = dragging.value
-  dragging.value = null
-  if (drag?.key === item.key) {
-    emit('move', item.target, drag.point)
+function onPointerMove(event: PointerEvent, item: PlanItem): void {
+  if (session?.key !== item.key || session.pointerId !== event.pointerId) {
+    return
+  }
+  if (!session.moved) {
+    if (Math.hypot(event.clientX - session.x, event.clientY - session.y) < DRAG_THRESHOLD) {
+      return
+    }
+    session.moved = true
+  }
+  const point = pointFrom(event)
+  if (point) {
+    preview.value = { ...item, point }
+  }
+}
+
+function onPointerUp(event: PointerEvent, item: PlanItem): void {
+  if (session?.key !== item.key || session.pointerId !== event.pointerId) {
+    return
+  }
+  const { moved } = session
+  session = null
+  if (moved) {
+    commit()
+  } else {
+    // Simple clic : rien ne bouge, rien n'est enregistré.
+    preview.value = null
+  }
+}
+
+/** Glisser interrompu (pointeur annulé ou capture perdue) : on revient à la position enregistrée. */
+function cancelDrag(): void {
+  if (session) {
+    session = null
+    preview.value = null
   }
 }
 
 function onKeyDown(event: KeyboardEvent, item: PlanItem): void {
   const arrow = ARROWS.get(event.key)
-  if (!arrow) {
+  if (!arrow || session) {
     return
   }
   event.preventDefault()
+  if (preview.value && preview.value.key !== item.key) {
+    commit()
+  }
+  // La touche maintenue répète : on déplace l'aperçu à chaque pas, on n'enregistre qu'à la fin.
   const step = event.shiftKey ? STEP * 5 : STEP
-  emit('move', item.target, {
-    x: clamp01(item.point.x + arrow[0] * step),
-    y: clamp01(item.point.y + arrow[1] * step),
-  })
+  preview.value = {
+    ...item,
+    point: {
+      x: clamp01(item.point.x + arrow[0] * step),
+      y: clamp01(item.point.y + arrow[1] * step),
+    },
+  }
+  clearTimeout(keyTimer)
+  keyTimer = setTimeout(commit, KEY_COMMIT_DELAY)
 }
+
+function onKeyUp(event: KeyboardEvent): void {
+  if (ARROWS.has(event.key)) {
+    commit()
+  }
+}
+
+onBeforeUnmount(commit)
 </script>
 
 <style scoped>
@@ -190,7 +276,7 @@ function onKeyDown(event: KeyboardEvent, item: PlanItem): void {
 }
 
 .item__label {
-  max-width: 120px;
+  max-width: 84px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -213,5 +299,17 @@ function onKeyDown(event: KeyboardEvent, item: PlanItem): void {
   border-radius: 50%;
   background: var(--warn);
   box-shadow: 0 0 14px var(--warn);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 </style>

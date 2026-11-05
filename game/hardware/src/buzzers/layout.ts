@@ -50,8 +50,8 @@ const asRecord = (value: unknown): Record<string, unknown> =>
 
 /**
  * Relit `buzzers.layout` : une couleur absente ou hors palette reprend celle du défaut ; si les
- * places ne sont pas quatre coins distincts (doublon, valeur inconnue), les quatre reprennent le
- * défaut.
+ * couleurs ne sont pas quatre teintes distinctes, ou les places quatre coins distincts (doublon,
+ * valeur inconnue), les quatre reprennent le défaut.
  */
 export function parseBuzzerLayout(input: unknown, problems: string[] = []): BuzzerLayout {
   const raw = asRecord(input)
@@ -65,6 +65,14 @@ export function parseBuzzerLayout(input: unknown, problems: string[] = []): Buzz
       problems.push(`Couleur du buzzer ${button} inconnue : ${String(item.color)}`)
     }
     corners.push(item.corner)
+  }
+  const colors = BUZZER_BUTTONS.map((button) => layout[button].color)
+  if (new Set(colors).size < BUZZER_BUTTONS.length) {
+    // Deux buzzers de la même couleur ne sont pas distinguables : retour aux couleurs du défaut.
+    for (const button of BUZZER_BUTTONS) {
+      layout[button].color = DEFAULT_BUZZER_LAYOUT[button].color
+    }
+    problems.push('Couleurs des buzzers en double (quatre couleurs distinctes attendues)')
   }
   if (corners.every(isCorner) && new Set(corners).size === BUZZER_BUTTONS.length) {
     for (const [index, button] of BUZZER_BUTTONS.entries()) {
@@ -93,5 +101,20 @@ export function moveBuzzerToCorner(
   const next = cloneBuzzerLayout(layout)
   next[occupant].corner = layout[button].corner
   next[button].corner = corner
+  return next
+}
+
+/** Donne `color` à `button` ; le buzzer qui l'avait prend l'ancienne couleur (jamais de doublon). */
+export function setBuzzerColor(
+  layout: BuzzerLayout,
+  button: BuzzerButton,
+  color: BuzzerColor
+): BuzzerLayout {
+  const next = cloneBuzzerLayout(layout)
+  const holder = BUZZER_BUTTONS.find((other) => other !== button && layout[other].color === color)
+  if (holder) {
+    next[holder].color = layout[button].color
+  }
+  next[button].color = color
   return next
 }

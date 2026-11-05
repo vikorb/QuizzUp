@@ -15,12 +15,7 @@
             :aria-pressed="modelValue[button].color === color"
             :title="$t(`hardware.colors.${color}`)"
             :data-test="`color-${button}-${color}`"
-            @click="
-              emit('update:modelValue', {
-                ...modelValue,
-                [button]: { ...modelValue[button], color },
-              })
-            "
+            @click="emit('update:modelValue', setBuzzerColor(modelValue, button, color))"
           />
         </div>
         <div class="corners" role="group" :aria-label="$t('hardware.layout.place')">
@@ -53,6 +48,7 @@ import {
   BUZZER_CORNERS,
   type BuzzerLayout,
   moveBuzzerToCorner,
+  setBuzzerColor,
 } from '@quizzup/hardware'
 
 import BuzzerSquare from '@/components/hardware/BuzzerSquare.vue'

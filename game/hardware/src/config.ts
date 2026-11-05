@@ -377,7 +377,6 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
     },
     plan: parseRoomPlan(
       raw.plan,
-      desksCount,
       rig.fixtures.map((fixture) => fixture.id)
     ),
   }

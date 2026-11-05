@@ -64,13 +64,13 @@
             keypath="hardware.buzzers.prompt"
             tag="p"
             class="learn__prompt"
-            :class="`learn__prompt--${learningState.current.desk}`"
             data-test="learn-prompt"
           >
             <template #color>
-              <strong>{{
-                $t(`hardware.colors.${layout[learningState.current.button].color}`)
-              }}</strong>
+              <strong
+                :style="{ color: `var(--buzzer-${layout[learningState.current.button].color})` }"
+                >{{ $t(`hardware.colors.${layout[learningState.current.button].color}`) }}</strong
+              >
             </template>
             <template #button>{{ learningState.current.button }}</template>
             <template #desk>{{ learningState.current.desk }}</template>
@@ -128,18 +128,13 @@
           <DeskBadge :desk="desk" :size="30" />
           <span>{{ $t('room.desk', { n: desk }) }}</span>
         </header>
-        <div class="desk-test__buttons">
-          <span
-            v-for="(button, index) in BUZZER_BUTTONS"
-            :key="button"
-            class="desk-test__btn"
-            :class="{ 'desk-test__btn--lit': isLit(desk, button) }"
-            :data-test="`buzzer-${desk}${button}`"
-          >
-            {{ button }}
-            <small>{{ keysByDesk[desk]?.[index] }}</small>
-          </span>
-        </div>
+        <BuzzerSquare
+          :layout="layout"
+          :lit="BUZZER_BUTTONS.filter((button) => isLit(desk, button))"
+          :keys="keysByDesk[desk]"
+          :id-prefix="`buzzer-${desk}`"
+          style="--square-size: 120px"
+        />
       </article>
     </div>
   </section>
@@ -350,30 +345,6 @@ onBeforeUnmount(() => {
   font-weight: 900;
 }
 
-.learn__prompt--1 {
-  color: var(--desk-1);
-}
-
-.learn__prompt--2 {
-  color: var(--desk-2);
-}
-
-.learn__prompt--3 {
-  color: var(--desk-3);
-}
-
-.learn__prompt--4 {
-  color: var(--desk-4);
-}
-
-.learn__prompt--5 {
-  color: var(--desk-5);
-}
-
-.learn__prompt--6 {
-  color: var(--desk-6);
-}
-
 .learn__feedback {
   margin: 0;
   color: var(--ok);
@@ -431,42 +402,5 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 10px;
   font-weight: 800;
-}
-
-.desk-test__buttons {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.desk-test__btn {
-  display: grid;
-  place-items: center;
-  gap: 2px;
-  padding: 10px 0;
-  border-radius: 12px;
-  border: 1px solid var(--border-ui);
-  font-size: 20px;
-  font-weight: 900;
-  color: var(--text-1);
-  transition:
-    background 120ms ease,
-    box-shadow 120ms ease;
-}
-
-.desk-test__btn small {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-3);
-}
-
-.desk-test__btn--lit {
-  background: var(--desk-color);
-  color: var(--bg-0);
-  box-shadow: 0 0 22px var(--desk-color);
-}
-
-.desk-test__btn--lit small {
-  color: var(--bg-0);
 }
 </style>

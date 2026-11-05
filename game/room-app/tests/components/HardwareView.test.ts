@@ -107,12 +107,12 @@ describe('HardwareView', () => {
 
     pressKey('KeyS') // pupitre 3, B
     await flushPromises()
-    expect(wrapper.find('[data-test="buzzer-3B"]').classes()).toContain('desk-test__btn--lit')
+    expect(wrapper.find('[data-test="buzzer-3B"]').classes()).toContain('square__cell--lit')
     expect(wrapper.find('[data-test="buzzer-3B"]').text()).toContain('S')
 
     vi.advanceTimersByTime(500)
     await flushPromises()
-    expect(wrapper.find('[data-test="buzzer-3B"]').classes()).not.toContain('desk-test__btn--lit')
+    expect(wrapper.find('[data-test="buzzer-3B"]').classes()).not.toContain('square__cell--lit')
     vi.useRealTimers()
   })
 

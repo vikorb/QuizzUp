@@ -165,6 +165,9 @@ describe('onglet Assistant', () => {
 
     await click(wrapper, 'assistant-next')
     expect(sel(wrapper, 'step-plan').exists()).toBe(true)
+    // Le plan se règle dans l'assistant : l'écran descend d'un pas (touche relâchée = enregistré).
+    await sel(wrapper, 'plan-screen').trigger('keydown', { key: 'ArrowDown' })
+    await sel(wrapper, 'plan-screen').trigger('keyup', { key: 'ArrowDown' })
     await click(wrapper, 'assistant-next')
     expect(sel(wrapper, 'step-test').exists()).toBe(true)
     await vi.waitFor(() => expect(getLighting()?.diagnostics.getState().active).toBe(true))
@@ -219,6 +222,8 @@ describe('onglet Assistant', () => {
 
     const { config } = useRoomHardware().hardware.value
     expect(config.lighting.smoke.enabled).toBe(true)
+    expect(config.plan.screen.x).toBeCloseTo(0.5)
+    expect(config.plan.screen.y).toBeCloseTo(0.1)
     expect(config.buzzers.source).toEqual({ kind: 'gamepad', match: 'BU0836' })
     expect(config.lighting.fixtures.map((fixture) => fixture.id)).toEqual([
       'par-pupitre-1',
