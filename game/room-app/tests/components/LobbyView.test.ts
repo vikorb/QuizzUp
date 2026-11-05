@@ -7,7 +7,9 @@ import { enterDemo, syncRoomAuth } from '@/state/roomAuth'
 import LobbyView from '@/views/LobbyView.vue'
 
 import { pressKey } from '../_helpers/keyboard'
-import { mountWithApp } from '../_helpers/mount'
+import { mountWithApp, PRELOAD_TIMEOUT_MS, preloadRoutes } from '../_helpers/mount'
+
+beforeAll(preloadRoutes, PRELOAD_TIMEOUT_MS)
 
 function findButton(wrapper: Awaited<ReturnType<typeof mountWithApp>>['wrapper'], label: string) {
   return wrapper.findAll('button').find((button) => button.text().includes(label))

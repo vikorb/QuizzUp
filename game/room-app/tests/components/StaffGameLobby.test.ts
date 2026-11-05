@@ -22,7 +22,7 @@ import LobbyView from '@/views/LobbyView.vue'
 
 import { getPlayableThemes } from '../_helpers/fixtures'
 import { pressKey } from '../_helpers/keyboard'
-import { mountWithApp } from '../_helpers/mount'
+import { mountWithApp, PRELOAD_TIMEOUT_MS, preloadRoutes } from '../_helpers/mount'
 
 const GAME: roomApi.RoomGame = {
   id: 42,
@@ -89,6 +89,8 @@ async function clickStart(
 describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
   let player: ExtractPlayer
   let storage: SessionStorage
+
+  beforeAll(preloadRoutes, PRELOAD_TIMEOUT_MS)
 
   beforeEach(() => {
     localStorage.clear()

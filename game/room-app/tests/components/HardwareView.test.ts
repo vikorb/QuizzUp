@@ -13,7 +13,9 @@ import { enterDemo, syncRoomAuth } from '@/state/roomAuth'
 import HardwareView from '@/views/hardware/HardwareView.vue'
 
 import { pressKey } from '../_helpers/keyboard'
-import { mountWithApp } from '../_helpers/mount'
+import { mountWithApp, PRELOAD_TIMEOUT_MS, preloadRoutes } from '../_helpers/mount'
+
+beforeAll(preloadRoutes, PRELOAD_TIMEOUT_MS)
 
 /** 16 touches libres, une par buzzer (pupitre 1 A → pupitre 4 D). */
 const LEARN_CODES = 'BCGHIJKLMNOPTUYZ'.split('').map((letter) => `Key${letter}`)

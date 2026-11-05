@@ -3,7 +3,9 @@ import { flushPromises } from '@vue/test-utils'
 import { syncRoomAuth } from '@/state/roomAuth'
 import LoginView from '@/views/LoginView.vue'
 
-import { mountWithApp } from '../_helpers/mount'
+import { mountWithApp, PRELOAD_TIMEOUT_MS, preloadRoutes } from '../_helpers/mount'
+
+beforeAll(preloadRoutes, PRELOAD_TIMEOUT_MS)
 
 describe('LoginView', () => {
   beforeEach(() => {
