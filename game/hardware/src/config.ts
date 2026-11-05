@@ -27,8 +27,9 @@ export type LightingConfig = {
   bridgeUrl?: string
   /**
    * Cible Art-Net réglée depuis l'écran Matériel (pilote `artnet-bridge`) : IP du nœud, réseau local
-   * uniquement, et port UDP facultatif (6454 par défaut). Envoyée au pont à chaque connexion ; le
-   * `--target` du pont, s'il existe, reste prioritaire. Absente = le pont garde sa propre cible.
+   * uniquement. Jamais de port : il reste celui de `--artnet-port` du pont (une page compromise ne
+   * doit pas pouvoir viser un autre service UDP). Envoyée au pont à chaque connexion ; le `--target`
+   * du pont, s'il existe, reste prioritaire. Absente = le pont n'a pas de cible.
    */
   artnet?: ArtnetTargetConfig
   refreshHz: number
@@ -125,15 +126,15 @@ export function withDesksCount(config: RoomHardwareConfig, count: number): RoomH
 }
 
 /**
- * Règle l'IP du nœud Art-Net (`lighting.artnet`), le port éventuel est conservé. Chaîne vide = pas de
- * réglage (le pont garde sa propre cible). La validité de l'IP est jugée à la relecture.
+ * Règle l'IP du nœud Art-Net (`lighting.artnet`). Chaîne vide = pas de réglage (le pont n'a pas de
+ * cible, sauf `--target`). La validité de l'IP est jugée à la relecture.
  */
 export function withArtnetTarget(config: RoomHardwareConfig, target: string): RoomHardwareConfig {
-  const { artnet: previous, ...lighting } = config.lighting
+  const { artnet: _previous, ...lighting } = config.lighting
   const trimmed = target.trim()
   return {
     ...config,
-    lighting: { ...lighting, ...(trimmed ? { artnet: { ...previous, target: trimmed } } : {}) },
+    lighting: { ...lighting, ...(trimmed ? { artnet: { target: trimmed } } : {}) },
   }
 }
 
@@ -205,7 +206,7 @@ function parseBindings(input: unknown): Record<string, string | null> {
 
 /**
  * Cible Art-Net : absente ou vide = pas de réglage. Une IP invalide ou hors réseau local est écartée
- * avec un problème (le pont la refuserait de toute façon) ; un port invalide est ignoré (6454).
+ * avec un problème (le pont la refuserait de toute façon). Un `port` éventuel est toujours ignoré.
  */
 function parseArtnet(input: unknown, problems: string[]): ArtnetTargetConfig | undefined {
   if (input === undefined || input === null) {
@@ -223,18 +224,6 @@ function parseArtnet(input: unknown, problems: string[]): ArtnetTargetConfig | u
     )
     return undefined
   }
-  if (raw.port === undefined) {
-    return { target }
-  }
-  if (
-    typeof raw.port === 'number' &&
-    Number.isInteger(raw.port) &&
-    raw.port >= 1 &&
-    raw.port <= 65_535
-  ) {
-    return { target, port: raw.port }
-  }
-  problems.push(`Port Art-Net invalide : ${String(raw.port)} (1 à 65535, 6454 utilisé)`)
   return { target }
 }
 

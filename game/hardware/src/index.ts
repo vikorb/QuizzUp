@@ -62,11 +62,9 @@ export type {
 } from './dmx/bridgeOutput'
 export {
   BRIDGE_FRAME_BYTES,
-  BRIDGE_HELLO_VERSION,
   BRIDGE_MAX_BUFFERED_BYTES,
   BRIDGE_OPEN_TIMEOUT_MS,
   BRIDGE_PROTOCOL_VERSION,
-  buildBridgeHello,
   createBridgeOutput,
   DEFAULT_BRIDGE_PORT,
   DEFAULT_BRIDGE_URL,

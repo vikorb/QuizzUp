@@ -202,7 +202,7 @@ bridge.artnetStatus() // { target, port, source: 'cli' | 'room' | 'none' }, null
 ```
 
 `createBridgeOutput` ouvre `ws://127.0.0.1:<port>`, vérifie le pont (`hello` / `ack`, délai
-`openTimeoutMs` ; le `hello` v2 porte `version: 2` et, si réglée, la cible `artnet: { target, port? }` ;
+`openTimeoutMs` ; le `hello` v2 porte `version: 2` et, si réglée, la cible `artnet: { target }` (jamais de port : il reste celui du pont) ;
 l'`ack` renvoie la cible effective et sa provenance, lisibles par `artnetStatus()` ; un pont qui refuse
 la cible répond `error` / `target`, et l'ouverture échoue avec son message), envoie chaque univers en trame binaire de 515 octets (version, univers 0 à 15, 512
 canaux ; tous les univers d'un tour sont sautés ensemble si la socket est saturée), saute une trame si la socket est encore pleine (`bufferedAmount`, jamais de retard
@@ -370,8 +370,9 @@ gel réussi, consignes incendie du site. Changer d'interface oblige à refaire l
     "driver": "usbpro",
     "bridgeUrl": "ws://127.0.0.1:7654", // pilote artnet-bridge uniquement (facultatif)
     // Pilote artnet-bridge (facultatif) : IPv4 d'un réseau local (10/8, 172.16/12, 192.168/16,
-    // 169.254/16, 127/8) ; une autre adresse est écartée avec un problème. `port` : 1 à 65535.
-    "artnet": { "target": "192.168.1.50", "port": 6454 },
+    // 169.254/16, 127/8) ; une autre adresse est écartée avec un problème. Pas de port : le pont
+    // utilise son `--artnet-port` (un `port` présent dans la config est ignoré).
+    "artnet": { "target": "192.168.1.50" },
     "refreshHz": 30,
     "fixtures": [
       { "id": "par1", "name": "PAR pupitre 1", "profileId": "par-rgbw", "address": 1, "desk": 1 },

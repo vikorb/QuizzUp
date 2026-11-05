@@ -74,17 +74,17 @@ describe('configuration matérielle de salle', () => {
       expect(defaultRoomHardwareConfig().lighting).not.toHaveProperty('artnet')
     })
 
-    it('garde une IP locale, avec ou sans port', () => {
+    it('garde une IP locale (espaces retirés)', () => {
       expect(parse({ target: '192.168.1.50' }).config.lighting.artnet).toEqual({
         target: '192.168.1.50',
       })
-      const withPort = parse({ target: ' 10.0.0.9 ', port: 6455 })
-      expect(withPort.config.lighting.artnet).toEqual({ target: '10.0.0.9', port: 6455 })
-      expect(withPort.problems).toEqual([])
+      const padded = parse({ target: ' 10.0.0.9 ' })
+      expect(padded.config.lighting.artnet).toEqual({ target: '10.0.0.9' })
+      expect(padded.problems).toEqual([])
     })
 
     it('est conservé tel quel par une seconde relecture', () => {
-      const once = parse({ target: '192.168.1.50', port: 6455 }).config
+      const once = parse({ target: '192.168.1.50' }).config
       expect(parseRoomHardwareConfig(once).config).toEqual(once)
     })
 
@@ -98,11 +98,17 @@ describe('configuration matérielle de salle', () => {
       }
     )
 
-    it('ignore un port invalide mais garde la cible', () => {
-      const parsed = parse({ target: '192.168.1.50', port: 70_000 })
-      expect(parsed.config.lighting.artnet).toEqual({ target: '192.168.1.50' })
-      expect(parsed.problems[0]).toContain('Port Art-Net invalide')
-    })
+    it.each([6455, 53, 161, 70_000, '6454'])(
+      'ne relit jamais de port (%s) : la cible est gardée, le port retiré',
+      (port) => {
+        const parsed = parse({ target: '192.168.1.50', port })
+        expect(parsed.config.lighting.artnet).toEqual({ target: '192.168.1.50' })
+        expect(parsed.problems).toEqual([])
+        expect(parseRoomHardwareConfig(parsed.config).config.lighting.artnet).toEqual({
+          target: '192.168.1.50',
+        })
+      }
+    )
 
     it('traite une cible vide, nulle ou une section illisible comme un réglage absent', () => {
       for (const artnet of [{ target: '' }, { target: '  ' }, {}, null, 'x', []]) {

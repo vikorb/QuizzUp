@@ -26,8 +26,9 @@ import { DMX_CHANNELS, MAX_UNIVERSES } from './universe'
  * Le même format est décodé (et testé octet par octet) dans `game/artnet-bridge/src/protocol.ts`.
  *
  * Version 2 du `hello` : il porte `"version":2` (le format des trames ne change pas) et, si la config
- * de la salle règle une cible, `"artnet":{"target":"192.168.1.50","port":6454}`. Le pont applique cette
- * cible (sauf `--target` en ligne de commande, prioritaire) et la renvoie dans l'ack :
+ * de la salle règle une cible, `"artnet":{"target":"192.168.1.50"}` (jamais de port : il reste celui de
+ * `--artnet-port` du pont). Le pont applique cette cible (sauf `--target` en ligne de commande,
+ * prioritaire) et la renvoie dans l'ack :
  * `"artnet":{"target":"192.168.1.50","port":6454,"source":"room"}` (`source` : `cli`, `room` ou
  * `none`). Un ancien pont ignore ces champs : l'ack n'a pas d'`artnet`, `artnetStatus()` vaut `null`.
  */
@@ -107,7 +108,7 @@ export type BridgeOutput = DmxOutput & {
 }
 
 /** Cible Art-Net réglée dans la salle (`lighting.artnet` de `rooms.config`). */
-export type ArtnetTargetConfig = { target: string; port?: number }
+export type ArtnetTargetConfig = { target: string }
 
 /** Cible effective annoncée par le pont dans l'ack, et d'où elle vient. */
 export type BridgeArtnetStatus = {
@@ -149,14 +150,7 @@ export function buildBridgeHello(artnet?: ArtnetTargetConfig) {
     protocol: BRIDGE_PROTOCOL_VERSION,
     version: BRIDGE_HELLO_VERSION,
     universe: 0,
-    ...(artnet
-      ? {
-          artnet: {
-            target: artnet.target,
-            ...(artnet.port === undefined ? {} : { port: artnet.port }),
-          },
-        }
-      : {}),
+    ...(artnet ? { artnet: { target: artnet.target } } : {}),
   }
 }
 

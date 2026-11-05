@@ -495,16 +495,16 @@ describe('assistant d’installation : récapitulatif', () => {
 })
 
 describe('assistant d’installation : cible Art-Net', () => {
-  it('enregistre l’IP du nœud, garde le port, et l’efface quand le champ est vidé', () => {
+  it('enregistre l’IP du nœud (sans port) et l’efface quand le champ est vidé', () => {
     const wizard = createSetupWizard({
       ...defaultRoomHardwareConfig(),
       lighting: {
         ...defaultRoomHardwareConfig().lighting,
-        artnet: { target: '10.0.0.1', port: 6455 },
+        artnet: { target: '10.0.0.1' },
       },
     })
     wizard.setArtnetTarget(' 192.168.1.50 ')
-    expect(wizard.summary().config.lighting.artnet).toEqual({ target: '192.168.1.50', port: 6455 })
+    expect(wizard.summary().config.lighting.artnet).toEqual({ target: '192.168.1.50' })
     wizard.setArtnetTarget('')
     expect(wizard.summary().config.lighting).not.toHaveProperty('artnet')
   })

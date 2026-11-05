@@ -148,13 +148,11 @@ describe('sortie pont Art-Net : ouverture', () => {
     expect(context.clock.pending()).toBe(0)
   })
 
-  it('hello v2 : porte la cible Art-Net de la salle, avec ou sans port', async () => {
+  it('hello v2 : porte la cible Art-Net de la salle, jamais un port', async () => {
     for (const [artnet, expected] of [
       [{ target: '192.168.1.50' }, { target: '192.168.1.50' }],
-      [
-        { target: '10.0.0.7', port: 6455 },
-        { target: '10.0.0.7', port: 6455 },
-      ],
+      // Une config trafiquée à la main ne peut pas faire passer de port.
+      [{ target: '10.0.0.7', port: 53 } as never, { target: '10.0.0.7' }],
     ] as const) {
       const context = setup({ artnet })
       const opening = context.output.open()
