@@ -115,6 +115,10 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
 
 ## 4. Lots restants, par priorité
 
+> **Depuis le 2026-11-16, la feuille de route est `docs/cadrage/cadrage-v1.md`** (lots 0 à 10 de la
+> V1 commerciale). Le lot 0 est le banc matériel (`docs/recette/banc-materiel.md`), qui reprend le
+> point 3 ci-dessous. La liste ci-dessous reste comme historique.
+
 1. ~~**Mini-jeux dans une partie lancée du backoffice**~~ : fait (PR #91).
 2. ~~**Fin de partie** : réessai de l'envoi des scores après une panne réseau~~ : fait (PR #97). File persistante `quizzup_room_pending_finishes`
    (`room-app/src/game/pendingFinishes.ts`) : survit au rechargement et à une nouvelle partie ;

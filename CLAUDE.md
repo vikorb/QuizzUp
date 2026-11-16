@@ -19,16 +19,21 @@ Rôles (multi-tenant) :
 État d'avancement :
 
 - ✅ **Backoffice** (auth, compagnies, comptes, thèmes, questions, réponses) : mûr et testé.
-- 🔨 **Moteur de jeu** : en cours. Tables `rooms`, `games`, `game_*` migrées ; moteur pur dans
-  `game/engine` (blind test éclair en V1) ; écran de salle web `game/room-app` (connexion,
-  partie reçue du backoffice via `/room/*`, mode démo avec inscription locale et extraits
-  synthétisés, écran Matériel) branché sur `game/hardware` (buzzers appris, lumières DMX /
-  simulation, fumée sécurisée, config dans `rooms.config`) et `game/audio` (Web Audio). À venir :
-  envoi des résultats de partie au backoffice. Cadrage : `docs/cadrage/bilan-cadrage-version-finale.md`.
+- ✅ **Moteur de jeu et écran de salle** : fonctionnels en simulation. Moteur pur dans
+  `game/engine` (blind test éclair + 9 mini-jeux) ; écran de salle web `game/room-app`
+  (connexion, partie reçue du backoffice via `/room/*`, scores renvoyés en fin de partie, mode
+  démo, configuration plein écran `/setup` et `/setup/lights`, plan de salle, écran Matériel)
+  branché sur `game/hardware` (buzzers clavier / manette appris, DMX USB ou Art-Net via
+  `game/artnet-bridge`, fumée sécurisée, config dans `rooms.config`) et `game/audio` (Web Audio).
+- 🔨 **V1 commerciale** : en cadrage. **Rien n'a encore été validé sur du vrai matériel.**
+  Cadrage : `docs/cadrage/cadrage-v1.md` ; banc matériel : `docs/recette/banc-materiel.md` ;
+  état détaillé : `docs/REPRISE.md`.
 
 ## 2. Structure du dépôt (monorepo)
 
-Racine git = `C:\git\QuizzUp`. Le code applicatif vit sous `backoffice/`.
+Racine git = la racine de ce dépôt (plusieurs copies de travail peuvent exister, cf.
+`docs/REPRISE.md` §6).
+Le backoffice vit sous `backoffice/`, le jeu sous `game/`.
 
 ```
 backoffice/
@@ -46,6 +51,8 @@ game/
 ├─ audio/      @quizzup/audio — lecteur d'extraits Web Audio + sons d'interface synthétisés
 ├─ room-app/   @quizzup/room-app — écran de salle Vue 3, 100 % navigateur (npm séparé, port 4174),
 │              charte importée du backoffice, consomme moteur, matériel et audio en sources (cf. son README)
+├─ artnet-bridge/ @quizzup/artnet-bridge — pont local optionnel WebSocket → Art-Net (exécutable
+│              Windows, seul élément à installer, pour les salles équipées en Art-Net)
 └─ e2e/        @quizzup/e2e — tests de bout en bout Playwright (Chromium) : partie complète sur
                l'écran de salle, audio réel aux paliers, simulation DMX (npm séparé, cf. son README)
 ```
@@ -234,5 +241,6 @@ Env : copier `backoffice/backend/.env.example` → `.env` (idem frontend). `DATA
   Image / vidéo : toujours un simple lien `media_url`.
 - CI GitLab valide `main` ; les PR sont validées par GitHub Actions (cf. §3).
 - Node local très récent (v25) vs CI `node:22` — surveiller les écarts.
-- Moteur de jeu : privilégier un **serveur autoritatif + WebSocket**, **découplé du matériel**
-  (tablettes/navigateur d'abord, passerelle hardware ESP32/MQTT ensuite via le même protocole).
+- Moteur de jeu : l'**autorité de la partie est dans le navigateur de la salle** (buzzers jugés
+  en local, partie qui continue sans internet). Le serveur stocke, distribue et observe ; il
+  n'arbitre pas. Temps réel serveur ↔ salle à venir (cadrage V1, décision D2).

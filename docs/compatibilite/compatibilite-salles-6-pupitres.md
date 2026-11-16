@@ -146,9 +146,8 @@ Dans `game/hardware` (`@quizzup/hardware`) :
 6. **Configuration de salle** : choisir le preset « salle 6 pupitres », coller le contenu de
    `SessionConf.txt` pour reprendre le calage, choisir la sortie `usbpro`, puis **apprendre les
    buzzers en mode manette** (24 appuis) et faire le test des buzzers. Si une autre manette est
-   branchée sur le PC, la débrancher pendant l'apprentissage : le filtrage par nom de carte
-   (option `match` du code, par exemple « BBI » ou « Bodnar ») n'est pas encore proposé dans
-   l'écran de configuration (suivi). Le navigateur ne voit la carte qu'après un premier appui : cet appui active la
+   branchée sur le PC, renseigner le champ « Nom de la carte (facultatif) » de l'assistant (par
+   exemple « BBI » ou « Bodnar ») pour ne lire que la carte buzzers. Le navigateur ne voit la carte qu'après un premier appui : cet appui active la
    carte et ne compte pas comme buzz.
 7. **Vérifications sur place** : couleurs et mouvements de chaque lyre (ordre des canaux), faisceau
    bien ouvert (sinon remplacer le canal strobe par une valeur fixe « ouvert » de la notice), sens
