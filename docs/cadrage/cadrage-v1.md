@@ -1,7 +1,7 @@
 # QuizzUP — Cadrage de la V1 commerciale
 
 > Document du 16 novembre 2026. Il prend la suite de `bilan-cadrage-version-finale.md`
-> (3 novembre) et du plan « salle » (`plan-salle.md`, lots L1 à L17, tous mergés). État de départ :
+> (3 novembre) et du plan « salle » (`plan-salle.md`, lots L1 à L17 mergés sauf L14, reporté en V2). État de départ :
 > `docs/REPRISE.md`. Le banc matériel est décrit dans `docs/recette/banc-materiel.md`.
 
 ## 1. Objectif
@@ -29,7 +29,7 @@ les valeurs d'installation, jamais le code, les contenus, les noms de manches ni
 | Fumée | Arduino sur minuterie, **sans lien avec le jeu** | relais DMX piloté par le jeu, plafonné, arrêt d'urgence |
 | Inscription joueurs | personnel, ou 1 smartphone sur le **réseau local** | (à faire) QR code sur le téléphone des joueurs, n'importe quel réseau |
 | Après-partie | PDF imprimable une seule fois, bons gagnants remplis à la main | (à faire) feuille régénérable, bons numériques suivis |
-| Exploitation | délai obligatoire de 3 min entre deux sessions, « Fatal Error » si pupitres mal ordonnés, logs sur le PC | (à garantir) aucune de ces contraintes, journaux centralisés |
+| Exploitation | selon leurs procédures de formation (hors dépôt) : ne pas relancer avant ~3 min sous peine de blocage, « Fatal Error » si la liste des pupitres n'est pas croissante, logs sur le PC | (à garantir) aucune de ces contraintes, journaux centralisés |
 | Points forts à égaler | présentateur virtuel avec voix, show lumière, « décor de studio TV » | (à faire) habillage, voix, scénarisation lumière + fumée |
 
 **Notre avantage** : zéro installation, distance, multi-centres, mises à jour instantanées,
@@ -45,15 +45,17 @@ L'existant est sain ; la V1 se construit dessus, sans réécriture.
   milliseconde, sans dépendre d'internet. Le serveur stocke, distribue et observe ; il n'arbitre pas.
 - **100 % navigateur** (Chrome / Edge), compte de salle, config matériel dans `rooms.config`.
 - **Matériel universel** : apprentissage des buzzers, profils DMX configurables, simulation.
-- **Sécurité fumée** : relais + relais temporisé 10 s + arrêt d'urgence obligatoires.
+- **Sécurité fumée** : arrêt d'urgence physique toujours obligatoire ; avec un relais, relais
+  temporisé 10 s obligatoire ; sans relais, case « coupe sur perte de signal » + test guidé de
+  débranchement réussi (#120).
 - Backoffice multi-tenant, RBAC, RGPD, CI GitHub, ~220 fichiers de tests.
 
 ## 4. Décisions d'architecture
 
-### D1. Autorité locale — à confirmer par écrit
+### D1. Autorité locale — actée
 
-Déjà le cas dans le code. `CLAUDE.md` §10 disait encore « serveur autoritatif » : corrigé dans la
-même PR que ce document.
+Décision du 4 novembre (`REPRISE.md` §3), déjà dans le code. `CLAUDE.md` §10 disait encore
+« serveur autoritatif » : corrigé dans la même PR que ce document.
 
 ### D2. Canal temps réel serveur ↔ salle — à trancher
 
@@ -69,6 +71,11 @@ suivi, et des **POST** de la salle vers le serveur (événements groupés toutes
 pas WebSocket : rien à gérer en plus côté Fastify / Caddy, reconnexion native du navigateur, et le
 sens salle → serveur reste du REST déjà testé. Passage à WebSocket seulement si un besoin
 bidirectionnel à faible latence apparaît (ex. buzzers sur téléphone, hors V1).
+
+Point technique : `EventSource` ne sait pas envoyer d'en-tête `Authorization`, or le compte de
+salle s'authentifie en Bearer (`game/room-app/src/utils/roomApi.ts`). **Jamais de jeton dans l'URL** (il
+finit dans les journaux). Deux options : lire le flux SSE avec `fetch` en continu (en-têtes
+normaux, à préférer), ou un cookie de session dédié au flux.
 
 Règles : une commande à distance est **une proposition** que le moteur local applique ou refuse
 (règle du jeu, partie déjà finie) ; l'écran de salle reste maître. Si le serveur est injoignable, la
@@ -108,14 +115,14 @@ Taille : S (≈ 1 PR), M (2-3 PR), L (4 PR et plus). Modèle des sous-agents sel
 | **0. Banc matériel** | achats, montage, protocole `banc-materiel.md`, corrections des anomalies | M | — |
 | **1. Pilotage en direct** | D2 : présence des salles, commandes à distance, suivi des scores, fin du polling | L | — |
 | **2. Accueil des joueurs** | QR code par partie → page publique d'inscription sur le téléphone (prénom, e-mail, consentement), 2 joueurs par pupitre, validation par le personnel avant lancement | M | 1 (affichage en direct) |
-| **3. Formats de partie** | formats courts / standard choisis au lancement (aujourd'hui 10 × 10 par défaut, trop long pour une session d'une heure) ; durée réelle mesurée sur le banc | S | 0 |
+| **3. Formats de partie** | formats courts / standard choisis au lancement ; durée réelle mesurée sur le banc. **Rouvre la décision n° 6 du 3 novembre** (10 × 10), qui semble trop longue pour une session d'une heure | S | 0 |
 | **4. Mini-jeux V1.1** | 3 à 4 mécaniques génériques manquantes (mise sur une roue, course à N bonnes réponses, don de points, duel), noms et visuels à nous | M | 3 |
 | **5. Spectacle** | habillage des écrans (D4), voix de présentateur (pré-générée côté serveur, pas la synthèse du navigateur), show lumière scénarisé par événement, fumée sur les moments forts, scène de sortie réglable | L | 0 |
 | **6. Après-partie et fidélisation** | feuille de résultats imprimable et régénérable (CSS d'impression, pas de PDF serveur), bons gagnants numériques (code + QR, validité, usage unique, suivi), logo du centre | M | 1 |
 | **7. Exploitation** | pages Joueurs et Stats (vides aujourd'hui), historique des sessions, journaux d'erreurs des salles remontés au backend, diagnostic à distance | M | 1 |
 | **8. Contenu** | banque de questions éditeur (volume cible à fixer), import CSV, option « enfants », ne pas reproposer une question déjà jouée par un joueur connu | M | — |
 | **9. Production** | déploiement réel (`deploy/recette` → prod), secrets hors du dépôt (`JWT_SECRET`), sauvegardes Postgres + médias, supervision, mises à jour sans couper une partie en cours | M | — |
-| **10. Commercial et juridique** | offre et prix par salle, CGU / CGV, RGPD (registre, mentions), droits musicaux (SACEM / SDRM) avant tout blind test « tubes », kit de migration d'une salle concurrente, guide d'installation | M | 0, 9 |
+| **10. Commercial et juridique** | **rouvre « SACEM et pricing : plus tard »** (`REPRISE.md` §3) : on ne vend pas sans eux. Offre et prix par salle, CGU / CGV, RGPD (registre, mentions), droits musicaux (SACEM / SDRM) avant tout blind test « tubes », kit de migration d'une salle concurrente, guide d'installation | M | 0, 9 |
 
 **Ordre proposé** : 0 et 9 en parallèle (matériel et prod ne se touchent pas) → 1 → 2, 3, 6, 7 →
 4, 5 → 8, 10. Le lot 1 est le seul gros chantier technique ; le reste réutilise l'existant.
@@ -129,8 +136,8 @@ classements entre centres, multi-écrans par salle.
   CI verte (process habituel).
 - Nouveaux tests e2e : commande à distance (lot 1), inscription par QR (lot 2), impression des
   résultats (lot 6).
-- Le banc (lot 0) devient une **recette à refaire avant chaque version** : tests B, D, F et G en
-  priorité, ~1 h.
+- Le banc (lot 0) devient une **recette à refaire avant chaque version** : tests B, D, F, G1, G3
+  et G4, ~1 h (G2 et G5, longs, seulement avant une version majeure).
 
 ## 7. Critères de sortie de la V1
 
@@ -161,13 +168,15 @@ classements entre centres, multi-écrans par salle.
 6. **Salle pilote** : quel centre, et migration d'une salle concurrente ou salle neuve ?
 7. **Budget du banc** : achat complet (~800-1 200 €) ou emprunt du boîtier Art-Net et d'une lyre ?
 8. **Modèle commercial** : abonnement par salle, engagement, prix du kit matériel.
+9. **Droits musicaux** : quand contacter la SACEM / SDRM et un juriste (avant la salle pilote si
+   elle joue du blind test), et si la V1 se vend sans thèmes « tubes » éditeur.
 
 ## 9. Risques
 
 | Risque | Effet | Parade |
 | --- | --- | --- |
 | Matériel réel différent de la simulation | panne en salle, image ternie | lot 0 avant toute vente |
-| Fumée qui reste allumée | sécurité | relais temporisé + arrêt d'urgence obligatoires, tests F bloquants |
+| Fumée qui reste allumée | sécurité | relais temporisé (ou coupure sur perte de signal testée) + arrêt d'urgence obligatoires, tests F bloquants |
 | Contrat d'un centre avec le concurrent (exclusivité, préavis) | migration impossible ou litige | lecture du contrat avant chaque migration |
 | Droits musicaux | litige | thèmes éditeur sans tubes, avis juridique avant blind test « tubes » |
 | Chrome change ses règles (accès réseau local, Web Serial) | lumières bloquées | Chrome géré par politiques (`deploy/poste-salle`), veille sur les versions |

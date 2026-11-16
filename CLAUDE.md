@@ -31,7 +31,8 @@ Rôles (multi-tenant) :
 
 ## 2. Structure du dépôt (monorepo)
 
-Racine git = la racine de ce dépôt (sur TERMIVAVOR2 : `C:\Users\enzod\Documents\QuizzUp`).
+Racine git = la racine de ce dépôt (plusieurs copies de travail peuvent exister, cf.
+`docs/REPRISE.md` §6).
 Le backoffice vit sous `backoffice/`, le jeu sous `game/`.
 
 ```
@@ -50,6 +51,8 @@ game/
 ├─ audio/      @quizzup/audio — lecteur d'extraits Web Audio + sons d'interface synthétisés
 ├─ room-app/   @quizzup/room-app — écran de salle Vue 3, 100 % navigateur (npm séparé, port 4174),
 │              charte importée du backoffice, consomme moteur, matériel et audio en sources (cf. son README)
+├─ artnet-bridge/ @quizzup/artnet-bridge — pont local optionnel WebSocket → Art-Net (exécutable
+│              Windows, seul élément à installer, pour les salles équipées en Art-Net)
 └─ e2e/        @quizzup/e2e — tests de bout en bout Playwright (Chromium) : partie complète sur
                l'écran de salle, audio réel aux paliers, simulation DMX (npm séparé, cf. son README)
 ```
