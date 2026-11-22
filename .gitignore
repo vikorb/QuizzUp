@@ -10,3 +10,6 @@ Thumbs.db
 
 # Secrets de la recette en ligne
 deploy/recette/.env
+
+# Notes privées (stratégie, prix, concurrence, hébergement) : jamais dans ce dépôt public
+docs/prive/
