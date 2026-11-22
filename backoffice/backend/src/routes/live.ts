@@ -59,8 +59,9 @@ const liveRoutes: FastifyPluginAsync = async (app) => {
     const { streamId, ...report } = parsedBody.data
     const roomId = Number(req.user.room_id)
 
-    // Un autre poste a ouvert son flux depuis : celui-ci ne doit plus publier.
-    if (streamId !== undefined && !hub.isCurrentStream(roomId, streamId)) {
+    // Un autre poste a ouvert son flux depuis : celui-ci ne doit plus publier. Sans aucun flux
+    // ouvert (redémarrage du backend, coupure réseau), personne n'a pris la place : on accepte.
+    if (streamId !== undefined && hub.isReplaced(roomId, streamId)) {
       return reply.code(409).send({ error: 'room_instance_replaced' })
     }
 

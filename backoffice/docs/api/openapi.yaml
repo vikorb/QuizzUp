@@ -1877,7 +1877,7 @@ paths:
 
         Rapport d'état envoyé par l'écran de salle toutes les `statusEveryMs` (15 s) et à chaque changement. Sans rapport depuis 45 s, la salle est considérée hors ligne. Le personnel de la compagnie le reçoit sur `GET /companies/{companyId}/live`. Aucun e-mail ni donnée de joueur dans le rapport.
 
-        Si `streamId` est fourni et n'est pas le flux courant de la salle (un autre poste a pris la place), la réponse est `409 room_instance_replaced`.
+        Si `streamId` est fourni et qu'un autre flux est ouvert pour la salle (un autre poste a pris la place), la réponse est `409 room_instance_replaced`. Si la salle n'a plus aucun flux ouvert (redémarrage du backend, coupure réseau), le rapport est accepté (`204`).
 
         Accès : réservé au rôle `room`.
       operationId: postRoomStatus
@@ -1894,22 +1894,31 @@ paths:
               properties:
                 streamId:
                   type: string
+                  minLength: 1
+                  maxLength: 64
                   description: Identifiant reçu dans l'événement `hello`
                 screen:
                   type: string
                   enum: [launch, lobby, play, setup, other]
                 gameId:
                   type: integer
+                  minimum: 1
                   nullable: true
                 phase:
                   type: string
+                  minLength: 1
+                  maxLength: 40
                   nullable: true
                   description: Phase du moteur de jeu (`lobby`, `question`, `finished`, …)
                 round:
                   type: integer
+                  minimum: 0
+                  maximum: 1000
                   nullable: true
                 questionIndex:
                   type: integer
+                  minimum: 0
+                  maximum: 1000
                   nullable: true
                 miniGame:
                   type: string
@@ -1966,7 +1975,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: Un autre poste de la salle a ouvert son flux depuis (`room_instance_replaced`)
+          description: Un autre flux est ouvert pour la salle, ce poste a été remplacé (`room_instance_replaced`)
           content:
             application/json:
               schema:
@@ -1984,7 +1993,7 @@ paths:
 
         Événements (`event:` puis `data:` en JSON) :
         - `snapshot` : toujours le premier, `{ rooms: RoomLive[] }` pour toutes les salles actives de la compagnie, y compris hors ligne.
-        - `room_status` : un `RoomLive` à chaque rapport, ouverture ou fermeture du flux d'une salle, et quand une salle passe hors ligne.
+        - `room_status` : un `RoomLive` à chaque rapport, ouverture ou fermeture du flux d'une salle, et quand une salle passe hors ligne. Un client ignore un `roomId` absent de son instantané (salle supprimée ou désactivée depuis).
         - `session_ended` : la session n'est plus valable (`{ error }`) ; le flux est fermé juste après.
 
         `RoomLive` : `{ roomId, presence, controllable, lastSeenAt, status }`. `presence` vaut `offline` (aucun rapport depuis 45 s), `in_game` (en ligne, partie en cours, phase hors `lobby`, `finished`, `aborted`) ou `online`. `controllable` : en ligne et flux de la salle ouvert. `status` : dernier rapport de `POST /room/status`, `null` si la salle n'en a jamais envoyé.

@@ -80,6 +80,55 @@ async function startApp() {
   baseUrl = await app.listen({ port: 0, host: '127.0.0.1' })
 }
 
+function deferred() {
+  let resolve!: () => void
+  const promise = new Promise<void>((done) => (resolve = done))
+
+  return { promise, resolve }
+}
+
+// Appli dont le handler attend que le client ait coupé, pour rejouer une coupure qui survient
+// pendant l'authentification ou la lecture des salles (avant `reply.send`).
+let gate: { entered: ReturnType<typeof deferred>; sent: ReturnType<typeof deferred> } | undefined
+
+async function startGatedApp() {
+  app = await createRouteApp(async (instance: FastifyInstance) => {
+    instance.addHook('preHandler', async (_req, reply) => {
+      if (gate) {
+        gate.entered.resolve()
+        await new Promise<void>((resolve) => reply.raw.once('close', resolve))
+      }
+    })
+    instance.addHook('onSend', async (_req, _reply, payload) => {
+      gate?.sent.resolve()
+
+      return payload
+    })
+    await instance.register(liveRoutes as never)
+  })
+  baseUrl = await app.listen({ port: 0, host: '127.0.0.1' })
+}
+
+async function cutBeforeHandlerEnds(path: string, user: TestUser) {
+  const current = { entered: deferred(), sent: deferred() }
+  const controller = new AbortController()
+
+  gate = current
+
+  const request = fetch(`${baseUrl}${path}`, {
+    headers: authHeaders(user),
+    signal: controller.signal,
+  }).catch(() => undefined)
+
+  await current.entered.promise
+  controller.abort()
+  await request
+  await current.sent.promise
+  gate = undefined
+  // Laisse Fastify détruire le flux et émettre son `close`.
+  await new Promise((resolve) => setImmediate(resolve))
+}
+
 async function connect(path: string, user: TestUser) {
   const client = await openSse(`${baseUrl}${path}`, authHeaders(user))
 
@@ -110,6 +159,7 @@ beforeEach(() => {
 })
 
 afterEach(async () => {
+  gate = undefined
   clients.splice(0).forEach((client) => client.abort())
   await app?.close()
   vi.useRealTimers()
@@ -199,16 +249,15 @@ describe('live routes without an open stream', () => {
     expect(response.json()).toMatchObject({ error: 'invalid_body' })
   })
 
-  it('POST /room/status answers 409 room_instance_replaced for a stream that is not the current one', async () => {
+  it('POST /room/status accepts a stream id when the room has no open stream (204)', async () => {
     const response = await app.inject({
       method: 'POST',
       url: '/room/status',
       headers: authHeaders(roomUser),
-      payload: { ...report, streamId: 'not-the-current-stream' },
+      payload: { ...report, streamId: 'a-stream-the-backend-forgot' },
     })
 
-    expect(response.statusCode).toBe(409)
-    expect(response.json()).toEqual({ error: 'room_instance_replaced' })
+    expect(response.statusCode).toBe(204)
   })
 
   it('GET /companies/:id/live refuses a missing login (401) and a room account (403)', async () => {
@@ -331,6 +380,31 @@ describe('live routes with real streams', () => {
     expect(stale.status).toBe(409)
     expect(await stale.json()).toEqual({ error: 'room_instance_replaced' })
     expect(current.status).toBe(204)
+  })
+
+  it('answers 409 room_instance_replaced only while another stream is open for the room', async () => {
+    const room = await connect('/room/stream', roomUser)
+    await room.next()
+
+    const refused = await postStatus(roomUser, { ...report, streamId: 'not-the-current-stream' })
+
+    expect(refused.status).toBe(409)
+    expect(await refused.json()).toEqual({ error: 'room_instance_replaced' })
+  })
+
+  it('accepts a report with the old stream id once the stream is closed (204)', async () => {
+    const room = await connect('/room/stream', roomUser)
+    const { streamId } = JSON.parse((await room.next()).data) as { streamId: string }
+    const staff = await connect('/companies/1/live', companyAdminUser)
+
+    await staff.next()
+    room.abort()
+    await room.closed
+    expect(await nextRoomLive(staff)).toMatchObject({ roomId: 1, controllable: false })
+
+    const response = await postStatus(roomUser, { ...report, streamId })
+
+    expect(response.status).toBe(204)
   })
 
   it('does not leak the rooms of one company to the staff of another', async () => {
@@ -485,6 +559,83 @@ describe('live routes with a simulated clock', () => {
     expect(JSON.parse(ended.data)).toEqual({ error: 'session_expired_inactive' })
     expect(dbState.admin_sessions[0]!.last_seen_at).toBe(lastSeenAt)
     await staff.closed
+  })
+
+  it('ends a room stream and forgets it when its session becomes invalid', async () => {
+    const lastSeenAt = new Date().toISOString()
+
+    dbState.admin_sessions.push(
+      {
+        id: companyAdminUser.sid,
+        admin_id: 2,
+        created_at: MOCK_NOW,
+        last_seen_at: lastSeenAt,
+        revoked_at: null,
+      },
+      {
+        id: roomUser.sid,
+        admin_id: 10,
+        created_at: MOCK_NOW,
+        last_seen_at: lastSeenAt,
+        revoked_at: null,
+      }
+    )
+    await startApp()
+
+    const staff = await connect('/companies/1/live', companyAdminUser)
+    const room = await connect('/room/stream', roomUser)
+
+    await staff.next()
+    const { streamId } = JSON.parse((await room.next()).data) as { streamId: string }
+
+    await nextRoomLive(staff)
+    await postStatus(roomUser, { ...report, streamId })
+    expect(await nextRoomLive(staff)).toMatchObject({ roomId: 1, controllable: true })
+
+    dbState.admin_sessions[1]!.revoked_at = new Date().toISOString()
+    await vi.advanceTimersByTimeAsync(60_000)
+
+    const ended = await room.next()
+
+    expect(ended.event).toBe(LIVE_EVENT.SESSION_ENDED)
+    expect(JSON.parse(ended.data)).toEqual({ error: 'session_invalid' })
+    await room.closed
+
+    // Le hub ne garde plus de flux pour la salle : le personnel la voit non pilotable.
+    expect(await nextRoomLive(staff)).toMatchObject({ roomId: 1, controllable: false })
+  })
+
+  it('leaves no subscription and no timer when staff cut before the handler ends', async () => {
+    await startGatedApp()
+
+    const baseline = vi.getTimerCount()
+
+    for (let index = 0; index < 5; index += 1) {
+      await cutBeforeHandlerEnds('/companies/1/live', companyAdminUser)
+    }
+
+    expect(vi.getTimerCount()).toBe(baseline)
+
+    // Cinq flux fantômes feraient répondre 429 à celui-ci.
+    const staff = await connect('/companies/1/live', companyAdminUser)
+
+    expect(staff.status).toBe(200)
+  })
+
+  it('leaves no stream and no timer when a room cuts before the handler ends', async () => {
+    await startGatedApp()
+
+    const baseline = vi.getTimerCount()
+
+    await postStatus(roomUser, report)
+    await cutBeforeHandlerEnds('/room/stream', roomUser)
+
+    expect(vi.getTimerCount()).toBe(baseline)
+
+    const staff = await connect('/companies/1/live', companyAdminUser)
+    const snapshot = JSON.parse((await staff.next()).data) as { rooms: RoomLive[] }
+
+    expect(snapshot.rooms[0]).toMatchObject({ roomId: 1, presence: 'in_game', controllable: false })
   })
 
   it('leaves no timer behind once the streams are cut and the application is closed', async () => {

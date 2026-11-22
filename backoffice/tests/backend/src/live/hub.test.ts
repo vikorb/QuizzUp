@@ -236,8 +236,22 @@ describe('live hub room stream', () => {
     expect(first.state.closed).toBe(1)
     expect(second.events).toEqual([])
     expect(second.state.closed).toBe(0)
-    expect(hub.isCurrentStream(1, firstId)).toBe(false)
-    expect(hub.isCurrentStream(1, secondId)).toBe(true)
+    expect(hub.isReplaced(1, firstId)).toBe(true)
+    expect(hub.isReplaced(1, secondId)).toBe(false)
+  })
+
+  it('says a stream is replaced only while another stream is open for the room', () => {
+    const { hub } = newHub()
+
+    // Salle inconnue ou sans flux : personne n'a pris la place.
+    expect(hub.isReplaced(1, 'any-id')).toBe(false)
+
+    const streamId = hub.openRoomStream(1, 10, makeSink())
+    expect(hub.isReplaced(1, 'any-id')).toBe(true)
+
+    hub.closeRoomStream(1, streamId)
+    expect(hub.isReplaced(1, streamId)).toBe(false)
+    expect(hub.isReplaced(1, 'any-id')).toBe(false)
   })
 
   it('ignores the close of a stream that was already replaced', () => {
@@ -249,7 +263,7 @@ describe('live hub room stream', () => {
 
     hub.closeRoomStream(1, firstId)
 
-    expect(hub.isCurrentStream(1, secondId)).toBe(true)
+    expect(hub.isReplaced(1, secondId)).toBe(false)
     expect(hub.roomLive(1).controllable).toBe(true)
   })
 

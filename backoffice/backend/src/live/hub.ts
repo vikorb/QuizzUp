@@ -141,8 +141,12 @@ export function createLiveHub({ now = Date.now }: { now?: () => number } = {}) {
       }
     },
 
-    isCurrentStream: (roomId: number, streamId: string): boolean =>
-      rooms.get(roomId)?.stream?.id === streamId,
+    /** Vrai seulement si un autre flux est ouvert pour la salle ; sans flux ouvert, rien n'est remplacé. */
+    isReplaced(roomId: number, streamId: string): boolean {
+      const current = rooms.get(roomId)?.stream
+
+      return current !== null && current !== undefined && current.id !== streamId
+    },
 
     report(roomId: number, companyId: number, report: RoomStatusReport): void {
       const entry = entryFor(roomId, companyId)
