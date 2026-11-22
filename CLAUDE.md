@@ -112,6 +112,10 @@ l'utilisateur le demande.
   | **Chercher une information** : trouver un fichier, une valeur, lire un document   | **Haiku 5.5**  | agent `me-lecteur` (ou `model: haiku`) |
   | **Réfléchir** : concevoir, arbitrer, diagnostiquer un problème dur, relire une PR | **Opus 5.5**   | `model: opus`                          |
 
+  **Fable 5.2** est réservé aux très gros chantiers : monter une architecture d'ensemble, reprendre
+  le projet de bout en bout. Il sert alors de coordinateur à la place d'Opus ; les sous-agents
+  gardent les modèles du tableau.
+
 - **Surveiller les sous-agents, ne pas les laisser se bloquer ni tourner en boucle.** Brief
   borné : objectif, fichiers concernés, ce qui est exclu, contrôles à lancer, critère de fin.
   Un agent qui boucle, piétine ou sort du périmètre est arrêté puis rebriefé (jamais relancé à
@@ -119,6 +123,17 @@ l'utilisateur le demande.
   l'accepter.
 - **Économie** : le moins d'agents possible, un seul relecteur par PR, pas de relecture en
   double, lancer en parallèle seulement des tâches réellement indépendantes.
+
+### 4.2 Outillage Claude du dépôt (`.claude/`)
+
+- **Agents** (`.claude/agents/`) : `developpeur` (Sonnet, écrit code et tests), `lecteur` (Haiku,
+  lecture seule), `relecteur` (Opus, relecture indépendante d'une PR), `architecte` (Opus,
+  conception et arbitrage). Ils portent déjà leur modèle ; le tableau ci-dessus reste la règle.
+- **Règles par zone** (`.claude/rules/`) : chargées seulement quand on touche aux fichiers
+  concernés (`backend`, `base-de-donnees`, `frontend`, `design`, `moteur`, `materiel`, `tests`).
+  Une règle propre à une zone va là, pas dans ce fichier.
+- **Skills** (`.claude/skills/`) : `/lot` (mener un lot de l'issue au merge), `/verifier`
+  (contrôles des paquets touchés, comme la CI), `/nouveau-mini-jeu` (liste de contrôle).
 
 Commits : **Conventional Commits** (`feat(scope): …`, `fix`, `docs`, `refactor`, `chore`,
 `test`). **husky (à la racine) + commitlint** valident chaque message de commit ; un
@@ -226,6 +241,9 @@ Env : copier `backoffice/backend/.env.example` → `.env` (idem frontend). `DATA
 
 ## 9. Pointeurs
 
+- `docs/REPRISE.md` — état du projet, lots, pièges (à lire en début de session)
+- `docs/cadrage/cadrage-v1.md` — feuille de route de la V1 ; `docs/cadrage/cadrage-v1-interfaces.md`
+  — vitrine, console éditeur, sessions programmées, API de réservation
 - `backoffice/README.md` — installation & fonctionnalités
 - `backoffice/CONTRIBUTING.md` — conventions détaillées
 - `backoffice/docs/architecture/architecture.md` — schémas mermaid
