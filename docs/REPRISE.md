@@ -170,7 +170,7 @@ vrai QCM).
 - Rester économe en tokens : peu de sous-agents, pas de relecture en double.
 - **Organisation des agents (impératif, voir `CLAUDE.md` §4.1)** : la session principale
   (Opus 5.5) coordonne et ne code pas ; développement = Sonnet 5.5 effort élevé ; recherche ou
-  lecture d'information = Haiku 5.5 (`me-lecteur`) ; réflexion, conception et relecture de PR =
+  lecture d'information = Haiku 5.5 (agent `lecteur`) ; réflexion, conception et relecture de PR =
   Opus 5.5. Modèle toujours explicite ; sous-agents surveillés, jamais bloqués ni en boucle.
 - **Outillage Claude du dépôt (23 novembre, voir `CLAUDE.md` §4.2)** : agents `developpeur`,
   `lecteur`, `relecteur`, `architecte` dans `.claude/agents/` ; règles par zone dans

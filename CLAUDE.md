@@ -109,7 +109,7 @@ l'utilisateur le demande.
   | Travail                                                                           | Modèle         | Paramètres                             |
   | --------------------------------------------------------------------------------- | -------------- | -------------------------------------- |
   | **Développer** : écrire ou modifier du code, des tests, des migrations, l'i18n    | **Sonnet 5.5** | `model: sonnet`, `effort: high`        |
-  | **Chercher une information** : trouver un fichier, une valeur, lire un document   | **Haiku 5.5**  | agent `me-lecteur` (ou `model: haiku`) |
+  | **Chercher une information** : trouver un fichier, une valeur, lire un document   | **Haiku 5.5**  | agent `lecteur` (ou `model: haiku`)    |
   | **Réfléchir** : concevoir, arbitrer, diagnostiquer un problème dur, relire une PR | **Opus 5.5**   | `model: opus`                          |
 
   **Fable 5.2** est réservé aux très gros chantiers : monter une architecture d'ensemble, reprendre

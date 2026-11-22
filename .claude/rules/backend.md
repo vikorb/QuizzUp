@@ -25,7 +25,8 @@ paths:
 - **Constantes** : une valeur lue par le back et le front vit dans `backoffice/shared/src/index.ts`.
   Après modification : `cd backoffice/shared && npm run build`, sinon back et front lisent
   l'ancienne version.
-- **Pièges connus** : `pg` renvoie les `bigint` en chaînes (les convertir en nombres) ; le `mockDb`
+- **Pièges connus** : les `bigint` (ids, `company_id`) sont déjà lus en nombres par `src/db.ts`
+  (`types.setTypeParser`) : ne pas les reconvertir, et ne pas créer de client `pg` ailleurs ; le `mockDb`
   des tests n'applique pas les valeurs par défaut de la base.
 - **Doc dans la même PR** : `backoffice/docs/api/openapi.yaml` si une route change,
   `backend/.env.example` si une variable change.

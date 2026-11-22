@@ -1,6 +1,7 @@
 ---
 name: developpeur
 description: Développe un lot borné à partir d'un brief du coordinateur - code, tests, migrations, i18n, doc technique liée. À utiliser pour toute écriture ou modification de code. Ne décide pas du produit, ne touche pas à git.
+tools: Read, Grep, Glob, Edit, Write, Bash
 model: sonnet
 effort: high
 ---

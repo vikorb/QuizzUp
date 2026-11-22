@@ -1,6 +1,6 @@
 ---
 name: lot
-description: Mène un lot de développement de bout en bout selon la méthode du projet - issue, branche, brief borné, sous-agent développeur, vérification, PR, relecture indépendante, CI, merge, reprise. À utiliser dès qu'on démarre une fonctionnalité, une correction ou un chantier.
+description: Mène un lot de développement de bout en bout selon la méthode du projet - issue, branche, brief borné, sous-agent développeur, vérification, PR, relecture indépendante, CI, merge, reprise. Appel manuel (`/lot <issue>`) au démarrage d'une fonctionnalité, d'une correction ou d'un chantier.
 argument-hint: "<numéro d'issue ou description courte du lot>"
 disable-model-invocation: true
 ---
@@ -45,9 +45,9 @@ Contrôles       : commandes de /verifier pour les paquets touchés.
 Fin             : critère d'arrêt ; ne pas commiter, ne pas pousser ; rapport en 5 points.
 ```
 
-Pour chercher une information, l'agent `lecteur` (Haiku). Deux développeurs en parallèle seulement
-s'ils ne touchent pas aux mêmes fichiers. Un agent qui tourne en rond est arrêté et rebriefé
-autrement, jamais relancé à l'identique.
+Pour chercher une information, l'agent `lecteur` (Haiku, lecture seule). Deux développeurs en
+parallèle seulement s'ils ne touchent pas aux mêmes fichiers. Un agent qui tourne en rond est
+arrêté et rebriefé autrement, jamais relancé à l'identique.
 
 ## 4. Vérifier soi-même
 

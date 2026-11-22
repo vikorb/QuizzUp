@@ -8,8 +8,8 @@ paths:
 
 - **Jamais** de modification d'une migration déjà poussée : on en ajoute une nouvelle
   (`YYYYMMDDHHMMSS_description.js` dans `backend/db/migrations`).
-- Chaque migration a un `down` qui marche : la CI joue `migrate:latest`, `migrate:down`, puis
-  `migrate:latest`. Si le retour arrière détruirait des données, le `down` refuse avec un message
+- Chaque migration a un `down` qui marche : la CI joue `migrate:latest`, annule une à une les
+  migrations datées d'après le 2026-05-21, puis rejoue `migrate:latest`. Si le retour arrière détruirait des données, le `down` refuse avec un message
   clair (exemple : `20261104040000_raise_game_podiums_to_six.js`).
 - Une migration qui transforme des données existantes garde de quoi revenir en arrière (exemple :
   table de trace `question_kind_retypings`).

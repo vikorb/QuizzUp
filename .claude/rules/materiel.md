@@ -20,8 +20,9 @@ marche en salle : écris « à valider sur le banc » dans le rapport et ajoute 
   qui se passe si la page plante au milieu.
 - **Arrêt d'urgence** : son état survit à un redémarrage des lumières et de la page.
 - **Stroboscope** : fréquence bornée. Pas d'effet clignotant sans limite.
-- **Pont Art-Net** : il n'envoie que vers des adresses IP locales, jamais vers un port choisi par la
-  salle. Ne pas élargir.
+- **Pont Art-Net** : une cible venue de l'écran de salle doit être une adresse IP locale, et la
+  salle ne choisit jamais le port (seul `--target`, posé par l'opérateur du PC, y échappe). Ne pas
+  élargir.
 - Une PR qui touche à ces points le dit en première ligne et demande une relecture explicite.
 
 ## Conception

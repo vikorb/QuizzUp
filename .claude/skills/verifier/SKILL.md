@@ -32,15 +32,16 @@ Depuis le dossier du paquet. Tout doit passer ; aucun avertissement nouveau.
 | `game/engine/**`          | `game/engine`        | `npm run lint` · `npm run format:check` · `npm run type-check` · `npm run test:coverage`    |
 | `game/hardware/**`        | `game/hardware`      | `npm run lint` · `npm run format:check` · `npm run type-check` · `npm run test:coverage`    |
 | `game/audio/**`           | `game/audio`         | `npm run type-check` · `npm test`                                                           |
-| `game/artnet-bridge/**`   | `game/artnet-bridge` | `npm run lint` · `npm run format:check` · `npm run type-check` · `npm run test:coverage`    |
+| `game/artnet-bridge/**`   | `game/artnet-bridge` | `npm run lint` · `npm run format:check` · `npm run type-check` · `npm run test:coverage` · `npm run build` (+ `npm run build:sea` si l'empaquetage change) |
 | `game/room-app/**`        | `game/room-app`      | `npm run lint` · `npm run format:check` · `npm run type-check` · `npm run test:coverage` · `npm run build` |
-| parcours joueur ou salle  | `game/e2e`           | `npm run lint` · `npm run type-check` · `npm test`                                          |
+| parcours joueur ou salle  | `game/e2e`           | `npm run lint` · `npm run format:check` · `npm run type-check` · `npm test`                 |
 
 L'écran de salle consomme `game/engine`, `game/hardware` et `game/audio` en sources : un changement
 dans l'un des trois impose aussi les contrôles de `game/room-app`, et le bout en bout si le
 déroulé d'une partie change.
 
-Migrations : la CI joue `migrate:latest`, `migrate:down`, `migrate:latest` sur un PostgreSQL réel.
+Migrations : la CI joue `migrate:latest`, annule les migrations récentes une à une, puis
+`migrate:latest`, sur un PostgreSQL réel.
 En local, seulement si une base de test est disponible (nom finissant par `_test`).
 
 ## 3. Ce que la CI GitHub ne voit pas

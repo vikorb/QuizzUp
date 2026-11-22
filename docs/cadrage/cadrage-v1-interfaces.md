@@ -26,8 +26,10 @@ s'afficher.
   formulaire de connexion sur la vitrine, donc aucune surface d'attaque.
 - **Contenu** : ce que voit une salle (captures réelles de l'écran de salle, plan de salle, pupitre),
   comment ça s'installe (un navigateur), la compatibilité avec une salle existante, une demande de
-  démonstration (formulaire → e-mail, avec limite de débit et champ piège anti-robot), mentions
-  légales et politique de confidentialité.
+  démonstration, mentions légales et politique de confidentialité.
+- **Demande de démonstration** : seule partie dynamique. Le formulaire poste vers une route
+  publique de l'API (`POST /public/v1/demo-requests` : validation Zod, limite de débit, champ piège
+  anti-robot) qui envoie l'e-mail. Les pages, elles, s'affichent sans l'API.
 - **Pas de prix affiché** tant que le modèle n'est pas tranché ; pas de témoignage ni de chiffre
   inventé.
 - **Qualité** : Lighthouse ≥ 95 sur les quatre notes, mesuré dans la CI de la PR (voir §8). Images
@@ -71,7 +73,7 @@ Aujourd'hui une partie se crée et se lance tout de suite. À ajouter :
   avant « en attente ». Nouvelle migration ; les statuts existants ne changent pas de sens.
 - **Réglages par salle** (dans la configuration de la salle, modifiables par l'admin du centre) :
   heures d'ouverture par jour, heure de la première session, durée d'un créneau en minutes, pause
-  entre deux sessions, nombre de pupitres ouverts à la réservation, fuseau horaire du centre.
+  entre deux sessions (0 par défaut : le produit n'impose aucun délai, critère de sortie n° 5), nombre de pupitres ouverts à la réservation, fuseau horaire du centre.
 - **Agenda** par salle dans l'espace centre : créneaux du jour, sessions programmées, création à la
   main (joueurs, équipes, format, thèmes), modification, annulation.
 - **Le jour venu** : la session apparaît sur l'écran de salle et dans l'espace centre ; le
@@ -94,6 +96,8 @@ joueurs ; le collaborateur n'a plus qu'à la lancer.
     la salle et les sessions existantes ;
   - `POST /public/v1/bookings` — crée une session programmée : salle, créneau, nombre de joueurs,
     et si le centre les a déjà : prénoms, e-mails, équipes, langue, référence de réservation ;
+    cela **rouvre la décision du 4 novembre** « seul le backoffice inscrit les joueurs »
+    (`REPRISE.md` §3), déjà rouverte par le lot 2 (inscription par QR code) : voir §11 ;
   - `PATCH` et `DELETE /public/v1/bookings/:id` — modifier, annuler.
 - **Robustesse** : clé d'idempotence obligatoire sur la création (un double clic ou une nouvelle
   tentative ne crée pas deux sessions), limite de débit par clé, validation Zod, erreurs à code
@@ -160,9 +164,10 @@ Le détail de l'installation n'est pas dans ce dépôt public. Principes retenus
 | **13. Sessions programmées** | `scheduled_at`, réglages de créneaux par salle, agenda, écran de salle | M | — |
 | **14. API de réservation** | clés d'API, routes `/public/v1`, idempotence, doc publique | M | 13 |
 
-Ordre conseillé avec les lots de `cadrage-v1.md` : 0 (banc) et 1 (pilotage en direct) d'abord,
-puis 13 → 2 (accueil des joueurs) → 14, la vitrine (11) en parallèle car indépendante, la console
-isolée (12) au moment de la mise en production (lot 9).
+Insertion dans l'ordre acté de `cadrage-v1.md` §5 (inchangé : 0 et 9 en parallèle → 1 → 2, 3, 6,
+7 → 4, 5 → 8, 10) : la console isolée (12) avec le lot 9 ; les sessions programmées (13) après
+le lot 1, avant le lot 2 ; l'API de réservation (14) après le lot 2 ; la vitrine (11) en
+parallèle de tout, car indépendante.
 
 ## 11. Décisions attendues
 
@@ -173,3 +178,7 @@ isolée (12) au moment de la mise en production (lot 9).
    Recommandé : oui, les joueurs sont facultatifs à la réservation.
 4. Qualité : accord pour un contrôle Lighthouse bloquant dans la CI GitHub (§8).
 5. Vitrine : nom et domaine provisoires pour la première mise en ligne.
+6. Inscription des joueurs : accepter qu'une réservation venue de l'API (lot 14) porte prénoms et
+   e-mails, en plus du backoffice et du QR code (rouvre la décision du 4 novembre).
+7. Hors ligne : avancer le cache complet (L14, décision D5 « reste en V2 ») si l'hébergement de
+   départ n'est pas redondant (§9).
