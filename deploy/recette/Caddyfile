@@ -5,8 +5,18 @@
 }
 
 api.{$DOMAIN} {
-	encode gzip
-	reverse_proxy backend:3001
+	# Flux SSE (US-LIVE-01) : ni compression ni tampon, sinon les événements n'arrivent pas en direct.
+	@sse path /room/stream /companies/*/live
+	handle @sse {
+		reverse_proxy backend:3001 {
+			flush_interval -1
+		}
+	}
+
+	handle {
+		encode gzip
+		reverse_proxy backend:3001
+	}
 }
 
 bo.{$DOMAIN} {

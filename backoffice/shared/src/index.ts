@@ -471,3 +471,111 @@ export const QUESTION_AUDIO_RECOMMENDED_EXCERPT_MS = 20_000
  * Passé ce délai, l'email et son consentement sont effacés (purge côté backend).
  */
 export const PLAYER_EMAIL_RETENTION_YEARS = 3 as const
+
+/**
+ * Présence des salles en direct (US-LIVE-01). Deux flux SSE : la salle (`GET /room/stream`) et le
+ * personnel d'une compagnie (`GET /companies/:companyId/live`). Les noms d'événements, les
+ * délais et le lecteur de flux `createSseParser` sont communs au serveur et aux deux clients.
+ */
+export const LIVE_EVENT = {
+  /** Premier événement du flux de la salle : `{ streamId, heartbeatMs, statusEveryMs }`. */
+  HELLO: 'hello',
+  /** Un autre poste de la même salle a ouvert son flux : celui-ci est fermé. */
+  REPLACED: 'replaced',
+  /** La session n'est plus valable : le flux est fermé juste après. */
+  SESSION_ENDED: 'session_ended',
+  /** Premier événement du flux du personnel : `{ rooms: RoomLive[] }`. */
+  SNAPSHOT: 'snapshot',
+  /** Changement d'état d'une salle : `RoomLive`. */
+  ROOM_STATUS: 'room_status',
+} as const
+
+export type LiveEvent = (typeof LIVE_EVENT)[keyof typeof LIVE_EVENT]
+
+/** Écran affiché par le PC de la salle. */
+export const ROOM_SCREENS = ['launch', 'lobby', 'play', 'setup', 'other'] as const
+
+export type RoomScreen = (typeof ROOM_SCREENS)[number]
+
+export const ROOM_PRESENCE = {
+  ONLINE: 'online',
+  OFFLINE: 'offline',
+  IN_GAME: 'in_game',
+} as const
+
+export type RoomPresence = (typeof ROOM_PRESENCE)[keyof typeof ROOM_PRESENCE]
+
+/** Délai entre deux lignes `: ping` d'un flux ouvert. */
+export const LIVE_HEARTBEAT_MS = 15_000 as const
+/** Délai entre deux `POST /room/status` d'une salle. */
+export const LIVE_STATUS_EVERY_MS = 15_000 as const
+/** Sans rapport depuis ce délai, la salle est hors ligne. */
+export const LIVE_OFFLINE_AFTER_MS = 45_000 as const
+
+/** Rapport d'état envoyé par l'écran de salle (aucune donnée de joueur). */
+export type RoomStatusReport = {
+  screen: RoomScreen
+  gameId: number | null
+  phase: string | null
+  round: number | null
+  questionIndex: number | null
+  miniGame: MiniGame | null
+  paused: boolean
+  scores: { podium: number; score: number }[]
+  audioReady: boolean
+}
+
+/** État d'une salle tel que le voit le personnel. */
+export type RoomLive = {
+  roomId: number
+  presence: RoomPresence
+  /** En ligne et flux de la salle ouvert : une commande à distance peut l'atteindre. */
+  controllable: boolean
+  /** Date ISO du dernier rapport reçu, `null` si la salle n'en a jamais envoyé. */
+  lastSeenAt: string | null
+  status: RoomStatusReport | null
+}
+
+export type SseMessage = { event: string; data: string }
+
+/**
+ * Lecteur de flux `text/event-stream`. Reçoit des morceaux de texte coupés n'importe où et appelle
+ * `onEvent` pour chaque événement complet (`event` vaut `message` si le champ est absent, `data`
+ * joint les lignes `data:` par `\n`). Les commentaires (`: ping`) et les champs inconnus sont ignorés.
+ */
+export function createSseParser(onEvent: (message: SseMessage) => void): (chunk: string) => void {
+  let pending = ''
+  let event = ''
+  let data: string[] = []
+  // Un `\r\n` coupé entre deux morceaux ne doit compter que pour une fin de ligne.
+  let skipLineFeed = false
+
+  return (chunk) => {
+    pending += skipLineFeed && chunk.startsWith('\n') ? chunk.slice(1) : chunk
+    skipLineFeed = chunk.endsWith('\r')
+
+    const lines = pending.split(/\r\n|\n|\r/)
+    pending = lines.pop() ?? ''
+
+    for (const line of lines) {
+      if (line === '') {
+        if (data.length > 0) {
+          onEvent({ event: event || 'message', data: data.join('\n') })
+        }
+        event = ''
+        data = []
+      } else if (!line.startsWith(':')) {
+        const colon = line.indexOf(':')
+        const field = colon === -1 ? line : line.slice(0, colon)
+        const rawValue = colon === -1 ? '' : line.slice(colon + 1)
+        const value = rawValue.startsWith(' ') ? rawValue.slice(1) : rawValue
+
+        if (field === 'event') {
+          event = value
+        } else if (field === 'data') {
+          data.push(value)
+        }
+      }
+    }
+  }
+}

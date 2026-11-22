@@ -7,6 +7,7 @@ import themesRoutes from './themes'
 import questionsRoutes from './questions'
 import roomRoutes from './room'
 import gamesRoutes from './games'
+import liveRoutes from './live'
 
 const routes: FastifyPluginAsync = async (app) => {
   await app.register(healthRoute)
@@ -17,6 +18,7 @@ const routes: FastifyPluginAsync = async (app) => {
   await app.register(questionsRoutes)
   await app.register(roomRoutes)
   await app.register(gamesRoutes)
+  await app.register(liveRoutes)
 }
 
 export default routes

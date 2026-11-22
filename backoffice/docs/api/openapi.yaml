@@ -1824,6 +1824,211 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /room/stream:
+    get:
+      tags:
+        - Rooms
+      summary: '[DISPONIBLE] Flux temps réel de la salle (SSE)'
+      description: |
+        Statut : **Disponible**
+
+        Le PC de la salle ouvre ce flux `text/event-stream` et le garde ouvert. Une seule instance par salle : un nouveau flux remplace l'ancien, qui reçoit `replaced` puis est fermé.
+
+        Événements (`event:` puis `data:` en JSON) :
+        - `hello` : toujours le premier, `{ streamId, heartbeatMs, statusEveryMs }`. `streamId` est à renvoyer dans `POST /room/status`.
+        - `replaced` : un autre poste de la salle a ouvert son flux ; celui-ci est fermé juste après.
+        - `session_ended` : la session n'est plus valable (`{ error }`) ; le flux est fermé juste après.
+
+        Une ligne de commentaire `: ping` est écrite toutes les 15 s. La session est revérifiée toutes les 60 s sans être prolongée.
+
+        Accès : réservé au rôle `room`.
+
+        Mémoire du processus : le hub ne sert qu'une instance du backend (voir le commentaire de `backend/src/live/hub.ts`).
+      operationId: openRoomStream
+      x-availability: disponible
+      x-us: 'US-LIVE-01'
+      responses:
+        '200':
+          description: Flux d'événements ouvert
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '401':
+          description: Non connecté ou session invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Compte qui n'est pas un compte de salle (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /room/status:
+    post:
+      tags:
+        - Rooms
+      summary: "[DISPONIBLE] Publier l'état de la salle"
+      description: |
+        Statut : **Disponible**
+
+        Rapport d'état envoyé par l'écran de salle toutes les `statusEveryMs` (15 s) et à chaque changement. Sans rapport depuis 45 s, la salle est considérée hors ligne. Le personnel de la compagnie le reçoit sur `GET /companies/{companyId}/live`. Aucun e-mail ni donnée de joueur dans le rapport.
+
+        Si `streamId` est fourni et n'est pas le flux courant de la salle (un autre poste a pris la place), la réponse est `409 room_instance_replaced`.
+
+        Accès : réservé au rôle `room`.
+      operationId: postRoomStatus
+      x-availability: disponible
+      x-us: 'US-LIVE-01'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                [screen, gameId, phase, round, questionIndex, miniGame, paused, scores, audioReady]
+              properties:
+                streamId:
+                  type: string
+                  description: Identifiant reçu dans l'événement `hello`
+                screen:
+                  type: string
+                  enum: [launch, lobby, play, setup, other]
+                gameId:
+                  type: integer
+                  nullable: true
+                phase:
+                  type: string
+                  nullable: true
+                  description: Phase du moteur de jeu (`lobby`, `question`, `finished`, …)
+                round:
+                  type: integer
+                  nullable: true
+                questionIndex:
+                  type: integer
+                  nullable: true
+                miniGame:
+                  type: string
+                  nullable: true
+                  enum:
+                    - flash_blind_test
+                    - quick_answer
+                    - first_buzz
+                    - true_false
+                    - double_or_nothing
+                    - sudden_death
+                    - point_steal
+                    - streak
+                    - estimate
+                    - progressive_reveal
+                paused:
+                  type: boolean
+                scores:
+                  type: array
+                  maxItems: 6
+                  items:
+                    type: object
+                    required: [podium, score]
+                    properties:
+                      podium:
+                        type: integer
+                        minimum: 1
+                        maximum: 6
+                      score:
+                        type: integer
+                        minimum: -1000000
+                        maximum: 1000000
+                audioReady:
+                  type: boolean
+      responses:
+        '204':
+          description: Rapport pris en compte
+        '400':
+          description: Corps invalide (`invalid_body`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non connecté ou session invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Compte qui n'est pas un compte de salle (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Un autre poste de la salle a ouvert son flux depuis (`room_instance_replaced`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/live:
+    get:
+      tags:
+        - Rooms
+      summary: "[DISPONIBLE] Flux temps réel des salles d'une compagnie (SSE)"
+      description: |
+        Statut : **Disponible**
+
+        Le personnel ouvre ce flux `text/event-stream` pour suivre ses salles en direct.
+
+        Événements (`event:` puis `data:` en JSON) :
+        - `snapshot` : toujours le premier, `{ rooms: RoomLive[] }` pour toutes les salles actives de la compagnie, y compris hors ligne.
+        - `room_status` : un `RoomLive` à chaque rapport, ouverture ou fermeture du flux d'une salle, et quand une salle passe hors ligne.
+        - `session_ended` : la session n'est plus valable (`{ error }`) ; le flux est fermé juste après.
+
+        `RoomLive` : `{ roomId, presence, controllable, lastSeenAt, status }`. `presence` vaut `offline` (aucun rapport depuis 45 s), `in_game` (en ligne, partie en cours, phase hors `lobby`, `finished`, `aborted`) ou `online`. `controllable` : en ligne et flux de la salle ouvert. `status` : dernier rapport de `POST /room/status`, `null` si la salle n'en a jamais envoyé.
+
+        Une ligne de commentaire `: ping` est écrite toutes les 15 s. La session est revérifiée toutes les 60 s sans être prolongée. 5 flux ouverts au plus par compte.
+
+        Accès : droit `game:read`, compagnie du compte (le superadmin lit toutes les compagnies).
+      operationId: openCompanyLiveStream
+      x-availability: disponible
+      x-us: 'US-LIVE-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+      responses:
+        '200':
+          description: Flux d'événements ouvert
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '400':
+          description: Identifiant de compagnie invalide (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non connecté ou session invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Rôle sans droit de lecture ou autre compagnie (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Déjà 5 flux ouverts pour ce compte (`too_many_streams`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /players:
     get:
       tags:
