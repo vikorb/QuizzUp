@@ -463,7 +463,8 @@ describe('POST /login/totp/enroll/confirm', () => {
   })
 
   it('confirme avec le bon code, rend dix codes de secours et ouvre une session', async () => {
-    vi.mocked(getAdminTotp).mockResolvedValue(pendingRecord())
+    const record = pendingRecord()
+    vi.mocked(getAdminTotp).mockResolvedValue(record)
     vi.mocked(confirmEnrollment).mockResolvedValue(true)
     const app = await start()
 
@@ -478,9 +479,10 @@ describe('POST /login/totp/enroll/confirm', () => {
     expect(json.recoveryCodes).toHaveLength(TOTP_RECOVERY_CODES_COUNT)
     expect(dbState.admin_sessions).toHaveLength(1)
 
-    // Le magasin reçoit le pas du code, et exactement les codes que le client a reçus.
+    // Le magasin reçoit le secret vérifié, le pas du code, et exactement les codes que le client a reçus.
     expect(confirmEnrollment).toHaveBeenCalledWith(
       1,
+      record.secretEnc,
       stepAt(NOW.getTime()),
       json.recoveryCodes,
       NOW
@@ -490,7 +492,8 @@ describe('POST /login/totp/enroll/confirm', () => {
   })
 
   it('accepte le code du pas voisin (écart d’horloge)', async () => {
-    vi.mocked(getAdminTotp).mockResolvedValue(pendingRecord())
+    const record = pendingRecord()
+    vi.mocked(getAdminTotp).mockResolvedValue(record)
     vi.mocked(confirmEnrollment).mockResolvedValue(true)
     const app = await start()
 
@@ -502,6 +505,7 @@ describe('POST /login/totp/enroll/confirm', () => {
     expect(response.statusCode).toBe(200)
     expect(confirmEnrollment).toHaveBeenCalledWith(
       1,
+      record.secretEnc,
       stepAt(NOW.getTime()) - 1,
       expect.any(Array),
       NOW
@@ -554,7 +558,10 @@ describe('POST /login/totp/enroll/confirm', () => {
     expect(confirmed.statusCode).toBe(409)
     expect(confirmed.json()).toEqual({ error: 'totp_already_enrolled' })
 
-    vi.mocked(getAdminTotp).mockResolvedValue(pendingRecord())
+    // Lu non confirmé, puis confirmé par une autre requête avant l'UPDATE.
+    vi.mocked(getAdminTotp)
+      .mockResolvedValueOnce(pendingRecord())
+      .mockResolvedValueOnce(pendingRecord(NOW))
     vi.mocked(confirmEnrollment).mockResolvedValue(false)
     const raced = await post(app, '/login/totp/enroll/confirm', {
       challengeToken: challenge(app),
@@ -563,6 +570,24 @@ describe('POST /login/totp/enroll/confirm', () => {
 
     expect(raced.statusCode).toBe(409)
     expect(raced.json()).toEqual({ error: 'totp_already_enrolled' })
+    expect(dbState.admin_sessions).toHaveLength(0)
+
+    await app.close()
+  })
+
+  it('répond 409 totp_enrollment_changed quand le secret est régénéré pendant la vérification', async () => {
+    // Le code a été vérifié contre un secret que l'UPDATE ne retrouve plus : aucune session.
+    vi.mocked(getAdminTotp).mockResolvedValue(pendingRecord())
+    vi.mocked(confirmEnrollment).mockResolvedValue(false)
+    const app = await start()
+
+    const response = await post(app, '/login/totp/enroll/confirm', {
+      challengeToken: challenge(app),
+      code: codeNow(),
+    })
+
+    expect(response.statusCode).toBe(409)
+    expect(response.json()).toEqual({ error: 'totp_enrollment_changed' })
     expect(dbState.admin_sessions).toHaveLength(0)
 
     await app.close()

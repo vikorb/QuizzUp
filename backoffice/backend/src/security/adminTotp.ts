@@ -54,19 +54,20 @@ export async function startEnrollment(adminId: number, secretEnc: string): Promi
 
 /**
  * Confirme l'enrôlement et enregistre les codes de secours, en une transaction. Le pas du code de
- * confirmation devient le dernier pas utilisé : il ne sert pas une seconde fois. Faux si
- * l'enrôlement est déjà confirmé (ou absent) : l'UPDATE conditionnel départage deux requêtes
- * simultanées.
+ * confirmation devient le dernier pas utilisé : il ne sert pas une seconde fois. `secretEnc` est le
+ * secret contre lequel le code a été vérifié : faux si l'enrôlement est déjà confirmé, absent ou si
+ * son secret a été régénéré entre-temps. L'UPDATE conditionnel départage les requêtes simultanées.
  */
 export async function confirmEnrollment(
   adminId: number,
+  secretEnc: string,
   step: number,
   recoveryCodes: string[],
   now: Date
 ): Promise<boolean> {
   return db.transaction(async (trx) => {
     const confirmed = await trx('admin_totp')
-      .where({ admin_id: adminId })
+      .where({ admin_id: adminId, secret_enc: secretEnc })
       .whereNull('confirmed_at')
       .update({
         confirmed_at: now,
@@ -90,14 +91,14 @@ export async function confirmEnrollment(
 /**
  * Anti-rejeu : un pas n'est accepté que s'il dépasse le dernier pas utilisé, par un seul UPDATE
  * conditionnel (deux requêtes simultanées avec le même code : une seule réussit). Réussir remet les
- * échecs à zéro. Un compte verrouillé n'accepte rien, même avec le bon code.
+ * échecs à zéro. Le verrou n'est pas relu ici : `reserveAttempt` l'a déjà contrôlé, atomiquement,
+ * pour cet essai.
  */
 export async function acceptStep(adminId: number, step: number, now: Date): Promise<boolean> {
   const updated = await db('admin_totp')
     .where({ admin_id: adminId })
     .whereNotNull('confirmed_at')
     .andWhere((q) => q.whereNull('last_used_step').orWhere('last_used_step', '<', step))
-    .andWhere((q) => q.whereNull('locked_until').orWhere('locked_until', '<=', now))
     .update({ last_used_step: step, failed_attempts: 0, locked_until: null, updated_at: now })
 
   return updated === 1
@@ -105,7 +106,7 @@ export async function acceptStep(adminId: number, step: number, now: Date): Prom
 
 /**
  * Consomme un code de secours : un seul UPDATE conditionnel sur `used_at IS NULL`, donc usage unique
- * même en parallèle. Refusé si le compte est verrouillé. Réussir remet les échecs à zéro.
+ * même en parallèle. Réussir remet les échecs à zéro. Comme `acceptStep`, ne relit pas le verrou.
  */
 export async function consumeRecoveryCode(
   adminId: number,
@@ -113,17 +114,12 @@ export async function consumeRecoveryCode(
   now: Date
 ): Promise<boolean> {
   return db.transaction(async (trx) => {
-    const result = await trx.raw(
-      `UPDATE admin_totp_recovery_codes AS c SET used_at = ?
-       WHERE c.admin_id = ? AND c.code_hash = ? AND c.used_at IS NULL
-         AND EXISTS (
-           SELECT 1 FROM admin_totp t
-           WHERE t.admin_id = c.admin_id AND (t.locked_until IS NULL OR t.locked_until <= ?)
-         )`,
-      [now, adminId, codeHash, now]
-    )
+    const used = await trx('admin_totp_recovery_codes')
+      .where({ admin_id: adminId, code_hash: codeHash })
+      .whereNull('used_at')
+      .update({ used_at: now })
 
-    if (result.rowCount !== 1) return false
+    if (used !== 1) return false
 
     await trx('admin_totp')
       .where({ admin_id: adminId })
@@ -144,21 +140,27 @@ export async function countUnusedRecoveryCodes(adminId: number): Promise<number>
 }
 
 /**
- * Compte un échec en un seul UPDATE ; au 5e échec de suite, verrouille pour 15 minutes. Le compteur
- * reste à 5 tant qu'un succès ne le remet pas à zéro : un échec juste après la fin du verrou
- * reverrouille aussitôt.
+ * Réserve un essai avant de comparer le code, en un seul UPDATE : il compte l'essai comme un échec
+ * et, au 5e de suite, pose le verrou de 15 minutes ; il ne touche rien si le compte est verrouillé
+ * (ou non enrôlé) et rend alors faux. Des requêtes parallèles ne peuvent donc pas tester plus de
+ * 5 codes avant le verrou. Un succès (`acceptStep`, `consumeRecoveryCode`) remet le compteur à zéro.
+ * Le compteur reste à 5 tant qu'un succès ne le remet pas à zéro : un essai juste après la fin du
+ * verrou reverrouille aussitôt.
  */
-export async function recordFailure(adminId: number, now: Date): Promise<void> {
+export async function reserveAttempt(adminId: number, now: Date): Promise<boolean> {
   const lockedUntil = new Date(now.getTime() + TOTP_LOCK_MINUTES * 60_000)
 
-  await db.raw(
+  const result = await db.raw(
     `UPDATE admin_totp SET
        failed_attempts = LEAST(failed_attempts + 1, ?),
        locked_until = CASE WHEN failed_attempts + 1 >= ? THEN ?::timestamptz ELSE locked_until END,
        updated_at = ?
-     WHERE admin_id = ?`,
-    [TOTP_MAX_FAILED_ATTEMPTS, TOTP_MAX_FAILED_ATTEMPTS, lockedUntil, now, adminId]
+     WHERE admin_id = ? AND confirmed_at IS NOT NULL
+       AND (locked_until IS NULL OR locked_until <= ?)`,
+    [TOTP_MAX_FAILED_ATTEMPTS, TOTP_MAX_FAILED_ATTEMPTS, lockedUntil, now, adminId, now]
   )
+
+  return result.rowCount === 1
 }
 
 /**
@@ -197,8 +199,15 @@ export async function verifySecondFactor(
 
   if (!record?.confirmedAt) return { ok: false, reason: 'not_enrolled' }
 
-  if (record.lockedUntil && record.lockedUntil.getTime() > now.getTime()) {
-    const seconds = Math.ceil((record.lockedUntil.getTime() - now.getTime()) / 1000)
+  // L'essai est compté et le verrou contrôlé avant toute comparaison : c'est ce qui borne les
+  // requêtes parallèles. Refus = verrouillé (ou enrôlement effacé entre-temps).
+  if (!(await reserveAttempt(adminId, now))) {
+    const current = await getAdminTotp(adminId)
+    if (!current?.confirmedAt) return { ok: false, reason: 'not_enrolled' }
+
+    const seconds = current.lockedUntil
+      ? Math.ceil((current.lockedUntil.getTime() - now.getTime()) / 1000)
+      : 0
 
     return { ok: false, reason: 'locked', retryAfterSeconds: Math.max(1, seconds) }
   }
@@ -213,11 +222,7 @@ export async function verifySecondFactor(
     accepted = await consumeRecoveryCode(adminId, hashRecoveryCode(code), now)
   }
 
-  if (!accepted) {
-    await recordFailure(adminId, now)
-
-    return { ok: false, reason: 'invalid' }
-  }
+  if (!accepted) return { ok: false, reason: 'invalid' }
 
   return { ok: true, recoveryCode: !isCode }
 }

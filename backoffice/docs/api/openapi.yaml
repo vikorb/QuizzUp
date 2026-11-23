@@ -378,7 +378,9 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: |
-            Enrôlement non commencé (`totp_not_enrolled`) ou déjà confirmé (`totp_already_enrolled`)
+            Enrôlement non commencé (`totp_not_enrolled`), déjà confirmé (`totp_already_enrolled`) ou
+            dont le secret a été régénéré par une autre requête pendant la vérification
+            (`totp_enrollment_changed`) : scanner le nouveau secret et saisir un nouveau code
           content:
             application/json:
               schema:

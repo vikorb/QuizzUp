@@ -25,6 +25,7 @@
     "totp_invalid": "Wrong or already used code.",
     "totp_not_enrolled": "Two-factor authentication is not set up for this account.",
     "totp_already_enrolled": "Two-factor authentication is already set up for this account.",
+    "totp_enrollment_changed": "The setup was restarted in another window: scan the new key, then enter a new code.",
     "too_many_attempts": "Too many attempts: try again in a few minutes."
   },
   "success": {

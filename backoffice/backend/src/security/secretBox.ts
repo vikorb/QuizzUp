@@ -11,11 +11,26 @@ const KEY_BYTES = 32
 const IV_BYTES = 12
 const TAG_BYTES = 16
 
-/** Clé lue depuis `TOTP_ENCRYPTION_KEY` (32 octets en base64), ou null si absente ou mal formée. */
-export function parseTotpKey(raw: string | undefined): Buffer | null {
-  if (!raw) return null
+/** Valeur publique de `TOTP_ENCRYPTION_KEY` (docker-compose de dev) : jamais en production. */
+export const DEV_TOTP_ENCRYPTION_KEY = 'REVNTy1PTkxZLW5vdC1hLXNlY3JldC1rZXktMDAwMDA='
 
-  const key = Buffer.from(raw.trim(), 'base64')
+/** 32 octets en base64 strict : 43 caractères et un `=`. */
+const KEY_BASE64 = /^[A-Za-z0-9+/]{43}=$/
+
+/**
+ * Clé lue depuis `TOTP_ENCRYPTION_KEY` (32 octets en base64), ou null si absente, mal formée ou, en
+ * production, égale à la valeur publique de développement.
+ */
+export function parseTotpKey(
+  raw: string | undefined,
+  nodeEnv = process.env.NODE_ENV
+): Buffer | null {
+  const trimmed = raw?.trim()
+
+  if (!trimmed || !KEY_BASE64.test(trimmed)) return null
+  if (nodeEnv === 'production' && trimmed === DEV_TOTP_ENCRYPTION_KEY) return null
+
+  const key = Buffer.from(trimmed, 'base64')
 
   return key.length === KEY_BYTES ? key : null
 }
