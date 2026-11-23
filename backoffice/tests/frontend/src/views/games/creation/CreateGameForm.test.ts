@@ -270,12 +270,45 @@ describe('views/games/creation/CreateGameForm.vue', () => {
     })
   })
 
-  it('leaves the GDPR consent unticked and shows its purpose', () => {
+  it('leaves both GDPR consents unticked and shows their two purposes', () => {
     const wrapper = mountForm()
     const consent = wrapper.get<HTMLInputElement>('[data-test="game-participant-consent"]')
+    const marketing = wrapper.get<HTMLInputElement>(
+      '[data-test="game-participant-consent-marketing"]'
+    )
 
     expect(consent.element.checked).toBe(false)
+    expect(marketing.element.checked).toBe(false)
+    expect(consent.element.id).not.toBe(marketing.element.id)
     expect(wrapper.text()).toContain('games.form.consent')
+    expect(wrapper.text()).toContain('games.form.marketingConsent')
+  })
+
+  it('keeps the offers box inactive until an email is entered, and unticks it when cleared', async () => {
+    const wrapper = mountForm()
+    const marketing = () =>
+      wrapper.get<HTMLInputElement>('[data-test="game-participant-consent-marketing"]')
+    const consent = () => wrapper.get<HTMLInputElement>('[data-test="game-participant-consent"]')
+
+    expect(marketing().element.disabled).toBe(true)
+    expect(consent().element.disabled).toBe(false)
+    expect(wrapper.text()).toContain('games.form.marketingConsentNeedsEmail')
+
+    await wrapper.get('input[name="participants.0.email"]').setValue('a@quizzup.test')
+
+    expect(marketing().element.disabled).toBe(false)
+    expect(wrapper.text()).not.toContain('games.form.marketingConsentNeedsEmail')
+    expect(wrapper.text()).toContain('games.form.marketingConsentHint')
+
+    await marketing().setValue(true)
+
+    expect(marketing().element.checked).toBe(true)
+    expect(consent().element.checked).toBe(false)
+
+    await wrapper.get('input[name="participants.0.email"]').setValue('')
+
+    expect(marketing().element.disabled).toBe(true)
+    expect(marketing().element.checked).toBe(false)
   })
 
   it('adds participants up to the 6 podiums of a 6-podium room, then removes them', async () => {
@@ -474,11 +507,62 @@ describe('views/games/creation/CreateGameForm.vue', () => {
       roundsCount: 5,
       questionsPerRound: 10,
       participants: [
-        { podium: 1, displayName: 'Team A', email: 'a@quizzup.test', emailConsent: true },
+        {
+          podium: 1,
+          displayName: 'Team A',
+          email: 'a@quizzup.test',
+          emailConsent: true,
+          marketingConsent: false,
+        },
         { podium: 2, displayName: 'Team B' },
       ],
     })
     expect(wrapper.emitted('created')?.[0]?.[0]).toMatchObject({ id: 99 })
+  })
+
+  it('sends the offers consent as its own field, apart from the email consent', async () => {
+    const wrapper = mountForm()
+
+    await roomSelect(wrapper).get('select').setValue('10')
+    await fillParticipant(wrapper, 0, { displayName: 'Team A', email: 'a@quizzup.test' })
+    await wrapper.get('[data-test="game-participant-consent"]').setValue(true)
+    await wrapper.get('[data-test="game-participant-consent-marketing"]').setValue(true)
+    await wrapper.get('[data-test="game-second-player-add"]').trigger('click')
+
+    const secondMarketing = () =>
+      wrapper.get<HTMLInputElement>('[data-test="game-second-player-consent-marketing"]')
+    expect(secondMarketing().element.disabled).toBe(true)
+
+    await wrapper.get('input[name="participants.0.secondPlayer.displayName"]').setValue('Alex')
+    await wrapper
+      .get('input[name="participants.0.secondPlayer.email"]')
+      .setValue('alex@quizzup.test')
+    await wrapper.get('[data-test="game-second-player-consent"]').setValue(true)
+
+    expect(secondMarketing().element.disabled).toBe(false)
+
+    await submit(wrapper)
+
+    expect(createGameServiceMock).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({
+        participants: [
+          {
+            podium: 1,
+            displayName: 'Team A',
+            email: 'a@quizzup.test',
+            emailConsent: true,
+            marketingConsent: true,
+            secondPlayer: {
+              displayName: 'Alex',
+              email: 'alex@quizzup.test',
+              emailConsent: true,
+              marketingConsent: false,
+            },
+          },
+        ],
+      })
+    )
   })
 
   it('opens and removes the second player block of a podium', async () => {
@@ -544,7 +628,12 @@ describe('views/games/creation/CreateGameForm.vue', () => {
         {
           podium: 1,
           displayName: 'Team A',
-          secondPlayer: { displayName: 'Alex', email: 'alex@quizzup.test', emailConsent: true },
+          secondPlayer: {
+            displayName: 'Alex',
+            email: 'alex@quizzup.test',
+            emailConsent: true,
+            marketingConsent: false,
+          },
         },
       ],
     })
@@ -579,6 +668,19 @@ describe('views/games/creation/CreateGameForm.vue', () => {
 
     expect(roomSelect(wrapper).attributes('error')).toBe('games.errors.roomBusy')
     expect(wrapper.emitted('created')).toBeUndefined()
+  })
+
+  it('shows the offers-without-email API error as a form error', async () => {
+    mockServiceFailure(createGameServiceMock, 'marketing_consent_requires_email', 400)
+    const wrapper = mountForm()
+
+    await roomSelect(wrapper).get('select').setValue('10')
+    await fillParticipant(wrapper, 0, { displayName: 'Team A' })
+    await submit(wrapper)
+
+    expect(wrapper.get('[data-test="form-result-error"]').text()).toBe(
+      'games.errors.marketingConsentRequiresEmail'
+    )
   })
 
   it('shows the API consent error as a form error', async () => {

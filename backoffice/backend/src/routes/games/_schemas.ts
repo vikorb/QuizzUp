@@ -56,14 +56,28 @@ function hasConsentIfEmail(player: { email?: string | null; emailConsent?: boole
   return !player.email || player.emailConsent === true
 }
 
+// Consentement aux offres du centre : distinct de la conservation de l'email, mais sans email
+// il n'y a personne à qui écrire.
+function hasEmailIfMarketing(player: {
+  email?: string | null
+  marketingConsent?: boolean
+}): boolean {
+  return player.marketingConsent !== true || Boolean(player.email)
+}
+
 /** 2e joueur facultatif d'un pupitre : son propre nom et son propre email RGPD. */
 const secondPlayerSchema = z
   .object({
     displayName: displayNameSchema,
     email: emailSchema,
     emailConsent: z.boolean().optional(),
+    marketingConsent: z.boolean().optional(),
   })
   .refine(hasConsentIfEmail, { message: 'email_consent_required', path: ['emailConsent'] })
+  .refine(hasEmailIfMarketing, {
+    message: 'marketing_consent_requires_email',
+    path: ['marketingConsent'],
+  })
 
 const participantSchema = z
   .object({
@@ -71,9 +85,14 @@ const participantSchema = z
     displayName: displayNameSchema,
     email: emailSchema,
     emailConsent: z.boolean().optional(),
+    marketingConsent: z.boolean().optional(),
     secondPlayer: secondPlayerSchema.optional().nullable(),
   })
   .refine(hasConsentIfEmail, { message: 'email_consent_required', path: ['emailConsent'] })
+  .refine(hasEmailIfMarketing, {
+    message: 'marketing_consent_requires_email',
+    path: ['marketingConsent'],
+  })
 
 export const createGameSchema = z
   .object({
