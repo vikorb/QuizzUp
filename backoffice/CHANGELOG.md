@@ -282,6 +282,8 @@ Format inspiré de Keep a Changelog.
 
 ### Changed
 
+- **Rupture de déploiement.** Console éditeur : le compte superadmin ne peut plus se connecter ni appeler l'API que depuis les adresses de `CONSOLE_ALLOWED_CIDRS` (401 `invalid_credentials` à la connexion, 403 `forbidden` ensuite). Variable vide ou absente = console fermée : la renseigner avant de déployer. La même variable, séparée par des espaces, remplace `EDITOR_ALLOWED_RANGES` côté Caddy de production, et les réseaux Docker de recette et de production ont un sous-réseau fixe à nommer dans `TRUST_PROXY` (réseau à recréer une fois, voir les README de `deploy/`).
+  US: US-CONSOLE-01 (#161)
 - Images Docker du backoffice (backend, frontend, service `tests`) passées à Node 22, requis par les dépendances mises à jour. Sur une démo déjà installée, lancer `npm run demo:reset` pour que les volumes `*_node_modules` reprennent les nouvelles dépendances (la base est alors vidée).
   US: US-SEC-01 (#146)
 - Moteur de jeu : les mini-jeux d'une partie sont tirés sans remise (aucun mini-jeu ne revient tant que tous les mini-jeux jouables n'ont pas été joués, et jamais deux fois de suite quand il y a le choix).

@@ -10,6 +10,18 @@ info:
     - `disponible` : route implémentée côté API
     - `non_disponible` : route prévue mais pas encore implémentée
 
+    **Compte superadmin (console éditeur).** Il ne peut se connecter et appeler l'API que depuis les
+    adresses listées dans la variable `CONSOLE_ALLOWED_CIDRS` (adresse vue par l'API : `req.ip`,
+    réglée par `TRUST_PROXY`). Variable vide ou absente : aucune adresse, le superadmin est refusé
+    partout. Hors de ces adresses :
+    - `POST /login` répond `401 invalid_credentials`, comme pour un mauvais mot de passe, sans créer
+      de session ;
+    - toute route protégée, y compris les flux en direct, répond `403 forbidden` à son jeton, même
+      valide. Cela vaut pour toutes les routes, pas seulement celles réservées au superadmin, sauf
+      `POST /logout`, qui révoque la session où que soit l'appelant.
+
+    Les autres rôles ne sont pas concernés.
+
 servers:
   - url: http://localhost:3001
     description: API locale
@@ -111,7 +123,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/ValidationError'
         '401':
-          description: Identifiants invalides
+          description: |
+            Identifiants invalides. Aussi renvoyé, avec le même corps `invalid_credentials`, à un
+            superadmin dont le mot de passe est juste mais dont l'adresse n'est pas dans
+            `CONSOLE_ALLOWED_CIDRS` : aucune session n'est créée.
           content:
             application/json:
               schema:
@@ -143,7 +158,9 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Révoque la session courante de l'administrateur connecté.
+        Révoque la session courante de l'administrateur connecté. Un superadmin hors des adresses de
+        la console (`CONSOLE_ALLOWED_CIDRS`) peut aussi fermer sa session : la route ne répond pas
+        `403 forbidden` et ne donne accès à rien d'autre.
       operationId: logout
       x-availability: disponible
       responses:
