@@ -79,15 +79,38 @@ La configuration n'est gardée qu'au clic sur « Enregistrer la configuration »
 
 **Le test de coupure se refait sur chaque poste.** Un poste ne libère de la fumée que s'il garde la
 trace d'un test de coupure réussi, fait **sur ce poste**, pour **cette salle** et avec **ces réglages
-de fumée** (interface DMX, machine, adresse, univers, durée, pause, niveau). Cette trace reste dans le
-navigateur du poste : elle ne part pas vers le serveur et le serveur ne peut pas la poser. Une
-configuration qui active la fumée, reçue du compte de la salle, ne suffit donc pas. Sur un nouveau
-poste, un navigateur réinitialisé, un autre profil ou après un changement de réglage de fumée, l'écran
-de salle affiche, dans Matériel, onglet « Lumières et fumée » : « Fumée activée dans la configuration,
-mais test de coupure à refaire sur ce poste ». Aucune fumée ne part (ni scène, ni test) jusqu'à ce que
-le test de l'assistant (étape « Sécuriser la fumée », réponse « Elle s’est arrêtée ») ait réussi. Un
-test échoué efface la trace. Le test de coupure du Diagnostic ne la pose pas et est refusé tant
+de fumée**. Cette trace reste dans le navigateur du poste : elle ne part pas vers le serveur et le
+serveur ne peut pas la poser. Une configuration qui active la fumée, reçue du compte de la salle, ne
+suffit donc pas. Sur un nouveau poste, un navigateur réinitialisé, un autre profil ou après un
+changement de réglage de fumée, l'écran de salle affiche, dans Matériel, onglet « Lumières et fumée » :
+« Fumée activée dans la configuration, mais test de coupure à refaire sur ce poste ». Aucune fumée ne
+part (ni scène, ni test) jusqu'à ce que le test de l'assistant (étape « Sécuriser la fumée », réponse
+« Elle s’est arrêtée ») ait réussi. Le test de coupure du Diagnostic ne la pose pas et est refusé tant
 qu'elle manque.
+
+La trace est **effacée** dès qu'un test de l'assistant démarre : une page rechargée ou fermée avant la
+réponse, ou la réponse « Elle continue », laissent le poste sans trace. Si tu réponds « Elle s’est
+arrêtée » mais que la trace ne peut pas être enregistrée (réglages modifiés pendant le test, ou
+stockage du navigateur indisponible), l'assistant le dit et le test n'est pas validé : refais-le.
+
+**Ce qui invalide la trace** (la fumée est alors refusée jusqu'à un nouveau test) :
+
+- un changement de **salle** (compte de la salle différent, ou poste qui ne sait plus de quelle salle
+  il s'agit) ;
+- un changement d'**interface DMX** (USB ou pont Art-Net), du **nœud Art-Net** ciblé ou de l'adresse du
+  **pont** ;
+- un changement de **durée maximale**, de **pause**, de **niveau maximal** ou de confirmation de la
+  fumée ;
+- pour chaque appareil qui émet de la fumée (profil de type fumée, ou tout profil, même d'un autre
+  type, qui a un canal de rôle fumée) : un changement d'**adresse**, d'**univers** ou de **canaux**,
+  ou l'ajout ou le retrait d'un tel appareil.
+
+**Ce que la trace ne voit pas.** Elle ne reconnaît pas le matériel lui-même :
+
+- remplacer une machine par une autre **aux mêmes réglages et à la même adresse** n'invalide pas la
+  trace : refais le test à la main ;
+- changer d'**interface USB du même modèle** n'invalide pas la trace non plus : refais le test à la
+  main.
 
 > À vérifier sur le banc : F9 du banc matériel.
 

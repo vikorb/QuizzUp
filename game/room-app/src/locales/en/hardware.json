@@ -427,6 +427,7 @@
         "freezeYes": "It stopped",
         "freezeNo": "It keeps going",
         "freezeFailed": "Do not use the smoke: check the wiring and the timed relay setting, then run the test again.",
+        "proofNotRecorded": "The test is not validated: its record could not be saved on this PC (settings changed during the test, or browser storage unavailable). Smoke stays refused: run the test again.",
         "freezeFailedSignal": "The machine does not cut out by itself on signal loss: smoke is disabled and the “cuts out on signal loss” box is unticked. Use a machine on a timed relay, or one that really cuts out without a signal.",
         "freezeRunning": "No frames are sent for 15 s (the interface repeats the last one). Watch the machine: the timed relay must cut the smoke within 10 s.",
         "freezeRunningSignal": "The smoke is running. Unplug the DMX cable from the machine (or from the interface) now: it must stop by itself in under 10 s.",

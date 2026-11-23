@@ -427,6 +427,7 @@
         "freezeYes": "Elle s’est arrêtée",
         "freezeNo": "Elle continue",
         "freezeFailed": "La fumée ne doit pas être utilisée : vérifie le câblage et le réglage du relais temporisé, puis refais le test.",
+        "proofNotRecorded": "Le test n’est pas validé : la trace du test n’a pas pu être enregistrée sur ce poste (réglages modifiés pendant le test, ou stockage du navigateur indisponible). La fumée reste refusée : refais le test.",
         "freezeFailedSignal": "La machine ne coupe pas toute seule sur perte de signal : la fumée est désactivée et la case « coupe sur perte de signal » est décochée. Utilise une machine sur relais temporisé, ou une machine qui coupe vraiment sans signal.",
         "freezeRunning": "Plus aucune trame n’est envoyée pendant 15 s (l’interface répète la dernière). Regarde la machine : le relais temporisé doit couper la fumée en 10 s au plus.",
         "freezeRunningSignal": "La fumée est lancée. Débranche maintenant le câble DMX de la machine (ou de l’interface) : elle doit s’arrêter toute seule en moins de 10 s.",

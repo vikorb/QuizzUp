@@ -798,13 +798,19 @@ function readSmokeProof(): SmokeProof | null {
 }
 
 /**
- * Empreinte des réglages de fumée testés : interface DMX, durées, niveau, confirmation, et pour
- * chaque machine son adresse, son univers et ses canaux. `enabled` n'en fait pas partie : c'est
- * justement ce que la garde contrôle.
+ * Empreinte des réglages de fumée testés : interface DMX et sa cible (nœud Art-Net, adresse du
+ * pont), durées, niveau, confirmation, et pour chaque sortie fumée son adresse, son univers et ses
+ * canaux. Une sortie fumée se reconnaît comme dans le contrôleur de lumières : type `smoke` ou
+ * tout canal de rôle `smoke`, quel que soit le type de l'appareil. `enabled` n'en fait pas
+ * partie : c'est justement ce que la garde contrôle.
  */
 function smokeFingerprint(rig: LightingConfig): string {
   const devices = parseRig(rig.fixtures, rig.customProfiles)
-    .fixtures.filter((fixture) => fixture.profile.kind === 'smoke')
+    .fixtures.filter(
+      (fixture) =>
+        fixture.profile.kind === 'smoke' ||
+        fixture.profile.channels.some((channel) => channel.role === 'smoke')
+    )
     .map(({ id, address, universe, profile }) => ({
       id,
       address,
@@ -813,6 +819,8 @@ function smokeFingerprint(rig: LightingConfig): string {
     }))
   return stableStringify({
     driver: rig.driver,
+    artnet: rig.artnet,
+    bridgeUrl: rig.bridgeUrl,
     smoke: { ...rig.smoke, enabled: undefined },
     devices,
   })
@@ -854,10 +862,13 @@ async function refreshSmokeGuard(): Promise<void> {
 /**
  * Résultat d'un test de coupure de la fumée fait sur ce PC (réponse de l'installateur). Réussi :
  * la preuve est écrite pour cette salle et ces réglages ; elle ne s'écrit que pendant un test
- * (config appliquée avec `smokeTest`). Échoué : la preuve existante est effacée. Un test abandonné
- * n'appelle rien.
+ * (config appliquée avec `smokeTest`). Échoué : la preuve existante est effacée (l'assistant
+ * appelle aussi `false` dès qu'un test part, voir `onFreezeTest`). Un test abandonné n'appelle
+ * rien. Rend `true` seulement si la preuve est posée ; `false` si la réponse était négative, si la
+ * config a changé pendant le test, ou si le stockage a refusé l'écriture.
  */
-export function recordSmokeCutoffResult(ok: boolean): void {
+export function recordSmokeCutoffResult(ok: boolean): boolean {
+  let written = false
   try {
     if (!ok) {
       getStorage()?.removeItem(SMOKE_PROOF_STORAGE_KEY)
@@ -866,12 +877,15 @@ export function recordSmokeCutoffResult(ok: boolean): void {
         accountId: binding?.accountId ?? null,
         fingerprint: smokeFingerprint(activeLightingConfig(parsed.value.config)),
       }
-      getStorage()?.setItem(SMOKE_PROOF_STORAGE_KEY, JSON.stringify(proof))
+      const store = getStorage()
+      store?.setItem(SMOKE_PROOF_STORAGE_KEY, JSON.stringify(proof))
+      written = store !== null
     }
   } catch {
     // Stockage indisponible : pas de preuve, la fumée reste refusée.
   }
   syncSmokeNeedsTest()
+  return written
 }
 
 async function applyConfig(

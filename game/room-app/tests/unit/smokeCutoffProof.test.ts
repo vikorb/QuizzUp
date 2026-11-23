@@ -24,6 +24,11 @@ function smokeConfig(smoke: Record<string, unknown> = {}, address = 40) {
   }
 }
 
+/** Même machine, par le pont Art-Net. Adresses de boucle locale seulement : aucune adresse réelle. */
+const bridged = (lighting: Record<string, unknown> = {}) => ({
+  lighting: { ...smokeConfig().lighting, driver: 'artnet-bridge', ...lighting },
+})
+
 const noopSaver = async () => null
 const bindRoom = (accountId: number) =>
   setHardwareRemoteSaver(noopSaver, { accountId, tokenTag: `tag${accountId}` })
@@ -69,7 +74,16 @@ describe('fumée : test de coupure réussi sur ce poste', () => {
     })
 
     it('n’écrit jamais la preuve hors d’un test de coupure', () => {
-      recordSmokeCutoffResult(true)
+      expect(recordSmokeCutoffResult(true)).toBe(false)
+      expect(localStorage.getItem(SMOKE_PROOF_STORAGE_KEY)).toBeNull()
+    })
+
+    it('ne pose pas la preuve quand la config a changé pendant le test', async () => {
+      await saveRoomHardwareConfig(smokeConfig(), { persist: false, smokeTest: true })
+      // Config reçue d'un autre poste pendant le test : la config de test n'est plus appliquée.
+      await applyRemoteHardwareConfig(smokeConfig({ cooldownMs: 40_000 }), 4)
+
+      expect(recordSmokeCutoffResult(true)).toBe(false)
       expect(localStorage.getItem(SMOKE_PROOF_STORAGE_KEY)).toBeNull()
     })
 
@@ -167,6 +181,74 @@ describe('fumée : test de coupure réussi sur ce poste', () => {
       expect(useRoomHardware().smokeNeedsTest.value).toBe(true)
     })
 
+    describe('sortie fumée portée par un profil sur mesure d’un autre type', () => {
+      // Profil « par » dont un canal a le rôle fumée : le contrôleur le traite comme une sortie fumée.
+      const parSmokeProfile = {
+        id: 'par-fumee',
+        name: 'Par fumée',
+        kind: 'par',
+        channels: [{ role: 'smoke', binary: true }],
+      }
+      const withParSmoke = (extra: Record<string, unknown> = {}) => ({
+        lighting: {
+          ...smokeConfig().lighting,
+          customProfiles: [parSmokeProfile],
+          fixtures: [
+            ...smokeConfig().lighting.fixtures,
+            { id: 'par-fumee', name: 'Par fumée', profileId: 'par-fumee', address: 60, ...extra },
+          ],
+        },
+      })
+
+      it('ne vaut plus quand cet appareil est ajouté après le test', async () => {
+        await saveWithSmokeProof(smokeConfig())
+        await startLighting()
+        expect(getLighting()?.getState().smoke.status).toBe('ready')
+
+        await saveRoomHardwareConfig(withParSmoke())
+
+        expect(getLighting()?.getState().smoke.status).toBe('disabled')
+        expect(useRoomHardware().smokeNeedsTest.value).toBe(true)
+      })
+
+      it.each([
+        ['son adresse', { address: 61 }],
+        ['son univers', { universe: 1 }],
+      ])('ne vaut plus quand %s change après le test', async (_label, moved) => {
+        await saveWithSmokeProof(withParSmoke())
+        await startLighting()
+        expect(getLighting()?.getState().smoke.status).toBe('ready')
+
+        await saveRoomHardwareConfig(withParSmoke(moved))
+
+        expect(getLighting()?.getState().smoke.status).toBe('disabled')
+        expect(useRoomHardware().smokeNeedsTest.value).toBe(true)
+      })
+    })
+
+    describe('cible de la sortie Art-Net', () => {
+      it.each([
+        ['le nœud Art-Net', { artnet: { target: '127.0.0.3' } }],
+        ['l’adresse du pont', { bridgeUrl: 'ws://127.0.0.1:9002' }],
+      ])('ne vaut plus quand %s change après le test', async (_label, changed) => {
+        const tested = { artnet: { target: '127.0.0.2' }, bridgeUrl: 'ws://127.0.0.1:9001' }
+        await saveWithSmokeProof(bridged(tested))
+        expect(useRoomHardware().smokeNeedsTest.value).toBe(false)
+
+        await saveRoomHardwareConfig(bridged({ ...tested, ...changed }))
+
+        expect(useRoomHardware().smokeNeedsTest.value).toBe(true)
+      })
+
+      it('vaut encore quand la cible ne change pas', async () => {
+        const tested = { artnet: { target: '127.0.0.2' }, bridgeUrl: 'ws://127.0.0.1:9001' }
+        await saveWithSmokeProof(bridged(tested))
+        await saveRoomHardwareConfig(bridged({ ...tested, refreshHz: 20 }))
+
+        expect(useRoomHardware().smokeNeedsTest.value).toBe(false)
+      })
+    })
+
     it('vaut encore quand seul le reste des lumières change', async () => {
       await saveWithSmokeProof(smokeConfig())
       await startLighting()
@@ -184,11 +266,21 @@ describe('fumée : test de coupure réussi sur ce poste', () => {
   describe('résultat du test de coupure', () => {
     it('réussi : la preuve est écrite sur ce poste', async () => {
       await saveRoomHardwareConfig(smokeConfig(), { persist: false, smokeTest: true })
-      recordSmokeCutoffResult(true)
+      expect(recordSmokeCutoffResult(true)).toBe(true)
 
       expect(JSON.parse(localStorage.getItem(SMOKE_PROOF_STORAGE_KEY) ?? 'null')).toMatchObject({
         accountId: null,
       })
+    })
+
+    it('réussi sur un poste sans compte : la preuve ne vaut pas pour une salle connectée', async () => {
+      await saveWithSmokeProof(smokeConfig())
+
+      bindRoom(7)
+      await flushPromises()
+
+      expect((await startLighting()).getState().smoke.status).toBe('disabled')
+      expect(useRoomHardware().smokeNeedsTest.value).toBe(true)
     })
 
     it('échoué : pas de preuve, et une preuve précédente est effacée', async () => {
@@ -197,7 +289,7 @@ describe('fumée : test de coupure réussi sur ce poste', () => {
       expect(localStorage.getItem(SMOKE_PROOF_STORAGE_KEY)).not.toBeNull()
 
       await saveRoomHardwareConfig(smokeConfig(), { persist: false, smokeTest: true })
-      recordSmokeCutoffResult(false)
+      expect(recordSmokeCutoffResult(false)).toBe(false)
       await saveRoomHardwareConfig(smokeConfig())
 
       expect(localStorage.getItem(SMOKE_PROOF_STORAGE_KEY)).toBeNull()
@@ -217,7 +309,7 @@ describe('fumée : test de coupure réussi sur ce poste', () => {
       vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
         throw new Error('quota')
       })
-      recordSmokeCutoffResult(true)
+      expect(recordSmokeCutoffResult(true)).toBe(false)
       vi.restoreAllMocks()
 
       await saveRoomHardwareConfig(smokeConfig())
