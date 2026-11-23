@@ -4503,7 +4503,10 @@ components:
       properties:
         timezone:
           type: string
-          description: Fuseau IANA valide. Défaut proposé `Europe/Paris`.
+          description: >-
+            Fuseau IANA (`Europe/Paris`, `UTC`). Les décalages fixes (`+01:00`) et les abréviations sans `/` (`EST`,
+            `CET`) sont refusés (`schedule_timezone_invalid`). Le nom est stocké normalisé (`europe/paris` devient
+            `Europe/Paris`). Défaut proposé `Europe/Paris`.
           example: Europe/Paris
         slotMinutes:
           type: integer

@@ -11,8 +11,9 @@ import {
 import companyRoomsRoutes from '@backend/routes/companies/rooms'
 import companyRoomIdRoutes from '@backend/routes/companies/rooms/id'
 import companyRoomIdScheduleRoutes from '@backend/routes/companies/rooms/idSchedule'
-import { dbState, MOCK_NOW, resetDb } from '../../_helpers/mockDb'
-import { securityState } from '../../_helpers/mockSecurity'
+import { API_ACTION, API_RESOURCE } from '@backend/security/permissions'
+import { db, dbState, MOCK_NOW, resetDb } from '../../_helpers/mockDb'
+import { requireApiPermissionMock, securityState } from '../../_helpers/mockSecurity'
 import { resetRouteMocksBeforeEach } from '../../_helpers/resetRouteMocks'
 import {
   authHeaders,
@@ -208,6 +209,12 @@ describe('PUT /companies/:companyId/rooms/:roomId/schedule', () => {
       )
 
       expect(response.statusCode).toBe(403)
+      expect(requireApiPermissionMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        API_RESOURCE.ROOM,
+        API_ACTION.UPDATE
+      )
       expect(dbState.rooms[0]!.schedule).toBeNull()
 
       await app.close()
@@ -266,6 +273,25 @@ describe('PUT /companies/:companyId/rooms/:roomId/schedule', () => {
       await app.close()
     })
 
+    it('answers 404 and writes nothing when the room is deleted between the read and the write', async () => {
+      resetDb({ rooms: [room()] })
+      const app = await scheduleApp()
+      // `db.fn.now()` est appelé en construisant l'UPDATE, après la lecture de la salle.
+      db.fn.now.mockImplementationOnce(() => {
+        dbState.rooms[0]!.status = ROOM_STATUS_DELETED
+
+        return MOCK_NOW
+      })
+
+      const response = await putSchedule(app, { schedule: SCHEDULE })
+
+      expect(response.statusCode).toBe(404)
+      expect(parseJson<ErrorBody>(response).error).toBe('not_found')
+      expect(dbState.rooms[0]!.schedule).toBeNull()
+
+      await app.close()
+    })
+
     it('answers 409 company_deleted for a room of a deleted company', async () => {
       resetDb({ rooms: [room()] })
       dbState.companies[0]!.status = COMPANY_STATUS_DELETED
@@ -292,6 +318,16 @@ describe('PUT /companies/:companyId/rooms/:roomId/schedule', () => {
         { schedule: { ...SCHEDULE, timezone: '' } },
         'schedule_timezone_invalid',
       ],
+      [
+        'a fixed offset as time zone',
+        { schedule: { ...SCHEDULE, timezone: '+01:00' } },
+        'schedule_timezone_invalid',
+      ],
+      [
+        'a time zone abbreviation',
+        { schedule: { ...SCHEDULE, timezone: 'EST' } },
+        'schedule_timezone_invalid',
+      ],
       ['a missing schedule key', {}],
       ['an undefined schedule', { schedule: undefined }],
       ['a slot shorter than the minimum', { schedule: { ...SCHEDULE, slotMinutes: 9 } }],
@@ -306,6 +342,22 @@ describe('PUT /companies/:companyId/rooms/:roomId/schedule', () => {
       [
         'a time that is not HH:MM',
         withDays({ '1': { opensAt: '24:00', closesAt: '22:00' } }),
+        'schedule_time_invalid',
+      ],
+      // Zod 4 enchaîne les `refine` malgré l'échec du `regex` : jamais de 500 sur ces cas.
+      [
+        'a malformed first session time',
+        withDays({ '1': { ...open, firstSessionAt: '9:00' } }),
+        'schedule_time_invalid',
+      ],
+      [
+        'an opening time out of range next to a first session',
+        withDays({ '1': { opensAt: '24:00', closesAt: '22:00', firstSessionAt: '10:00' } }),
+        'schedule_time_invalid',
+      ],
+      [
+        'a malformed closing time followed by another day',
+        withDays({ '1': { opensAt: '10:00', closesAt: '2:00' }, '2': open }),
         'schedule_time_invalid',
       ],
       ['a day without closing time', withDays({ '1': { opensAt: '10:00' } })],
@@ -351,6 +403,23 @@ describe('PUT /companies/:companyId/rooms/:roomId/schedule', () => {
       }
 
       expect(dbState.rooms[0]!.schedule).toBeNull()
+
+      await app.close()
+    })
+
+    it.each([
+      ['UTC', 'UTC'],
+      ['Europe/Paris', 'Europe/Paris'],
+      ['europe/paris', 'Europe/Paris'],
+    ])('stores the time zone %s as %s', async (sent, stored) => {
+      resetDb({ rooms: [room()] })
+      const app = await scheduleApp()
+
+      const response = await putSchedule(app, { schedule: { ...SCHEDULE, timezone: sent } })
+
+      expect(response.statusCode).toBe(200)
+      expect(dbState.rooms[0]!.schedule).toMatchObject({ timezone: stored })
+      expect(parseJson<RoomBody>(response).room.schedule).toMatchObject({ timezone: stored })
 
       await app.close()
     })

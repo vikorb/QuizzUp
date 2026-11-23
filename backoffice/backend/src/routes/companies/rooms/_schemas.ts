@@ -85,16 +85,34 @@ export const createRoomAccountSchema = z.object({
 
 const DAY_MINUTES = 1440
 
-const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'schedule_time_invalid')
+const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
 
-/** Fuseau IANA valide : `Intl` lève une `RangeError` pour un nom inconnu. */
-function isValidTimeZone(timeZone: string): boolean {
+const timeSchema = z.string().regex(TIME_PATTERN, 'schedule_time_invalid')
+
+/**
+ * Avec Zod 4, un `regex` en échec n'arrête pas les `refine` du parent : ils ne convertissent que
+ * des heures valides (l'erreur `schedule_time_invalid` du champ suffit sinon).
+ */
+function hasValidTimes({ opensAt, closesAt, firstSessionAt }: RoomScheduleDay): boolean {
+  return [opensAt, closesAt, firstSessionAt].every(
+    (time) => time === undefined || TIME_PATTERN.test(time)
+  )
+}
+
+/**
+ * Nom IANA normalisé par `Intl` (`europe/paris` → `Europe/Paris`), `null` s'il est refusé. `Intl`
+ * lève une `RangeError` pour un nom inconnu mais accepte les décalages fixes (`+01:00`) et les
+ * abréviations (`EST`, `CET`) : ils sont refusés ici, seul `UTC` est admis sans `/`.
+ */
+function canonicalTimeZone(timeZone: string): string | null {
+  if (/^[+-]/.test(timeZone) || (!timeZone.includes('/') && timeZone.toUpperCase() !== 'UTC')) {
+    return null
+  }
+
   try {
-    new Intl.DateTimeFormat('en', { timeZone })
-
-    return true
+    return new Intl.DateTimeFormat('en', { timeZone }).resolvedOptions().timeZone
   } catch {
-    return false
+    return null
   }
 }
 
@@ -113,7 +131,7 @@ const roomScheduleDaySchema = z
   })
   .refine(
     (day) => {
-      if (day.firstSessionAt === undefined) {
+      if (day.firstSessionAt === undefined || !hasValidTimes(day)) {
         return true
       }
 
@@ -136,13 +154,25 @@ function hasOverlappingDays(days: Partial<Record<RoomScheduleDayKey, RoomSchedul
     return (
       day !== undefined &&
       next !== undefined &&
+      hasValidTimes(day) &&
+      hasValidTimes(next) &&
       closingMinutes(day) > DAY_MINUTES + timeToMinutes(next.opensAt)
     )
   })
 }
 
 export const roomScheduleSchema = z.object({
-  timezone: z.string().refine(isValidTimeZone, { message: 'schedule_timezone_invalid' }),
+  timezone: z.string().transform((timeZone, ctx) => {
+    const canonical = canonicalTimeZone(timeZone)
+
+    if (canonical === null) {
+      ctx.issues.push({ code: 'custom', message: 'schedule_timezone_invalid', input: timeZone })
+
+      return z.NEVER
+    }
+
+    return canonical
+  }),
   slotMinutes: z.number().int().min(SESSION_MIN_MINUTES).max(SESSION_MAX_MINUTES),
   breakMinutes: z.number().int().min(0).max(SESSION_MAX_BREAK_MINUTES).default(0),
   bookableDesks: z.number().int().min(ROOM_MIN_DESKS).max(GAME_PODIUMS),

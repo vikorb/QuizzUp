@@ -55,10 +55,18 @@ const companyRoomIdScheduleRoutes: FastifyPluginAsync = async (app) => {
 
       const updated = await db('rooms')
         .where('id', roomId)
+        .where('company_id', companyId)
+        .whereNot('status', ROOM_STATUS_DELETED)
         .update({ schedule: parsedBody.data.schedule, updated_at: db.fn.now() })
         .returning(roomSelect)
+      const updatedRoom = Array.isArray(updated) ? updated[0] : updated
 
-      return { room: (Array.isArray(updated) ? updated[0] : updated) as RoomRow }
+      // Salle supprimée entre la lecture et l'écriture.
+      if (!updatedRoom) {
+        return reply.code(404).send({ error: 'not_found' })
+      }
+
+      return { room: updatedRoom as RoomRow }
     }
   )
 }
