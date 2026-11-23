@@ -81,7 +81,7 @@
           <UiButton
             v-if="isRunning && savedGame"
             variant="primary"
-            class="staff-lobby__start"
+            size="lg"
             :disabled="starting"
             data-test="resume-game"
             @click="onResume"
@@ -91,7 +91,7 @@
           </UiButton>
           <UiButton
             :variant="isRunning && savedGame ? 'default' : 'primary'"
-            class="staff-lobby__start"
+            size="lg"
             :disabled="starting"
             data-test="start-game"
             @click="onStart"
@@ -437,7 +437,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 14px;
   padding: 18px;
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   border: 1px solid var(--border-ui);
   background: var(--bg-card);
   text-align: left;
@@ -496,7 +496,7 @@ onBeforeUnmount(() => {
 .staff-lobby__notice {
   margin: 0;
   padding: 8px 16px;
-  border-radius: 12px;
+  border-radius: var(--radius-ctl);
   border: 1px solid var(--warn);
   background: var(--warn-bg);
   color: var(--warn);
@@ -513,11 +513,5 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   justify-content: center;
   gap: 16px;
-}
-
-.staff-lobby__start {
-  padding: 18px 38px;
-  border-radius: 18px;
-  font-size: clamp(18px, 1.8vw, 26px);
 }
 </style>

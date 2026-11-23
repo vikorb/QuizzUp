@@ -64,6 +64,7 @@ describe('utils/game/ranking', () => {
           email: 'two@quizzup.test',
           hasEmail: true,
           consentAt: null,
+          marketingConsent: false,
         },
       }),
     ])

@@ -45,9 +45,11 @@ export const participantSelect = [
   'display_name as displayName',
   'email',
   'consent_at as consentAt',
+  'marketing_consent_at as marketingConsentAt',
   'second_display_name as secondDisplayName',
   'second_email as secondEmail',
   'second_consent_at as secondConsentAt',
+  'second_marketing_consent_at as secondMarketingConsentAt',
   'score',
 ]
 
@@ -57,9 +59,11 @@ type ParticipantDbRow = {
   displayName: string
   email: string | null
   consentAt: string | null
+  marketingConsentAt?: string | null
   secondDisplayName: string | null
   secondEmail: string | null
   secondConsentAt: string | null
+  secondMarketingConsentAt?: string | null
   score: number | string
 }
 
@@ -189,12 +193,14 @@ export async function findGameParticipants(gameId: number): Promise<GameParticip
     email: participant.email ?? null,
     hasEmail: Boolean(participant.email),
     consentAt: participant.consentAt ?? null,
+    marketingConsent: Boolean(participant.marketingConsentAt),
     secondPlayer: participant.secondDisplayName
       ? {
           displayName: participant.secondDisplayName,
           email: participant.secondEmail ?? null,
           hasEmail: Boolean(participant.secondEmail),
           consentAt: participant.secondConsentAt ?? null,
+          marketingConsent: Boolean(participant.secondMarketingConsentAt),
         }
       : null,
     score: Number(participant.score),

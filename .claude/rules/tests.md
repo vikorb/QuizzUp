@@ -28,6 +28,9 @@ régresser. Un changement sans test n'est pas fini.
 - **Seuils de couverture** (lignes / fonctions / branches / instructions) : `game/engine`,
   `game/hardware`, `game/artnet-bridge` 90 / 90 / 85 / 90 ; `game/room-app` 80 / 80 / 75 / 80.
 - **PostgreSQL réel** : les tests `*.pg.test.ts` tournent en CI (job migrations) et seulement sur
-  une base dont le nom finit par `_test`.
+  une base dont le nom finit par `_test`. La CI les prend par motif (`.pg.test.ts`) et les lance l'un
+  après l'autre sur **une seule base partagée**, dans un ordre non garanti : chaque fichier prépare
+  ses propres données (`TRUNCATE <ses tables>, admins, companies RESTART IDENTITY CASCADE` en
+  `beforeEach` s'il insère sans identifiant explicite) et laisse la base migrée au dernier niveau.
 - **Bout en bout** : toute fonctionnalité qui traverse backoffice et écran de salle (lancement,
   commande à distance, inscription, fin de partie) a un scénario Playwright.

@@ -71,6 +71,15 @@ describe('LoginView', () => {
     wrapper.unmount()
   })
 
+  it('n’a qu’un bouton principal : l’envoi du formulaire', async () => {
+    const { wrapper } = await mountWithApp(LoginView, { route: '/login' })
+
+    const primaries = wrapper.findAll('.ui-btn--primary')
+    expect(primaries).toHaveLength(1)
+    expect(primaries[0]!.attributes('type')).toBe('submit')
+    wrapper.unmount()
+  })
+
   it('ouvre le mode démo sans compte', async () => {
     const { wrapper, router } = await mountWithApp(LoginView, { route: '/login' })
 
