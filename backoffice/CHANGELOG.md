@@ -12,6 +12,11 @@ Format inspiré de Keep a Changelog.
   US: US-SESSION-00 (#142)
 - Calcul pur des créneaux d'une salle (`computeRoomSlots`, `zonedLocalToUtc`) dans `@quizzup/shared`, avec gestion des changements d'heure.
   US: US-SESSION-00 (#142)
+- Guides pour les centres (`docs/guides/`) : installation d'une salle, utilisation quotidienne,
+  dépannage, migration d'une salle existante, sécurité de la fumée et des lumières. Les libellés
+  cités sont ceux des écrans ; chaque point qui n'a pas été essayé sur du vrai matériel porte la
+  mention « À vérifier sur le banc ».
+  US: US-DOC-01
 - Socle des routes publiques : limiteur de débit en mémoire (connexion du personnel et des salles : 429 `too_many_requests` avec `Retry-After`), `TRUST_PROXY` (liste d'adresses ou de plages, jamais `true`), ressources de permissions `player`, `voucher`, `stats` et `roomLog`. Connexion : 10 échecs par couple adresse/identifiant et 100 tentatives par adresse en 15 minutes ; adresses IPv6 comptées par bloc /64 ; un compte inconnu passe par un `bcrypt.compare` factice ; `TRUST_PROXY` refuse les plages plus larges que /8 (IPv4) ou /16 (IPv6) et les adresses à zone.
   US: US-PUBLIC-00 (#141)
 - Préfixe `/public/v1` sans authentification : erreurs au format public, CORS piloté par `VITRINE_ORIGINS`, limite de débit par adresse, réponses `no-store`. Aucune route métier pour l'instant.
