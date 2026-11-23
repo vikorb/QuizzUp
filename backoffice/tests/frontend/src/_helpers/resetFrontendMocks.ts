@@ -8,6 +8,7 @@ import { resetCompanyDetailFormMock } from './companyDetailFormMock'
 import { resetCompanyLogoServiceMock } from './companyLogoServiceMock'
 import { resetConfirmMock } from './confirmMock'
 import { resetLiveCompanyMock } from './liveCompanyMock'
+import { resetQuestionImportServiceMock } from './questionImportServiceMock'
 import { resetQuestionMediaServiceMock } from './questionMediaServiceMock'
 import { resetQuestionsServiceMock } from './questionsServiceMock'
 import { resetRoomsServiceMock } from './roomsServiceMock'
@@ -28,6 +29,7 @@ export function resetFrontendMocksBeforeEach(): void {
     resetCompanyLogoServiceMock()
     resetThemesServiceMock()
     resetQuestionsServiceMock()
+    resetQuestionImportServiceMock()
     resetQuestionMediaServiceMock()
     resetRouterMock()
     resetRouterUtilsMock()

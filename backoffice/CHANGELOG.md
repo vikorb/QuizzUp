@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Écran d'import de questions par fichier CSV, accessible depuis la liste des questions (admin et superadmin) : modèle téléchargeable, vérification à blanc avec rapport par ligne, import confirmé seulement si la vérification ne trouve aucune erreur.
+  US: US-IMPORT-01 (#158)
+
 - Logo du centre : envoi, remplacement et retrait depuis la fiche de la compagnie (`PUT` et `DELETE /companies/:companyId/logo`, PNG, JPEG ou WebP, 512 Ko au plus, type vérifié sur les premiers octets, SVG refusé). Le logo est servi par `GET /public/v1/logos/:file` et exposé par `logoUrl` dans `/room/me` et les routes des compagnies.
   US: US-RESULTS-01 (#156)
 - Réglages de créneaux d'une salle : `PUT /companies/:companyId/rooms/:roomId/schedule` (admin et superadmin) écrit `rooms.schedule` (fuseau, durée de créneau, pause, pupitres réservables, heures d'ouverture par jour). `null` remet la salle sans créneaux. Le champ `schedule` est renvoyé par les routes des salles et par `/room/me`.
@@ -332,6 +335,9 @@ Format inspiré de Keep a Changelog.
   US: us-front-design-01
 
 ### Fixed
+
+- Import CSV : le message d'erreur sur la colonne des bonnes réponses était tronqué, le caractère `|` étant lu comme un séparateur de pluriel par la traduction.
+  US: US-IMPORT-01 (#158)
 
 - Sécurité : la mise en pause d'une partie coupe aussitôt tout jet de fumée en cours (trame à 0 envoyée tout de suite) et refuse tout nouveau jet pendant la pause, y compris l'étape fumée d'une scène déjà lancée, le test manuel et le test de gel. Les lumières continuent ; l'étape fumée manquée n'est pas rejouée à la reprise. L'arrêt d'une partie ramène toujours les lumières au repos. Non validé sur du vrai matériel (banc, cas F8).
 - Sécurité (photosensibilité) : dans toute la salle, deux éclairs des scènes lumière sont séparés d'au moins 0,4 s, mesuré sur le niveau réellement émis. Les cadences par défaut sont ralenties (buzz, bonne et mauvaise réponses, victoires, début de partie, nouvelle manche, fin de manche) et un éclair trop rapproché est retardé, y compris à la jonction de deux scènes. Non couverts, traités dans un lot à part : appareils à stroboscope intégré (`shutter`, canaux `fixed`), diagnostics, stroboscopes pilotés par une liste. Non validé sur du vrai matériel.
