@@ -11,6 +11,7 @@ import {
   GAME_STATUS_ACTIVE,
   ROOM_STATUS_ACTIVE,
   ROOM_STATUS_DELETED,
+  type RoomSchedule,
 } from '@quizzup/shared'
 import roomRoutes from '@backend/routes/room'
 import { db, dbState, MOCK_NOW } from './_helpers/mockDb'
@@ -34,6 +35,16 @@ const roomUser = {
   sid: 'sid-room',
 } as TestUser
 
+const SCHEDULE: RoomSchedule = {
+  timezone: 'Europe/Paris',
+  slotMinutes: 60,
+  breakMinutes: 15,
+  bookableDesks: 4,
+  publicBooking: true,
+  days: { '1': { opensAt: '10:00', closesAt: '22:00' } },
+}
+
+/** Le `mockDb` n'applique pas les défauts de la base : `schedule` est posé explicitement. */
 function seedRoom(overrides: Record<string, unknown> = {}) {
   dbState.rooms.push({
     id: 1,
@@ -41,6 +52,7 @@ function seedRoom(overrides: Record<string, unknown> = {}) {
     name: 'Salle Néon',
     config: { buzzers: { podiums: 4 } },
     config_revision: 0,
+    schedule: null,
     status: ROOM_STATUS_ACTIVE,
     created_at: '2026-11-01T00:00:00.000Z',
     updated_at: null,
@@ -65,6 +77,28 @@ describe('routes/room.ts (US-ROOM-02)', () => {
       room: { id: 1, name: 'Salle Néon', config: { buzzers: { podiums: 4 } } },
       company: { id: 1, name: 'QuizzUp' },
     })
+
+    await app.close()
+  })
+
+  it('returns the schedule settings of the room, null when there are none', async () => {
+    seedRoom({ schedule: SCHEDULE })
+    seedRoom({ id: 2, schedule: null })
+    const app = await createRouteApp(roomRoutes)
+
+    const withSchedule = await app.inject({
+      method: 'GET',
+      url: '/room/me',
+      headers: authHeaders(roomUser),
+    })
+    const withoutSchedule = await app.inject({
+      method: 'GET',
+      url: '/room/me',
+      headers: authHeaders({ ...roomUser, room_id: 2 } as TestUser),
+    })
+
+    expect(parseJson<{ room: { schedule: unknown } }>(withSchedule).room.schedule).toEqual(SCHEDULE)
+    expect(parseJson<{ room: { schedule: unknown } }>(withoutSchedule).room.schedule).toBeNull()
 
     await app.close()
   })
@@ -415,6 +449,24 @@ describe('routes/room.ts — hardware config', () => {
     expect(saved.statusCode).toBe(200)
     expect(parseJson<{ room: { config: unknown } }>(saved).room.config).toEqual(config)
     expect(parseJson<{ room: { config: unknown } }>(me).room.config).toEqual(config)
+
+    await app.close()
+  })
+
+  it('returns the schedule in the answer of PUT /room/config and leaves it untouched', async () => {
+    seedRoom({ schedule: SCHEDULE })
+    const app = await createRouteApp(roomRoutes)
+
+    const saved = await app.inject({
+      method: 'PUT',
+      url: '/room/config',
+      headers: authHeaders(roomUser),
+      payload: { config: { desksCount: 3 } },
+    })
+
+    expect(saved.statusCode).toBe(200)
+    expect(parseJson<{ room: { schedule: unknown } }>(saved).room.schedule).toEqual(SCHEDULE)
+    expect(dbState.rooms[0]!.schedule).toEqual(SCHEDULE)
 
     await app.close()
   })
