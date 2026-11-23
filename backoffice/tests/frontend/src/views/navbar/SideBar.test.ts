@@ -1,6 +1,7 @@
 import {
   setAuthenticatedAdmin,
   setAuthenticatedSuperadmin,
+  setAuthenticatedUser,
   setUnauthenticated,
 } from '@frontend-tests/_helpers/authStateMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
@@ -66,6 +67,23 @@ describe('views/navbar/SideBar.vue', () => {
     )
     expect(items).not.toEqual(
       expect.arrayContaining([{ to: '/clients', labelKey: 'navbar.clients' }])
+    )
+  })
+
+  it('hides the statistics entry from the staff, who are not allowed to read them', () => {
+    setAuthenticatedUser({ companyId: 42 })
+
+    const items = getNavItems(mountWithFrontendMocks(SideBar))
+
+    expect(items).toEqual(expect.arrayContaining([{ to: '/games', labelKey: 'navbar.games' }]))
+    expect(items.map((item) => item.to)).not.toContain('/stats')
+  })
+
+  it('shows the statistics entry to superadmins', () => {
+    setAuthenticatedSuperadmin()
+
+    expect(getNavItems(mountWithFrontendMocks(SideBar))).toEqual(
+      expect.arrayContaining([{ to: '/stats', labelKey: 'navbar.statistics' }])
     )
   })
 

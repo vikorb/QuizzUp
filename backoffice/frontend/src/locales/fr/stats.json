@@ -1,0 +1,60 @@
+{
+  "stats": {
+    "title": "Statistiques",
+    "subtitle": "Activité des salles sur une période",
+    "defaultPeriod": "Sans dates choisies : les {days} derniers jours.",
+    "loading": "Chargement des statistiques...",
+    "empty": "Aucune session terminée ou arrêtée sur cette période.",
+    "retry": "Réessayer",
+    "filters": {
+      "title": "Filtres",
+      "company": "Compagnie",
+      "room": "Salle",
+      "allRooms": "Toutes les salles",
+      "from": "Du",
+      "to": "Au"
+    },
+    "summary": {
+      "title": "Synthèse de la période"
+    },
+    "bars": {
+      "finished": "Sessions terminées",
+      "finishedHint": "{percent} % des sessions",
+      "aborted": "Sessions arrêtées",
+      "abortedHint": "{percent} % d'abandon",
+      "withEmail": "Joueurs avec e-mail",
+      "withEmailHint": "{percent} % des joueurs",
+      "withMarketingConsent": "Offres acceptées",
+      "withMarketingConsentHint": "{percent} % des joueurs",
+      "returning": "Joueurs fidèles",
+      "returningHint": "{percent} % des e-mails"
+    },
+    "figures": {
+      "medianDuration": "Durée médiane d'une session",
+      "players": "Joueurs accueillis",
+      "averagePerSession": "Joueurs par session"
+    },
+    "rooms": {
+      "title": "Sessions par salle",
+      "columns": {
+        "room": "Salle",
+        "finished": "Terminées",
+        "aborted": "Arrêtées"
+      }
+    },
+    "slots": {
+      "title": "Créneaux les plus chargés",
+      "label": "{day}, de {from} h à {to} h"
+    },
+    "errors": {
+      "unauthorized": "Vous devez être connecté pour consulter les statistiques.",
+      "forbidden": "Vous n'avez pas les droits nécessaires pour consulter les statistiques.",
+      "apiUnreachable": "API injoignable.",
+      "invalidJson": "La réponse du serveur est illisible.",
+      "invalidParams": "Paramètres invalides.",
+      "statsPeriodInvalid": "La période choisie est invalide : le début doit précéder la fin, sur {days} jours au plus.",
+      "statsTimezoneInvalid": "Le fuseau horaire de votre navigateur n'est pas reconnu par le serveur.",
+      "serverError": "Erreur serveur."
+    }
+  }
+}

@@ -43,7 +43,7 @@ import {
   mdiPaletteOutline,
   mdiPlayCircleOutline,
 } from '@mdi/js'
-import { ADMIN_ROLE_SUPERADMIN } from '@quizzup/shared'
+import { ADMIN_ROLE_ADMIN, ADMIN_ROLE_SUPERADMIN } from '@quizzup/shared'
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 
@@ -122,15 +122,24 @@ const navManage = computed(() => {
   return [...base]
 })
 
-const navPlay = [
+// Les statistiques sont réservées à l'admin et au superadmin (matrice de permissions du backend).
+const canSeeStats = computed(
+  () => me.value?.role === ADMIN_ROLE_SUPERADMIN || me.value?.role === ADMIN_ROLE_ADMIN
+)
+
+const navPlay = computed(() => [
   { to: '/games', icon: mdiPlayCircleOutline, iconType: 'mdi' as const, labelKey: 'navbar.games' },
-  {
-    to: '/stats',
-    icon: mdiChartTimelineVariant,
-    iconType: 'mdi' as const,
-    labelKey: 'navbar.statistics',
-  },
-]
+  ...(canSeeStats.value
+    ? [
+        {
+          to: '/stats',
+          icon: mdiChartTimelineVariant,
+          iconType: 'mdi' as const,
+          labelKey: 'navbar.statistics',
+        },
+      ]
+    : []),
+])
 </script>
 
 <style scoped>
