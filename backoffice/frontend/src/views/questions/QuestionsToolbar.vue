@@ -10,6 +10,18 @@
     @reset="resetFilters"
     @primary="handleCreateQuestion"
   >
+    <template #actions>
+      <UiButton
+        v-if="canCreate"
+        type="button"
+        class="questions-toolbar__import"
+        @click="handleImport"
+      >
+        <MdIcon :path="mdiFileUploadOutline" :size="18" />
+        {{ $t('questionImport.open') }}
+      </UiButton>
+    </template>
+
     <div class="questions-toolbar__filters">
       <FormField
         id="questions-search"
@@ -59,7 +71,7 @@
 </template>
 
 <script setup lang="ts">
-import { mdiPlus, mdiRefresh } from '@mdi/js'
+import { mdiFileUploadOutline, mdiPlus, mdiRefresh } from '@mdi/js'
 import {
   QUESTION_STATUS_ACTIVE,
   QUESTION_STATUS_DELETED,
@@ -75,6 +87,8 @@ import { useRouter } from 'vue-router'
 import BaseToolBar, { type ActiveFilter } from '@/components/ui/BaseToolBar.vue'
 import FormField from '@/components/ui/form/FormField.vue'
 import SelectField from '@/components/ui/form/SelectField.vue'
+import MdIcon from '@/components/ui/MdIcon.vue'
+import UiButton from '@/components/ui/UiButton.vue'
 import { me } from '@/state/authState'
 import type { SelectFieldOption } from '@/types/form'
 import type { Theme } from '@/types/question'
@@ -269,6 +283,10 @@ function resetFilters(): void {
 
 function handleCreateQuestion(): void {
   void router.push({ name: 'questions-create' })
+}
+
+function handleImport(): void {
+  void router.push({ name: 'questions-import' })
 }
 </script>
 

@@ -9,10 +9,23 @@ export const roomSelect = [
   'name',
   'config',
   'config_revision as configRevision',
+  'schedule',
   'status',
   'created_at as createdAt',
   'updated_at as updatedAt',
   'deleted_at as deletedAt',
+]
+
+export const roomLogSelect = [
+  'id',
+  'level',
+  'code',
+  'message',
+  'context',
+  'app_version as appVersion',
+  'occurrences',
+  'occurred_at as occurredAt',
+  'created_at as createdAt',
 ]
 
 export async function findRoomInCompany(

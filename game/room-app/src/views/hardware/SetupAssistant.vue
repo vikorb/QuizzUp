@@ -593,6 +593,14 @@
           )
         }}
       </p>
+      <p
+        v-if="proofNotRecorded"
+        class="hw-alert hw-alert--danger"
+        role="alert"
+        data-test="freeze-proof-missing"
+      >
+        {{ $t('hardware.assistant.smoke.proofNotRecorded') }}
+      </p>
     </div>
 
     <!-- 8. Récapitulatif -->
@@ -710,6 +718,7 @@ import {
   connectDmxInterface,
   getLighting,
   pollArtnetNodes,
+  recordSmokeCutoffResult,
   saveArtnetTarget,
   saveBuzzerSource,
   saveRoomHardwareConfig,
@@ -791,6 +800,8 @@ const connectError = ref<SerialErrorDescription | null>(null)
 const freezeStage = ref<'idle' | 'running' | 'question'>('idle')
 let freezeTimer: ReturnType<typeof setTimeout> | null = null
 const freezeFailed = ref(false)
+// Réponse « elle s'est arrêtée », mais la preuve locale n'a pas pu être posée : test à refaire.
+const proofNotRecorded = ref(false)
 // L'échec concernait le test de perte de signal (la case est ensuite décochée).
 const freezeFailedSignal = ref(false)
 const saving = ref(false)
@@ -908,6 +919,7 @@ async function apply(options: { forFreezeTest?: boolean } = {}): Promise<void> {
   // enregistrée : un rechargement de page repart de la dernière config sûre.
   await saveRoomHardwareConfig(wizard.summary(options).config, {
     persist: !savedForFreezeTest,
+    smokeTest: savedForFreezeTest,
   })
   await startLighting()
 }
@@ -1249,10 +1261,14 @@ function onCheck(check: SmokeCheckId, event: Event): void {
 
 async function onFreezeTest(): Promise<void> {
   freezeFailed.value = false
+  proofNotRecorded.value = false
   await apply({ forFreezeTest: true })
   if (!(await runFreezeTest())) {
     return
   }
+  // Le test part vraiment : l'ancienne preuve ne couvre plus rien. Seule la réponse « elle s'est
+  // arrêtée » en pose une nouvelle ; une page rechargée sans réponse repart sans preuve.
+  recordSmokeCutoffResult(false)
   freezeStage.value = 'running'
   freezeTimer = setTimeout(() => {
     freezeTimer = null
@@ -1267,6 +1283,11 @@ function onFreezeAnswer(ok: boolean): void {
   }
   freezeStage.value = 'idle'
   freezeFailed.value = !ok
+  // Preuve locale : écrite par une réponse « elle s'est arrêtée » seulement, effacée par l'autre.
+  // Réponse « oui » sans preuve posée (config changée pendant le test, stockage refusé) : le test
+  // n'est pas validé et l'installateur le voit.
+  const recorded = recordSmokeCutoffResult(ok)
+  proofNotRecorded.value = ok && !recorded
   if (!ok) {
     // La fumée continue : on coupe tout, sans attendre la fin du gel.
     triggerEmergencyStop('freeze_test_failed')
@@ -1280,7 +1301,7 @@ function onFreezeAnswer(ok: boolean): void {
   // Fin du test : on remet tout de suite la config sûre (fumée active seulement si les quatre
   // vérifications sont faites), en mémoire comme dans l'enregistrement.
   void apply()
-  run(() => wizard.checkSmoke('freezeTest', ok))
+  run(() => wizard.checkSmoke('freezeTest', ok && recorded))
 }
 
 /** Les tests ont besoin des appareils dans le contrôleur et du mode diagnostic. */

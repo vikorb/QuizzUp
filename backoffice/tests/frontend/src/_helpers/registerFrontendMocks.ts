@@ -55,6 +55,7 @@ vi.mock('@/utils/auth', async () => {
     resetTotpApi: authApi.resetTotpApiMock,
     loginReasonToI18nKey: authApi.loginReasonToI18nKeyMock,
     setToken: authApi.setTokenMock,
+    getApiBase: () => 'http://api.test',
   }
 })
 
@@ -95,6 +96,7 @@ vi.mock('@/services/roomsService', async () => {
     updateCompanyRoomService: roomsService.updateCompanyRoomServiceMock,
     updateRoomStatusService: roomsService.updateRoomStatusServiceMock,
     deleteRoomService: roomsService.deleteRoomServiceMock,
+    updateRoomScheduleService: roomsService.updateRoomScheduleServiceMock,
     loadRoomAccountService: roomsService.loadRoomAccountServiceMock,
     createRoomAccountService: roomsService.createRoomAccountServiceMock,
     deleteRoomAccountService: roomsService.deleteRoomAccountServiceMock,
@@ -110,6 +112,15 @@ vi.mock('@/services/companiesService', async () => {
     createCompany: companiesService.createCompanyMock,
     updateCompanyStatusService: companiesService.updateCompanyStatusServiceMock,
     deleteCompanyPermanentlyService: companiesService.deleteCompanyPermanentlyServiceMock,
+  }
+})
+
+vi.mock('@/services/companyLogoService', async () => {
+  const companyLogoService = await import('./companyLogoServiceMock')
+
+  return {
+    uploadCompanyLogoService: companyLogoService.uploadCompanyLogoServiceMock,
+    deleteCompanyLogoService: companyLogoService.deleteCompanyLogoServiceMock,
   }
 })
 
@@ -144,6 +155,14 @@ vi.mock('@/services/questionsService', async () => {
     updateQuestionStatusService: questionsService.updateQuestionStatusServiceMock,
     attachQuestionToThemeService: questionsService.attachQuestionToThemeServiceMock,
     detachQuestionFromThemeService: questionsService.detachQuestionFromThemeServiceMock,
+  }
+})
+
+vi.mock('@/services/questionImportService', async () => {
+  const questionImportService = await import('./questionImportServiceMock')
+
+  return {
+    importQuestionsService: questionImportService.importQuestionsServiceMock,
   }
 })
 

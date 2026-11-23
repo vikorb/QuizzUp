@@ -38,6 +38,7 @@ type DbState = {
   rooms: Row[]
   games: Row[]
   game_participants: Row[]
+  room_logs: Row[]
   demo_requests: Row[]
 }
 
@@ -61,6 +62,7 @@ export const dbState: DbState = {
   rooms: [],
   games: [],
   game_participants: [],
+  room_logs: [],
   demo_requests: [],
 }
 
@@ -147,6 +149,7 @@ export function resetDb(seed?: Partial<DbState>): void {
   dbState.rooms = structuredClone(seed?.rooms ?? [])
   dbState.games = structuredClone(seed?.games ?? [])
   dbState.game_participants = structuredClone(seed?.game_participants ?? [])
+  dbState.room_logs = structuredClone(seed?.room_logs ?? [])
   dbState.demo_requests = structuredClone(seed?.demo_requests ?? [])
   db.fn.now.mockClear()
   db.raw.mockClear()
@@ -313,6 +316,14 @@ class ConditionGroup {
   }
 }
 
+const COMPARATORS: Record<string, (value: unknown, operand: unknown) => boolean> = {
+  '<': (value, operand) => (value as number) < (operand as number),
+  '<=': (value, operand) => (value as number) <= (operand as number),
+  '>': (value, operand) => (value as number) > (operand as number),
+  '>=': (value, operand) => (value as number) >= (operand as number),
+  '=': (value, operand) => value === operand,
+}
+
 function toPredicate(column: ClauseColumn, value: unknown): Predicate {
   if (typeof column === 'function') {
     const group = new ConditionGroup()
@@ -454,8 +465,24 @@ class QueryBuilder {
     return Promise.resolve(this.executeSelect()[0])
   }
 
-  public where(columnOrObject: ClauseColumn, value?: unknown): this {
-    this.filters.push(toPredicate(columnOrObject, value))
+  // `where(colonne, valeur)` ou `where(colonne, '<' | '>' | '<=' | '>=', valeur)`.
+  public where(columnOrObject: ClauseColumn, ...rest: unknown[]): this {
+    const [operator, operand] = rest
+
+    if (rest.length === 2 && typeof columnOrObject === 'string' && typeof operator === 'string') {
+      const column = columnOrObject
+      const compare = COMPARATORS[operator]
+
+      if (!compare) {
+        throw new Error(`mockDb : opérateur « ${operator} » non géré`)
+      }
+
+      this.filters.push((row) => compare(getRowValue(row, column), operand))
+
+      return this
+    }
+
+    this.filters.push(toPredicate(columnOrObject, operator))
 
     return this
   }
@@ -731,8 +758,32 @@ class QueryBuilder {
     return getTableRows(this.table).some(matches) || pending.some(matches)
   }
 
+  // Index unique partiel `games_room_id_active_unique` : une seule partie pending/running par salle.
+  private assertRoomActiveIndex(rows: Row[]): void {
+    const isActive = (row: Row): boolean =>
+      ['pending', 'running'].includes(row.state as string) && row.status !== 2
+    const nextState = this.updatePayload?.state
+
+    if (this.table !== 'games' || (nextState !== 'pending' && nextState !== 'running')) {
+      return
+    }
+
+    const taken = rows.some((row) =>
+      dbState.games.some(
+        (other) => other !== row && other.room_id === row.room_id && isActive(other)
+      )
+    )
+
+    if (taken) {
+      throw Object.assign(new Error('duplicate key value violates unique constraint'), {
+        code: '23505',
+      })
+    }
+  }
+
   private executeUpdate(): number {
     const rows = this.filteredRows()
+    this.assertRoomActiveIndex(rows)
     rows.forEach((row) => applyUpdate(row, this.updatePayload ?? {}))
 
     return rows.length
