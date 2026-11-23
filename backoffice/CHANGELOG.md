@@ -223,6 +223,9 @@ Format inspiré de Keep a Changelog.
 
 ### Changed
 
+- Images Docker du backoffice (backend, frontend, service `tests`) passées à Node 22, requis par les dépendances mises à jour. Sur une démo déjà installée, lancer `npm run demo:reset` pour que les volumes `*_node_modules` reprennent les nouvelles dépendances (la base est alors vidée).
+  US: US-SEC-01 (#146)
+
 - `backend/.env` n'est plus versionné (seul `backend/.env.example` l'est) ; les tests backend
   chargent `backend/.env` s'il existe, sinon `backend/.env.example`.
   **Avant le pull**, sauvegarder son `backend/.env` local : git le supprime du disque. Le remettre
