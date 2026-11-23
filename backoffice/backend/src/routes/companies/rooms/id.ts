@@ -12,7 +12,7 @@ import { roomParamsSchema, updateRoomSchema } from './_schemas'
 import { isUniqueViolation } from '../../_shared/dbErrors'
 import { softDeleteRoom } from './_account'
 import { findRoomInCompany, isRoomCompanyDeleted, isRoomNameTaken, roomSelect } from './_shared'
-import { isSmokeConfigChangeForbidden } from './_smoke'
+import { isLightingConfigChangeForbidden } from './_lighting'
 
 const companyRoomIdRoutes: FastifyPluginAsync = async (app) => {
   app.get(
@@ -89,8 +89,9 @@ const companyRoomIdRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(409).send({ error: 'company_deleted' })
       }
 
-      // Sécurité : la fumée ne s'active ni ne se règle depuis le backoffice, même en superadmin.
-      if (config !== undefined && isSmokeConfigChangeForbidden(room.config, config)) {
+      // Sécurité : les lumières et la fumée (`lighting`) ne se règlent pas depuis le backoffice, même en
+      // superadmin ; seule la coupure de la fumée est permise.
+      if (config !== undefined && isLightingConfigChangeForbidden(room.config, config)) {
         return reply.code(403).send({ error: 'smoke_config_forbidden' })
       }
 

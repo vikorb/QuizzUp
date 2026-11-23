@@ -850,9 +850,14 @@ paths:
 
         Crée une salle active. La configuration matérielle est vide par défaut.
 
-        Sécurité : une configuration qui active la machine à fumée (`lighting.smoke.enabled` à
-        `true`) est refusée (403 `smoke_config_forbidden`), pour tous les rôles. La fumée ne
-        s'active et ne se règle que sur place, depuis l'écran de salle.
+        Sécurité : une configuration contenant une section `lighting` non vide (appareils DMX,
+        profils, liaisons de scènes, fumée) est refusée (403 `smoke_config_forbidden`), pour tous les
+        rôles, superadmin compris : la machine à fumée dépend de toute cette section. Les lumières et
+        la fumée se règlent sur place, depuis l'écran de salle.
+
+        Limite connue : cette garde ne couvre pas le compte de salle (`PUT /room/config`), dont le
+        mot de passe est choisi par un admin ; vérifier côté poste de salle que la fumée a passé son
+        test de coupure est un lot à part (S4, issue n° 152).
 
         Accès : superadmin (toutes les compagnies) et `admin` de la compagnie.
       operationId: createCompanyRoom
@@ -883,7 +888,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ValidationError'
         '403':
-          description: Accès interdit, ou fumée activée dans la configuration (`smoke_config_forbidden`)
+          description: Accès interdit, ou section `lighting` (lumières, fumée) présente dans la configuration (`smoke_config_forbidden`)
           content:
             application/json:
               schema:
@@ -955,12 +960,18 @@ paths:
         Modifie le nom et/ou la configuration matérielle (la configuration envoyée remplace la
         précédente).
 
-        Sécurité : le backoffice ne peut ni activer ni régler la machine à fumée. Le `config` reçu est
-        refusé (403 `smoke_config_forbidden`, tous rôles, superadmin compris) s'il change
-        `lighting.smoke` par rapport à la configuration stockée, sauf pour passer `enabled` de `true` à
-        `false` (couper la fumée) en gardant les autres réglages identiques. Une partie fumée
-        identique, ou l'absence de `config`, passe. Seul le compte de salle (`PUT /room/config`)
-        règle la fumée, sur place.
+        Sécurité : le backoffice ne règle ni les lumières ni la fumée. La machine à fumée dépend de
+        toute la section `lighting` (`smoke`, mais aussi `fixtures`, `customProfiles` et `bindings` :
+        un appareil repassé en `par` à la même adresse de relais, un canal fumée rendu `binary`, une
+        scène à fumée liée à `buzz`). Le `config` reçu est donc refusé (403 `smoke_config_forbidden`,
+        tous rôles, superadmin compris) s'il change `lighting` par rapport à la configuration
+        stockée, sauf pour couper la fumée : `lighting.smoke.enabled` de `true` à `false`, tout le
+        reste de `lighting` identique. Une section `lighting` identique, un `config` sans `lighting`
+        modifié, ou l'absence de `config`, passent ; le reste du `config` reste libre.
+
+        Limite connue : cette garde ne couvre pas le compte de salle (`PUT /room/config`), dont le
+        mot de passe est choisi par un admin ; vérifier côté poste de salle que la fumée a passé son
+        test de coupure est un lot à part (S4, issue n° 152).
 
         La configuration n'est écrite que si elle n'a pas changé depuis la lecture faite pour cette
         vérification (409 `room_config_conflict` sinon : recharger puis réessayer).
@@ -995,7 +1006,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ValidationError'
         '403':
-          description: Accès interdit, ou réglage de fumée modifié ou activé (`smoke_config_forbidden`)
+          description: Accès interdit, ou section `lighting` (lumières, fumée) modifiée autrement que par la coupure de la fumée (`smoke_config_forbidden`)
           content:
             application/json:
               schema:
