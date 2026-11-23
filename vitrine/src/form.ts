@@ -29,7 +29,7 @@ export type FormValues = {
   message: string
   consent: boolean
   /** Champ piège : invisible pour une personne, rempli par un robot. */
-  website: string
+  trap: string
 }
 
 export const LIMITS = { name: 120, company: 120, email: 254, phone: 20, message: 2000, rooms: 99 }
@@ -81,7 +81,7 @@ export function validate(values: FormValues): FieldErrors {
 }
 
 export function isSpam(values: FormValues): boolean {
-  return values.website.trim() !== ''
+  return values.trap.trim() !== ''
 }
 
 export type SubmitResult = 'success' | 'invalid' | 'rateLimited' | 'error' | 'network'
@@ -105,6 +105,9 @@ export async function sendDemoRequest(
     rooms: Number(values.rooms),
     message: values.message.trim(),
     consent: true,
+    // Clé attendue par la route. Le champ de la page s'appelle `trap` (un nom que les navigateurs
+    // et gestionnaires de mots de passe ne remplissent pas) : un robot qui le remplit est écarté
+    // ici, avant l'envoi.
     website: '',
   }
 
@@ -148,7 +151,7 @@ export function readValues(form: HTMLFormElement): FormValues {
     rooms: read('rooms'),
     message: read('message'),
     consent: consent instanceof HTMLInputElement && consent.checked,
-    website: read('website'),
+    trap: read('trap'),
   }
 }
 
@@ -210,7 +213,6 @@ export function initForm(form: HTMLFormElement, options: InitOptions = {}): void
   const succeed = () => {
     form.reset()
     setStatus('success', text.success)
-    status.focus()
   }
 
   form.addEventListener('submit', async (event) => {
@@ -236,14 +238,14 @@ export function initForm(form: HTMLFormElement, options: InitOptions = {}): void
     }
 
     sending = true
-    submit.disabled = true
+    submit.setAttribute('aria-disabled', 'true')
     submit.setAttribute('aria-busy', 'true')
     setStatus('sending', text.sending)
 
     const result = await sendDemoRequest(apiUrl, values, options.fetchFn)
 
     sending = false
-    submit.disabled = false
+    submit.removeAttribute('aria-disabled')
     submit.removeAttribute('aria-busy')
     switch (result) {
       case 'success': {

@@ -4,9 +4,10 @@ import path from 'node:path'
 
 import { MINI_GAMES } from '@quizzup/shared'
 import { build } from 'vite'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { PAGES } from '../build/pages'
+import { DRAFT_ENV } from '../build/plugins'
 import { site } from '../site.config'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
@@ -21,6 +22,9 @@ function filesOf(dir: string): string[] {
 }
 
 beforeAll(async () => {
+  // La configuration livrée a encore des valeurs « À COMPLÉTER » : on construit un brouillon.
+  // Le refus sans dérogation est prouvé dans draft.test.ts.
+  vi.stubEnv(DRAFT_ENV, '1')
   outDir = mkdtempSync(path.join(tmpdir(), 'vitrine-build-'))
   await build({
     root: ROOT,
@@ -31,6 +35,7 @@ beforeAll(async () => {
 })
 
 afterAll(() => {
+  vi.unstubAllEnvs()
   if (outDir) {
     rmSync(outDir, { recursive: true, force: true })
   }
@@ -72,6 +77,41 @@ describe('pages construites', () => {
       expect(html).not.toMatch(/\son[a-z]+=/)
       expect(html).not.toMatch(/(?:src|href)="https?:\/\/(?!app\.)/)
     }
+  })
+
+  it('seule la page 404 est en noindex', () => {
+    for (const { file } of PAGES) {
+      expect(read(file).includes('content="noindex"')).toBe(file === '404.html')
+    }
+  })
+
+  it('la couleur du thème et la locale viennent de la configuration et de la charte', () => {
+    for (const { file } of PAGES) {
+      expect(read(file)).toMatch(/name="theme-color" content="#[0-9a-f]{6}"/)
+      expect(read(file)).toContain('property="og:locale" content="fr_FR"')
+    }
+  })
+
+  it('marque la page courante dans la navigation', () => {
+    expect(read('demonstration.html')).toContain('href="/demonstration.html" aria-current="page"')
+    expect(read('index.html')).toContain('href="/" aria-current="page"')
+    for (const file of ['mentions-legales.html', 'confidentialite.html', '404.html']) {
+      expect(read(file)).not.toContain('aria-current')
+    }
+  })
+
+  it('le champ piège porte un nom que les navigateurs ne remplissent pas', () => {
+    const html = read('demonstration.html')
+    expect(html).toContain('name="trap"')
+    expect(html).not.toMatch(/name="website"/)
+  })
+
+  it('la zone d’état du formulaire n’est jamais masquée, pour être annoncée dès le premier message', () => {
+    const css = filesOf(path.join(outDir, 'assets'))
+      .filter((file) => file.endsWith('.css'))
+      .map((file) => readFileSync(file, 'utf8'))
+      .join('\n')
+    expect(/\.form-status\{[^}]*display:\s*none/.test(css)).toBe(false)
   })
 
   it('le bouton de connexion pointe vers l’application configurée', () => {
@@ -194,6 +234,22 @@ describe('contenu de la page d’accueil', () => {
       expect(image).toMatch(image.includes('brand__logo') ? /\salt=""/ : /\salt="[^"]{10,}"/)
     }
     expect(images.filter((image) => image.includes('loading="lazy"')).length).toBeGreaterThan(0)
+  })
+
+  it('ne promet pas plus que le code : arrêt d’urgence logiciel, compatibilité vérifiée en démonstration', () => {
+    const text = read('index.html')
+      .replaceAll(/<[^>]+>/g, ' ')
+      .replaceAll(/\s+/g, ' ')
+    expect(text).toContain('arrêt d’urgence logiciel')
+    expect(text).toContain('ne remplace pas l’arrêt d’urgence physique de la machine')
+    expect(text).toContain('conçu pour piloter')
+    expect(text).toContain('vérifiée pendant la démonstration')
+    expect(text).not.toMatch(/Compatible avec|sans tout recâbler/)
+  })
+
+  it('ne cite ni prix ni concurrent', () => {
+    const text = read('index.html').replaceAll(/<[^>]+>/g, ' ')
+    expect(text).not.toMatch(/€|euros?\b|\btarifs?\b|\bprix\b/i)
   })
 
   it('ne contient ni point d’exclamation ni formule creuse', () => {

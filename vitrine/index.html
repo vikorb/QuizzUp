@@ -22,7 +22,7 @@
     />
   </head>
   <body>
-    <!-- @include header -->
+    <!-- @include header current=/ -->
 
     <main id="contenu">
       <section class="wrap hero" aria-labelledby="titre-accueil">
@@ -82,8 +82,8 @@
                 qui permet de vérifier que tout répond avant de démarrer.
               </p>
               <p>
-                L’e-mail d’un joueur est facultatif, demande un consentement explicite et n’est
-                jamais affiché à l’écran.
+                L’e-mail d’un joueur est facultatif, demande un consentement explicite et n’apparaît
+                jamais pendant la partie ni dans les scores.
               </p>
             </div>
             <figure class="screen row__media">
@@ -258,9 +258,10 @@
                 projecteur par pupitre et une machine à fumée.
               </p>
               <p>
-                La fumée est sécurisée : elle ne se déclenche que si l’opérateur l’a autorisée. Un
-                arrêt d’urgence éteint tout et coupe la fumée ; il reste actif après un rechargement
-                de la page, jusqu’à un réarmement confirmé.
+                La fumée est encadrée : elle ne se déclenche que si l’opérateur l’a autorisée. Un
+                arrêt d’urgence logiciel éteint tout et coupe la fumée ; il reste actif après un
+                rechargement de la page, jusqu’à un réarmement confirmé. Il ne remplace pas l’arrêt
+                d’urgence physique de la machine.
               </p>
             </div>
             <figure class="screen row__media">
@@ -293,7 +294,7 @@
           <h2 id="titre-navigateur">Tout se passe dans un navigateur</h2>
           <div class="facts">
             <div class="fact">
-              <h3>Aucune installation</h3>
+              <h3>Rien à installer sur l’écran de salle</h3>
               <p>
                 L’écran de salle s’ouvre dans Chrome ou Edge, sur le PC de la salle. Le seul élément
                 à installer est un petit pont local, pour les salles dont les lumières passent par
@@ -323,19 +324,19 @@
 
       <section class="section" id="compatibilite" aria-labelledby="titre-compatibilite">
         <div class="wrap">
-          <h2 id="titre-compatibilite">Compatible avec une salle existante</h2>
+          <h2 id="titre-compatibilite">Conçu pour une salle déjà équipée</h2>
           <p class="section__intro">
-            Un centre a déjà son matériel. QuizzUp sait piloter ce qui est courant en salle, sans
-            tout recâbler. Chaque salle est différente : indiquez votre matériel dans la demande de
-            démonstration.
+            Un centre a déjà son matériel. %SITE_NAME% est conçu pour piloter le matériel courant
+            des salles de jeu. La compatibilité de chaque salle est vérifiée pendant la
+            démonstration : indiquez votre matériel dans la demande.
           </p>
           <div class="split">
             <div>
               <h3>Lumières et fumée</h3>
               <p>
-                Une interface USB-DMX (protocole DMX USB Pro) branchée au PC de la salle : rien à
-                installer. Un nœud Art-Net sur le réseau : un petit pont local, à installer sur le
-                PC, relaie les trames.
+                Prévu pour une interface USB-DMX (protocole DMX USB Pro) branchée au PC de la salle,
+                sans rien installer. Pour un nœud Art-Net sur le réseau, un petit pont local, à
+                installer sur le PC, relaie les trames.
               </p>
               <p>
                 Projecteurs PAR, lyres, stroboscopes, gradateurs et machines à fumée se décrivent
@@ -346,9 +347,9 @@
             <div>
               <h3>Buzzers</h3>
               <p>
-                Des buzzers USB vus comme un clavier, ou comme une manette quand ils passent par une
-                carte d’entrées USB. Ils s’associent par apprentissage : on appuie sur chaque
-                buzzer, l’écran retient sa place.
+                Prévu pour des buzzers USB vus comme un clavier, ou comme une manette quand ils
+                passent par une carte d’entrées USB. Ils s’associent par apprentissage : on appuie
+                sur chaque buzzer, l’écran retient sa place.
               </p>
               <p>Sans buzzer, le clavier du PC les simule.</p>
             </div>

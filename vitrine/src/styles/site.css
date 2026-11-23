@@ -29,7 +29,6 @@
   --page: 74rem;
   --measure: 38rem;
   --target: 3rem; /* cible tactile minimale : 48 px */
-  --on-primary: #fff; /* texte du bouton primaire, comme dans le backoffice */
 }
 
 *,
@@ -125,7 +124,7 @@ a:hover {
 :focus-visible {
   outline: 3px solid var(--accent-pink);
   outline-offset: 3px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .wrap {
@@ -141,7 +140,7 @@ a:hover {
   padding: 0.75rem 1rem;
   background: var(--bg-elevated);
   border: 1px solid var(--border-2);
-  border-radius: 12px;
+  border-radius: var(--radius);
   color: var(--text-0);
 }
 
@@ -158,7 +157,7 @@ a:hover {
   min-height: var(--target);
   padding: 0 1.25rem;
   border: 1px solid var(--border-2);
-  border-radius: 12px;
+  border-radius: var(--radius);
   background: var(--surface-1);
   color: var(--text-0);
   font: inherit;
@@ -189,7 +188,7 @@ a:hover {
   box-shadow: 0 14px 30px -12px var(--neon-pink);
 }
 
-.btn:disabled {
+.btn[aria-disabled='true'] {
   opacity: 0.6;
   cursor: progress;
 }
@@ -613,7 +612,7 @@ a:hover {
   min-height: var(--target);
   padding: 0.65rem 0.9rem;
   border: 1px solid var(--border-2);
-  border-radius: 12px;
+  border-radius: var(--radius);
   background: var(--bg-field);
   color: var(--text-0);
   font: inherit;
@@ -641,7 +640,7 @@ a:hover {
 }
 
 .field__error:not(:empty)::before,
-.form-status::before {
+.form-status:not(:empty)::before {
   content: '';
   display: inline-block;
   width: 0.6rem;
@@ -678,8 +677,9 @@ a:hover {
   overflow: hidden;
 }
 
+/* La zone reste dans l'arbre d'accessibilité même vide : sinon un lecteur d'écran n'annonce pas
+   le premier message écrit dedans. Vide, elle ne prend aucune place. */
 .form-status {
-  display: none;
   max-width: none;
   padding: var(--space-2);
   border: 1px solid var(--border-2);
@@ -688,8 +688,10 @@ a:hover {
   color: var(--text-0);
 }
 
-.form-status:not(:empty) {
-  display: block;
+.form-status:empty {
+  margin-block-start: calc(-1 * var(--space-3)); /* reprend l'espace de la grille (gap) */
+  padding: 0;
+  border: 0;
 }
 
 .form-status[data-state='sending']::before {
@@ -702,10 +704,6 @@ a:hover {
 
 .form-status[data-state='warning']::before {
   background: var(--warn);
-}
-
-.form-status:focus {
-  outline: none;
 }
 
 .form-actions {

@@ -12,7 +12,9 @@ Format inspiré de Keep a Changelog.
   de démonstration, mentions légales, confidentialité, page 404. Site statique Vite, sans cookie ni
   script tiers ; nom, domaine et coordonnées lus dans `vitrine/site.config.ts` (valeurs légales à
   compléter). Le formulaire de démonstration vise `POST /public/v1/demo-requests`, route livrée
-  dans un lot suivant ; sans elle, il se replie sur un lien `mailto:`. Script de captures
+  dans un lot suivant ; avec JavaScript, une erreur d'envoi affiche l'adresse de contact, sans
+  JavaScript le formulaire ouvre la messagerie (`mailto:`). Le build refuse les valeurs légales
+  non renseignées (dérogation `VITRINE_DRAFT=1`). Script de captures
   `npm run captures` dans `game/e2e`. Nouveau job `vitrine` dans la CI GitHub (lint, types, tests,
   build, Lighthouse à 95 au moins sur les quatre catégories).
   US: US-SITE-01

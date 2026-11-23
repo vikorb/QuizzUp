@@ -263,6 +263,10 @@ jobs:
     defaults:
       run:
         working-directory: vitrine
+    env:
+      # Le build refuse les valeurs « À COMPLÉTER » de site.config.ts. La CI construit un
+      # brouillon pour les tests et Lighthouse ; ce dist/ n'est jamais publié.
+      VITRINE_DRAFT: "1"
     steps:
       - uses: actions/checkout@v4
 

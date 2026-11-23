@@ -18,7 +18,7 @@ const valid: FormValues = {
   rooms: '3',
   message: 'Nous voulons voir le blind test.',
   consent: true,
-  website: '',
+  trap: '',
 }
 
 const withValues = (patch: Partial<FormValues>): FormValues => ({ ...valid, ...patch })
@@ -71,18 +71,18 @@ describe('validate', () => {
   })
 
   it('ne tient pas compte du champ piège', () => {
-    expect(validate(withValues({ website: 'http://spam.example' }))).toEqual({})
+    expect(validate(withValues({ trap: 'http://spam.example' }))).toEqual({})
   })
 })
 
 describe('isSpam', () => {
   it('repère un champ piège rempli', () => {
-    expect(isSpam(withValues({ website: 'http://spam.example' }))).toBe(true)
+    expect(isSpam(withValues({ trap: 'http://spam.example' }))).toBe(true)
   })
 
   it('laisse passer un champ piège vide ou en espaces', () => {
     expect(isSpam(valid)).toBe(false)
-    expect(isSpam(withValues({ website: '  ' }))).toBe(false)
+    expect(isSpam(withValues({ trap: '  ' }))).toBe(false)
   })
 })
 

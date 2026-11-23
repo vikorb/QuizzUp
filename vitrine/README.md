@@ -15,7 +15,8 @@ variables de la charte (`backoffice/frontend/src/assets/styles/main.css`) et `@q
 cd vitrine
 npm install
 npm run dev            # http://localhost:4176
-npm run build          # dossier dist/ (fichiers statiques)
+npm run build          # dossier dist/ ; refusé tant que site.config.ts est incomplet (voir plus bas)
+VITRINE_DRAFT=1 npm run build   # brouillon : à ne pas publier (PowerShell : $env:VITRINE_DRAFT='1')
 npm run preview        # sert dist/ sur :4176
 npm run lint           # eslint
 npm run format:check   # prettier (sous Windows : npx prettier --end-of-line auto --check .)
@@ -33,7 +34,10 @@ faut un Chrome installé (variable `CHROME_PATH` sinon). Les rapports vont dans 
 Tout est dans `site.config.ts`. Les pages n'écrivent jamais le nom du produit : elles contiennent
 des variables `%SITE_…%` (`name` devient `%SITE_NAME%`, `company.legalName` devient
 `%SITE_COMPANY_LEGAL_NAME%`), remplacées à la construction. Une variable inconnue fait échouer le
-build. `robots.txt` et `sitemap.xml` sont générés avec `url`.
+build. `robots.txt` et `sitemap.xml` sont générés avec `url`. Deux variables sont dérivées :
+`%SITE_THEME_COLOR%` (le fond `--bg-0` de la charte) et `%SITE_OG_LOCALE%` (tirée de `lang`).
+`<!-- @include header current=/demonstration.html -->` marque le lien de la page courante
+(`aria-current="page"`).
 
 Valeurs à compléter avant la mise en ligne :
 
@@ -44,7 +48,11 @@ Valeurs à compléter avant la mise en ligne :
 - `privacy.retention` : durée de conservation d'une demande de démonstration ;
 - `legalUpdatedAt` quand les pages légales changent.
 
-Tant qu'une valeur vaut `À COMPLÉTER`, elle s'affiche telle quelle dans les pages légales.
+**Le build échoue** tant qu'une valeur vaut `À COMPLÉTER` ou contient `example.org` : le message
+liste les valeurs à renseigner (`company.legalName`, `domain`, etc.). Pour construire quand même un
+brouillon (tests, Lighthouse, essai local), définir `VITRINE_DRAFT=1` ; la CI le fait dans le job
+`vitrine`. Un `dist/` construit ainsi affiche « À COMPLÉTER » dans les pages légales et ne doit pas
+être mis en ligne.
 
 Le logo (`logo` dans la configuration) est un fichier de `public/` ; ses dimensions sont celles du
 fichier. Pour l'anglais : ajouter une entrée dans `src/messages.ts` et des pages HTML avec
@@ -68,8 +76,9 @@ message, consentement), puis poste en JSON vers `<apiUrl>/public/v1/demo-request
 }
 ```
 
-Le champ caché `website` est un piège à robots : s'il est rempli, le script affiche un succès sans
-rien envoyer. Réponses : 2xx envoyé, 400 ou 422 refusé, 429 trop de demandes, autre statut ou
+Le champ caché de la page s'appelle `trap` (un nom que les navigateurs et gestionnaires de mots de
+passe ne remplissent pas) : s'il est rempli, le script affiche un succès sans rien envoyer. La clé
+`website` du corps JSON reste vide : c'est celle qu'attend la route. Réponses : 2xx envoyé, 400 ou 422 refusé, 429 trop de demandes, autre statut ou
 absence de réponse (15 s) : message d'erreur avec l'adresse de contact. Sans JavaScript, le
 formulaire ouvre la messagerie (`mailto:`).
 

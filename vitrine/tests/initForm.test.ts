@@ -20,8 +20,8 @@ function buildForm(): HTMLFormElement {
       ).join('')}
       <input id="f-consent" name="consent" type="checkbox" />
       <p id="f-consent-error"></p>
-      <input id="f-website" name="website" />
-      <p id="form-status" role="status" aria-live="polite" tabindex="-1"></p>
+      <input id="f-trap" name="trap" />
+      <p id="form-status" role="status" aria-live="polite"></p>
       <button type="submit" id="form-submit">Envoyer</button>
     </form>`
   return document.querySelector<HTMLFormElement>('#demo-form') as HTMLFormElement
@@ -94,10 +94,10 @@ describe('initForm', () => {
     expect(status().dataset.state).toBe('success')
     expect(status().textContent).toBe(text.success)
     expect(field('name').value).toBe('')
-    expect(document.querySelector<HTMLButtonElement>('#form-submit')?.disabled).toBe(false)
+    expect(document.querySelector('#form-submit')?.hasAttribute('aria-disabled')).toBe(false)
   })
 
-  it("montre l'état d'envoi et bloque le bouton pendant la requête", async () => {
+  it("montre l'état d'envoi et neutralise le bouton sans le désactiver (le focus reste dessus)", async () => {
     let release: (response: Response) => void = () => {}
     const fetchFn = vi.fn<typeof fetch>(
       () =>
@@ -112,7 +112,8 @@ describe('initForm', () => {
     const button = document.querySelector<HTMLButtonElement>('#form-submit')!
     expect(status().dataset.state).toBe('sending')
     expect(status().textContent).toBe(text.sending)
-    expect(button.disabled).toBe(true)
+    expect(button.getAttribute('aria-disabled')).toBe('true')
+    expect(button.disabled).toBe(false)
     expect(button.getAttribute('aria-busy')).toBe('true')
 
     // Un second envoi pendant le premier est ignoré.
@@ -121,7 +122,7 @@ describe('initForm', () => {
 
     release(new Response(null, { status: 201 }))
     await vi.waitFor(() => expect(status().dataset.state).toBe('success'))
-    expect(button.disabled).toBe(false)
+    expect(button.hasAttribute('aria-disabled')).toBe(false)
     expect(button.hasAttribute('aria-busy')).toBe(false)
   })
 
@@ -156,7 +157,7 @@ describe('initForm', () => {
     const fetchFn = vi.fn<typeof fetch>()
     initForm(form, { fetchFn })
     fillValid()
-    field('website').value = 'http://spam.example'
+    field('trap').value = 'http://spam.example'
     await submit(form)
 
     expect(fetchFn).not.toHaveBeenCalled()
@@ -166,7 +167,7 @@ describe('initForm', () => {
   it('valide aussi quand le champ piège est rempli : pas de succès sur une demande vide', async () => {
     const fetchFn = vi.fn<typeof fetch>()
     initForm(form, { fetchFn })
-    field('website').value = 'http://spam.example'
+    field('trap').value = 'http://spam.example'
     await submit(form)
 
     expect(status().dataset.state).not.toBe('success')
