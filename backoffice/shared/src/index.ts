@@ -527,6 +527,34 @@ export const ROOM_SCREENS = ['launch', 'lobby', 'play', 'setup', 'other'] as con
 
 export type RoomScreen = (typeof ROOM_SCREENS)[number]
 
+/**
+ * Phases du moteur de jeu (`GamePhase` de `game/engine`), telles que la salle les publie. Un test
+ * de contrat du moteur échoue si cette liste et le moteur divergent.
+ */
+export const GAME_PHASE_LOBBY = 'lobby' as const
+export const GAME_PHASE_FINISHED = 'finished' as const
+export const GAME_PHASE_ABORTED = 'aborted' as const
+
+export const GAME_PHASES = [
+  GAME_PHASE_LOBBY,
+  'round_intro',
+  'theme_choice',
+  'question',
+  'reveal',
+  'round_summary',
+  GAME_PHASE_FINISHED,
+  GAME_PHASE_ABORTED,
+] as const
+
+export type GamePhaseName = (typeof GAME_PHASES)[number]
+
+/** Phases où la salle est connectée mais ne joue pas. */
+export const GAME_IDLE_PHASES: ReadonlyArray<GamePhaseName> = [
+  GAME_PHASE_LOBBY,
+  GAME_PHASE_FINISHED,
+  GAME_PHASE_ABORTED,
+]
+
 export const ROOM_PRESENCE = {
   ONLINE: 'online',
   OFFLINE: 'offline',
@@ -546,7 +574,7 @@ export const LIVE_OFFLINE_AFTER_MS = 45_000 as const
 export type RoomStatusReport = {
   screen: RoomScreen
   gameId: number | null
-  phase: string | null
+  phase: GamePhaseName | null
   round: number | null
   questionIndex: number | null
   miniGame: MiniGame | null

@@ -44,6 +44,13 @@
       },
       "startFailed": "Impossible de démarrer la partie (contenu indisponible). Réessaie ou passe en mode démo."
     },
+    "live": {
+      "resume": "Reprendre la main ici",
+      "errors": {
+        "room_instance_replaced": "Cette salle est pilotée depuis un autre PC : le suivi à distance de cet écran est coupé. La partie en cours n’est pas touchée.",
+        "session_ended": "La session de la salle a pris fin : reconnecte-toi."
+      }
+    },
     "alreadyOpen": {
       "title": "QuizzUp est déjà ouvert sur ce PC",
       "text": "Une autre fenêtre pilote déjà les buzzers et les lumières. Ferme cet onglet et utilise la fenêtre déjà ouverte."

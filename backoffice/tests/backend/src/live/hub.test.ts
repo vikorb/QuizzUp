@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  GAME_IDLE_PHASES,
   LIVE_EVENT,
   LIVE_OFFLINE_AFTER_MS,
   ROOM_PRESENCE,
@@ -99,7 +100,7 @@ describe('live hub presence', () => {
     hub.report(1, 10, playingReport)
     expect(hub.roomLive(1).presence).toBe(ROOM_PRESENCE.IN_GAME)
 
-    for (const phase of ['lobby', 'finished', 'aborted']) {
+    for (const phase of GAME_IDLE_PHASES) {
       hub.report(1, 10, { ...playingReport, phase })
       expect(hub.roomLive(1).presence).toBe(ROOM_PRESENCE.ONLINE)
     }
@@ -219,6 +220,67 @@ describe('live hub broadcast', () => {
 
     expect(hub.staffStreamCount(7)).toBe(2)
     expect(hub.staffStreamCount(8)).toBe(1)
+  })
+})
+
+describe('live hub memory', () => {
+  it('forgets a room that went offline without a stream, once the staff was told', () => {
+    const { hub, clock } = newHub()
+    const staff = makeSink()
+
+    hub.report(1, 10, idleReport)
+    hub.subscribeStaff(10, 1, staff)
+    clock.now += LIVE_OFFLINE_AFTER_MS
+    hub.sweep()
+
+    expect(staff.events).toHaveLength(1)
+    expect(hub.roomLive(1)).toMatchObject({ presence: ROOM_PRESENCE.OFFLINE, lastSeenAt: null })
+  })
+
+  it('keeps an offline room while its stream is open, forgets it when the stream closes', () => {
+    const { hub, clock } = newHub()
+    const staff = makeSink()
+    const streamId = hub.openRoomStream(1, 10, makeSink())
+
+    hub.report(1, 10, idleReport)
+    hub.subscribeStaff(10, 1, staff)
+    clock.now += LIVE_OFFLINE_AFTER_MS
+    hub.sweep()
+
+    expect(hub.roomLive(1).lastSeenAt).not.toBeNull()
+
+    hub.closeRoomStream(1, streamId)
+
+    expect(hub.roomLive(1).lastSeenAt).toBeNull()
+  })
+
+  it('keeps an online room whose stream closed until its silence is announced', () => {
+    const { hub, clock } = newHub()
+    const streamId = hub.openRoomStream(1, 10, makeSink())
+
+    hub.report(1, 10, idleReport)
+    hub.closeRoomStream(1, streamId)
+
+    expect(hub.roomLive(1).presence).toBe(ROOM_PRESENCE.ONLINE)
+
+    clock.now += LIVE_OFFLINE_AFTER_MS
+    hub.sweep()
+
+    expect(hub.roomLive(1)).toMatchObject({ presence: ROOM_PRESENCE.OFFLINE, lastSeenAt: null })
+  })
+
+  it('remembers a room again when it reports after being forgotten', () => {
+    const { hub, clock } = newHub()
+
+    hub.report(1, 10, idleReport)
+    clock.now += LIVE_OFFLINE_AFTER_MS
+    hub.sweep()
+    hub.report(1, 10, playingReport)
+
+    expect(hub.roomLive(1)).toMatchObject({
+      presence: ROOM_PRESENCE.IN_GAME,
+      status: playingReport,
+    })
   })
 })
 

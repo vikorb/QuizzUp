@@ -49,6 +49,9 @@
         </FormField>
 
         <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
+        <p v-else-if="sessionEnded" class="form-error" role="status">
+          {{ $t('room.live.errors.session_ended') }}
+        </p>
 
         <UiButton class="submit" variant="primary" type="submit" :disabled="loading">
           {{ loading ? $t('auth.login.submitting') : $t('auth.login.submit') }}
@@ -79,11 +82,13 @@ import SectionCard from '@/components/ui/SectionCard.vue'
 import SectionHeader from '@/components/ui/SectionHeader.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { syncHardwareWithRoom } from '@/hardware/hardwareSync'
+import { useRoomLive } from '@/live/roomLive'
 import { enterDemo, signIn } from '@/state/roomAuth'
 import { loginReasonToI18nKey, loginRoomApi } from '@/utils/auth'
 
 const { t } = useI18n()
 const router = useRouter()
+const { sessionEnded } = useRoomLive()
 
 const identifier = ref('')
 const password = ref('')

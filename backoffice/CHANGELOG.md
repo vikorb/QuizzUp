@@ -8,6 +8,17 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Présence en direct de l'écran de salle. L'écran ouvre le flux `GET /room/stream` et publie son
+  état par `POST /room/status` (écran, partie, phase, manche, question, mini-jeu, pause, scores par
+  pupitre, son prêt) à chaque changement, au plus une fois par seconde, et au rythme annoncé par le
+  serveur. Reconnexion après 1, 2, 5, 10 puis 30 s. Rien n'est publié sans flux ouvert. Quand un
+  autre poste ouvre la même salle, l'écran affiche « Reprendre la main ici » ; une session terminée
+  renvoie à la connexion, après la partie en cours s'il y en a une. `@quizzup/shared` : phases du
+  moteur (`GAME_PHASES`, `GAME_IDLE_PHASES`) avec un test de contrat côté moteur. Serveur : le
+  rapport refuse une phase inconnue et deux scores pour un même pupitre ; une salle hors ligne sans
+  flux est oubliée une fois son départ diffusé.
+  US: US-LIVE-01
+
 - Présence des salles en direct, côté serveur (aucun client modifié dans ce lot). Le backend sait
   quelle salle est en ligne et le diffuse. `GET /room/stream` (compte de salle) ouvre un flux SSE
   (`hello { streamId, heartbeatMs, statusEveryMs }`, puis `replaced` si un autre poste prend la

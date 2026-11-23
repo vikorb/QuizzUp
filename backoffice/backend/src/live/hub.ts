@@ -4,8 +4,7 @@
 import { randomUUID } from 'node:crypto'
 
 import {
-  GAME_STATE_ABORTED,
-  GAME_STATE_FINISHED,
+  GAME_IDLE_PHASES,
   LIVE_EVENT,
   LIVE_OFFLINE_AFTER_MS,
   ROOM_PRESENCE,
@@ -25,9 +24,6 @@ export type LiveSink = {
 export const LIVE_MAX_STREAMS_PER_ACCOUNT = 5
 
 const SWEEP_EVERY_MS = 15_000
-
-// Phases du moteur où la salle est connectée mais n'est pas en train de jouer.
-const IDLE_PHASES: ReadonlyArray<string> = ['lobby', GAME_STATE_FINISHED, GAME_STATE_ABORTED]
 
 type RoomEntry = {
   companyId: number
@@ -51,7 +47,7 @@ export function createLiveHub({ now = Date.now }: { now?: () => number } = {}) {
 
     const { gameId, phase } = entry.report ?? { gameId: null, phase: null }
 
-    return gameId !== null && !IDLE_PHASES.includes(phase ?? '')
+    return gameId !== null && !GAME_IDLE_PHASES.some((idle) => idle === phase)
       ? ROOM_PRESENCE.IN_GAME
       : ROOM_PRESENCE.ONLINE
   }
@@ -102,11 +98,19 @@ export function createLiveHub({ now = Date.now }: { now?: () => number } = {}) {
     return entry
   }
 
+  /** Salle hors ligne dont le départ est diffusé et sans flux : plus rien à retenir. */
+  function forgetIfGone(roomId: number, entry: RoomEntry): void {
+    if (entry.stream === null && entry.announced === ROOM_PRESENCE.OFFLINE) {
+      rooms.delete(roomId)
+    }
+  }
+
   function sweep(): void {
     rooms.forEach((entry, roomId) => {
       if (presenceOf(entry) !== entry.announced) {
         broadcast(roomId, entry)
       }
+      forgetIfGone(roomId, entry)
     })
   }
 
@@ -138,6 +142,7 @@ export function createLiveHub({ now = Date.now }: { now?: () => number } = {}) {
       if (entry?.stream?.id === streamId) {
         entry.stream = null
         broadcast(roomId, entry)
+        forgetIfGone(roomId, entry)
       }
     },
 

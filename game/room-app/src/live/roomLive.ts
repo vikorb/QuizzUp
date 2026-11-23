@@ -1,0 +1,393 @@
+import {
+  createSseParser,
+  LIVE_EVENT,
+  LIVE_HEARTBEAT_MS,
+  LIVE_STATUS_EVERY_MS,
+  type SseMessage,
+} from '@quizzup/shared'
+import { computed, ref, watch } from 'vue'
+
+import { readSavedBackofficeGame } from '@/game/backofficeGameMemory'
+import { useRoomGame } from '@/game/useRoomGame'
+import { buildRoomStatusReport } from '@/live/statusReport'
+import { expireRoomSession } from '@/state/roomAuth'
+import { authHeaders, getApiBase, getRoomToken, isDemoMode } from '@/utils/auth'
+
+/**
+ * Présence en direct (US-LIVE-01) : l'écran de salle ouvre un flux `GET /room/stream` et publie son
+ * état par `POST /room/status`, pour que le personnel voie la salle depuis le backoffice.
+ *
+ * La partie ne dépend jamais de ce module : il ne bloque rien, absorbe toute erreur réseau et ne
+ * touche à la partie en cours que pour lire son état. Il ne tourne pas en mode démo.
+ */
+
+/** Attentes avant chaque nouvelle ouverture du flux ; la dernière se répète. Remise à zéro au `hello`. */
+export const RECONNECT_DELAYS_MS = [1000, 2000, 5000, 10_000, 30_000] as const
+/** Écart minimal entre deux rapports : les changements rapprochés sont regroupés. */
+export const MIN_PUBLISH_GAP_MS = 1000
+/** Un flux muet plus de ce nombre de battements est considéré coupé. */
+export const SILENT_BEATS = 3
+/** Délai maximal d'un `POST /room/status` (sans réponse, le suivant n'attendrait jamais). */
+export const STATUS_TIMEOUT_MS = 10_000
+
+const REPLACED_ERROR = 'room_instance_replaced'
+
+const replaced = ref(false)
+const sessionEnded = ref(false)
+
+const { session, state, paused } = useRoomGame()
+
+let gen = 0
+let running = false
+let routeName: () => string | symbol | null | undefined = () => null
+let streamId: string | undefined
+let heartbeatMs: number = LIVE_HEARTBEAT_MS
+let statusEveryMs: number = LIVE_STATUS_EVERY_MS
+let attempt = 0
+let lastSentAt = Number.NEGATIVE_INFINITY
+let lastKey = ''
+let inFlight = false
+let dirty = false
+
+let streamAbort: AbortController | null = null
+// Rapports en cours : leur contrôleur d'abandon et la minuterie de leur délai maximal.
+const postAborts = new Map<AbortController, ReturnType<typeof setTimeout>>()
+let watchdogTimer: ReturnType<typeof setTimeout> | null = null
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let publishTimer: ReturnType<typeof setTimeout> | null = null
+let keepaliveTimer: ReturnType<typeof setTimeout> | null = null
+let stopWatchingState: (() => void) | null = null
+let stopWatchingExpiry: (() => void) | null = null
+
+function clearTimer(timer: ReturnType<typeof setTimeout> | null): null {
+  if (timer !== null) {
+    clearTimeout(timer)
+  }
+  return null
+}
+
+/** Le son est « prêt » quand le navigateur a vu un geste de l'utilisateur (règle d'autoplay). */
+function isAudioReady(): boolean {
+  return (
+    (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation
+      ?.hasBeenActive ?? false
+  )
+}
+
+function currentReport() {
+  return buildRoomStatusReport({
+    routeName: routeName(),
+    state: state.value,
+    backofficeGame: readSavedBackofficeGame(),
+    paused: paused.value,
+    audioReady: isAudioReady(),
+  })
+}
+
+/** Arrête flux, requêtes, minuteries et surveillance de l'état. N'efface pas `replaced`. */
+function halt(): void {
+  gen += 1
+  running = false
+  streamId = undefined
+  inFlight = false
+  dirty = false
+  streamAbort?.abort()
+  streamAbort = null
+  postAborts.forEach((timeout, controller) => {
+    clearTimeout(timeout)
+    controller.abort()
+  })
+  postAborts.clear()
+  watchdogTimer = clearTimer(watchdogTimer)
+  reconnectTimer = clearTimer(reconnectTimer)
+  publishTimer = clearTimer(publishTimer)
+  keepaliveTimer = clearTimer(keepaliveTimer)
+  stopWatchingState?.()
+  stopWatchingState = null
+}
+
+function markReplaced(): void {
+  replaced.value = true
+  halt()
+}
+
+/**
+ * La session n'est plus valable. Sans partie ouverte : même traitement qu'un jeton refusé au
+ * démarrage. Avec une partie : elle continue, la salle est déconnectée une fois la partie fermée.
+ */
+function endSession(): void {
+  halt()
+  sessionEnded.value = true
+
+  if (session.value === null) {
+    void expireRoomSession()
+    return
+  }
+
+  stopWatchingExpiry = watch(
+    () => session.value === null,
+    (closed) => {
+      if (closed) {
+        stopWatchingExpiry?.()
+        stopWatchingExpiry = null
+        void expireRoomSession()
+      }
+    }
+  )
+}
+
+function schedulePublish(): void {
+  if (streamId === undefined || publishTimer !== null) {
+    return
+  }
+
+  const wait = lastSentAt + MIN_PUBLISH_GAP_MS - Date.now()
+
+  if (wait <= 0) {
+    void publish()
+    return
+  }
+
+  publishTimer = setTimeout(() => {
+    publishTimer = null
+    void publish()
+  }, wait)
+}
+
+async function publish(): Promise<void> {
+  const token = getRoomToken()
+  const myGen = gen
+
+  if (streamId === undefined || !token) {
+    return
+  }
+
+  if (inFlight) {
+    dirty = true
+    return
+  }
+
+  inFlight = true
+  lastSentAt = Date.now()
+  keepaliveTimer = clearTimer(keepaliveTimer)
+  keepaliveTimer = setTimeout(() => {
+    keepaliveTimer = null
+    schedulePublish()
+  }, statusEveryMs)
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), STATUS_TIMEOUT_MS)
+  const headers = authHeaders(token)
+
+  headers.set('Content-Type', 'application/json')
+  postAborts.set(controller, timeout)
+
+  try {
+    const res = await fetch(`${getApiBase()}/room/status`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ ...currentReport(), streamId }),
+      signal: controller.signal,
+    })
+
+    if (gen === myGen && res.status === 401) {
+      endSession()
+    } else if (gen === myGen && res.status === 409) {
+      const body = (await res.json().catch(() => null)) as { error?: string } | null
+
+      if (gen === myGen && body?.error === REPLACED_ERROR) {
+        markReplaced()
+      }
+    }
+  } catch {
+    // Réseau coupé ou serveur lent : le prochain changement ou le rythme minimal renvoie l'état.
+  } finally {
+    clearTimeout(timeout)
+    postAborts.delete(controller)
+  }
+
+  if (gen === myGen) {
+    inFlight = false
+
+    if (dirty) {
+      dirty = false
+      schedulePublish()
+    }
+  }
+}
+
+function armWatchdog(): void {
+  watchdogTimer = clearTimer(watchdogTimer)
+  watchdogTimer = setTimeout(() => streamAbort?.abort(), heartbeatMs * SILENT_BEATS + 1000)
+}
+
+function onMessage(message: SseMessage): void {
+  if (message.event === LIVE_EVENT.REPLACED) {
+    markReplaced()
+    return
+  }
+
+  if (message.event === LIVE_EVENT.SESSION_ENDED) {
+    endSession()
+    return
+  }
+
+  if (message.event !== LIVE_EVENT.HELLO) {
+    return
+  }
+
+  try {
+    const hello = JSON.parse(message.data) as {
+      streamId?: unknown
+      heartbeatMs?: unknown
+      statusEveryMs?: unknown
+    }
+
+    if (typeof hello.streamId !== 'string') {
+      return
+    }
+
+    streamId = hello.streamId
+    heartbeatMs = Number(hello.heartbeatMs) > 0 ? Number(hello.heartbeatMs) : LIVE_HEARTBEAT_MS
+    statusEveryMs =
+      Number(hello.statusEveryMs) > 0 ? Number(hello.statusEveryMs) : LIVE_STATUS_EVERY_MS
+    attempt = 0
+    // Un nouveau flux : l'état est renvoyé tout de suite, sans attendre le prochain changement.
+    lastSentAt = Number.NEGATIVE_INFINITY
+    schedulePublish()
+  } catch {
+    // Message illisible : ignoré, le flux continue.
+  }
+}
+
+function scheduleReconnect(): void {
+  const delay = RECONNECT_DELAYS_MS[Math.min(attempt, RECONNECT_DELAYS_MS.length - 1)]
+
+  attempt += 1
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null
+    void connect()
+  }, delay)
+}
+
+async function connect(): Promise<void> {
+  const myGen = gen
+  const token = getRoomToken()
+
+  if (!token) {
+    halt()
+    return
+  }
+
+  const controller = new AbortController()
+  const headers = authHeaders(token)
+
+  headers.set('Accept', 'text/event-stream')
+  streamAbort = controller
+  heartbeatMs = LIVE_HEARTBEAT_MS
+  armWatchdog()
+
+  try {
+    const res = await fetch(`${getApiBase()}/room/stream`, { headers, signal: controller.signal })
+
+    if (gen !== myGen) {
+      return
+    }
+
+    if (res.status === 401) {
+      endSession()
+      return
+    }
+
+    if (!res.ok || !res.body) {
+      throw new Error(`stream ${res.status}`)
+    }
+
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    const parse = createSseParser(onMessage)
+
+    for (;;) {
+      const { done, value } = await reader.read()
+
+      if (done || gen !== myGen) {
+        break
+      }
+
+      armWatchdog()
+      parse(decoder.decode(value, { stream: true }))
+
+      if (gen !== myGen) {
+        break
+      }
+    }
+  } catch {
+    // Coupure, délai dépassé ou flux muet : on rouvre le flux après l'attente prévue.
+  }
+
+  if (gen !== myGen) {
+    return
+  }
+
+  // Flux perdu : plus de rapport tant qu'un nouveau `hello` n'a pas confirmé que cette salle est
+  // la seule à publier (un autre poste a pu prendre la place sans qu'on le sache).
+  controller.abort()
+  streamId = undefined
+  watchdogTimer = clearTimer(watchdogTimer)
+  publishTimer = clearTimer(publishTimer)
+  keepaliveTimer = clearTimer(keepaliveTimer)
+  scheduleReconnect()
+}
+
+/**
+ * Démarre la présence en direct. Sans effet en mode démo, sans jeton ou déjà démarrée.
+ * `getRouteName` donne la route affichée ; elle est retenue pour les relances sans argument.
+ */
+export function startRoomLive(getRouteName?: () => string | symbol | null | undefined): void {
+  if (getRouteName) {
+    routeName = getRouteName
+  }
+
+  if (running || isDemoMode() || !getRoomToken()) {
+    return
+  }
+
+  stopWatchingExpiry?.()
+  stopWatchingExpiry = null
+  replaced.value = false
+  sessionEnded.value = false
+  running = true
+  attempt = 0
+  lastKey = ''
+
+  // Chaque changement utile de l'état déclenche un rapport (regroupé par `schedulePublish`).
+  stopWatchingState = watch(
+    () => JSON.stringify(currentReport()),
+    (key) => {
+      if (key !== lastKey) {
+        lastKey = key
+        schedulePublish()
+      }
+    },
+    { immediate: true }
+  )
+
+  void connect()
+}
+
+/** Arrête la présence en direct (déconnexion de la salle). L'avis de fin de session reste affiché. */
+export function stopRoomLive(): void {
+  halt()
+  stopWatchingExpiry?.()
+  stopWatchingExpiry = null
+  replaced.value = false
+}
+
+export function useRoomLive() {
+  return {
+    /** Un autre poste de la salle a pris la main : cet écran ne publie plus. */
+    replaced: computed(() => replaced.value),
+    /** La session de salle a pris fin : l'écran de connexion le dit. */
+    sessionEnded: computed(() => sessionEnded.value),
+  }
+}

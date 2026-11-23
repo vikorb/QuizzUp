@@ -234,6 +234,16 @@ describe('live routes without an open stream', () => {
     ['a game id that is not a number', { gameId: 'abc' }],
     ['a podium out of range', { scores: [{ podium: 7, score: 1 }] }],
     [
+      'two scores for the same podium',
+      {
+        scores: [
+          { podium: 2, score: 10 },
+          { podium: 2, score: 20 },
+        ],
+      },
+    ],
+    ['a phase the engine does not have', { phase: 'warm_up' }],
+    [
       'more than 6 scores',
       { scores: Array.from({ length: 7 }, (_, index) => ({ podium: (index % 6) + 1, score: 0 })) },
     ],
