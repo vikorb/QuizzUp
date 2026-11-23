@@ -81,6 +81,29 @@ describe('routes/room.ts (US-ROOM-02)', () => {
     await app.close()
   })
 
+  it('exposes the company logo url, or null without logo, and never the storage key', async () => {
+    seedRoom()
+    const app = await createRouteApp(roomRoutes)
+    const read = async () =>
+      parseJson<{ company: Record<string, unknown> }>(
+        await app.inject({ method: 'GET', url: '/room/me', headers: authHeaders(roomUser) })
+      ).company
+
+    expect(await read()).toEqual({ id: 1, name: 'QuizzUp', logoUrl: null })
+
+    Object.assign(dbState.companies[0] ?? {}, {
+      logo_key: 'logos/11111111-1111-4111-8111-111111111111.png',
+    })
+
+    expect(await read()).toEqual({
+      id: 1,
+      name: 'QuizzUp',
+      logoUrl: '/public/v1/logos/11111111-1111-4111-8111-111111111111.png',
+    })
+
+    await app.close()
+  })
+
   it('returns the schedule settings of the room, null when there are none', async () => {
     seedRoom({ schedule: SCHEDULE })
     seedRoom({ id: 2, schedule: null })

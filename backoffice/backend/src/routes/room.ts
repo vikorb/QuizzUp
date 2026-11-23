@@ -14,6 +14,7 @@ import db from '../db'
 import { getMediaStorage, isValidMediaKey } from '../storage/mediaStorage'
 import type { RoomRow } from '../types/room'
 import { ROOM_CONFIG_MAX_LENGTH, roomConfigSchema } from './companies/rooms/_schemas'
+import { companyLogoUrl } from './companies/_shared'
 import { roomSelect } from './companies/rooms/_shared'
 import { findGameInCompany } from './games/_shared'
 import { getMediaVersion } from './questions/_shared'
@@ -106,9 +107,16 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(404).send({ error: 'not_found' })
     }
 
-    const company = await db('companies').where('id', room.companyId).first('id', 'name')
+    const company = await db('companies')
+      .where('id', room.companyId)
+      .first('id', 'name', 'logo_key')
 
-    return { room, company: company ?? null }
+    return {
+      room,
+      company: company
+        ? { id: company.id, name: company.name, logoUrl: companyLogoUrl(company.logo_key) }
+        : null,
+    }
   })
 
   // Le PC de la salle enregistre sa configuration matérielle (buzzers appris, lumières…) dans
