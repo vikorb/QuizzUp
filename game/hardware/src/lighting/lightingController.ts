@@ -830,7 +830,8 @@ export function createLightingController(options: LightingControllerOptions): Li
       const desk =
         explicitDesk ??
         (winners.length === 1 ? participantDesk(winners[0], options.resolveDesk) : null)
-      return { key: event.type, desk }
+      // Égalité en tête : aucun pupitre à mettre en avant, scène dédiée qui vise toute la salle.
+      return { key: winners.length > 1 && desk === null ? 'game_ended_tie' : event.type, desk }
     }
     return {
       key: event.type,
@@ -894,7 +895,15 @@ export function createLightingController(options: LightingControllerOptions): Li
       }),
     handleGameEvent(event) {
       const { key, desk } = resolveEvent(event)
-      const sceneId = Object.hasOwn(bindings, key) ? bindings[key] : undefined
+      // Une salle qui a réglé `game_ended` (scène maison, ou `null` pour couper la victoire) garde
+      // son choix à égalité tant qu'elle n'a pas réglé `game_ended_tie` elle-même.
+      const bindingKey =
+        key === 'game_ended_tie' &&
+        Object.hasOwn(config.bindings, 'game_ended') &&
+        !Object.hasOwn(config.bindings, 'game_ended_tie')
+          ? 'game_ended'
+          : key
+      const sceneId = Object.hasOwn(bindings, bindingKey) ? bindings[bindingKey] : undefined
       if (sceneId) {
         if (event.type === 'game_aborted') {
           // Partie arrêtée : retour au repos, même si une scène plus prioritaire tourne encore.

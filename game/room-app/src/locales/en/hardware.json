@@ -144,7 +144,8 @@
       "answer-wrong": "Wrong answer",
       "question-lost": "Lost for all",
       "round-end": "Round end",
-      "victory": "Victory"
+      "victory": "Victory",
+      "victory-tie": "Tied victory"
     },
     "smoke": {
       "title": "Smoke",
