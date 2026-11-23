@@ -1,62 +1,67 @@
 <template>
-  <main class="lights stage-bg" :data-step="step">
-    <UiButton class="lights__quit" data-test="lights-quit" @click="onQuit">
-      <MdIcon :path="mdiClose" :size="18" />
-      {{ $t('setup.quit') }}
-    </UiButton>
-
+  <WizardStage
+    :step="stepNumber"
+    :total="STEPS.length"
+    :data-step="step"
+    quit-test="lights-quit"
+    @quit="onQuit"
+  >
     <Transition name="lights-step" mode="out-in">
       <section v-if="step === 'scan'" key="scan" class="lights__stage">
         <h1 class="lights__title">{{ $t('setupLights.scan.title') }}</h1>
         <p class="lights__text">{{ $t('setupLights.scan.text') }}</p>
-        <UiButton
-          class="lights__big"
-          :disabled="usbSearching || !webSerial"
-          data-test="lights-usb"
-          @click="onUsb"
-        >
-          <MdIcon :path="mdiUsb" :size="22" />
-          {{ $t('setupLights.scan.usb') }}
-        </UiButton>
-        <p v-if="!webSerial" class="lights__small" data-test="lights-no-serial">
-          {{ $t('setupLights.scan.noSerial') }}
-        </p>
-        <ul class="cards" aria-live="polite">
-          <li v-if="usbFound" class="card card--ok" data-test="lights-found-usb">
-            <MdIcon :path="mdiCheckCircle" :size="26" />
-            {{ $t('setupLights.scan.usbFound') }}
-          </li>
-          <li v-for="node in nodes" :key="node.ip">
-            <button
-              type="button"
-              class="card card--ok card--pick"
-              :aria-pressed="chosenIp === node.ip"
-              data-test="lights-found-node"
-              @click="onPickNode(node.ip)"
+        <div class="scan">
+          <UiButton
+            size="lg"
+            class="scan__item"
+            :disabled="usbSearching || !webSerial"
+            data-test="lights-usb"
+            @click="onUsb"
+          >
+            <MdIcon :path="mdiUsb" :size="22" />
+            {{ $t('setupLights.scan.usb') }}
+          </UiButton>
+          <p v-if="!webSerial" class="lights__small" data-test="lights-no-serial">
+            {{ $t('setupLights.scan.noSerial') }}
+          </p>
+          <ul class="scan__status" aria-live="polite">
+            <li
+              v-if="usbFound"
+              class="status status--ok"
+              role="status"
+              data-test="lights-found-usb"
             >
               <MdIcon :path="mdiCheckCircle" :size="26" />
-              {{ $t('setupLights.scan.nodeFound', { ip: node.ip }) }}
-            </button>
-          </li>
-          <li v-if="searching" class="card" data-test="lights-searching">
-            {{ $t('setupLights.scan.searching') }}
-          </li>
-          <li v-if="usbMessage" class="card card--warn" role="alert" data-test="lights-usb-error">
-            {{ usbMessage }}
-          </li>
-          <li v-if="nothingFound" class="card" data-test="lights-none">
-            {{ $t('setupLights.scan.none') }}
-          </li>
-        </ul>
-        <UiButton
-          variant="primary"
-          class="lights__big"
-          :disabled="searching || usbSearching"
-          data-test="lights-scan-next"
-          @click="onScanNext"
-        >
-          {{ nothingFound ? $t('setupLights.scan.nextSimulation') : $t('setup.ok') }}
-        </UiButton>
+              {{ $t('setupLights.scan.usbFound') }}
+            </li>
+            <li v-for="node in nodes" :key="node.ip">
+              <UiButton
+                size="lg"
+                class="scan__item"
+                :aria-pressed="chosenIp === node.ip"
+                data-test="lights-found-node"
+                @click="onPickNode(node.ip)"
+              >
+                <MdIcon :path="mdiCheckCircle" :size="26" />
+                {{ $t('setupLights.scan.nodeFound', { ip: node.ip }) }}
+              </UiButton>
+            </li>
+            <li v-if="searching" class="status" role="status" data-test="lights-searching">
+              {{ $t('setupLights.scan.searching') }}
+            </li>
+            <li
+              v-if="usbMessage"
+              class="status status--warn"
+              role="alert"
+              data-test="lights-usb-error"
+            >
+              {{ usbMessage }}
+            </li>
+            <li v-if="nothingFound" class="status" role="status" data-test="lights-none">
+              {{ $t('setupLights.scan.none') }}
+            </li>
+          </ul>
+        </div>
       </section>
 
       <section v-else-if="step === 'equip'" key="equip" class="lights__stage">
@@ -65,38 +70,46 @@
           {{ $t('setupLights.equip.smokeConflict') }}
         </p>
         <div class="choices">
-          <button type="button" class="choice" data-test="lights-six-desk" @click="onSixDesk">
-            <strong>{{ $t('setupLights.equip.sixDesk') }}</strong>
-            <span>{{ $t('setupLights.equip.sixDeskHint') }}</span>
+          <button
+            type="button"
+            class="choice"
+            aria-labelledby="lights-choice-six-title"
+            aria-describedby="lights-choice-six-hint"
+            data-test="lights-six-desk"
+            @click="onSixDesk"
+          >
+            <strong id="lights-choice-six-title">{{ $t('setupLights.equip.sixDesk') }}</strong>
+            <span id="lights-choice-six-hint">{{ $t('setupLights.equip.sixDeskHint') }}</span>
           </button>
           <button
             v-if="fixtureCount > 0"
             type="button"
             class="choice"
+            aria-labelledby="lights-choice-keep-title"
+            aria-describedby="lights-choice-keep-hint"
             data-test="lights-keep"
             @click="onKeep"
           >
-            <strong>{{ $t('setupLights.equip.keep') }}</strong>
-            <span>{{ $t('setupLights.equip.keepHint', { n: fixtureCount }) }}</span>
+            <strong id="lights-choice-keep-title">{{ $t('setupLights.equip.keep') }}</strong>
+            <span id="lights-choice-keep-hint">
+              {{ $t('setupLights.equip.keepHint', { n: fixtureCount }) }}
+            </span>
           </button>
-          <button type="button" class="choice" data-test="lights-later" @click="onLater">
-            <strong>{{ $t('setupLights.equip.later') }}</strong>
-            <span>{{ $t('setupLights.equip.laterHint') }}</span>
+          <button
+            type="button"
+            class="choice"
+            aria-labelledby="lights-choice-later-title"
+            aria-describedby="lights-choice-later-hint"
+            data-test="lights-later"
+            @click="onLater"
+          >
+            <strong id="lights-choice-later-title">{{ $t('setupLights.equip.later') }}</strong>
+            <span id="lights-choice-later-hint">{{ $t('setupLights.equip.laterHint') }}</span>
           </button>
         </div>
       </section>
 
       <section v-else-if="step === 'test' && current" key="test" class="lights__stage">
-        <div
-          class="progress"
-          role="progressbar"
-          aria-valuemin="0"
-          :aria-valuemax="tests.length"
-          :aria-valuenow="index"
-          :aria-label="$t('setupLights.test.progress', { n: index + 1, total: tests.length })"
-        >
-          <div class="progress__bar" :style="{ width: `${(index / tests.length) * 100}%` }" />
-        </div>
         <p class="lights__small">
           {{ $t('setupLights.test.progress', { n: index + 1, total: tests.length }) }}
         </p>
@@ -112,60 +125,26 @@
             {{ $t('setupLights.test.address', { address: addressLabel(current) }) }}
           </p>
         </article>
-        <template v-if="phase === 'asking'">
-          <p class="lights__question" aria-live="polite" data-test="lights-question">
-            {{ $t('setupLights.test.question') }}
-          </p>
-          <div class="lights__actions">
-            <UiButton variant="primary" class="lights__big" data-test="lights-yes" @click="onYes">
-              {{ $t('setupLights.test.yes') }}
-            </UiButton>
-            <UiButton class="lights__big" data-test="lights-no" @click="onNo">
-              {{ $t('setupLights.test.no') }}
-            </UiButton>
-          </div>
-        </template>
-        <template v-else>
-          <div class="help" role="status" data-test="lights-help">
-            <strong>{{ $t('setupLights.test.helpTitle') }}</strong>
-            <ul>
-              <li>{{ $t('setupLights.test.helpAddress', { address: current.address }) }}</li>
-              <li>{{ $t('setupLights.test.helpCable') }}</li>
-            </ul>
-          </div>
-          <div class="lights__actions">
-            <UiButton
-              variant="primary"
-              class="lights__big"
-              data-test="lights-retry"
-              @click="onRetry"
-            >
-              {{ $t('setupLights.test.retry') }}
-            </UiButton>
-            <UiButton class="lights__big" data-test="lights-skip" @click="onSkip">
-              {{ $t('setupLights.test.skip') }}
-            </UiButton>
-          </div>
-        </template>
+        <p
+          v-if="phase === 'asking'"
+          class="lights__question"
+          aria-live="polite"
+          data-test="lights-question"
+        >
+          {{ $t('setupLights.test.question') }}
+        </p>
+        <div v-else class="help" role="status" data-test="lights-help">
+          <strong>{{ $t('setupLights.test.helpTitle') }}</strong>
+          <ul>
+            <li>{{ $t('setupLights.test.helpAddress', { address: current.address }) }}</li>
+            <li>{{ $t('setupLights.test.helpCable') }}</li>
+          </ul>
+        </div>
       </section>
 
       <section v-else-if="step === 'smoke'" key="smoke" class="lights__stage">
         <h1 class="lights__title" data-test="lights-smoke">{{ $t('setupLights.smoke.title') }}</h1>
         <p class="lights__text">{{ $t('setupLights.smoke.text') }}</p>
-        <div class="lights__actions">
-          <UiButton :disabled="saving" data-test="lights-smoke-link" @click="onSmokeLink">
-            {{ $t('setupLights.smoke.link') }}
-          </UiButton>
-          <UiButton
-            variant="primary"
-            class="lights__big"
-            :disabled="saving"
-            data-test="lights-smoke-next"
-            @click="goDone"
-          >
-            {{ $t('setupLights.smoke.next') }}
-          </UiButton>
-        </div>
       </section>
 
       <section v-else key="done" class="lights__stage">
@@ -195,22 +174,91 @@
         <p v-if="saveError" class="lights__error" role="alert" data-test="lights-save-error">
           {{ $t('setup.done.saveError') }}
         </p>
-        <UiButton
-          variant="primary"
-          class="lights__big"
-          :disabled="saving"
-          data-test="lights-finish"
-          @click="onFinish"
-        >
-          {{ $t('setup.done.finish') }}
-        </UiButton>
       </section>
     </Transition>
-  </main>
+
+    <template #back>
+      <UiButton
+        v-if="step === 'equip'"
+        size="lg"
+        data-test="lights-equip-back"
+        @click="onEquipBack"
+      >
+        {{ $t('setup.back') }}
+      </UiButton>
+    </template>
+
+    <template #secondary>
+      <template v-if="step === 'test'">
+        <UiButton v-if="phase === 'asking'" size="lg" data-test="lights-no" @click="onNo">
+          {{ $t('setupLights.test.no') }}
+        </UiButton>
+        <UiButton v-else size="lg" data-test="lights-skip" @click="onSkip">
+          {{ $t('setupLights.test.skip') }}
+        </UiButton>
+      </template>
+      <UiButton
+        v-else-if="step === 'smoke'"
+        size="lg"
+        :disabled="saving"
+        data-test="lights-smoke-link"
+        @click="onSmokeLink"
+      >
+        {{ $t('setupLights.smoke.link') }}
+      </UiButton>
+    </template>
+
+    <template #primary>
+      <UiButton
+        v-if="step === 'scan'"
+        variant="primary"
+        size="lg"
+        :disabled="searching || usbSearching"
+        data-test="lights-scan-next"
+        @click="onScanNext"
+      >
+        {{ nothingFound ? $t('setupLights.scan.nextSimulation') : $t('setup.ok') }}
+      </UiButton>
+      <template v-else-if="step === 'test'">
+        <UiButton
+          v-if="phase === 'asking'"
+          variant="primary"
+          size="lg"
+          data-test="lights-yes"
+          @click="onYes"
+        >
+          {{ $t('setupLights.test.yes') }}
+        </UiButton>
+        <UiButton v-else variant="primary" size="lg" data-test="lights-retry" @click="onRetry">
+          {{ $t('setupLights.test.retry') }}
+        </UiButton>
+      </template>
+      <UiButton
+        v-else-if="step === 'smoke'"
+        variant="primary"
+        size="lg"
+        :disabled="saving"
+        data-test="lights-smoke-next"
+        @click="goDone"
+      >
+        {{ $t('setupLights.smoke.next') }}
+      </UiButton>
+      <UiButton
+        v-else-if="step === 'done'"
+        variant="primary"
+        size="lg"
+        :disabled="saving"
+        data-test="lights-finish"
+        @click="onFinish"
+      >
+        {{ $t('setup.done.finish') }}
+      </UiButton>
+    </template>
+  </WizardStage>
 </template>
 
 <script setup lang="ts">
-import { mdiCheckCircle, mdiClose, mdiUsb } from '@mdi/js'
+import { mdiCheckCircle, mdiUsb } from '@mdi/js'
 import {
   type ArtnetNode,
   BridgePollError,
@@ -225,6 +273,7 @@ import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
+import WizardStage from '@/components/setup/WizardStage.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { useConfirm } from '@/composables/useConfirm'
@@ -240,7 +289,8 @@ import {
   useRoomHardware,
 } from '@/hardware/roomHardware'
 
-type Step = 'scan' | 'equip' | 'test' | 'smoke' | 'done'
+const STEPS = ['scan', 'equip', 'test', 'smoke', 'done'] as const
+type Step = (typeof STEPS)[number]
 
 const WHITE = { r: 255, g: 255, b: 255, w: 255 }
 
@@ -278,6 +328,7 @@ const nothingFound = computed(
   () => scanned.value && !searching.value && !usbFound.value && nodes.value.length === 0
 )
 
+const stepNumber = computed(() => STEPS.indexOf(step.value) + 1)
 const later = ref(false)
 const tests = ref<FixtureConfig[]>([])
 const index = ref(0)
@@ -384,6 +435,11 @@ function onScanNext(): void {
 }
 
 // ── Étape 2 : équipement ───────────────────────────────────────────────────
+
+function onEquipBack(): void {
+  equipError.value = false
+  step.value = 'scan'
+}
 
 async function onSixDesk(): Promise<void> {
   if (
@@ -592,26 +648,12 @@ async function restoreStart(): Promise<void> {
 </script>
 
 <style scoped>
-.lights {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 64px 24px 24px;
-  text-align: center;
-  color: var(--text-0);
-}
-
-.lights__quit {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-}
-
 .lights__stage {
   display: grid;
   justify-items: center;
   gap: clamp(10px, 2.4vh, 28px);
   width: min(960px, 100%);
+  margin: 0 auto;
 }
 
 .lights__title {
@@ -647,80 +689,78 @@ async function restoreStart(): Promise<void> {
   font-size: var(--stage-text);
 }
 
-.lights__actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+/* Recherche d'interface : une seule colonne, tous les blocs à la même largeur. */
+.scan {
+  display: grid;
   gap: 16px;
+  width: min(520px, 100%);
 }
 
-.lights__big {
-  padding: 18px 44px;
-  font-size: var(--stage-text);
-  font-weight: 800;
+.scan__item {
+  width: 100%;
 }
 
-.cards {
+.scan__status {
   display: grid;
   gap: 12px;
-  width: min(560px, 100%);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.card {
+/* Message d'état : du texte, jamais une boîte qui ressemble à un bouton. */
+.status {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 12px;
-  width: 100%;
-  padding: 16px 20px;
-  border: 2px solid var(--border-ui);
-  border-radius: 16px;
-  background: var(--bg-1);
-  color: var(--text-0);
-  font-size: var(--stage-text);
+  color: var(--text-1);
+  font-size: var(--stage-small);
   font-weight: 700;
 }
 
-.card--ok {
-  border-color: var(--success);
+.status--ok svg {
+  color: var(--ok);
 }
 
-.card--warn {
-  border-color: var(--danger);
+.status--warn {
+  color: var(--danger);
 }
 
-.card--pick {
-  cursor: pointer;
-  transition: var(--tr);
+.scan__item[aria-pressed='true'] {
+  background: var(--surface-3);
+  border-color: var(--border-hover);
+  color: var(--text-0);
 }
 
-.card--pick[aria-pressed='true'] {
-  background: var(--bg-2);
-  box-shadow: 0 0 0 3px var(--text-0);
-}
-
+/* Cartes de choix : même largeur, même hauteur, contenu aligné en haut. */
 .choices {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 280px));
   justify-content: center;
   gap: 16px;
+  width: 100%;
 }
 
 .choice {
   display: grid;
+  align-content: start;
+  justify-items: start;
   gap: 8px;
-  width: min(280px, 100%);
   padding: 24px 20px;
   border: 2px solid var(--border-ui);
-  border-radius: 20px;
+  border-radius: var(--radius-card);
   background: var(--bg-1);
   color: var(--text-0);
-  font-size: var(--stage-text);
+  font-family: inherit;
+  text-align: left;
   cursor: pointer;
   transition: var(--tr);
+}
+
+.choice strong {
+  font-size: var(--stage-small);
+  font-weight: 800;
 }
 
 .choice span {
@@ -732,27 +772,13 @@ async function restoreStart(): Promise<void> {
   border-color: var(--text-0);
 }
 
-.progress {
-  width: min(560px, 100%);
-  height: 12px;
-  border-radius: 6px;
-  background: var(--border-ui);
-  overflow: hidden;
-}
-
-.progress__bar {
-  height: 100%;
-  background: var(--accent-blue);
-  transition: width 300ms ease;
-}
-
 .fixture {
   display: grid;
   gap: 8px;
   width: min(640px, 100%);
   padding: 28px 24px;
   border: 3px solid var(--text-0);
-  border-radius: 24px;
+  border-radius: var(--radius-card);
   background: var(--bg-1);
   animation: lights-pop 300ms ease;
 }
@@ -797,14 +823,14 @@ async function restoreStart(): Promise<void> {
   justify-content: space-between;
   gap: 16px;
   padding: 10px 16px;
-  border-radius: 12px;
+  border-radius: var(--radius-ctl);
   border: 2px solid var(--border-ui);
   font-size: var(--stage-small);
   font-weight: 700;
 }
 
 .result--ok span {
-  color: var(--success);
+  color: var(--ok);
 }
 
 .result--ko span {

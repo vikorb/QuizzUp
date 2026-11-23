@@ -134,7 +134,7 @@ function onConsent(event: Event): void {
   align-content: start;
   gap: 12px;
   padding: 18px;
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   border: 1px solid var(--border-ui);
   background: linear-gradient(180deg, var(--bg-card-hi), var(--bg-card));
   transition: var(--tr);
@@ -162,7 +162,6 @@ function onConsent(event: Event): void {
 
 .desk--filled {
   border-color: var(--desk-color);
-  box-shadow: 0 0 26px -12px var(--desk-color);
 }
 
 .desk--ping {
@@ -196,8 +195,9 @@ function onConsent(event: Event): void {
 
 .consent {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--tap-min);
   font-size: 12px;
   line-height: 1.45;
   color: var(--text-1);
@@ -205,9 +205,8 @@ function onConsent(event: Event): void {
 }
 
 .consent__box {
-  margin-top: 2px;
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
   flex: 0 0 auto;
   accent-color: var(--accent-purple);
 }

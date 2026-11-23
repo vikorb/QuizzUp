@@ -23,48 +23,70 @@
     </RoomTopBar>
 
     <section class="launch__body">
-      <div v-if="savedGame" class="launch__resume neon neon--no-hover">
-        <h2>{{ $t('room.launch.resumeTitle') }}</h2>
-        <p>{{ $t('room.launch.resumeText') }}</p>
+      <h1 class="launch__title">{{ $t('room.launch.title') }}</h1>
+      <p class="launch__subtitle">{{ $t('room.launch.subtitle') }}</p>
+
+      <div v-if="savedGame" class="launch__resume" data-test="launch-resume">
+        <h2 class="launch__resume-title">{{ $t('room.launch.resumeTitle') }}</h2>
+        <p class="launch__resume-text">{{ $t('room.launch.resumeText') }}</p>
         <div class="launch__resume-actions">
-          <UiButton variant="primary" :disabled="launching" @click="onResume">
-            <MdIcon :path="mdiRestore" :size="18" />
+          <UiButton
+            variant="primary"
+            size="lg"
+            :disabled="launching"
+            data-test="resume-saved"
+            @click="onResume"
+          >
+            <MdIcon :path="mdiRestore" :size="22" />
             {{ $t('room.launch.resume') }}
           </UiButton>
-          <UiButton variant="danger" :disabled="launching" @click="onDiscard">
+          <UiButton
+            variant="danger"
+            size="lg"
+            :disabled="launching"
+            data-test="discard-saved"
+            @click="onDiscard"
+          >
             {{ $t('room.launch.discard') }}
           </UiButton>
         </div>
       </div>
 
-      <UiButton
-        v-if="setupNeeded"
-        class="launch__setup"
-        variant="primary"
-        data-test="start-setup"
-        @click="router.push({ name: 'setup' })"
-      >
-        <MdIcon :path="mdiWizardHat" :size="28" />
-        {{ $t('room.launch.setup') }}
-      </UiButton>
+      <div class="launch__actions">
+        <UiButton
+          v-if="setupNeeded"
+          class="launch__action"
+          :variant="savedGame ? 'default' : 'primary'"
+          size="lg"
+          data-test="start-setup"
+          @click="router.push({ name: 'setup' })"
+        >
+          <MdIcon :path="mdiWizardHat" :size="24" />
+          {{ $t('room.launch.setup') }}
+        </UiButton>
 
-      <h1 class="launch__title">{{ $t('room.launch.title') }}</h1>
-      <p class="launch__subtitle">{{ $t('room.launch.subtitle') }}</p>
+        <UiButton
+          class="launch__action"
+          :variant="savedGame || setupNeeded ? 'default' : 'primary'"
+          size="lg"
+          :disabled="launching"
+          data-test="start-room"
+          @click="onLaunch"
+        >
+          <MdIcon :path="mdiRocketLaunchOutline" :size="24" />
+          {{ launching ? $t('room.launch.starting') : $t('room.launch.start') }}
+        </UiButton>
 
-      <UiButton class="launch__start" variant="primary" :disabled="launching" @click="onLaunch">
-        <MdIcon :path="mdiRocketLaunchOutline" :size="28" />
-        {{ launching ? $t('room.launch.starting') : $t('room.launch.start') }}
-      </UiButton>
-
-      <button
-        v-if="!setupNeeded"
-        type="button"
-        class="launch__reconfigure"
-        data-test="reconfigure-room"
-        @click="router.push({ name: 'setup' })"
-      >
-        {{ $t('room.launch.reconfigure') }}
-      </button>
+        <UiButton
+          v-if="!setupNeeded"
+          class="launch__action"
+          size="lg"
+          data-test="reconfigure-room"
+          @click="router.push({ name: 'setup' })"
+        >
+          {{ $t('room.launch.reconfigure') }}
+        </UiButton>
+      </div>
 
       <p v-if="fullscreenRefused" class="launch__warn" role="status">
         {{ $t('room.launch.fullscreenFailed') }}
@@ -179,7 +201,7 @@ async function onLogout(): Promise<void> {
 
 .launch__body {
   display: grid;
-  place-content: center;
+  align-content: center;
   justify-items: center;
   gap: 18px;
   padding: 24px;
@@ -199,11 +221,48 @@ async function onLogout(): Promise<void> {
   font-size: var(--stage-small);
 }
 
-.launch__start {
-  margin-top: 12px;
-  padding: 22px 42px;
-  border-radius: 20px;
-  font-size: clamp(18px, 2vw, 28px);
+/* Panneau et colonne d'actions : une seule largeur, tout est aligné. */
+.launch__resume,
+.launch__actions {
+  width: min(680px, 100%);
+}
+
+.launch__resume {
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--border-2);
+  background: var(--bg-card);
+}
+
+.launch__resume-title,
+.launch__resume-text {
+  margin: 0;
+}
+
+.launch__resume-title {
+  font-size: var(--stage-small);
+  font-weight: 900;
+}
+
+.launch__resume-text {
+  color: var(--text-1);
+}
+
+.launch__resume-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.launch__actions {
+  display: grid;
+  gap: 12px;
+}
+
+.launch__action {
+  width: 100%;
 }
 
 .launch__warn {
@@ -215,47 +274,5 @@ async function onLogout(): Promise<void> {
   margin: 0;
   color: var(--text-3);
   font-size: 13px;
-}
-
-.launch__resume {
-  display: grid;
-  gap: 10px;
-  max-width: 640px;
-  margin-bottom: 18px;
-  padding: 20px 24px;
-  border-radius: 18px;
-  border: 1px solid var(--border-2);
-  background: var(--bg-card-hi);
-}
-
-.launch__resume h2,
-.launch__resume p {
-  margin: 0;
-}
-
-.launch__resume p {
-  color: var(--text-1);
-}
-
-.launch__resume-actions {
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.launch__setup {
-  padding: 18px 40px;
-  font-size: var(--stage-text);
-  font-weight: 800;
-}
-
-.launch__reconfigure {
-  background: none;
-  border: 0;
-  color: var(--text-2);
-  font-size: var(--stage-small);
-  text-decoration: underline;
-  cursor: pointer;
 }
 </style>

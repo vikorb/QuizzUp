@@ -253,3 +253,60 @@ describe('parcours de configuration plein écran', () => {
     await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('setup-lights'))
   })
 })
+
+const barTests = (wrapper: Wrapper) =>
+  wrapper.findAll('[data-test="wizard-bar"] button').map((button) => button.attributes('data-test'))
+const primaryTests = (wrapper: Wrapper) =>
+  wrapper.findAll('.ui-btn--primary').map((button) => button.attributes('data-test'))
+
+describe('squelette du parcours : barre d’actions et bouton principal', () => {
+  it('chaque étape a un seul principal à droite, Retour à gauche, tous de même taille', async () => {
+    const { wrapper } = await mountWithApp(SetupView, { route: '/setup' })
+
+    // [étape, actions de la barre dans l'ordre retour, secondaire, principal, principaux visibles]
+    const check = (bar: string[], primaries: string[]) => {
+      expect(barTests(wrapper)).toEqual(bar)
+      expect(primaryTests(wrapper)).toEqual(primaries)
+      for (const button of wrapper.findAll('[data-test="wizard-bar"] button')) {
+        expect(button.classes()).toContain('ui-btn--lg')
+      }
+    }
+
+    check(['setup-start'], ['setup-start'])
+    await click(wrapper, 'setup-start')
+    check(['setup-layout-back', 'setup-swap', 'setup-layout-ok'], ['setup-layout-ok'])
+    await click(wrapper, 'setup-layout-ok')
+    check(['setup-desks-back', 'setup-desks-ok'], ['setup-desks-ok'])
+    await click(wrapper, 'setup-desks-1')
+    await click(wrapper, 'setup-desks-ok')
+    // Association des buzzers : l'action est physique (appuyer sur le buzzer), pas de principal.
+    check(['setup-back', 'setup-skip'], [])
+    for (const _step of [1, 2, 3, 4]) {
+      await click(wrapper, 'setup-skip')
+    }
+    check(['setup-done-back', 'setup-lights', 'setup-finish'], ['setup-finish'])
+  })
+
+  it('« Quitter » reste en haut, hors de la barre, et n’est pas un principal', async () => {
+    const { wrapper } = await mountWithApp(SetupView, { route: '/setup' })
+
+    const quit = sel(wrapper, 'setup-quit')
+    expect(quit.element.closest('.wizard__top')).not.toBeNull()
+    expect(quit.element.closest('[data-test="wizard-bar"]')).toBeNull()
+    expect(quit.classes()).not.toContain('ui-btn--primary')
+  })
+
+  it('le retour d’une association est du texte avec role="status", pas un bouton', async () => {
+    const { wrapper } = await mountWithApp(SetupView, { route: '/setup' })
+    await click(wrapper, 'setup-start')
+    await click(wrapper, 'setup-layout-ok')
+    await click(wrapper, 'setup-desks-ok')
+
+    await press('KeyB')
+    const feedback = sel(wrapper, 'setup-feedback')
+    expect(feedback.element.tagName).toBe('P')
+    expect(feedback.attributes('role')).toBe('status')
+    expect(feedback.element.closest('button')).toBeNull()
+    expect(feedback.find('button').exists()).toBe(false)
+  })
+})
