@@ -17,6 +17,7 @@ import { isUniqueViolation } from '../../_shared/dbErrors'
 import { findCompanyById } from '../_shared'
 import { createRoomSchema, roomsParamsSchema } from './_schemas'
 import { isRoomNameTaken, roomSelect } from './_shared'
+import { isLightingConfigChangeForbidden } from './_lighting'
 
 const companyRoomsRoutes: FastifyPluginAsync = async (app) => {
   app.get('/companies/:companyId/rooms', { preHandler: [app.authenticate] }, async (req, reply) => {
@@ -92,6 +93,11 @@ const companyRoomsRoutes: FastifyPluginAsync = async (app) => {
 
       if (!canManageRoomsContext(req, companyId)) {
         return reply.code(403).send({ error: 'forbidden' })
+      }
+
+      // Sécurité : pas de réglage `lighting` (lumières, fumée) depuis le backoffice, même à la création.
+      if (isLightingConfigChangeForbidden({}, config)) {
+        return reply.code(403).send({ error: 'smoke_config_forbidden' })
       }
 
       const company = await findCompanyById(companyId)
