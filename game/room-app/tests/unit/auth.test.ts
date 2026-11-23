@@ -80,6 +80,7 @@ describe('connexion du compte de salle', () => {
   it.each([
     [401, 'invalid_credentials'],
     [400, 'invalid_form'],
+    [429, 'too_many_requests'],
     [500, 'server_error'],
   ])('traduit une réponse %i en %s', async (status, reason) => {
     fetchMock.mockResolvedValueOnce(jsonResponse(status, {}))
@@ -105,6 +106,7 @@ describe('connexion du compte de salle', () => {
 
   it('a une clé i18n pour chaque raison d’échec', () => {
     expect(loginReasonToI18nKey('not_room_account')).toBe('auth.errors.notRoomAccount')
+    expect(loginReasonToI18nKey('too_many_requests')).toBe('auth.errors.tooManyRequests')
     expect(loginReasonToI18nKey('api_unreachable')).toBe('auth.errors.apiUnreachable')
     expect(loginReasonToI18nKey('server_error')).toBe('auth.errors.serverError')
   })

@@ -41,6 +41,11 @@ cd QuizzUp && git pull
 docker compose -f deploy/recette/docker-compose.yml --env-file deploy/recette/.env up -d --build
 ```
 
+Un `.env` créé avant l'ajout de `TRUST_PROXY` n'a rien à changer : le compose prend alors la plage
+Docker `172.16.0.0/12`. Pour une autre plage, ajouter `TRUST_PROXY=<plage>` à `.env` ; sans bonne
+valeur, l'API voit l'adresse de Caddy pour tous les clients et les limites de débit deviennent
+communes à tout le monde.
+
 Les données (base, extraits audio, certificats) sont dans des volumes Docker : une mise à jour
 ne les efface pas. Tous les seeds tournent au premier démarrage (base vide) ; ensuite seul le seed de démo
 est rejoué, et il ne recrée jamais ce qui a été modifié ou supprimé au backoffice.
@@ -57,6 +62,11 @@ docker compose -f deploy/recette/docker-compose.yml --env-file deploy/recette/.e
 - **Écran de salle « API injoignable »** : l'URL de l'API est figée à la construction de l'image
   `web` ; après un changement de `DOMAIN`, relancer avec `--build`.
 - **Tout remettre à zéro** (efface base et extraits) : `… down -v` puis `… up -d --build`.
+
+## Journaux et données personnelles
+
+Avec `TRUST_PROXY` réglé, les journaux du backend contiennent l'adresse réelle des clients
+(personnel et joueurs) : une donnée personnelle. Les garder 30 jours au plus.
 
 ## Limites de cette recette
 

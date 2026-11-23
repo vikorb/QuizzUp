@@ -9,6 +9,10 @@ export const API_RESOURCE = {
   ROOM: 'room',
   ROOM_ACCOUNT: 'roomAccount',
   GAME: 'game',
+  PLAYER: 'player',
+  VOUCHER: 'voucher',
+  STATS: 'stats',
+  ROOM_LOG: 'roomLog',
 } as const
 
 export const API_ACTION = {
@@ -77,6 +81,31 @@ const roomWritePermissions: PermissionKey[] = [
 // US-GAME-08 : tout le staff (opérateur compris) lance et suit les parties de sa compagnie.
 const gamePermissions: PermissionKey[] = ['game:list', 'game:read', 'game:create', 'game:update']
 
+// Lots 6 et 7 : tout le staff consulte les joueurs (e-mails masqués pour `user`) et manipule les
+// bons (émission, recherche, utilisation) ; l'annulation d'un bon est réservée à l'admin (Q9).
+const staffPlayerVoucherPermissions: PermissionKey[] = [
+  'player:list',
+
+  'voucher:list',
+  'voucher:read',
+  'voucher:create',
+  'voucher:update',
+]
+
+// Export, désinscription et effacement RGPD des joueurs, annulation d'un bon, statistiques (Q11 :
+// pas pour `user`) et journaux des salles (réservés à l'admin) : superadmin et admin seulement.
+const adminPlayerVoucherPermissions: PermissionKey[] = [
+  'player:read',
+  'player:update',
+  'player:delete',
+
+  'voucher:updateStatus',
+
+  'stats:read',
+
+  'roomLog:list',
+]
+
 const permissionsByRole: Record<ApiRole, PermissionKey[]> = {
   [ADMIN_ROLE_SUPERADMIN]: [
     'company:list',
@@ -101,6 +130,9 @@ const permissionsByRole: Record<ApiRole, PermissionKey[]> = {
     ...roomWritePermissions,
 
     ...gamePermissions,
+
+    ...staffPlayerVoucherPermissions,
+    ...adminPlayerVoucherPermissions,
   ],
 
   [ADMIN_ROLE_ADMIN]: [
@@ -121,6 +153,9 @@ const permissionsByRole: Record<ApiRole, PermissionKey[]> = {
     ...roomWritePermissions,
 
     ...gamePermissions,
+
+    ...staffPlayerVoucherPermissions,
+    ...adminPlayerVoucherPermissions,
   ],
 
   [ADMIN_ROLE_USER]: [
@@ -134,6 +169,8 @@ const permissionsByRole: Record<ApiRole, PermissionKey[]> = {
     ...roomReadPermissions,
 
     ...gamePermissions,
+
+    ...staffPlayerVoucherPermissions,
   ],
 }
 
