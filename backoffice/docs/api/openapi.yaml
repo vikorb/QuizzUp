@@ -29,6 +29,20 @@ tags:
     description: Salles de jeu d'une compagnie et leur configuration matérielle
   - name: Games
     description: Parties lancées par l'opérateur dans une salle
+  - name: Public
+    description: |
+      API publique sous `/public/v1` (vitrine, réservation) : sans compte, sans jeton, sans cookie.
+      Aucune route n'y est livrée pour l'instant ; les routes à venir suivent ces conventions.
+
+      - Erreurs au format `PublicError` : statut HTTP et `{ "error": "<code_snake_case>" }`, avec
+        `details.fieldErrors` pour `invalid_body` seulement. Codes communs : `invalid_json` (400),
+        `invalid_body` (400), `payload_too_large` (413), `unsupported_media_type` (415),
+        `not_found` (404), `too_many_requests` (429), `server_error` (500). Toute autre erreur de
+        requête (4xx) détectée par le serveur garde son statut avec le code `bad_request`.
+      - Limite de débit par adresse du client (120 requêtes par minute par défaut) : refus en `429`
+        avec l'en-tête `Retry-After` (secondes).
+      - Réponses jamais mises en cache (`Cache-Control: no-store`).
+      - CORS réservé aux sites listés dans la variable `VITRINE_ORIGINS` (aucun si elle est vide).
 
 security:
   - bearerAuth: []
@@ -102,6 +116,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: |
+            Trop de tentatives, par adresse (100 par fenêtre de 15 minutes) ou par couple adresse et
+            identifiant (10 par fenêtre, casse ignorée) ; seuls les échecs comptent. Une adresse IPv6
+            est comptée par bloc /64. Code `too_many_requests`, identique que le compte existe ou
+            non. Même route pour le personnel et pour les comptes de salle.
+          headers:
+            Retry-After:
+              description: Secondes à attendre avant de réessayer
+              schema:
+                type: integer
+                example: 600
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: too_many_requests
 
   /logout:
     post:
@@ -3506,6 +3538,27 @@ components:
       properties:
         error:
           type: string
+
+    PublicError:
+      type: object
+      description: Erreur de l'API publique `/public/v1` (jamais de pile ni de message brut)
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Code stable en snake_case
+          example: too_many_requests
+        details:
+          type: object
+          description: Présent pour `invalid_body` seulement
+          properties:
+            fieldErrors:
+              type: object
+              additionalProperties:
+                type: array
+                items:
+                  type: string
 
     QuestionMediaFile:
       type: object

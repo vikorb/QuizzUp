@@ -10,7 +10,12 @@ const DEMO_KEY = 'quizzup_room_demo'
 const ROOM_ACCOUNT_KEY = 'quizzup_room_account'
 
 export type RoomLoginFailReason =
-  'invalid_credentials' | 'invalid_form' | 'not_room_account' | 'server_error' | 'api_unreachable'
+  | 'invalid_credentials'
+  | 'invalid_form'
+  | 'too_many_requests'
+  | 'not_room_account'
+  | 'server_error'
+  | 'api_unreachable'
 
 export type RoomAccount = {
   id: number
@@ -81,6 +86,9 @@ export function loginReasonToI18nKey(reason: RoomLoginFailReason): string {
     }
     case 'invalid_form': {
       return 'auth.errors.invalidForm'
+    }
+    case 'too_many_requests': {
+      return 'auth.errors.tooManyRequests'
     }
     case 'not_room_account': {
       return 'auth.errors.notRoomAccount'
@@ -154,6 +162,9 @@ export async function loginRoomApi(args: {
       }
       if (res.status === 400) {
         return { ok: false, reason: 'invalid_form' }
+      }
+      if (res.status === 429) {
+        return { ok: false, reason: 'too_many_requests' }
       }
       return { ok: false, reason: 'server_error' }
     }
