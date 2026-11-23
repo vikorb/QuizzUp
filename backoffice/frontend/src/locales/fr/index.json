@@ -29,7 +29,10 @@
     "default": "Une erreur est survenue.",
     "room_account_already_exists": "Cette salle a déjà un compte de connexion : il est affiché ci-dessous.",
     "room_account_not_found": "Cette salle n’a plus de compte de connexion.",
-    "username_already_exists": "Cet identifiant est déjà utilisé par un autre compte."
+    "username_already_exists": "Cet identifiant est déjà utilisé par un autre compte.",
+    "too_many_streams": "Trop de suivis en direct sont ouverts avec ce compte (5 au maximum). Fermez un autre onglet puis rechargez la page.",
+    "room_instance_replaced": "Un autre poste s'est connecté à cette salle : cette connexion a été fermée.",
+    "session_ended": "Votre session n'est plus valable : reconnectez-vous pour reprendre le suivi en direct."
   },
   "success": {
     "title": "Action confirmée",
