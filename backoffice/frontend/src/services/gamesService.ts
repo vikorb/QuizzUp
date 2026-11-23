@@ -5,6 +5,7 @@ import type {
   GameApiResult,
   GameResponse,
   GameRoomsResponse,
+  GamesQuery,
   GamesResponse,
 } from '@/types/game'
 import { apiFetch } from '@/utils/api'
@@ -79,9 +80,22 @@ async function requestGameJson<T>(options: ApiRequestOptions): Promise<GameApiRe
   }
 }
 
-export async function listGamesService(companyId: number): Promise<GamesResult> {
+export async function listGamesService(
+  companyId: number,
+  query: GamesQuery = {}
+): Promise<GamesResult> {
+  const params = new URLSearchParams()
+
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined) {
+      params.set(key, String(value))
+    }
+  }
+
+  const search = params.toString()
+
   return requestGameJson<GamesResponse>({
-    path: `/companies/${companyId}/games`,
+    path: `/companies/${companyId}/games${search ? `?${search}` : ''}`,
   })
 }
 
@@ -108,6 +122,22 @@ export async function createGameService(
 export async function abortGameService(companyId: number, gameId: number): Promise<GameResult> {
   return requestGameJson<GameResponse>({
     path: `/companies/${companyId}/games/${gameId}/abort`,
+    method: 'POST',
+  })
+}
+
+/** Session programmée → en attente (possible dès 60 min avant son début). */
+export async function openGameService(companyId: number, gameId: number): Promise<GameResult> {
+  return requestGameJson<GameResponse>({
+    path: `/companies/${companyId}/games/${gameId}/open`,
+    method: 'POST',
+  })
+}
+
+/** Session programmée → annulée (idempotent : une session déjà annulée renvoie 200). */
+export async function cancelGameService(companyId: number, gameId: number): Promise<GameResult> {
+  return requestGameJson<GameResponse>({
+    path: `/companies/${companyId}/games/${gameId}/cancel`,
     method: 'POST',
   })
 }

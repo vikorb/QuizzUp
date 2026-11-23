@@ -1,4 +1,11 @@
-import type { GameState, GameStatus, MiniGame, RoomStatus } from '@quizzup/shared'
+import type {
+  GameLocale,
+  GameState,
+  GameStatus,
+  MiniGame,
+  RoomSchedule,
+  RoomStatus,
+} from '@quizzup/shared'
 
 /** 2e joueur facultatif d'un pupitre, tel que renvoyé par l'API. */
 export type GameSecondPlayer = {
@@ -44,7 +51,21 @@ export type Game = {
   updatedAt: string | null
   participantsCount?: number
   participants?: GameParticipant[]
+  /** Début prévu (UTC) d'une session programmée ; `null` pour une partie immédiate. */
+  scheduledAt?: string | null
+  /** Fin prévue (UTC), strictement après `scheduledAt`. */
+  scheduledEndAt?: string | null
+  cancelledAt?: string | null
+  /** Nombre de joueurs annoncé (6 pupitres × 2 joueurs au plus). */
+  playersCount?: number | null
+  /** Référence du système de réservation du client. */
+  externalRef?: string | null
+  locale?: GameLocale | null
+  /** Origine de la session (lot 14) : absent tant que l'API publique n'est pas livrée. */
+  source?: GameSource
 }
+
+export type GameSource = 'backoffice' | 'api'
 
 export type GameTableRow = Game & Record<string, unknown>
 
@@ -55,6 +76,21 @@ export type GameRoom = {
   status: RoomStatus
   /** Pupitres de la salle (4 par défaut, jusqu'à 6) ; absent d'une ancienne réponse. */
   desksCount?: number
+  /** Créneaux réservables et fuseau de la salle ; `null` ou absent : pas de grille de créneaux. */
+  schedule?: RoomSchedule | null
+}
+
+/** Filtres de `GET /companies/:companyId/games` (tous facultatifs). */
+export type GamesQuery = {
+  state?: GameState
+  roomId?: number
+  /** Borne basse incluse, date ISO 8601. */
+  from?: string
+  /** Borne haute exclue, date ISO 8601. */
+  to?: string
+  /** 200 au plus côté serveur. */
+  limit?: number
+  offset?: number
 }
 
 export type GameStateFilter = GameState | ''
@@ -176,6 +212,8 @@ export type GameApiResult<T> = GameApiSuccess<T> | GameApiFailure
 
 export type GamesResponse = {
   games: Game[]
+  /** Parties qui correspondent aux filtres, avant pagination. */
+  total?: number
 }
 
 export type GameResponse = {

@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Écran « Agenda » du backoffice : les sessions programmées d'une salle, jour par jour, dans le fuseau de la salle, avec les créneaux libres de la grille, l'ouverture, l'annulation confirmée et l'accès au détail.
+  US: US-SESSION-01 (#142)
+
 - Import de questions par fichier CSV (`POST /questions/import`) : essai à blanc, import tout ou rien avec erreurs numérotées par ligne, portée `global` ou `company` selon les droits, sans écran pour l'instant.
   US: US-IMPORT-01 (#158)
 - Backoffice : une feuille de résultats imprimable (classement avec égalités, centre, salle, date, sans e-mail de joueur) est accessible depuis la fiche d'une partie terminée.
