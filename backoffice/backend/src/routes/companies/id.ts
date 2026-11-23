@@ -9,10 +9,10 @@ import {
   canUpdateCompanyContext,
   isSuperadmin,
 } from '../../security/companiesPolicy'
-import type { CompanyRow, CompanyUpdateBody } from '../../types/company'
+import type { CompanyDbRow, CompanyUpdateBody } from '../../types/company'
 
 import { paramsSchema, updateCompanySchema } from './_schemas'
-import { companySelect, findCompanyById, getCompanyAdminsCount } from './_shared'
+import { companySelect, findCompanyById, getCompanyAdminsCount, toCompanyRow } from './_shared'
 
 const companiesIdRoutes: FastifyPluginAsync = async (app) => {
   app.get(
@@ -55,7 +55,7 @@ const companiesIdRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(404).send({ error: 'not_found' })
       }
 
-      return { company: company as CompanyRow }
+      return { company: toCompanyRow(company as CompanyDbRow) }
     }
   )
 
@@ -156,16 +156,14 @@ const companiesIdRoutes: FastifyPluginAsync = async (app) => {
           'created_at as createdAt',
           'updated_at as updatedAt',
           'deleted_at as deletedAt',
+          'logo_key as logoKey',
         ])
 
       const updatedCompanyBase = Array.isArray(updated) ? updated[0] : updated
       const accountsCount = await getCompanyAdminsCount(id)
 
       return reply.code(200).send({
-        company: {
-          ...updatedCompanyBase,
-          accountsCount,
-        } satisfies CompanyRow,
+        company: toCompanyRow({ ...updatedCompanyBase, accountsCount }),
       })
     }
   )

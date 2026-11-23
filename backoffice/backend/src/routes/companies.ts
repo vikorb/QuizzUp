@@ -5,10 +5,11 @@ import db from '../db'
 import { API_ACTION, API_RESOURCE } from '../security/permissions'
 import { requireApiPermission } from '../security/requireApiPermission'
 import { getCurrentCompanyId, isSuperadmin } from '../security/companiesPolicy'
-import type { CompanyCreateBody, CompanyRow } from '../types/company'
+import type { CompanyCreateBody, CompanyDbRow } from '../types/company'
 import companiesIdRoutes from './companies/id'
 import companiesIdStatusRoutes from './companies/idStatus'
 import companiesIdPermanentRoutes from './companies/idPermanent'
+import companyLogoRoutes from './companies/logo'
 import companyAdminsRoutes from './companies/admins'
 import companyAdminIdRoutes from './companies/admins/id'
 import companyAdminIdStatusRoutes from './companies/admins/idStatus'
@@ -16,13 +17,14 @@ import companyRoomsRoutes from './companies/rooms'
 import companyRoomAccountRoutes from './companies/rooms/account'
 import companyRoomIdRoutes from './companies/rooms/id'
 import companyRoomIdStatusRoutes from './companies/rooms/idStatus'
-import { companySelect } from './companies/_shared'
+import { companySelect, toCompanyRow } from './companies/_shared'
 import { createCompanySchema } from './companies/_schemas'
 
 const companiesRoutes: FastifyPluginAsync = async (app) => {
   app.register(companiesIdRoutes)
   app.register(companiesIdStatusRoutes)
   app.register(companiesIdPermanentRoutes)
+  app.register(companyLogoRoutes)
   app.register(companyAdminsRoutes)
   app.register(companyAdminIdRoutes)
   app.register(companyAdminIdStatusRoutes)
@@ -62,12 +64,14 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
           return { companies: [] }
         }
 
-        return { companies: [company as CompanyRow] }
+        return { companies: [toCompanyRow(company as CompanyDbRow)] }
       }
 
       const companies = await baseQuery.orderBy('companies.id', 'asc')
 
-      return { companies: companies as CompanyRow[] }
+      return {
+        companies: companies.map((company) => toCompanyRow(company as CompanyDbRow)),
+      }
     }
   )
 
@@ -128,15 +132,13 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
           'created_at as createdAt',
           'updated_at as updatedAt',
           'deleted_at as deletedAt',
+          'logo_key as logoKey',
         ])
 
       const createdCompany = Array.isArray(inserted) ? inserted[0] : inserted
 
       return reply.code(201).send({
-        company: {
-          ...createdCompany,
-          accountsCount: 0,
-        } satisfies CompanyRow,
+        company: toCompanyRow({ ...createdCompany, accountsCount: 0 }),
       })
     }
   )

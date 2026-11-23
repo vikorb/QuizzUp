@@ -76,7 +76,7 @@ export async function removeStoredMediaFile(
   try {
     await getMediaStorage().remove(key)
   } catch (error) {
-    req.log.warn({ err: error, key }, 'question media removal failed')
+    req.log.warn({ err: error, key }, 'media removal failed')
   }
 }
 

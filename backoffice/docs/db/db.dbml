@@ -7,6 +7,10 @@ Table companies {
   name varchar(255) [not null]
   email varchar(255) [not null]
 
+  logo_key text [note: 'Clé du logo dans le stockage média (logos/<uuid>.png|jpg|webp), jamais exposée ; nulle sans logo']
+  logo_mime_type varchar(50) [note: 'image/png, image/jpeg ou image/webp, vérifié sur les octets à l’envoi ; Content-Type servi par GET /public/v1/logos/:file']
+  logo_updated_at timestamptz [note: 'Date du dernier envoi du logo']
+
   status smallint [not null, default: 1, note: '0=inactive, 1=active, 2=deleted']
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz

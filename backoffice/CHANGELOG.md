@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Logo du centre : envoi, remplacement et retrait depuis la fiche de la compagnie (`PUT` et `DELETE /companies/:companyId/logo`, PNG, JPEG ou WebP, 512 Ko au plus, type vérifié sur les premiers octets, SVG refusé). Le logo est servi par `GET /public/v1/logos/:file` et exposé par `logoUrl` dans `/room/me` et les routes des compagnies.
+  US: US-RESULTS-01 (#156)
+
 - Site vitrine public (`vitrine/`) : accueil avec des captures réelles de l'écran de salle, demande
   de démonstration, mentions légales, confidentialité, page 404. Site statique Vite, sans cookie ni
   script tiers ; nom, domaine et coordonnées lus dans `vitrine/site.config.ts` (valeurs légales à

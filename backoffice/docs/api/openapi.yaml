@@ -32,7 +32,8 @@ tags:
   - name: Public
     description: |
       API publique sous `/public/v1` (vitrine, réservation) : sans compte, sans jeton, sans cookie.
-      Aucune route n'y est livrée pour l'instant ; les routes à venir suivent ces conventions.
+      Route livrée : `GET /public/v1/logos/{file}` (logo d'un centre). Les routes à venir suivent
+      ces conventions.
 
       - Erreurs au format `PublicError` : statut HTTP et `{ "error": "<code_snake_case>" }`, avec
         `details.fieldErrors` pour `invalid_body` seulement. Codes communs : `invalid_json` (400),
@@ -41,7 +42,8 @@ tags:
         requête (4xx) détectée par le serveur garde son statut avec le code `bad_request`.
       - Limite de débit par adresse du client (120 requêtes par minute par défaut) : refus en `429`
         avec l'en-tête `Retry-After` (secondes).
-      - Réponses jamais mises en cache (`Cache-Control: no-store`).
+      - Réponses jamais mises en cache (`Cache-Control: no-store`), sauf le contenu immuable d'un
+        fichier (logo : `public, max-age=31536000, immutable`).
       - CORS réservé aux sites listés dans la variable `VITRINE_ORIGINS` (aucun si elle est vide).
 
 security:
@@ -426,6 +428,143 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Compagnie introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/logo:
+    put:
+      tags:
+        - Companies
+      summary: "[DISPONIBLE] Envoyer ou remplacer le logo d'une compagnie"
+      description: |
+        Statut : **Disponible** (lot 6a)
+
+        Le corps de la requête est le fichier lui-même (pas de multipart). Formats acceptés : PNG,
+        JPEG et WebP, 512 Ko au plus. Le type est vérifié sur les premiers octets du fichier : ni
+        l'en-tête `Content-Type` ni l'extension ne comptent, et le SVG est refusé (il peut porter
+        un script).
+
+        Effets : l'ancien fichier est supprimé du stockage. La réponse donne l'URL publique du
+        logo ; la clé de stockage n'est jamais exposée.
+
+        Droits : permission `company:update` ; un admin n'agit que sur sa compagnie, le superadmin
+        sur toutes.
+      operationId: uploadCompanyLogo
+      x-availability: disponible
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          description: Identifiant de la compagnie
+          schema:
+            type: integer
+            example: 1
+      requestBody:
+        required: true
+        content:
+          image/png:
+            schema:
+              type: string
+              format: binary
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+          image/webp:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: Logo enregistré
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [logoUrl]
+                properties:
+                  logoUrl:
+                    type: string
+                    example: /public/v1/logos/6f1c2a9e-3b7d-4c55-9a10-0d2f5b8e7a41.png
+        '400':
+          description: |
+            Identifiant invalide (`invalid_params`) ou fichier qui n'est ni un PNG, ni un JPEG, ni
+            un WebP (`logo_type_invalid`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non connecté
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Rôle sans droit, ou autre compagnie (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Compagnie introuvable ou supprimée (`not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Fichier de plus de 512 Ko (`logo_too_large`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Companies
+      summary: "[DISPONIBLE] Retirer le logo d'une compagnie"
+      description: |
+        Statut : **Disponible** (lot 6a)
+
+        Efface le logo et supprime son fichier du stockage. Répond `204` même si la compagnie n'avait
+        pas de logo.
+
+        Droits : permission `company:update` ; un admin n'agit que sur sa compagnie.
+      operationId: deleteCompanyLogo
+      x-availability: disponible
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          description: Identifiant de la compagnie
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '204':
+          description: Logo retiré
+        '400':
+          description: Identifiant invalide (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non connecté
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Rôle sans droit, ou autre compagnie (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Compagnie introuvable ou supprimée (`not_found`)
           content:
             application/json:
               schema:
@@ -1335,6 +1474,10 @@ paths:
                         type: integer
                       name:
                         type: string
+                      logoUrl:
+                        type: string
+                        nullable: true
+                        description: URL publique du logo de la compagnie (`GET /public/v1/logos/{file}`), ou `null`
         '403':
           description: Compte qui n'est pas un compte de salle
           content:
@@ -3456,6 +3599,64 @@ paths:
               schema:
                 $ref: '#/components/schemas/NotImplementedResponse'
 
+  /public/v1/logos/{file}:
+    get:
+      tags:
+        - Public
+      summary: "[DISPONIBLE] Logo d'un centre"
+      description: |
+        Statut : **Disponible** (lot 6a)
+
+        Route publique : aucune authentification. Sert le fichier (PNG, JPEG ou WebP) d'une
+        compagnie non supprimée. Le nom du fichier change à chaque envoi : le contenu d'une URL ne
+        change jamais, d'où le cache `immutable`. `Content-Type` vient de la base, avec
+        `X-Content-Type-Options: nosniff`.
+
+        Tout refus répond le même `404 logo_not_found` : fichier inconnu, nom mal formé, compagnie
+        supprimée ou fichier absent du stockage ne se distinguent pas.
+      operationId: getPublicCompanyLogo
+      x-availability: disponible
+      security: []
+      parameters:
+        - name: file
+          in: path
+          required: true
+          description: Nom du fichier, `<uuid>.png`, `<uuid>.jpg` ou `<uuid>.webp` (voir `logoUrl`)
+          schema:
+            type: string
+            example: 6f1c2a9e-3b7d-4c55-9a10-0d2f5b8e7a41.png
+      responses:
+        '200':
+          description: Le logo
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: public, max-age=31536000, immutable
+            X-Content-Type-Options:
+              schema:
+                type: string
+                example: nosniff
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Aucun logo pour ce fichier (`logo_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -3820,6 +4021,11 @@ components:
         accountsCount:
           type: integer
           example: 3
+        logoUrl:
+          type: string
+          nullable: true
+          description: URL publique du logo (`GET /public/v1/logos/{file}`), ou `null` sans logo
+          example: /public/v1/logos/6f1c2a9e-3b7d-4c55-9a10-0d2f5b8e7a41.png
 
     CreateCompanyRequest:
       type: object
