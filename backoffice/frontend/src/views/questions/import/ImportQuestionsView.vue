@@ -64,6 +64,7 @@
           <MdIcon :path="mdiDownload" :size="18" />
           {{ t('questionImport.file.template') }}
         </UiButton>
+        <p class="import-form__help">{{ t('questionImport.file.templateHelp') }}</p>
       </div>
     </BaseCard>
 
@@ -144,6 +145,7 @@ import type { QuestionImportResult } from '@/types/questionImport'
 import { formatFileSize } from '@/utils/question/audio'
 import {
   buildImportTemplate,
+  getImportErrorKey,
   IMPORT_FILE_ACCEPT,
   IMPORT_TEMPLATE_FILE_NAME,
   validateImportFile,
@@ -154,7 +156,7 @@ import ImportReport from './ImportReport.vue'
 type DryRunReport = Extract<QuestionImportResult, { ok: true; dryRun: true }>
 type ImportError = { code: string; params: Record<string, string | number> }
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 const router = useRouter()
 
 const maxSizeLabel = formatFileSize(QUESTION_IMPORT_MAX_BYTES)
@@ -214,7 +216,7 @@ const banner = computed(() => {
   if (error.value) {
     return {
       variant: 'error' as const,
-      message: t(`questionImport.errors.${error.value.code}`, {
+      message: t(getImportErrorKey(error.value.code, te), {
         max: QUESTION_IMPORT_MAX_ROWS,
         size: maxSizeLabel,
         ...error.value.params,
@@ -277,6 +279,17 @@ async function run(dryRun: boolean): Promise<void> {
 
   const currentRequest = requestId
   busy.value = dryRun ? 'check' : 'import'
+
+  // Chromium refuse d'envoyer un fichier modifié depuis sa sélection (et fetch échoue alors comme
+  // une panne réseau) : on le lit d'abord, pour demander de le choisir de nouveau.
+  try {
+    await file.value.arrayBuffer()
+  } catch {
+    resetAll()
+    error.value = { code: 'file_changed', params: {} }
+
+    return
+  }
 
   const result = await importQuestionsService({
     file: file.value,

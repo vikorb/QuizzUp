@@ -31,7 +31,10 @@ function readRowErrors(value: unknown): QuestionImportRowError[] {
   return Array.isArray(value) ? (value as QuestionImportRowError[]) : []
 }
 
-/** Code du serveur ; sans code, celui que le statut HTTP permet de déduire. */
+/**
+ * Code du serveur, sauf pour 401 et 403 : le serveur y répond par plusieurs codes de session
+ * (`session_expired_inactive`, `account_inactive`…) que l'écran ne traduit pas, le statut suffit.
+ */
 function readFailure(status: number, body: ImportBody | null): ImportFailure {
   const code = typeof body?.error === 'string' ? body.error : null
 
@@ -43,8 +46,12 @@ function readFailure(status: number, body: ImportBody | null): ImportFailure {
     return failure('csv_content_type_unsupported')
   }
 
-  if (status === 401 || status === 403) {
-    return failure(code ?? (status === 401 ? 'unauthorized' : 'forbidden'))
+  if (status === 401) {
+    return failure('unauthorized')
+  }
+
+  if (status === 403) {
+    return failure('forbidden')
   }
 
   if (status >= 500 || code === null) {

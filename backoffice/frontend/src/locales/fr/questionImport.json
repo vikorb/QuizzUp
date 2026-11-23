@@ -7,7 +7,8 @@
       "title": "Fichier",
       "label": "Fichier CSV",
       "help": "CSV en UTF-8, séparateur « ; » ou « , ». {rows} lignes et {size} au plus.",
-      "template": "Télécharger le modèle"
+      "template": "Télécharger le modèle",
+      "templateHelp": "Dans le modèle, remplacez le thème d'exemple par le nom d'un thème qui existe déjà dans la portée choisie : sinon chaque ligne est refusée."
     },
     "template": {
       "theme": "Culture générale",
@@ -37,7 +38,7 @@
       "valid": "{count} valide | {count} valides",
       "invalid": "{count} en erreur",
       "clean": "Aucune erreur : {count} question peut être importée. | Aucune erreur : {count} questions peuvent être importées.",
-      "blocked": "Corrigez le fichier puis relancez la vérification : tant qu'il reste une erreur, rien ne peut être importé.",
+      "blocked": "Corrigez le fichier, puis choisissez-le de nouveau : tant qu'il reste une erreur, rien ne peut être importé.",
       "truncated": "Seules les {shown} premières erreurs sont affichées.",
       "line": "Ligne",
       "column": "Colonne",
@@ -74,6 +75,7 @@
       "question_true_false_answers_invalid": "Une question vrai / faux a deux réponses, « Vrai » et « Faux », dont une juste.",
       "question_estimate_answers_invalid": "Une estimation a 3 ou 4 fourchettes commençant par un nombre, dont une juste.",
       "file_too_large": "Le fichier est trop volumineux ({size} au maximum).",
+      "file_changed": "Le fichier a été modifié : choisissez-le de nouveau.",
       "api_unreachable": "Le serveur est injoignable. Vérifiez votre connexion puis réessayez.",
       "unauthorized": "Votre session a expiré : reconnectez-vous.",
       "forbidden": "Vous n'avez pas le droit d'importer des questions ici.",

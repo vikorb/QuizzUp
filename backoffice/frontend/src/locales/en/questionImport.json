@@ -7,7 +7,8 @@
       "title": "File",
       "label": "CSV file",
       "help": "UTF-8 CSV, separator « ; » or « , ». {rows} rows and {size} at most.",
-      "template": "Download the template"
+      "template": "Download the template",
+      "templateHelp": "In the template, replace the sample theme with the name of a theme that already exists in the chosen scope: otherwise every row is refused."
     },
     "template": {
       "theme": "General knowledge",
@@ -37,7 +38,7 @@
       "valid": "{count} valid",
       "invalid": "{count} with errors",
       "clean": "No error: {count} question can be imported. | No error: {count} questions can be imported.",
-      "blocked": "Fix the file, then check it again: as long as one error remains, nothing can be imported.",
+      "blocked": "Fix the file, then choose the corrected file again: as long as one error remains, nothing can be imported.",
       "truncated": "Only the first {shown} errors are shown.",
       "line": "Row",
       "column": "Column",
@@ -74,6 +75,7 @@
       "question_true_false_answers_invalid": "A true / false question has two answers, « Vrai » and « Faux », with one correct.",
       "question_estimate_answers_invalid": "An estimate has 3 or 4 ranges starting with a number, with one correct.",
       "file_too_large": "The file is too large ({size} at most).",
+      "file_changed": "The file was modified: choose it again.",
       "api_unreachable": "The server cannot be reached. Check your connection and try again.",
       "unauthorized": "Your session has expired: sign in again.",
       "forbidden": "You are not allowed to import questions here.",

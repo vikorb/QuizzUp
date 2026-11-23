@@ -8,6 +8,7 @@ import {
   mockLoadCompaniesFailure,
   mockLoadCompaniesSuccess,
 } from '@frontend-tests/_helpers/companiesServiceMock'
+import { missingMessageKeys } from '@frontend-tests/_helpers/i18nMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import {
   createDryRunResult,
@@ -86,7 +87,15 @@ beforeEach(() => {
 
 afterEach(() => {
   document.body.innerHTML = ''
+  missingMessageKeys.clear()
 })
+
+// Un fichier modifié depuis sa sélection : Chromium refuse de le lire (et de l'envoyer).
+function breakFile(file: File): void {
+  Object.defineProperty(file, 'arrayBuffer', {
+    value: () => Promise.reject(new DOMException('changed', 'NotReadableError')),
+  })
+}
 
 describe('views/questions/import/ImportQuestionsView.vue — before the check', () => {
   it('starts without file: check disabled and primary, nothing else offered', () => {
@@ -275,6 +284,64 @@ describe('views/questions/import/ImportQuestionsView.vue — check', () => {
     expect(bannerText(wrapper)).toBe(`questionImport.errors.${code}`)
     expect(wrapper.find('[data-test="import-report-valid"]').exists()).toBe(false)
     expect(confirmButton(wrapper).exists()).toBe(false)
+  })
+
+  it('falls back on server_error for a code without translation, in the banner and the report', async () => {
+    missingMessageKeys.add('questionImport.errors.session_expired_inactive')
+    missingMessageKeys.add('questionImport.errors.csv_unheard_of')
+
+    mockImportFailure('session_expired_inactive')
+
+    const wrapper = mountView()
+
+    await pickFile(wrapper, csv())
+    await checkFile(wrapper)
+
+    expect(bannerText(wrapper)).toBe('questionImport.errors.server_error')
+
+    importQuestionsServiceMock.mockResolvedValue(
+      createDryRunResult([{ line: 2, column: null, code: 'csv_unheard_of' }])
+    )
+    await checkFile(wrapper)
+
+    expect(wrapper.find('[data-test="base-table-row"]').text()).toContain(
+      'questionImport.errors.server_error'
+    )
+  })
+
+  it('asks to choose the file again when it changed since it was picked', async () => {
+    const wrapper = mountView()
+    const changed = csv()
+
+    breakFile(changed)
+    await pickFile(wrapper, changed)
+    await checkFile(wrapper)
+
+    expect(bannerText(wrapper)).toBe('questionImport.errors.file_changed')
+    expect(importQuestionsServiceMock).not.toHaveBeenCalled()
+    expect(checkButton(wrapper).attributes('disabled')).toBeDefined()
+    expect(wrapper.find<HTMLInputElement>('#import-file').element.value).toBe('')
+    expect(wrapper.find('#import-file').attributes('disabled')).toBeUndefined()
+  })
+
+  it('drops the report when the file changed between the check and the import', async () => {
+    const wrapper = mountView()
+    const changed = csv()
+
+    await pickFile(wrapper, changed)
+    await checkFile(wrapper)
+    breakFile(changed)
+    await confirmButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(bannerText(wrapper)).toBe('questionImport.errors.file_changed')
+    expect(importQuestionsServiceMock).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('[data-test="import-report-valid"]').exists()).toBe(false)
+    expect(confirmButton(wrapper).exists()).toBe(false)
+  })
+
+  it('explains that the template theme must be replaced by an existing one', () => {
+    expect(mountView().text()).toContain('questionImport.file.templateHelp')
   })
 
   it('dismisses the error banner', async () => {

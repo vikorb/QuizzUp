@@ -31,6 +31,16 @@ export function validateImportFile(
   return file.size > QUESTION_IMPORT_MAX_BYTES ? 'file_too_large' : null
 }
 
+/**
+ * Clé du texte d'un code d'erreur ; un code que l'écran ne traduit pas (code de session, erreur
+ * inattendue du serveur) retombe sur `server_error`, jamais sur une clé brute à l'écran.
+ */
+export function getImportErrorKey(code: string, has: (key: string) => boolean): string {
+  const key = `questionImport.errors.${code}`
+
+  return has(key) ? key : 'questionImport.errors.server_error'
+}
+
 // ponytail: la liste des colonnes vit côté serveur (routes/questions/import.ts), pas dans
 // `@quizzup/shared` : à y déplacer pour que modèle et route ne puissent plus diverger.
 const TEMPLATE_COLUMNS = [

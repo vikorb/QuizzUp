@@ -7,10 +7,20 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildImportTemplate,
+  getImportErrorKey,
   getImportTemplateRows,
   type ImportTemplateTexts,
   validateImportFile,
 } from '@/utils/question/import'
+
+const has = (key: string) => key === 'questionImport.errors.csv_empty'
+
+describe('utils/question/import — getImportErrorKey', () => {
+  it('keeps the key of a translated code and falls back on server_error otherwise', () => {
+    expect(getImportErrorKey('csv_empty', has)).toBe('questionImport.errors.csv_empty')
+    expect(getImportErrorKey('session_invalid', has)).toBe('questionImport.errors.server_error')
+  })
+})
 
 const texts: ImportTemplateTexts = {
   theme: 'Culture générale',

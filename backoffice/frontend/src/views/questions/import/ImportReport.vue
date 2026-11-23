@@ -55,6 +55,7 @@ import { useI18n } from 'vue-i18n'
 import BaseTable, { type BaseTableColumn } from '@/components/ui/BaseTable.vue'
 import StatusPill from '@/components/ui/StatusPill.vue'
 import type { QuestionImportRowError } from '@/types/questionImport'
+import { getImportErrorKey } from '@/utils/question/import'
 
 const props = defineProps<{
   /** Lignes de données lues, valides ou non. */
@@ -64,7 +65,7 @@ const props = defineProps<{
   errors: QuestionImportRowError[]
 }>()
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 
 const invalid = computed(() => props.rows - props.valid)
 
@@ -79,7 +80,7 @@ const items = computed(() =>
     key: index,
     line: error.line,
     column: error.column,
-    message: t(`questionImport.errors.${error.code}`),
+    message: t(getImportErrorKey(error.code, te)),
   }))
 )
 </script>

@@ -44,6 +44,49 @@ describe('locales — questionImport', () => {
     }
   })
 
+  // Liste en dur : un code que l'écran peut afficher sans texte s'afficherait comme une clé brute.
+  it.each([
+    // 400 de la route d'import (openapi.yaml)
+    ['invalid_query'],
+    ['question_company_required'],
+    ['csv_empty'],
+    ['csv_encoding_invalid'],
+    ['csv_header_invalid'],
+    ['csv_too_many_rows'],
+    ['csv_field_unterminated'],
+    // Autres statuts de la route : 401, 403, 413, 415, 422 et 5xx (le service les ramène à ces codes)
+    ['unauthorized'],
+    ['forbidden'],
+    ['file_too_large'],
+    ['csv_content_type_unsupported'],
+    ['csv_invalid'],
+    ['server_error'],
+    // Erreurs de ligne (backend/src/routes/questions/import.ts)
+    ['csv_too_many_columns'],
+    ['csv_theme_not_found'],
+    ['csv_theme_ambiguous'],
+    ['csv_audio_unsupported'],
+    ['csv_media_url_required'],
+    ['csv_media_url_invalid'],
+    ['csv_correct_invalid'],
+    ['csv_question_duplicate'],
+    ['question_required'],
+    ['question_theme_required'],
+    ['question_kind_invalid'],
+    ['question_type_media_invalid'],
+    ['question_kind_media_invalid'],
+    ['question_answers_min_required'],
+    ['question_correct_answer_required'],
+    ['question_true_false_answers_invalid'],
+    ['question_estimate_answers_invalid'],
+    // Codes de l'écran lui-même
+    ['api_unreachable'],
+    ['file_changed'],
+  ])('has a text for the displayable code %s in both languages', (code) => {
+    expect(fr[`errors.${code}`], `fr ${code}`).toBeTruthy()
+    expect(en[`errors.${code}`], `en ${code}`).toBeTruthy()
+  })
+
   it('gives the same placeholders to both languages', () => {
     for (const key of Object.keys(fr)) {
       expect(placeholders(en[key]!), key).toEqual(placeholders(fr[key]!))

@@ -167,13 +167,33 @@ describe('services/questionImportService — failures', () => {
     })
   })
 
-  it('falls back on the HTTP status for 401 and 403 without code', async () => {
+  it('maps 401 to unauthorized and 403 to forbidden, with or without a server code', async () => {
     apiFetchMock.mockResolvedValueOnce(new Response('', { status: 401 }))
     await expect(service.importQuestionsService(importRequest())).resolves.toMatchObject({
       code: 'unauthorized',
     })
 
     apiFetchMock.mockResolvedValueOnce(new Response('', { status: 403 }))
+    await expect(service.importQuestionsService(importRequest())).resolves.toMatchObject({
+      code: 'forbidden',
+    })
+  })
+
+  it.each(['session_expired_inactive', 'session_invalid', 'account_inactive'])(
+    'maps the session code %s of a 401 to unauthorized',
+    async (error) => {
+      apiFetchMock.mockResolvedValueOnce(jsonResponse(401, { error }))
+
+      await expect(service.importQuestionsService(importRequest())).resolves.toMatchObject({
+        ok: false,
+        code: 'unauthorized',
+      })
+    }
+  )
+
+  it('maps a 403 with an unknown server code to forbidden', async () => {
+    apiFetchMock.mockResolvedValueOnce(jsonResponse(403, { error: 'company_deleted' }))
+
     await expect(service.importQuestionsService(importRequest())).resolves.toMatchObject({
       code: 'forbidden',
     })
