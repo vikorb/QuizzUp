@@ -185,6 +185,41 @@ describe('startPlayerEmailPurgeScheduler', () => {
     stop()
   })
 
+  it('garde le texte des emails joueurs sans option label', async () => {
+    startPlayerEmailPurgeScheduler({ purge, log, intervalHours: 0 })
+    expect(log.info).toHaveBeenLastCalledWith({}, 'Purge RGPD des emails joueurs désactivée')
+
+    purge.mockResolvedValue(1)
+    const stop = startPlayerEmailPurgeScheduler({ purge, log, intervalHours: 24 })
+    await vi.advanceTimersByTimeAsync(PLAYER_EMAIL_PURGE_INITIAL_DELAY_MS)
+
+    expect(log.info).toHaveBeenLastCalledWith(
+      { purged: 1 },
+      'Purge RGPD des emails joueurs terminée'
+    )
+
+    stop()
+  })
+
+  it('nomme la purge dans les journaux avec l’option label', async () => {
+    const label = 'Purge RGPD des demandes de démonstration'
+    const failure = new Error('base indisponible')
+
+    startPlayerEmailPurgeScheduler({ purge, log, intervalHours: 0, label })
+    expect(log.info).toHaveBeenLastCalledWith({}, `${label} désactivée`)
+
+    purge.mockResolvedValueOnce(4).mockRejectedValueOnce(failure)
+    const stop = startPlayerEmailPurgeScheduler({ purge, log, intervalHours: 1, label })
+
+    await vi.advanceTimersByTimeAsync(PLAYER_EMAIL_PURGE_INITIAL_DELAY_MS)
+    expect(log.info).toHaveBeenLastCalledWith({ purged: 4 }, `${label} terminée`)
+
+    await vi.advanceTimersByTimeAsync(HOUR_MS)
+    expect(log.error).toHaveBeenLastCalledWith({ err: failure }, `${label} en échec`)
+
+    stop()
+  })
+
   it('l’arrêt annule les minuteurs, avant et après la première purge', async () => {
     const stopBefore = startPlayerEmailPurgeScheduler({ purge, log, intervalHours: 24 })
     stopBefore()
