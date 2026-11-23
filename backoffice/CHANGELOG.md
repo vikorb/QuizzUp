@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Écran « Agenda » du backoffice : les sessions programmées d'une salle, jour par jour, dans le fuseau de la salle, avec les créneaux libres de la grille, l'ouverture, l'annulation confirmée et l'accès au détail.
+  US: US-SESSION-01 (#142)
+
 - Sessions programmées, côté serveur : une partie se crée à l'avance avec `scheduledAt` (statut `scheduled`, joueurs facultatifs), se modifie (`PATCH`), s'ouvre (`POST …/open`) et s'annule (`POST …/cancel`). Deux sessions ne peuvent pas se chevaucher dans une salle (`slot_taken`). L'annulation efface les e-mails des joueurs. La suppression d'une salle annule ses sessions à venir. La liste des parties filtre sur la date prévue et rend les champs de session.
   US: US-SESSION-02 (#142)
 

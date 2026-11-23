@@ -126,6 +126,22 @@ export async function abortGameService(companyId: number, gameId: number): Promi
   })
 }
 
+/** Session programmée → en attente (possible dès 60 min avant son début). */
+export async function openGameService(companyId: number, gameId: number): Promise<GameResult> {
+  return requestGameJson<GameResponse>({
+    path: `/companies/${companyId}/games/${gameId}/open`,
+    method: 'POST',
+  })
+}
+
+/** Session programmée → annulée (idempotent : une session déjà annulée renvoie 200). */
+export async function cancelGameService(companyId: number, gameId: number): Promise<GameResult> {
+  return requestGameJson<GameResponse>({
+    path: `/companies/${companyId}/games/${gameId}/cancel`,
+    method: 'POST',
+  })
+}
+
 /**
  * Salles de la compagnie, pour choisir où lancer la partie. Appel minimal : la gestion
  * des salles (fiche compagnie) a son propre service.
