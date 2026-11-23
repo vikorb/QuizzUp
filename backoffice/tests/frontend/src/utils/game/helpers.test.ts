@@ -148,6 +148,7 @@ describe('utils/game/state', () => {
           email: null,
           hasEmail: false,
           consentAt: null,
+          marketingConsent: false,
           secondPlayer: null,
           score: 0,
         },
@@ -171,6 +172,7 @@ describe('utils/game/state', () => {
             email: null,
             hasEmail: false,
             consentAt: null,
+            marketingConsent: false,
             secondPlayer: null,
             score: 0,
           },
@@ -234,6 +236,21 @@ describe('utils/game/errors', () => {
     ).toBe('email_consent_required')
     expect(readGameApiError({ error: 'invalid_body', details: { fieldErrors: {} } })).toBe(
       'invalid_body'
+    )
+  })
+
+  it('surfaces the offers-without-email detail hidden in invalid_body', () => {
+    expect(
+      readGameApiError({
+        error: 'invalid_body',
+        details: {
+          formErrors: [],
+          fieldErrors: { participants: ['marketing_consent_requires_email'] },
+        },
+      })
+    ).toBe('marketing_consent_requires_email')
+    expect(getGameErrorKey('marketing_consent_requires_email')).toBe(
+      'games.errors.marketingConsentRequiresEmail'
     )
   })
 

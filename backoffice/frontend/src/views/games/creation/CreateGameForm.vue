@@ -185,6 +185,7 @@ import {
   validateGameForm,
 } from '@/utils/game/form'
 import { getRoomPresenceKind, getRoomPresenceLabelKey } from '@/utils/room/presence'
+import { isBlank } from '@/utils/validation'
 
 import GameMiniGamesField from './GameMiniGamesField.vue'
 import GameParticipantFields from './GameParticipantFields.vue'
@@ -401,10 +402,23 @@ function updateParticipant(
     return
   }
 
+  // La case « offres » n'a pas d'erreur à effacer : l'API la refuse seulement sans email.
+  if (field === 'marketingConsent' || field === 'secondMarketingConsent') {
+    participant[field] = value === true
+    return
+  }
+
   if (field === 'emailConsent' || field === 'secondEmailConsent') {
     participant[field] = value === true
   } else {
     participant[field] = String(value)
+  }
+
+  // Sans email, la case « offres » est inactive : on la décoche pour ne rien envoyer par erreur.
+  if (field === 'email' && isBlank(participant.email)) {
+    participant.marketingConsent = false
+  } else if (field === 'secondEmail' && isBlank(participant.secondEmail)) {
+    participant.secondMarketingConsent = false
   }
 
   const errors = fieldErrors.participants[index]

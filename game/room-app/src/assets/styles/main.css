@@ -35,6 +35,24 @@
   --stage-text: clamp(20px, 2.4vw, 40px);
   --stage-small: clamp(14px, 1.3vw, 22px);
   --stage-gap: clamp(16px, 2.4vw, 40px);
+
+  /* ---- Cibles tactiles : 48 px partout, 64 px pour les écrans vus de loin (accueil, assistants) ---- */
+  --tap-min: 48px;
+  --tap-lg: 64px;
+
+  /* ---- Rayons et lueur d'état actif des contrôles de l'écran de salle ---- */
+  --radius-ctl: 12px;
+  --radius-card: 18px;
+  --glow-active: 0 0 12px var(--glow-soft);
+}
+
+/* Les contrôles de formulaire n'héritent pas de la police du corps (Arial par défaut) : on la leur donne.
+   Sélecteurs d'élément, donc moins spécifiques que les classes : tailles et graisses des composants priment. */
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }
 
 /* Fond d'écran de salle : halos bleu-violet sur le fond spatial du backoffice. */
@@ -58,14 +76,34 @@
   display: grid;
   gap: 14px;
   padding: 20px 22px;
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   border: 1px solid var(--border-ui);
   background: var(--bg-card);
 }
 
+/* En-tête de panneau : titre et description à gauche, action de section à droite. */
 .hw-panel__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 18px;
+}
+
+.hw-panel__heading {
   display: grid;
+  flex: 1 1 320px;
   gap: 4px;
+  min-width: 0;
+}
+
+.hw-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-left: auto;
 }
 
 .hw-panel__title,
@@ -90,17 +128,24 @@
   font-size: 14px;
 }
 
-.hw-actions {
+.hw-actions,
+.hw-fields {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
 }
 
+/* Ligne de champs : libellé au-dessus de chacun, bouton calé sur le bas des champs. */
+.hw-fields {
+  align-items: flex-end;
+  gap: 12px 18px;
+}
+
 .hw-alert {
   margin: 0;
   padding: 10px 14px;
-  border-radius: 12px;
+  border-radius: var(--radius-ctl);
   background: var(--warn-bg);
   color: var(--warn);
 }
@@ -117,7 +162,7 @@
 
 .hw-field {
   display: grid;
-  gap: 4px;
+  gap: 8px;
   color: var(--text-1);
   font-size: 14px;
 }
@@ -128,8 +173,9 @@
 
 .hw-field input:not([type='range']),
 .hw-field select {
-  padding: 6px 10px;
-  border-radius: 10px;
+  min-height: var(--tap-min);
+  padding: 0 12px;
+  border-radius: var(--radius-ctl);
   border: 1px solid var(--border-ui);
   background: var(--bg-field);
   color: var(--text-0);
@@ -137,18 +183,21 @@
 }
 
 .hw-field input[type='range'] {
+  min-height: var(--tap-min);
   accent-color: var(--accent-purple);
 }
 
 .hw-check {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+  min-height: var(--tap-min);
   cursor: pointer;
 }
 
 .hw-check input {
-  width: 18px;
-  height: 18px;
+  flex: none;
+  width: 24px;
+  height: 24px;
   accent-color: var(--accent-purple);
 }

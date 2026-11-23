@@ -116,6 +116,8 @@
   },
   "setup": {
     "quit": "Quitter",
+    "stepOf": "Étape {n} sur {total}",
+    "back": "Retour",
     "quitConfirm": "Quitter la configuration sans enregistrer ? Ce que tu viens de régler sera perdu.",
     "ok": "C’est bon",
     "welcome": {
@@ -141,7 +143,6 @@
       "assigned": "C’est noté ! (touche {key})",
       "duplicate": "La touche {key} est déjà prise par le buzzer {button} du pupitre {desk}. Appuie sur le bon buzzer.",
       "forbidden": "La touche {key} est réservée au système. Appuie sur le buzzer.",
-      "back": "Retour",
       "skip": "Passer"
     },
     "done": {

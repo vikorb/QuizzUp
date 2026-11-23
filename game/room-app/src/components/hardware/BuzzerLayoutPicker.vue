@@ -78,7 +78,7 @@ const emit = defineEmits<(event: 'update:modelValue', layout: BuzzerLayout) => v
   gap: 12px 18px;
   margin: 0;
   padding: 8px 12px;
-  border-radius: 14px;
+  border-radius: var(--radius-ctl);
   border: 1px solid var(--border-ui);
 }
 
@@ -94,8 +94,8 @@ const emit = defineEmits<(event: 'update:modelValue', layout: BuzzerLayout) => v
 }
 
 .swatch {
-  width: 34px;
-  height: 34px;
+  width: var(--tap-min);
+  height: var(--tap-min);
   border-radius: 50%;
   border: 3px solid transparent;
   cursor: pointer;
@@ -110,16 +110,16 @@ const emit = defineEmits<(event: 'update:modelValue', layout: BuzzerLayout) => v
 
 .corners {
   display: grid;
-  grid-template-columns: repeat(2, 20px);
+  grid-template-columns: repeat(2, var(--tap-min));
   gap: 4px;
   padding: 4px;
-  border-radius: 8px;
+  border-radius: var(--radius-ctl);
   background: var(--surface-0);
 }
 
 .corner {
-  width: 20px;
-  height: 20px;
+  width: var(--tap-min);
+  height: var(--tap-min);
   border-radius: 50%;
   border: 1px solid var(--border-ui);
   background: transparent;
@@ -128,6 +128,12 @@ const emit = defineEmits<(event: 'update:modelValue', layout: BuzzerLayout) => v
 
 .corner--on {
   background: var(--text-0);
+}
+
+.swatch:focus-visible,
+.corner:focus-visible {
+  outline: 2px solid var(--accent-purple);
+  outline-offset: 2px;
 }
 
 .picker__preview {
