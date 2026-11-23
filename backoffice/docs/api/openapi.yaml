@@ -2865,6 +2865,182 @@ paths:
               schema:
                 $ref: '#/components/schemas/NotImplementedResponse'
 
+  /questions/import:
+    post:
+      tags:
+        - Questions
+      summary: '[DISPONIBLE] Importer des questions depuis un fichier CSV'
+      description: |
+        Statut : **Disponible** (US-IMPORT-01)
+
+        Importe des questions et leurs réponses depuis un CSV (texte seulement : ni audio, ni
+        fichier média). L'import est **atomique** : si une ligne est invalide ou si la base
+        refuse une écriture, rien n'est écrit. `dryRun=true` joue toutes les vérifications sans
+        rien écrire.
+
+        Accès : même droit que la création d'une question (`question:create`). Portée et
+        compagnie : mêmes règles que `POST /questions` (un admin importe toujours dans sa
+        compagnie, en portée `company` ; seul le superadmin choisit `scope` et `companyId`).
+        Le statut suit la création à l'unité (brouillon pour un `user`), ou brouillon si `draft=true`.
+
+        **Fichier** : corps brut `text/csv` (ou `application/vnd.ms-excel`, le type qu'un
+        navigateur Windows avec Excel donne à un `.csv`), UTF-8 sans octet nul (BOM accepté), 1 Mo
+        au plus, 2 000 lignes de données au plus. Les noms de colonne vides en fin d'en-tête
+        (`…;correct;;`, produit par Excel) sont ignorés. Séparateur `;` ou `,` détecté sur la ligne d'en-tête ; guillemets
+        RFC 4180 (guillemets doublés, retours à la ligne dans un champ) ; lignes vides ignorées.
+        Numéro de ligne d'une erreur : ligne physique où commence l'enregistrement, l'en-tête
+        est la ligne 1.
+
+        **Colonnes** (noms exacts, casse et ordre libres ; une colonne inconnue est refusée) :
+        - `theme` (obligatoire) : un ou plusieurs noms de thème séparés par `|`, cherchés sans
+          tenir compte de la casse parmi les thèmes utilisables dans la portée cible (en portée
+          `global` : les thèmes globaux seulement, jamais ceux d'une compagnie) ;
+        - `question` (obligatoire) : texte de la question ;
+        - `kind` : `qcm` (défaut), `true_false` ou `estimate` ;
+        - `answer_1`, `answer_2` (obligatoires), `answer_3`, `answer_4` : réponses ;
+        - `correct` (obligatoire) : numéros des bonnes réponses, de 1 à 4, séparés par `|` (`1|3`) ;
+        - `media_type` : `none` (défaut), `image` ou `video` (`audio` est refusé) ;
+        - `media_url` : adresse http(s), obligatoire pour une image ou une vidéo.
+
+        Chaque ligne suit les règles de `POST /questions`. Une question déjà présente dans un
+        thème cible (hors supprimées), ou répétée dans le fichier, est un doublon bloquant
+        (comparaison sans casse ni espaces en trop). Au plus une erreur par ligne ; 200 erreurs
+        renvoyées au plus.
+      operationId: importQuestions
+      x-availability: disponible
+      x-us: 'US-IMPORT-01'
+      parameters:
+        - name: dryRun
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Essai à blanc, rien n'est écrit
+        - name: draft
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Crée les questions et leurs réponses en brouillon
+        - name: scope
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [global, company]
+          description: Portée cible (superadmin ; ignorée pour les autres rôles, qui importent en `company`)
+        - name: companyId
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: Compagnie cible quand `scope=company` (superadmin ; ignorée pour les autres rôles)
+      requestBody:
+        required: true
+        content:
+          text/csv:
+            schema:
+              type: string
+              format: binary
+          application/vnd.ms-excel:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: Essai à blanc (`dryRun=true`), même s'il y a des erreurs de ligne
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dryRun:
+                    type: boolean
+                    example: true
+                  rows:
+                    type: integer
+                    description: Lignes de données lues
+                  valid:
+                    type: integer
+                    description: Lignes qui seraient créées
+                  errors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/QuestionImportError'
+                  questions:
+                    type: array
+                    description: Ce qui serait créé
+                    items:
+                      type: object
+                      properties:
+                        line:
+                          type: integer
+                        question:
+                          type: string
+                        kind:
+                          type: string
+                        themeIds:
+                          type: array
+                          items:
+                            type: integer
+        '201':
+          description: Questions créées
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created:
+                    type: integer
+        '400':
+          description: |
+            Requête ou fichier inutilisable : `invalid_query`, `question_company_required`,
+            `csv_empty`, `csv_encoding_invalid` (le fichier n'est pas en UTF-8 ou contient un octet nul),
+            `csv_header_invalid` (avec `column`), `csv_too_many_rows`,
+            `csv_field_unterminated` (avec `line`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non connecté
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Droit de création de question manquant (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Fichier de plus de 1 Mo
+        '415':
+          description: |
+            Type de corps autre que `text/csv` ou `application/vnd.ms-excel`
+            (`csv_content_type_unsupported`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Une ligne au moins est en erreur, rien n'est écrit
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: csv_invalid
+                  errors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/QuestionImportError'
+
   /questions/{questionId}:
     get:
       tags:
@@ -3851,6 +4027,28 @@ components:
       properties:
         error:
           type: string
+
+    QuestionImportError:
+      type: object
+      description: Erreur d'une ligne de l'import CSV de questions
+      properties:
+        line:
+          type: integer
+          description: Ligne physique où commence l'enregistrement (l'en-tête est la ligne 1)
+        column:
+          type: string
+          nullable: true
+          description: Colonne concernée, quand une seule l'est
+        code:
+          type: string
+          description: |
+            `csv_theme_not_found`, `csv_theme_ambiguous`, `csv_correct_invalid`,
+            `csv_audio_unsupported`, `csv_media_url_required`, `csv_media_url_invalid`,
+            `csv_question_duplicate`, `csv_too_many_columns`, ou un code de `POST /questions`
+            (`question_required`, `question_theme_required`, `question_kind_invalid`,
+            `question_type_media_invalid`, `question_kind_media_invalid`,
+            `question_answers_min_required`, `question_correct_answer_required`,
+            `question_true_false_answers_invalid`, `question_estimate_answers_invalid`)
 
     PublicError:
       type: object
