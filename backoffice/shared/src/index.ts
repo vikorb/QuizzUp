@@ -718,6 +718,8 @@ export function createSseParser(onEvent: (message: SseMessage) => void): (chunk:
   }
 }
 
+// Journaux d'erreurs des salles (lot 7e)
+export * from './roomLogs.js'
 export * from './logos.js'
 export * from './demoRequests.js'
 export * from './schedule.js'

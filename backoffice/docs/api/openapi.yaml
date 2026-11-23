@@ -1317,6 +1317,86 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /companies/{companyId}/rooms/{roomId}/logs:
+    get:
+      tags:
+        - Rooms
+      summary: "[DISPONIBLE] Lister les journaux d'erreurs d'une salle"
+      description: |
+        Statut : **Disponible**
+
+        Erreurs que l'écran de salle a envoyées par `POST /room/logs`, de la plus récente à la plus ancienne. Pagination par `before` : l'`id` de la dernière ligne lue (les `id` décroissent). Aucun e-mail ni donnée de joueur : les adresses sont masquées (`[email]`) et le contexte se limite à `route`, `phase`, `miniGame`, `desk`, `driver` et `httpStatus`.
+
+        Conservation : 30 jours (`ROOM_LOG_RETENTION_DAYS`) et 5000 lignes par salle au plus ; le nettoyage a lieu à chaque envoi de la salle. Les journaux disparaissent avec la salle. Une salle supprimée n'est lisible que du superadmin.
+
+        Accès : superadmin (toutes les compagnies) et `admin` de la compagnie. Le rôle `user` et le compte de salle reçoivent `403`.
+      operationId: listCompanyRoomLogs
+      x-availability: disponible
+      x-us: 'US-LOG-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/RoomIdParam'
+        - name: level
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [error, warn]
+          description: Ne garder que ce niveau
+        - name: before
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+          description: '`id` de la dernière ligne déjà lue ; ne renvoie que les lignes plus anciennes'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 100
+          description: Nombre de lignes renvoyées. Une valeur au-dessus de 200 est ramenée à 200.
+      responses:
+        '200':
+          description: Journaux de la salle (liste vide s'il n'y en a pas)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [logs]
+                properties:
+                  logs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RoomLog'
+        '400':
+          description: Paramètres d'URL invalides (`invalid_params`) ou paramètres de requête invalides (`invalid_query`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non connecté ou session invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (rôle sans droit de lecture des journaux, ou autre compagnie)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Salle introuvable dans cette compagnie (`not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /companies/{companyId}/rooms/{roomId}/account:
     get:
       tags:
@@ -2537,6 +2617,92 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+
+  /room/logs:
+    post:
+      tags:
+        - Rooms
+      summary: "[DISPONIBLE] Envoyer les journaux d'erreurs de la salle"
+      description: |
+        Statut : **Disponible**
+
+        Envoyé par l'écran de salle : erreurs regroupées (`occurrences`), 50 entrées au plus par envoi, toutes les 30 s environ. La salle et la compagnie viennent du jeton, jamais du corps. Une date `occurredAt` dans le futur est ramenée à l'heure du serveur.
+
+        Aucun e-mail ni donnée de joueur : le serveur masque toute adresse (`[email]`) avant de couper le texte à 300 caractères, et ne garde du `context` que les clés `route`, `phase`, `miniGame`, `desk`, `driver` et `httpStatus` (texte de 64 caractères au plus ou nombre). Les autres clés sont écartées.
+
+        Conservation : 30 jours (`ROOM_LOG_RETENTION_DAYS`) et 5000 lignes par salle au plus ; le nettoyage a lieu à chaque envoi. Limite : 6 envois par minute et par salle, les corps invalides compris. Corps de 128 Ko au plus.
+
+        Accès : réservé au rôle `room`.
+      operationId: postRoomLogs
+      x-availability: disponible
+      x-us: 'US-LOG-01'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [appVersion, entries]
+              properties:
+                appVersion:
+                  type: string
+                  minLength: 1
+                  maxLength: 32
+                  description: Version de l'écran de salle
+                  example: 0.1.0
+                entries:
+                  type: array
+                  minItems: 1
+                  maxItems: 50
+                  items:
+                    $ref: '#/components/schemas/RoomLogEntry'
+      responses:
+        '204':
+          description: Journaux enregistrés
+        '400':
+          description: Corps invalide (`invalid_body`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non connecté ou session invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Compte qui n'est pas un compte de salle (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Salle du compte introuvable ou supprimée (`not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Corps de plus de 128 Ko (`payload_too_large`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Plus de 6 envois par minute pour cette salle (`too_many_requests`)
+          headers:
+            Retry-After:
+              description: Secondes à attendre avant de réessayer
+              schema:
+                type: integer
+                example: 30
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: too_many_requests
 
   /companies/{companyId}/live:
     get:
@@ -5263,6 +5429,79 @@ components:
           type: string
           minLength: 8
           maxLength: 100
+
+    RoomLogEntry:
+      type: object
+      description: Une erreur envoyée par l'écran de salle (`POST /room/logs`)
+      required: [level, code, message, occurredAt]
+      properties:
+        level:
+          type: string
+          enum: [error, warn]
+        code:
+          type: string
+          maxLength: 64
+          pattern: '^[a-z][a-z0-9_]*$'
+          description: Code stable en `snake_case`
+          example: dmx_output_error
+        message:
+          type: string
+          minLength: 1
+          maxLength: 300
+          description: Adresses e-mail masquées (`[email]`) avant la coupe à 300 caractères
+        context:
+          type: object
+          additionalProperties: true
+          description: >-
+            Forme libre à l'envoi ; seules les clés `route`, `phase`, `miniGame`, `desk`, `driver`
+            et `httpStatus` sont gardées (texte de 64 caractères au plus ou nombre).
+          example:
+            driver: usbpro
+            desk: 2
+        occurrences:
+          type: integer
+          minimum: 1
+          maximum: 10000
+          default: 1
+          description: Répétitions regroupées par l'écran de salle
+        occurredAt:
+          type: string
+          format: date-time
+          description: Première occurrence, heure du poste de la salle
+
+    RoomLog:
+      type: object
+      description: Une erreur de salle enregistrée, telle que le personnel la lit
+      required: [id, level, code, message, context, appVersion, occurrences, occurredAt, createdAt]
+      properties:
+        id:
+          type: integer
+        level:
+          type: string
+          enum: [error, warn]
+        code:
+          type: string
+          example: dmx_output_error
+        message:
+          type: string
+        context:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Clés `route`, `phase`, `miniGame`, `desk`, `driver`, `httpStatus` ; `null` s'il n'en reste aucune
+        appVersion:
+          type: string
+        occurrences:
+          type: integer
+          minimum: 1
+        occurredAt:
+          type: string
+          format: date-time
+          description: Première occurrence, heure du poste de la salle (jamais dans le futur)
+        createdAt:
+          type: string
+          format: date-time
+          description: Réception par le serveur
 
     MiniGame:
       type: string

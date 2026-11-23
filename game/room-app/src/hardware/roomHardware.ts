@@ -49,8 +49,10 @@ import {
   withLearnedKeymap,
   withPlanPoint,
 } from '@quizzup/hardware'
+import { ROOM_LOG_LEVEL_WARN } from '@quizzup/shared'
 import { computed, shallowRef, watch } from 'vue'
 
+import { reportRoomError } from '@/diagnostics/errorReporter'
 import { onGameEvents, useRoomGame } from '@/game/useRoomGame'
 import { createSimulationKeymap } from '@/hardware/buzzers'
 import { RoomApiError } from '@/utils/roomApi'
@@ -344,7 +346,15 @@ async function useBridge(controller: LightingController): Promise<void> {
   dmxPort = null
   await controller.setOutput(output)
   const { outputStatus, outputError } = controller.getState()
+  // Signalé au changement d'état seulement : un pont absent est réessayé toutes les 10 s.
+  const wasFailing = bridgeError.value !== null
   bridgeError.value = outputStatus === 'open' ? null : (outputError ?? 'bridge_unavailable')
+  if (bridgeError.value !== null && !wasFailing) {
+    reportRoomError('artnet_bridge_unavailable', bridgeError.value, {
+      level: ROOM_LOG_LEVEL_WARN,
+      context: { driver: 'artnet-bridge' },
+    })
+  }
   bridgeArtnet.value = outputStatus === 'open' ? bridge.artnetStatus() : null
   activeBridge.value = outputStatus === 'open' ? bridge : null
 }
@@ -385,6 +395,12 @@ async function useSerialPort(
   meteredOutput = output
   dmxPort = port
   await controller.setOutput(output)
+  const { outputStatus, outputError } = controller.getState()
+  if (outputStatus === 'error') {
+    reportRoomError('dmx_output_error', outputError ?? 'dmx_output_error', {
+      context: { driver },
+    })
+  }
 }
 
 /** Mesures de la sortie USB en cours (`null` en simulation). */

@@ -36,6 +36,7 @@ type DbState = {
   rooms: Row[]
   games: Row[]
   game_participants: Row[]
+  room_logs: Row[]
   demo_requests: Row[]
 }
 
@@ -57,6 +58,7 @@ export const dbState: DbState = {
   rooms: [],
   games: [],
   game_participants: [],
+  room_logs: [],
   demo_requests: [],
 }
 
@@ -141,6 +143,7 @@ export function resetDb(seed?: Partial<DbState>): void {
   dbState.rooms = structuredClone(seed?.rooms ?? [])
   dbState.games = structuredClone(seed?.games ?? [])
   dbState.game_participants = structuredClone(seed?.game_participants ?? [])
+  dbState.room_logs = structuredClone(seed?.room_logs ?? [])
   dbState.demo_requests = structuredClone(seed?.demo_requests ?? [])
   db.fn.now.mockClear()
   db.raw.mockClear()
@@ -307,6 +310,14 @@ class ConditionGroup {
   }
 }
 
+const COMPARATORS: Record<string, (value: unknown, operand: unknown) => boolean> = {
+  '<': (value, operand) => (value as number) < (operand as number),
+  '<=': (value, operand) => (value as number) <= (operand as number),
+  '>': (value, operand) => (value as number) > (operand as number),
+  '>=': (value, operand) => (value as number) >= (operand as number),
+  '=': (value, operand) => value === operand,
+}
+
 function toPredicate(column: ClauseColumn, value: unknown): Predicate {
   if (typeof column === 'function') {
     const group = new ConditionGroup()
@@ -448,8 +459,24 @@ class QueryBuilder {
     return Promise.resolve(this.executeSelect()[0])
   }
 
-  public where(columnOrObject: ClauseColumn, value?: unknown): this {
-    this.filters.push(toPredicate(columnOrObject, value))
+  // `where(colonne, valeur)` ou `where(colonne, '<' | '>' | '<=' | '>=', valeur)`.
+  public where(columnOrObject: ClauseColumn, ...rest: unknown[]): this {
+    const [operator, operand] = rest
+
+    if (rest.length === 2 && typeof columnOrObject === 'string' && typeof operator === 'string') {
+      const column = columnOrObject
+      const compare = COMPARATORS[operator]
+
+      if (!compare) {
+        throw new Error(`mockDb : opérateur « ${operator} » non géré`)
+      }
+
+      this.filters.push((row) => compare(getRowValue(row, column), operand))
+
+      return this
+    }
+
+    this.filters.push(toPredicate(columnOrObject, operator))
 
     return this
   }

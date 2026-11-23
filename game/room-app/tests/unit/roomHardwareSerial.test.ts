@@ -1,5 +1,6 @@
 import type { SerialPortLike } from '@quizzup/hardware'
 
+import { flushRoomErrors } from '@/diagnostics/errorReporter'
 import {
   BRIDGE_RETRY_MS,
   connectDmxInterface,
@@ -18,6 +19,7 @@ import {
   triggerEmergencyStop,
   useRoomHardware,
 } from '@/hardware/roomHardware'
+import { setRoomToken } from '@/utils/auth'
 
 type Listener = (event: Event) => void
 
@@ -91,6 +93,31 @@ describe('interface USB DMX de la salle', () => {
     await switchToSimulatedLights()
     expect(getDmxStats()).toBeNull()
     expect(getDmxPort()).toBeNull()
+  })
+
+  it('note pour le personnel une interface qui refuse de s’ouvrir', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 204 }))
+    setRoomToken('tok')
+    const port = {
+      ...createFakePort(),
+      open: async () => {
+        throw new Error('port occupé')
+      },
+    }
+    installSerial(port)
+
+    await connectDmxInterface('usbpro')
+    await flushRoomErrors()
+    setRoomToken(null)
+
+    expect(getLighting()?.getState().outputStatus).toBe('error')
+    const sent = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as { entries: unknown[] }
+    expect(sent.entries).toMatchObject([
+      { level: 'error', code: 'dmx_output_error', context: { driver: 'usbpro' } },
+    ])
+    fetchMock.mockRestore()
   })
 
   it('reprend l’interface rebranchée sans clic', async () => {
@@ -337,6 +364,59 @@ describe('pont Art-Net de la salle', () => {
     const rejected = await saveArtnetTarget('8.8.8.8')
     expect(rejected.config.lighting.artnet).toBeUndefined()
     expect(rejected.problems.join(' ')).toContain('IP du nœud Art-Net refusée')
+  })
+
+  it('note pour le personnel un pont Art-Net injoignable', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    FakeBridgeSocket.mode = 'absent'
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 204 }))
+    setRoomToken('tok')
+    await saveRoomHardwareConfig(BRIDGE_CONFIG)
+
+    await startLighting()
+    await flushRoomErrors()
+    setRoomToken(null)
+
+    const sent = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as { entries: unknown[] }
+    expect(sent.entries).toMatchObject([
+      { level: 'warn', code: 'artnet_bridge_unavailable', context: { driver: 'artnet-bridge' } },
+    ])
+    fetchMock.mockRestore()
+  })
+
+  it('ne note le pont injoignable qu’au changement d’état, pas à chaque essai automatique', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    FakeBridgeSocket.mode = 'absent'
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(() => Promise.resolve(new Response(null, { status: 204 })))
+    setRoomToken('tok')
+    await saveRoomHardwareConfig(BRIDGE_CONFIG)
+    const sentEntries = (call: number) =>
+      (JSON.parse(String(fetchMock.mock.calls[call]?.[1]?.body)) as { entries: unknown[] }).entries
+
+    // Trois essais automatiques en plus du premier : une seule entrée, une seule occurrence.
+    await startLighting()
+    await vi.advanceTimersByTimeAsync(BRIDGE_RETRY_MS * 3)
+    expect(FakeBridgeSocket.instances).toHaveLength(4)
+    await flushRoomErrors()
+    expect(sentEntries(0)).toMatchObject([{ code: 'artnet_bridge_unavailable', occurrences: 1 }])
+
+    // Retour à la normale, puis nouvel échec : il est signalé de nouveau.
+    FakeBridgeSocket.mode = 'ready'
+    await vi.advanceTimersByTimeAsync(BRIDGE_RETRY_MS)
+    expect(useRoomHardware().bridgeError.value).toBeNull()
+    FakeBridgeSocket.mode = 'absent'
+    await stopLighting()
+    await startLighting()
+    await vi.advanceTimersByTimeAsync(BRIDGE_RETRY_MS * 2)
+    await flushRoomErrors()
+    expect(sentEntries(1)).toMatchObject([{ code: 'artnet_bridge_unavailable', occurrences: 1 }])
+
+    setRoomToken(null)
+    fetchMock.mockRestore()
   })
 
   it('reste en simulation quand le pont est absent, puis le reprend dès qu’il est lancé', async () => {
