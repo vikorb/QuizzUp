@@ -29,6 +29,8 @@ type DbState = {
   companies: Row[]
   admins: Row[]
   admin_sessions: Row[]
+  admin_totp: Row[]
+  admin_totp_recovery_codes: Row[]
   themes: Row[]
   questions: Row[]
   answers: Row[]
@@ -43,12 +45,14 @@ type TableName = keyof DbState
 const QUALIFIED_KEY = '__qualified'
 
 // Tables sans colonne `id` auto-incrémentée.
-const TABLES_WITHOUT_ID = new Set<TableName>(['admin_sessions', 'question_themes'])
+const TABLES_WITHOUT_ID = new Set<TableName>(['admin_sessions', 'admin_totp', 'question_themes'])
 
 export const dbState: DbState = {
   companies: [],
   admins: [],
   admin_sessions: [],
+  admin_totp: [],
+  admin_totp_recovery_codes: [],
   themes: [],
   questions: [],
   answers: [],
@@ -132,6 +136,8 @@ export function resetDb(seed?: Partial<DbState>): void {
   dbState.companies = structuredClone(seed?.companies ?? DEFAULT_COMPANIES)
   dbState.admins = structuredClone(seed?.admins ?? DEFAULT_ADMINS)
   dbState.admin_sessions = structuredClone(seed?.admin_sessions ?? [])
+  dbState.admin_totp = structuredClone(seed?.admin_totp ?? [])
+  dbState.admin_totp_recovery_codes = structuredClone(seed?.admin_totp_recovery_codes ?? [])
   dbState.themes = structuredClone(seed?.themes ?? [])
   dbState.questions = structuredClone(seed?.questions ?? [])
   dbState.answers = structuredClone(seed?.answers ?? [])

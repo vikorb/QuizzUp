@@ -19,7 +19,13 @@
     "server_error": "Server error.",
     "too_many_streams": "Too many live tracking streams are open with this account (5 at most). Close another tab, then reload the page.",
     "room_instance_replaced": "Another computer signed in to this room: this connection was closed.",
-    "session_ended": "Your session is no longer valid: sign in again to resume live tracking."
+    "session_ended": "Your session is no longer valid: sign in again to resume live tracking.",
+    "totp_unavailable": "Two-factor authentication is not available on this server. Contact the operator.",
+    "mfa_challenge_invalid": "The verification has expired: enter your password again.",
+    "totp_invalid": "Wrong or already used code.",
+    "totp_not_enrolled": "Two-factor authentication is not set up for this account.",
+    "totp_already_enrolled": "Two-factor authentication is already set up for this account.",
+    "too_many_attempts": "Too many attempts: try again in a few minutes."
   },
   "success": {
     "roomCreated": "The room {name} has been created.",

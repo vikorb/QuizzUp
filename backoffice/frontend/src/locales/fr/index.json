@@ -38,7 +38,13 @@
     "username_already_exists": "Cet identifiant est déjà utilisé par un autre compte.",
     "too_many_streams": "Trop de suivis en direct sont ouverts avec ce compte (5 au maximum). Fermez un autre onglet puis rechargez la page.",
     "room_instance_replaced": "Un autre poste s'est connecté à cette salle : cette connexion a été fermée.",
-    "session_ended": "Votre session n'est plus valable : reconnectez-vous pour reprendre le suivi en direct."
+    "session_ended": "Votre session n'est plus valable : reconnectez-vous pour reprendre le suivi en direct.",
+    "totp_unavailable": "La double authentification n’est pas disponible sur ce serveur. Contactez l’exploitant.",
+    "mfa_challenge_invalid": "La vérification a expiré : saisissez de nouveau votre mot de passe.",
+    "totp_invalid": "Code incorrect ou déjà utilisé.",
+    "totp_not_enrolled": "La double authentification n’est pas configurée pour ce compte.",
+    "totp_already_enrolled": "La double authentification est déjà configurée pour ce compte.",
+    "too_many_attempts": "Trop d’essais : réessayez dans quelques minutes."
   },
   "success": {
     "title": "Action confirmée",

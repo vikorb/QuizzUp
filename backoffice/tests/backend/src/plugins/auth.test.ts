@@ -113,6 +113,67 @@ describe('plugins/auth.ts (authenticate)', () => {
     await app.close()
   })
 
+  it('refuses any token that carries a typ claim, even with the sid of a live session', async () => {
+    seedSession({ id: 'sid-1', admin_id: 1 })
+    const app = await buildApp()
+    const session = { sub: '1', company_id: 1, role: 'superadmin', sid: 'sid-1' }
+    const get = (token: string) =>
+      app.inject({
+        method: 'GET',
+        url: '/protected',
+        headers: { authorization: `Bearer ${token}` },
+        remoteAddress: '127.0.0.1',
+      })
+
+    // Témoin : le même jeton sans `typ` passe, donc seul `typ` explique le refus.
+    expect((await get(signToken(app, session))).statusCode).toBe(200)
+
+    for (const typ of ['mfa_challenge', 'autre', '']) {
+      const response = await get(signToken(app, { ...session, typ }))
+
+      expect(response.statusCode, `typ=${typ}`).toBe(401)
+      expect(response.json(), `typ=${typ}`).toEqual({ error: 'unauthorized' })
+    }
+
+    await app.close()
+  })
+
+  it('refuses a challenge token, which has no session', async () => {
+    const app = await buildApp()
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/protected',
+      headers: { authorization: `Bearer ${signToken(app, { sub: '1', typ: 'mfa_challenge' })}` },
+      remoteAddress: '127.0.0.1',
+    })
+
+    expect(response.statusCode).toBe(401)
+    expect(response.json()).toEqual({ error: 'unauthorized' })
+
+    await app.close()
+  })
+
+  it('decorates the TOTP key from TOTP_ENCRYPTION_KEY, null when absent or malformed', async () => {
+    const keyOf = async () => {
+      const app = await buildApp()
+      const key = (app as unknown as { totpKey: Buffer | null }).totpKey
+      await app.close()
+
+      return key
+    }
+
+    expect((await keyOf())?.length).toBe(32)
+
+    vi.stubEnv('TOTP_ENCRYPTION_KEY', '')
+    expect(await keyOf()).toBeNull()
+
+    vi.stubEnv('TOTP_ENCRYPTION_KEY', Buffer.alloc(16).toString('base64'))
+    expect(await keyOf()).toBeNull()
+
+    vi.unstubAllEnvs()
+  })
+
   it('allows a valid token backed by an active session and refreshes last_seen_at', async () => {
     seedSession({ id: 'sid-1', admin_id: 1, last_seen_at: new Date().toISOString() })
 

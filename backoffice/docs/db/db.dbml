@@ -62,6 +62,33 @@ Table admin_sessions {
   }
 }
 
+Table admin_totp {
+  admin_id bigint [pk]
+  secret_enc text [not null, note: 'AES-256-GCM : v1.<iv>.<tag>.<chiffré> en base64, clé TOTP_ENCRYPTION_KEY hors base']
+  confirmed_at timestamptz [note: 'NULL tant que l’enrôlement n’est pas confirmé']
+  last_used_step bigint [note: 'Dernier pas de 30 s accepté (anti-rejeu)']
+  failed_attempts smallint [not null, default: 0, note: 'Plafonné à 5']
+  locked_until timestamptz [note: 'Blocage de 15 minutes au 5e échec']
+
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  Note: 'Deuxième facteur TOTP du superadmin (un secret par admin)'
+}
+
+Table admin_totp_recovery_codes {
+  id bigint [pk, increment]
+  admin_id bigint [not null]
+  code_hash char(64) [not null, note: 'SHA-256 du code normalisé, jamais le code']
+  used_at timestamptz [note: 'Renseigné à la consommation (usage unique)']
+
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (admin_id, code_hash) [unique, name: 'admin_totp_recovery_codes_admin_id_code_hash_unique']
+  }
+}
+
 Table themes {
   id bigint [pk, increment]
   admin_id bigint [not null]
@@ -316,6 +343,8 @@ Table game_events {
 Ref: admins.company_id > companies.id [delete: restrict]
 Ref: admins.room_id > rooms.id [delete: restrict]
 Ref: admin_sessions.admin_id > admins.id [delete: cascade]
+Ref: admin_totp.admin_id - admins.id [delete: cascade]
+Ref: admin_totp_recovery_codes.admin_id > admins.id [delete: cascade]
 
 // Relations contenu
 Ref: themes.admin_id > admins.id [delete: restrict]
