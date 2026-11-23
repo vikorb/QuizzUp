@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   abortGameService,
+  cancelGameService,
   createGameService,
   listGameRoomsService,
   listGamesService,
   loadGameService,
+  openGameService,
 } from '@/services/gamesService'
 
 const { apiFetchMock } = vi.hoisted(() => ({
@@ -39,6 +41,57 @@ describe('services/gamesService', () => {
     })
     expect(result).toEqual({ ok: true, status: 200, data: { games: [{ id: 1 }] } })
   })
+
+  it('lists the games with filters, leaving out the undefined ones', async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse(200, { games: [], total: 0 }))
+
+    const result = await listGamesService(7, {
+      roomId: 10,
+      from: '2027-03-27T23:00:00.000Z',
+      to: '2027-03-29T22:00:00.000Z',
+      limit: 200,
+      state: undefined,
+    })
+
+    expect(apiFetchMock).toHaveBeenCalledWith({
+      path: '/companies/7/games?roomId=10&from=2027-03-27T23%3A00%3A00.000Z&to=2027-03-29T22%3A00%3A00.000Z&limit=200',
+      authenticated: true,
+    })
+    expect(result).toEqual({ ok: true, status: 200, data: { games: [], total: 0 } })
+  })
+
+  it('opens a scheduled session without sending a body', async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse(200, { game: { id: 3, state: 'pending' } }))
+
+    await openGameService(7, 3)
+
+    expect(apiFetchMock).toHaveBeenCalledWith({
+      path: '/companies/7/games/3/open',
+      method: 'POST',
+      authenticated: true,
+    })
+  })
+
+  it('cancels a scheduled session without sending a body', async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse(200, { game: { id: 3, state: 'cancelled' } }))
+
+    await cancelGameService(7, 3)
+
+    expect(apiFetchMock).toHaveBeenCalledWith({
+      path: '/companies/7/games/3/cancel',
+      method: 'POST',
+      authenticated: true,
+    })
+  })
+
+  it.each(['game_not_scheduled', 'session_not_open_yet', 'room_busy', 'slot_taken'])(
+    'keeps the session error %s on open',
+    async (error) => {
+      apiFetchMock.mockResolvedValue(jsonResponse(409, { error }))
+
+      expect(await openGameService(7, 3)).toEqual({ ok: false, status: 409, error })
+    }
+  )
 
   it('sends the filters and the page in the query string, and skips the empty ones', async () => {
     apiFetchMock.mockResolvedValue(jsonResponse(200, { games: [], total: 0 }))

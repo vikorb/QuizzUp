@@ -10,6 +10,8 @@ Format inspiré de Keep a Changelog.
 
 - Statistiques d'exploitation d'une compagnie : route `GET /companies/:companyId/stats` et écran « Statistiques » (séances terminées et arrêtées, taux d'abandon, durée médiane, répartition par salle, joueurs, créneaux les plus chargés), réservés aux administrateurs. Aucune donnée individuelle ne sort.
   US: US-STATS-01 (#157)
+- Écran « Agenda » du backoffice : les sessions programmées d'une salle, jour par jour, dans le fuseau de la salle, avec les créneaux libres de la grille, l'ouverture, l'annulation confirmée et l'accès au détail.
+  US: US-SESSION-01 (#142)
 
 - Sessions programmées, côté serveur : une partie se crée à l'avance avec `scheduledAt` (statut `scheduled`, joueurs facultatifs), se modifie (`PATCH`), s'ouvre (`POST …/open`) et s'annule (`POST …/cancel`). Deux sessions ne peuvent pas se chevaucher dans une salle (`slot_taken`). L'annulation efface les e-mails des joueurs. La suppression d'une salle annule ses sessions à venir. La liste des parties filtre sur la date prévue et rend les champs de session.
   US: US-SESSION-02 (#142)
@@ -347,6 +349,10 @@ Format inspiré de Keep a Changelog.
 
 ### Fixed
 
+- Vitrine : le formulaire de démonstration envoie ses champs sous les noms attendus par `POST /public/v1/demo-requests` (`centerName`, `roomsCount`), respecte les bornes du serveur (50 salles, centre sur 160 caractères, message facultatif) et signale sous chaque champ ceux que le serveur refuse.
+  US: US-SITE-01 (#133)
+- Sécurité lumière : avertissement non bloquant quand un canal `shutter` ou `fixed` est réglé dans la plage stroboscope de l'appareil (`strobeRange`, facultatif, à saisir sur un profil sur mesure) ; stroboscope du Diagnostic plafonné en vitesse et coupé après 3 secondes. Non validé sur du vrai matériel (banc, cas D10).
+  US: US-SEC-05 (#152)
 - Sécurité : l'écran de salle n'arme la fumée activée par la configuration du serveur que si un test de coupure réussi est mémorisé sur ce poste, pour cette salle et ces réglages de fumée ; sinon aucun jet ne part et un message demande de refaire le test. Un test relancé efface la preuve jusqu'à sa réussite. Non validé sur du vrai matériel (banc, cas F9).
   US: US-SEC-04 (#152)
 - Import CSV : le message d'erreur sur la colonne des bonnes réponses était tronqué, le caractère `|` étant lu comme un séparateur de pluriel par la traduction.

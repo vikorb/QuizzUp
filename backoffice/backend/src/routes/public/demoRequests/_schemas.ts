@@ -1,6 +1,13 @@
 import { z } from 'zod'
 
-import { DEMO_REQUEST_MESSAGE_MAX, DEMO_REQUEST_ROOMS_MAX } from '@quizzup/shared'
+import {
+  DEMO_REQUEST_CENTER_NAME_MAX,
+  DEMO_REQUEST_EMAIL_MAX,
+  DEMO_REQUEST_MESSAGE_MAX,
+  DEMO_REQUEST_NAME_MAX,
+  DEMO_REQUEST_PHONE_PATTERN,
+  DEMO_REQUEST_ROOMS_MAX,
+} from '@quizzup/shared'
 
 /**
  * Corps de `POST /public/v1/demo-requests`. `website` est le champ piège : invisible pour une
@@ -11,13 +18,10 @@ import { DEMO_REQUEST_MESSAGE_MAX, DEMO_REQUEST_ROOMS_MAX } from '@quizzup/share
 const noNul = (value: string) => !value.includes('\u0000')
 
 export const createDemoRequestSchema = z.object({
-  name: z.string().trim().min(1).max(120).refine(noNul),
-  centerName: z.string().trim().min(1).max(160).refine(noNul),
-  email: z.email().max(254),
-  phone: z
-    .string()
-    .regex(/^[+0-9 ().-]{6,32}$/)
-    .optional(),
+  name: z.string().trim().min(1).max(DEMO_REQUEST_NAME_MAX).refine(noNul),
+  centerName: z.string().trim().min(1).max(DEMO_REQUEST_CENTER_NAME_MAX).refine(noNul),
+  email: z.email().max(DEMO_REQUEST_EMAIL_MAX),
+  phone: z.string().regex(DEMO_REQUEST_PHONE_PATTERN).optional(),
   roomsCount: z.number().int().min(1).max(DEMO_REQUEST_ROOMS_MAX),
   message: z.string().trim().max(DEMO_REQUEST_MESSAGE_MAX).refine(noNul).optional(),
   consent: z.literal(true),

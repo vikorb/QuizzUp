@@ -38,6 +38,12 @@ export type ChannelSpec = {
   open?: number
   /** `shutter` : valeur fermée, envoyée quand l'intensité vaut 0. Absente = toujours ouvert. */
   closed?: number
+  /**
+   * `shutter` ou `fixed` : plage `[min, max]` (0-255, bornes comprises) où l'appareil clignote tout
+   * seul, d'après sa notice. Une valeur envoyée dans cette plage est signalée (`strobeProblems`).
+   * Absente = plage inconnue (aucun profil livré n'en renseigne : aucune n'est documentée).
+   */
+  strobeRange?: [number, number]
   /** Fumée par relais : le canal passe à 255 dès que la fumée est active, quel que soit le niveau. */
   binary?: boolean
 }
