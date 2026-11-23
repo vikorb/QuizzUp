@@ -1,0 +1,29 @@
+{
+  "clients": {
+    "details": {
+      "form": {
+        "logo": {
+          "label": "Center logo",
+          "alt": "Logo of {name}",
+          "empty": "No logo",
+          "previewUnavailable": "Preview unavailable",
+          "choose": "Choose a logo",
+          "replace": "Replace the logo",
+          "uploading": "Uploading...",
+          "remove": "Remove the logo",
+          "removing": "Removing...",
+          "help": "PNG, JPEG or WebP, {max} KB at most. The logo is saved as soon as it is uploaded.",
+          "errors": {
+            "logo_type_invalid": "This file is not a PNG, JPEG or WebP image.",
+            "logo_too_large": "This file is too large: {max} KB at most.",
+            "forbidden": "You do not have the rights to do this.",
+            "not_found": "Company not found.",
+            "unauthorized": "Your session has expired: sign in again.",
+            "api_unreachable": "API unreachable.",
+            "server_error": "A server error occurred. Try again in a few moments."
+          }
+        }
+      }
+    }
+  }
+}

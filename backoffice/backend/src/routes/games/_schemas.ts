@@ -3,14 +3,19 @@ import { z } from 'zod'
 import {
   GAME_DEFAULT_QUESTIONS_PER_ROUND,
   GAME_DEFAULT_ROUNDS,
+  GAME_EXTERNAL_REF_MAX_LENGTH,
   GAME_LIST_DEFAULT_LIMIT,
   GAME_LIST_MAX_LIMIT,
+  GAME_LOCALES,
+  GAME_MAX_PLAYERS,
   GAME_MAX_QUESTIONS_PER_ROUND,
   GAME_MAX_ROUNDS,
   GAME_PARTICIPANT_DISPLAY_NAME_MAX_LENGTH,
   GAME_PODIUMS,
   GAME_STATES,
   MINI_GAMES,
+  SESSION_MAX_MINUTES,
+  SESSION_MIN_MINUTES,
 } from '@quizzup/shared'
 
 export const gamesParamsSchema = z.object({
@@ -23,10 +28,20 @@ export const gameParamsSchema = z.object({
 })
 
 // L'année 0000 est valide en ISO 8601 mais PostgreSQL la refuse (pas d'année 0) : 500 sinon.
-const periodBoundSchema = z.iso
+const isoInstantSchema = z.iso
   .datetime({ offset: true })
   .refine((instant) => !instant.startsWith('0000'))
-  .optional()
+const periodBoundSchema = isoInstantSchema.optional()
+
+/** Début d'une session programmée : à la minute près (secondes et millisecondes à 0). */
+const scheduledAtSchema = isoInstantSchema.refine(
+  (instant) => {
+    const date = new Date(instant)
+
+    return date.getUTCSeconds() === 0 && date.getUTCMilliseconds() === 0
+  },
+  { message: 'scheduled_at_not_minute' }
+)
 
 /**
  * Filtres et pagination de la liste. `from` et `to` sont des instants ISO 8601 avec fuseau, en
@@ -94,33 +109,88 @@ const participantSchema = z
     path: ['marketingConsent'],
   })
 
+export type GameParticipantInput = z.infer<typeof participantSchema>
+
+const roundsCountSchema = z.number().int().min(1).max(GAME_MAX_ROUNDS)
+const questionsPerRoundSchema = z.number().int().min(1).max(GAME_MAX_QUESTIONS_PER_ROUND)
+export const durationMinutesSchema = z
+  .number()
+  .int()
+  .min(SESSION_MIN_MINUTES)
+  .max(SESSION_MAX_MINUTES)
+const playersCountSchema = z.number().int().min(1).max(GAME_MAX_PLAYERS)
+const externalRefSchema = z.string().trim().min(1).max(GAME_EXTERNAL_REF_MAX_LENGTH)
+const participantsSchema = z.array(participantSchema).max(GAME_PODIUMS)
+
+// Programme de la partie : absent, tous les mini-jeux du moteur.
+const miniGamesSchema = z
+  .array(z.enum(MINI_GAMES))
+  .min(1)
+  .max(MINI_GAMES.length)
+  .refine((miniGames) => new Set(miniGames).size === miniGames.length, {
+    message: 'mini_games_duplicated',
+  })
+
+const arePodiumsUnique = (participants: GameParticipantInput[] = []) =>
+  new Set(participants.map((item) => item.podium)).size === participants.length
+
 export const createGameSchema = z
   .object({
     // Les ids bigint sortent de l'API en texte : on accepte "7" comme 7.
     roomId: z.coerce.number().int().positive(),
-    roundsCount: z.number().int().min(1).max(GAME_MAX_ROUNDS).default(GAME_DEFAULT_ROUNDS),
-    questionsPerRound: z
-      .number()
-      .int()
-      .min(1)
-      .max(GAME_MAX_QUESTIONS_PER_ROUND)
-      .default(GAME_DEFAULT_QUESTIONS_PER_ROUND),
-    participants: z.array(participantSchema).min(1).max(GAME_PODIUMS),
-    // Programme de la partie : absent, tous les mini-jeux du moteur. La liste complète est
-    // ramenée à « absent » (stocké `null`), comme le fait le formulaire : un futur mini-jeu
-    // sera ainsi inclus d'office.
-    miniGames: z
-      .array(z.enum(MINI_GAMES))
-      .min(1)
-      .max(MINI_GAMES.length)
-      .refine((miniGames) => new Set(miniGames).size === miniGames.length, {
-        message: 'mini_games_duplicated',
-      })
+    roundsCount: roundsCountSchema.default(GAME_DEFAULT_ROUNDS),
+    questionsPerRound: questionsPerRoundSchema.default(GAME_DEFAULT_QUESTIONS_PER_ROUND),
+    // Une session programmée peut n'avoir aucun joueur nommé (arbitrage 6).
+    participants: participantsSchema.default([]),
+    // La liste complète est ramenée à « absent » (stocké `null`), comme le fait le formulaire :
+    // un futur mini-jeu sera ainsi inclus d'office.
+    miniGames: miniGamesSchema
       .transform((miniGames) => (miniGames.length === MINI_GAMES.length ? undefined : miniGames))
       .optional(),
+    scheduledAt: scheduledAtSchema.optional(),
+    durationMinutes: durationMinutesSchema.optional(),
+    playersCount: playersCountSchema.optional(),
+    externalRef: externalRefSchema.optional(),
+    locale: z.enum(GAME_LOCALES).optional(),
   })
-  .refine(
-    (body) =>
-      new Set(body.participants.map((item) => item.podium)).size === body.participants.length,
-    { message: 'participants_podium_duplicated', path: ['participants'] }
-  )
+  .refine((body) => body.scheduledAt !== undefined || body.participants.length >= 1, {
+    message: 'participants_required',
+    path: ['participants'],
+  })
+  .refine((body) => body.scheduledAt !== undefined || body.durationMinutes === undefined, {
+    message: 'duration_requires_scheduled_at',
+    path: ['durationMinutes'],
+  })
+  .refine((body) => arePodiumsUnique(body.participants), {
+    message: 'participants_podium_duplicated',
+    path: ['participants'],
+  })
+
+/**
+ * Modification d'une session `scheduled` : au moins un champ, les absents sont gardés.
+ * `participants` remplace la liste complète. `playersCount`, `externalRef` et `locale` acceptent
+ * `null` pour être effacés.
+ */
+export const updateGameSchema = z
+  .object({
+    roomId: z.coerce.number().int().positive().optional(),
+    scheduledAt: scheduledAtSchema.optional(),
+    durationMinutes: durationMinutesSchema.optional(),
+    roundsCount: roundsCountSchema.optional(),
+    questionsPerRound: questionsPerRoundSchema.optional(),
+    // Ici « absent » veut dire « inchangé » : la liste complète s'écrit `null` (tous les mini-jeux).
+    miniGames: miniGamesSchema
+      .transform((miniGames) => (miniGames.length === MINI_GAMES.length ? null : miniGames))
+      .optional(),
+    playersCount: playersCountSchema.nullable().optional(),
+    externalRef: externalRefSchema.nullable().optional(),
+    locale: z.enum(GAME_LOCALES).nullable().optional(),
+    participants: participantsSchema.optional(),
+  })
+  .refine((body) => Object.values(body).some((value) => value !== undefined), {
+    message: 'empty_update',
+  })
+  .refine((body) => arePodiumsUnique(body.participants), {
+    message: 'participants_podium_duplicated',
+    path: ['participants'],
+  })

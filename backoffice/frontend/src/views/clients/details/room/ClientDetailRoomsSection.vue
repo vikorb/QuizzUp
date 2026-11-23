@@ -35,6 +35,15 @@
       @close="closeAccountPanel"
     />
 
+    <RoomSchedulePanel
+      v-if="canManageRooms && scheduleRoom"
+      :key="`schedule-${scheduleRoom.id}`"
+      :company-id="companyId"
+      :room="scheduleRoom"
+      @saved="handleRoomScheduleSaved"
+      @close="closeSchedulePanel"
+    />
+
     <RoomsTable
       :company-id="companyId"
       :rooms="filteredRooms"
@@ -45,6 +54,7 @@
       @deleted="handleRoomDeleted"
       @edit="handleEditRoom"
       @account="handleManageRoomAccount"
+      @schedule="handleManageRoomSchedule"
       @error="handleTableError"
       @retry="loadRooms"
     />
@@ -85,6 +95,7 @@ import { clearTimer, scheduleTimer } from '@/utils/timer'
 
 import RoomAccountPanel from '../../rooms/RoomAccountPanel.vue'
 import RoomForm from '../../rooms/RoomForm.vue'
+import RoomSchedulePanel from '../../rooms/RoomSchedulePanel.vue'
 import RoomsTable from '../../rooms/RoomsTable.vue'
 import RoomsToolBar from '../../rooms/RoomsToolBar.vue'
 
@@ -110,6 +121,7 @@ const statusFilter = ref<RoomStatusFilter>(DEFAULT_ROOM_STATUS_FILTER)
 const formMode = ref<RoomFormMode | null>(null)
 const editedRoomId = ref<number | null>(null)
 const accountRoomId = ref<number | null>(null)
+const scheduleRoomId = ref<number | null>(null)
 const actionBanner = ref<ActionBanner | null>(null)
 const actionBannerTimer = ref<TimerHandle | null>(null)
 const actionBannerVariant = computed(() => getBannerVariant(actionBanner.value))
@@ -126,6 +138,17 @@ const accountRoom = computed(() => {
   }
 
   const room = findRoomById(rooms.value, accountRoomId.value)
+
+  return room && !isRoomDeleted(room.status) ? room : null
+})
+
+// Les créneaux se règlent aussi pour une salle non supprimée seulement.
+const scheduleRoom = computed(() => {
+  if (scheduleRoomId.value === null) {
+    return null
+  }
+
+  const room = findRoomById(rooms.value, scheduleRoomId.value)
 
   return room && !isRoomDeleted(room.status) ? room : null
 })
@@ -170,11 +193,16 @@ function closeAccountPanel(): void {
   accountRoomId.value = null
 }
 
+function closeSchedulePanel(): void {
+  scheduleRoomId.value = null
+}
+
 function resetSection(): void {
   rooms.value = []
   roomsErrorCode.value = null
   closeForm()
   closeAccountPanel()
+  closeSchedulePanel()
   clearActionBanner()
 }
 
@@ -222,6 +250,7 @@ function handleCreateRoom(): void {
   }
 
   closeAccountPanel()
+  closeSchedulePanel()
   editedRoomId.value = null
   formMode.value = 'create'
 }
@@ -236,6 +265,7 @@ function handleEditRoom(roomId: number): void {
   }
 
   closeAccountPanel()
+  closeSchedulePanel()
   editedRoomId.value = roomId
   formMode.value = 'edit'
 }
@@ -253,7 +283,33 @@ function handleManageRoomAccount(roomId: number): void {
   }
 
   closeForm()
+  closeSchedulePanel()
   accountRoomId.value = roomId
+}
+
+function handleManageRoomSchedule(roomId: number): void {
+  if (!props.canShowRoomsSection || !props.canManageRooms) {
+    return
+  }
+
+  const room = findRoomById(rooms.value, roomId)
+
+  if (!room || isRoomDeleted(room.status)) {
+    return
+  }
+
+  closeForm()
+  closeAccountPanel()
+  scheduleRoomId.value = roomId
+}
+
+// Le panneau affiche lui-même le succès : on aligne seulement la liste locale.
+function handleRoomScheduleSaved(savedRoom: Room): void {
+  if (!props.canShowRoomsSection) {
+    return
+  }
+
+  rooms.value = updateRoomInList(rooms.value, savedRoom)
 }
 
 function handleRoomAccountCreated(account: RoomAccount): void {
@@ -308,6 +364,10 @@ function handleRoomDeleted(roomId: number): void {
     closeAccountPanel()
   }
 
+  if (scheduleRoomId.value === roomId) {
+    closeSchedulePanel()
+  }
+
   // Hors superadmin, l'API ne renvoie plus les salles supprimées : on aligne la liste locale.
   if (!props.canSeeDeletedRooms) {
     rooms.value = removeRoomFromList(rooms.value, roomId)
@@ -342,6 +402,7 @@ watch(
     if (!canManage) {
       closeForm()
       closeAccountPanel()
+      closeSchedulePanel()
     }
   }
 )

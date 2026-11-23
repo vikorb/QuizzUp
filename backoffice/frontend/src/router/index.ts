@@ -19,6 +19,7 @@ import LoginView from '@/views/LoginView.vue'
 import NavbarView from '@/views/NavbarView.vue'
 import PlayersView from '@/views/PlayersView.vue'
 import CreateQuestionView from '@/views/questions/CreateQuestionView.vue'
+import ImportQuestionsView from '@/views/questions/import/ImportQuestionsView.vue'
 import QuestionsView from '@/views/QuestionsView.vue'
 import StatsView from '@/views/StatsView.vue'
 import ThemeDetailView from '@/views/themes/ThemeDetailView.vue'
@@ -153,6 +154,12 @@ export const router = createRouter({
           path: '/questions/create',
           name: 'questions-create',
           component: CreateQuestionView,
+          meta: { requiresQuestionCreation: true },
+        },
+        {
+          path: '/questions/import',
+          name: 'questions-import',
+          component: ImportQuestionsView,
           meta: { requiresQuestionCreation: true },
         },
         {

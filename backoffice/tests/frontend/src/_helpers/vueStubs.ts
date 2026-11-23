@@ -218,6 +218,7 @@ export const frontendStubs = {
       return () =>
         h('section', { 'data-test': 'base-toolbar' }, [
           slots.default?.(),
+          slots.actions?.(),
           h(
             'button',
             {

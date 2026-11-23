@@ -1,4 +1,4 @@
-import type { GameState, GameStatus, MiniGame } from '@quizzup/shared'
+import type { GameLocale, GameState, GameStatus, MiniGame } from '@quizzup/shared'
 
 /** 2e joueur facultatif d'un pupitre. */
 export type GameSecondPlayerRow = {
@@ -40,6 +40,16 @@ export type GameRow = {
   state: GameState
   startedAt: string | null
   finishedAt: string | null
+  /** Début prévu d'une session programmée, `null` pour une partie immédiate. */
+  scheduledAt: string | null
+  scheduledEndAt: string | null
+  /** Renseigné si et seulement si `state` vaut `cancelled`. */
+  cancelledAt: string | null
+  /** Effectif annoncé à la réservation. */
+  playersCount: number | null
+  /** Référence du système de réservation du client. */
+  externalRef: string | null
+  locale: GameLocale | null
   status: GameStatus
   createdAt: string
   updatedAt: string | null

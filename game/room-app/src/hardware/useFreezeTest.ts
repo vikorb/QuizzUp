@@ -23,7 +23,7 @@ export function useFreezeTest() {
   const { t } = useI18n()
   const { confirm } = useConfirm()
   const refusal = ref<string | null>(null)
-  const { bridgeFeatures, hardware } = useRoomHardware()
+  const { bridgeFeatures, hardware, smokeNeedsTest } = useRoomHardware()
   /** Machine sans relais dont l'installateur a coché « coupe toute seule sur perte de signal ». */
   const signalLoss = computed(() => {
     const { fixtures, customProfiles, smoke } = hardware.value.config.lighting
@@ -44,6 +44,10 @@ export function useFreezeTest() {
     // Il faut un pont qui sait geler sa sortie (message `hold`), sinon on refuse.
     if (state.driver === 'artnet-bridge' && !bridgeFeatures.value?.includes('hold')) {
       return t('hardware.diagnostic.freezeBridgeOld')
+    }
+    // Hors de l'assistant, la fumée est refusée sur ce PC faute de test de coupure réussi.
+    if (smokeNeedsTest.value) {
+      return t('hardware.smoke.testRequired')
     }
     return null
   }

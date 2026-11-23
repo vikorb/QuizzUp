@@ -12,6 +12,7 @@ import {
 import db from '../../db'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
 import { requireApiPermission } from '../../security/requireApiPermission'
+import { removeStoredMediaFile } from '../_shared/storedMedia'
 import {
   buildQuestionStatusPatch,
   canEditQuestion,
@@ -36,12 +37,7 @@ import {
   type QuestionBody,
   type QuestionParams,
 } from './_shared'
-import {
-  applyQuestionMediaPatch,
-  lockQuestionMediaRow,
-  QuestionRuleError,
-  removeStoredMediaFile,
-} from './_media'
+import { applyQuestionMediaPatch, lockQuestionMediaRow, QuestionRuleError } from './_media'
 
 const questionIdRoutes: FastifyPluginAsync = async (app) => {
   app.get<{ Params: QuestionParams }>(

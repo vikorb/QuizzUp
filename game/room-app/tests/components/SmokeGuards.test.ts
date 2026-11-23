@@ -2,7 +2,13 @@ import { MAX_FREEZE_MS } from '@quizzup/hardware'
 import { flushPromises } from '@vue/test-utils'
 
 import { useConfirm } from '@/composables/useConfirm'
-import { getLighting, saveBuzzerKeymap, stopLighting } from '@/hardware/roomHardware'
+import {
+  getLighting,
+  saveBuzzerKeymap,
+  SMOKE_PROOF_STORAGE_KEY,
+  stopLighting,
+  useRoomHardware,
+} from '@/hardware/roomHardware'
 import { enterDemo, syncRoomAuth } from '@/state/roomAuth'
 import HardwareView from '@/views/hardware/HardwareView.vue'
 
@@ -126,6 +132,17 @@ async function runSignalLossTest(wrapper: Wrapper) {
   expect(sel(wrapper, 'freeze-question').text()).toContain('débranchement')
 }
 
+/** Lance le test de gel (deux confirmations) jusqu'à « en cours », sans répondre. */
+async function startFreezeTest(wrapper: Wrapper) {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  const freeze = sel(wrapper, 'assistant-freeze').trigger('click')
+  await acceptConfirmations(2)
+  await freeze
+  await flushPromises()
+  vi.useRealTimers()
+  expect(sel(wrapper, 'freeze-running').exists()).toBe(true)
+}
+
 describe('assistant : garde-fous de la fumée', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -186,6 +203,57 @@ describe('assistant : garde-fous de la fumée', () => {
     expect(wrapper.text()).not.toContain('ne coupe pas toute seule')
     await sel(wrapper, 'check-siteRules').setValue(true)
     expect(sel(wrapper, 'smoke-disabled').exists()).toBe(false)
+  })
+
+  it('test relancé puis abandonné : l’ancienne preuve est effacée, la fumée reste refusée', async () => {
+    installFakeSerial(createFakeUsbPort())
+    const wrapper = await openSmokeStep('usbpro', 'smoke-dmx')
+    await runSignalLossTest(wrapper)
+    await click(wrapper, 'freeze-ok')
+    expect(localStorage.getItem(SMOKE_PROOF_STORAGE_KEY)).not.toBeNull()
+    await sel(wrapper, 'check-siteRules').setValue(true)
+
+    // Nouveau test : la fumée ne s'arrête pas, l'installateur recharge la page sans répondre.
+    await startFreezeTest(wrapper)
+    expect(localStorage.getItem(SMOKE_PROOF_STORAGE_KEY)).toBeNull()
+    wrapper.unmount()
+    await flushPromises()
+
+    await vi.waitFor(() => expect(getLighting()?.getState().smoke.status).toBe('disabled'))
+    expect(useRoomHardware().smokeNeedsTest.value).toBe(true)
+  })
+
+  it('« elle s’est arrêtée » sans preuve posée : message, test non validé', async () => {
+    installFakeSerial(createFakeUsbPort())
+    const wrapper = await openSmokeStep('usbpro', 'smoke-dmx')
+    await runSignalLossTest(wrapper)
+    const original = Storage.prototype.setItem
+    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
+      this: Storage,
+      key: string,
+      value: string
+    ) {
+      if (key === SMOKE_PROOF_STORAGE_KEY) {
+        throw new Error('quota')
+      }
+      original.call(this, key, value)
+    })
+    await click(wrapper, 'freeze-ok')
+    spy.mockRestore()
+
+    expect(sel(wrapper, 'freeze-proof-missing').text()).toContain('refais le test')
+    expect((sel(wrapper, 'check-freezeTest').element as HTMLInputElement).checked).toBe(false)
+    expect(localStorage.getItem(SMOKE_PROOF_STORAGE_KEY)).toBeNull()
+  })
+
+  it('« elle s’est arrêtée » avec preuve posée : pas de message', async () => {
+    installFakeSerial(createFakeUsbPort())
+    const wrapper = await openSmokeStep('usbpro', 'smoke-dmx')
+    await runSignalLossTest(wrapper)
+    await click(wrapper, 'freeze-ok')
+
+    expect(sel(wrapper, 'freeze-proof-missing').exists()).toBe(false)
+    expect(localStorage.getItem(SMOKE_PROOF_STORAGE_KEY)).not.toBeNull()
   })
 
   it('machine à relais : le test de gel garde son texte (relais temporisé)', async () => {

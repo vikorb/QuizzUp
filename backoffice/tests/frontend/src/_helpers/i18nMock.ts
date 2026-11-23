@@ -11,9 +11,17 @@ function t(key: string): string {
   return key
 }
 
+/** Clés que `te` doit déclarer absentes ; un test y ajoute une clé puis la retire. */
+export const missingMessageKeys = new Set<string>()
+
+function te(key: string): boolean {
+  return !missingMessageKeys.has(key)
+}
+
 export function useI18n() {
   return {
     t,
+    te,
     locale,
     availableLocales: ['fr', 'en'],
     messages,
