@@ -348,6 +348,25 @@ describe('routes/games.ts (US-GAME-08)', () => {
         expect(dbState.game_participants[1]).toMatchObject({ marketing_consent_at: null })
       })
 
+      it('stamps the offers consent with the server clock, ignoring client dates', async () => {
+        seedRoom()
+
+        const response = await launch([
+          {
+            podium: 1,
+            displayName: 'Léa',
+            email: 'lea@exemple.fr',
+            emailConsent: true,
+            marketingConsent: true,
+            marketingConsentAt: '2020-01-01T00:00:00Z',
+            marketing_consent_at: '2020-01-01T00:00:00Z',
+          },
+        ])
+
+        expect(response.statusCode).toBe(201)
+        expect(dbState.game_participants[0].marketing_consent_at).toBe(MOCK_NOW)
+      })
+
       it.each<[string, unknown]>([
         ['the first player', { podium: 1, displayName: 'Léa', marketingConsent: true }],
         [

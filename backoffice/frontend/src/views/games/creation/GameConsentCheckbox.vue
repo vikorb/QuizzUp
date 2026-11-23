@@ -56,6 +56,7 @@
 
       <p :id="`${marketingId}_hint`" class="consent__hint">
         {{ $t('games.form.marketingConsentHint') }}
+        <template v-if="!hasEmail">{{ $t('games.form.marketingConsentNeedsEmail') }}</template>
       </p>
     </div>
   </div>
@@ -169,6 +170,11 @@ function onChange(event: Event, marketing = false): void {
 .consent--disabled {
   color: var(--text-3);
   cursor: not-allowed;
+}
+
+.consent--disabled:hover {
+  border-color: var(--border-ui);
+  box-shadow: none;
 }
 
 .consent__req {

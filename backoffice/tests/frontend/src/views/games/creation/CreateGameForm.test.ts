@@ -292,10 +292,13 @@ describe('views/games/creation/CreateGameForm.vue', () => {
 
     expect(marketing().element.disabled).toBe(true)
     expect(consent().element.disabled).toBe(false)
+    expect(wrapper.text()).toContain('games.form.marketingConsentNeedsEmail')
 
     await wrapper.get('input[name="participants.0.email"]').setValue('a@quizzup.test')
 
     expect(marketing().element.disabled).toBe(false)
+    expect(wrapper.text()).not.toContain('games.form.marketingConsentNeedsEmail')
+    expect(wrapper.text()).toContain('games.form.marketingConsentHint')
 
     await marketing().setValue(true)
 
