@@ -21,6 +21,7 @@ import { parseGameId, resolveGameCompanyId } from '@/utils/game/company'
 import { getGameErrorKey, isGameApiErrorCode, readGameApiError } from '@/utils/game/errors'
 import {
   formatGameDate,
+  formatGameDay,
   formatGameDuration,
   formatGameParticipantsCount,
   formatGameTopScore,
@@ -122,6 +123,54 @@ describe('utils/game/state', () => {
     expect(updated.find((game) => game.id === 4)?.state).toBe(GAME_STATE_ABORTED)
     expect(updated.find((game) => game.id === 4)?.participantsCount).toBe(2)
   })
+
+  it('keeps the known participants count rather than counting the podiums of the detail', () => {
+    // 2 joueurs nommés sur un seul pupitre (2e joueur) : la liste sait 3, le détail n'a qu'1 ligne.
+    const listed = [{ ...createGameFixture({ id: 4 }), participantsCount: 3 }]
+
+    const [updated] = updateGameInList(listed, {
+      ...createGameFixture({ id: 4, state: GAME_STATE_ABORTED }),
+      participantsCount: undefined,
+      participants: [
+        {
+          id: 1,
+          podium: 1,
+          displayName: 'Léa',
+          email: null,
+          hasEmail: false,
+          consentAt: null,
+          secondPlayer: null,
+          score: 0,
+        },
+      ],
+    })
+
+    expect(updated?.participantsCount).toBe(3)
+  })
+
+  it('falls back on the podiums of the detail only when the list does not know the count', () => {
+    const [updated] = updateGameInList(
+      [{ ...createGameFixture({ id: 4 }), participantsCount: undefined }],
+      {
+        ...createGameFixture({ id: 4 }),
+        participantsCount: undefined,
+        participants: [
+          {
+            id: 1,
+            podium: 1,
+            displayName: 'Léa',
+            email: null,
+            hasEmail: false,
+            consentAt: null,
+            secondPlayer: null,
+            score: 0,
+          },
+        ],
+      }
+    )
+
+    expect(updated?.participantsCount).toBe(1)
+  })
 })
 
 describe('utils/game/company', () => {
@@ -212,12 +261,21 @@ describe('utils/game/format', () => {
     expect(formatGameTopScore(undefined)).toBe('—')
   })
 
-  it('turns a calendar day into the bounds of that local day', () => {
+  it('turns a calendar day into [local midnight, next local midnight) bounds', () => {
     const start = getLocalDayBounds('2026-11-05', 'start')
     const end = getLocalDayBounds('2026-11-05', 'end')
 
     expect(new Date(start!).getTime()).toBe(new Date(2026, 10, 5, 0, 0, 0, 0).getTime())
-    expect(new Date(end!).getTime()).toBe(new Date(2026, 10, 5, 23, 59, 59, 999).getTime())
+    expect(new Date(end!).getTime()).toBe(new Date(2026, 10, 6, 0, 0, 0, 0).getTime())
+  })
+
+  it('rolls the end bound over the month and the year', () => {
+    expect(new Date(getLocalDayBounds('2026-11-30', 'end')!).getTime()).toBe(
+      new Date(2026, 11, 1).getTime()
+    )
+    expect(new Date(getLocalDayBounds('2026-12-31', 'end')!).getTime()).toBe(
+      new Date(2027, 0, 1).getTime()
+    )
   })
 
   it.each(['', '05/11/2026', '2026-11-5', 'abc'])('has no bound for the day %j', (day) => {
@@ -238,6 +296,13 @@ describe('utils/game/format', () => {
     expect(formatGameDate('2026-11-03T10:00:00.000Z', 'fr')).toMatch(/03\/11\/2026/)
     expect(formatGameDate(null, 'fr')).toBe('—')
     expect(formatGameDate('not a date', 'fr')).toBe('—')
+  })
+
+  it('formats a calendar day without time, as the local day, whatever the locale', () => {
+    expect(formatGameDay('2026-11-05', 'fr')).toMatch(/^0?5\/11\/2026$/)
+    expect(formatGameDay('2026-11-05', 'en')).toBe('11/5/26')
+    expect(formatGameDay('', 'fr')).toBe('')
+    expect(formatGameDay('abc', 'fr')).toBe('abc')
   })
 
   it('normalises the participants count', () => {

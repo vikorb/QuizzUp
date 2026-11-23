@@ -62,11 +62,39 @@ describe('components/ui/BasePagination.vue', () => {
     expect(next(mountPagination({ total: 50 })).attributes('disabled')).toBeDefined()
   })
 
-  it('disables both buttons while loading', () => {
+  it('ignores the clicks while loading, without natively disabling the buttons (keeps the keyboard focus)', async () => {
     const wrapper = mountPagination({ offset: 50, disabled: true })
 
-    expect(previous(wrapper).attributes('disabled')).toBeDefined()
-    expect(next(wrapper).attributes('disabled')).toBeDefined()
+    expect(previous(wrapper).attributes('aria-disabled')).toBe('true')
+    expect(next(wrapper).attributes('aria-disabled')).toBe('true')
+    expect(previous(wrapper).attributes('disabled')).toBeUndefined()
+    expect(next(wrapper).attributes('disabled')).toBeUndefined()
+
+    await next(wrapper).trigger('click')
+    await previous(wrapper).trigger('click')
+
+    expect(wrapper.emitted('update:offset')).toBeUndefined()
+  })
+
+  it('is not aria-disabled once loaded', () => {
+    const wrapper = mountPagination({ offset: 50 })
+
+    expect(previous(wrapper).attributes('aria-disabled')).toBeUndefined()
+    expect(next(wrapper).attributes('aria-disabled')).toBeUndefined()
+  })
+
+  it('keeps the first and last page bounds natively disabled while loading', () => {
+    const first = mountPagination({ offset: 0, disabled: true })
+    const last = mountPagination({ offset: 100, disabled: true })
+
+    expect(previous(first).attributes('disabled')).toBeDefined()
+    expect(next(last).attributes('disabled')).toBeDefined()
+  })
+
+  it('announces the range politely to screen readers', () => {
+    expect(mountPagination().get('[data-test="pagination-range"]').attributes('aria-live')).toBe(
+      'polite'
+    )
   })
 
   it('renders nothing without any item', () => {

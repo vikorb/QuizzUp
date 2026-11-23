@@ -51,7 +51,8 @@ export function canAbortGame(game: Pick<Game, 'state'> | null | undefined): bool
 
 /**
  * Remplace une partie de la liste. Le détail renvoyé par l'API (arrêt) n'a pas de
- * `participantsCount` : on garde celui de la liste, ou on le déduit des participants.
+ * `participantsCount` : on garde celui de la liste (joueurs nommés, seconds joueurs compris),
+ * et on ne compte les pupitres du détail qu'à défaut.
  */
 export function updateGameInList(games: Game[], updatedGame: Game): Game[] {
   return games.map((game) =>
@@ -60,9 +61,9 @@ export function updateGameInList(games: Game[], updatedGame: Game): Game[] {
           ...game,
           ...updatedGame,
           participantsCount:
+            game.participantsCount ??
             updatedGame.participantsCount ??
-            updatedGame.participants?.length ??
-            game.participantsCount,
+            updatedGame.participants?.length,
         }
       : game
   )

@@ -2,8 +2,15 @@ import type { MiniGame } from '@quizzup/shared'
 
 import type { Game, GamePlayerEmail } from '@/types/game'
 
-/** Date et heure courtes d'une partie (ex. « 03/11/2026 14:05 »), « — » si absente. */
-export function formatGameDate(value: string | null | undefined, locale: string): string {
+/**
+ * Date et heure courtes d'une partie (ex. « 03/11/2026 14:05 »), « — » si absente. Sans
+ * `withTime`, le jour seulement.
+ */
+export function formatGameDate(
+  value: string | null | undefined,
+  locale: string,
+  withTime = true
+): string {
   if (!value) {
     return '—'
   }
@@ -17,12 +24,19 @@ export function formatGameDate(value: string | null | undefined, locale: string)
   try {
     return new Intl.DateTimeFormat(locale, {
       dateStyle: 'short',
-      timeStyle: 'short',
+      timeStyle: withTime ? 'short' : undefined,
     }).format(date)
   } catch {
     // Locale inconnue d'Intl : on retombe sur le format par défaut du navigateur.
-    return date.toLocaleString()
+    return withTime ? date.toLocaleString() : date.toLocaleDateString()
   }
+}
+
+/** Jour du calendrier local (`AAAA-MM-JJ`) selon la locale (ex. « 05/11/2026 »), tel quel s'il est invalide. */
+export function formatGameDay(day: string, locale: string): string {
+  const start = getLocalDayBounds(day, 'start')
+
+  return start ? formatGameDate(start, locale, false) : day
 }
 
 /** État d'affichage de l'email d'un joueur : la valeur, masqué pour le staff, ou absent. */
@@ -83,7 +97,9 @@ export function formatGameTopScore(score: number | null | undefined): string {
 
 /**
  * Bornes d'un jour du calendrier local (valeur d'un `<input type="date">`, `AAAA-MM-JJ`) en
- * instants ISO : le jour d'une salle est son jour local, pas le jour UTC. `null` si vide ou invalide.
+ * instants ISO : le jour d'une salle est son jour local, pas le jour UTC. Intervalle semi-ouvert
+ * comme l'API : `start` = minuit local du jour (inclus), `end` = minuit local du jour suivant
+ * (exclu). `null` si vide ou invalide.
  */
 export function getLocalDayBounds(day: string, edge: 'start' | 'end'): string | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day)
@@ -93,10 +109,8 @@ export function getLocalDayBounds(day: string, edge: 'start' | 'end'): string | 
   }
 
   const [year, month, date] = [Number(match[1]), Number(match[2]), Number(match[3])]
-  const bound =
-    edge === 'start'
-      ? new Date(year, month - 1, date, 0, 0, 0, 0)
-      : new Date(year, month - 1, date, 23, 59, 59, 999)
+  // Jour + 1 : Date reporte seule sur le mois ou l'année suivants, et suit l'heure d'été.
+  const bound = new Date(year, month - 1, edge === 'start' ? date : date + 1, 0, 0, 0, 0)
 
   return Number.isNaN(bound.getTime()) ? null : bound.toISOString()
 }

@@ -1416,11 +1416,11 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Parties de la compagnie, de la plus récente à la plus ancienne (ordre de l'identifiant), avec le nom de la salle, le nombre de joueurs nommés, la durée et le meilleur score. Les parties supprimées sont exclues.
+        Parties de la compagnie, de la plus récente à la plus ancienne (date de la partie, puis identifiant décroissant pour départager les égalités), avec le nom de la salle, le nombre de joueurs nommés, la durée et le meilleur score. Les parties supprimées sont exclues.
 
-        Tous les filtres sont facultatifs et se cumulent. `from` et `to` filtrent la date de la partie, c'est-à-dire la date de démarrage, ou la date de création tant qu'elle n'a pas démarré ; les deux bornes sont incluses. Il n'y a pas de plafond de période : la pagination borne la réponse. `total` est le nombre de parties qui passent les filtres, quelle que soit la page.
+        Tous les filtres sont facultatifs et se cumulent. `from` et `to` filtrent la date de la partie, c'est-à-dire la date de démarrage, ou la date de création tant qu'elle n'a pas démarré ; l'intervalle est semi-ouvert : borne basse incluse, borne haute exclue. L'année 0000 est refusée. Il n'y a pas de plafond de période : la pagination borne la réponse. `total` est le nombre de parties qui passent les filtres, quelle que soit la page.
 
-        **À venir (lot 13)** : paramètres `state`, `roomId`, `from`, `to` (filtre de dates sur `COALESCE(scheduled_at, started_at, created_at)`), `limit` (200 au plus) et `offset` ; la réponse devient `{ games, total }` (`total` : nombre de parties qui correspondent aux filtres, avant pagination) ; chaque ligne gagnera les champs de `GameSchedulingFields` (puis `source`, `backoffice` ou `api`, avec le lot 14). Il n'y a pas de plafond sur la durée entre `from` et `to` : la pagination borne la réponse. Tant que la route n'est pas livrée, ces paramètres sont ignorés.
+        **À venir (lot 13)** : le filtre de dates portera sur `COALESCE(scheduled_at, started_at, created_at)` ; chaque ligne gagnera les champs de `GameSchedulingFields` (puis `source`, `backoffice` ou `api`, avec le lot 14).
 
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
       operationId: listCompanyGames
@@ -1433,7 +1433,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [pending, running, finished, aborted]
+            enum: [scheduled, pending, running, finished, aborted, cancelled]
         - name: roomId
           in: query
           required: false
@@ -1443,14 +1443,14 @@ paths:
         - name: from
           in: query
           required: false
-          description: Début de période inclus, instant ISO 8601 avec fuseau (ex. `2026-11-05T00:00:00+01:00` ou `...Z`)
+          description: Début de période inclus, instant ISO 8601 avec fuseau (ex. `2026-11-05T00:00:00+01:00` ou `...Z`). L'année 0000 est refusée.
           schema:
             type: string
             format: date-time
         - name: to
           in: query
           required: false
-          description: Fin de période incluse, instant ISO 8601 avec fuseau
+          description: Fin de période exclue (intervalle semi-ouvert), instant ISO 8601 avec fuseau. Pour inclure un jour entier, passer le début du jour suivant. L'année 0000 est refusée.
           schema:
             type: string
             format: date-time

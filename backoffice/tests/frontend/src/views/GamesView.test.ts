@@ -8,10 +8,12 @@ import { confirmMock, setConfirmResult } from '@frontend-tests/_helpers/confirmM
 import {
   abortGameServiceMock,
   createGameFixture,
+  createParticipantFixture,
   listGameRoomsServiceMock,
   listGamesServiceMock,
   mockServiceFailure,
   resetGamesServiceMock,
+  roomsFixture,
 } from '@frontend-tests/_helpers/gamesServiceMock'
 import {
   liveErrorKeyMock,
@@ -25,9 +27,12 @@ import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFron
 import { currentRouteMock, pushMock, replaceMock } from '@frontend-tests/_helpers/routerMock'
 import {
   GAME_LIST_DEFAULT_LIMIT,
+  GAME_STATE_ABORTED,
   GAME_STATE_FINISHED,
+  GAME_STATE_PENDING,
   GAME_STATE_RUNNING,
   ROOM_PRESENCE,
+  ROOM_STATUS_ACTIVE,
 } from '@quizzup/shared'
 import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -227,7 +232,7 @@ describe('views/GamesView.vue', () => {
     expect(lastQuery()).toMatchObject({ roomId: 11, offset: 0 })
   })
 
-  it('sends the chosen period as the bounds of the local days', async () => {
+  it('sends the chosen period as [start of the first day, start of the day after the last)', async () => {
     setAuthenticatedAdmin()
 
     const wrapper = await mountGamesView()
@@ -239,10 +244,34 @@ describe('views/GamesView.vue', () => {
 
     expect(lastQuery()).toEqual({
       from: new Date(2026, 10, 5, 0, 0, 0, 0).toISOString(),
-      to: new Date(2026, 10, 7, 23, 59, 59, 999).toISOString(),
+      to: new Date(2026, 10, 8, 0, 0, 0, 0).toISOString(),
       limit: GAME_LIST_DEFAULT_LIMIT,
       offset: 0,
     })
+  })
+
+  it('keeps the rooms of the last company when the rooms of the previous one arrive late', async () => {
+    setAuthenticatedSuperadmin({ companyId: 1 })
+    const first = createDeferred()
+    listGameRoomsServiceMock.mockImplementationOnce(() => first.promise as never)
+
+    const wrapper = await mountGamesView()
+
+    listGameRoomsServiceMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { rooms: [{ id: 20, name: 'Salle Deux', status: ROOM_STATUS_ACTIVE }] },
+    })
+    await findSelect(wrapper, 'games.filters.company').setValue('2')
+    await flushPromises()
+    first.resolve({ ok: true, status: 200, data: { rooms: roomsFixture } })
+    await flushPromises()
+
+    expect(
+      findSelect(wrapper, 'games.filters.room')
+        .findAll('option')
+        .map((option) => option.attributes('value'))
+    ).toEqual(['', '20'])
   })
 
   it('pages through the games', async () => {
@@ -323,6 +352,80 @@ describe('views/GamesView.vue', () => {
     expect(abortGameServiceMock).toHaveBeenCalledWith(1, 4)
     expect(findRow(wrapper, 4).text()).toContain('games.state.aborted')
     expect(wrapper.get('[data-test="base-banner"]').text()).toContain('games.banners.aborted')
+  })
+
+  it('keeps the participants count of the list after stopping a game', async () => {
+    setAuthenticatedUser({ companyId: 1 })
+    listGamesServiceMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        // 3 joueurs nommés sur 2 pupitres : le détail renvoyé par l'arrêt compte les pupitres.
+        games: [createGameFixture({ id: 4, participantsCount: 3 })],
+        total: 1,
+      },
+    })
+    abortGameServiceMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        game: {
+          ...createGameFixture({ id: 4, state: GAME_STATE_ABORTED }),
+          participantsCount: undefined,
+          participants: [
+            createParticipantFixture({ id: 1, podium: 1 }),
+            createParticipantFixture({ id: 2, podium: 2 }),
+          ],
+        },
+      },
+    })
+
+    const wrapper = await mountGamesView()
+
+    await findRow(wrapper, 4).get('[data-test="game-abort"]').trigger('click')
+    await flushPromises()
+
+    expect(findRow(wrapper, 4).get('[data-test="base-table-cell-participantsCount"]').text()).toBe(
+      '3'
+    )
+  })
+
+  it('reloads the page after stopping a game when a state filter is active', async () => {
+    setAuthenticatedUser({ companyId: 1 })
+
+    const wrapper = await mountGamesView()
+
+    await findSelect(wrapper, 'games.filters.state').setValue(GAME_STATE_PENDING)
+    await flushPromises()
+    listGamesServiceMock.mockClear()
+    // Le serveur ne renvoie plus la partie arrêtée, et le total baisse.
+    listGamesServiceMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { games: [createGameFixture({ id: 3, state: GAME_STATE_PENDING })], total: 1 },
+    })
+
+    await findRow(wrapper, 4).get('[data-test="game-abort"]').trigger('click')
+    await flushPromises()
+
+    expect(abortGameServiceMock).toHaveBeenCalledWith(1, 4)
+    expect(listGamesServiceMock).toHaveBeenCalledTimes(1)
+    expect(lastQuery()).toMatchObject({ state: GAME_STATE_PENDING, offset: 0 })
+    expect(rowIds(wrapper)).toEqual(['3'])
+    expect(wrapper.get('[data-test="base-banner"]').text()).toContain('games.banners.aborted')
+  })
+
+  it('does not reload the list after stopping a game without a state filter', async () => {
+    setAuthenticatedUser({ companyId: 1 })
+
+    const wrapper = await mountGamesView()
+    listGamesServiceMock.mockClear()
+
+    await findRow(wrapper, 4).get('[data-test="game-abort"]').trigger('click')
+    await flushPromises()
+
+    expect(listGamesServiceMock).not.toHaveBeenCalled()
+    expect(findRow(wrapper, 4).text()).toContain('games.state.aborted')
   })
 
   it('does not stop the game when the confirmation is cancelled', async () => {

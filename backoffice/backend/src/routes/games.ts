@@ -80,16 +80,18 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
       }
 
       if (to) {
-        query.whereRaw(`${GAME_DATE_SQL} <= ?`, [to])
+        // `to` est exclu : intervalle semi-ouvert, deux périodes consécutives ne se recoupent pas.
+        query.whereRaw(`${GAME_DATE_SQL} < ?`, [to])
       }
 
       return query
     }
 
     const [{ count }] = await filteredGames().count({ count: '*' })
-    // Tri sur l'id seul : total et sans égalité, donc deux pages ne se chevauchent jamais.
+    // Date de la partie, puis id : l'id départage les égalités, donc deux pages ne se chevauchent jamais.
     const rows = await filteredGames()
       .select(gameSelect)
+      .orderByRaw(`${GAME_DATE_SQL} desc`)
       .orderBy('games.id', 'desc')
       .limit(limit)
       .offset(offset)

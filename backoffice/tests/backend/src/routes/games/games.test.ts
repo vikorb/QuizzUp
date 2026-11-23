@@ -13,6 +13,7 @@ import {
   GAME_STATE_ABORTED,
   GAME_STATE_FINISHED,
   GAME_STATE_PENDING,
+  GAME_STATES,
   GAME_STATUS_ACTIVE,
   GAME_STATUS_DELETED,
   MINI_GAME_FIRST_BUZZ,
@@ -568,6 +569,38 @@ describe('routes/games.ts (US-GAME-08)', () => {
       expect(otherCompany.statusCode).toBe(403)
     })
 
+    it('lets a superadmin read one company at a time', async () => {
+      seedRoom()
+      seedRoom({ id: 2, company_id: 2, name: 'Ailleurs' })
+      seedGame({ id: 1 })
+      seedGame({ id: 2, company_id: 2, room_id: 2 })
+      seedGame({ id: 3, company_id: 2, room_id: 2 })
+
+      const body = parseJson<ListBody>(await list('', superadminUser, 2))
+
+      expect(body.games.map((game) => game.id)).toEqual([3, 2])
+      expect(body.total).toBe(2)
+      // La salle de la compagnie 1 filtrée sur la compagnie 2 : rien, pas de fuite.
+      expect(parseJson<ListBody>(await list('?roomId=1', superadminUser, 2))).toMatchObject({
+        games: [],
+        total: 0,
+      })
+    })
+
+    it.each(GAME_STATES)('accepts the state filter %s', async (state) => {
+      seedRoom()
+      seedGame({ id: 1, state })
+      seedGame({
+        id: 2,
+        state: state === GAME_STATE_FINISHED ? GAME_STATE_PENDING : GAME_STATE_FINISHED,
+      })
+
+      const response = await list(`?state=${state}`)
+
+      expect(response.statusCode).toBe(200)
+      expect(ids(response)).toEqual([1])
+    })
+
     it('excludes deleted games from the list and from the total', async () => {
       seedRoom()
       seedGame({ id: 1 })
@@ -604,12 +637,24 @@ describe('routes/games.ts (US-GAME-08)', () => {
       seedGame({ id: 3, created_at: '2026-11-10T08:00:00.000Z' })
 
       expect(ids(await list('?from=2026-11-05T00:00:00.000Z'))).toEqual([3, 2])
-      expect(ids(await list('?to=2026-11-05T09:00:00.000Z'))).toEqual([2, 1])
+      expect(ids(await list('?to=2026-11-05T09:00:00.001Z'))).toEqual([2, 1])
       expect(ids(await list('?from=2026-11-02T00:00:00.000Z&to=2026-11-09T00:00:00.000Z'))).toEqual(
         [2]
       )
-      // Fuseau : 2026-11-05T10:00+01:00 = 09:00 UTC, borne incluse.
+      // Fuseau : 2026-11-05T10:00+01:00 = 09:00 UTC, borne basse incluse.
       expect(ids(await list('?from=2026-11-05T10:00:00%2B01:00'))).toEqual([3, 2])
+    })
+
+    it('includes `from` but excludes `to` (half-open period)', async () => {
+      seedRoom()
+      seedGame({ id: 1, created_at: '2026-11-05T09:00:00.000Z' })
+
+      expect(ids(await list('?from=2026-11-05T09:00:00.000Z'))).toEqual([1])
+      expect(ids(await list('?to=2026-11-05T09:00:00.000Z'))).toEqual([])
+      // Deux jours consécutifs ne se recoupent pas : une partie à minuit pile n'est que dans le second.
+      seedGame({ id: 2, created_at: '2026-11-06T00:00:00.000Z' })
+      expect(ids(await list('?from=2026-11-05T00:00:00Z&to=2026-11-06T00:00:00Z'))).toEqual([1])
+      expect(ids(await list('?from=2026-11-06T00:00:00Z&to=2026-11-07T00:00:00Z'))).toEqual([2])
     })
 
     it('puts no cap on the period', async () => {
@@ -668,6 +713,20 @@ describe('routes/games.ts (US-GAME-08)', () => {
         expect(pages).toEqual([4, 3, 2, 1])
       })
 
+      it('orders by game date first: an older id can be the most recent game', async () => {
+        seedRoom()
+        seedGame({ id: 1, created_at: '2026-11-03T10:00:00.000Z' })
+        // Créée avant la 1, mais démarrée après : date retenue = démarrage.
+        seedGame({
+          id: 2,
+          created_at: '2026-11-01T10:00:00.000Z',
+          started_at: '2026-11-04T10:00:00.000Z',
+        })
+        seedGame({ id: 3, created_at: '2026-11-02T10:00:00.000Z' })
+
+        expect(ids(await list())).toEqual([2, 1, 3])
+      })
+
       it('caps limit at the maximum instead of failing', async () => {
         seedMany(GAME_LIST_MAX_LIMIT + 5)
 
@@ -697,6 +756,9 @@ describe('routes/games.ts (US-GAME-08)', () => {
       'from=yesterday',
       'from=2026-11-05',
       'to=2026-13-45T00:00:00Z',
+      // PostgreSQL refuse l'année 0 : sans garde, 500 avec le texte de la requête SQL.
+      'from=0000-01-01T00:00:00Z',
+      'to=0000-06-01T00:00:00%2B01:00',
     ])('refuses the invalid query %s with a 400', async (query) => {
       seedRoom()
       seedGame()

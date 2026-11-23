@@ -1,15 +1,17 @@
 <template>
   <nav v-if="total > 0" class="pagination" :aria-label="$t('pagination.label')">
-    <p class="pagination__range" data-test="pagination-range">
+    <p class="pagination__range" data-test="pagination-range" aria-live="polite">
       {{ $t('pagination.range', { from: firstItem, to: lastItem, total }) }}
     </p>
 
+    <!-- Pendant le chargement, `aria-disabled` et non `disabled` : un bouton désactivé perd le focus clavier. -->
     <div class="pagination__actions">
       <UiButton
         type="button"
         data-test="pagination-previous"
-        :disabled="disabled || offset <= 0"
-        @click="emit('update:offset', Math.max(0, offset - limit))"
+        :disabled="offset <= 0"
+        :aria-disabled="busy"
+        @click="goTo(Math.max(0, offset - limit))"
       >
         {{ $t('pagination.previous') }}
       </UiButton>
@@ -17,8 +19,9 @@
       <UiButton
         type="button"
         data-test="pagination-next"
-        :disabled="disabled || offset + limit >= total"
-        @click="emit('update:offset', offset + limit)"
+        :disabled="offset + limit >= total"
+        :aria-disabled="busy"
+        @click="goTo(offset + limit)"
       >
         {{ $t('pagination.next') }}
       </UiButton>
@@ -43,6 +46,14 @@ const props = defineProps<{
 const emit = defineEmits<{
   (event: 'update:offset', value: number): void
 }>()
+
+const busy = computed(() => (props.disabled ? 'true' : undefined))
+
+function goTo(offset: number): void {
+  if (!props.disabled) {
+    emit('update:offset', offset)
+  }
+}
 
 const firstItem = computed(() => props.offset + 1)
 const lastItem = computed(() => Math.min(props.offset + props.limit, props.total))
@@ -73,6 +84,11 @@ const lastItem = computed(() => Math.min(props.offset + props.limit, props.total
 .pagination__actions :deep(.ui-btn) {
   min-width: 48px;
   min-height: 48px;
+}
+
+.pagination__actions :deep(.ui-btn[aria-disabled='true']) {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .pagination__actions :deep(.ui-btn:focus-visible) {

@@ -22,16 +22,23 @@ export const gameParamsSchema = z.object({
   gameId: z.coerce.number().int().positive(),
 })
 
+// L'année 0000 est valide en ISO 8601 mais PostgreSQL la refuse (pas d'année 0) : 500 sinon.
+const periodBoundSchema = z.iso
+  .datetime({ offset: true })
+  .refine((instant) => !instant.startsWith('0000'))
+  .optional()
+
 /**
- * Filtres et pagination de la liste. `from` et `to` sont des instants ISO 8601 avec fuseau
- * (inclus des deux côtés) : le jour local d'une salle n'est pas le jour UTC.
+ * Filtres et pagination de la liste. `from` et `to` sont des instants ISO 8601 avec fuseau, en
+ * intervalle semi-ouvert `[from, to)` : `to` est exclu (le frontend envoie le début du jour
+ * suivant en heure locale, le jour d'une salle n'est pas le jour UTC).
  * `limit` au-delà du plafond est ramené au plafond ; 0 ou négatif est refusé.
  */
 export const gamesListQuerySchema = z.object({
   state: z.enum(GAME_STATES).optional(),
   roomId: z.coerce.number().int().positive().optional(),
-  from: z.iso.datetime({ offset: true }).optional(),
-  to: z.iso.datetime({ offset: true }).optional(),
+  from: periodBoundSchema,
+  to: periodBoundSchema,
   limit: z.coerce
     .number()
     .int()

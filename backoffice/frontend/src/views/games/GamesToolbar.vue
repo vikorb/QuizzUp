@@ -66,6 +66,7 @@ import BaseToolBar, { type ActiveFilter } from '@/components/ui/BaseToolBar.vue'
 import FormField from '@/components/ui/form/FormField.vue'
 import SelectField from '@/components/ui/form/SelectField.vue'
 import type { SelectFieldOption } from '@/types/form'
+import { formatGameDay } from '@/utils/game/format'
 import { getGameStateLabelKey } from '@/utils/game/state'
 
 const props = withDefaults(
@@ -103,7 +104,7 @@ const emit = defineEmits<{
   (event: 'create'): void
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const hasActiveFilters = computed(
   () => props.stateFilter !== '' || props.roomFilter !== '' || props.from !== '' || props.to !== ''
@@ -147,7 +148,7 @@ const activeFilters = computed<ActiveFilter[]>(() => {
   if (props.from) {
     filters.push({
       key: 'from',
-      label: `${t('games.filters.from')} ${props.from}`,
+      label: `${t('games.filters.from')} ${formatGameDay(props.from, locale.value)}`,
       onRemove: () => emit('update:from', ''),
     })
   }
@@ -155,7 +156,7 @@ const activeFilters = computed<ActiveFilter[]>(() => {
   if (props.to) {
     filters.push({
       key: 'to',
-      label: `${t('games.filters.to')} ${props.to}`,
+      label: `${t('games.filters.to')} ${formatGameDay(props.to, locale.value)}`,
       onRemove: () => emit('update:to', ''),
     })
   }
@@ -184,6 +185,11 @@ function resetFilters(): void {
 
 .games-toolbar__filters--company {
   grid-template-columns: minmax(220px, 280px) repeat(auto-fit, minmax(180px, 220px));
+}
+
+/* Le sélecteur natif des champs date (icône, calendrier) suit le fond sombre de l'écran. */
+.games-toolbar__filters :deep(input[type='date']) {
+  color-scheme: dark;
 }
 
 /* Cibles de 48 px : les listes déroulantes et les champs date ont la même hauteur. */

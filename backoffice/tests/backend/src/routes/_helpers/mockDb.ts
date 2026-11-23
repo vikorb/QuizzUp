@@ -243,6 +243,8 @@ type SelectColumn = string | RawSql
 type SortConfig = {
   column: string
   direction: 'asc' | 'desc'
+  /** Tri sur `COALESCE(a, b)` (première colonne non nulle, comparée comme une date). */
+  coalesce?: string[]
 }
 
 type JoinConfig = {
@@ -396,7 +398,8 @@ class QueryBuilder {
 
   private selectedColumns: SelectColumn[] | Record<string, string> | null = null
 
-  private sortConfig: SortConfig | null = null
+  // Plusieurs tris se cumulent dans l'ordre d'appel, comme en SQL.
+  private readonly sortConfigs: SortConfig[] = []
 
   private countMode = false
 
@@ -485,8 +488,8 @@ class QueryBuilder {
   }
 
   public whereRaw(sql: string, bindings: unknown[]): this {
-    // Filtre de période : `COALESCE(a, b) >= ?` ou `<= ?` (première colonne non nulle).
-    const period = sql.match(/COALESCE\(([^)]+)\)\s*(>=|<=)\s*\?/i)
+    // Filtre de période : `COALESCE(a, b) >= ?` ou `< ?` (première colonne non nulle).
+    const period = sql.match(/COALESCE\(([^)]+)\)\s*(>=|<)\s*\?/i)
 
     if (period?.[1]) {
       const columns = period[1].split(',').map((column) => column.trim())
@@ -502,7 +505,7 @@ class QueryBuilder {
 
         const time = new Date(value as string).getTime()
 
-        return isLowerBound ? time >= bound : time <= bound
+        return isLowerBound ? time >= bound : time < bound
       })
 
       return this
@@ -558,10 +561,24 @@ class QueryBuilder {
   }
 
   public orderBy(column: string, direction: 'asc' | 'desc' = 'asc'): this {
-    this.sortConfig = {
-      column,
-      direction,
+    this.sortConfigs.push({ column, direction })
+
+    return this
+  }
+
+  /** Seul `COALESCE(a, b) asc|desc` est compris (tri sur la date d'une partie). */
+  public orderByRaw(sql: string): this {
+    const match = sql.match(/COALESCE\(([^)]+)\)\s*(asc|desc)?/i)
+
+    if (!match?.[1]) {
+      throw new Error(`mockDb.orderByRaw ne comprend pas : ${sql}`)
     }
+
+    this.sortConfigs.push({
+      column: match[1],
+      direction: match[2]?.toLowerCase() === 'desc' ? 'desc' : 'asc',
+      coalesce: match[1].split(',').map((column) => column.trim()),
+    })
 
     return this
   }
@@ -804,22 +821,32 @@ class QueryBuilder {
   }
 
   private sortRows(rows: Row[]): Row[] {
-    if (!this.sortConfig) {
+    if (this.sortConfigs.length === 0) {
       return rows
     }
 
-    const { column, direction } = this.sortConfig
-    const multiplier = direction === 'desc' ? -1 : 1
-
-    return [...rows].sort((a, b) => {
-      const aValue = getRowValue(a, column) as string | number
-      const bValue = getRowValue(b, column) as string | number
-
-      if (aValue === bValue) {
-        return 0
+    const sortValue = (row: Row, { column, coalesce }: SortConfig): string | number => {
+      if (!coalesce) {
+        return getRowValue(row, column) as string | number
       }
 
-      return aValue > bValue ? multiplier : -multiplier
+      const value = coalesce.map((name) => getRowValue(row, name)).find((v) => v != null)
+
+      return new Date(value as string).getTime()
+    }
+
+    return [...rows].sort((a, b) => {
+      for (const config of this.sortConfigs) {
+        const multiplier = config.direction === 'desc' ? -1 : 1
+        const aValue = sortValue(a, config)
+        const bValue = sortValue(b, config)
+
+        if (aValue !== bValue) {
+          return aValue > bValue ? multiplier : -multiplier
+        }
+      }
+
+      return 0
     })
   }
 

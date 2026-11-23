@@ -151,8 +151,16 @@ async function loadCompanies(): Promise<void> {
   companies.value = result.ok ? result.companies : []
 }
 
+// Même garde que `loadPage` : les salles d'une compagnie quittée ne remplacent pas celles de la courante.
+let lastRoomsRequest = 0
+
 async function loadRooms(): Promise<void> {
+  const request = (lastRoomsRequest += 1)
   const result = companyId.value === null ? null : await listGameRoomsService(companyId.value)
+
+  if (request !== lastRoomsRequest) {
+    return
+  }
 
   rooms.value = result?.ok ? result.data.rooms : []
 }
@@ -252,7 +260,12 @@ function goToDetail(gameId: number): void {
 }
 
 function handleGameAborted(abortedGame: Game): void {
-  games.value = updateGameInList(games.value, abortedGame)
+  // Avec un filtre d'état, la partie arrêtée n'a plus sa place dans la vue et `total` change : on recharge.
+  if (stateFilterValue.value) {
+    void loadPage()
+  } else {
+    games.value = updateGameInList(games.value, abortedGame)
+  }
 
   actionBanner.value = createSuccessBanner(GAME_BANNER_ABORTED, {
     room: getGameRoomName(abortedGame),
