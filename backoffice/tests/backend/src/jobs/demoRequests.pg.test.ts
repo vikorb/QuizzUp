@@ -15,7 +15,8 @@ import { assertTestDatabase } from '../../setup/assertTestDatabase'
  *     tests/backend/src/jobs/demoRequests.pg.test.ts
  *
  * ATTENTION : utiliser une base DÉDIÉE (le nom doit finir par `_test`). Les migrations Knex y sont
- * appliquées et la table `demo_requests` est vidée avant chaque test.
+ * appliquées et les tables `demo_requests`, `admins`, `companies` (et dépendantes) sont vidées avant
+ * chaque test.
  */
 const PG_INTEGRATION_URL = process.env.PG_INTEGRATION_URL
 
@@ -49,7 +50,10 @@ describe.skipIf(!PG_INTEGRATION_URL)('demo_requests sur PostgreSQL', () => {
   })
 
   beforeEach(async () => {
-    await db('demo_requests').delete()
+    // Base partagée avec les autres tests `*.pg` : ils insèrent des comptes à identifiant explicite
+    // sans avancer les séquences. Sans RESTART IDENTITY, nos insertions sans identifiant
+    // retomberaient sur ces lignes (companies_pkey / admins_pkey).
+    await db.raw('TRUNCATE demo_requests, admins, companies RESTART IDENTITY CASCADE')
   })
 
   const baseRow = {
