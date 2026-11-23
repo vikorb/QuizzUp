@@ -347,6 +347,8 @@ Format inspiré de Keep a Changelog.
 
 ### Fixed
 
+- Vitrine : le formulaire de démonstration envoie ses champs sous les noms attendus par `POST /public/v1/demo-requests` (`centerName`, `roomsCount`), respecte les bornes du serveur (50 salles, centre sur 160 caractères, message facultatif) et signale sous chaque champ ceux que le serveur refuse.
+  US: US-SITE-01 (#133)
 - Sécurité lumière : avertissement non bloquant quand un canal `shutter` ou `fixed` est réglé dans la plage stroboscope de l'appareil (`strobeRange`, facultatif, à saisir sur un profil sur mesure) ; stroboscope du Diagnostic plafonné en vitesse et coupé après 3 secondes. Non validé sur du vrai matériel (banc, cas D10).
   US: US-SEC-05 (#152)
 - Sécurité : l'écran de salle n'arme la fumée activée par la configuration du serveur que si un test de coupure réussi est mémorisé sur ce poste, pour cette salle et ces réglages de fumée ; sinon aucun jet ne part et un message demande de refaire le test. Un test relancé efface la preuve jusqu'à sa réussite. Non validé sur du vrai matériel (banc, cas F9).

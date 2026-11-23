@@ -60,27 +60,40 @@ fichier. Pour l'anglais : ajouter une entrée dans `src/messages.ts` et des page
 
 ## Formulaire de démonstration
 
-`src/form.ts` valide les champs (nom, centre, e-mail, téléphone facultatif, nombre de salles,
-message, consentement), puis poste en JSON vers `<apiUrl>/public/v1/demo-requests` :
+`src/form.ts` valide les champs (nom, centre, e-mail, téléphone et message facultatifs, nombre de
+salles, consentement), puis poste en JSON vers `<apiUrl>/public/v1/demo-requests`. Les noms et les
+bornes sont ceux de `CreateDemoRequestRequest` (`backoffice/docs/api/openapi.yaml`) : nom 120
+caractères, centre 160, e-mail 254, téléphone `^[+0-9 ().-]{6,32}$`, 1 à 50 salles, message 2 000.
+`tests/form.test.ts` compare les bornes partagées à `@quizzup/shared`, `tests/build.test.ts` celles
+de la page.
 
 ```json
 {
   "name": "…",
-  "company": "…",
+  "centerName": "…",
   "email": "…",
   "phone": "… (omis si vide)",
-  "rooms": 3,
-  "message": "…",
+  "roomsCount": 3,
+  "message": "… (omis si vide)",
   "consent": true,
   "website": ""
 }
 ```
 
+L'adresse de l'API est `apiUrl` de `site.config.ts` (dérivée de `domain`), écrite dans le
+`data-api-url` du formulaire à la construction ; aucune adresse n'est en dur dans le script.
+Si `apiUrl` est vide, le script ne touche pas au formulaire : il garde la validation du navigateur
+et ouvre la messagerie, comme sans JavaScript.
+
 Le champ caché de la page s'appelle `trap` (un nom que les navigateurs et gestionnaires de mots de
 passe ne remplissent pas) : s'il est rempli, le script affiche un succès sans rien envoyer. La clé
-`website` du corps JSON reste vide : c'est celle qu'attend la route. Réponses : 2xx envoyé, 400 ou 422 refusé, 429 trop de demandes, autre statut ou
-absence de réponse (15 s) : message d'erreur avec l'adresse de contact. Sans JavaScript, le
-formulaire ouvre la messagerie (`mailto:`).
+`website` du corps JSON reste vide : c'est celle qu'attend la route. Réponses : 2xx envoyé (la
+route répond 202), 400 ou 422 refusé, 429 trop de demandes, autre statut ou absence de réponse
+(15 s) : message d'erreur avec l'adresse de contact. Pour un 400 `invalid_body`, le script lit
+seulement les clés de `details.fieldErrors` (`centerName` devient le champ « Centre », `roomsCount`
+le champ « Nombre de salles »), signale chaque champ refusé sous le champ avec son propre texte
+(jamais celui du serveur) et place le focus sur le premier. Sans JavaScript, le formulaire ouvre
+la messagerie (`mailto:`).
 
 L'API doit autoriser l'origine de la vitrine (CORS) : le navigateur envoie la requête depuis un
 autre domaine.
