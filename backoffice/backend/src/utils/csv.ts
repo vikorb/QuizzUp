@@ -26,7 +26,7 @@ function countOf(text: string, char: string): number {
  * Lève `CsvError` si un champ entre guillemets n'est jamais refermé.
  */
 export function parseCsv(input: string): CsvRecord[] {
-  const text = input.replace(/^﻿/, '').replaceAll('\r\n', '\n')
+  const text = input.replace(/^\uFEFF/, '').replaceAll('\r\n', '\n')
   const firstLine = text.split('\n').find((candidate) => candidate.trim() !== '') ?? ''
   const separator = countOf(firstLine, ';') > countOf(firstLine, ',') ? ';' : ','
 

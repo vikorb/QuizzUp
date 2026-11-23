@@ -2883,15 +2883,18 @@ paths:
         compagnie, en portée `company` ; seul le superadmin choisit `scope` et `companyId`).
         Le statut suit la création à l'unité (brouillon pour un `user`), ou brouillon si `draft=true`.
 
-        **Fichier** : corps `text/csv` brut, UTF-8 (BOM accepté), 1 Mo au plus, 2 000 lignes de
-        données au plus. Séparateur `;` ou `,` détecté sur la ligne d'en-tête ; guillemets
+        **Fichier** : corps brut `text/csv` (ou `application/vnd.ms-excel`, le type qu'un
+        navigateur Windows avec Excel donne à un `.csv`), UTF-8 sans octet nul (BOM accepté), 1 Mo
+        au plus, 2 000 lignes de données au plus. Les noms de colonne vides en fin d'en-tête
+        (`…;correct;;`, produit par Excel) sont ignorés. Séparateur `;` ou `,` détecté sur la ligne d'en-tête ; guillemets
         RFC 4180 (guillemets doublés, retours à la ligne dans un champ) ; lignes vides ignorées.
         Numéro de ligne d'une erreur : ligne physique où commence l'enregistrement, l'en-tête
         est la ligne 1.
 
         **Colonnes** (noms exacts, casse et ordre libres ; une colonne inconnue est refusée) :
         - `theme` (obligatoire) : un ou plusieurs noms de thème séparés par `|`, cherchés sans
-          tenir compte de la casse parmi les thèmes utilisables dans la portée cible ;
+          tenir compte de la casse parmi les thèmes utilisables dans la portée cible (en portée
+          `global` : les thèmes globaux seulement, jamais ceux d'une compagnie) ;
         - `question` (obligatoire) : texte de la question ;
         - `kind` : `qcm` (défaut), `true_false` ou `estimate` ;
         - `answer_1`, `answer_2` (obligatoires), `answer_3`, `answer_4` : réponses ;
@@ -2938,6 +2941,10 @@ paths:
         required: true
         content:
           text/csv:
+            schema:
+              type: string
+              format: binary
+          application/vnd.ms-excel:
             schema:
               type: string
               format: binary
@@ -2990,7 +2997,7 @@ paths:
         '400':
           description: |
             Requête ou fichier inutilisable : `invalid_query`, `question_company_required`,
-            `csv_empty`, `csv_encoding_invalid` (le fichier n'est pas en UTF-8),
+            `csv_empty`, `csv_encoding_invalid` (le fichier n'est pas en UTF-8 ou contient un octet nul),
             `csv_header_invalid` (avec `column`), `csv_too_many_rows`,
             `csv_field_unterminated` (avec `line`)
           content:
@@ -3012,7 +3019,9 @@ paths:
         '413':
           description: Fichier de plus de 1 Mo
         '415':
-          description: Corps qui n'est pas du `text/csv` (`csv_content_type_unsupported`)
+          description: |
+            Type de corps autre que `text/csv` ou `application/vnd.ms-excel`
+            (`csv_content_type_unsupported`)
           content:
             application/json:
               schema:

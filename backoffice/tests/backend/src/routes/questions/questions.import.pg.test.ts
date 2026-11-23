@@ -107,15 +107,35 @@ describe.skipIf(!PG_INTEGRATION_URL)('import CSV de questions sur PostgreSQL', (
   })
 
   it('rolls everything back when the database refuses a row after earlier ones were written', async () => {
-    // Un octet nul passe toutes les règles du fichier, mais PostgreSQL le refuse à l'écriture.
-    const response = await importCsv(
-      'Mon thème;Première ?;Oui;Non;1',
-      'Mon thème;Deuxième ?;Oui;Non;1',
-      'Mon thème;Troisième\u0000 ?;Oui;Non;1'
+    // Un déclencheur de test fait refuser par PostgreSQL la troisième question, qui passe toutes
+    // les règles du fichier : les deux premières, déjà écrites dans la transaction, doivent partir.
+    await db.raw(`
+      CREATE OR REPLACE FUNCTION import_test_refuse_third() RETURNS trigger AS $$
+      BEGIN
+        IF NEW.question LIKE 'Troisi%' THEN
+          RAISE EXCEPTION 'insertion refusee par le test';
+        END IF;
+        RETURN NEW;
+      END
+      $$ LANGUAGE plpgsql
+    `)
+    await db.raw(
+      'CREATE TRIGGER import_test_refuse_third BEFORE INSERT ON questions FOR EACH ROW EXECUTE FUNCTION import_test_refuse_third()'
     )
 
-    expect(response.statusCode).toBe(500)
-    expect(await counts()).toEqual({ questions: 0, question_themes: 0, answers: 0 })
+    try {
+      const response = await importCsv(
+        'Mon thème;Première ?;Oui;Non;1',
+        'Mon thème;Deuxième ?;Oui;Non;1',
+        'Mon thème;Troisième ?;Oui;Non;1'
+      )
+
+      expect(response.statusCode).toBe(500)
+      expect(await counts()).toEqual({ questions: 0, question_themes: 0, answers: 0 })
+    } finally {
+      await db.raw('DROP TRIGGER IF EXISTS import_test_refuse_third ON questions')
+      await db.raw('DROP FUNCTION IF EXISTS import_test_refuse_third()')
+    }
   })
 
   it('does not reach the theme of another company', async () => {

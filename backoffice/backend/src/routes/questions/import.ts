@@ -11,6 +11,7 @@ import {
   QUESTION_STATUS_DELETED,
   QUESTION_STATUS_DRAFT,
   THEME_SCOPE_COMPANY,
+  THEME_SCOPE_GLOBAL,
   THEME_STATUS_DELETED,
   type QuestionKind,
   type QuestionMediaType,
@@ -37,6 +38,8 @@ const OPTIONAL_COLUMNS = ['kind', 'answer_3', 'answer_4', 'media_type', 'media_u
 const KNOWN_COLUMNS = [...REQUIRED_COLUMNS, ...OPTIONAL_COLUMNS]
 const ANSWER_COLUMNS = ['answer_1', 'answer_2', 'answer_3', 'answer_4']
 const MAX_REPORTED_ERRORS = 200
+/** `application/vnd.ms-excel` : le type qu'un navigateur Windows avec Excel donne à un `.csv`. */
+const CSV_CONTENT_TYPES = ['text/csv', 'application/vnd.ms-excel']
 
 /** Colonne à surligner pour les erreurs de `validateQuestionInput` (les autres n'en ont pas). */
 const INPUT_ERROR_COLUMNS: Record<string, string> = {
@@ -67,7 +70,11 @@ function duplicateKey(themeId: number, question: string): string {
   return `${themeId}:${question.trim().replaceAll(/\s+/g, ' ').toLowerCase()}`
 }
 
-/** Thèmes que l'appelant peut rattacher à une question de cette portée, par nom sans casse. */
+/**
+ * Thèmes que l'appelant peut rattacher à une question de cette portée, par nom sans casse. En
+ * portée globale, seuls les thèmes globaux comptent : un thème de compagnie homonyme ne doit ni
+ * être choisi ni rendre le nom ambigu.
+ */
 async function loadThemeIdsByName(
   req: FastifyRequest,
   scope: ThemeScope,
@@ -80,6 +87,10 @@ async function loadThemeIdsByName(
   const idsByName = new Map<string, number[]>()
 
   for (const theme of themes) {
+    if (scope === THEME_SCOPE_GLOBAL && theme.scope !== THEME_SCOPE_GLOBAL) {
+      continue
+    }
+
     if (getThemeUsableError(theme, req, scope, companyId) === null) {
       const name = String(theme.name).trim().toLowerCase()
 
@@ -207,7 +218,18 @@ async function flagDuplicates(rows: RowResult[]): Promise<RowResult[]> {
   })
 }
 
-/** Avant de lire un corps de 1 Mo : connexion et droit de création de question. */
+/** UTF-8 strict, sans octet nul (PostgreSQL le refuse dans un texte) : sinon `TypeError`. */
+function decodeCsvBody(body: Buffer): string {
+  const text = new TextDecoder('utf-8', { fatal: true }).decode(body)
+
+  if (text.includes('\0')) {
+    throw new TypeError('csv_nul_byte')
+  }
+
+  return text
+}
+
+/** Avant de lire un corps de 1 Mo : connexion, droit de création de question, type du corps. */
 async function rejectBeforeCsvParsing(
   req: FastifyRequest,
   reply: FastifyReply
@@ -216,15 +238,22 @@ async function rejectBeforeCsvParsing(
     return reply
   }
 
-  return requireApiPermission(req, reply, API_RESOURCE.QUESTION, API_ACTION.CREATE)
+  if (!requireApiPermission(req, reply, API_RESOURCE.QUESTION, API_ACTION.CREATE)) {
+    return reply
+  }
+
+  const mediaType = (req.headers['content-type'] ?? '').split(';')[0]!.trim().toLowerCase()
+
+  // Sans cette garde, Fastify répondrait FST_ERR_CTP_INVALID_MEDIA_TYPE pour un type inconnu.
+  return CSV_CONTENT_TYPES.includes(mediaType)
     ? undefined
-    : reply
+    : reply.code(415).send({ error: 'csv_content_type_unsupported' })
 }
 
 const questionImportRoutes: FastifyPluginAsync = async (app) => {
   // Corps `text/csv` brut : le parseur n'existe que dans ce plugin, il ne change rien aux autres routes.
   app.addContentTypeParser(
-    'text/csv',
+    CSV_CONTENT_TYPES,
     { parseAs: 'buffer', bodyLimit: QUESTION_IMPORT_MAX_BYTES },
     (_req, body, done) => {
       done(null, body)
@@ -260,14 +289,10 @@ const questionImportRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(400).send({ error: 'question_company_required' })
       }
 
-      if (!Buffer.isBuffer(req.body)) {
-        return reply.code(415).send({ error: 'csv_content_type_unsupported' })
-      }
-
       let records: CsvRecord[]
 
       try {
-        records = parseCsv(new TextDecoder('utf-8', { fatal: true }).decode(req.body))
+        records = parseCsv(decodeCsvBody(req.body))
       } catch (error) {
         if (error instanceof CsvError) {
           return reply.code(400).send({ error: error.code, line: error.line })
@@ -287,6 +312,12 @@ const questionImportRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const columns = header.fields.map((name) => name.trim().toLowerCase())
+
+      // Excel termine l'en-tête par des séparateurs vides (`…;correct;;`) : comme pour les données.
+      while (columns.at(-1) === '') {
+        columns.pop()
+      }
+
       const badColumn =
         columns.find(
           (name, index) => !KNOWN_COLUMNS.includes(name) || columns.indexOf(name) !== index

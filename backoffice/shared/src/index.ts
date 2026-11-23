@@ -564,10 +564,6 @@ export const QUESTION_AUDIO_EXTENSIONS: Readonly<Record<QuestionAudioMimeType, s
 /** Taille max par défaut d'un extrait (surchargée côté API par `MEDIA_MAX_BYTES`). */
 export const QUESTION_AUDIO_DEFAULT_MAX_BYTES = 10 * 1024 * 1024
 
-/** Import CSV de questions : taille du fichier (1 Mo) et nombre de lignes de données au plus. */
-export const QUESTION_IMPORT_MAX_BYTES = 1024 * 1024
-export const QUESTION_IMPORT_MAX_ROWS = 2000
-
 /**
  * Durée d'écoute à garantir après le point de départ : le palier le plus long du blind test
  * éclair (20 s, porté par le moteur de jeu). En dessous, le backoffice avertit seulement.
@@ -719,3 +715,4 @@ export function createSseParser(onEvent: (message: SseMessage) => void): (chunk:
 }
 
 export * from './schedule.js'
+export * from './questionImport.js'

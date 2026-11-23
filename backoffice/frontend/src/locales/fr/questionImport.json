@@ -1,0 +1,32 @@
+{
+  "questionImport": {
+    "errors": {
+      "csv_invalid": "Le fichier contient des erreurs : rien n'a été importé.",
+      "csv_empty": "Le fichier ne contient aucune question.",
+      "csv_encoding_invalid": "Le fichier n'est pas en UTF-8. Enregistrez-le au format « CSV UTF-8 » depuis votre tableur.",
+      "csv_header_invalid": "Les colonnes du fichier ne correspondent pas au modèle (colonne concernée : {column}).",
+      "csv_too_many_rows": "Le fichier contient trop de lignes ({max} au maximum).",
+      "csv_too_many_columns": "La ligne a plus de colonnes que l'en-tête : mettez entre guillemets les textes qui contiennent le séparateur.",
+      "csv_field_unterminated": "Un texte entre guillemets commence à la ligne {line} et n'est jamais refermé.",
+      "csv_content_type_unsupported": "Le fichier doit être envoyé au format CSV (text/csv).",
+      "csv_theme_not_found": "Thème introuvable parmi ceux que vous pouvez utiliser.",
+      "csv_theme_ambiguous": "Plusieurs thèmes portent ce nom : précisez-le.",
+      "csv_correct_invalid": "La colonne « correct » doit indiquer des numéros de réponses renseignées, de 1 à 4, séparés par « | ».",
+      "csv_audio_unsupported": "L'import ne gère pas l'audio : ajoutez l'extrait depuis la fiche de la question.",
+      "csv_media_url_required": "Une image ou une vidéo demande une adresse dans « media_url ».",
+      "csv_media_url_invalid": "L'adresse du média doit commencer par http:// ou https://.",
+      "csv_question_duplicate": "Cette question existe déjà dans le thème, ou plus haut dans le fichier.",
+      "invalid_query": "Paramètres d'import invalides.",
+      "question_company_required": "Choisissez la compagnie dans laquelle importer.",
+      "question_required": "La question est obligatoire.",
+      "question_theme_required": "Le thème est obligatoire.",
+      "question_kind_invalid": "Type de question inconnu (qcm, true_false ou estimate).",
+      "question_type_media_invalid": "Type de média inconnu (none, image ou video).",
+      "question_kind_media_invalid": "Une question vrai / faux ou estimation n'accepte que du texte ou une image.",
+      "question_answers_min_required": "Une question demande au moins deux réponses.",
+      "question_correct_answer_required": "Une bonne réponse au moins est obligatoire.",
+      "question_true_false_answers_invalid": "Une question vrai / faux a deux réponses, « Vrai » et « Faux », dont une juste.",
+      "question_estimate_answers_invalid": "Une estimation a 3 ou 4 fourchettes commençant par un nombre, dont une juste."
+    }
+  }
+}

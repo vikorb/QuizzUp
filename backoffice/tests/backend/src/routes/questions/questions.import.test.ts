@@ -24,6 +24,7 @@ import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
 import {
   authHeaders,
   companyAdminUser,
+  companyUser,
   createRouteApp,
   parseJson,
   superadminUser,
@@ -123,13 +124,36 @@ describe('POST /questions/import', () => {
       expect(contentSnapshot()).toEqual(before)
     })
 
-    it('rejects a body that is not text/csv', async () => {
-      const response = await importCsv(JSON.stringify({ a: 1 }), {
-        contentType: 'application/json',
+    it('answers 403 before reading the body or looking at its type', async () => {
+      securityState.hasPermission = false
+
+      const tooBig = await importCsv(Buffer.alloc(QUESTION_IMPORT_MAX_BYTES + 1, 'a'))
+      const wrongType = await importCsv('x', { contentType: 'application/octet-stream' })
+
+      expect(tooBig.statusCode).toBe(403)
+      expect(wrongType.statusCode).toBe(403)
+    })
+
+    it.each(['application/json', 'application/octet-stream', 'text/plain'])(
+      'rejects a %s body with csv_content_type_unsupported',
+      async (contentType) => {
+        const before = contentSnapshot()
+        const response = await importCsv(csv('Global A;Q ?;;Oui;Non;;;1'), { contentType })
+
+        expect(response.statusCode).toBe(415)
+        expect(parseJson(response)).toEqual({ error: 'csv_content_type_unsupported' })
+        expect(contentSnapshot()).toEqual(before)
+      }
+    )
+
+    it('accepts the type a Windows browser gives to a CSV opened with Excel', async () => {
+      const response = await importCsv(csv('Global A;Q ?;;Oui;Non;;;1'), {
+        contentType: 'application/vnd.ms-excel',
+        query: '?dryRun=true',
       })
 
-      expect(response.statusCode).toBe(415)
-      expect(parseJson(response)).toEqual({ error: 'csv_content_type_unsupported' })
+      expect(response.statusCode).toBe(200)
+      expect(parseJson<DryRunBody>(response)).toMatchObject({ valid: 1, errors: [] })
     })
 
     it('rejects an invalid query', async () => {
@@ -437,6 +461,38 @@ describe('POST /questions/import', () => {
       expect(parseJson(response)).toEqual({ error: 'csv_encoding_invalid' })
     })
 
+    it('refuses a file holding a NUL byte, on the dry run as on the import', async () => {
+      const text = csv('Global A;Troisi' + String.fromCharCode(0) + 'me ?;;Oui;Non;;;1')
+      const before = contentSnapshot()
+
+      for (const query of ['?dryRun=true', '']) {
+        const response = await importCsv(text, { query })
+
+        expect(response.statusCode).toBe(400)
+        expect(parseJson(response)).toEqual({ error: 'csv_encoding_invalid' })
+      }
+
+      expect(contentSnapshot()).toEqual(before)
+    })
+
+    it('ignores the empty column names Excel appends to a header', async () => {
+      const response = await importCsv(
+        'theme;question;answer_1;answer_2;correct;;\nGlobal A;Q ?;Oui;Non;1;;',
+        { query: '?dryRun=true' }
+      )
+
+      expect(parseJson<DryRunBody>(response)).toMatchObject({ valid: 1, errors: [] })
+    })
+
+    it('still refuses an empty column name inside the header', async () => {
+      const response = await importCsv(
+        'theme;question;;answer_1;answer_2;correct\nGlobal A;Q ?;;Oui;Non;1'
+      )
+
+      expect(response.statusCode).toBe(400)
+      expect(parseJson(response)).toEqual({ error: 'csv_header_invalid', column: '' })
+    })
+
     it('refuses more data rows than the limit, and accepts exactly the limit', async () => {
       const row = ';Q ?;;Oui;Non;;;1'
 
@@ -518,6 +574,63 @@ describe('POST /questions/import', () => {
 
       expect(created.statusCode).toBe(201)
       expect(dbState.questions[4]).toMatchObject({ scope: THEME_SCOPE_COMPANY, company_id: 1 })
+    })
+
+    it('looks for a global-scope theme among the global themes only', async () => {
+      // Thème d'un client portant le nom d'un thème global : le global est choisi, sans ambiguïté.
+      dbState.themes.push({ ...dbState.themes[2]!, id: 9, name: 'global a' })
+
+      const response = await importCsv(csv('Global A;Q ?;;Oui;Non;;;1'), { query: '?dryRun=true' })
+
+      expect(parseJson<DryRunBody>(response)).toMatchObject({
+        valid: 1,
+        errors: [],
+        questions: [{ themeIds: [1] }],
+      })
+
+      const created = await importCsv(csv('Global A;Q ?;;Oui;Non;;;1'))
+
+      expect(created.statusCode).toBe(201)
+      expect(
+        dbState.question_themes.filter((link) => link.question_id === 5).map((l) => l.theme_id)
+      ).toEqual([1])
+    })
+
+    it('does not find a company theme from the global scope', async () => {
+      const before = contentSnapshot()
+
+      const response = await importCsv(csv('Company1 A;Q ?;;Oui;Non;;;1'))
+
+      expect(response.statusCode).toBe(422)
+      expect(parseJson(response)).toEqual({
+        error: 'csv_invalid',
+        errors: [{ line: 2, column: 'theme', code: 'csv_theme_not_found' }],
+      })
+      expect(contentSnapshot()).toEqual(before)
+    })
+
+    it('imports a user file as drafts into their own company, whatever the query says', async () => {
+      const response = await importCsv(csv('Company2 A;Question du staff ?;;Oui;Non;;;1'), {
+        user: companyUser,
+        query: '?draft=false&scope=global&companyId=1',
+      })
+
+      expect(response.statusCode).toBe(201)
+      expect(dbState.questions[4]).toMatchObject({
+        id: 5,
+        scope: THEME_SCOPE_COMPANY,
+        company_id: 2,
+        admin_id: 3,
+        status: QUESTION_STATUS_DRAFT,
+      })
+
+      const answers = dbState.answers.filter((answer) => answer.question_id === 5)
+
+      expect(answers).toHaveLength(2)
+      expect(answers.map((answer) => answer.status)).toEqual([
+        ANSWER_STATUS_DRAFT,
+        ANSWER_STATUS_DRAFT,
+      ])
     })
 
     it('asks a superadmin importing into the company scope for a company', async () => {

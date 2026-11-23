@@ -9,7 +9,7 @@ Format inspiré de Keep a Changelog.
 ### Added
 
 - Import de questions par fichier CSV (`POST /questions/import`) : essai à blanc, import tout ou rien avec erreurs numérotées par ligne, portée `global` ou `company` selon les droits, sans écran pour l'instant.
-  US: US-CONTENU-01 (#158)
+  US: US-IMPORT-01 (#158)
 
 - Sessions programmées, socle (lot 13) : états de partie `scheduled` et `cancelled`, créneaux prévus avec interdiction de chevauchement par salle (contrainte d'exclusion PostgreSQL), réglages de créneaux d'une salle (`rooms.schedule`), constantes partagées et codes d'erreur `fr`/`en`. Aucune route ni écran pour l'instant.
   US: US-SESSION-00 (#142)
