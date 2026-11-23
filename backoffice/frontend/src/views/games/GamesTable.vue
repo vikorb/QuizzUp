@@ -19,9 +19,18 @@
 
     <BaseTable :columns="columns" :items="tableItems" row-key="id">
       <template #cell-roomName="{ item }">
-        <button class="game-room" type="button" @click="emit('open', toGame(item).id)">
-          {{ getGameRoomName(toGame(item)) }}
-        </button>
+        <div class="game-room-cell">
+          <button class="game-room" type="button" @click="emit('open', toGame(item).id)">
+            {{ getGameRoomName(toGame(item)) }}
+          </button>
+
+          <RoomPresenceBadge
+            v-if="isGamePendingOrRunning(toGame(item))"
+            :room="liveRooms[toGame(item).roomId] ?? null"
+            :uncertain="liveUncertain"
+            :now="now"
+          />
+        </div>
       </template>
 
       <template #cell-state="{ value }">
@@ -50,17 +59,19 @@
 </template>
 
 <script setup lang="ts">
+import type { RoomLive } from '@quizzup/shared'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import BaseCard from '@/components/ui/BaseCard.vue'
 import type { BaseTableColumn } from '@/components/ui/BaseTable.vue'
 import BaseTable from '@/components/ui/BaseTable.vue'
+import RoomPresenceBadge from '@/components/ui/RoomPresenceBadge.vue'
 import StatusPill from '@/components/ui/StatusPill.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import type { Game, GameTableRow } from '@/types/game'
 import { formatGameDate, formatGameParticipantsCount, getGameRoomName } from '@/utils/game/format'
-import { getGameStateLabelKey, getGameStateTone } from '@/utils/game/state'
+import { getGameStateLabelKey, getGameStateTone, isGamePendingOrRunning } from '@/utils/game/state'
 
 import GameTableActions from './table/GameTableActions.vue'
 
@@ -69,6 +80,10 @@ const props = defineProps<{
   games: Game[]
   loading: boolean
   error: string | null
+  /** Présence des salles reçue du flux en direct, par identifiant de salle. */
+  liveRooms: Record<number, RoomLive>
+  liveUncertain: boolean
+  now: number
 }>()
 
 const emit = defineEmits<{
@@ -107,6 +122,12 @@ function toDateValue(value: unknown): string | null {
 .games-table-card {
   max-height: 100%;
   margin-top: 10px;
+}
+
+.game-room-cell {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
 }
 
 .game-room {

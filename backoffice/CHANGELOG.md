@@ -10,6 +10,17 @@ Format inspiré de Keep a Changelog.
 
 - Lecteur audio : effets sur les extraits (inversé, ralenti à 0,75, reprise après pause) et lecteur d'annonces vocales avec atténuation de l'extrait et repli silencieux (`game/audio`, pas encore branché à l'écran de salle).
   US: US-AUDIO-02 (#144)
+- Présence des salles en direct, côté backoffice. La liste des parties affiche, sous le nom de la
+  salle de chaque partie en attente ou en cours, une pastille « En ligne », « Hors ligne » (avec
+  « vu il y a … ») ou « En partie » ; le formulaire de lancement écrit la présence après le nom de
+  chaque salle et affiche la pastille de la salle choisie. Le flux `GET /companies/:companyId/live`
+  est lu avec `fetch` et l'en-tête `Authorization` (composable `useLiveCompany`) : reconnexion après
+  1, 2, 5, 10 puis 30 s, flux muet plus de 45 s rouvert, arrêt sans boucle sur `403` et
+  `429 too_many_streams`, vérification de la session sur `401` et `session_ended`, fermeture au
+  départ de l'écran. Pendant une coupure, les dernières présences connues sont affichées « État
+  inconnu ». Clés i18n `fr` et `en` (`live.*`, codes d'erreur `too_many_streams`,
+  `room_instance_replaced`, `session_ended`). `apiFetch` accepte un `signal`.
+  US: US-LIVE-01
 
 - Présence des salles en direct, côté serveur (aucun client modifié dans ce lot). Le backend sait
   quelle salle est en ligne et le diffuse. `GET /room/stream` (compte de salle) ouvre un flux SSE
@@ -225,6 +236,9 @@ Format inspiré de Keep a Changelog.
   US: US-MEDIA-01 (#59)
 
 ### Changed
+
+- Moteur de jeu : les mini-jeux d'une partie sont tirés sans remise (aucun mini-jeu ne revient tant que tous les mini-jeux jouables n'ont pas été joués, et jamais deux fois de suite quand il y a le choix).
+  US: US-FORMAT-01 (#143)
 
 - `backend/.env` n'est plus versionné (seul `backend/.env.example` l'est) ; les tests backend
   chargent `backend/.env` s'il existe, sinon `backend/.env.example`.
