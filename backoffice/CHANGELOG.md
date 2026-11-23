@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Connexion du superadmin en deux temps : code de l'application d'authentification ou code de secours, enrôlement avec secret à recopier (sans QR code), codes de secours affichés une seule fois, réinitialisation depuis le profil. Les autres rôles se connectent comme avant.
+  US: US-CONSOLE-03 (#161)
+
 - Console de l'éditeur : le superadmin se connecte avec un deuxième facteur TOTP. Enrôlement à la première connexion, dix codes de secours à usage unique, anti-rejeu, blocage de 15 minutes après 5 échecs, secret chiffré en base (`TOTP_ENCRYPTION_KEY`). Commande `npm run totp:reset` pour réinitialiser un compte. Les autres rôles ne changent pas. L'écran de connexion en deux temps arrive dans un lot suivant.
   US: US-CONSOLE-03 (#161)
 - Demandes de démonstration côté serveur : route publique `POST /public/v1/demo-requests` (5 envois par heure et par adresse, champ piège contre les robots), consultation, traitement et suppression par le superadmin (`/demo-requests`), purge automatique 12 mois après la création. Aucun e-mail n'est envoyé.

@@ -24,10 +24,13 @@
         :profile-mode="pageContext.isProfileRoute"
       />
     </BaseCard>
+
+    <TotpResetSection v-if="showTotpReset" />
   </SectionLayout>
 </template>
 
 <script setup lang="ts">
+import { ADMIN_ROLE_SUPERADMIN } from '@quizzup/shared'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { type RouteLocationNormalizedLoaded, useRoute, useRouter } from 'vue-router'
@@ -47,6 +50,7 @@ import {
 } from '@/utils/account/form'
 
 import CreateAccountForm from './creation/CreateAccountForm.vue'
+import TotpResetSection from './TotpResetSection.vue'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -109,6 +113,11 @@ const pageContext = computed(() => {
     mode: context.isProfileRoute ? context.mode : hasAccountId ? 'edit' : 'create',
   }
 })
+
+// Double authentification : seul le superadmin en a une, et elle se gère depuis son propre profil.
+const showTotpReset = computed(
+  () => pageContext.value.isProfileRoute && me.value?.role === ADMIN_ROLE_SUPERADMIN
+)
 
 const pageTexts = computed(() => getAccountFormPageTexts(pageContext.value, t))
 
