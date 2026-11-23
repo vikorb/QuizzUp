@@ -1,0 +1,18 @@
+{
+  "live": {
+    "presence": {
+      "online": "Online",
+      "offline": "Offline",
+      "in_game": "In a game",
+      "unknown": "Status unknown",
+      "seenAgo": "Seen {ago}",
+      "neverSeen": "Never seen"
+    },
+    "connection": {
+      "connecting": "Connecting to live tracking…",
+      "live": "Live tracking is on.",
+      "reconnecting": "Live tracking interrupted, trying again…",
+      "error": "Live tracking stopped."
+    }
+  }
+}

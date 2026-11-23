@@ -8,6 +8,9 @@
       <span v-if="questionNumber && round">
         {{ $t('game.question', { current: questionNumber, total: round.questions.length }) }}
       </span>
+      <span v-if="refusal" class="game__notice" role="alert" data-test="command-refusal">
+        {{ $t(`room.command.refused.${refusal}`) }}
+      </span>
       <template #actions>
         <UiButton
           v-if="lighting && hasFixtures && emergencyActive"
@@ -29,6 +32,28 @@
         <UiButton
           v-if="!isOver"
           variant="icon"
+          data-test="toggle-pause"
+          :aria-label="paused ? $t('room.toolbar.resume') : $t('room.toolbar.pause')"
+          :title="paused ? $t('room.toolbar.resume') : $t('room.toolbar.pause')"
+          @click="onTogglePause"
+        >
+          <MdIcon :path="paused ? mdiPlay : mdiPause" :size="20" />
+        </UiButton>
+        <UiButton
+          v-if="!isOver"
+          variant="icon"
+          data-test="skip-question"
+          :disabled="paused || phase.name !== 'question'"
+          :aria-label="$t('room.toolbar.skip')"
+          :title="$t('room.toolbar.skip')"
+          @click="onSkip"
+        >
+          <MdIcon :path="mdiSkipNext" :size="20" />
+        </UiButton>
+        <UiButton
+          v-if="!isOver"
+          variant="icon"
+          data-test="abort-game"
           :aria-label="$t('room.toolbar.abort')"
           :title="$t('room.toolbar.abort')"
           @click="onAbort"
@@ -38,83 +63,95 @@
       </template>
     </RoomTopBar>
 
-    <div class="game__stage">
-      <RoundIntroScreen
-        v-if="phase.name === 'round_intro' && round"
-        :position="round.position"
-        :total="state.setup.roundsCount"
-        :mini-game="round.miniGame"
-      />
-      <ThemeChoiceScreen
-        v-else-if="phase.name === 'theme_choice' && round"
-        :themes="offeredThemes"
-        :chooser="getParticipant(state, round.chooserParticipantId)"
-        :reason="round.chooserReason"
-        :remaining-ratio="getRemaining(phase.deadline, now) / state.setup.timings.themeChoiceMs"
-      />
-      <BlindTestScreen
-        v-else-if="blindTest"
-        :view="blindTest"
-        :answering="getParticipant(state, blindTest.answeringParticipantId)"
-      />
-      <AnswerAllScreen v-else-if="miniView?.mode === 'answer_all'" :view="miniView" />
-      <BuzzQuestionScreen
-        v-else-if="miniView?.mode === 'buzz'"
-        :view="miniView"
-        :answering="getParticipant(state, miniView.answeringParticipantId)"
-      />
-      <BetScreen
-        v-else-if="miniView?.mode === 'bet'"
-        :view="miniView"
-        :players-count="state.setup.participants.length"
-      />
-      <StealScreen
-        v-else-if="miniView?.mode === 'steal'"
-        :view="miniView"
-        :participants="state.setup.participants"
-      />
-      <RevealScreen
-        v-else-if="reveal"
-        :view="reveal"
-        :winner="getParticipant(state, reveal.winnerId)"
-        :participants="state.setup.participants"
-      />
-      <RoundSummaryScreen
-        v-else-if="phase.name === 'round_summary' && round"
-        :position="round.position"
-        :is-last="round.position >= state.setup.roundsCount"
-        :lines="leaderboard"
-      />
-      <FinishedScreen
-        v-else-if="isOver"
-        :lines="leaderboard"
-        :aborted="phase.name === 'aborted'"
-        :no-content="phase.name === 'finished' && phase.reason === 'no_content'"
-        :sync="finishSync"
-        @new-game="onNewGame"
-        @home="onHome"
-      />
-    </div>
+    <div class="game__body">
+      <div class="game__stage">
+        <RoundIntroScreen
+          v-if="phase.name === 'round_intro' && round"
+          :position="round.position"
+          :total="state.setup.roundsCount"
+          :mini-game="round.miniGame"
+        />
+        <ThemeChoiceScreen
+          v-else-if="phase.name === 'theme_choice' && round"
+          :themes="offeredThemes"
+          :chooser="getParticipant(state, round.chooserParticipantId)"
+          :reason="round.chooserReason"
+          :remaining-ratio="getRemaining(phase.deadline, now) / state.setup.timings.themeChoiceMs"
+        />
+        <BlindTestScreen
+          v-else-if="blindTest"
+          :view="blindTest"
+          :answering="getParticipant(state, blindTest.answeringParticipantId)"
+        />
+        <AnswerAllScreen v-else-if="miniView?.mode === 'answer_all'" :view="miniView" />
+        <BuzzQuestionScreen
+          v-else-if="miniView?.mode === 'buzz'"
+          :view="miniView"
+          :answering="getParticipant(state, miniView.answeringParticipantId)"
+        />
+        <BetScreen
+          v-else-if="miniView?.mode === 'bet'"
+          :view="miniView"
+          :players-count="state.setup.participants.length"
+        />
+        <StealScreen
+          v-else-if="miniView?.mode === 'steal'"
+          :view="miniView"
+          :participants="state.setup.participants"
+        />
+        <RevealScreen
+          v-else-if="reveal"
+          :view="reveal"
+          :winner="getParticipant(state, reveal.winnerId)"
+          :participants="state.setup.participants"
+        />
+        <RoundSummaryScreen
+          v-else-if="phase.name === 'round_summary' && round"
+          :position="round.position"
+          :is-last="round.position >= state.setup.roundsCount"
+          :lines="leaderboard"
+        />
+        <FinishedScreen
+          v-else-if="isOver"
+          :lines="leaderboard"
+          :aborted="phase.name === 'aborted'"
+          :no-content="phase.name === 'finished' && phase.reason === 'no_content'"
+          :sync="finishSync"
+          @new-game="onNewGame"
+          @home="onHome"
+        />
+      </div>
 
-    <ScoreBoard
-      v-if="!isOver"
-      :lines="leaderboard"
-      :active-id="activeId"
-      :locked-ids="blindTest?.lockedOutIds ?? buzzLockedIds"
-      :eliminated-ids="answerAll?.eliminatedIds"
-      :answered-ids="answeredIds"
-      :answered-label="miniView?.mode === 'bet' ? $t('game.scoreboard.bet') : undefined"
-      :tags="scoreTags"
-    />
+      <ScoreBoard
+        v-if="!isOver"
+        :lines="leaderboard"
+        :active-id="activeId"
+        :locked-ids="blindTest?.lockedOutIds ?? buzzLockedIds"
+        :eliminated-ids="answerAll?.eliminatedIds"
+        :answered-ids="answeredIds"
+        :answered-label="miniView?.mode === 'bet' ? $t('game.scoreboard.bet') : undefined"
+        :tags="scoreTags"
+      />
+
+      <PausedOverlay v-if="paused && !isOver" @resume="onResume" />
+    </div>
   </main>
 </template>
 
 <script setup lang="ts">
-import { mdiAlertOctagonOutline, mdiStopCircleOutline } from '@mdi/js'
-import { computed, onMounted, ref, watch } from 'vue'
+import {
+  mdiAlertOctagonOutline,
+  mdiPause,
+  mdiPlay,
+  mdiSkipNext,
+  mdiStopCircleOutline,
+} from '@mdi/js'
+import { type GameCommandRefusal } from '@quizzup/shared'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
 
+import PausedOverlay from '@/components/game/PausedOverlay.vue'
 import RoomTopBar from '@/components/game/RoomTopBar.vue'
 import ScoreBoard from '@/components/game/ScoreBoard.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
@@ -127,13 +164,23 @@ import {
   getBlindTestView,
   getCurrentRound,
   getLeaderboard,
+  getLiveQuestionId,
   getParticipant,
   getQuestionNumber,
   getRemaining,
   getRevealView,
   getThemeName,
 } from '@/game/selectors'
-import { abortGame, closeGame, pressBuzzer, useRoomGame } from '@/game/useRoomGame'
+import type { GameCommandResult } from '@/game/session'
+import {
+  abortGame,
+  closeGame,
+  pauseGame,
+  pressBuzzer,
+  resumeGame,
+  skipQuestion,
+  useRoomGame,
+} from '@/game/useRoomGame'
 import { useRoomHardware } from '@/hardware/roomHardware'
 import { useBuzzers } from '@/hardware/useBuzzers'
 import { useEmergencyStop } from '@/hardware/useEmergencyStop'
@@ -151,7 +198,7 @@ import ThemeChoiceScreen from '@/views/game/ThemeChoiceScreen.vue'
 const { t } = useI18n()
 const router = useRouter()
 const { confirm } = useConfirm()
-const { state, now } = useRoomGame()
+const { state, now, paused } = useRoomGame()
 const { hardware, lighting } = useRoomHardware()
 const hasFixtures = computed(() => hardware.value.fixtures.length > 0)
 const emergency = useEmergencyStop()
@@ -260,6 +307,48 @@ async function onAbort(): Promise<void> {
   }
 }
 
+/** Motif du dernier refus d'une commande de pilotage, affiché quelques secondes. */
+const REFUSAL_DISPLAY_MS = 5000
+const refusal = ref<GameCommandRefusal | null>(null)
+let refusalTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearRefusalTimer(): void {
+  if (refusalTimer !== null) {
+    clearTimeout(refusalTimer)
+    refusalTimer = null
+  }
+}
+
+function report(result: GameCommandResult): void {
+  clearRefusalTimer()
+  refusal.value = result.ok ? null : result.code
+  if (!result.ok) {
+    refusalTimer = setTimeout(() => (refusal.value = null), REFUSAL_DISPLAY_MS)
+  }
+}
+
+onBeforeUnmount(clearRefusalTimer)
+
+function onResume(): void {
+  report(resumeGame())
+}
+
+function onTogglePause(): void {
+  report(paused.value ? resumeGame() : pauseGame())
+}
+
+async function onSkip(): Promise<void> {
+  // La question visée est celle du clic : la confirmation peut durer, la partie continue.
+  const questionId = state.value ? getLiveQuestionId(state.value) : null
+  if (questionId === null) {
+    return
+  }
+  const ok = await confirm({ message: t('room.toolbar.skipConfirm') })
+  if (ok) {
+    report(skipQuestion(questionId))
+  }
+}
+
 async function onNewGame(): Promise<void> {
   closeGame()
   await router.push({ name: 'lobby' })
@@ -275,7 +364,7 @@ async function onHome(): Promise<void> {
 .game {
   height: 100%;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto 1fr;
   overflow: hidden;
 }
 
@@ -286,7 +375,15 @@ async function onHome(): Promise<void> {
   overflow-y: auto;
 }
 
-.game__theme {
+.game__body {
+  position: relative;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  min-height: 0;
+}
+
+.game__theme,
+.game__notice {
   padding: 4px 12px;
   border-radius: 999px;
   border: 1px solid var(--border-2);

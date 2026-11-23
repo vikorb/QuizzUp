@@ -19,6 +19,7 @@ import {
 import { getMiniGameDefinition, type MiniGameState, type QuestionStep } from './miniGames'
 import { createRandom, drawMany, pickOne, type Random } from './random'
 import type {
+  EngineQuestion,
   EngineTheme,
   GameCommand,
   GameEvent,
@@ -58,6 +59,11 @@ export type GameState = {
   rounds: RoundRecord[]
   usedThemeIds: number[]
   usedQuestionIds: number[]
+  /**
+   * « Sac » des mini-jeux : ceux du tour en cours qui n'ont pas encore été joués. Un mini-jeu
+   * tiré en sort ; quand le sac est vide, il est rempli avec tous les mini-jeux jouables.
+   */
+  miniGameBag: MiniGame[]
 }
 
 export type GameStep = {
@@ -173,6 +179,7 @@ export function createGame(setup: GameSetup): GameState {
     rounds: [],
     usedThemeIds: [],
     usedQuestionIds: [],
+    miniGameBag: [],
   }
 }
 
@@ -234,18 +241,27 @@ function beginRound(context: Context, at: number): void {
   const position = state.rounds.length + 1
   const previousMiniGame = getCurrentRound(state)?.miniGame
   const playableMiniGames = getPlayableMiniGames(state.setup)
-  // Pas deux fois le même mini-jeu d'affilée quand on a le choix.
-  const candidates =
-    playableMiniGames.length > 1
-      ? playableMiniGames.filter((miniGame) => miniGame !== previousMiniGame)
-      : playableMiniGames
-  const miniGame = pickOne(candidates, context.random)
+  // Tirage sans remise : le sac est rempli quand il est vide. Au remplissage, on évite de
+  // rejouer tout de suite le mini-jeu qui vient de l'être (hors sac, donc seulement possible à
+  // cet endroit). Le filtre sur les mini-jeux jouables est un garde-fou : par l'API le setup est
+  // figé et le cas n'arrive pas, mais un état modifié à la main ne doit pas tirer un mini-jeu
+  // injouable.
+  let bag = state.miniGameBag.filter((miniGame) => playableMiniGames.includes(miniGame))
+
+  if (bag.length === 0) {
+    bag = playableMiniGames
+  }
+
+  const fresh = bag.filter((miniGame) => miniGame !== previousMiniGame)
+  const miniGame = pickOne(fresh.length > 0 ? fresh : bag, context.random)
   const chooser = drawRoundChooser(state.scores, position, context.random)
 
   if (!miniGame || !chooser) {
     finishGame(context, at, 'no_content')
     return
   }
+
+  state.miniGameBag = bag.filter((candidate) => candidate !== miniGame)
 
   const offeredThemes = drawOfferedThemes(
     getPlayableThemes(state.setup.themes, miniGame),
@@ -299,7 +315,13 @@ function startQuestion(context: Context, questionIndex: number, at: number): voi
   const round = getCurrentRound(state) as RoundRecord
   const question = round.questions[questionIndex]
   const definition = getMiniGameDefinition(round.miniGame)
-  const playedQuestions = round.questions.slice(0, questionIndex)
+  // Les questions passées (`skip`) sont retirées de l'historique : ni série brisée, ni éliminé.
+  const skippedIds = round.skippedQuestionIds ?? []
+  const roundQuestions = round.questions.filter((candidate) => !skippedIds.includes(candidate.id))
+  const skippedBefore = round.questions.length - roundQuestions.length
+  const playedQuestions = round.questions
+    .slice(0, questionIndex)
+    .filter((candidate) => !skippedIds.includes(candidate.id))
   const roundOver =
     questionIndex > 0 &&
     definition.isRoundOver?.({
@@ -314,9 +336,9 @@ function startQuestion(context: Context, questionIndex: number, at: number): voi
   }
 
   const step = definition.start(question, state.setup.participants, at, {
-    questionIndex,
-    questionsCount: round.questions.length,
-    roundQuestions: round.questions,
+    questionIndex: questionIndex - skippedBefore,
+    questionsCount: roundQuestions.length,
+    roundQuestions,
     roundAnswers: round.answers,
     scores: state.scores,
   })
@@ -380,7 +402,12 @@ function selectTheme(context: Context, themeId: number, at: number, automatic: b
   startQuestion(context, 0, at)
 }
 
-function applyQuestionStep(context: Context, step: QuestionStep<MiniGameState>, at: number): void {
+function applyQuestionStep(
+  context: Context,
+  step: QuestionStep<MiniGameState>,
+  at: number,
+  skipped = false
+): void {
   const { state } = context
 
   if (state.phase.name !== 'question') {
@@ -431,12 +458,36 @@ function applyQuestionStep(context: Context, step: QuestionStep<MiniGameState>, 
           .map((answer) => answer.participantId),
         correctAnswerIds:
           question?.answers.filter((answer) => answer.isCorrect).map((answer) => answer.id) ?? [],
+        ...(skipped ? { skipped: true } : {}),
       },
     },
   ])
   const revealMs = getMiniGameDefinition(round.miniGame).revealMs ?? state.setup.timings.revealMs
 
   state.phase = { name: 'reveal', questionIndex, deadline: endedAt + revealMs }
+}
+
+/** Termine la question en cours sans réponse ni point, comme une question sans bonne réponse. */
+function skipQuestion(context: Context, at: number, questionId: number): void {
+  const { state } = context
+  const round = getCurrentRound(state) as RoundRecord
+
+  if (state.phase.name !== 'question') {
+    return
+  }
+
+  const question = round.questions[state.phase.questionIndex] as EngineQuestion
+
+  // L'opérateur a visé une question précise : si une autre est en cours, on ne passe rien.
+  if (question.id !== questionId) {
+    return
+  }
+
+  round.skippedQuestionIds = [...(round.skippedQuestionIds ?? []), question.id]
+  const { miniGameState } = state.phase
+  const answers = getMiniGameDefinition(round.miniGame).skipRecords?.(miniGameState) ?? []
+
+  applyQuestionStep(context, { state: miniGameState, events: [], answers }, at, true)
 }
 
 function endRound(context: Context, at: number): void {
@@ -618,6 +669,13 @@ export function reduceGame(state: GameState, received: GameCommand): GameStep {
         // Les échéances passées s'appliquent avant l'appui (ex. palier terminé).
         runTimers(context, command.at)
         handlePress(context, command.podium, command.button, command.at)
+        break
+      }
+
+      case 'skip': {
+        // Comme un appui : les échéances passées s'appliquent d'abord (question déjà finie).
+        runTimers(context, command.at)
+        skipQuestion(context, command.at, command.questionId)
         break
       }
 
