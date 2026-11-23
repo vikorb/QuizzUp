@@ -8,7 +8,7 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
-- Écran de réglage des créneaux d'une salle, ouvert depuis la liste des salles (admin et superadmin) : fuseau, jours et heures d'ouverture, durée de créneau, pause, pupitres réservables, réservation publique, avec aperçu des créneaux du jour, enregistrement et désactivation après confirmation.
+- Écran de réglage des créneaux d'une salle, ouvert depuis la liste des salles (admin et superadmin) : fuseau, jours et heures d'ouverture, durée de créneau, pause, pupitres réservables, réservation publique, avec aperçu des créneaux de chaque jour de la semaine type, enregistrement et désactivation après confirmation.
   US: US-SESSION-01 (#142)
 
 - Réglages de créneaux d'une salle : `PUT /companies/:companyId/rooms/:roomId/schedule` (admin et superadmin) écrit `rooms.schedule` (fuseau, durée de créneau, pause, pupitres réservables, heures d'ouverture par jour). `null` remet la salle sans créneaux. Le champ `schedule` est renvoyé par les routes des salles et par `/room/me`.
