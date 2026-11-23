@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ANNOUNCER_DUCK_FACTOR,
   ANNOUNCER_DUCK_IN_MS,
@@ -10,13 +10,16 @@ import {
 } from '../src/index'
 import { FakeAudioContext, audioResponse, flush, tableFetch } from './fakeAudioContext'
 
+/** Les valeurs du manifeste sont ignorées : seules les clés (identifiants) comptent. */
 const MANIFEST = {
   version: 3,
-  fr: { 'game.start': 2000, 'round.1': 1000, 'round.2': 1000, 'round.3': 1000, 'round.4': 1000 },
-  en: { 'game.start': 2000, 'round.1': 1000 },
+  fr: { 'game.start': {}, 'round.1': {}, 'round.2': {}, 'round.3': {}, 'round.4': {} },
+  en: { 'game.start': {}, 'round.1': {} },
 }
+/** Page courante de l'écran de salle : les clips sont résolus contre elle, comme `fetch`. */
+const BASE_URI = 'http://salle.test/setup/lights'
 const clip = (lang: string, id: string, version = '?v=3') =>
-  `/announcer/${lang}/${id}.mp3${version}`
+  `http://salle.test/announcer/${lang}/${id}.mp3${version}`
 /** Durées (s) des faux fichiers : 'game.start' dure 2 s, les autres 1 s. */
 const DURATIONS: Record<string, number> = { 'game.start': 2 }
 
@@ -44,7 +47,7 @@ function fullTable(lang = 'fr', version = '?v=3') {
 
 function createPlayer(
   fetch: AnnouncerPlayerOptions['fetch'],
-  options: AnnouncerPlayerOptions = {}
+  options: Partial<AnnouncerPlayerOptions> = {}
 ) {
   return new AnnouncerPlayer({
     context: () => ctx.asAudioContext(),
@@ -54,7 +57,7 @@ function createPlayer(
   })
 }
 
-async function readyPlayer(options: AnnouncerPlayerOptions = {}) {
+async function readyPlayer(options: Partial<AnnouncerPlayerOptions> = {}) {
   const player = createPlayer(packFetch(fullTable()).fetch, options)
   await player.preload('fr')
   return player
@@ -72,6 +75,11 @@ beforeEach(() => {
   ctx = new FakeAudioContext()
   ctx.state = 'running'
   ducks = []
+  vi.stubGlobal('document', { baseURI: BASE_URI })
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
 })
 
 describe('preload', () => {
@@ -96,23 +104,53 @@ describe('preload', () => {
     const calls: string[] = []
     const fetch = async (url: string): Promise<Response> => {
       calls.push(url)
-      if (url.endsWith('manifest.json')) return new Response('{"version":1,"fr":{"a":500}}')
+      if (url.endsWith('manifest.json')) return new Response('{"version":1,"fr":{"a":{}}}')
       return audioResponse(1)
     }
 
     const result = await createPlayer(fetch, { manifestUrl: '/pack/x/manifest.json' }).preload('fr')
 
     expect(result).toEqual({ loaded: ['a'], failed: [] })
-    expect(calls).toEqual(['/pack/x/manifest.json', '/pack/x/fr/a.mp3?v=1'])
+    expect(calls).toEqual(['/pack/x/manifest.json', 'http://salle.test/pack/x/fr/a.mp3?v=1'])
+  })
+
+  it('un manifeste à URL relative est résolu contre la page, comme le fait fetch', async () => {
+    const calls: string[] = []
+    const fetch = async (url: string): Promise<Response> => {
+      calls.push(url)
+      if (url.endsWith('manifest.json')) return new Response('{"version":1,"fr":{"a":{}}}')
+      return audioResponse(1)
+    }
+
+    await createPlayer(fetch, { manifestUrl: 'announcer/manifest.json' }).preload('fr')
+
+    expect(calls).toEqual([
+      'announcer/manifest.json',
+      'http://salle.test/setup/announcer/fr/a.mp3?v=1',
+    ])
+  })
+
+  it('une « / » dans la requête du manifeste ne décale pas le dossier des clips', async () => {
+    const manifestUrl = '/pack/manifest.json?token=a/b'
+    const calls: string[] = []
+    const fetch = async (url: string): Promise<Response> => {
+      calls.push(url)
+      if (url === manifestUrl) return new Response('{"version":1,"fr":{"a":{}}}')
+      return audioResponse(1)
+    }
+
+    await createPlayer(fetch, { manifestUrl }).preload('fr')
+
+    expect(calls[1]).toBe('http://salle.test/pack/fr/a.mp3?v=1')
   })
 
   it('sans version dans le manifeste, aucun paramètre ?v=', async () => {
-    const pack = packFetch({ '/announcer/fr/a.mp3': 1 }, { fr: { a: 500 } })
+    const pack = packFetch({ 'http://salle.test/announcer/fr/a.mp3': 1 }, { fr: { a: {} } })
 
     const result = await createPlayer(pack.fetch).preload('fr')
 
     expect(result).toEqual({ loaded: ['a'], failed: [] })
-    expect(pack.calls).toEqual([ANNOUNCER_MANIFEST_URL, '/announcer/fr/a.mp3'])
+    expect(pack.calls).toEqual([ANNOUNCER_MANIFEST_URL, 'http://salle.test/announcer/fr/a.mp3'])
   })
 
   it('une langue absente du manifeste ne charge rien', async () => {
@@ -191,7 +229,10 @@ describe('preload', () => {
     await flush()
     await player.preload('en')
     releaseFirst()
-    await first
+    const superseded = await first
+
+    // Rien n'est conservé de ce preload : il ne doit pas annoncer des clips « chargés ».
+    expect(superseded).toEqual({ loaded: [], failed: Object.keys(MANIFEST.fr) })
 
     expect(player.has('game.start')).toBe(true)
     expect(player.has('round.1')).toBe(true)
@@ -369,7 +410,7 @@ describe('say : file d’attente', () => {
     expect(ctx.startedSources()).toHaveLength(2)
   })
 
-  it('attente maximale par défaut de 4 s : périmée à 4,1 s (saut d’horloge après un gel)', async () => {
+  it('attente maximale par défaut de 4 s : périmée si l’horloge dépasse 4 s avant la fin du clip en cours', async () => {
     const player = await readyPlayer()
     ctx.currentTime = 10
     player.say('game.start')
@@ -380,6 +421,27 @@ describe('say : file d’attente', () => {
     expect(ctx.startedSources()).toHaveLength(1)
     expect(ducks).toEqual([DUCK_IN, DUCK_OUT])
   })
+
+  it('attente maximale négative : jouée tout de suite quand la file est vide', async () => {
+    const player = await readyPlayer()
+
+    player.say('round.1', { maxWaitMs: -500 })
+
+    expect(ctx.startedSources()).toHaveLength(1)
+  })
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY])(
+    'attente maximale %s : remplacée par la valeur par défaut (4 s)',
+    async (maxWaitMs) => {
+      const player = await readyPlayer()
+      player.say('game.start')
+      player.say('round.1', { maxWaitMs })
+
+      ctx.advance(4.1)
+
+      expect(ctx.startedSources()).toHaveLength(1)
+    }
+  )
 
   it('une priorité plus haute coupe l’annonce en cours et vide la file', async () => {
     const player = await readyPlayer()
@@ -424,6 +486,100 @@ describe('say : file d’attente', () => {
     expect(ctx.startedSources()).toHaveLength(1)
     expect(ducks).toEqual([DUCK_IN, DUCK_OUT])
     expect(() => player.stop()).not.toThrow()
+  })
+})
+
+describe('say : priorité dans la file', () => {
+  /** Clips de durées distinctes : on reconnaît l'annonce jouée par la durée de son buffer. */
+  const LENGTHS: Record<string, number> = {
+    'game.start': 2,
+    'round.1': 1.1,
+    'round.2': 1.2,
+    'round.3': 1.3,
+  }
+  async function distinctPlayer() {
+    const table = Object.fromEntries(
+      Object.entries(LENGTHS).map(([id, seconds]) => [clip('fr', id), seconds])
+    )
+    const player = createPlayer(packFetch(table).fetch)
+    await player.preload('fr')
+    return player
+  }
+  const played = () =>
+    ctx
+      .startedSources()
+      .map((source) => Object.entries(LENGTHS).find(([, s]) => s === source.buffer?.duration)?.[0])
+
+  it('la file sort par priorité décroissante, puis par ordre d’arrivée', async () => {
+    const player = await distinctPlayer()
+
+    player.say('game.start', { priority: 2 })
+    player.say('round.1')
+    player.say('round.2', { priority: 1 })
+    ctx.advance(2)
+    ctx.advance(1.2)
+    ctx.advance(1.1)
+
+    expect(played()).toEqual(['game.start', 'round.2', 'round.1'])
+  })
+
+  it('file pleine : l’arrivante plus prioritaire évince la plus ancienne de plus basse priorité', async () => {
+    const player = await distinctPlayer()
+    player.say('game.start', { priority: 2 })
+    player.say('round.1') // la plus ancienne de priorité 0 : évincée
+    player.say('round.2')
+
+    player.say('round.3', { priority: 1 })
+    ctx.advance(2)
+    ctx.advance(1.3)
+    ctx.advance(1.2)
+
+    expect(played()).toEqual(['game.start', 'round.3', 'round.2'])
+  })
+
+  it('file pleine : l’arrivante de plus basse priorité est refusée, la file reste intacte', async () => {
+    const player = await distinctPlayer()
+    player.say('game.start', { priority: 2 })
+    player.say('round.1', { priority: 1 })
+    player.say('round.2', { priority: 1 })
+
+    player.say('round.3') // priorité 0 : la plus basse, refusée
+    ctx.advance(2)
+    ctx.advance(1.1)
+    ctx.advance(1.2)
+
+    expect(played()).toEqual(['game.start', 'round.1', 'round.2'])
+  })
+
+  it('un doublon en attente repris avec une priorité plus haute remplace l’ancien et coupe l’annonce en cours', async () => {
+    const player = await distinctPlayer()
+    player.say('game.start')
+    player.say('round.1') // en attente, priorité 0
+
+    player.say('round.1', { priority: 1 })
+
+    expect(ctx.sources[0]?.stopTime).toBeCloseTo(0.02)
+    expect(played()).toEqual(['game.start', 'round.1'])
+    ctx.advance(10)
+    expect(played()).toEqual(['game.start', 'round.1']) // l'ancienne entrée n'est pas ressortie
+  })
+
+  it('une annonce en cours sur un contexte remplacé est considérée terminée', async () => {
+    const replacement = new FakeAudioContext()
+    replacement.state = 'running'
+    let active = ctx
+    const player = createPlayer(packFetch(fullTable()).fetch, {
+      context: () => active.asAudioContext(),
+    })
+    await player.preload('fr')
+    player.say('game.start') // jamais de `onended` : son contexte est remplacé
+    active = replacement
+
+    player.say('round.1')
+
+    expect(replacement.startedSources()).toHaveLength(1)
+    replacement.advance(1)
+    expect(ducks).toEqual([DUCK_IN, DUCK_OUT])
   })
 })
 

@@ -197,6 +197,49 @@ describe('effet reverse', () => {
     expect(ctx.sources).toHaveLength(0)
   })
 
+  it('une fenêtre de moins d’un échantillon se résout « ended » sans créer de buffer', async () => {
+    const player = await loadedPlayer()
+
+    // Reste 0,4 ms de fichier (0,4 échantillon à 1 kHz) : la fenêtre arrondie est vide.
+    await expect(player.play(SHORT, 3.9996, 5000, { effect: 'reverse' })).resolves.toBe('ended')
+
+    expect(ctx.createdBuffers).toHaveLength(0)
+    expect(ctx.sources).toHaveLength(0)
+  })
+
+  it('un chargement à la volée qui échoue à la création du buffer rejette et libère le lecteur', async () => {
+    const player = new WebAudioExtractPlayer({
+      createContext: () => ctx.asAudioContext(),
+      fetch: files.fetch,
+    })
+    await player.unlock()
+    vi.spyOn(ctx, 'createBuffer').mockImplementationOnce(() => {
+      throw new Error('NotSupportedError')
+    })
+
+    const outcome = track(player.play(SONG, 10, 1000, { effect: 'reverse' }))
+    await flush()
+
+    expect(outcome.settled).toBe(true)
+    expect(outcome.error).toBeInstanceOf(Error)
+    const next = track(player.play(SONG, 10, 1000, { effect: 'reverse' }))
+    await flush()
+    ctx.advance(1)
+    await flush()
+    expect(next.value).toBe('ended')
+  })
+
+  it('un buffer préchargé qui échoue à la création rejette', async () => {
+    const player = await loadedPlayer()
+    vi.spyOn(ctx, 'createBuffer').mockImplementationOnce(() => {
+      throw new Error('NotSupportedError')
+    })
+
+    await expect(player.play(SONG, 10, 1000, { effect: 'reverse' })).rejects.toThrow(
+      'NotSupportedError'
+    )
+  })
+
   it('fonctionne aussi sur un chargement à la volée', async () => {
     const player = new WebAudioExtractPlayer({
       createContext: () => ctx.asAudioContext(),
@@ -405,15 +448,35 @@ describe('duck (atténuation pour les annonces)', () => {
     expect(createContext).not.toHaveBeenCalled()
   })
 
-  it('setVolume pendant l’atténuation garde le facteur', async () => {
+  it('setVolume pendant la rampe d’atténuation annule la rampe et garde le facteur', async () => {
     const player = await loadedPlayer()
     void player.play(SONG, 0, 5000)
     player.duck(0.3, 80)
+    ctx.currentTime = 0.04 // en pleine rampe d'entrée
 
     player.setVolume(0.5)
 
-    expect(ctx.gains[0]?.gain.value).toBeCloseTo(0.15, 10)
+    const events = ctx.gains[0]?.gain.events
+    expect(events?.slice(-2)).toEqual([
+      { type: 'cancel', value: 0, time: 0.04 },
+      { type: 'set', value: expect.closeTo(0.15, 10), time: 0.04 },
+    ])
     expect(player.getVolume()).toBe(0.5)
+  })
+
+  it('setVolume pendant la rampe de retour annule la rampe vers l’ancien volume', async () => {
+    const player = await loadedPlayer()
+    void player.play(SONG, 0, 5000)
+    player.duck(0.3, 80)
+    player.duck(1, 300)
+    ctx.currentTime = 0.1
+
+    player.setVolume(0.5)
+
+    expect(ctx.gains[0]?.gain.events.slice(-2)).toEqual([
+      { type: 'cancel', value: 0, time: 0.1 },
+      { type: 'set', value: 0.5, time: 0.1 },
+    ])
   })
 
   it('borne le facteur, ignore NaN et une rampe invalide', async () => {

@@ -9,7 +9,7 @@ import type { PreloadResult } from './extractPlayer'
  */
 
 export const ANNOUNCER_MANIFEST_URL = '/announcer/manifest.json'
-/** Annonces en attente (en plus de celle qui parle) : au-delà, la plus ancienne est abandonnée. */
+/** Annonces en attente (en plus de celle qui parle) : au-delà, la moins prioritaire est abandonnée. */
 export const ANNOUNCER_QUEUE_MAX = 2
 /** Attente maximale d'une annonce avant d'être jugée périmée (elle n'est alors jamais jouée). */
 export const ANNOUNCER_MAX_WAIT_MS = 4000
@@ -21,8 +21,12 @@ export const ANNOUNCER_DUCK_OUT_MS = 300
 const CUT_FADE_SEC = 0.02
 
 export type AnnouncerPlayerOptions = {
-  /** Fournit l'AudioContext : passer `() => extractPlayer.getContext()` pour le partager. */
-  context?: () => AudioContext
+  /**
+   * Fournit l'AudioContext : passer `() => extractPlayer.getContext()` pour le partager (voir
+   * `AnnouncerPlayer.sharing`). Pas de contexte propre par défaut : créé hors geste utilisateur,
+   * il naîtrait suspendu sans moyen de le reprendre, et le lecteur resterait muet.
+   */
+  context: () => AudioContext
   /** URL du manifeste (défaut `/announcer/manifest.json`) ; les clips sont cherchés à côté. */
   manifestUrl?: string
   /** Fetch injectable (défaut : `fetch` global). Aucun jeton : le contenu est fixe et public. */
@@ -61,9 +65,8 @@ export class AnnouncerPlayer {
   private queue: Waiting[] = []
   private ducked = false
 
-  constructor(options: AnnouncerPlayerOptions = {}) {
-    let ownContext: AudioContext | null = null
-    this.getContext = options.context ?? (() => (ownContext ??= new AudioContext()))
+  constructor(options: AnnouncerPlayerOptions) {
+    this.getContext = options.context
     this.manifestUrl = options.manifestUrl ?? ANNOUNCER_MANIFEST_URL
     this.fetchFn = options.fetch ?? ((url) => fetch(url))
     this.duckFn = options.duck
@@ -95,8 +98,10 @@ export class AnnouncerPlayer {
   /**
    * Charge le manifeste puis décode les clips de `lang`. Ne rejette jamais : sans manifeste,
    * `{ loaded: [], failed: [] }` ; un clip en échec est listé dans `failed` et sera muet.
-   * Le manifeste est `{ version, <lang>: { <id>: durationMs } }`, les clips sont dans
-   * `<dossier du manifeste>/<lang>/<id>.mp3` ; `version` sert de paramètre `?v=` (cache).
+   * Le manifeste est `{ version, <lang>: { <id>: … } }` (seules les clés comptent, les valeurs
+   * sont ignorées). Les clips sont dans `<dossier du manifeste>/<lang>/<id>.mp3`, le dossier
+   * étant résolu contre la page comme le fait `fetch` ; `version` sert de paramètre `?v=` (cache).
+   * Un `preload` supplanté par un plus récent renvoie `{ loaded: [], failed: <ids> }`.
    */
   async preload(lang: string): Promise<PreloadResult> {
     const generation = ++this.generation
@@ -105,17 +110,17 @@ export class AnnouncerPlayer {
     try {
       const manifest = await this.fetchManifest()
       ids = clipIds(manifest, lang)
-      const base = this.manifestUrl.slice(0, this.manifestUrl.lastIndexOf('/') + 1)
+      // Même résolution que `fetch` pour le manifeste : contre la page, requête ignorée.
+      const base = new URL(this.manifestUrl, document.baseURI)
       const version = manifest.version
-      const query =
-        typeof version === 'string' || typeof version === 'number'
-          ? `?v=${encodeURIComponent(String(version))}`
-          : ''
       await Promise.all(
         ids.map(async (id) => {
           try {
-            const url = `${base}${encodeURIComponent(lang)}/${encodeURIComponent(id)}.mp3${query}`
-            decoded.set(id, await this.fetchAndDecode(url))
+            const url = new URL(`${encodeURIComponent(lang)}/${encodeURIComponent(id)}.mp3`, base)
+            if (typeof version === 'string' || typeof version === 'number') {
+              url.searchParams.set('v', String(version))
+            }
+            decoded.set(id, await this.fetchAndDecode(url.href))
           } catch {
             // Clip absent ou illisible : cette annonce sera muette, les autres restent jouables.
           }
@@ -124,8 +129,10 @@ export class AnnouncerPlayer {
     } catch {
       // Manifeste absent ou illisible : pas de voix, ce n'est pas une erreur.
     }
-    // Un `preload` plus récent (changement de langue) a la priorité sur celui-ci.
-    if (generation === this.generation) this.buffers = decoded
+    // Un `preload` plus récent (changement de langue) a la priorité sur celui-ci : rien n'est
+    // conservé, donc rien n'est « chargé ».
+    if (generation !== this.generation) return { loaded: [], failed: ids }
+    this.buffers = decoded
     return {
       loaded: ids.filter((id) => decoded.has(id)),
       failed: ids.filter((id) => !decoded.has(id)),
@@ -135,9 +142,12 @@ export class AnnouncerPlayer {
   /**
    * Dit une annonce, sans jamais lever d'erreur. Rien ne se passe si le clip est inconnu ou
    * non chargé, si le contexte audio ne tourne pas, ou s'il est déjà en cours ou en attente
-   * (doublon). Sinon : une priorité plus haute que l'annonce en cours la coupe et vide la
-   * file ; une priorité égale ou plus basse attend son tour (`ANNOUNCER_QUEUE_MAX` places, la
-   * plus ancienne est abandonnée), et n'est plus jouée si elle a attendu plus de `maxWaitMs`.
+   * (doublon ; un doublon en attente repris avec une priorité plus haute remplace l'ancien).
+   * Sinon : une priorité plus haute que l'annonce en cours la coupe et vide la file ; une
+   * priorité égale ou plus basse attend son tour, la file sortant par priorité décroissante puis
+   * par ordre d'arrivée. File pleine (`ANNOUNCER_QUEUE_MAX`), la plus ancienne des annonces de
+   * plus basse priorité est abandonnée (l'arrivante si elle est seule la plus basse). Une
+   * annonce n'est plus jouée si elle a attendu plus de `maxWaitMs` (fini, sinon le défaut).
    */
   say(id: string, options: SayOptions = {}): void {
     try {
@@ -149,16 +159,37 @@ export class AnnouncerPlayer {
         this.stop()
         return
       }
-      if (this.current?.id === id || this.queue.some((waiting) => waiting.id === id)) return
+      if (this.current && this.current.source.context !== context) {
+        // Contexte remplacé (`unlock()` après `close()`) : le `onended` de l'ancienne source ne
+        // viendra jamais. La file, datée sur l'ancienne horloge, n'a plus de sens non plus.
+        this.current = null
+        this.queue = []
+      }
+      if (this.current?.id === id) return
 
       const priority = options.priority ?? 0
-      const maxWaitMs = options.maxWaitMs ?? ANNOUNCER_MAX_WAIT_MS
+      const maxWaitMs = boundedWaitMs(options.maxWaitMs)
+      const duplicate = this.queue.find((waiting) => waiting.id === id)
+      if (duplicate) {
+        if (priority <= duplicate.priority) return
+        this.queue = this.queue.filter((waiting) => waiting !== duplicate)
+      }
       if (this.current && priority > this.current.priority) {
         this.queue = []
         this.cut(this.current)
       }
       this.queue.push({ id, buffer, priority, expiresAt: context.currentTime + maxWaitMs / 1000 })
-      if (this.queue.length > ANNOUNCER_QUEUE_MAX) this.queue.shift()
+      // Tri stable : priorité décroissante, puis ordre d'arrivée.
+      this.queue.sort((a, b) => b.priority - a.priority)
+      if (this.queue.length > ANNOUNCER_QUEUE_MAX) {
+        // On évince la plus ancienne des entrées de plus basse priorité (l'arrivante, si elle est
+        // seule la plus basse : elle est refusée).
+        const lowest = this.queue[this.queue.length - 1] as Waiting
+        this.queue.splice(
+          this.queue.findIndex((waiting) => waiting.priority === lowest.priority),
+          1
+        )
+      }
       if (!this.current) this.pump()
     } catch {
       this.stop()
@@ -275,6 +306,13 @@ function clipIds(manifest: Record<string, unknown>, lang: string): string[] {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** Attente max valide : finie et positive, sinon la valeur par défaut (NaN, Infinity). */
+function boundedWaitMs(waitMs: number | undefined): number {
+  return waitMs !== undefined && Number.isFinite(waitMs)
+    ? Math.max(0, waitMs)
+    : ANNOUNCER_MAX_WAIT_MS
 }
 
 function clampVolume(volume: number, fallback: number): number {

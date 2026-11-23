@@ -169,6 +169,8 @@ export class FakeAudioContext {
   }
 
   createBuffer(numberOfChannels: number, length: number, sampleRate: number): FakeAudioBuffer {
+    // Comme le vrai contexte : une longueur nulle est refusée.
+    if (length < 1) throw new Error('NotSupportedError: length must be at least 1')
     const buffer = new FakeAudioBuffer(length / sampleRate, numberOfChannels, sampleRate)
     this.createdBuffers.push(buffer)
     return buffer

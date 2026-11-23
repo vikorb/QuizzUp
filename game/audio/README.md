@@ -145,16 +145,24 @@ announcer.say('game.winner.desk.2', { priority: 1 }) // coupe l'annonce en cours
 ```
 
 - **Manifeste** `/announcer/manifest.json` (URL injectable : option `manifestUrl`) :
-  `{ "version": 3, "fr": { "round.1": 1500 }, "en": { … } }` (identifiant → durée en ms). Le clip
-  `<id>` est cherché dans `<dossier du manifeste>/<lang>/<id>.mp3?v=<version>`, sans jeton. `preload`
-  renvoie `{ loaded, failed }` (ids) ; un `preload` plus récent remplace le précédent.
-- **File** : une annonce qui parle, `ANNOUNCER_QUEUE_MAX` = 2 en attente (au-delà, la plus
-  ancienne est abandonnée). Doublon (en cours ou en attente) ignoré. Une priorité **plus haute**
-  que l'annonce en cours la coupe (fondu de 20 ms) et vide la file ; sinon l'annonce attend son
-  tour.
+  `{ "version": 3, "fr": { "round.1": {}, "round.2": {} }, "en": { … } }` : seules les clés
+  (identifiants) comptent, les valeurs sont ignorées (la durée vient du fichier décodé). Le clip
+  `<id>` est cherché dans `<dossier du manifeste>/<lang>/<id>.mp3?v=<version>`, sans jeton ; le
+  dossier est résolu contre la page (`document.baseURI`), comme `fetch` le fait pour le manifeste.
+  `preload` renvoie `{ loaded, failed }` (ids) ; un `preload` plus récent remplace le précédent, et
+  le plus ancien renvoie alors `{ loaded: [], failed: <ids> }`.
+- **Contexte audio** : toujours fourni (`AnnouncerPlayer.sharing(extracts)` ou option `context`),
+  jamais créé par le lecteur : hors geste utilisateur il naîtrait suspendu sans moyen de le reprendre.
+- **File** : une annonce qui parle, `ANNOUNCER_QUEUE_MAX` = 2 en attente, servies par priorité
+  décroissante puis par ordre d'arrivée. File pleine : la plus ancienne des annonces de plus basse
+  priorité est abandonnée (l'arrivante, si elle est seule la plus basse). Doublon en cours ignoré ;
+  doublon en attente ignoré, sauf s'il est repris avec une priorité plus haute (il remplace alors
+  l'ancien). Une priorité **plus haute** que l'annonce en cours la coupe (fondu de 20 ms) et vide la
+  file ; sinon l'annonce attend son tour. Si le contexte audio a été remplacé pendant une annonce
+  (son `onended` ne viendra jamais), elle est considérée terminée au `say()` suivant.
 - **Annonce périmée** : une annonce qui a attendu plus de `maxWaitMs` (défaut
-  `ANNOUNCER_MAX_WAIT_MS` = 4 s) quand vient son tour est abandonnée, jamais jouée en retard. L'attente
-  se mesure sur l'horloge audio.
+  `ANNOUNCER_MAX_WAIT_MS` = 4 s ; une valeur non finie donne le défaut, une valeur négative 0) quand
+  vient son tour est abandonnée, jamais jouée en retard. L'attente se mesure sur l'horloge audio.
 - **Atténuation** : au début d'une annonce, `duck(0.3, 80)` sur le lecteur d'extraits ; quand la file
   est vide (ou en cas d'échec, ou après `stop()`), retour à `duck(1, 300)`. Le volume réglé n'est
   jamais modifié.
