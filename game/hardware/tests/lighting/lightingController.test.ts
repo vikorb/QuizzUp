@@ -6,7 +6,7 @@ import {
   WATCHDOG_STALL_MS,
   WRITE_TIMEOUT_MS,
 } from '@hardware/lighting/lightingController'
-import { DEFAULT_DESK_COLORS, SCENE_IDS } from '@hardware/lighting/scenes'
+import { DEFAULT_DESK_COLORS, NEON, SCENE_IDS } from '@hardware/lighting/scenes'
 
 import { advanceAsync, createManualClock, flushPromises } from '../_helpers/manualClock'
 import { lightingConfig } from '../_helpers/rig'
@@ -187,6 +187,74 @@ describe('contrôleur lumières et fumée', () => {
     current.controller.handleGameEvent({ type: 'game_ended', payload: { winnerIds: [11, 22] } })
     current.controller.handleGameEvent({ type: 'game_ended', payload: {} })
     expect(current.controller.getState().currentSceneId).toBe(SCENE_IDS.VICTORY)
+  })
+
+  it('victoire à égalité : scène dédiée qui allume toute la salle, fumée toujours refusée si non armée', async () => {
+    current = setup()
+    const { controller, output, clock } = current
+    const warnings = vi.fn()
+    controller.onWarning(warnings)
+    await controller.start()
+    controller.handleGameEvent({ type: 'game_ended', payload: { winnerIds: [11, 22] } })
+    expect(controller.getState().currentSceneId).toBe(SCENE_IDS.VICTORY_TIE)
+    await advanceAsync(clock, 400)
+    const universe = frame(output)
+    // PAR des pupitres 1 et 2 et PAR d'ambiance : ambre plein (le seul vainqueur n'existe pas).
+    expect(universe[0]).toBe(NEON.warn.r)
+    expect(universe[3]).toBe(NEON.warn.r)
+    expect(universe[19]).toBeGreaterThan(0)
+    expect(frame(output)[SMOKE_CHANNEL]).toBe(0)
+    expect(warnings).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'smoke_refused', reason: 'not_armed' })
+    )
+  })
+
+  it('victoire à égalité : désactiver « game_ended » désactive aussi la scène d’égalité', async () => {
+    current = setup({ bindings: { game_ended: null } })
+    await current.controller.start()
+    current.controller.handleGameEvent({ type: 'game_ended', payload: { winnerIds: [11, 22] } })
+    expect(current.controller.getState().currentSceneId).toBe(SCENE_IDS.IDLE)
+  })
+
+  it('un buzz après une mauvaise réponse garde sa lumière, pour le même pupitre comme pour un autre', async () => {
+    current = setup()
+    const { controller, clock } = current
+    await controller.start()
+    controller.handleGameEvent({ type: 'answer_wrong', payload: { participantId: 11 } })
+    expect(controller.getState().currentSceneId).toBe(SCENE_IDS.WRONG)
+    await advanceAsync(clock, 200)
+    controller.handleGameEvent({ type: 'buzzer_pressed', payload: { participantId: 22 } })
+    expect(controller.getState().currentSceneId).toBe(SCENE_IDS.BUZZ)
+
+    controller.handleGameEvent({ type: 'answer_wrong', payload: { participantId: 22 } })
+    await advanceAsync(clock, 200)
+    controller.handleGameEvent({ type: 'buzzer_pressed', payload: { participantId: 22 } })
+    expect(controller.getState().currentSceneId).toBe(SCENE_IDS.BUZZ)
+  })
+
+  it('un stroboscope reste éteint pendant toute une partie', async () => {
+    current = setup({
+      fixtures: [
+        ...lightingConfig().fixtures,
+        { id: 'strobe', name: 'Strobe', profileId: 'strobe', address: 40 },
+      ],
+    })
+    const { controller, output, clock } = current
+    await controller.start()
+    const events = [
+      { type: 'game_started' },
+      { type: 'buzzer_pressed', payload: { participantId: 22 } },
+      { type: 'answer_wrong', payload: { participantId: 22 } },
+      { type: 'game_ended', payload: { winnerIds: [11, 22] } },
+    ]
+    for (const event of events) {
+      controller.handleGameEvent(event)
+      for (let elapsed = 0; elapsed < 1_500; elapsed += 250) {
+        await advanceAsync(clock, 250, 50)
+        // Adresses 40 et 41 : gradateur et canal strobe.
+        expect([...frame(output).subarray(39, 41)], `${event.type} à ${elapsed} ms`).toEqual([0, 0])
+      }
+    }
   })
 
   it('test manuel de la fumée et arrêt', async () => {
