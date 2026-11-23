@@ -25,7 +25,7 @@
           </button>
 
           <RoomPresenceBadge
-            v-if="canAbortGame(toGame(item))"
+            v-if="isGamePendingOrRunning(toGame(item))"
             :room="liveRooms[toGame(item).roomId] ?? null"
             :uncertain="liveUncertain"
             :now="now"
@@ -71,7 +71,7 @@ import StatusPill from '@/components/ui/StatusPill.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import type { Game, GameTableRow } from '@/types/game'
 import { formatGameDate, formatGameParticipantsCount, getGameRoomName } from '@/utils/game/format'
-import { canAbortGame, getGameStateLabelKey, getGameStateTone } from '@/utils/game/state'
+import { getGameStateLabelKey, getGameStateTone, isGamePendingOrRunning } from '@/utils/game/state'
 
 import GameTableActions from './table/GameTableActions.vue'
 

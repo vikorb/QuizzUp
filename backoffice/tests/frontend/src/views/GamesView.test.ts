@@ -285,6 +285,16 @@ describe('views/GamesView.vue', () => {
       expect(rowIds(wrapper)).toEqual(['4', '3', '2', '1'])
     })
 
+    it('shows no live note when there is nothing to follow', async () => {
+      setAuthenticatedAdmin()
+      liveStateMock.value = 'idle'
+
+      const wrapper = await mountGamesView()
+
+      expect(wrapper.find('[data-test="live-connection-note"]').exists()).toBe(false)
+      expect(rowIds(wrapper)).toEqual(['4', '3', '2', '1'])
+    })
+
     it('keeps the loading, error and empty states of the games list', async () => {
       setAuthenticatedAdmin()
       mockServiceFailure(listGamesServiceMock, 'server_error', 500)

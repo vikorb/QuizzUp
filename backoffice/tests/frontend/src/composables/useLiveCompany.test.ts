@@ -1,4 +1,9 @@
-import { refreshMeMock, tokenMock } from '@frontend-tests/_helpers/authStateMock'
+import {
+  refreshMeMock,
+  setAuthenticatedUser,
+  setUnauthenticated,
+  tokenMock,
+} from '@frontend-tests/_helpers/authStateMock'
 import {
   createLiveStream,
   createRoomLive,
@@ -93,8 +98,26 @@ describe('composables/useLiveCompany', () => {
     await settle()
 
     expect(apiFetchMock).not.toHaveBeenCalled()
-    expect(live.state.value).toBe('connecting')
+    // Rien à suivre : un état neutre, que l'écran n'affiche pas.
+    expect(live.state.value).toBe('idle')
+    expect(live.errorKey.value).toBeNull()
     expect(live.uncertain.value).toBe(true)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('goes idle, without error, when the company disappears from a healthy stream', async () => {
+    const stream = nextStream()
+    const { live, id } = mountLive()
+
+    stream.push(snapshotEvent([createRoomLive()]))
+    await settle()
+    id.value = null
+    await settle()
+
+    expect(live.state.value).toBe('idle')
+    expect(live.errorKey.value).toBeNull()
+    expect(live.rooms.value).toEqual({})
+    expect(stream.cancelled).toBe(true)
   })
 
   it('replaces the table with the snapshot, then applies room_status', async () => {
@@ -213,6 +236,7 @@ describe('composables/useLiveCompany', () => {
 
     healthy.push(snapshotEvent([createRoomLive()]))
     await settle()
+    await vi.advanceTimersByTimeAsync(LIVE_HEARTBEAT_MS)
     healthy.end()
     await settle()
     nextStream()
@@ -220,6 +244,28 @@ describe('composables/useLiveCompany', () => {
     await vi.advanceTimersByTimeAsync(1_000)
 
     expect(apiFetchMock).toHaveBeenCalledTimes(4)
+  })
+
+  it('keeps growing the delay when the server closes each stream right after its snapshot', async () => {
+    for (let index = 0; index < 3; index += 1) {
+      const stream = nextStream()
+
+      stream.push(snapshotEvent([createRoomLive()]))
+      stream.end()
+    }
+    mountLive()
+    await settle()
+    expect(apiFetchMock).toHaveBeenCalledTimes(1)
+
+    // 1 s puis 2 s : une remise à zéro à chaque `snapshot` ferait réessayer toutes les secondes.
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(apiFetchMock).toHaveBeenCalledTimes(2)
+
+    await vi.advanceTimersByTimeAsync(1_999)
+    expect(apiFetchMock).toHaveBeenCalledTimes(2)
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(apiFetchMock).toHaveBeenCalledTimes(3)
   })
 
   it('marks the last known presences as uncertain while the stream is cut', async () => {
@@ -288,17 +334,51 @@ describe('composables/useLiveCompany', () => {
     expect(apiFetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('stops on 429 too_many_streams without reconnecting in a loop', async () => {
+  it('retries a 429 too_many_streams every 30 seconds, keeping the message until it works', async () => {
+    apiFetchMock.mockImplementation(async () => jsonErrorResponse(429, 'too_many_streams'))
+    const { live } = mountLive()
+
+    await settle()
+    expect(apiFetchMock).toHaveBeenCalledTimes(1)
+    expect(live.state.value).toBe('reconnecting')
+    expect(live.errorKey.value).toBe('errors.too_many_streams')
+    expect(live.uncertain.value).toBe(true)
+
+    // Dernier palier d'emblée (le serveur libère les flux morts au bout de plusieurs minutes).
+    await vi.advanceTimersByTimeAsync(29_999)
+    expect(apiFetchMock).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(apiFetchMock).toHaveBeenCalledTimes(2)
+    expect(live.errorKey.value).toBe('errors.too_many_streams')
+
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(apiFetchMock).toHaveBeenCalledTimes(3)
+
+    const stream = createLiveStream()
+
+    apiFetchMock.mockImplementation(async () => stream.response)
+    await vi.advanceTimersByTimeAsync(30_000)
+    stream.push(snapshotEvent([createRoomLive()]))
+    await settle()
+
+    expect(live.state.value).toBe('live')
+    expect(live.errorKey.value).toBeNull()
+    expect(refreshMeMock).not.toHaveBeenCalled()
+  })
+
+  it('drops a stale error message when a later cut has another cause', async () => {
     apiFetchMock.mockResolvedValueOnce(jsonErrorResponse(429, 'too_many_streams'))
     const { live } = mountLive()
 
-    await vi.advanceTimersByTimeAsync(120_000)
-
-    expect(apiFetchMock).toHaveBeenCalledTimes(1)
-    expect(live.state.value).toBe('error')
+    await settle()
     expect(live.errorKey.value).toBe('errors.too_many_streams')
-    expect(live.uncertain.value).toBe(true)
-    expect(refreshMeMock).not.toHaveBeenCalled()
+
+    apiFetchMock.mockResolvedValueOnce(jsonErrorResponse(503, 'server_error'))
+    await vi.advanceTimersByTimeAsync(30_000)
+
+    expect(live.state.value).toBe('reconnecting')
+    expect(live.errorKey.value).toBeNull()
   })
 
   it('stops on 403 with the forbidden message', async () => {
@@ -323,6 +403,85 @@ describe('composables/useLiveCompany', () => {
     expect(live.state.value).toBe('error')
     expect(live.errorKey.value).toBe('errors.unauthorized')
     expect(refreshMeMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('reopens the stream once when /me says the session is still valid after a 401', async () => {
+    apiFetchMock.mockResolvedValueOnce(jsonErrorResponse(401, 'unauthorized'))
+    refreshMeMock.mockResolvedValueOnce(setAuthenticatedUser())
+    const stream = nextStream()
+    const { live } = mountLive()
+
+    await settle()
+
+    expect(apiFetchMock).toHaveBeenCalledTimes(2)
+    expect(live.state.value).toBe('connecting')
+    expect(live.errorKey.value).toBeNull()
+
+    stream.push(snapshotEvent([createRoomLive()]))
+    await settle()
+
+    expect(live.state.value).toBe('live')
+    setUnauthenticated()
+  })
+
+  it('does not loop on 401: a second refusal in a row stops on the error', async () => {
+    apiFetchMock.mockResolvedValueOnce(jsonErrorResponse(401, 'unauthorized'))
+    apiFetchMock.mockResolvedValueOnce(jsonErrorResponse(401, 'unauthorized'))
+    refreshMeMock.mockResolvedValueOnce(setAuthenticatedUser())
+    refreshMeMock.mockResolvedValueOnce(setAuthenticatedUser())
+    const { live } = mountLive()
+
+    await vi.advanceTimersByTimeAsync(120_000)
+
+    expect(apiFetchMock).toHaveBeenCalledTimes(2)
+    expect(refreshMeMock).toHaveBeenCalledTimes(2)
+    expect(live.state.value).toBe('error')
+    expect(live.errorKey.value).toBe('errors.unauthorized')
+    expect(vi.getTimerCount()).toBe(0)
+    setUnauthenticated()
+  })
+
+  it('does not reopen after a 401 if the scope was stopped while /me was answering', async () => {
+    apiFetchMock.mockResolvedValueOnce(jsonErrorResponse(401, 'unauthorized'))
+    const account = setAuthenticatedUser()
+    let answer: (() => void) | undefined
+
+    refreshMeMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          answer = () => resolve(account)
+        })
+    )
+    const { live } = mountLive()
+
+    await settle()
+    live.stop()
+    answer?.()
+    await vi.advanceTimersByTimeAsync(120_000)
+
+    expect(apiFetchMock).toHaveBeenCalledTimes(1)
+    expect(vi.getTimerCount()).toBe(0)
+    setUnauthenticated()
+  })
+
+  it('keeps the end-of-session message when /me then empties the account and the company', async () => {
+    const stream = nextStream()
+    const { live, id } = mountLive()
+
+    // Comme en production : /me répond 401, le jeton est vidé, la compagnie passe à `null`.
+    refreshMeMock.mockImplementationOnce(async () => {
+      tokenMock.value = null
+      id.value = null
+      return null
+    })
+    stream.push(sseEvent(LIVE_EVENT.SESSION_ENDED, { error: 'unauthorized' }))
+    await vi.advanceTimersByTimeAsync(1_000)
+
+    expect(id.value).toBeNull()
+    expect(live.state.value).toBe('error')
+    expect(live.errorKey.value).toBe('errors.session_ended')
+    expect(apiFetchMock).toHaveBeenCalledTimes(1)
+    expect(vi.getTimerCount()).toBe(0)
   })
 
   it('stops on session_ended, drops the stream and asks /me to confirm the session', async () => {
@@ -414,7 +573,7 @@ describe('composables/useLiveCompany', () => {
   })
 
   it('does not reopen a stopped stream (error) when the tab is shown again', async () => {
-    apiFetchMock.mockResolvedValueOnce(jsonErrorResponse(429, 'too_many_streams'))
+    apiFetchMock.mockResolvedValueOnce(jsonErrorResponse(403, 'forbidden'))
     mountLive()
     await settle()
 

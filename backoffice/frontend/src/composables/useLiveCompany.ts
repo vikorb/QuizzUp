@@ -18,9 +18,13 @@ import {
 import { authState, refreshMe } from '@/state/authState'
 import { apiFetch } from '@/utils/api'
 
-export type LiveConnectionState = 'connecting' | 'live' | 'reconnecting' | 'error'
+/** `idle` : rien à suivre (pas de compagnie), rien à afficher. */
+export type LiveConnectionState = 'idle' | 'connecting' | 'live' | 'reconnecting' | 'error'
 
-/** Attente avant chaque nouvelle tentative ; le dernier palier se répète. Remis à zéro par un `snapshot`. */
+/**
+ * Attente avant chaque nouvelle tentative ; le dernier palier se répète. Remis à zéro seulement
+ * quand un flux est resté ouvert au moins un battement.
+ */
 const RECONNECT_DELAYS_MS = [1_000, 2_000, 5_000, 10_000, 30_000]
 /** Un flux sans aucune donnée (pas même un `: ping`) pendant ce délai est considéré coupé. */
 const SILENCE_LIMIT_MS = 3 * LIVE_HEARTBEAT_MS
@@ -60,6 +64,8 @@ export function useLiveCompany(companyId: MaybeRefOrGetter<number | null>) {
   let retryTimer: ReturnType<typeof setTimeout> | undefined
   let clockTimer: ReturnType<typeof setInterval> | undefined
   let attempt = 0
+  /** Un 401 du flux ne déclenche qu'une relance, même si `/me` confirme la session. */
+  let unauthorizedRetried = false
 
   function close(): void {
     controller?.abort()
@@ -78,17 +84,25 @@ export function useLiveCompany(companyId: MaybeRefOrGetter<number | null>) {
   }
 
   // Même traitement que le reste de l'application : on demande `/me`, qui efface le jeton si la
-  // session est vraiment expirée.
-  function sessionLost(code: string): void {
+  // session est vraiment expirée. Avec `retryId`, un compte rendu par `/me` (session encore valide)
+  // relance le flux, à moins que l'écran ait changé d'état entre-temps.
+  async function sessionLost(code: string, retryId?: number): Promise<void> {
     fail(code)
-    void refreshMe()
+
+    const account = await refreshMe()
+
+    if (account && retryId !== undefined && currentId === retryId && state.value === 'error') {
+      open(retryId)
+    }
   }
 
-  function scheduleRetry(id: number): void {
+  // `errorCode` : message gardé à l'écran pendant l'attente (sinon l'ancien message est effacé).
+  function scheduleRetry(id: number, errorCode?: string): void {
     const delay = RECONNECT_DELAYS_MS[Math.min(attempt, RECONNECT_DELAYS_MS.length - 1)]
 
     attempt += 1
     state.value = 'reconnecting'
+    errorKey.value = errorCode ? `errors.${errorCode}` : null
     retryTimer = setTimeout(() => {
       retryTimer = undefined
       void run(id)
@@ -113,7 +127,7 @@ export function useLiveCompany(companyId: MaybeRefOrGetter<number | null>) {
 
       if (Array.isArray(list)) {
         rooms.value = Object.fromEntries(list.filter(isRoomLive).map((room) => [room.roomId, room]))
-        attempt = 0
+        unauthorizedRetried = false
         errorKey.value = null
         state.value = 'live'
       }
@@ -125,7 +139,7 @@ export function useLiveCompany(companyId: MaybeRefOrGetter<number | null>) {
         rooms.value[room.roomId] = room
       }
     } else if (event === LIVE_EVENT.SESSION_ENDED) {
-      sessionLost('session_ended')
+      void sessionLost('session_ended')
     }
   }
 
@@ -133,19 +147,29 @@ export function useLiveCompany(companyId: MaybeRefOrGetter<number | null>) {
     const ctrl = new AbortController()
     let silence: ReturnType<typeof setTimeout> | undefined
 
+    // Heure d'ouverture du flux ; `null` tant qu'il n'est pas ouvert.
+    let openedAt: number | null = null
+
     controller = ctrl
     ctrl.signal.addEventListener('abort', () => clearTimeout(silence))
 
     // Coupure : on arrête cette lecture et on planifie la suivante (une seule fois par flux).
-    const lost = (): void => {
+    // L'attente ne repart de 1 s que si le flux est resté ouvert au moins un battement : un serveur
+    // qui envoie l'instantané puis ferme aussitôt ne doit pas provoquer une reconnexion par seconde.
+    const lost = (errorCode?: string): void => {
       if (!ctrl.signal.aborted) {
         ctrl.abort()
-        scheduleRetry(id)
+
+        if (openedAt !== null && Date.now() - openedAt >= LIVE_HEARTBEAT_MS) {
+          attempt = 0
+        }
+
+        scheduleRetry(id, errorCode)
       }
     }
     const armSilence = (): void => {
       clearTimeout(silence)
-      silence = setTimeout(lost, SILENCE_LIMIT_MS)
+      silence = setTimeout(() => lost(), SILENCE_LIMIT_MS)
     }
 
     armSilence()
@@ -167,7 +191,7 @@ export function useLiveCompany(companyId: MaybeRefOrGetter<number | null>) {
       if (authState.token.value) {
         lost()
       } else {
-        sessionLost('unauthorized')
+        void sessionLost('unauthorized')
       }
       return
     }
@@ -176,11 +200,18 @@ export function useLiveCompany(companyId: MaybeRefOrGetter<number | null>) {
       const { status } = response
 
       if (status === 401) {
-        sessionLost('unauthorized')
+        // Une seule relance par refus : si `/me` confirme la session, le flux a été refusé à tort.
+        const retryId = unauthorizedRetried ? undefined : id
+
+        unauthorizedRetried = true
+        void sessionLost('unauthorized', retryId)
       } else if (status === 403) {
         fail('forbidden')
       } else if (status === 429) {
-        fail('too_many_streams')
+        // Le serveur libère les flux morts au bout de plusieurs minutes : on réessaie au dernier
+        // palier d'attente, en gardant le message à l'écran.
+        attempt = RECONNECT_DELAYS_MS.length
+        lost('too_many_streams')
       } else if (status >= 500) {
         lost()
       } else {
@@ -193,6 +224,8 @@ export function useLiveCompany(companyId: MaybeRefOrGetter<number | null>) {
       lost()
       return
     }
+
+    openedAt = Date.now()
 
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
@@ -226,14 +259,25 @@ export function useLiveCompany(companyId: MaybeRefOrGetter<number | null>) {
     close()
     currentId = id
     attempt = 0
+    unauthorizedRetried = false
     rooms.value = {}
-    errorKey.value = null
-    state.value = 'connecting'
 
     if (id === null) {
+      // Pas de compagnie : rien à afficher, sauf une erreur qui vient de se produire (la fin de
+      // session vide le compte, donc la compagnie, juste après l'erreur : elle doit rester lisible).
+      if (state.value !== 'error') {
+        errorKey.value = null
+        state.value = 'idle'
+      }
       return
     }
 
+    open(id)
+  }
+
+  function open(id: number): void {
+    errorKey.value = null
+    state.value = 'connecting'
     now.value = Date.now()
     clockTimer = setInterval(() => {
       now.value = Date.now()
@@ -247,6 +291,8 @@ export function useLiveCompany(companyId: MaybeRefOrGetter<number | null>) {
   function stop(): void {
     stopWatching()
     close()
+    // Une réponse de `/me` qui arrive après l'arrêt ne doit rien relancer.
+    currentId = null
   }
 
   if (getCurrentScope()) {

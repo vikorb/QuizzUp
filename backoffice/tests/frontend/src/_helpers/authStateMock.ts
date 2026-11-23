@@ -23,7 +23,7 @@ export const roomAccountRejectedMock = ref(false)
 export const logoutMock = vi.fn()
 export const loginMock = vi.fn()
 export const syncMock = vi.fn()
-export const refreshMeMock = vi.fn(async () => undefined)
+export const refreshMeMock = vi.fn(async (): Promise<MeMock | null | undefined> => undefined)
 export const clearRoomAccountRejectionMock = vi.fn(() => {
   roomAccountRejectedMock.value = false
 })

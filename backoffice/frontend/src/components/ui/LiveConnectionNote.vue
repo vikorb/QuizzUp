@@ -1,5 +1,11 @@
 <template>
-  <p class="live-note" role="status" data-test="live-connection-note" :data-state="state">
+  <p
+    v-if="state !== 'idle'"
+    class="live-note"
+    role="status"
+    data-test="live-connection-note"
+    :data-state="state"
+  >
     {{ errorKey ? $t(errorKey) : $t(`live.connection.${state}`) }}
   </p>
 </template>

@@ -640,8 +640,14 @@ describe('views/games/creation/CreateGameForm.vue', () => {
       await roomSelect(wrapper).get('select').setValue('10')
 
       expect(wrapper.get('[data-test="room-presence"]').attributes('data-presence')).toBe('unknown')
-      expect(optionLabels(wrapper)).toContain('Salle Néon · live.presence.unknown')
       expect(wrapper.text()).not.toContain('live.presence.online')
+    })
+
+    it('keeps the plain room name in the list while the live state is uncertain', () => {
+      const wrapper = mountLiveForm(true)
+
+      expect(optionLabels(wrapper)).toEqual(expect.arrayContaining(['Salle Néon', 'Salle Laser']))
+      expect(optionLabels(wrapper).some((label) => label.includes('live.presence'))).toBe(false)
     })
 
     it('still lets the operator launch a game in an offline room', async () => {

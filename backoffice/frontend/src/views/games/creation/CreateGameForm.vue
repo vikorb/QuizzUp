@@ -236,9 +236,10 @@ function getRoomPresence(roomId: number): { room: RoomLive | null } | null {
   return props.liveRooms ? { room: props.liveRooms[roomId] ?? null } : null
 }
 
-// Une liste déroulante n'affiche pas de pastille : la présence est écrite après le nom de la salle.
+// Une liste déroulante n'affiche pas de pastille : la présence est écrite après le nom de la salle,
+// seulement quand le direct est certain (sinon le nom seul : pas de « inconnue » à chaque ligne).
 function getRoomOptionLabel(room: GameRoom): string {
-  const presence = getRoomPresence(room.id)
+  const presence = props.liveUncertain ? null : getRoomPresence(room.id)
 
   return presence
     ? `${room.name} · ${t(getRoomPresenceLabelKey(getRoomPresenceKind(presence.room, props.liveUncertain)))}`

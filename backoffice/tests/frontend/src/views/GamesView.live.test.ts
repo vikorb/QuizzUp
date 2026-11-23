@@ -131,5 +131,8 @@ describe('views/GamesView.vue with a simulated live stream', () => {
     expect(wrapper.findAll('[data-test="base-table-row"]')).toHaveLength(4)
     expect(presenceOf(wrapper, 4).attributes('data-presence')).toBe('unknown')
     expect(apiFetchMock).toHaveBeenCalledTimes(1)
+
+    // Le suivi réessaiera plus tard : on retire la minuterie à la fin du test.
+    wrapper.unmount()
   })
 })
