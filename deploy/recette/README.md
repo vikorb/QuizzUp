@@ -13,6 +13,12 @@ https://api.<DOMAIN>    API (Swagger : /docs)
 Caddy obtient et renouvelle seul les certificats Let's Encrypt. Pas besoin d'acheter un nom de
 domaine : `sslip.io` transforme l'IP du serveur en domaine (`51-15-12-34.sslip.io`).
 
+> **Avant de déployer : renseigner `CONSOLE_ALLOWED_CIDRS` dans `.env`.** Le compte superadmin
+> (l'éditeur) ne peut se connecter que depuis les adresses de cette liste, et l'API refuse son
+> jeton partout ailleurs. Variable vide ou absente : **aucun superadmin ne passe**, la console est
+> fermée (le compte `admin` des seeds compris). Y mettre seulement l'adresse des postes des
+> opérateurs, jamais le réseau Docker ni celle du serveur. Voir `.env.example`.
+
 ## Ce qu'il faut
 
 - Un VPS Linux (Ubuntu 24.04 ou Debian 12), **2 Go de RAM minimum** (4 Go conseillés pour
@@ -41,8 +47,11 @@ cd QuizzUp && git pull
 docker compose -f deploy/recette/docker-compose.yml --env-file deploy/recette/.env up -d --build
 ```
 
-Un `.env` créé avant l'ajout de `TRUST_PROXY` n'a rien à changer : le compose prend alors la plage
-Docker `172.16.0.0/12`. Pour une autre plage, ajouter `TRUST_PROXY=<plage>` à `.env` ; sans bonne
+Un `.env` créé avant l'ajout de `CONSOLE_ALLOWED_CIDRS` doit recevoir cette variable (voir plus
+haut), sinon le superadmin est refusé. Le réseau Docker est fixé à `172.29.250.0/24` dans le
+compose : `TRUST_PROXY` doit valoir ce sous-réseau (le compose n'a plus de valeur par défaut, un
+ancien `.env` avec `172.16.0.0/12` fonctionne encore). Pour un autre sous-réseau, le changer dans
+le compose et dans `.env` ; sans bonne
 valeur, l'API voit l'adresse de Caddy pour tous les clients et les limites de débit deviennent
 communes à tout le monde.
 

@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Console éditeur : le compte superadmin ne peut plus se connecter ni appeler l'API que depuis les adresses de `CONSOLE_ALLOWED_CIDRS` (401 `invalid_credentials` à la connexion, 403 `forbidden` ensuite, variable vide = console fermée) ; la même variable, séparée par des espaces, remplace `EDITOR_ALLOWED_RANGES` côté Caddy de production, et les réseaux Docker de recette et de production ont un sous-réseau fixe à nommer dans `TRUST_PROXY`.
+  US: US-CONSOLE-01 (#161)
+
 - Socle des routes publiques : limiteur de débit en mémoire (connexion du personnel et des salles : 429 `too_many_requests` avec `Retry-After`), `TRUST_PROXY` (liste d'adresses ou de plages, jamais `true`), ressources de permissions `player`, `voucher`, `stats` et `roomLog`. Connexion : 10 échecs par couple adresse/identifiant et 100 tentatives par adresse en 15 minutes ; adresses IPv6 comptées par bloc /64 ; un compte inconnu passe par un `bcrypt.compare` factice ; `TRUST_PROXY` refuse les plages plus larges que /8 (IPv4) ou /16 (IPv6) et les adresses à zone.
   US: US-PUBLIC-00 (#141)
 - Préfixe `/public/v1` sans authentification : erreurs au format public, CORS piloté par `VITRINE_ORIGINS`, limite de débit par adresse, réponses `no-store`. Aucune route métier pour l'instant.

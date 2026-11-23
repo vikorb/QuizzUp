@@ -2,8 +2,9 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 import { randomUUID } from 'node:crypto'
-import { ADMIN_ROLE_ROOM } from '@quizzup/shared'
+import { ADMIN_ROLE_ROOM, ADMIN_ROLE_SUPERADMIN } from '@quizzup/shared'
 import db from '../db'
+import { createConsoleNetwork } from '../security/consoleNetwork'
 import { createRateLimiter, replyTooManyRequests } from '../security/rateLimit'
 import { isRoomAccountUsable } from '../security/roomCompany'
 
@@ -65,6 +66,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     max: LOGIN_RATE_LIMIT_MAX_PER_ACCOUNT,
     windowMs: LOGIN_RATE_LIMIT_WINDOW_MS,
   })
+  const consoleNetwork = createConsoleNetwork(process.env.CONSOLE_ALLOWED_CIDRS)
 
   app.post(
     '/login',
@@ -139,6 +141,13 @@ const authRoutes: FastifyPluginAsync = async (app) => {
         admin.role === ADMIN_ROLE_ROOM &&
         !(await isRoomAccountUsable(admin.company_id, admin.room_id))
       ) {
+        return reply.code(401).send({ error: 'invalid_credentials' })
+      }
+
+      // Superadmin hors des adresses de la console : après bcrypt, avec la réponse d'un mauvais mot
+      // de passe (un 403 confirmerait qu'il est juste). Pas de session, et l'essai reste compté.
+      if (admin.role === ADMIN_ROLE_SUPERADMIN && !consoleNetwork.allows(req.ip)) {
+        req.log.warn({ adminId: admin.id, ip: req.ip }, 'connexion superadmin hors console')
         return reply.code(401).send({ error: 'invalid_credentials' })
       }
 
