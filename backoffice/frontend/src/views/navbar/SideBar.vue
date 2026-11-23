@@ -36,6 +36,7 @@
 import {
   mdiAccountGroupOutline,
   mdiBriefcaseAccountOutline,
+  mdiCalendarClockOutline,
   mdiChartTimelineVariant,
   mdiChevronLeft,
   mdiHelpCircleOutline,
@@ -124,6 +125,13 @@ const navManage = computed(() => {
 
 const navPlay = [
   { to: '/games', icon: mdiPlayCircleOutline, iconType: 'mdi' as const, labelKey: 'navbar.games' },
+  {
+    to: '/agenda',
+    icon: mdiCalendarClockOutline,
+    iconType: 'mdi' as const,
+    // Dans `agenda.json` (fr et en) : `navbar.json` n'a pas d'équivalent anglais.
+    labelKey: 'agenda.menu',
+  },
   {
     to: '/stats',
     icon: mdiChartTimelineVariant,

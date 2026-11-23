@@ -21,7 +21,13 @@ import { clampByte, isDesk } from '../types'
 import type { ScenePlayer } from './scenePlayer'
 import { createScenePlayer } from './scenePlayer'
 import type { SceneContext, SceneDefinition } from './scenes'
-import { DEFAULT_BINDINGS, DEFAULT_SCENES, identifyScene, SCENE_IDS } from './scenes'
+import {
+  DEFAULT_BINDINGS,
+  DEFAULT_SCENES,
+  identifyScene,
+  MAX_FLASHES_PER_SECOND,
+  SCENE_IDS,
+} from './scenes'
 import type { SmokeController, SmokeFireResult, SmokeState } from './smoke'
 import { createSmokeController } from './smoke'
 
@@ -47,6 +53,19 @@ export const MAX_FREEZE_MS = 15_000
 
 /** Sans action de l'opérateur pendant ce délai, le diagnostic se termine tout seul. */
 export const DIAGNOSTICS_IDLE_MS = 10 * 60_000
+
+/**
+ * Vitesse maximale du canal `strobe` au diagnostic. Une valeur DMX n'est pas une fréquence : on
+ * suppose, par prudence, un canal linéaire de 0 à 25 Hz, et on garde la valeur qui donne
+ * `MAX_FLASHES_PER_SECOND` (30, soit 3 Hz). Hypothèse à mesurer sur le banc (D10).
+ */
+const ASSUMED_STROBE_MAX_HZ = 25
+export const DIAGNOSTIC_STROBE_MAX_VALUE = Math.floor(
+  (255 * MAX_FLASHES_PER_SECOND) / ASSUMED_STROBE_MAX_HZ
+)
+
+/** Durée maximale d'un strobe demandé au diagnostic : la valeur retombe ensuite à 0. */
+export const DIAGNOSTIC_STROBE_MAX_MS = 3_000
 
 /**
  * Événement de jeu, au format du moteur (`{ type, payload }` de `@quizzup/game-engine`).
@@ -265,7 +284,24 @@ export function createLightingController(options: LightingControllerOptions): Li
   /** Canaux réglés à la main, par numéro d'univers. */
   let manualChannels = new Map<number, Uint8Array>()
   const manualFixtures = new Map<string, FixtureState>()
+  /**
+   * Strobe demandé au diagnostic (`DIAGNOSTIC_STROBE_MAX_MS`) : heure de fin et remise à 0.
+   * Clé = identifiant d'appareil, ou `canal:univers:adresse` pour un canal réglé à la main.
+   */
+  const strobeEnds = new Map<string, { end: number; silence: () => void }>()
+  const clearManualFixtures = () => {
+    manualFixtures.clear()
+    strobeEnds.clear()
+  }
+  /** Ouvre la fenêtre bornée d'un strobe ; une demande pendant la fenêtre ne la prolonge pas. */
+  const limitStrobe = (key: string, silence: () => void) => {
+    if (!strobeEnds.has(key)) {
+      strobeEnds.set(key, { end: clock.now() + DIAGNOSTIC_STROBE_MAX_MS, silence })
+    }
+  }
   const fixtureChannels = new Set<string>()
+  /** Canaux dont le rôle est `strobe` dans un appareil configuré : plafonnés au diagnostic. */
+  const strobeChannels = new Set<string>()
   const smokeChannels = new Set<string>()
   const universes = usedUniverses(fixtures)
   /**
@@ -279,6 +315,9 @@ export function createLightingController(options: LightingControllerOptions): Li
     fixture.profile.channels.forEach((spec, offset) => {
       const key = channelKey(fixtureUniverse(fixture), fixture.address + offset)
       fixtureChannels.add(key)
+      if (spec.role === 'strobe') {
+        strobeChannels.add(key)
+      }
       if (spec.role === 'smoke' || fixture.profile.kind === 'smoke') {
         smokeChannels.add(key)
       }
@@ -486,6 +525,12 @@ export function createLightingController(options: LightingControllerOptions): Li
 
   /** Trame de diagnostic : canaux bruts, puis appareils réglés, puis fumée sécurisée. */
   function renderDiagnostics(now: number): Map<number, Uint8Array> {
+    for (const [key, { end, silence }] of strobeEnds) {
+      if (now >= end) {
+        silence()
+        strobeEnds.delete(key)
+      }
+    }
     const numbers = [...new Set([...universes, ...manualChannels.keys()])].sort(
       (first, second) => first - second
     )
@@ -535,7 +580,7 @@ export function createLightingController(options: LightingControllerOptions): Li
     }
     cancelFreeze()
     manualChannels = new Map()
-    manualFixtures.clear()
+    clearManualFixtures()
     player.blackout()
     playScene(SCENE_IDS.IDLE)
     notify()
@@ -561,7 +606,7 @@ export function createLightingController(options: LightingControllerOptions): Li
       allowUnknownChannels = beginOptions.allowUnknownChannels === true
       diagnosticsTouchedAt = clock.now()
       manualChannels = new Map()
-      manualFixtures.clear()
+      clearManualFixtures()
       player.stop()
       notify()
       return { ok: true }
@@ -589,10 +634,28 @@ export function createLightingController(options: LightingControllerOptions): Li
       if (!fixtureChannels.has(key) && !allowUnknownChannels) {
         return { ok: false, reason: 'unknown_channel' }
       }
+      // Sécurité : un canal `strobe` suit le même plafond et la même durée que `setFixture`.
+      const isStrobe = strobeChannels.has(key)
+      const level = isStrobe
+        ? Math.min(clampByte(value), DIAGNOSTIC_STROBE_MAX_VALUE)
+        : clampByte(value)
       const manual = manualChannels.get(universe) ?? createUniverse()
-      manual[address - 1] = clampByte(value)
+      manual[address - 1] = level
       manualChannels.set(universe, manual)
       touched.add(universe)
+      if (isStrobe) {
+        const strobeKey = `canal:${key}`
+        if (level > 0) {
+          limitStrobe(strobeKey, () => {
+            const current = manualChannels.get(universe)
+            if (current) {
+              current[address - 1] = 0
+            }
+          })
+        } else {
+          strobeEnds.delete(strobeKey)
+        }
+      }
       return { ok: true }
     },
     setFixture(fixtureId, state) {
@@ -605,17 +668,29 @@ export function createLightingController(options: LightingControllerOptions): Li
         return { ok: false, reason: 'unknown_fixture' }
       }
       const previous = manualFixtures.get(fixtureId) ?? darkState()
+      // Sécurité : vitesse du strobe ramenée au plafond, et limitée dans le temps (voir `renderDiagnostics`).
+      const strobe = Math.min(state.strobe ?? previous.strobe, DIAGNOSTIC_STROBE_MAX_VALUE)
+      if (!(strobe > 0)) {
+        strobeEnds.delete(fixtureId)
+      } else {
+        limitStrobe(fixtureId, () => {
+          const current = manualFixtures.get(fixtureId)
+          if (current) {
+            manualFixtures.set(fixtureId, { ...current, strobe: 0 })
+          }
+        })
+      }
       manualFixtures.set(fixtureId, {
         color: state.color ? { ...state.color } : previous.color,
         intensity: state.intensity ?? previous.intensity,
         position: state.position === undefined ? previous.position : state.position,
-        strobe: state.strobe ?? previous.strobe,
+        strobe,
       })
       return { ok: true }
     },
     clear() {
       manualChannels = new Map()
-      manualFixtures.clear()
+      clearManualFixtures()
       diagnosticsTouchedAt = clock.now()
     },
     freezeOutput(durationMs, freezeOptions) {
@@ -629,6 +704,12 @@ export function createLightingController(options: LightingControllerOptions): Li
       if (!Number.isFinite(durationMs) || durationMs <= 0 || durationMs > MAX_FREEZE_MS) {
         return { ok: false, reason: 'invalid_duration' }
       }
+      // Un strobe actif tournerait au-delà de sa durée maximale pendant que l'interface répète
+      // la trame gelée : on le remet à 0 avant d'envoyer cette trame.
+      for (const { silence } of strobeEnds.values()) {
+        silence()
+      }
+      strobeEnds.clear()
       // La trame en cours (fumée comprise) part avant le gel : c'est elle que l'interface
       // répétera. Sans cela, le gel figerait l'avant-dernière trame.
       send(renderDiagnostics(clock.now()))
