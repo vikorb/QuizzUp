@@ -223,6 +223,8 @@ Format inspiré de Keep a Changelog.
 
 ### Changed
 
+- Moteur de jeu : les mini-jeux d'une partie sont tirés sans remise (aucun mini-jeu ne revient tant que tous les mini-jeux jouables n'ont pas été joués).
+
 - `backend/.env` n'est plus versionné (seul `backend/.env.example` l'est) ; les tests backend
   chargent `backend/.env` s'il existe, sinon `backend/.env.example`.
   **Avant le pull**, sauvegarder son `backend/.env` local : git le supprime du disque. Le remettre

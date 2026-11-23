@@ -59,6 +59,11 @@ export type GameState = {
   rounds: RoundRecord[]
   usedThemeIds: number[]
   usedQuestionIds: number[]
+  /**
+   * « Sac » des mini-jeux : ceux du tour en cours qui n'ont pas encore été joués. Un mini-jeu
+   * tiré en sort ; quand le sac est vide, il est rempli avec tous les mini-jeux jouables.
+   */
+  miniGameBag: MiniGame[]
 }
 
 export type GameStep = {
@@ -174,6 +179,7 @@ export function createGame(setup: GameSetup): GameState {
     rounds: [],
     usedThemeIds: [],
     usedQuestionIds: [],
+    miniGameBag: [],
   }
 }
 
@@ -235,18 +241,25 @@ function beginRound(context: Context, at: number): void {
   const position = state.rounds.length + 1
   const previousMiniGame = getCurrentRound(state)?.miniGame
   const playableMiniGames = getPlayableMiniGames(state.setup)
-  // Pas deux fois le même mini-jeu d'affilée quand on a le choix.
-  const candidates =
-    playableMiniGames.length > 1
-      ? playableMiniGames.filter((miniGame) => miniGame !== previousMiniGame)
-      : playableMiniGames
-  const miniGame = pickOne(candidates, context.random)
+  // Tirage sans remise : le sac est relu à chaque manche pour écarter un mini-jeu devenu
+  // injouable, et rempli quand il est vide. Au remplissage, on évite de rejouer tout de suite
+  // le mini-jeu qui vient de l'être (hors sac, donc seulement possible à cet endroit).
+  let bag = state.miniGameBag.filter((miniGame) => playableMiniGames.includes(miniGame))
+
+  if (bag.length === 0) {
+    bag = playableMiniGames
+  }
+
+  const fresh = bag.filter((miniGame) => miniGame !== previousMiniGame)
+  const miniGame = pickOne(fresh.length > 0 ? fresh : bag, context.random)
   const chooser = drawRoundChooser(state.scores, position, context.random)
 
   if (!miniGame || !chooser) {
     finishGame(context, at, 'no_content')
     return
   }
+
+  state.miniGameBag = bag.filter((candidate) => candidate !== miniGame)
 
   const offeredThemes = drawOfferedThemes(
     getPlayableThemes(state.setup.themes, miniGame),
