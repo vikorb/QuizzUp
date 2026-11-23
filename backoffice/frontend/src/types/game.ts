@@ -1,4 +1,11 @@
-import type { GameState, GameStatus, MiniGame, RoomStatus } from '@quizzup/shared'
+import type {
+  GameLocale,
+  GameState,
+  GameStatus,
+  MiniGame,
+  RoomSchedule,
+  RoomStatus,
+} from '@quizzup/shared'
 
 /** 2e joueur facultatif d'un pupitre, tel que renvoyé par l'API. */
 export type GameSecondPlayer = {
@@ -53,7 +60,21 @@ export type Game = {
   /** Meilleur score d'une partie terminée, `null` sinon ; liste des parties seulement. */
   topScore?: number | null
   participants?: GameParticipant[]
+  /** Début prévu (UTC) d'une session programmée ; `null` pour une partie immédiate. */
+  scheduledAt?: string | null
+  /** Fin prévue (UTC), strictement après `scheduledAt`. */
+  scheduledEndAt?: string | null
+  cancelledAt?: string | null
+  /** Nombre de joueurs annoncé (6 pupitres × 2 joueurs au plus). */
+  playersCount?: number | null
+  /** Référence du système de réservation du client. */
+  externalRef?: string | null
+  locale?: GameLocale | null
+  /** Origine de la session (lot 14) : absent tant que l'API publique n'est pas livrée. */
+  source?: GameSource
 }
+
+export type GameSource = 'backoffice' | 'api'
 
 export type GameTableRow = Game & Record<string, unknown>
 
@@ -64,6 +85,8 @@ export type GameRoom = {
   status: RoomStatus
   /** Pupitres de la salle (4 par défaut, jusqu'à 6) ; absent d'une ancienne réponse. */
   desksCount?: number
+  /** Créneaux réservables et fuseau de la salle ; `null` ou absent : pas de grille de créneaux. */
+  schedule?: RoomSchedule | null
 }
 
 export type GameStateFilter = GameState | ''

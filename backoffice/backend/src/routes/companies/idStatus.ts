@@ -5,10 +5,10 @@ import db from '../../db'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
 import { requireApiPermission } from '../../security/requireApiPermission'
 import { canUpdateCompanyStatusContext } from '../../security/companiesPolicy'
-import type { CompanyRow, CompanyStatusUpdateBody } from '../../types/company'
+import type { CompanyStatusUpdateBody } from '../../types/company'
 
 import { paramsSchema, updateCompanyStatusSchema } from './_schemas'
-import { findCompanyById, getCompanyAdminsCount } from './_shared'
+import { findCompanyById, getCompanyAdminsCount, toCompanyRow } from './_shared'
 
 const companiesIdStatusRoutes: FastifyPluginAsync = async (app) => {
   app.patch<{ Body: CompanyStatusUpdateBody }>(
@@ -69,16 +69,14 @@ const companiesIdStatusRoutes: FastifyPluginAsync = async (app) => {
           'created_at as createdAt',
           'updated_at as updatedAt',
           'deleted_at as deletedAt',
+          'logo_key as logoKey',
         ])
 
       const updatedCompanyBase = Array.isArray(updated) ? updated[0] : updated
       const accountsCount = await getCompanyAdminsCount(id)
 
       return reply.code(200).send({
-        company: {
-          ...updatedCompanyBase,
-          accountsCount,
-        } satisfies CompanyRow,
+        company: toCompanyRow({ ...updatedCompanyBase, accountsCount }),
       })
     }
   )
