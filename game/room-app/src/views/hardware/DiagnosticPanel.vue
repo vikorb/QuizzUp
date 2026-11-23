@@ -1,8 +1,19 @@
 <template>
   <section class="hw-panel" data-test="diagnostic">
     <header class="hw-panel__head">
-      <h2 class="hw-panel__title">{{ $t('hardware.diagnostic.title') }}</h2>
-      <p class="hw-panel__status">{{ $t('hardware.diagnostic.hint') }}</p>
+      <div class="hw-panel__heading">
+        <h2 class="hw-panel__title">{{ $t('hardware.diagnostic.title') }}</h2>
+        <p class="hw-panel__status">{{ $t('hardware.diagnostic.hint') }}</p>
+      </div>
+      <div class="hw-panel__actions">
+        <UiButton v-if="state?.emergency" variant="primary" @click="emergency.reset">
+          {{ $t('hardware.lights.emergencyReset') }}
+        </UiButton>
+        <UiButton variant="danger" data-test="diag-emergency" @click="emergency.stop">
+          <MdIcon :path="mdiAlertOctagonOutline" :size="18" />
+          {{ $t('hardware.lights.emergencyStop') }}
+        </UiButton>
+      </div>
     </header>
 
     <div v-if="state?.emergency" class="hw-alert hw-alert--danger" role="alert">
@@ -46,22 +57,14 @@
       {{ $t(`hardware.diagnostic.errors.${connectError.code}`) }}
       <template v-if="connectError.hint"><br />{{ connectError.hint }}</template>
     </p>
-    <div class="hw-actions">
+    <div v-if="driver !== 'simulation'" class="hw-actions">
       <UiButton
-        v-if="driver !== 'simulation'"
         :disabled="(!webSerial && driver !== 'artnet-bridge') || connecting"
         data-test="diag-connect"
         @click="onConnect"
       >
         <MdIcon :path="mdiUsb" :size="18" />
         {{ $t('hardware.lights.connect') }}
-      </UiButton>
-      <UiButton variant="danger" data-test="diag-emergency" @click="emergency.stop">
-        <MdIcon :path="mdiAlertOctagonOutline" :size="18" />
-        {{ $t('hardware.lights.emergencyStop') }}
-      </UiButton>
-      <UiButton v-if="state?.emergency" variant="primary" @click="emergency.reset">
-        {{ $t('hardware.lights.emergencyReset') }}
       </UiButton>
     </div>
 
@@ -76,7 +79,7 @@
       </p>
       <div class="hw-actions">
         <UiButton
-          variant="primary"
+          :variant="state?.emergency ? 'default' : 'primary'"
           :disabled="!lighting || state?.emergency"
           data-test="diag-begin"
           @click="onBegin"
@@ -87,7 +90,7 @@
     </template>
     <template v-else>
       <p class="hw-hint">{{ $t('hardware.diagnostic.activeHint') }}</p>
-      <div class="hw-actions">
+      <div class="hw-fields">
         <label class="hw-field">
           {{ $t('hardware.diagnostic.channel') }}
           <input
@@ -138,7 +141,11 @@
         <UiButton data-test="diag-clear" @click="onClear">
           {{ $t('hardware.diagnostic.clear') }}
         </UiButton>
-        <UiButton variant="primary" data-test="diag-end" @click="onEnd">
+        <UiButton
+          :variant="state?.emergency ? 'default' : 'primary'"
+          data-test="diag-end"
+          @click="onEnd"
+        >
           {{ $t('hardware.diagnostic.end') }}
         </UiButton>
       </div>
@@ -358,7 +365,7 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 6px;
   padding: 12px 14px;
-  border-radius: 14px;
+  border-radius: var(--radius-ctl);
   border: 1px solid var(--border-ui);
   background: var(--surface-0);
 }

@@ -1,8 +1,10 @@
 <template>
   <section class="hw-panel">
     <header class="hw-panel__head">
-      <h2 class="hw-panel__title">{{ $t('hardware.advanced.title') }}</h2>
-      <p class="hw-panel__status">{{ $t('hardware.advanced.hint') }}</p>
+      <div class="hw-panel__heading">
+        <h2 class="hw-panel__title">{{ $t('hardware.advanced.title') }}</h2>
+        <p class="hw-panel__status">{{ $t('hardware.advanced.hint') }}</p>
+      </div>
     </header>
 
     <textarea
@@ -104,7 +106,7 @@ reload()
   width: 100%;
   min-height: 320px;
   padding: 14px;
-  border-radius: 14px;
+  border-radius: var(--radius-ctl);
   border: 1px solid var(--border-ui);
   background: var(--bg-field);
   color: var(--text-0);
@@ -125,6 +127,9 @@ reload()
 }
 
 .profiles summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap-min);
   cursor: pointer;
   font-weight: 700;
 }
