@@ -20,8 +20,25 @@ export function getGamesRoute(
   return { name: 'games', query }
 }
 
-export function getCreateGameRoute(options: GameCompanyQuery = {}): RouteLocationRaw {
-  return { name: 'games-create', query: buildCompanyQuery(options) }
+/** `roomId` et `scheduledAt` (UTC, ISO 8601) préremplissent le formulaire depuis un créneau de l'agenda. */
+export function getCreateGameRoute(
+  options: GameCompanyQuery & { roomId?: number; scheduledAt?: string } = {}
+): RouteLocationRaw {
+  const query = buildCompanyQuery(options)
+
+  if (options.roomId) {
+    query.roomId = String(options.roomId)
+  }
+
+  if (options.scheduledAt) {
+    query.scheduledAt = options.scheduledAt
+  }
+
+  return { name: 'games-create', query }
+}
+
+export function getAgendaRoute(options: GameCompanyQuery = {}): RouteLocationRaw {
+  return { name: 'agenda', query: buildCompanyQuery(options) }
 }
 
 export function getGameDetailRoute(

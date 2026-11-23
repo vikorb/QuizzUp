@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue'
 
+import { reportRoomError } from '@/diagnostics/errorReporter'
 import { getRoomToken } from '@/utils/auth'
 import { finishRoomGame, RoomApiError, type RoomGameScore } from '@/utils/roomApi'
 
@@ -172,6 +173,9 @@ async function attempt(report: PendingFinish, token: string): Promise<Attempt> {
     const status = error instanceof RoomApiError ? error.status : null
     if (status !== null && FINAL_REFUSALS.has(status)) {
       console.warn(`Résultats de la partie ${report.gameId} refusés par le backoffice (${status})`)
+      reportRoomError('finish_refused', error instanceof Error ? error.message : 'finish_refused', {
+        context: { httpStatus: status },
+      })
       return 'refused'
     }
     if (status !== null && AUTH_REFUSALS.has(status)) {

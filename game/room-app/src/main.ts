@@ -5,6 +5,7 @@ import { createApp } from 'vue'
 
 import App from '@/App.vue'
 import { createDemoSynthPlayer, createRoutingExtractPlayer } from '@/audio/demoSynthPlayer'
+import { reportVueError, startErrorReporter } from '@/diagnostics/errorReporter'
 import { flushPendingFinishes } from '@/game/pendingFinishes'
 import { configureRoomGame } from '@/game/useRoomGame'
 import { loadKeyboardLayout } from '@/hardware/buzzers'
@@ -50,7 +51,12 @@ function startRoom(): void {
     void syncHardwareWithRoom()
   })
 
-  createApp(App).use(router).use(createAppI18n()).mount('#app')
+  // Erreurs non gérées de la page : envoyées au backoffice (journaux de la salle).
+  startErrorReporter()
+
+  const app = createApp(App)
+  app.config.errorHandler = (error) => reportVueError(error, router.currentRoute.value.name)
+  app.use(router).use(createAppI18n()).mount('#app')
 }
 
 // Un second onglet n'affiche qu'un message (ni moteur, ni buzzers, ni lumières) puis démarre

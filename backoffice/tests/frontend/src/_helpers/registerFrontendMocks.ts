@@ -92,6 +92,7 @@ vi.mock('@/services/roomsService', async () => {
     updateCompanyRoomService: roomsService.updateCompanyRoomServiceMock,
     updateRoomStatusService: roomsService.updateRoomStatusServiceMock,
     deleteRoomService: roomsService.deleteRoomServiceMock,
+    updateRoomScheduleService: roomsService.updateRoomScheduleServiceMock,
     loadRoomAccountService: roomsService.loadRoomAccountServiceMock,
     createRoomAccountService: roomsService.createRoomAccountServiceMock,
     deleteRoomAccountService: roomsService.deleteRoomAccountServiceMock,
@@ -150,6 +151,14 @@ vi.mock('@/services/questionsService', async () => {
     updateQuestionStatusService: questionsService.updateQuestionStatusServiceMock,
     attachQuestionToThemeService: questionsService.attachQuestionToThemeServiceMock,
     detachQuestionFromThemeService: questionsService.detachQuestionFromThemeServiceMock,
+  }
+})
+
+vi.mock('@/services/questionImportService', async () => {
+  const questionImportService = await import('./questionImportServiceMock')
+
+  return {
+    importQuestionsService: questionImportService.importQuestionsServiceMock,
   }
 })
 

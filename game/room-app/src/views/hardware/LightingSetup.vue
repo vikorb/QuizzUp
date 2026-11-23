@@ -79,7 +79,12 @@
     <p class="hw-hint">{{ $t('hardware.lights.physicalStop') }}</p>
 
     <h3 class="hw-panel__subtitle">{{ $t('hardware.smoke.title') }}</h3>
-    <p v-if="smoke?.status === 'disabled'" class="hw-hint">{{ $t('hardware.smoke.disabled') }}</p>
+    <p v-if="smokeNeedsTest" class="hw-alert" role="status" data-test="smoke-test-required">
+      {{ $t('hardware.smoke.testRequired') }}
+    </p>
+    <p v-else-if="smoke?.status === 'disabled'" class="hw-hint">
+      {{ $t('hardware.smoke.disabled') }}
+    </p>
     <div v-else class="smoke">
       <label class="smoke__arm">
         <input
@@ -193,6 +198,7 @@ const {
   lighting,
   bridgeError,
   bridgeArtnet,
+  smokeNeedsTest,
 } = useRoomHardware()
 const emergency = useEmergencyStop()
 

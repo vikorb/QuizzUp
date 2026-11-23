@@ -18,6 +18,7 @@ import companyRoomAccountRoutes from './companies/rooms/account'
 import companyRoomIdRoutes from './companies/rooms/id'
 import companyRoomIdScheduleRoutes from './companies/rooms/idSchedule'
 import companyRoomIdStatusRoutes from './companies/rooms/idStatus'
+import companyRoomLogsRoutes from './companies/rooms/logs'
 import { companySelect, toCompanyRow } from './companies/_shared'
 import { createCompanySchema } from './companies/_schemas'
 
@@ -34,6 +35,7 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
   app.register(companyRoomIdRoutes)
   app.register(companyRoomIdScheduleRoutes)
   app.register(companyRoomIdStatusRoutes)
+  app.register(companyRoomLogsRoutes)
 
   app.get(
     '/companies',

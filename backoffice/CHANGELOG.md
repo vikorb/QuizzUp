@@ -8,6 +8,20 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Écran « Agenda » du backoffice : les sessions programmées d'une salle, jour par jour, dans le fuseau de la salle, avec les créneaux libres de la grille, l'ouverture, l'annulation confirmée et l'accès au détail.
+  US: US-SESSION-01 (#142)
+
+- Sessions programmées, côté serveur : une partie se crée à l'avance avec `scheduledAt` (statut `scheduled`, joueurs facultatifs), se modifie (`PATCH`), s'ouvre (`POST …/open`) et s'annule (`POST …/cancel`). Deux sessions ne peuvent pas se chevaucher dans une salle (`slot_taken`). L'annulation efface les e-mails des joueurs. La suppression d'une salle annule ses sessions à venir. La liste des parties filtre sur la date prévue et rend les champs de session.
+  US: US-SESSION-02 (#142)
+
+- Écran de réglage des créneaux d'une salle, ouvert depuis la liste des salles (admin et superadmin) : fuseau, jours et heures d'ouverture, durée de créneau, pause, pupitres réservables, réservation publique, avec aperçu des créneaux de chaque jour de la semaine type, enregistrement et désactivation après confirmation.
+  US: US-SESSION-01 (#142)
+
+- Journaux des salles : l'écran de salle envoie ses erreurs au backoffice (`POST /room/logs`, table `room_logs`, erreurs regroupées, e-mails masqués, contexte limité à une liste blanche, 6 envois par minute et par salle). Lecture par le superadmin et l'admin : `GET /companies/:companyId/rooms/:roomId/logs`. Conservation : `ROOM_LOG_RETENTION_DAYS` jours (30 par défaut) et 5000 lignes par salle. L'écran du backoffice viendra dans un lot suivant.
+  US: US-LOG-01 (#157)
+- Écran d'import de questions par fichier CSV, accessible depuis la liste des questions (admin et superadmin) : modèle téléchargeable, vérification à blanc avec rapport par ligne, import confirmé seulement si la vérification ne trouve aucune erreur.
+  US: US-IMPORT-01 (#158)
+
 - Logo du centre : envoi, remplacement et retrait depuis la fiche de la compagnie (`PUT` et `DELETE /companies/:companyId/logo`, PNG, JPEG ou WebP, 512 Ko au plus, type vérifié sur les premiers octets, SVG refusé). Le logo est servi par `GET /public/v1/logos/:file` et exposé par `logoUrl` dans `/room/me` et les routes des compagnies.
   US: US-RESULTS-01 (#156)
 - Réglages de créneaux d'une salle : `PUT /companies/:companyId/rooms/:roomId/schedule` (admin et superadmin) écrit `rooms.schedule` (fuseau, durée de créneau, pause, pupitres réservables, heures d'ouverture par jour). `null` remet la salle sans créneaux. Le champ `schedule` est renvoyé par les routes des salles et par `/room/me`.
@@ -335,6 +349,12 @@ Format inspiré de Keep a Changelog.
 
 - Vitrine : le formulaire de démonstration envoie ses champs sous les noms attendus par `POST /public/v1/demo-requests` (`centerName`, `roomsCount`), respecte les bornes du serveur (50 salles, centre sur 160 caractères, message facultatif) et signale sous chaque champ ceux que le serveur refuse.
   US: US-SITE-01 (#133)
+- Sécurité lumière : avertissement non bloquant quand un canal `shutter` ou `fixed` est réglé dans la plage stroboscope de l'appareil (`strobeRange`, facultatif, à saisir sur un profil sur mesure) ; stroboscope du Diagnostic plafonné en vitesse et coupé après 3 secondes. Non validé sur du vrai matériel (banc, cas D10).
+  US: US-SEC-05 (#152)
+- Sécurité : l'écran de salle n'arme la fumée activée par la configuration du serveur que si un test de coupure réussi est mémorisé sur ce poste, pour cette salle et ces réglages de fumée ; sinon aucun jet ne part et un message demande de refaire le test. Un test relancé efface la preuve jusqu'à sa réussite. Non validé sur du vrai matériel (banc, cas F9).
+  US: US-SEC-04 (#152)
+- Import CSV : le message d'erreur sur la colonne des bonnes réponses était tronqué, le caractère `|` étant lu comme un séparateur de pluriel par la traduction.
+  US: US-IMPORT-01 (#158)
 
 - Sécurité : la mise en pause d'une partie coupe aussitôt tout jet de fumée en cours (trame à 0 envoyée tout de suite) et refuse tout nouveau jet pendant la pause, y compris l'étape fumée d'une scène déjà lancée, le test manuel et le test de gel. Les lumières continuent ; l'étape fumée manquée n'est pas rejouée à la reprise. L'arrêt d'une partie ramène toujours les lumières au repos. Non validé sur du vrai matériel (banc, cas F8).
 - Sécurité (photosensibilité) : dans toute la salle, deux éclairs des scènes lumière sont séparés d'au moins 0,4 s, mesuré sur le niveau réellement émis. Les cadences par défaut sont ralenties (buzz, bonne et mauvaise réponses, victoires, début de partie, nouvelle manche, fin de manche) et un éclair trop rapproché est retardé, y compris à la jonction de deux scènes. Non couverts, traités dans un lot à part : appareils à stroboscope intégré (`shutter`, canaux `fixed`), diagnostics, stroboscopes pilotés par une liste. Non validé sur du vrai matériel.
