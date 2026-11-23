@@ -227,8 +227,10 @@ const roomOptions = computed<SelectFieldOption[]>(() =>
 watch(
   activeRooms,
   (rooms) => {
-    if (!form.roomId && rooms.length === 1) {
-      form.roomId = String(rooms[0].id)
+    const [onlyRoom] = rooms
+
+    if (!form.roomId && rooms.length === 1 && onlyRoom) {
+      form.roomId = String(onlyRoom.id)
     }
   },
   { immediate: true }
@@ -251,13 +253,15 @@ watch(desksCount, (count) => {
   }))
   const removedIndexes = fitGameParticipantsToDesks(form.participants, count)
   const removed = removedIndexes
-    .map((index) => {
-      return describeParticipant(form.participants[index], index)
+    .flatMap((index) => {
+      const participant = form.participants[index]
+
+      return participant ? [describeParticipant(participant, index)] : []
     })
     .reverse()
   const moved = form.participants
     .map((participant, index) => ({ participant, index }))
-    .filter(({ participant, index }) => participant.podium !== before[index].podium)
+    .filter(({ participant, index }) => participant.podium !== before[index]?.podium)
     .filter(({ index }) => !removedIndexes.includes(index))
     .map(({ participant, index }) => describeParticipant(participant, index))
 
