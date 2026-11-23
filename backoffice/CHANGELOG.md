@@ -269,6 +269,9 @@ Format inspiré de Keep a Changelog.
 
 ### Fixed
 
+- Sécurité : le backoffice ne peut plus activer ni régler la machine à fumée d'une salle (`lighting.smoke`). `PATCH` et création de salle refusent avec 403 `smoke_config_forbidden` ; seule la coupure (`enabled` de vrai à faux) reste permise. Le réglage se fait uniquement sur place, depuis l'écran de salle. Le `PATCH` d'une salle répond 409 `room_config_conflict` si sa configuration a changé entre-temps.
+  US: US-SEC-03 (#152)
+
 - Droits d'un admin de compagnie : il n'obtient plus de 403 (`forbidden`, `question_theme_forbidden`) sur
   ses propres thèmes et peut de nouveau créer des questions. Cause : `pg` renvoyait les `bigint`
   (ids, `company_id`) en chaîne, donc `"10" === 10` (JWT / session) était faux dans les contrôles de

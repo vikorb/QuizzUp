@@ -850,6 +850,10 @@ paths:
 
         Crée une salle active. La configuration matérielle est vide par défaut.
 
+        Sécurité : une configuration qui active la machine à fumée (`lighting.smoke.enabled` à
+        `true`) est refusée (403 `smoke_config_forbidden`), pour tous les rôles. La fumée ne
+        s'active et ne se règle que sur place, depuis l'écran de salle.
+
         Accès : superadmin (toutes les compagnies) et `admin` de la compagnie.
       operationId: createCompanyRoom
       x-availability: disponible
@@ -879,7 +883,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ValidationError'
         '403':
-          description: Accès interdit
+          description: Accès interdit, ou fumée activée dans la configuration (`smoke_config_forbidden`)
           content:
             application/json:
               schema:
@@ -948,7 +952,18 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Modifie le nom et/ou la configuration matérielle.
+        Modifie le nom et/ou la configuration matérielle (la configuration envoyée remplace la
+        précédente).
+
+        Sécurité : le backoffice ne peut ni activer ni régler la machine à fumée. Le `config` reçu est
+        refusé (403 `smoke_config_forbidden`, tous rôles, superadmin compris) s'il change
+        `lighting.smoke` par rapport à la configuration stockée, sauf pour passer `enabled` de `true` à
+        `false` (couper la fumée) en gardant les autres réglages identiques. Une partie fumée
+        identique, ou l'absence de `config`, passe. Seul le compte de salle (`PUT /room/config`)
+        règle la fumée, sur place.
+
+        La configuration n'est écrite que si elle n'a pas changé depuis la lecture faite pour cette
+        vérification (409 `room_config_conflict` sinon : recharger puis réessayer).
 
         Accès : superadmin (toutes les compagnies) et `admin` de la compagnie.
       operationId: updateCompanyRoom
@@ -980,7 +995,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ValidationError'
         '403':
-          description: Accès interdit
+          description: Accès interdit, ou réglage de fumée modifié ou activé (`smoke_config_forbidden`)
           content:
             application/json:
               schema:
@@ -992,7 +1007,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: Nom de salle déjà utilisé dans la compagnie (`room_name_already_exists`) ou compagnie supprimée (`company_deleted`)
+          description: Nom de salle déjà utilisé dans la compagnie (`room_name_already_exists`), compagnie supprimée (`company_deleted`) ou configuration modifiée entre-temps (`room_config_conflict`)
           content:
             application/json:
               schema:

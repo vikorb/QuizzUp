@@ -53,6 +53,8 @@
       "errors": {
         "room_name_already_exists": "A room with this name already exists in this company.",
         "company_deleted": "A room cannot be added to a deleted company.",
+        "smoke_config_forbidden": "The smoke machine cannot be enabled or adjusted from the backoffice: this is done on site, from the room screen.",
+        "room_config_conflict": "The room configuration has just changed. Reload the page and try again.",
         "invalid_body": "The submitted information is invalid.",
         "invalid_params": "Invalid parameters.",
         "forbidden": "You do not have the required permissions.",
