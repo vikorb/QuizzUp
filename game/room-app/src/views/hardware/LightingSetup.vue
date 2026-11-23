@@ -182,6 +182,7 @@ const TEST_SCENES = [
   SCENE_IDS.WRONG,
   SCENE_IDS.LOST,
   SCENE_IDS.VICTORY,
+  SCENE_IDS.VICTORY_TIE,
 ] as const
 
 const { t } = useI18n()

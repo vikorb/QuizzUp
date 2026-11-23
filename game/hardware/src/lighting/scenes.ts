@@ -87,8 +87,33 @@ export const SCENE_IDS = {
   LOST: 'question-lost',
   ROUND_END: 'round-end',
   VICTORY: 'victory',
+  VICTORY_TIE: 'victory-tie',
   IDENTIFY: 'identify',
 } as const
+
+/**
+ * Sécurité (personnes photosensibles) : la salle ne fait pas plus de 3 éclairs par seconde, quelle
+ * que soit la scène (par défaut ou réglée par une salle). Seuil de référence ; l'écart réellement
+ * appliqué est `MIN_FLASH_INTERVAL_MS`.
+ *
+ * Définition d'un éclair : le niveau réel d'un appareil (intensité × plus forte composante de
+ * couleur, de 0 à 1) remonte d'au moins `FLASH_RISE_LEVEL` au-dessus du minimum atteint depuis le
+ * dernier éclair compté. Une montée continue (fondu) compte pour un seul éclair. Plusieurs
+ * appareils qui s'allument au même instant comptent pour un seul éclair de la salle.
+ *
+ * Réglages à confirmer sur le banc matériel (`docs/recette/banc-materiel.md`).
+ */
+export const MAX_FLASHES_PER_SECOND = 3
+
+/**
+ * Écart minimal entre deux éclairs de la salle, en ms. 3 éclairs par seconde donnent 334 ms ; on
+ * garde 400 ms de marge pour la latence d'émission (USB ou Art-Net), qui décale les trames : à
+ * mesurer sur le banc.
+ */
+export const MIN_FLASH_INTERVAL_MS = 400
+
+/** Montée de niveau (0 à 1) qui fait un éclair. */
+export const FLASH_RISE_LEVEL = 0.1
 
 const AMBIENT = NEON.primary
 
@@ -104,7 +129,7 @@ export const DEFAULT_SCENES: readonly SceneDefinition[] = [
     name: 'Début de partie',
     priority: 20,
     steps: [
-      { type: 'flash', color: NEON.violet, count: 3, onMs: 150, offMs: 100, aim: 'home' },
+      { type: 'flash', color: NEON.violet, count: 2, onMs: 150, offMs: 250, aim: 'home' },
       { type: 'color', color: NEON.blue, fadeMs: 600, holdMs: 400 },
       { type: 'color', color: AMBIENT, intensity: 0.4, fadeMs: 1200 },
     ],
@@ -114,7 +139,7 @@ export const DEFAULT_SCENES: readonly SceneDefinition[] = [
     name: 'Nouvelle manche',
     priority: 20,
     steps: [
-      { type: 'flash', color: NEON.cyan, count: 2, onMs: 150, offMs: 100, aim: 'home' },
+      { type: 'flash', color: NEON.cyan, count: 2, onMs: 150, offMs: 250, aim: 'home' },
       { type: 'color', color: AMBIENT, intensity: 0.4, fadeMs: 800 },
     ],
   },
@@ -142,10 +167,21 @@ export const DEFAULT_SCENES: readonly SceneDefinition[] = [
   {
     id: SCENE_IDS.BUZZ,
     name: 'Buzz',
-    priority: 30,
+    // Au niveau des réponses : un buzz juste après une mauvaise réponse (autre pupitre, ou le
+    // même) ne doit pas être refusé par `answer-wrong`.
+    priority: 40,
     steps: [
       { type: 'color', target: 'others', color: AMBIENT, intensity: 0.1, fadeMs: 100 },
-      { type: 'flash', target: 'desk', color: 'desk', count: 3, onMs: 80, offMs: 60, aim: 'desk' },
+      // Un seul éclair puis le pupitre reste allumé : le plafond impose 400 ms entre les deux.
+      {
+        type: 'flash',
+        target: 'desk',
+        color: 'desk',
+        count: 1,
+        onMs: 120,
+        offMs: 280,
+        aim: 'desk',
+      },
       { type: 'color', target: 'desk', color: 'desk' },
     ],
   },
@@ -158,9 +194,9 @@ export const DEFAULT_SCENES: readonly SceneDefinition[] = [
         type: 'flash',
         target: 'desk',
         color: NEON.ok,
-        count: 3,
-        onMs: 120,
-        offMs: 80,
+        count: 2,
+        onMs: 140,
+        offMs: 260,
         aim: 'desk',
       },
       { type: 'color', target: 'desk', color: NEON.ok, holdMs: 1500 },
@@ -172,7 +208,7 @@ export const DEFAULT_SCENES: readonly SceneDefinition[] = [
     name: 'Mauvaise réponse',
     priority: 40,
     steps: [
-      { type: 'flash', target: 'desk', color: NEON.danger, count: 2, onMs: 200, offMs: 120 },
+      { type: 'flash', target: 'desk', color: NEON.danger, count: 2, onMs: 200, offMs: 200 },
       { type: 'color', target: 'desk', color: NEON.danger, intensity: 0.6, holdMs: 600 },
       // Les autres joueurs peuvent encore buzzer : retour à l'ambiance « extrait ».
       { type: 'color', color: NEON.primary, intensity: 0.55, fadeMs: 400, aim: 'home' },
@@ -192,7 +228,7 @@ export const DEFAULT_SCENES: readonly SceneDefinition[] = [
     name: 'Fin de manche',
     priority: 20,
     steps: [
-      { type: 'flash', color: NEON.violet, count: 2, onMs: 200, offMs: 120, aim: 'home' },
+      { type: 'flash', color: NEON.violet, count: 2, onMs: 200, offMs: 200, aim: 'home' },
       { type: 'color', color: AMBIENT, intensity: 0.35, fadeMs: 800 },
     ],
   },
@@ -207,12 +243,27 @@ export const DEFAULT_SCENES: readonly SceneDefinition[] = [
         type: 'flash',
         target: 'desk',
         color: NEON.warn,
-        count: 6,
-        onMs: 100,
-        offMs: 80,
+        count: 3,
+        onMs: 120,
+        offMs: 280,
         aim: 'desk',
       },
       { type: 'color', target: 'desk', color: NEON.warn, holdMs: 4_000 },
+      { type: 'color', color: AMBIENT, intensity: 0.3, fadeMs: 1500, aim: 'home' },
+    ],
+  },
+  {
+    // Égalité en tête : pas de pupitre à mettre en avant, toute la salle fête. La fumée garde le
+    // même passage par le contrôleur sécurisé que la victoire. Cadence des flashs plus lente que
+    // celle de `victory` (2,3 éclairs/s contre 2,5), et palier fixe moins fort (0,6).
+    id: SCENE_IDS.VICTORY_TIE,
+    name: 'Victoire à égalité',
+    priority: 50,
+    steps: [
+      { type: 'color', color: NEON.warn, intensity: 0.2, fadeMs: 300 },
+      { type: 'smoke', durationMs: 3_000 },
+      { type: 'flash', color: NEON.warn, count: 3, onMs: 150, offMs: 290, aim: 'home' },
+      { type: 'color', color: NEON.warn, intensity: 0.6, holdMs: 4_000 },
       { type: 'color', color: AMBIENT, intensity: 0.3, fadeMs: 1500, aim: 'home' },
     ],
   },
@@ -235,6 +286,8 @@ export const DEFAULT_BINDINGS: Readonly<Record<string, string>> = Object.fromEnt
   ['question_lost', SCENE_IDS.LOST],
   ['round_ended', SCENE_IDS.ROUND_END],
   ['game_ended', SCENE_IDS.VICTORY],
+  // Clé dérivée de `game_ended` quand plusieurs pupitres gagnent (cf. `resolveEvent`).
+  ['game_ended_tie', SCENE_IDS.VICTORY_TIE],
   ['game_aborted', SCENE_IDS.IDLE],
 ])
 
@@ -251,13 +304,18 @@ export function identifyScene(fixtureId: string): SceneDefinition {
   }
 }
 
+/** Période d'un flash, jamais sous `MIN_FLASH_INTERVAL_MS` (l'éteint est allongé au besoin). */
+export function flashPeriodMs(step: Extract<SceneStep, { type: 'flash' }>): number {
+  return Math.max(MIN_FLASH_INTERVAL_MS, Math.max(0, step.onMs) + Math.max(0, step.offMs))
+}
+
 export function stepDuration(step: SceneStep): number {
   switch (step.type) {
     case 'color':
     case 'blackout':
       return Math.max(0, step.fadeMs ?? 0) + Math.max(0, step.holdMs ?? 0)
     case 'flash':
-      return Math.max(0, step.count) * (Math.max(0, step.onMs) + Math.max(0, step.offMs))
+      return Math.max(0, step.count) * flashPeriodMs(step)
     case 'wait':
       return Math.max(0, step.durationMs)
     default:

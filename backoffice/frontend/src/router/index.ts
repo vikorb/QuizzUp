@@ -11,6 +11,7 @@ import CreateClientView from '@/views/clients/CreateClientView.vue'
 import ClientsView from '@/views/ClientsView.vue'
 import CreateGameView from '@/views/games/CreateGameView.vue'
 import GameDetailView from '@/views/games/GameDetailView.vue'
+import GameResultsView from '@/views/games/results/GameResultsView.vue'
 import GamesView from '@/views/GamesView.vue'
 import HomeView from '@/views/HomeView.vue'
 import LoginView from '@/views/LoginView.vue'
@@ -183,6 +184,13 @@ export const router = createRouter({
           meta: { requiresAuth: true },
         },
       ],
+    },
+    // Hors de NavbarView : aucune barre de navigation à masquer à l'impression.
+    {
+      path: '/games/:gameId/results',
+      name: 'games-results',
+      component: GameResultsView,
+      meta: { requiresAuth: true },
     },
   ],
 })
