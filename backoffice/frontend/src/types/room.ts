@@ -1,4 +1,4 @@
-import type { RoomStatus as SharedRoomStatus } from '@quizzup/shared'
+import type { RoomLog, RoomLogLevel, RoomStatus as SharedRoomStatus } from '@quizzup/shared'
 
 export type RoomStatus = SharedRoomStatus
 
@@ -87,4 +87,15 @@ export type RoomAccountFieldErrors = {
   username?: string
   password?: string
   passwordConfirm?: string
+}
+
+/** US-LOG-01 : journaux d'erreurs remontés par l'écran de salle, du plus récent au plus ancien. */
+export type RoomLogsResponse = {
+  logs: RoomLog[]
+}
+
+/** `before` : id de la dernière entrée déjà reçue (pagination par curseur). */
+export type RoomLogsQuery = {
+  level?: RoomLogLevel
+  before?: number
 }

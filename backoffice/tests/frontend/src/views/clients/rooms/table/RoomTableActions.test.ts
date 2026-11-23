@@ -35,7 +35,7 @@ function mountActions(item = toRoomTableRow(roomsFixture[0]), stubs: Record<stri
   })
 }
 
-type RowAction = 'account' | 'edit' | 'delete'
+type RowAction = 'account' | 'logs' | 'edit' | 'delete'
 
 function actionButton(wrapper: ReturnType<typeof mountWithFrontendMocks>, action: RowAction) {
   return wrapper.find(`[data-test="ui-button"].icon-${action}`)
@@ -71,6 +71,27 @@ describe('views/clients/rooms/table/RoomTableActions.vue', () => {
     await actionButton(wrapper, 'account').trigger('click')
 
     expect(wrapper.emitted('account')).toBeUndefined()
+  })
+
+  it('emits logs with the room id to open the error logs panel', async () => {
+    const wrapper = mountActions()
+
+    expect(actionButton(wrapper, 'logs').attributes('aria-label')).toBe('rooms.table.actions.logs')
+
+    await actionButton(wrapper, 'logs').trigger('click')
+
+    expect(wrapper.emitted('logs')).toEqual([[1]])
+    expect(wrapper.emitted('account')).toBeUndefined()
+  })
+
+  it('disables the logs action for deleted rooms', async () => {
+    const wrapper = mountActions(toRoomTableRow(roomsFixture[2]))
+
+    expect(actionButton(wrapper, 'logs').attributes('disabled')).toBeDefined()
+
+    await actionButton(wrapper, 'logs').trigger('click')
+
+    expect(wrapper.emitted('logs')).toBeUndefined()
   })
 
   it('confirms and soft-deletes a room', async () => {

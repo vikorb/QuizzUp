@@ -35,6 +35,14 @@
       @close="closeAccountPanel"
     />
 
+    <RoomLogsPanel
+      v-if="canManageRooms && logsRoom"
+      :key="`logs-${logsRoom.id}`"
+      :company-id="companyId"
+      :room="logsRoom"
+      @close="closeLogsPanel"
+    />
+
     <RoomsTable
       :company-id="companyId"
       :rooms="filteredRooms"
@@ -45,6 +53,7 @@
       @deleted="handleRoomDeleted"
       @edit="handleEditRoom"
       @account="handleManageRoomAccount"
+      @logs="handleShowRoomLogs"
       @error="handleTableError"
       @retry="loadRooms"
     />
@@ -85,6 +94,7 @@ import { clearTimer, scheduleTimer } from '@/utils/timer'
 
 import RoomAccountPanel from '../../rooms/RoomAccountPanel.vue'
 import RoomForm from '../../rooms/RoomForm.vue'
+import RoomLogsPanel from '../../rooms/RoomLogsPanel.vue'
 import RoomsTable from '../../rooms/RoomsTable.vue'
 import RoomsToolBar from '../../rooms/RoomsToolBar.vue'
 
@@ -110,6 +120,7 @@ const statusFilter = ref<RoomStatusFilter>(DEFAULT_ROOM_STATUS_FILTER)
 const formMode = ref<RoomFormMode | null>(null)
 const editedRoomId = ref<number | null>(null)
 const accountRoomId = ref<number | null>(null)
+const logsRoomId = ref<number | null>(null)
 const actionBanner = ref<ActionBanner | null>(null)
 const actionBannerTimer = ref<TimerHandle | null>(null)
 const actionBannerVariant = computed(() => getBannerVariant(actionBanner.value))
@@ -126,6 +137,17 @@ const accountRoom = computed(() => {
   }
 
   const room = findRoomById(rooms.value, accountRoomId.value)
+
+  return room && !isRoomDeleted(room.status) ? room : null
+})
+
+// Journaux : même règle que le compte, une salle supprimée n'a plus de panneau (US-LOG-01).
+const logsRoom = computed(() => {
+  if (logsRoomId.value === null) {
+    return null
+  }
+
+  const room = findRoomById(rooms.value, logsRoomId.value)
 
   return room && !isRoomDeleted(room.status) ? room : null
 })
@@ -170,11 +192,16 @@ function closeAccountPanel(): void {
   accountRoomId.value = null
 }
 
+function closeLogsPanel(): void {
+  logsRoomId.value = null
+}
+
 function resetSection(): void {
   rooms.value = []
   roomsErrorCode.value = null
   closeForm()
   closeAccountPanel()
+  closeLogsPanel()
   clearActionBanner()
 }
 
@@ -222,6 +249,7 @@ function handleCreateRoom(): void {
   }
 
   closeAccountPanel()
+  closeLogsPanel()
   editedRoomId.value = null
   formMode.value = 'create'
 }
@@ -236,6 +264,7 @@ function handleEditRoom(roomId: number): void {
   }
 
   closeAccountPanel()
+  closeLogsPanel()
   editedRoomId.value = roomId
   formMode.value = 'edit'
 }
@@ -253,7 +282,25 @@ function handleManageRoomAccount(roomId: number): void {
   }
 
   closeForm()
+  closeLogsPanel()
   accountRoomId.value = roomId
+}
+
+// Journaux : réservés à ceux qui gèrent les salles (admin, superadmin), comme `roomLog:list` côté API.
+function handleShowRoomLogs(roomId: number): void {
+  if (!props.canShowRoomsSection || !props.canManageRooms) {
+    return
+  }
+
+  const room = findRoomById(rooms.value, roomId)
+
+  if (!room || isRoomDeleted(room.status)) {
+    return
+  }
+
+  closeForm()
+  closeAccountPanel()
+  logsRoomId.value = roomId
 }
 
 function handleRoomAccountCreated(account: RoomAccount): void {
@@ -308,6 +355,10 @@ function handleRoomDeleted(roomId: number): void {
     closeAccountPanel()
   }
 
+  if (logsRoomId.value === roomId) {
+    closeLogsPanel()
+  }
+
   // Hors superadmin, l'API ne renvoie plus les salles supprimées : on aligne la liste locale.
   if (!props.canSeeDeletedRooms) {
     rooms.value = removeRoomFromList(rooms.value, roomId)
@@ -342,6 +393,7 @@ watch(
     if (!canManage) {
       closeForm()
       closeAccountPanel()
+      closeLogsPanel()
     }
   }
 )

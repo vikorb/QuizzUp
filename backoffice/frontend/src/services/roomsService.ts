@@ -5,6 +5,8 @@ import type {
   DeleteRoomAccountResponse,
   LoadCompanyRoomsResponse,
   RoomAccountResponse,
+  RoomLogsQuery,
+  RoomLogsResponse,
   RoomResponse,
   RoomStatus,
   UpdateRoomPayload,
@@ -101,6 +103,27 @@ export function createRoomAccountService(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(payload),
+  })
+}
+
+/** US-LOG-01 : journaux d'erreurs de la salle (admin et superadmin), plus récents d'abord. */
+export function loadRoomLogsService(companyId: number, roomId: number, query: RoomLogsQuery = {}) {
+  const params = new URLSearchParams()
+
+  if (query.level) {
+    params.set('level', query.level)
+  }
+
+  if (query.before !== undefined) {
+    params.set('before', String(query.before))
+  }
+
+  const queryString = params.toString()
+
+  return apiRequestJson<RoomLogsResponse>({
+    path: `/companies/${companyId}/rooms/${roomId}/logs${queryString ? `?${queryString}` : ''}`,
+    method: 'GET',
+    authenticated: true,
   })
 }
 

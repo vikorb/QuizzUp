@@ -1,10 +1,15 @@
 import {
+  ROOM_LOG_LEVEL_ERROR,
+  ROOM_LOG_LEVEL_WARN,
   ROOM_STATUS_ACTIVE,
   ROOM_STATUS_DELETED,
   ROOM_STATUS_INACTIVE,
+  type RoomLog,
   type RoomStatus,
 } from '@quizzup/shared'
 import { vi } from 'vitest'
+
+import type { RoomLogsQuery } from '@/types/room'
 
 export type RoomMock = {
   id: number
@@ -270,6 +275,64 @@ export function mockDeleteRoomAccountFailure(error = 'server_error'): void {
   })
 }
 
+export type RoomLogsResult =
+  | {
+      ok: true
+      data: {
+        logs: RoomLog[]
+      }
+    }
+  | ServiceErrorResult
+
+export function createRoomLogFixture(overrides: Partial<RoomLog> = {}): RoomLog {
+  return {
+    id: 10,
+    level: ROOM_LOG_LEVEL_ERROR,
+    code: 'dmx_output_error',
+    message: 'Sortie DMX indisponible',
+    context: { driver: 'usb', desk: 2 },
+    appVersion: '1.4.0',
+    occurrences: 1,
+    occurredAt: '2026-11-20T18:30:00.000Z',
+    createdAt: '2026-11-20T18:31:00.000Z',
+    ...overrides,
+  }
+}
+
+export const roomLogsFixture: RoomLog[] = [
+  createRoomLogFixture({ id: 12, occurrences: 7 }),
+  createRoomLogFixture({
+    id: 11,
+    level: ROOM_LOG_LEVEL_WARN,
+    code: 'gamepad_lost',
+    message: 'Manette perdue',
+    context: null,
+  }),
+]
+
+async function defaultLoadRoomLogs(
+  _companyId: number,
+  _roomId: number,
+  _query?: RoomLogsQuery
+): Promise<RoomLogsResult> {
+  return {
+    ok: true,
+    data: {
+      logs: roomLogsFixture,
+    },
+  }
+}
+
+export const loadRoomLogsServiceMock = vi.fn(defaultLoadRoomLogs)
+
+export function mockLoadRoomLogsSuccess(logs: RoomLog[] = roomLogsFixture): void {
+  loadRoomLogsServiceMock.mockResolvedValue({ ok: true, data: { logs } })
+}
+
+export function mockLoadRoomLogsFailure(error = 'server_error'): void {
+  loadRoomLogsServiceMock.mockResolvedValue({ ok: false, error })
+}
+
 export const loadCompanyRoomsServiceMock = vi.fn(defaultLoadCompanyRooms)
 export const loadCompanyRoomServiceMock = vi.fn(defaultLoadCompanyRoom)
 export const createCompanyRoomServiceMock = vi.fn(defaultCreateCompanyRoom)
@@ -331,7 +394,9 @@ export function resetRoomsServiceMock(): void {
   loadRoomAccountServiceMock.mockReset()
   createRoomAccountServiceMock.mockReset()
   deleteRoomAccountServiceMock.mockReset()
+  loadRoomLogsServiceMock.mockReset()
 
+  loadRoomLogsServiceMock.mockImplementation(defaultLoadRoomLogs)
   loadRoomAccountServiceMock.mockImplementation(defaultLoadRoomAccount)
   createRoomAccountServiceMock.mockImplementation(defaultCreateRoomAccount)
   deleteRoomAccountServiceMock.mockImplementation(defaultDeleteRoomAccount)
