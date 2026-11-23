@@ -82,6 +82,42 @@ describe('routes/companies/id.ts', () => {
     await app.close()
   })
 
+  it('exposes the logo as a public url, never as a storage key', async () => {
+    Object.assign(dbState.companies[0] ?? {}, {
+      logo_key: 'logos/11111111-1111-4111-8111-111111111111.webp',
+    })
+    const app = await createRouteApp(companiesIdRoutes)
+
+    const read = await app.inject({
+      method: 'GET',
+      url: '/companies/1',
+      headers: authHeaders(superadminUser),
+    })
+    const patched = await app.inject({
+      method: 'PATCH',
+      url: '/companies/1',
+      headers: authHeaders(superadminUser),
+      payload: { name: 'QuizzUp bis' },
+    })
+    const withoutLogo = await app.inject({
+      method: 'GET',
+      url: '/companies/2',
+      headers: authHeaders(superadminUser),
+    })
+
+    for (const response of [read, patched]) {
+      expect(parseJson<{ company: Record<string, unknown> }>(response).company).toMatchObject({
+        logoUrl: '/public/v1/logos/11111111-1111-4111-8111-111111111111.webp',
+      })
+      expect(response.body).not.toContain('logoKey')
+      expect(response.body).not.toContain('logo_key')
+    }
+
+    expect(parseJson<{ company: Record<string, unknown> }>(withoutLogo).company.logoUrl).toBeNull()
+
+    await app.close()
+  })
+
   it('rejects empty update payloads', async () => {
     const app = await createRouteApp(companiesIdRoutes)
 
