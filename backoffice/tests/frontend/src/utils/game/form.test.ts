@@ -86,9 +86,14 @@ describe('utils/game/form', () => {
       expect(createDefaultGameFormValues().miniGames).toEqual([...MINI_GAMES])
     })
 
-    it('never pre-ticks the GDPR consent', () => {
-      expect(createDefaultGameFormValues().participants[0].emailConsent).toBe(false)
+    it('never pre-ticks the GDPR consents, retention or offers', () => {
+      const first = createDefaultGameFormValues().participants[0]
+
+      expect(first.emailConsent).toBe(false)
+      expect(first.marketingConsent).toBe(false)
+      expect(first.secondMarketingConsent).toBe(false)
       expect(createGameParticipantFormValues(3).emailConsent).toBe(false)
+      expect(createGameParticipantFormValues(3).marketingConsent).toBe(false)
     })
 
     it('gives each participant a unique key', () => {
@@ -361,10 +366,51 @@ describe('utils/game/form', () => {
         roundsCount: 5,
         questionsPerRound: 8,
         participants: [
-          { podium: 1, displayName: 'Team A', email: 'a@quizzup.test', emailConsent: true },
+          {
+            podium: 1,
+            displayName: 'Team A',
+            email: 'a@quizzup.test',
+            emailConsent: true,
+            marketingConsent: false,
+          },
           { podium: 3, displayName: 'Team C' },
         ],
       })
+    })
+
+    it('sends the offers consent apart from the email consent, only with an email', () => {
+      const payload = buildCreateGamePayload(
+        validForm({
+          participants: [
+            participant({
+              podium: '1',
+              email: 'a@quizzup.test',
+              emailConsent: true,
+              marketingConsent: true,
+            }),
+            participant({ podium: '2', email: '', marketingConsent: true }),
+          ],
+        })
+      )
+
+      expect(payload.participants).toEqual([
+        {
+          podium: 1,
+          displayName: 'Team A',
+          email: 'a@quizzup.test',
+          emailConsent: true,
+          marketingConsent: true,
+        },
+        { podium: 2, displayName: 'Team A' },
+      ])
+    })
+
+    it('does not require the offers consent, even with an email', () => {
+      const entered = participant({ email: 'a@quizzup.test', emailConsent: true })
+
+      expect(hasGameFormErrors(validateGameForm(validForm({ participants: [entered] })))).toBe(
+        false
+      )
     })
 
     it('omits miniGames when every mini-game is ticked (= all, future ones included)', () => {
@@ -408,6 +454,7 @@ describe('utils/game/form', () => {
 
       expect(entered.hasSecondPlayer).toBe(false)
       expect(entered.secondEmailConsent).toBe(false)
+      expect(entered.secondMarketingConsent).toBe(false)
 
       openGameSecondPlayer(entered)
       expect(entered.hasSecondPlayer).toBe(true)
@@ -416,6 +463,7 @@ describe('utils/game/form', () => {
         secondDisplayName: 'Alex',
         secondEmail: 'alex@quizzup.test',
         secondEmailConsent: true,
+        secondMarketingConsent: true,
       })
       closeGameSecondPlayer(entered)
 
@@ -424,6 +472,7 @@ describe('utils/game/form', () => {
         secondDisplayName: '',
         secondEmail: '',
         secondEmailConsent: false,
+        secondMarketingConsent: false,
       })
     })
 
@@ -497,6 +546,7 @@ describe('utils/game/form', () => {
               secondDisplayName: '  Alex  ',
               secondEmail: ' alex@quizzup.test ',
               secondEmailConsent: true,
+              secondMarketingConsent: true,
             }),
           ],
         })
@@ -510,6 +560,7 @@ describe('utils/game/form', () => {
             displayName: 'Alex',
             email: 'alex@quizzup.test',
             emailConsent: true,
+            marketingConsent: true,
           },
         },
       ])

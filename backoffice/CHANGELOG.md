@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Consentement aux offres du centre séparé de la conservation de l'e-mail : deux cases distinctes à la création d'une partie, jamais pré-cochées, la seconde inactive sans e-mail. Nouvelles colonnes `marketing_consent_at` et `second_marketing_consent_at` sur `game_participants`, horodatées par le serveur et effacées par la purge à 3 ans. L'API renvoie `marketingConsent` et refuse un consentement sans e-mail (400 `marketing_consent_requires_email`).
+  US: US-JOIN-01 (#166)
+
 - Site vitrine public (`vitrine/`) : accueil avec des captures réelles de l'écran de salle, demande
   de démonstration, mentions légales, confidentialité, page 404. Site statique Vite, sans cookie ni
   script tiers ; nom, domaine et coordonnées lus dans `vitrine/site.config.ts` (valeurs légales à

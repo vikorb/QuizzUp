@@ -1,6 +1,13 @@
 import type { GameApiErrorCode } from '@/types/game'
 
 const GAME_EMAIL_CONSENT_REQUIRED = 'email_consent_required' as const
+const GAME_MARKETING_REQUIRES_EMAIL = 'marketing_consent_requires_email' as const
+
+// Détails de validation (zod) que l'on remonte comme codes d'erreur à part entière.
+const GAME_VALIDATION_DETAIL_CODES = [
+  GAME_EMAIL_CONSENT_REQUIRED,
+  GAME_MARKETING_REQUIRES_EMAIL,
+] as const
 
 const GAME_API_ERROR_CODES: GameApiErrorCode[] = [
   'missing_token',
@@ -18,7 +25,7 @@ const GAME_API_ERROR_CODES: GameApiErrorCode[] = [
   'company_deleted',
   'company_inactive',
   'game_already_over',
-  GAME_EMAIL_CONSENT_REQUIRED,
+  ...GAME_VALIDATION_DETAIL_CODES,
   'conflict',
   'server_error',
 ]
@@ -51,7 +58,8 @@ function containsMessage(value: unknown, message: string): boolean {
 
 /**
  * Lit le code d'erreur d'une réponse de l'API des parties. Un `invalid_body` dont les
- * détails contiennent `email_consent_required` est remonté comme tel (règle RGPD).
+ * détails contiennent `email_consent_required` ou `marketing_consent_requires_email` est
+ * remonté comme tel (règles RGPD).
  */
 export function readGameApiError(payload: unknown): GameApiErrorCode | null {
   if (!payload || typeof payload !== 'object') {
@@ -60,8 +68,12 @@ export function readGameApiError(payload: unknown): GameApiErrorCode | null {
 
   const { error, details } = payload as { error?: unknown; details?: unknown }
 
-  if (error === 'invalid_body' && containsMessage(details, GAME_EMAIL_CONSENT_REQUIRED)) {
-    return GAME_EMAIL_CONSENT_REQUIRED
+  if (error === 'invalid_body') {
+    const detail = GAME_VALIDATION_DETAIL_CODES.find((code) => containsMessage(details, code))
+
+    if (detail) {
+      return detail
+    }
   }
 
   return isGameApiErrorCode(error) ? error : null

@@ -1390,7 +1390,7 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Crée une partie en attente dans une salle active et libre, avec 1 à 4 participants (un par pupitre). Un email n'est accepté qu'avec `emailConsent: true` (consentement RGPD horodaté dans `consentAt`). Format par défaut : 10 manches × 10 questions. La graine de tirage (0 à 2³² − 1) est tirée par le serveur.
+        Crée une partie en attente dans une salle active et libre, avec 1 à 4 participants (un par pupitre). Un email n'est accepté qu'avec `emailConsent: true` (consentement RGPD horodaté dans `consentAt`). Le consentement à recevoir les offres du centre (`marketingConsent`) est distinct : il n'est accepté qu'avec un email, et horodaté par le serveur (`marketingConsent` vaut alors `true` dans la réponse). Format par défaut : 10 manches × 10 questions. La graine de tirage (0 à 2³² − 1) est tirée par le serveur.
 
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
       operationId: createCompanyGame
@@ -1416,7 +1416,7 @@ paths:
                     allOf:
                       - $ref: '#/components/schemas/GameDetail'
         '400':
-          description: Corps invalide (dont `email_consent_required`, `participants_podium_duplicated`), ou pupitre au-delà du nombre de pupitres de la salle (`podium_not_in_room`, avec `desksCount`)
+          description: Corps invalide (dont `email_consent_required`, `marketing_consent_requires_email`, `participants_podium_duplicated`), ou pupitre au-delà du nombre de pupitres de la salle (`podium_not_in_room`, avec `desksCount`)
           content:
             application/json:
               schema:
@@ -4088,6 +4088,9 @@ components:
           format: date-time
           nullable: true
           description: Horodatage du consentement RGPD (obligatoire si un email est renseigné)
+        marketingConsent:
+          type: boolean
+          description: Le joueur accepte de recevoir les offres du centre (jamais vrai sans email). Visible de tous les rôles, l'horodatage n'est pas exposé.
         hasEmail:
           type: boolean
           description: Un email est enregistré (même s'il est masqué pour le rôle `user`)
@@ -4115,6 +4118,9 @@ components:
           type: string
           format: date-time
           nullable: true
+        marketingConsent:
+          type: boolean
+          description: Le 2e joueur accepte de recevoir les offres du centre (jamais vrai sans email)
 
     GameDetail:
       allOf:
@@ -4201,6 +4207,12 @@ components:
               emailConsent:
                 type: boolean
                 description: Case RGPD cochée explicitement ; requise si `email` est renseigné
+              marketingConsent:
+                type: boolean
+                description: >-
+                  Case « recevoir les offres du centre », distincte de `emailConsent` et facultative.
+                  `true` sans `email` donne `400 marketing_consent_requires_email`. Le serveur
+                  horodate lui-même.
               secondPlayer:
                 type: object
                 nullable: true
@@ -4217,6 +4229,9 @@ components:
                   emailConsent:
                     type: boolean
                     description: Requise si `email` est renseigné
+                  marketingConsent:
+                    type: boolean
+                    description: Offres du centre ; `true` sans `email` donne `400 marketing_consent_requires_email`
 
     Account:
       type: object

@@ -31,6 +31,7 @@ export function createParticipantFixture(
     email: null,
     hasEmail: false,
     consentAt: null,
+    marketingConsent: false,
     secondPlayer: null,
     score: 0,
     ...overrides,

@@ -1,52 +1,88 @@
 <template>
   <div class="consent-block">
-    <label
-      class="consent"
-      :class="{
-        'consent--error': !!error,
-        'consent--checked': checked,
-      }"
-      :for="id"
-    >
-      <input
-        :id="id"
-        class="consent__checkbox"
-        type="checkbox"
-        :name="name"
-        :data-test="dataTest"
-        :checked="checked"
-        :disabled="disabled"
-        :aria-invalid="!!error"
-        :aria-describedby="describedBy"
-        @change="onChange"
-      />
-      <span class="consent__text">
-        {{ $t('games.form.consent') }}
-        <span v-if="required" class="consent__req" aria-hidden="true">*</span>
-      </span>
-    </label>
+    <div class="consent-group">
+      <label
+        class="consent"
+        :class="{
+          'consent--error': !!error,
+          'consent--checked': checked,
+        }"
+        :for="id"
+      >
+        <input
+          :id="id"
+          class="consent__checkbox"
+          type="checkbox"
+          :name="name"
+          :data-test="dataTest"
+          :checked="checked"
+          :disabled="disabled"
+          :aria-invalid="!!error"
+          :aria-describedby="describedBy"
+          @change="onChange($event)"
+        />
+        <span class="consent__text">
+          {{ $t('games.form.consent') }}
+          <span v-if="hasEmail" class="consent__req" aria-hidden="true">*</span>
+        </span>
+      </label>
 
-    <p v-if="error" :id="`${id}_error`" class="consent__error">{{ error }}</p>
-    <p v-else :id="`${id}_hint`" class="consent__hint">{{ $t('games.form.consentHint') }}</p>
+      <p v-if="error" :id="`${id}_error`" class="consent__error">{{ error }}</p>
+      <p v-else :id="`${id}_hint`" class="consent__hint">{{ $t('games.form.consentHint') }}</p>
+    </div>
+
+    <div class="consent-group">
+      <label
+        class="consent"
+        :class="{
+          'consent--checked': marketingChecked,
+          'consent--disabled': marketingDisabled,
+        }"
+        :for="marketingId"
+      >
+        <input
+          :id="marketingId"
+          class="consent__checkbox"
+          type="checkbox"
+          :name="marketingName"
+          :data-test="`${dataTest}-marketing`"
+          :checked="marketingChecked"
+          :disabled="marketingDisabled"
+          :aria-describedby="`${marketingId}_hint`"
+          @change="onChange($event, true)"
+        />
+        <span class="consent__text">{{ $t('games.form.marketingConsent') }}</span>
+      </label>
+
+      <p :id="`${marketingId}_hint`" class="consent__hint">
+        {{ $t('games.form.marketingConsentHint') }}
+      </p>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 
-/** Case de consentement RGPD d'un joueur, jamais pré-cochée (règle portée par le parent). */
+/**
+ * Cases de consentement RGPD d'un joueur, jamais pré-cochées (règle portée par le parent) :
+ * conserver l'email (obligatoire si un email est saisi) et recevoir les offres du centre
+ * (facultative, inactive sans email). Deux finalités, deux cases.
+ */
 const props = withDefaults(
   defineProps<{
     id: string
     name: string
+    marketingName: string
     checked: boolean
+    marketingChecked: boolean
     dataTest: string
-    required?: boolean
+    /** Un email est saisi : la conservation devient obligatoire, les offres possibles. */
+    hasEmail: boolean
     disabled?: boolean
     error?: string
   }>(),
   {
-    required: false,
     disabled: false,
     error: undefined,
   }
@@ -54,23 +90,35 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (event: 'change', checked: boolean): void
+  (event: 'change-marketing', checked: boolean): void
 }>()
 
+const marketingId = computed(() => `${props.id}-marketing`)
+const marketingDisabled = computed(() => props.disabled || !props.hasEmail)
 const describedBy = computed(() => (props.error ? `${props.id}_error` : `${props.id}_hint`))
 
-function onChange(event: Event): void {
+function onChange(event: Event, marketing = false): void {
   const target = event.target
 
   if (!(target instanceof HTMLInputElement)) {
     return
   }
 
-  emit('change', target.checked)
+  if (marketing) {
+    emit('change-marketing', target.checked)
+  } else {
+    emit('change', target.checked)
+  }
 }
 </script>
 
 <style scoped>
 .consent-block {
+  display: grid;
+  gap: 12px;
+}
+
+.consent-group {
   display: grid;
   gap: 6px;
 }
@@ -115,6 +163,11 @@ function onChange(event: Event): void {
 }
 
 .consent__checkbox:disabled {
+  cursor: not-allowed;
+}
+
+.consent--disabled {
+  color: var(--text-3);
   cursor: not-allowed;
 }
 

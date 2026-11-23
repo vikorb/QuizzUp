@@ -61,12 +61,15 @@
     <GameConsentCheckbox
       :id="consentId"
       :name="`participants.${index}.emailConsent`"
+      :marketing-name="`participants.${index}.marketingConsent`"
       data-test="game-participant-consent"
       :checked="participant.emailConsent"
-      :required="consentRequired"
+      :marketing-checked="participant.marketingConsent"
+      :has-email="hasEmail"
       :disabled="disabled"
       :error="errorLabel(errors.emailConsent)"
       @change="emitUpdate('emailConsent', $event)"
+      @change-marketing="emitUpdate('marketingConsent', $event)"
     />
 
     <div
@@ -124,12 +127,15 @@
       <GameConsentCheckbox
         :id="secondConsentId"
         :name="`participants.${index}.secondPlayer.emailConsent`"
+        :marketing-name="`participants.${index}.secondPlayer.marketingConsent`"
         data-test="game-second-player-consent"
         :checked="participant.secondEmailConsent"
-        :required="secondConsentRequired"
+        :marketing-checked="participant.secondMarketingConsent"
+        :has-email="secondHasEmail"
         :disabled="disabled"
         :error="errorLabel(errors.secondEmailConsent)"
         @change="emitUpdate('secondEmailConsent', $event)"
+        @change-marketing="emitUpdate('secondMarketingConsent', $event)"
       />
     </div>
 
@@ -194,9 +200,9 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const consentId = computed(() => `game-participant-${props.participant.key}-consent`)
-const consentRequired = computed(() => !isBlank(props.participant.email))
+const hasEmail = computed(() => !isBlank(props.participant.email))
 const secondConsentId = computed(() => `game-participant-${props.participant.key}-second-consent`)
-const secondConsentRequired = computed(() => !isBlank(props.participant.secondEmail))
+const secondHasEmail = computed(() => !isBlank(props.participant.secondEmail))
 
 function errorLabel(errorKey: string): string | undefined {
   return errorKey ? t(errorKey) : undefined

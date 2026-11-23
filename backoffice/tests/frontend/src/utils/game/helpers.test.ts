@@ -132,6 +132,21 @@ describe('utils/game/errors', () => {
     )
   })
 
+  it('surfaces the offers-without-email detail hidden in invalid_body', () => {
+    expect(
+      readGameApiError({
+        error: 'invalid_body',
+        details: {
+          formErrors: [],
+          fieldErrors: { participants: ['marketing_consent_requires_email'] },
+        },
+      })
+    ).toBe('marketing_consent_requires_email')
+    expect(getGameErrorKey('marketing_consent_requires_email')).toBe(
+      'games.errors.marketingConsentRequiresEmail'
+    )
+  })
+
   it('builds camelCase i18n keys, server error by default', () => {
     expect(getGameErrorKey('room_busy')).toBe('games.errors.roomBusy')
     expect(getGameErrorKey('email_consent_required')).toBe('games.errors.emailConsentRequired')
