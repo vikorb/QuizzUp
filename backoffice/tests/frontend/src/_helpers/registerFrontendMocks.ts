@@ -19,6 +19,16 @@ vi.mock('@/composables/useConfirm', async () => {
   }
 })
 
+// Les vues ne doivent pas ouvrir de flux : les tests pilotent la présence via liveCompanyMock.
+// Le vrai composable se teste avec `vi.importActual` (voir useLiveCompany.test.ts).
+vi.mock('@/composables/useLiveCompany', async () => {
+  const liveCompany = await import('./liveCompanyMock')
+
+  return {
+    useLiveCompany: liveCompany.useLiveCompanyMock,
+  }
+})
+
 vi.mock('@/state/authState', async () => {
   const authState = await import('./authStateMock')
 

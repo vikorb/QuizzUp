@@ -44,6 +44,13 @@
       },
       "startFailed": "Could not start the game (content unavailable). Try again or use demo mode."
     },
+    "live": {
+      "resume": "Take control here",
+      "errors": {
+        "room_instance_replaced": "This room is being driven from another PC: remote monitoring of this screen is off. A game in progress is not affected.",
+        "session_ended": "The room session has ended: sign in again."
+      }
+    },
     "alreadyOpen": {
       "title": "QuizzUp is already open on this PC",
       "text": "Another window is already driving the buzzers and lights. Close this tab and use the window that is already open."

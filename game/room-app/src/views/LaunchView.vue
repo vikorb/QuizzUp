@@ -23,6 +23,7 @@
     </RoomTopBar>
 
     <section class="launch__body">
+      <RoomReplacedNotice />
       <div v-if="savedGame" class="launch__resume neon neon--no-hover">
         <h2>{{ $t('room.launch.resumeTitle') }}</h2>
         <p>{{ $t('room.launch.resumeText') }}</p>
@@ -87,6 +88,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
 import RoomTopBar from '@/components/game/RoomTopBar.vue'
+import RoomReplacedNotice from '@/components/live/RoomReplacedNotice.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { useConfirm } from '@/composables/useConfirm'

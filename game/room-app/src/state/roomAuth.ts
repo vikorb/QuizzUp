@@ -22,6 +22,8 @@ const demo = ref(isDemoMode())
 export const isRoomReady = computed(() => demo.value || Boolean(token.value))
 export const isDemo = computed(() => demo.value)
 export const roomAccount = computed(() => account.value)
+/** Compte de salle connecté au backoffice (ni démo ni déconnecté) : seul cas où la salle se signale. */
+export const isRoomConnected = computed(() => !demo.value && Boolean(token.value))
 
 export function signIn(nextToken: string, nextAccount: RoomAccount): void {
   setDemoMode(false)
@@ -49,17 +51,23 @@ export async function refreshRoomAccount(): Promise<void> {
   }
   const fetched = await fetchRoomAccount(token.value)
   if (fetched === 'unauthorized') {
-    // Jeton expiré ou révoqué : retour à la connexion. Une partie interrompue reste
-    // reprenable après reconnexion ; elle est effacée à sa fin ou à la déconnexion.
-    clearLocalSession({ keepSavedGame: true })
-    // Plus personne aux commandes : lumières éteintes et fumée coupée, comme à la déconnexion.
-    await stopLighting().catch(() => undefined)
+    await expireRoomSession()
     return
   }
   if (fetched) {
     account.value = fetched
     setRoomAccountId(fetched.id)
   }
+}
+
+/**
+ * Le jeton de salle n'est plus valable (expiré, révoqué) : retour à la connexion. Une partie
+ * interrompue reste reprenable après reconnexion ; elle est effacée à sa fin ou à la déconnexion.
+ */
+export async function expireRoomSession(): Promise<void> {
+  clearLocalSession({ keepSavedGame: true })
+  // Plus personne aux commandes : lumières éteintes et fumée coupée, comme à la déconnexion.
+  await stopLighting().catch(() => undefined)
 }
 
 function clearLocalSession(options: { keepSavedGame?: boolean } = {}): void {
