@@ -23,6 +23,19 @@
     </UiButton>
 
     <UiButton
+      class="icon icon-schedule"
+      variant="icon"
+      type="button"
+      data-action="schedule"
+      :disabled="isBusy || isDeleted"
+      :title="$t('rooms.table.actions.schedule')"
+      :aria-label="$t('rooms.table.actions.schedule')"
+      @click="handleManageSchedule"
+    >
+      <MdIcon :path="mdiCalendarClock" :size="18" />
+    </UiButton>
+
+    <UiButton
       class="icon icon-edit"
       variant="icon"
       type="button"
@@ -49,7 +62,7 @@
 </template>
 
 <script setup lang="ts">
-import { mdiDeleteOutline, mdiMonitorAccount, mdiPencilOutline } from '@mdi/js'
+import { mdiCalendarClock, mdiDeleteOutline, mdiMonitorAccount, mdiPencilOutline } from '@mdi/js'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -71,6 +84,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (event: 'edit', roomId: number): void
   (event: 'account', roomId: number): void
+  (event: 'schedule', roomId: number): void
   (event: 'updated', room: Room): void
   (event: 'deleted', roomId: number): void
   (event: 'error', errorCode: string): void
@@ -110,6 +124,14 @@ function handleManageAccount(): void {
   }
 
   emit('account', props.item.id)
+}
+
+function handleManageSchedule(): void {
+  if (isBusy.value || isDeleted.value) {
+    return
+  }
+
+  emit('schedule', props.item.id)
 }
 
 async function handleDeleteRoom(): Promise<void> {
@@ -160,6 +182,10 @@ async function handleDeleteRoom(): Promise<void> {
 
 /* Icônes d'action codées couleur : compte = accent, éditer = bleu doux, supprimer = danger. */
 .icon-account {
+  color: var(--accent-cyan);
+}
+
+.icon-schedule {
   color: var(--accent-cyan);
 }
 

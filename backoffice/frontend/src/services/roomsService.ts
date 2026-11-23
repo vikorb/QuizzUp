@@ -8,6 +8,7 @@ import type {
   RoomResponse,
   RoomStatus,
   UpdateRoomPayload,
+  UpdateRoomSchedulePayload,
 } from '@/types/room'
 import { apiRequestJson } from '@/utils/api'
 
@@ -72,6 +73,23 @@ export function deleteRoomService(companyId: number, roomId: number) {
     path: `/companies/${companyId}/rooms/${roomId}`,
     method: 'DELETE',
     authenticated: true,
+  })
+}
+
+/** Lot 13 : remplace `rooms.schedule` (`schedule: null` désactive les créneaux). */
+export function updateRoomScheduleService(
+  companyId: number,
+  roomId: number,
+  payload: UpdateRoomSchedulePayload
+) {
+  return apiRequestJson<RoomResponse>({
+    path: `/companies/${companyId}/rooms/${roomId}/schedule`,
+    method: 'PUT',
+    authenticated: true,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
   })
 }
 
