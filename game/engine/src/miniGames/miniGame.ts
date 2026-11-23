@@ -73,6 +73,11 @@ export type MiniGameDefinition<TState> = {
     context: QuestionContext
   ) => QuestionStep<TState>
   tick: (state: TState, at: number) => QuestionStep<TState>
+  /**
+   * Lignes à créditer quand l'animateur passe la question en cours (aucune par défaut). Sert aux
+   * points de fin de manche qu'une question passée ne doit pas faire perdre (mort subite).
+   */
+  skipRecords?: (state: TState) => AnswerRecord[]
   press: (
     state: TState,
     press: { participantId: number; button: ButtonIndex; at: number }

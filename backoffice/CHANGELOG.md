@@ -19,7 +19,7 @@ Format inspiré de Keep a Changelog.
   (`hello { streamId, heartbeatMs, statusEveryMs }`, puis `replaced` si un autre poste prend la
   place, `session_ended` si la session tombe) ; `POST /room/status` publie l'état de la salle
   (écran, partie, phase, manche, question, mini-jeu, pause, scores, audio prêt) et répond `204`,
-  `400 invalid_body`, ou `409 room_instance_replaced` si le `streamId` n'est plus le flux courant.
+  `400 invalid_body`, ou `409 room_instance_replaced` si un autre poste a ouvert le flux de la salle depuis.
   `GET /companies/:companyId/live` (droit `game:read`, même compagnie ou superadmin) ouvre un flux
   SSE du personnel : `snapshot { rooms }` (toutes les salles actives, hors ligne comprises) puis
   `room_status` à chaque changement ; `429 too_many_streams` au-delà de 5 flux ouverts par compte.
@@ -30,6 +30,27 @@ Format inspiré de Keep a Changelog.
   délais, types `RoomStatusReport` / `RoomLive` et `createSseParser`. `plugins/auth.ts` expose
   `checkSession` (même comportement qu'avant pour `authenticate`). Caddy de recette : les flux
   sortent de la compression et passent avec `flush_interval -1`. Pas de migration.
+  US: US-LIVE-01
+
+- Pilotage d'une partie en cours, côté écran de salle (lot 4, sans réseau ; les commandes du
+  backoffice viendront dans un lot suivant). Moteur (`game/engine`) : nouvelle commande
+  `skip { at, questionId }`, acceptée seulement en phase `question` et seulement si `questionId`
+  est la question en cours (sinon sans effet : l'opérateur a visé une question qui a fini entre le
+  clic et la validation) : la question se termine sans point ni pénalité et la partie enchaîne
+  comme après une question sans bonne réponse ; `question_ended` porte `skipped: true`, la question
+  est notée dans `rounds[].skippedQuestionIds` et ignorée par la série et la mort subite. Exception
+  en mort subite : si la dernière question de la manche est passée, les survivants touchent quand
+  même le bonus de fin de manche (200 points, une seule fois). Écran de salle (`game/room-app`) :
+  pause qui gèle l'horloge de la partie (échéances déjà tombées appliquées avant le gel,
+  échéances reculées du temps de pause, buzzers ignorés, extrait suspendu), voile « Pause » borné
+  à la zone de jeu (l'arrêt d'urgence et l'arrêt de la partie restent accessibles), commandes
+  « Pause / Reprendre » et « Passer la question » à côté de l'arrêt local (fr / en) ;
+  `pauseGame`, `resumeGame` et `skipQuestion(questionId)` renvoient appliqué ou refusé avec
+  un code (`GAME_COMMAND_REFUSALS` dans `@quizzup/shared` : `already_paused`, `not_paused`,
+  `paused`, `not_in_question`, `game_over`), traduit à l'écran (fr / en). La pause est sauvegardée
+  (champ facultatif `paused` de l'instantané de session) : une partie rechargée pendant une pause
+  reprend en pause, à l'instant de la pause ; les anciennes sauvegardes, sans ce champ, reprennent
+  non pausées.
   US: US-LIVE-01
 
 - Révision de la config de salle : deux postes connectés au même compte de salle ne s'écrasent plus
