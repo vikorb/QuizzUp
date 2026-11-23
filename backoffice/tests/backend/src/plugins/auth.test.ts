@@ -18,7 +18,7 @@ import {
   ADMIN_STATUS_DELETED,
 } from '@quizzup/shared'
 
-import authPlugin from '../../../../backend/src/plugins/auth'
+import authPlugin, { checkSession } from '../../../../backend/src/plugins/auth'
 import { dbState, MOCK_NOW, resetDb } from '../routes/_helpers/mockDb'
 
 process.env.JWT_SECRET ??= 'test-jwt-secret'
@@ -417,5 +417,55 @@ describe('plugins/auth.ts (authenticate)', () => {
     expect(body.user.company_id).toBe(1)
 
     await app.close()
+  })
+})
+
+describe('plugins/auth.ts (checkSession)', () => {
+  beforeEach(() => {
+    resetDb()
+  })
+
+  it('accepts a live session and does not extend it', async () => {
+    const lastSeenAt = new Date(Date.now() - 30 * 60 * 1000).toISOString()
+    seedSession({ id: 'sid-1', admin_id: 1, last_seen_at: lastSeenAt })
+
+    const check = await checkSession('sid-1', 1, false)
+
+    expect(check).toMatchObject({ ok: true, admin: { id: 1, role: ADMIN_ROLE_SUPERADMIN } })
+    expect(findSession('sid-1')?.last_seen_at).toBe(lastSeenAt)
+  })
+
+  it('refuses an unknown session, a revoked session and a session of another account', async () => {
+    seedSession({ id: 'sid-1', admin_id: 1 })
+    seedSession({ id: 'sid-2', admin_id: 1, revoked_at: MOCK_NOW })
+
+    expect(await checkSession('missing', 1, false)).toEqual({ ok: false, error: 'session_invalid' })
+    expect(await checkSession('sid-2', 1, false)).toEqual({ ok: false, error: 'session_invalid' })
+    expect(await checkSession('sid-1', 2, false)).toEqual({ ok: false, error: 'session_invalid' })
+  })
+
+  it('refuses and revokes a session inactive for more than 1h', async () => {
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+    seedSession({ id: 'sid-1', admin_id: 1, last_seen_at: twoHoursAgo })
+
+    expect(await checkSession('sid-1', 1, false)).toEqual({
+      ok: false,
+      error: 'session_expired_inactive',
+    })
+    expect(findSession('sid-1')?.revoked_at).toBe(MOCK_NOW)
+  })
+
+  it('refuses and revokes the session of an account that is no longer active', async () => {
+    seedSession({ id: 'sid-1', admin_id: 1 })
+    dbState.admins[0]!.status = ADMIN_STATUS_DELETED
+
+    expect(await checkSession('sid-1', 1, false)).toEqual({ ok: false, error: 'account_inactive' })
+    expect(findSession('sid-1')?.revoked_at).toBe(MOCK_NOW)
+  })
+
+  it('refuses a room token whose account is not a room account any more', async () => {
+    seedSession({ id: 'sid-1', admin_id: 1 })
+
+    expect(await checkSession('sid-1', 1, true)).toEqual({ ok: false, error: 'account_inactive' })
   })
 })

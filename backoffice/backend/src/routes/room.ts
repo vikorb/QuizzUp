@@ -2,8 +2,6 @@ import type { FastifyPluginAsync, FastifyRequest } from 'fastify'
 import { z } from 'zod'
 
 import {
-  ADMIN_ROLE_ROOM,
-  GAME_PODIUMS,
   GAME_STATE_FINISHED,
   GAME_STATE_PENDING,
   GAME_STATE_RUNNING,
@@ -20,22 +18,14 @@ import { roomSelect } from './companies/rooms/_shared'
 import { findGameInCompany } from './games/_shared'
 import { getMediaVersion } from './questions/_shared'
 import { isInPlayableTheme, isReadableByCompany, loadRoomContent } from './room/_content'
+import { isRoomAccount, roomScoresSchema } from './room/_shared'
 
 const roomGameParamsSchema = z.object({
   gameId: z.coerce.number().int().positive(),
 })
 
-// Scores finaux par pupitre (`podium` est unique dans une partie).
-const roomGameFinishBodySchema = z.object({
-  scores: z
-    .array(
-      z.object({
-        podium: z.number().int().min(1).max(GAME_PODIUMS),
-        score: z.number().int().min(-1_000_000).max(1_000_000),
-      })
-    )
-    .max(GAME_PODIUMS),
-})
+// Scores finaux par pupitre.
+const roomGameFinishBodySchema = z.object({ scores: roomScoresSchema })
 
 const roomConfigBodySchema = z.object({
   config: roomConfigSchema,
@@ -49,10 +39,6 @@ const roomQuestionParamsSchema = z.object({
 
 // Même politique que la route staff : cache privé, toujours revalidé par l'ETag.
 const MEDIA_CACHE_CONTROL = 'private, no-cache'
-
-function isRoomAccount(req: FastifyRequest): boolean {
-  return req.user.role === ADMIN_ROLE_ROOM && Boolean(req.user.room_id)
-}
 
 /** Partie en attente ou en cours de la salle. Les emails restent côté backoffice. */
 async function findCurrentRoomGameId(req: FastifyRequest): Promise<number | null> {

@@ -8,6 +8,24 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Présence des salles en direct, côté serveur (aucun client modifié dans ce lot). Le backend sait
+  quelle salle est en ligne et le diffuse. `GET /room/stream` (compte de salle) ouvre un flux SSE
+  (`hello { streamId, heartbeatMs, statusEveryMs }`, puis `replaced` si un autre poste prend la
+  place, `session_ended` si la session tombe) ; `POST /room/status` publie l'état de la salle
+  (écran, partie, phase, manche, question, mini-jeu, pause, scores, audio prêt) et répond `204`,
+  `400 invalid_body`, ou `409 room_instance_replaced` si le `streamId` n'est plus le flux courant.
+  `GET /companies/:companyId/live` (droit `game:read`, même compagnie ou superadmin) ouvre un flux
+  SSE du personnel : `snapshot { rooms }` (toutes les salles actives, hors ligne comprises) puis
+  `room_status` à chaque changement ; `429 too_many_streams` au-delà de 5 flux ouverts par compte.
+  Présence : `offline` sans rapport depuis 45 s, `in_game` si une partie est en cours, sinon
+  `online` ; `controllable` = en ligne avec son flux ouvert. Les sessions sont revérifiées toutes les
+  60 s sans être prolongées. État gardé en mémoire du processus : une seule instance du backend
+  (PostgreSQL LISTEN/NOTIFY avant d'en déployer deux). `@quizzup/shared` : noms d'événements,
+  délais, types `RoomStatusReport` / `RoomLive` et `createSseParser`. `plugins/auth.ts` expose
+  `checkSession` (même comportement qu'avant pour `authenticate`). Caddy de recette : les flux
+  sortent de la compression et passent avec `flush_interval -1`. Pas de migration.
+  US: US-LIVE-01
+
 - Révision de la config de salle : deux postes connectés au même compte de salle ne s'écrasent plus
   `rooms.config` en silence. Nouvelle migration : `rooms.config_revision` (entier, défaut 0, +1 à
   chaque écriture de `config`). `GET /room/me` renvoie `room.configRevision` ; `PUT /room/config`

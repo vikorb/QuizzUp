@@ -24,6 +24,22 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
 
 ## 2. Travail en cours au moment de l'arrêt
 
+- **Session du 2026-11-23 : lot 1 du cadrage V1, « Pilotage en direct »** (issue #129,
+  US-LIVE-01). Canal retenu : SSE du serveur vers les clients, lu par `fetch` (en-tête
+  `Authorization`), et POST de la salle vers le serveur ; hub en mémoire, donc **une seule instance
+  du backend** tant qu'on n'est pas passé à PostgreSQL LISTEN/NOTIFY. Découpage en sept PR, coché
+  au fil de l'eau dans l'issue #129 :
+  - **1a présence, serveur** : PR #130 (`GET /room/stream`, `POST /room/status`,
+    `GET /companies/:companyId/live`, `createSseParser` dans `@quizzup/shared`, Caddy de recette
+    sans mise en tampon sur les deux flux) ;
+  - 1b présence, clients (écran de salle et backoffice, clés i18n des nouveaux codes d'erreur) ;
+  - 2 fin du polling de 3 s ; 3 suivi en direct ; 4 moteur : passer et pause ; 5 commandes côté
+    serveur et salle ; 6 commandes côté backoffice.
+  - **À valider en recette et sur le banc** : flux de plus de 10 minutes derrière Caddy, lancement
+    à distance sur le poste kiosque (son compris), pause pendant un jet de fumée.
+  - **Cinq choix par défaut à confirmer par Enzo**, listés en bas de l'issue #129.
+- **PR #128 mergée (2026-11-23)** : méthode Claude du dépôt (`.claude/agents`, `.claude/rules`,
+  `.claude/skills`) et complément de cadrage `docs/cadrage/cadrage-v1-interfaces.md`.
 - **Session du 2026-11-04 (nuit) → 2026-11-05 : plan « salle »** (audit et lots L1 à L14 dans
   `docs/cadrage/plan-salle.md`). Recette Docker simulée faite dans le conteneur cloud (58 OK,
   anomalies A0 à A2 corrigées). Mergé, aucune PR ouverte :
@@ -190,7 +206,13 @@ vrai QCM).
 - Une autre copie de travail peut exister dans `C:\Users\enzod\Documents\QuizzUp` ; travailler dans un
   worktree séparé pour ne pas se marcher dessus.
 - vue-i18n : un `@` dans un texte doit s'écrire `{'@'}` (sinon la page plante). Un test compile toutes les locales.
-- Les colonnes bigint reviennent de pg en chaînes : les convertir en nombres.
+- Les colonnes bigint sont lues en nombres par `backend/src/db.ts` (`types.setTypeParser`, PR #108) :
+  ne pas les reconvertir, ne pas créer de client `pg` ailleurs.
+- Sous Windows avec `core.autocrlf=true`, la copie de travail est en CRLF et `npm run format:check`
+  échoue sur tout le dépôt alors que la CI est verte. Vérifier ses fichiers avec
+  `npx prettier --end-of-line auto --check <fichiers>`.
+- Un dossier `node_modules` peut exister et être vide : avant de lancer les tests, vérifier une
+  dépendance réelle (`backoffice/backend/node_modules/zod`), sinon erreurs `Cannot find package`.
 - Le mockDb des tests backend n'applique pas les valeurs par défaut de la base.
 - Les préfixes de fourchette d'estimation de `@quizzup/shared` doivent rester alignés sur le moteur
   (`RANGE_PREFIX`) ; un test de contrat dans `game/engine` le vérifie.
@@ -204,8 +226,8 @@ vrai QCM).
 Tu reprends le projet QuizzUP (dépôt vikorb/QuizzUp). Parle-moi toujours en français ; les rapports
 sont de vrais fichiers exportables (.md ou .docx), pas des artefacts. Commence par lire CLAUDE.md
 puis docs/REPRISE.md, qui donnent les conventions, l'état de main, mes décisions, les lots restants
-par priorité et les pièges connus. Reprends d'abord la branche WIP
-feat/backoffice-mini-games, puis enchaîne les lots dans l'ordre de docs/REPRISE.md §4.
+par priorité et les pièges connus. Reprends le lot en cours (docs/REPRISE.md §2), puis enchaîne
+les lots dans l'ordre de docs/cadrage/cadrage-v1.md.
 Pour chaque lot : branche dédiée, lint + type-check + tests verts, PR, relecture par un seul
 sous-agent indépendant, corrections, merge toi-même quand la CI GitHub est verte. Mets à jour
 docs/REPRISE.md à la fin de chaque lot. Sois économe en tokens et ne me dérange que pour une
