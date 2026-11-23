@@ -118,6 +118,11 @@ services:
       # Refus de démarrer si le secret fait moins de 32 caractères (src/security/jwtSecret.ts).
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET manquant dans .env (openssl rand -hex 32)}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-2h}
+      # Console éditeur : le superadmin ne passe que depuis ces adresses (vide = personne), vues
+      # par l'API grâce à TRUST_PROXY (le réseau `internal` de Caddy, fixé plus bas). Pas de valeur
+      # par défaut : une production mal configurée reste fermée plutôt qu'ouverte.
+      CONSOLE_ALLOWED_CIDRS: ${CONSOLE_ALLOWED_CIDRS:-}
+      TRUST_PROXY: ${TRUST_PROXY:-}
       CORS_ORIGIN: https://${HOST_APP:?HOST_APP manquant dans .env},https://${HOST_SALLE:?HOST_SALLE manquant dans .env},https://${HOST_CONSOLE:?HOST_CONSOLE manquant dans .env},https://${HOST_WWW:?HOST_WWW manquant dans .env}
       MEDIA_STORAGE_DIR: /data/media
       MEDIA_MAX_BYTES: ${MEDIA_MAX_BYTES:-10485760}
@@ -189,7 +194,7 @@ services:
       VITRINE_ENABLED: ${VITRINE_ENABLED:-false}
       # Console éditeur : liste vide = accès refusé à tout le monde. `192.0.2.1/32` (plage de
       # documentation, jamais routée) sert de liste « personne » car Caddy refuse une liste vide.
-      EDITOR_ALLOWED_RANGES: ${EDITOR_ALLOWED_RANGES:-192.0.2.1/32}
+      CONSOLE_ALLOWED_CIDRS: ${CONSOLE_ALLOWED_CIDRS:-192.0.2.1/32}
       # Relais devant Caddy : seules ces adresses sont crues sur X-Forwarded-For. Même astuce.
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-192.0.2.1/32}
       # En-tête CSP : `Content-Security-Policy-Report-Only` pour observer, sans bloquer, avant de
@@ -324,3 +329,8 @@ networks:
   # Si l'API doit un jour envoyer des e-mails (SMTP), la rattacher aussi à `edge`.
   internal:
     internal: true
+    # Sous-réseau fixé : TRUST_PROXY nomme exactement le réseau de Caddy. S'il entre en conflit avec
+    # un réseau de l'hôte, le changer ici et dans .env (TRUST_PROXY).
+    ipam:
+      config:
+        - subnet: 172.29.251.0/24

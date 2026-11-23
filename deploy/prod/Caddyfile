@@ -86,14 +86,14 @@
 
 # --- Console éditeur -------------------------------------------------------------------------
 # Ce nom d'hôte sert la même application que l'espace centre, filtrée par les plages de
-# EDITOR_ALLOWED_RANGES (CIDR séparés par des espaces ; variable vide : refus pour tout le monde).
-# Attention : cela masque l'adresse de la console, cela ne la protège pas. HOST_APP sert la même
-# application sans filtre et l'API ne distingue pas le nom d'hôte. La protection arrive avec le lot
-# « console éditeur » (lot 12) ; seul Swagger (/docs) est réellement protégé par ce filtre.
+# CONSOLE_ALLOWED_CIDRS (CIDR séparés par des espaces ; variable vide : refus pour tout le monde).
+# Ce filtre masque l'adresse de la console ; la protection est dans l'API, qui lit la même variable :
+# elle refuse le superadmin (connexion et jeton) hors de ces plages, sur n'importe quel nom d'hôte.
+# HOST_APP sert encore la même application sans filtre, mais un superadmin n'y peut plus rien faire.
 {$HOST_CONSOLE} {
 	import common
 
-	@allowed client_ip {$EDITOR_ALLOWED_RANGES}
+	@allowed client_ip {$CONSOLE_ALLOWED_CIDRS}
 	handle @allowed {
 		import app_site
 	}
@@ -127,7 +127,7 @@
 	@docs path /docs /docs/*
 	@docs_denied {
 		path /docs /docs/*
-		not client_ip {$EDITOR_ALLOWED_RANGES}
+		not client_ip {$CONSOLE_ALLOWED_CIDRS}
 	}
 	handle @docs_denied {
 		respond "Forbidden" 403

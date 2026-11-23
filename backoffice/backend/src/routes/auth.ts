@@ -2,7 +2,7 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 import { randomUUID } from 'node:crypto'
-import { ADMIN_ROLE_ROOM } from '@quizzup/shared'
+import { ADMIN_ROLE_ROOM, ADMIN_ROLE_SUPERADMIN } from '@quizzup/shared'
 import db from '../db'
 import { createRateLimiter, replyTooManyRequests } from '../security/rateLimit'
 import { isRoomAccountUsable } from '../security/roomCompany'
@@ -142,6 +142,13 @@ const authRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(401).send({ error: 'invalid_credentials' })
       }
 
+      // Superadmin hors des adresses de la console : après bcrypt, avec la réponse d'un mauvais mot
+      // de passe (un 403 confirmerait qu'il est juste). Pas de session, et l'essai reste compté.
+      if (admin.role === ADMIN_ROLE_SUPERADMIN && !app.consoleNetwork.allows(req.ip)) {
+        req.log.warn({ adminId: admin.id, ip: req.ip }, 'connexion superadmin hors console')
+        return reply.code(401).send({ error: 'invalid_credentials' })
+      }
+
       // Succès : le passage est rendu. Sinon un centre dont le personnel se connecte souvent
       // finirait bloqué, alors que seuls les échecs ressemblent à une attaque. Celui qui
       // devine le mot de passe d'un autre compte n'y gagne rien : ses essais ratés restent comptés.
@@ -180,7 +187,8 @@ const authRoutes: FastifyPluginAsync = async (app) => {
 
   app.post(
     '/logout',
-    { preHandler: [app.authenticate] },
+    // Un superadmin hors des adresses de la console peut quand même fermer sa session.
+    { config: { allowOutsideConsole: true }, preHandler: [app.authenticate] },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const sid = req.user.sid
       await db('admin_sessions').where({ id: sid }).update({ revoked_at: db.fn.now() })

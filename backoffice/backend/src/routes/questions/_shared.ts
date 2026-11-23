@@ -9,6 +9,7 @@ import {
   DEFAULT_QUESTION_KIND,
   QUESTION_KINDS,
   getQuestionKindAnswersError,
+  getQuestionKindMediaError,
   QUESTION_MEDIA_TYPE_NONE,
   QUESTION_MEDIA_TYPES,
   QUESTION_STATUS_ACTIVE,
@@ -489,6 +490,66 @@ export function parseQuestionThemeIds(body: QuestionBody): number[] {
   ]
 }
 
+/** Corps d'une question une fois contrôlé, tel que `POST /questions` et l'import CSV l'écrivent. */
+export type QuestionInput = {
+  questionText: string
+  themeIds: number[]
+  typeMedia: QuestionMediaType
+  kind: QuestionKind
+  mediaUrl: string | null
+  answers: NormalizedAnswer[]
+}
+
+/**
+ * Règles de forme d'une question à la création (texte, thèmes présents, type, média, réponses).
+ * Source unique de `POST /questions` et de l'import CSV : même ordre de contrôles, mêmes codes.
+ * Les règles qui lisent la base (thèmes utilisables, portée) restent à l'appelant.
+ */
+export function validateQuestionInput(
+  body: QuestionBody
+): { error: string } | { input: QuestionInput } {
+  const questionText = body.question?.trim()
+  const themeIds = parseQuestionThemeIds(body)
+  const typeMedia = body.typeMedia ?? DEFAULT_QUESTION_MEDIA_TYPE
+  const kind = body.kind ?? DEFAULT_QUESTION_KIND
+  const answers = normalizeAnswers(body.answers)
+
+  if (!questionText) {
+    return { error: 'question_required' }
+  }
+
+  if (themeIds.length === 0) {
+    return { error: 'question_theme_required' }
+  }
+
+  if (!isValidQuestionMediaType(typeMedia)) {
+    return { error: 'question_type_media_invalid' }
+  }
+
+  if (!isValidQuestionKind(kind)) {
+    return { error: 'question_kind_invalid' }
+  }
+
+  const error =
+    getQuestionKindMediaError(kind, typeMedia) ??
+    validateAnswers(answers) ??
+    validateAnswersForKind(kind, answers) ??
+    (hasInvalidAnswerStatus(answers) ? 'question_answer_status_invalid' : null)
+
+  return error
+    ? { error }
+    : {
+        input: {
+          questionText,
+          themeIds,
+          typeMedia,
+          kind,
+          mediaUrl: body.mediaUrl ?? null,
+          answers,
+        },
+      }
+}
+
 function isThemeCompatibleWithQuestion(
   theme: ThemeAccessRow,
   scope: ThemeScope,
@@ -505,14 +566,13 @@ function isThemeCompatibleWithQuestion(
   return theme.company_id === companyId
 }
 
-export async function ensureThemeIsUsable(
-  themeId: number,
+/** Règles d'un thème rattaché à une question de cette portée (lecture déjà faite par l'appelant). */
+export function getThemeUsableError(
+  theme: ThemeAccessRow | null,
   req: FastifyRequest,
   scope: ThemeScope,
   companyId: number | null
-): Promise<string | null> {
-  const theme = await getThemeAccessRow(themeId)
-
+): string | null {
   if (!theme || theme.status === THEME_STATUS_DELETED) {
     return 'question_theme_not_found'
   }
@@ -526,6 +586,15 @@ export async function ensureThemeIsUsable(
   }
 
   return null
+}
+
+export async function ensureThemeIsUsable(
+  themeId: number,
+  req: FastifyRequest,
+  scope: ThemeScope,
+  companyId: number | null
+): Promise<string | null> {
+  return getThemeUsableError(await getThemeAccessRow(themeId), req, scope, companyId)
 }
 
 export async function ensureThemesAreUsable(
