@@ -2,10 +2,16 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import fp from 'fastify-plugin'
 import jwt from '@fastify/jwt'
 
-import { ADMIN_ROLE_ROOM, ADMIN_STATUS_ACTIVE } from '@quizzup/shared'
+import { ADMIN_ROLE_ROOM, ADMIN_ROLE_SUPERADMIN, ADMIN_STATUS_ACTIVE } from '@quizzup/shared'
 import db from '../db'
+import {
+  consoleNetworkWarnings,
+  createConsoleNetwork,
+  type ConsoleNetwork,
+} from '../security/consoleNetwork'
 import { assertJwtSecretIsSafe } from '../security/jwtSecret'
 import { isRoomAccountUsable } from '../security/roomCompany'
+import { parseTrustProxy } from '../utils/trustProxy'
 
 type JwtPayload = {
   sub: string
@@ -108,6 +114,23 @@ const authPlugin: FastifyPluginAsync = async (app) => {
 
   app.register(jwt, { secret: jwtSecret })
 
+  // Console éditeur : le superadmin ne passe que depuis ces adresses (cf. security/consoleNetwork.ts).
+  // Décorée pour que `routes/auth.ts` (connexion) lise la même variable, une seule fois.
+  const consoleNetwork = createConsoleNetwork(process.env.CONSOLE_ALLOWED_CIDRS)
+  app.decorate('consoleNetwork', consoleNetwork)
+  app.log.info(
+    { ranges: consoleNetwork.ranges },
+    consoleNetwork.ranges.length > 0
+      ? `console éditeur : ${consoleNetwork.ranges.length} plage(s) autorisée(s)`
+      : 'console éditeur : fermée (CONSOLE_ALLOWED_CIDRS vide)'
+  )
+  for (const warning of consoleNetworkWarnings(
+    consoleNetwork.ranges,
+    parseTrustProxy(process.env.TRUST_PROXY)
+  )) {
+    app.log.warn(warning)
+  }
+
   app.decorate('authenticate', async (req: FastifyRequest, reply: FastifyReply) => {
     try {
       await req.jwtVerify()
@@ -125,6 +148,21 @@ const authPlugin: FastifyPluginAsync = async (app) => {
 
     const { admin } = check
 
+    // Le rôle vient de la base : un jeton superadmin volé ne sert à rien hors des adresses de la
+    // console, sur aucune route (sauf `allowOutsideConsole`, la déconnexion : elle ne fait que
+    // révoquer la session). Même corps que `requireApiPermission`.
+    if (
+      admin.role === ADMIN_ROLE_SUPERADMIN &&
+      !req.routeOptions.config.allowOutsideConsole &&
+      !consoleNetwork.allows(req.ip)
+    ) {
+      req.log.warn(
+        { adminId: admin.id, route: req.routeOptions.url, ip: req.ip },
+        'superadmin hors des adresses de la console'
+      )
+      return reply.code(403).send({ error: 'forbidden' })
+    }
+
     // On rafraîchit les claims sensibles à partir de la base (source de vérité).
     req.user.role = String(admin.role)
     req.user.company_id = Number(admin.company_id)
@@ -140,5 +178,11 @@ export default fp(authPlugin)
 declare module 'fastify' {
   interface FastifyInstance {
     authenticate: (req: FastifyRequest, reply: FastifyReply) => Promise<void>
+    consoleNetwork: ConsoleNetwork
+  }
+
+  interface FastifyContextConfig {
+    /** Route que `authenticate` laisse passer à un superadmin hors des adresses de la console. */
+    allowOutsideConsole?: boolean
   }
 }

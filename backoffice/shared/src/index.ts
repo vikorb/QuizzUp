@@ -341,6 +341,10 @@ export const GAME_STATES = [
 
 export type GameState = (typeof GAME_STATE)[keyof typeof GAME_STATE]
 
+/** Pagination de `GET /companies/:companyId/games` : taille par défaut et plafond de `limit`. */
+export const GAME_LIST_DEFAULT_LIMIT = 50
+export const GAME_LIST_MAX_LIMIT = 200
+
 /**
  * États qui occupent un créneau de salle : la contrainte d'exclusion
  * `games_room_schedule_no_overlap` ne joue que pour eux (terminée, arrêtée ou annulée libère).
@@ -716,3 +720,4 @@ export function createSseParser(onEvent: (message: SseMessage) => void): (chunk:
 
 export * from './demoRequests.js'
 export * from './schedule.js'
+export * from './questionImport.js'
