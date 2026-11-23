@@ -9,7 +9,7 @@ import type {
   SceneStep,
   SceneTarget,
 } from './scenes'
-import { FLASH_HIGH_LEVEL, MIN_FLASH_INTERVAL_MS, stepDuration } from './scenes'
+import { FLASH_RISE_LEVEL, flashPeriodMs, MIN_FLASH_INTERVAL_MS, stepDuration } from './scenes'
 
 export type ScenePlayerOptions = {
   fixtures: readonly ResolvedFixture[]
@@ -62,28 +62,53 @@ export function createScenePlayer(options: ScenePlayerOptions): ScenePlayer {
   const current = new Map<string, FixtureState>(lights.map((fixture) => [fixture.id, darkState()]))
   let active: Active | null = null
 
-  // Sécurité (photosensibilité) : plafond d'éclairs par seconde, tenu ici pour toute scène (par
-  // défaut, réglée par une salle, bouclée ou enchaînée). Un « éclair » est le passage d'un appareil
-  // du niveau bas au niveau haut (cf. `FLASH_HIGH_LEVEL`). Tout état écrit sur un appareil passe
-  // par `commit` : un passage au niveau haut moins de `MIN_FLASH_INTERVAL_MS` après le précédent est
-  // retenu dans `held` (l'appareil garde son niveau bas) et appliqué dès que le plafond le permet,
-  // sauf si une étape a écrit autre chose entre-temps (flash terminé : il est alors perdu).
-  const lastRiseAt = new Map<string, number>()
+  // Sécurité (photosensibilité) : plafond d'éclairs par seconde pour toute la salle, tenu ici pour
+  // toute scène (par défaut, réglée par une salle, bouclée ou enchaînée). Tout état écrit sur un
+  // appareil passe par `commit`.
+  //
+  // Éclair : le niveau réel de l'appareil (intensité × plus forte composante de couleur, 0 à 1)
+  // remonte d'au moins `FLASH_RISE_LEVEL` au-dessus du minimum atteint depuis le dernier éclair
+  // compté. Une montée continue (fondu) ne compte qu'une fois : le suivi repart de zéro dès que le
+  // niveau cesse de monter. Un éclair n'est permis que `MIN_FLASH_INTERVAL_MS` après le dernier de
+  // la salle, ou dans le même instant (plusieurs appareils qui s'allument ensemble comptent pour un).
+  //
+  // Un éclair trop proche est retenu : l'appareil garde son niveau et l'état est appliqué dès que le
+  // plafond le permet, même si plus aucune scène ne tourne (`held`). Un flash retenu n'est pas gardé :
+  // sa fenêtre se rejoue à chaque mise à jour tant qu'elle dure, puis il est perdu.
+  type Track = { level: number; trough: number; counted: boolean; at: number }
+  const freshTrack = (): Track => ({ level: 0, trough: 0, counted: false, at: -Infinity })
+  const tracks = new Map<string, Track>(lights.map((fixture) => [fixture.id, freshTrack()]))
+  let lastFlashAt: number | null = null
   const held = new Map<string, FixtureState>()
 
-  const isHigh = (state: FixtureState) => state.intensity >= FLASH_HIGH_LEVEL
+  const levelOf = ({ intensity, color }: FixtureState) =>
+    (intensity * Math.max(color.r, color.g, color.b, color.w ?? 0)) / 255
 
-  const commit = (id: string, next: FixtureState, now: number) => {
-    const previous = current.get(id)
-    const rising = isHigh(next) && !(previous && isHigh(previous))
-    const last = lastRiseAt.get(id)
-    if (rising && last !== undefined && now - last < MIN_FLASH_INTERVAL_MS) {
-      held.set(id, next)
-      return
+  const commit = (id: string, next: FixtureState, now: number, transient = false) => {
+    const track = tracks.get(id) ?? freshTrack()
+    const level = levelOf(next)
+    // Le niveau baisse, ou se stabilise à un autre instant : une nouvelle montée peut commencer.
+    if (level < track.level || (now > track.at && level === track.level)) {
+      track.trough = level
+      track.counted = false
     }
-    if (rising) {
-      lastRiseAt.set(id, now)
+    if (!track.counted && level - track.trough >= FLASH_RISE_LEVEL) {
+      if (
+        lastFlashAt !== null &&
+        now !== lastFlashAt &&
+        now - lastFlashAt < MIN_FLASH_INTERVAL_MS
+      ) {
+        if (!transient) {
+          held.set(id, next)
+        }
+        return
+      }
+      lastFlashAt = now
+      track.counted = true
     }
+    track.level = level
+    track.at = now
+    tracks.set(id, track)
     held.delete(id)
     current.set(id, next)
   }
@@ -107,9 +132,9 @@ export function createScenePlayer(options: ScenePlayerOptions): ScenePlayer {
       return lights.filter((fixture) => target.includes(fixture.id))
     }
     const own = deskFixtures(context.desk)
-    // Pupitre connu mais sans aucun appareil : repli lisible, toute la salle prend son rôle et
-    // « les autres » est vide (sinon le buzz ou la victoire assombrirait toute la salle).
-    const noDeskFixture = context.desk !== null && own.length === 0
+    // Pupitre sans aucun appareil, ou inconnu (`null`) : repli lisible, toute la salle prend son rôle
+    // et « les autres » est vide (sinon le buzz ou la victoire assombrirait toute la salle).
+    const noDeskFixture = own.length === 0
     if (target === 'desk') {
       return noDeskFixture ? generalLights : own
     }
@@ -186,14 +211,14 @@ export function createScenePlayer(options: ScenePlayerOptions): ScenePlayer {
       }
 
       // Flash : alterne la couleur et l'état d'avant, puis revient à l'état d'avant.
-      const period = Math.max(1, step.onMs + step.offMs)
-      const lit = elapsed < stepDuration(step) && elapsed % period < step.onMs
+      const lit = elapsed < stepDuration(step) && elapsed % flashPeriodMs(step) < step.onMs
       commit(
         fixture.id,
         lit
           ? { color: { ...color }, intensity: 1, position, strobe: 0 }
           : { ...cloneState(start), position },
-        now
+        now,
+        lit
       )
     }
   }
@@ -203,7 +228,8 @@ export function createScenePlayer(options: ScenePlayerOptions): ScenePlayer {
       ...entry,
       stepIndex: index,
       stepStartedAt: at,
-      from: new Map([...current].map(([id, state]) => [id, cloneState(state)])),
+      // Une étape part de l'état voulu, pas de celui que le plafond d'éclairs retient encore.
+      from: new Map([...current].map(([id, state]) => [id, cloneState(held.get(id) ?? state)])),
     }
     const step = next.scene.steps[index]
     // Après un gel de la page, on rattrape les étapes sans déclencher une fumée « en retard ».
@@ -243,6 +269,14 @@ export function createScenePlayer(options: ScenePlayerOptions): ScenePlayer {
     for (const [id, state] of held) {
       commit(id, state, now)
     }
+    // Un appareil que rien n'a écrit à cet instant est stable : sa montée précédente est finie, la
+    // suivante comptera de nouveau (un palier à 0,55 après un extrait n'efface pas le prochain éclair).
+    for (const track of tracks.values()) {
+      if (track.at < now) {
+        track.trough = track.level
+        track.counted = false
+      }
+    }
   }
 
   return {
@@ -250,7 +284,7 @@ export function createScenePlayer(options: ScenePlayerOptions): ScenePlayer {
       if (active && scene.priority < active.scene.priority) {
         return false
       }
-      held.clear()
+      // `held` reste : `commit` l'efface appareil par appareil quand la nouvelle scène les vise.
       const entry: Active = { scene, context, stepIndex: 0, stepStartedAt: now, from: new Map() }
       active = enterStep(entry, 0, now, now)
       update(now)
@@ -266,6 +300,7 @@ export function createScenePlayer(options: ScenePlayerOptions): ScenePlayer {
       held.clear()
       for (const fixture of lights) {
         current.set(fixture.id, darkState())
+        tracks.set(fixture.id, freshTrack())
       }
     },
     currentSceneId: () => active?.scene.id ?? null,

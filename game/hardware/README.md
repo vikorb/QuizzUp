@@ -274,39 +274,57 @@ l'effet « bonne réponse »). Priorités : `idle` 0 ; `question`, `clip-playing
 `question-lost` 40 (un buzz juste après une mauvaise réponse n'est donc pas refusé) ; `victory`,
 `victory-tie` 50 ; `identify` 90. Couleurs : DA néon du backoffice, une couleur par pupitre.
 
-**Plafond d'éclairs (photosensibilité)** : aucun appareil ne fait plus de **3 éclairs par seconde**,
-quelle que soit la scène. Un **éclair** est le passage d'un appareil d'un niveau bas (intensité
-sous `FLASH_HIGH_LEVEL`, 0,5) à un niveau haut (0,5 ou plus) ; un fondu compte pour un seul passage,
-un changement de couleur à intensité constante n'en est pas un. Le réglage unique est
-`MAX_FLASHES_PER_SECOND` (3) dans `src/lighting/scenes.ts`, soit au moins
-`MIN_FLASH_INTERVAL_MS` = **334 ms** entre deux débuts d'éclair sur un même appareil.
+**Plafond d'éclairs (photosensibilité)** : la salle ne fait pas plus de **3 éclairs par seconde**,
+quelle que soit la scène jouée par le lecteur de scènes. Le seuil de référence est
+`MAX_FLASHES_PER_SECOND` (3) ; l'écart réellement tenu est `MIN_FLASH_INTERVAL_MS` = **400 ms**
+(3 éclairs par seconde donneraient 334 ms ; la marge couvre la latence d'émission USB et Art-Net,
+à mesurer sur le banc). Les deux sont dans `src/lighting/scenes.ts`.
+
+Un **éclair** est la remontée du niveau réel d'un appareil (intensité × plus forte composante de
+couleur, de 0 à 1) d'au moins `FLASH_RISE_LEVEL` (0,1) au-dessus du minimum atteint depuis le
+dernier éclair compté. Un fondu ou un palier prolongé compte pour un seul éclair ; un passage du
+noir au blanc à intensité 1 en est un, comme un saut de 0,55 à 1. Le plafond vaut pour **toute la
+salle** : un allumage sur n'importe quel appareil attend 400 ms après le dernier éclair de la salle,
+sauf s'il tombe dans le même instant (plusieurs appareils qui s'allument ensemble comptent pour un).
 
 - Les scènes par défaut le respectent dans leur définition (un test le vérifie pour chaque flash).
-- Le lecteur (`createScenePlayer`) le garantit pour **toute** scène jouée (scène réglée par une
+- Une étape `flash` plus rapide que le plafond est ramenée à 400 ms de période
+  (`flashPeriodMs`, utilisée par `stepDuration` et par le lecteur ; l'éteint est allongé).
+- Le lecteur (`createScenePlayer`) tient le plafond pour **toute** scène jouée (scène réglée par une
   salle, étapes de couleur qui alternent, enchaînement de deux scènes) : tout état écrit sur un
-  appareil passe par une seule fonction qui retient un passage au niveau haut trop proche du
-  précédent, puis l'applique dès que le plafond le permet (un flash déjà terminé est perdu, pas
-  rejoué). Les écarts sont comptés appareil par appareil : le plafond est à confirmer sur le banc
-  matériel (appareils voisins, lyres, stroboscopes réels).
+  appareil passe par une seule fonction qui retient un éclair trop proche du précédent, puis
+  l'applique dès que le plafond le permet. Un état final retenu est appliqué même si la scène est
+  finie, et n'est pas effacé par la scène suivante qui ne vise pas cet appareil ; un flash retenu
+  dont la fenêtre est passée est perdu, pas rejoué. Un buzz juste après un éclair peut donc
+  s'allumer jusqu'à 400 ms plus tard. L'arrêt d'urgence et `blackout()` restent immédiats et
+  oublient tout état retenu.
 
-Cadences par défaut (éclairs, durée allumé / éteint, période) :
+**Hors du plafond (non couvert par ce code, lot S5)** : un appareil qui clignote tout seul ne passe
+pas par le niveau mesuré. Cela concerne un canal `shutter` ou `fixed` d'un profil sur mesure dont la
+valeur tombe dans la plage stroboscope de l'appareil (ou une valeur `amber` / `uv` dans ce cas), le
+diagnostic (`diagnostics.setChannel`, `setFixture({ strobe })`) qui n'est pas plafonné, et un
+stroboscope piloté par une liste d'identifiants. Vérifier sur la notice de chaque appareil les
+valeurs `shutter` et `fixed` choisies (banc D8) ; aucun avertissement automatique pour l'instant.
 
-| Scène                  | Avant                       | Après                                   |
-| ---------------------- | --------------------------- | --------------------------------------- |
-| `game-start`           | 3 × 150/100 (4,0 éclairs/s) | 2 × 150/190 (2,9 éclairs/s)             |
-| `round-start`          | 2 × 150/100 (4,0 éclairs/s) | 2 × 150/190 (2,9 éclairs/s)             |
-| `buzz`                 | 3 × 80/60 (7,1 éclairs/s)   | 1 × 120/220, puis pupitre fixe à 340 ms |
-| `answer-correct`       | 3 × 120/80 (5,0 éclairs/s)  | 2 × 140/200 (2,9 éclairs/s)             |
-| `answer-wrong`         | 2 × 200/120 (3,1 éclairs/s) | 2 × 200/140 (2,9 éclairs/s)             |
-| `round-end`            | 2 × 200/120 (3,1 éclairs/s) | 2 × 200/140 (2,9 éclairs/s)             |
-| `victory`              | 6 × 100/80 (5,6 éclairs/s)  | 4 × 120/220 (2,9 éclairs/s)             |
-| `victory-tie`          | 3 × 150/100 (4,0 éclairs/s) | 3 × 150/230 (2,6 éclairs/s)             |
-| `identify` (inchangée) | 4 × 250/200 (2,2 éclairs/s) | 4 × 250/200 (2,2 éclairs/s)             |
+Cadences par défaut (nombre d'éclairs × durée allumé / éteint ; période de 400 ms = 2,5 éclairs/s) :
+
+| Scène                  | Avant                              | Après                                                      |
+| ---------------------- | ---------------------------------- | ---------------------------------------------------------- |
+| `game-start`           | 3 × 150/100 (4,0 éclairs/s)        | 2 × 150/250 (2,5 éclairs/s)                                |
+| `round-start`          | 2 × 150/100 (4,0 éclairs/s)        | 2 × 150/250 (2,5 éclairs/s)                                |
+| `buzz`                 | 3 × 80/60 (7,1 éclairs/s)          | 1 × 120/280, pupitre fixe 500 ms après le buzz (fondu 100) |
+| `answer-correct`       | 3 × 120/80 (5,0 éclairs/s)         | 2 × 140/260 (2,5 éclairs/s)                                |
+| `answer-wrong`         | 2 × 200/120 (3,1 éclairs/s)        | 2 × 200/200 (2,5 éclairs/s)                                |
+| `round-end`            | 2 × 200/120 (3,1 éclairs/s)        | 2 × 200/200 (2,5 éclairs/s)                                |
+| `victory`              | 6 × 100/80 (5,6 éclairs/s)         | 3 × 120/280 (2,5 éclairs/s)                                |
+| `victory-tie`          | nouvelle scène (absente de `main`) | 3 × 150/290 (2,3 éclairs/s)                                |
+| `identify` (inchangée) | 4 × 250/200 (2,2 éclairs/s)        | 4 × 250/200 (2,2 éclairs/s)                                |
 
 Cibles des scènes : un **stroboscope** (type `strobe`) n'est jamais piloté par `all`, `desk` ou
 `others` : seule une liste d'identifiants qui le nomme l'allume (hors scène qui le demande, son
 gradateur et son canal strobe restent à 0). Un pupitre **sans aucun appareil** (ni PAR dédié, ni
-position de lyre) fait que `desk` vise toute la salle et `others` ne vise personne.
+position de lyre), ou **inconnu** (participant sans pupitre résolu, `desk: null`), fait que `desk`
+vise toute la salle et `others` ne vise personne ; la couleur « pupitre » est alors le blanc.
 
 ## Sécurité fumée
 

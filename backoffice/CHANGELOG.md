@@ -294,7 +294,7 @@ Format inspiré de Keep a Changelog.
 
 ### Fixed
 
-- Sécurité (photosensibilité) : aucune scène lumière ne dépasse 3 éclairs par seconde sur un appareil. Les cadences par défaut sont ralenties (buzz, bonne et mauvaise réponses, victoires, début de partie, nouvelle manche, fin de manche) et le lecteur de scènes ramène au plafond toute scène plus rapide, y compris à la jonction de deux scènes. Non validé sur du vrai matériel.
+- Sécurité (photosensibilité) : dans toute la salle, deux éclairs des scènes lumière sont séparés d'au moins 0,4 s, mesuré sur le niveau réellement émis. Les cadences par défaut sont ralenties (buzz, bonne et mauvaise réponses, victoires, début de partie, nouvelle manche, fin de manche) et un éclair trop rapproché est retardé, y compris à la jonction de deux scènes. Non couverts, traités dans un lot à part : appareils à stroboscope intégré (`shutter`, canaux `fixed`), diagnostics, stroboscopes pilotés par une liste. Non validé sur du vrai matériel.
   US: US-SEC-02 (#152)
 
 - Lumières : les stroboscopes ne sont plus allumés en continu par les scènes générales ; un pupitre sans appareil n'assombrit plus la salle au buzz ; le buzz juste après une mauvaise réponse garde sa lumière ; la victoire à égalité a sa propre scène qui allume toute la salle.
