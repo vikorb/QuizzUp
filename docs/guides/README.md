@@ -12,13 +12,13 @@ personnes qui ne connaissent pas le produit.
 
 ## Sommaire
 
-| Guide                                                                   | Pour qui                                | Pour faire quoi                                                                                                                      |
-| ----------------------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| [Installer une salle](installation-salle.md)                            | Gérant, technicien, prestataire         | Passer de la boîte à la première partie : matériel, compte de salle, connexion du PC, buzzers, lumières, fumée, plein écran.         |
-| [Utilisation quotidienne](utilisation-quotidienne.md)                   | Personnel du centre                     | Ouvrir la salle, inscrire les joueurs, lancer et arrêter une partie, enchaîner deux sessions, fermer.                                |
-| [Dépannage](depannage.md)                                               | Personnel du centre, technicien         | Trouver la cause d'un symptôme (buzzer muet, pas de son, lumières, fumée, coupure d'internet, écran figé) et le geste à faire.       |
-| [Passer une salle déjà équipée à QuizzUp](migration-salle-existante.md) | Gérant, technicien                      | Inventorier le matériel, savoir ce qui est repris tel quel et ce qui se reconfigure, migrer en une demi-journée, revenir en arrière. |
-| [Sécurité : fumée et lumières](securite-fumee-et-lumieres.md)           | Gérant, responsable de site, technicien | Savoir ce que le logiciel garantit et ne garantit pas, et faire le contrôle avant chaque ouverture.                                  |
+| Guide                                                                   | Pour qui                                | Pour faire quoi                                                                                                                             |
+| ----------------------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Installer une salle](installation-salle.md)                            | Gérant, technicien, prestataire         | Passer de la boîte à la première partie : matériel, compte de salle, connexion du PC, buzzers, lumières, fumée, plein écran.                |
+| [Utilisation quotidienne](utilisation-quotidienne.md)                   | Personnel du centre                     | Ouvrir la salle, inscrire les joueurs, lancer, mettre en pause, passer une question ou arrêter une partie, enchaîner deux sessions, fermer. |
+| [Dépannage](depannage.md)                                               | Personnel du centre, technicien         | Trouver la cause d'un symptôme (buzzer muet, pas de son, lumières, fumée, coupure d'internet, écran figé) et le geste à faire.              |
+| [Passer une salle déjà équipée à QuizzUp](migration-salle-existante.md) | Gérant, technicien                      | Inventorier le matériel, savoir ce qui est repris tel quel et ce qui se reconfigure, migrer en une demi-journée, revenir en arrière.        |
+| [Sécurité : fumée et lumières](securite-fumee-et-lumieres.md)           | Gérant, responsable de site, technicien | Savoir ce que le logiciel garantit et ne garantit pas, et faire le contrôle avant chaque ouverture.                                         |
 
 ## Par où commencer
 
@@ -37,8 +37,7 @@ les guides :
 
 - le pilotage de la salle à distance depuis le backoffice ;
 - l'inscription des joueurs par QR code ;
-- les sessions programmées à l'avance ;
-- la mise en pause d'une partie et « passer une question » (en cours de développement).
+- les sessions programmées à l'avance.
 
 ## Conventions des guides
 

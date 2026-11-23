@@ -42,21 +42,21 @@ ce qui doit l'être.
 
 Avant le jour de la migration, remplis cette liste. Prends des **photos** de chaque câblage.
 
-| À relever                                          | Pourquoi                                                                                |
-| -------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Nombre de pupitres et de buzzers par pupitre       | QuizzUp gère 1 à 6 pupitres et 4 buzzers par pupitre.                                   |
-| Le boîtier des buzzers (marque, modèle)            | Clavier ou manette ? Combien d'entrées ?                                                |
-| Un utilitaire convertit-il la manette en clavier ? | Inutile avec QuizzUp si la carte est lue en manette ; à ne plus lancer.                 |
-| L'interface DMX actuelle                           | USB ? Boîtier réseau Art-Net ? Dans ce cas : son adresse IP et ses univers.             |
-| La liste des appareils DMX                         | Type, adresse DMX, nombre de canaux (mode), pupitre associé.                            |
-| Le **mode** de chaque lyre (nombre de canaux)      | Un profil de lyre dépend de ce mode.                                                    |
-| Les réglages de visée des lyres                    | Le fichier de calage (positions pan/tilt) peut être repris.                             |
-| La machine à fumée                                 | Modèle, télécommande, **ce qui la pilote aujourd'hui** (minuterie autonome ? relais ?). |
-| La sécurité fumée existante                        | Arrêt d'urgence physique ? Relais temporisé ? Détection incendie ?                      |
-| Le PC actuel                                       | Windows ? Version ? Deux cartes réseau ? Navigateur installé ?                          |
-| Le son et la vidéo                                 | Sortie du PC, table de mixage, vidéoprojecteur.                                         |
-| Les contenus utilisés                              | Questions, extraits audio, droits associés.                                             |
-| Ton contrat actuel                                 | À relire avant de décider (voir l'encadré en haut).                                     |
+| À relever                                          | Pourquoi                                                                                 |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Nombre de pupitres et de buzzers par pupitre       | QuizzUp gère 1 à 6 pupitres et 4 buzzers par pupitre.                                    |
+| Le boîtier des buzzers (marque, modèle)            | Clavier ou manette ? Combien d'entrées ?                                                 |
+| Un programme tiers intervient-il sur les buzzers ? | QuizzUp lit la carte directement (clavier ou manette) : ce programme n'a plus à tourner. |
+| L'interface DMX actuelle                           | USB ? Boîtier réseau Art-Net ? Dans ce cas : son adresse IP et ses univers.              |
+| La liste des appareils DMX                         | Type, adresse DMX, nombre de canaux (mode), pupitre associé.                             |
+| Le **mode** de chaque lyre (nombre de canaux)      | Un profil de lyre dépend de ce mode.                                                     |
+| Les réglages de visée des lyres                    | Le fichier de calage (positions pan/tilt) peut être repris.                              |
+| La machine à fumée                                 | Modèle, télécommande, **ce qui la pilote aujourd'hui** (minuterie autonome ? relais ?).  |
+| La sécurité fumée existante                        | Arrêt d'urgence physique ? Relais temporisé ? Détection incendie ?                       |
+| Le PC actuel                                       | Windows ? Version ? Deux cartes réseau ? Navigateur installé ?                           |
+| Le son et la vidéo                                 | Sortie du PC, table de mixage, vidéoprojecteur.                                          |
+| Les contenus utilisés                              | Questions, extraits audio, droits associés.                                              |
+| Ton contrat actuel                                 | À relire avant de décider (voir l'encadré en haut).                                      |
 
 > À vérifier sur le banc : un modèle d'équipement type « 6 pupitres » est fourni avec QuizzUp (adresses
 > de lyres, rubans LED, relais de fumée). Il correspond à une salle courante, pas forcément à la tienne.
@@ -78,16 +78,16 @@ Avant le jour de la migration, remplis cette liste. Prends des **photos** de cha
 
 ### 3.2 Se reconfigure
 
-| Élément                 | Ce qu'il faut faire                                                                                                                                                                       |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Association des buzzers | **À refaire** dans l'assistant : l'ordre des entrées de la carte dépend de ton câblage.                                                                                                   |
-| Interface DMX           | USB : branche une interface compatible. Art-Net : installe le pont QuizzUp sur le PC.                                                                                                     |
-| Appareils lumineux      | À déclarer dans l'assistant (modèle « Salle 6 pupitres » ou saisie à la main).                                                                                                            |
-| Univers DMX             | Le modèle met tout sur l'**univers 0**. Si ton boîtier Art-Net attend d'autres univers, place les appareils sur les univers 1 ou 2 dans l'assistant, ou utilise l'option `--map` du pont. |
-| Machine à fumée         | À adapter : relais DMX, relais temporisé, arrêt d'urgence physique, et **retrait de toute minuterie autonome**.                                                                           |
-| Questions et contenus   | À recréer dans le backoffice (voir ci-dessous).                                                                                                                                           |
-| Comptes                 | Compagnie, salle et compte de salle à créer au backoffice.                                                                                                                                |
-| Logiciel du PC          | Ne plus lancer l'ancien logiciel ni son utilitaire de conversion.                                                                                                                         |
+| Élément                 | Ce qu'il faut faire                                                                                                                                                                                                                        |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Association des buzzers | **À refaire** dans l'assistant : l'ordre des entrées de la carte dépend de ton câblage.                                                                                                                                                    |
+| Interface DMX           | USB : branche une interface compatible. Art-Net : installe le pont QuizzUp sur le PC.                                                                                                                                                      |
+| Appareils lumineux      | À déclarer dans l'assistant (modèle « Salle 6 pupitres » ou saisie à la main).                                                                                                                                                             |
+| Univers DMX             | Le modèle met tout sur l'**univers 0**. Si ton boîtier Art-Net attend d'autres univers, indique l'univers de chaque appareil dans l'assistant (de 0 à 15), ou utilise l'option `--map` du pont. Une interface USB ne gère que l'univers 0. |
+| Machine à fumée         | À adapter : relais DMX, relais temporisé, arrêt d'urgence physique, et **retrait de toute minuterie autonome**.                                                                                                                            |
+| Questions et contenus   | À recréer dans le backoffice (voir ci-dessous).                                                                                                                                                                                            |
+| Comptes                 | Compagnie, salle et compte de salle à créer au backoffice.                                                                                                                                                                                 |
+| Logiciel du PC          | Ne plus lancer l'ancien logiciel ni les programmes qui allaient avec.                                                                                                                                                                      |
 
 **Les questions.** QuizzUp ne reprend aucun questionnaire, média ni texte d'un autre système, et il
 n'a **pas d'outil d'importation**. Tu crées tes thèmes et tes questions dans le backoffice. Chaque
@@ -109,21 +109,23 @@ backoffice.
 2. Crée, au backoffice, la compagnie si besoin, la salle et son compte de salle. Voir
    [`installation-salle.md`](installation-salle.md), étape 2.
 3. Crée au moins un thème avec quelques questions audio et prépare une partie de test.
-4. Si ta salle est en Art-Net, prépare le pont (voir l'étape 6 de
-   [`installation-salle.md`](installation-salle.md)).
+4. Si ta salle est en Art-Net, prépare le pont : demande l'exécutable à l'éditeur et lis le
+   [chapitre 6.3 de `installation-salle.md`](installation-salle.md#63-installer-et-lancer-le-pont-art-net-chaîne-b-seulement).
+   Le pont se lance avec l'option `--origin` : un double-clic ne suffit pas.
 
 ### Le jour J
 
-| Durée  | Étape                   | Détail                                                                                                                                                                                                                                                                                                    |
-| ------ | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 15 min | Sauvegarder l'existant  | Photos des câblages. Copie de la configuration de l'ancien système (fichiers de calage, listes d'adresses). Note les réglages.                                                                                                                                                                            |
-| 15 min | **Couper la fumée**     | **Débranche le dispositif qui la déclenche tout seul.** Une minuterie autonome enverrait de la fumée hors de tout contrôle du jeu.                                                                                                                                                                        |
-| 30 min | Préparer le PC          | Chrome ou Edge, kit du poste ou installation à la main ([`installation-salle.md`](installation-salle.md), chapitre 3). Ne plus lancer l'ancien logiciel.                                                                                                                                                  |
-| 15 min | Connecter la salle      | « Connexion de la salle » avec le compte de salle.                                                                                                                                                                                                                                                        |
-| 45 min | Buzzers                 | Assistant. Pour une carte manette : Matériel, onglet « Assistant », étape « Associer les buzzers », « Carte manette (entrées USB) ». Renseigne « Nom de la carte (facultatif) » si une autre manette est branchée sur le PC. Appuie une première fois pour réveiller la carte. Puis « Test des buzzers ». |
-| 45 min | Lumières                | Interface USB ou pont Art-Net. « Salle 6 pupitres » ou « Je garde mes appareils actuels ». « Reprendre les positions des lyres (fichier) » pour le calage. Test appareil par appareil, puis « Viser les pupitres ».                                                                                       |
-| 45 min | Fumée (si tu en as une) | Relais DMX, relais temporisé, arrêt d'urgence physique, puis l'étape « Sécuriser la fumée » de l'assistant. Test hors public.                                                                                                                                                                             |
-| 30 min | Partie d'essai          | Une partie complète lancée depuis le backoffice : buzzers, son, lumières, résultats.                                                                                                                                                                                                                      |
+| Durée  | Étape                   | Détail                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------ | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 15 min | Sauvegarder l'existant  | Photos des câblages. Copie de la configuration de l'ancien système (fichiers de calage, listes d'adresses). Note les réglages.                                                                                                                                                                                                                                                                                                           |
+| 15 min | **Couper la fumée**     | **Débranche le dispositif qui la déclenche tout seul.** Une minuterie autonome enverrait de la fumée hors de tout contrôle du jeu.                                                                                                                                                                                                                                                                                                       |
+| 30 min | Préparer le PC          | Chrome ou Edge, kit du poste ou installation à la main ([`installation-salle.md`](installation-salle.md), chapitre 3). Ne plus lancer l'ancien logiciel.                                                                                                                                                                                                                                                                                 |
+| 15 min | Connecter la salle      | « Connexion de la salle » avec le compte de salle.                                                                                                                                                                                                                                                                                                                                                                                       |
+| 45 min | Buzzers                 | Assistant. Pour une carte manette : Matériel, onglet « Assistant », étape « Associer les buzzers », « Carte manette (entrées USB) ». Renseigne « Nom de la carte (facultatif) » si une autre manette est branchée sur le PC. Appuie une première fois pour réveiller la carte. Puis « Test des buzzers ».                                                                                                                                |
+| 45 min | Lumières                | Matériel, onglet « Assistant » (le chemin court « Passons aux lumières ! » ne sait ni déclarer tes appareils un par un, ni reprendre un calage, ni viser les lyres). Étapes « Choisir l’interface DMX » (USB ou pont Art-Net), « Déclarer les appareils » (« Importer une salle 6 pupitres » ou le formulaire, puis « Reprendre les positions des lyres (fichier) » pour le calage), « Tester chaque appareil », « Viser les pupitres ». |
+| 45 min | Fumée (si tu en as une) | Relais DMX, relais temporisé, arrêt d'urgence physique, puis l'étape « Sécuriser la fumée » de l'assistant. Test hors public.                                                                                                                                                                                                                                                                                                            |
+| 5 min  | **Enregistrer**         | Dernière étape de l'assistant : « Récapitulatif », puis « Enregistrer la configuration », puis attends « Configuration enregistrée. ». Sans cela, la fumée reste désactivée et des réglages peuvent être perdus.                                                                                                                                                                                                                         |
+| 30 min | Partie d'essai          | Une partie complète lancée depuis le backoffice : buzzers, son, lumières, résultats.                                                                                                                                                                                                                                                                                                                                                     |
 
 > À vérifier sur le banc : ces durées sont des **estimations**, pas des mesures. Aucune migration n'a
 > été chronométrée.
@@ -162,7 +164,7 @@ Tant que tu as gardé le matériel et les réglages d'origine, tu peux revenir e
 2. Rebranche l'**interface DMX d'origine** (ou remets le câblage tel que sur tes photos).
 3. Rétablis la fumée **comme elle était, avec ses sécurités d'origine**. Si le dispositif d'origine
    était une minuterie autonome, c'est ton choix : relis ses risques avant de le rebrancher.
-4. Relance l'ancien logiciel et son utilitaire de conversion.
+4. Relance l'ancien logiciel et les programmes qui allaient avec.
 
 Dans QuizzUp, rien n'est détruit : tu peux désactiver la salle (« Désactiver la salle ») ou supprimer
 son compte (« Supprimer le compte de salle »), et recommencer plus tard.
@@ -177,7 +179,7 @@ Garde l'ancien matériel et les anciens fichiers pendant **au moins une semaine*
   inscrit les joueurs au backoffice.
 - **Pilotage de la salle à distance** depuis le backoffice : **à venir**.
 - **Sessions programmées** à l'avance : **à venir**.
-- **Feuille de résultats imprimable** : non disponible.
+- **Impression des résultats** : non disponible.
 - **Délai de sortie** (lumières maintenues quelques minutes après la fin pour faire sortir les
   joueurs) : pas de réglage dédié aujourd'hui.
 - **Importation de questions** depuis un autre système : non disponible.

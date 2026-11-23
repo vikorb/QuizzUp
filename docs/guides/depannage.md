@@ -31,15 +31,15 @@ d'urgence physique, puis cherche la cause.** Voir
 
 ## Un buzzer ne répond pas
 
-| Symptôme                                                  | Cause probable                                                             | Geste                                                                                                                                        |
-| --------------------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Aucun buzzer ne répond, message « Buzzers inactifs »      | La fenêtre du jeu a perdu le focus (un clic ailleurs, une fenêtre Windows) | Clique n'importe où dans la page : « Clique n’importe où pour réactiver les buzzers ».                                                       |
-| Aucun buzzer ne répond, pas de message                    | Boîtier débranché ou câble USB lâche                                       | Vérifie le câble, rebranche, clique dans la page. Teste dans Matériel, onglet « Buzzers », section « Test des buzzers ».                     |
-| Aucun buzzer d'une carte manette ne répond                | Le navigateur ne voit une manette qu'après un premier appui                | Appuie sur un buzzer. Message attendu : « Appuie sur un buzzer pour activer la carte : le navigateur ne la voit qu’après un premier appui. » |
-| Un seul buzzer ne répond pas                              | Il n'a pas été appris, ou il a été appris avec une mauvaise touche         | Matériel, onglet « Buzzers » : relance « Lancer la configuration des buzzers » puis apprends-le de nouveau.                                  |
-| « La touche … est réservée au système » à l'apprentissage | Le buzzer envoie une touche que Windows ou le navigateur garde pour eux    | Change la touche envoyée par le boîtier, si possible.                                                                                        |
-| Le pupitre réagit mais pas le bon                         | Deux buzzers mal associés                                                  | Reprends l'association : « Recommencer » puis « Enregistrer l’association ».                                                                 |
-| Le joueur n'a plus de buzzer du tout (boîtier absent)     | Panne matérielle                                                           | Utilise le clavier de simulation : « Revenir au clavier de simulation ». Les touches sont rappelées sur l'écran d'inscription.               |
+| Symptôme                                                  | Cause probable                                                             | Geste                                                                                                                                                                                                                                                                                                                 |
+| --------------------------------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Aucun buzzer ne répond, message « Buzzers inactifs »      | La fenêtre du jeu a perdu le focus (un clic ailleurs, une fenêtre Windows) | Clique n'importe où dans la page : « Clique n’importe où pour réactiver les buzzers ».                                                                                                                                                                                                                                |
+| Aucun buzzer ne répond, pas de message                    | Boîtier débranché ou câble USB lâche                                       | Vérifie le câble, rebranche, clique dans la page. Teste dans Matériel, onglet « Buzzers », section « Test des buzzers ».                                                                                                                                                                                              |
+| Aucun buzzer d'une carte manette ne répond                | Le navigateur ne voit une manette qu'après un premier appui                | Appuie sur un buzzer. Message attendu : « Appuie sur un buzzer pour activer la carte : le navigateur ne la voit qu’après un premier appui. »                                                                                                                                                                          |
+| Un seul buzzer ne répond pas                              | Il n'a pas été appris, ou il a été appris avec une mauvaise touche         | Matériel, onglet « Buzzers » : relance « Lancer la configuration des buzzers » puis apprends-le de nouveau.                                                                                                                                                                                                           |
+| « La touche … est réservée au système » à l'apprentissage | Le buzzer envoie une touche que Windows ou le navigateur garde pour eux    | Change la touche envoyée par le boîtier, si possible.                                                                                                                                                                                                                                                                 |
+| Le pupitre réagit mais pas le bon                         | Deux buzzers mal associés                                                  | Reprends l'association : « Recommencer » puis « Enregistrer l’association ».                                                                                                                                                                                                                                          |
+| Le joueur n'a plus de buzzer du tout (boîtier absent)     | Panne matérielle                                                           | Dépanne-toi au clavier de simulation : « Revenir au clavier de simulation » (Matériel, onglet « Buzzers »). **Attention** : ce bouton fait oublier **tous** les buzzers associés, y compris ceux gardés en réserve. Il faudra tout réapprendre ensuite. Ensuite, les touches du clavier sont listées dans cet onglet. |
 
 > À vérifier sur le banc : comportement d'une vraie carte manette (rebonds, numéros d'entrée,
 > reconnaissance après redémarrage). Tests B du banc.
@@ -77,13 +77,13 @@ Vérifie dans l'ordre, dans Matériel, onglet « Lumières et fumée » :
 
 **Avertissements affichés à l'écran**
 
-| Message                                                                            | Signification                                                         | Geste                                                               |
-| ---------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| « La page a gelé : fumée coupée par sécurité. »                                    | Le logiciel s'est figé plus d'une demi-seconde, la fumée a été coupée | Attends. Si ça se répète, redémarre le PC et signale-le.            |
-| « Onglet masqué : fumée coupée par sécurité. »                                     | La fenêtre n'est plus visible                                         | Remets la fenêtre du jeu au premier plan.                           |
-| « L’interface DMX ne répond plus. »                                                | L'interface USB ne reçoit plus les données                            | Vérifie le câble USB. Reconnecte l'interface.                       |
-| « L’interface DMX répond de nouveau : lumières reprises (fumée toujours coupée). » | Retour à la normale ; la fumée doit être réarmée à la main            | Si besoin, coche de nouveau « Fumée autorisée pour cette session ». |
-| « Pont Art-Net non connecté : les lumières restent simulées et la fumée coupée. »  | Le pont n'est pas lancé ou pas joignable                              | Voir [le pont Art-Net](#le-pont-art-net-ne-se-connecte-pas).        |
+| Message                                                                            | Signification                                                                                                                                  | Geste                                                               |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| « La page a gelé : fumée coupée par sécurité. »                                    | Le logiciel s'est figé plus d'une demi-seconde. La fumée est coupée **dès que la page repart** ; pendant le gel, seul le relais temporisé agit | Attends. Si ça se répète, redémarre le PC et signale-le.            |
+| « Onglet masqué : fumée coupée par sécurité. »                                     | La fenêtre n'est plus visible                                                                                                                  | Remets la fenêtre du jeu au premier plan.                           |
+| « L’interface DMX ne répond plus. »                                                | L'interface USB ne reçoit plus les données                                                                                                     | Vérifie le câble USB. Reconnecte l'interface.                       |
+| « L’interface DMX répond de nouveau : lumières reprises (fumée toujours coupée). » | Retour à la normale ; la fumée doit être réarmée à la main                                                                                     | Si besoin, coche de nouveau « Fumée autorisée pour cette session ». |
+| « Pont Art-Net non connecté : les lumières restent simulées et la fumée coupée. »  | Le pont n'est pas lancé ou pas joignable                                                                                                       | Voir [le pont Art-Net](#le-pont-art-net-ne-se-connecte-pas).        |
 
 > À vérifier sur le banc : tous les symptômes de cette section avec de vrais appareils (tests D du banc).
 
@@ -113,10 +113,15 @@ Le pont (`quizzup-artnet-bridge`) est le petit programme Windows qui relaie les 
 boîtier réseau Art-Net. Il écoute en local sur le port 7654.
 
 1. **Est-il lancé ?** Dans le Gestionnaire des tâches de Windows, cherche `quizzup-artnet-bridge`.
-   Avec le kit du poste, il démarre tout seul avec Windows et se relance chaque minute.
+   Avec le kit du poste, il démarre tout seul avec Windows et se relance chaque minute. Sans le kit,
+   un double-clic ne suffit pas : le pont exige l'option `--origin` et s'arrête sans elle. Voir
+   [Installer et lancer le pont Art-Net](installation-salle.md#63-installer-et-lancer-le-pont-art-net-chaîne-b-seulement).
 2. **Windows l'a-t-il bloqué ?** Le programme n'est pas signé. SmartScreen peut afficher un
    avertissement (« Informations complémentaires » puis « Exécuter quand même »). Smart App Control, lui,
-   bloque un programme non signé **sans rien afficher** : désactive-le si c'est ton cas.
+   bloque un programme non signé **sans rien afficher**. **Ne le désactive pas à la légère** : la
+   désactivation est irréversible sans réinitialiser Windows. Lis d'abord la section « Exécutable non
+   signé : SmartScreen et Smart App Control » du README du
+   [kit du poste de salle](../../deploy/poste-salle/README.md) et demande conseil à l'éditeur.
 3. **Pare-feu** : autorise UDP 6454 pour les réseaux de profil **Privé**. Une deuxième carte réseau
    « non identifiée » est classée **Public** par Windows : force le profil Privé.
 4. **Le boîtier est-il sur le même réseau ?** Clique sur « Chercher les nœuds ». Sinon saisis l'« IP du
@@ -140,21 +145,23 @@ attendre d'autres.
 2. Ventile la salle, fais sortir le public si nécessaire.
 3. Ne rallume rien tant que la cause n'est pas comprise.
 
-Une interface USB ou le pont **répète la dernière image** si le PC plante : seul le **relais
-temporisé** (10 secondes maximum) coupe alors la fumée. Si la fumée a duré plus de 10 secondes, ce
-relais est défaillant ou absent : **ne réutilise pas la machine** avant de l'avoir fait contrôler.
+Si le PC plante ou se fige, une interface USB **répète la dernière image reçue**. Le pont Art-Net passe
+au noir après 2,5 secondes sans nouvelles du navigateur, mais le boîtier réseau peut garder la dernière
+image si le PC entier se fige. Dans tous les cas, c'est le **relais temporisé** (10 secondes maximum)
+qui doit couper la fumée. Si la fumée a duré plus de 10 secondes, ce relais est défaillant ou absent :
+**ne réutilise pas la machine** avant de l'avoir fait contrôler.
 
 ### Elle ne part pas
 
 Dans Matériel, onglet « Lumières et fumée », regarde le statut de la fumée :
 
-| Statut                        | Signification                                          | Geste                                                                                     |
-| ----------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| « désactivée »                | La fumée n'a pas été activée pour cette salle          | Active-la dans l'assistant, étape « Sécuriser la fumée ».                                 |
-| « non autorisée »             | Personne n'a armé la fumée pour cette session          | Coche « Fumée autorisée pour cette session » (après le contrôle d'ouverture).             |
-| « pause de sécurité »         | Le délai minimal entre deux émissions n'est pas écoulé | Attends (30 secondes par défaut).                                                         |
-| « bloquée (arrêt d’urgence) » | L'arrêt d'urgence est actif                            | « Rallumer les lumières » ; puis réarme la fumée.                                         |
-| « prête »                     | Tout est bon                                           | Elle partira à la scène de victoire de la partie (3 secondes). Teste avec « Tester 2 s ». |
+| Statut                                                  | Signification                                          | Geste                                                                                     |
+| ------------------------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| « Fumée désactivée dans la configuration de la salle. » | La fumée n'a pas été activée pour cette salle          | Active-la dans l'assistant, étape « Sécuriser la fumée ».                                 |
+| « non autorisée »                                       | Personne n'a armé la fumée pour cette session          | Coche « Fumée autorisée pour cette session » (après le contrôle d'ouverture).             |
+| « pause de sécurité »                                   | Le délai minimal entre deux émissions n'est pas écoulé | Attends (30 secondes par défaut).                                                         |
+| « bloquée (arrêt d’urgence) »                           | L'arrêt d'urgence est actif                            | « Rallumer les lumières » ; puis réarme la fumée.                                         |
+| « prête »                                               | Tout est bon                                           | Elle partira à la scène de victoire de la partie (3 secondes). Teste avec « Tester 2 s ». |
 
 Autres causes : fumée coupée par la sécurité (« La page a gelé… », « Onglet masqué… », « L’interface
 DMX ne répond plus. »), machine éteinte, relais non alimenté, liquide ou chauffe de la machine
@@ -189,13 +196,15 @@ dès que le réseau revient (réessai à 2, 5, 15, 30 secondes, puis toutes les 
 1. **Attends 10 secondes.** Une partie qui charge les extraits peut ralentir un instant.
 2. Clique dans la page : le focus a peut-être été perdu.
 3. Si tout est figé, appuie sur F5 **seulement si internet fonctionne**. Au rechargement, tu
-   retrouves « Prêt à jouer » ; si une partie était en cours, « Reprendre la partie » est proposé.
-   Reclique sur « Lancer la salle » pour débloquer le son.
+   retrouves « Prêt à jouer ». Si une partie était en cours, clique sur « Reprendre la partie » : ce
+   clic débloque aussi le son et reprend la partie là où elle s'était arrêtée. Sinon, clique sur
+   « Lancer la salle ».
 4. **Page blanche et pas d'internet** : l'application n'est pas gardée en cache. Rétablis internet,
    puis recharge. (Une version qui fonctionne sans internet au rechargement est prévue plus tard.)
 5. En dernier recours, redémarre le PC. **Avant**, assure-toi que la fumée est coupée.
 
-Un figeage de plus d'une demi-seconde coupe automatiquement la fumée (voir plus haut).
+Après un figeage de plus d'une demi-seconde, la fumée est coupée dès que la page repart. Pendant le
+figeage lui-même, seul le relais temporisé agit (voir plus haut).
 
 ## Un deuxième onglet QuizzUp est ouvert
 
@@ -223,7 +232,7 @@ même compte de salle, ce sont eux qui se marchent dessus.
 | Retour sur « Connexion de la salle » au démarrage  | La connexion de la salle a expiré (elle est valable 365 jours) ou le compte a été supprimé | Reconnecte la salle (« Connecter la salle »). Une partie sauvegardée est gardée. |
 | « Identifiants invalides. »                        | Mauvais identifiant ou mot de passe ; mot de passe changé                                  | Demande à un admin de recréer le compte (« Gérer le compte de salle »).          |
 | Le PC est déconnecté sans raison                   | Compte de salle supprimé, ou compagnie désactivée                                          | Demande à un admin de vérifier la salle et son compte.                           |
-| La salle est connectée mais aucune partie ne vient | La salle est inactive au backoffice                                                        | Dans la fiche de la compagnie, « Activer la salle ».                             |
+| La salle est connectée mais aucune partie ne vient | La salle est inactive au backoffice                                                        | Demande à un admin : « Activer la salle » (fiche de la compagnie).               |
 
 Pendant une session de jeu, la connexion n'est vérifiée **qu'au démarrage** : une expiration ne coupe
 pas une partie en cours.
@@ -234,7 +243,7 @@ pas une partie en cours.
   attente, ils seront envoyés à la reconnexion » : rétablis internet, ou reconnecte la salle. Les
   résultats partent seuls.
 - Le bandeau indique « Résultats refusés par le backoffice. » : le serveur a refusé les résultats.
-  Note l'heure et prévient l'éditeur.
+  Note l'heure et préviens l'éditeur.
 - Une partie arrêtée depuis l'écran de salle reste « En cours » au backoffice : clique sur « Arrêter »
   dans la liste des parties.
 

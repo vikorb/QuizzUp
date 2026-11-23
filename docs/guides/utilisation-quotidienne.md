@@ -80,14 +80,14 @@ pupitre.
 
 **Si ça ne marche pas**
 
-| Message                                                                             | Cause probable                             | Geste                                                |
-| ----------------------------------------------------------------------------------- | ------------------------------------------ | ---------------------------------------------------- |
-| « Cette salle est inactive : activez-la avant d'y lancer une partie. » (backoffice) | La salle est désactivée                    | Dans la fiche de la compagnie, « Activer la salle ». |
-| « Une partie est déjà en attente ou en cours dans cette salle. » (backoffice)       | Une partie précédente n'est pas terminée   | Termine-la, ou clique sur « Arrêter » dans la liste. |
-| « Un des pupitres choisis n'existe pas dans cette salle. » (backoffice)             | Numéro de pupitre trop grand pour la salle | Corrige le numéro du pupitre.                        |
-| « Aucun thème jouable pour cette partie : … »                                       | Pas de question audio active               | Ajoute ou active des questions audio au backoffice.  |
-| « Aucun joueur n’est inscrit à cette partie : … »                                   | Participants oubliés                       | Ajoute les participants au backoffice.               |
-| « Cette partie n’est plus disponible (arrêtée ou terminée au backoffice). »         | La partie a été arrêtée entre-temps        | Crée une nouvelle partie.                            |
+| Message                                                                             | Cause probable                             | Geste                                                              |
+| ----------------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------ |
+| « Cette salle est inactive : activez-la avant d'y lancer une partie. » (backoffice) | La salle est désactivée                    | Demande à un admin : « Activer la salle » (fiche de la compagnie). |
+| « Une partie est déjà en attente ou en cours dans cette salle. » (backoffice)       | Une partie précédente n'est pas terminée   | Termine-la, ou clique sur « Arrêter » dans la liste.               |
+| « Un des pupitres choisis n'existe pas dans cette salle. » (backoffice)             | Numéro de pupitre trop grand pour la salle | Corrige le numéro du pupitre.                                      |
+| « Aucun thème jouable pour cette partie : … »                                       | Pas de question audio active               | Ajoute ou active des questions audio au backoffice.                |
+| « Aucun joueur n’est inscrit à cette partie : … »                                   | Participants oubliés                       | Ajoute les participants au backoffice.                             |
+| « Cette partie n’est plus disponible (arrêtée ou terminée au backoffice). »         | La partie a été arrêtée entre-temps        | Crée une nouvelle partie.                                          |
 
 ## 3. Démarrer la partie
 
@@ -114,11 +114,38 @@ Pendant la partie :
 
 ## 5. Mettre en pause, passer une question
 
-> **À venir.** La mise en pause d'une partie et la fonction « passer une question » sont en cours de
-> développement et **ne sont pas dans la version décrite par ce guide**. En attendant, tu ne peux
-> qu'arrêter la partie (voir plus bas).
->
-> À vérifier à la livraison : ce paragraphe sera complété avec les libellés exacts des boutons.
+Ces deux commandes se font **sur l'écran de salle**, avec des boutons icônes dans la barre du haut
+(pas depuis le backoffice). Leur nom apparaît en survolant le bouton.
+
+**Mettre en pause**
+
+1. Clique sur le bouton « Mettre en pause ».
+2. Un écran « Pause » s'affiche : « La partie est en pause. Elle reprend quand le personnel la
+   relance. »
+3. Pour continuer, clique sur « Reprendre la partie » (sur l'écran « Pause », ou sur le même bouton de
+   la barre du haut, qui a changé de nom). Le bouton a déjà le focus : la touche Entrée suffit.
+
+L'arrêt d'urgence et « Arrêter la partie » restent accessibles pendant la pause.
+
+**Passer une question**
+
+1. Clique sur « Passer la question ». Ce bouton est grisé pendant une pause, et tant qu'aucune question
+   n'est en cours (par exemple entre deux manches).
+2. Confirme : « Passer la question en cours ? Personne ne marque de point et personne n’est
+   pénalisé. »
+
+**Si la commande est refusée**, un message s'affiche dans la barre du haut pendant quelques secondes :
+
+| Message                                                 | Ce que ça veut dire                                    |
+| ------------------------------------------------------- | ------------------------------------------------------ |
+| « La partie est déjà en pause. »                        | Tu as demandé la pause alors qu'elle était déjà active |
+| « La partie n’est pas en pause. »                       | Tu as demandé la reprise alors que la partie tournait  |
+| « Impossible de passer la question pendant la pause. »  | Reprends d'abord la partie                             |
+| « La question avait déjà changé : rien n’a été passé. » | La question s'est terminée pendant la confirmation     |
+| « La partie est terminée. »                             | Il n'y a plus rien à mettre en pause ni à passer       |
+
+> À vérifier sur le banc : ce que deviennent l'extrait en cours, le chrono, les lumières et la fumée
+> pendant une pause. Ce guide ne décrit que les boutons et les messages.
 
 ## 6. Arrêter une partie
 
@@ -128,8 +155,9 @@ résultat. » Valide.
 
 L'écran affiche alors « Partie arrêtée ».
 
-> **Attention.** D'après le code actuel, arrêter la partie **depuis l'écran de salle** ne prévient pas
-> le backoffice : la partie y reste « En cours » et la salle reste « occupée ». Pour la libérer,
+> **Attention.** D'après le code actuel, l'écran de salle ne renvoie au backoffice que les parties
+> **terminées** : une partie arrêtée depuis l'écran de salle n'y est pas signalée, et ses scores ne
+> sont pas envoyés. La partie y reste « En cours » et la salle reste « occupée ». Pour la libérer,
 > clique ensuite sur « Arrêter » dans la liste des « Parties » du backoffice. Le texte de la
 > confirmation (« conservés comme résultat ») est donc plus optimiste que le comportement réel.
 >
@@ -173,7 +201,7 @@ seulement si des appareils lumineux sont déclarés.
 essai automatique » ou « Salle déconnectée : résultats en attente, ils seront envoyés à la
 reconnexion ». Rien n'est perdu : les résultats sont gardés sur le PC et renvoyés, d'abord après
 quelques secondes, puis toutes les minutes. Un bandeau « résultat de partie en attente d’envoi »
-s'affiche sur l'écran d'attente. Si tu vois « Résultats refusés par le backoffice. », prévient
+s'affiche sur l'écran d'attente. Si tu vois « Résultats refusés par le backoffice. », préviens
 l'éditeur. Voir [`depannage.md`](depannage.md).
 
 ## 9. Fin de journée
@@ -195,5 +223,4 @@ Ces fonctions sont **prévues**, mais **ne sont pas disponibles** :
 
 - le pilotage de la salle à distance depuis le backoffice ;
 - l'inscription des joueurs par QR code ;
-- les sessions programmées à l'avance ;
-- la mise en pause et « passer une question » (en cours de développement).
+- les sessions programmées à l'avance.
