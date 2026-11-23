@@ -19,7 +19,7 @@
     "test:coverage": "npm run test:coverage:backend && npm run test:coverage:frontend",
     "test:coverage:backend": "vitest --run --coverage --config vitest.backend.config.ts",
     "test:coverage:frontend": "vitest --run --coverage --config vitest.frontend.config.ts",
-    "type-check:frontend": "vue-tsc -p tsconfig.frontend.json --noEmit",
+    "type-check:frontend": "npm --prefix frontend run type-check",
     "type-check:backend": "tsc -p tsconfig.backend.json --noEmit",
     "type-check:tests:frontend": "vue-tsc -p tsconfig.tests.frontend.json --noEmit",
     "type-check:tests:backend": "tsc -p tsconfig.tests.backend.json --noEmit",
