@@ -161,15 +161,20 @@
           }}
         </p>
         <ul v-if="!later" class="results">
-          <li
-            v-for="fixture in tests"
-            :key="fixture.id"
-            :class="results[fixture.id] === 'ok' ? 'result result--ok' : 'result result--ko'"
-          >
-            {{ fixture.name }}
-            <span>{{
-              results[fixture.id] === 'ok' ? $t('setupLights.done.ok') : $t('setupLights.done.ko')
-            }}</span>
+          <li v-for="fixture in tests" :key="fixture.id" class="result">
+            <span>{{ fixture.name }}</span>
+            <span class="result__state">
+              <span
+                :class="[
+                  'status-dot',
+                  results[fixture.id] === 'ok' ? 'status-dot--ok' : 'status-dot--ko',
+                ]"
+                aria-hidden="true"
+              />
+              {{
+                results[fixture.id] === 'ok' ? $t('setupLights.done.ok') : $t('setupLights.done.ko')
+              }}
+            </span>
           </li>
         </ul>
         <p v-if="koCount > 0" class="lights__small">{{ $t('setupLights.done.koHint') }}</p>
@@ -826,10 +831,12 @@ async function restoreStart(): Promise<void> {
   padding-left: 1.2em;
 }
 
+/* Récapitulatif en colonnes : six pupitres (15 appareils) tiennent sans défiler à 1280x800. */
 .results {
   display: grid;
-  gap: 8px;
-  width: min(560px, 100%);
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 8px 16px;
+  width: 100%;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -837,21 +844,37 @@ async function restoreStart(): Promise<void> {
 
 .result {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 10px 16px;
+  gap: 12px;
+  padding: 8px 16px;
   border-radius: var(--radius-ctl);
   border: 2px solid var(--border-ui);
   font-size: var(--stage-small);
   font-weight: 700;
+  text-align: left;
 }
 
-.result--ok span {
-  color: var(--ok);
+.result__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
-.result--ko span {
-  color: var(--danger);
+/* Le statut est porté par la pastille, le texte garde sa couleur normale. */
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.status-dot--ok {
+  background: var(--ok);
+}
+
+.status-dot--ko {
+  background: var(--danger);
 }
 
 .lights-step-enter-active,
