@@ -20,6 +20,8 @@ export type Company = {
   email: string
   accountsCount?: number
   status: CompanyStatus
+  /** Chemin public du logo (`/public/v1/logos/…`), `null` sans logo. */
+  logoUrl?: string | null
 }
 
 export type CompaniesResponse = {
