@@ -8,6 +8,10 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Sessions programmées, socle (lot 13) : états de partie `scheduled` et `cancelled`, créneaux prévus avec interdiction de chevauchement par salle (contrainte d'exclusion PostgreSQL), réglages de créneaux d'une salle (`rooms.schedule`), constantes partagées et codes d'erreur `fr`/`en`. Aucune route ni écran pour l'instant.
+  US: US-SESSION-00 (#142)
+- Calcul pur des créneaux d'une salle (`computeRoomSlots`, `zonedLocalToUtc`) dans `@quizzup/shared`, avec gestion des changements d'heure.
+  US: US-SESSION-00 (#142)
 - Site vitrine public (`vitrine/`) : accueil avec des captures réelles de l'écran de salle, demande
   de démonstration, mentions légales, confidentialité, page 404. Site statique Vite, sans cookie ni
   script tiers ; nom, domaine et coordonnées lus dans `vitrine/site.config.ts` (valeurs légales à
