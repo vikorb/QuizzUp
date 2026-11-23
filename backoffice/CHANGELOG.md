@@ -10,6 +10,23 @@ Format inspiré de Keep a Changelog.
 
 - Lecteur audio : effets sur les extraits (inversé, ralenti à 0,75, reprise après pause) et lecteur d'annonces vocales avec atténuation de l'extrait et repli silencieux (`game/audio`, pas encore branché à l'écran de salle).
   US: US-AUDIO-02 (#144)
+- Déploiement de production (`deploy/prod/`) : Caddy en HTTPS, API compilée, PostgreSQL, fichiers
+  statiques, emplacement du site vitrine, console éditeur filtrée par plages réseau, secrets
+  obligatoires hors du dépôt, sauvegardes chiffrées (restic) avec restauration, mise à jour avec
+  retour arrière automatique, supervision par webhook ou e-mail. La pile n'a pas encore tourné sur
+  une vraie machine : la liste des essais à rejouer est dans `deploy/prod/README.md`.
+  Sécurité : l'API refuse de démarrer en production (`NODE_ENV=production`) si `JWT_SECRET` est
+  absent, fait moins de 32 caractères ou vaut la valeur de développement.
+  US: US-PROD-01
+- Présence en direct de l'écran de salle. L'écran ouvre le flux `GET /room/stream` et publie son
+  état par `POST /room/status` (écran, partie, phase, manche, question, mini-jeu, pause, scores par
+  pupitre, son prêt) à chaque changement, au plus une fois par seconde, et au rythme annoncé par le
+  serveur. Reconnexion après 1, 2, 5, 10 puis 30 s. Rien n'est publié sans flux ouvert. Quand un
+  autre poste ouvre la même salle, l'écran affiche « Reprendre la main ici » ; une session terminée
+  renvoie à la connexion, après la partie en cours s'il y en a une. `@quizzup/shared` : phases du
+  moteur (`GAME_PHASES`, `GAME_IDLE_PHASES`) avec un test de contrat côté moteur. Serveur : le
+  rapport refuse une phase inconnue et deux scores pour un même pupitre ; une salle hors ligne sans
+  flux est oubliée une fois son départ diffusé.
 - Présence des salles en direct, côté backoffice. La liste des parties affiche, sous le nom de la
   salle de chaque partie en attente ou en cours, une pastille « En ligne », « Hors ligne » (avec
   « vu il y a … ») ou « En partie » ; le formulaire de lancement écrit la présence après le nom de
