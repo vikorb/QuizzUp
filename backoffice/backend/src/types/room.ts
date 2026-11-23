@@ -1,4 +1,4 @@
-import type { RoomStatus } from '@quizzup/shared'
+import type { RoomSchedule, RoomStatus } from '@quizzup/shared'
 
 /** Configuration matérielle d'une salle (buzzers, lumières, fumée), libre côté API. */
 export type RoomConfig = Record<string, unknown>
@@ -10,6 +10,8 @@ export type RoomRow = {
   config: RoomConfig
   /** Augmente de 1 à chaque écriture de `config` (détection des écritures concurrentes). */
   configRevision: number
+  /** Réglages de créneaux (`rooms.schedule`) ; `null` : pas de créneaux, salle non réservable. */
+  schedule: RoomSchedule | null
   status: RoomStatus
   createdAt: string
   updatedAt: string | null

@@ -1327,17 +1327,17 @@ paths:
     put:
       tags:
         - Rooms
-      summary: "[NON DISPONIBLE] Régler les créneaux d'une salle"
+      summary: "[DISPONIBLE] Régler les créneaux d'une salle"
       description: |
-        Statut : **Non disponible** (à venir, lot 13)
+        Statut : **Disponible**
 
         Remplace les réglages de créneaux de la salle (`rooms.schedule`) ; `schedule: null` les désactive (la salle n'est plus réservable). `rooms.config` n'est pas touché : il appartient au PC de salle.
 
-        Une fois la route livrée, `schedule` est aussi renvoyé par `GET /companies/{companyId}/rooms*` et par `/room/me`.
+        `schedule` est aussi renvoyé par `GET /companies/{companyId}/rooms*` et par `/room/me`. Un jour absent de `days` est fermé ; `breakMinutes` vaut `0` s'il est omis ; un champ inconnu est ignoré.
 
         Accès : superadmin (toutes les compagnies) et `admin` de la compagnie ; refusé au rôle `user`.
       operationId: updateRoomSchedule
-      x-availability: non_disponible
+      x-availability: disponible
       x-us: 'Lot 13 / sessions programmées'
       parameters:
         - $ref: '#/components/parameters/CompanyIdParam'
@@ -1359,7 +1359,12 @@ paths:
                   room:
                     $ref: '#/components/schemas/Room'
         '400':
-          description: Corps invalide (`invalid_body`, avec détails) ; fuseau inconnu, durée ou pause hors bornes, `firstSessionAt` hors plage d'ouverture, jours consécutifs qui se chevauchent
+          description: >-
+            Corps invalide (`invalid_body`, avec détails) ou identifiants invalides (`invalid_params`). Fuseau inconnu
+            (`schedule_timezone_invalid`), heure qui n'est pas `HH:MM` (`schedule_time_invalid`), durée ou pause hors bornes,
+            `firstSessionAt` hors plage d'ouverture (`schedule_first_session_out_of_range`), jours consécutifs qui se
+            chevauchent, le dimanche précédant le lundi (`schedule_days_overlap`) : ces trois codes sont des messages de
+            détail du corps, pas des codes d'erreur de premier niveau
           content:
             application/json:
               schema:
@@ -1391,7 +1396,7 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Renvoie la salle (avec sa configuration matérielle) et la compagnie du compte de salle connecté. À venir (lot 13) : la salle gagnera `schedule`, qui donne le fuseau d'affichage des sessions programmées.
+        Renvoie la salle (avec sa configuration matérielle) et la compagnie du compte de salle connecté. La salle porte aussi `schedule` (`null` sans créneaux), qui donne le fuseau d'affichage des sessions programmées.
 
         Accès : réservé au rôle `room`.
       operationId: getCurrentRoom
@@ -4775,8 +4780,8 @@ components:
             - $ref: '#/components/schemas/RoomSchedule'
           nullable: true
           description: >-
-            **À venir (lot 13).** Réglages de créneaux de la salle ; `null` : pas de créneaux, salle
-            non réservable. La colonne `rooms.schedule` existe, mais aucune route ne la renvoie encore.
+            Réglages de créneaux de la salle, écrits par `PUT /companies/{companyId}/rooms/{roomId}/schedule` ;
+            `null` : pas de créneaux, salle non réservable.
         status:
           type: integer
           enum: [0, 1, 2]
@@ -4796,7 +4801,7 @@ components:
     RoomScheduleDay:
       type: object
       description: >-
-        **À venir (lot 13).** Horaires d'un jour, au format `HH:MM` sur 24 h, en heure locale de la
+        Horaires d'un jour, au format `HH:MM` sur 24 h, en heure locale de la
         salle. `closesAt` ≤ `opensAt` veut dire « ferme le lendemain » (24 h d'ouverture au plus).
         `firstSessionAt` doit tomber dans la plage d'ouverture ; il vaut `opensAt` s'il est absent.
       required: [opensAt, closesAt]
@@ -4817,14 +4822,17 @@ components:
     RoomSchedule:
       type: object
       description: >-
-        **À venir (lot 13).** Réglages de créneaux d'une salle (`rooms.schedule`). Tout est stocké en
+        Réglages de créneaux d'une salle (`rooms.schedule`). Tout est stocké en
         UTC ; le fuseau de la salle sert à lire les horaires. Deux jours consécutifs ne doivent pas se
         chevaucher (une fermeture après minuit au-delà de l'ouverture du lendemain est refusée).
       required: [timezone, slotMinutes, breakMinutes, bookableDesks, publicBooking, days]
       properties:
         timezone:
           type: string
-          description: Fuseau IANA valide. Défaut proposé `Europe/Paris`.
+          description: >-
+            Fuseau IANA (`Europe/Paris`, `UTC`). Les décalages fixes (`+01:00`) et les abréviations sans `/` (`EST`,
+            `CET`) sont refusés (`schedule_timezone_invalid`). Le nom est stocké normalisé (`europe/paris` devient
+            `Europe/Paris`). Défaut proposé `Europe/Paris`.
           example: Europe/Paris
         slotMinutes:
           type: integer
@@ -4862,7 +4870,7 @@ components:
 
     UpdateRoomScheduleRequest:
       type: object
-      description: '**À venir (lot 13).** `schedule: null` désactive les créneaux de la salle.'
+      description: '`schedule: null` désactive les créneaux de la salle.'
       required: [schedule]
       properties:
         schedule:
