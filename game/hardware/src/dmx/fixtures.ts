@@ -368,11 +368,11 @@ function parseCustomProfiles(input: unknown, problems: string[]): FixtureProfile
       discardedSlots += parsed?.discarded ?? 0
       const slots = parsed?.slots
       let strobeRange: [number, number] | null = null
-      if (
-        channel.strobeRange !== undefined &&
-        (channel.role === 'shutter' || channel.role === 'fixed')
-      ) {
-        strobeRange = parseRange(channel.strobeRange)
+      if (channel.strobeRange !== undefined) {
+        // Une plage posée sur un autre rôle que `shutter` ou `fixed` est écartée et signalée.
+        if (channel.role === 'shutter' || channel.role === 'fixed') {
+          strobeRange = parseRange(channel.strobeRange)
+        }
         if (!strobeRange || strobeRange[1] > 255) {
           strobeRange = null
           discardedRanges += 1
@@ -401,7 +401,7 @@ function parseCustomProfiles(input: unknown, problems: string[]): FixtureProfile
     if (discardedRanges > 0) {
       problems.push(
         `Profil sur mesure ${raw.id} : ${discardedRanges} strobeRange invalide(s) ignorée(s) ` +
-          '([min, max] de 0 à 255, min ≤ max)'
+          '([min, max] de 0 à 255, min ≤ max, sur un canal shutter ou fixed)'
       )
     }
     profiles.push({

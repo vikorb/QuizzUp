@@ -98,7 +98,24 @@ describe('avertissement : appareil qui clignote tout seul', () => {
       { role: 'fixed', value: 5 },
     ])
     expect(result.problems).toEqual([
-      'Profil sur mesure maison : 3 strobeRange invalide(s) ignorée(s) ([min, max] de 0 à 255, min ≤ max)',
+      'Profil sur mesure maison : 3 strobeRange invalide(s) ignorée(s) ([min, max] de 0 à 255, min ≤ max, sur un canal shutter ou fixed)',
+    ])
+  })
+
+  it('écarte et signale une plage posée sur un rôle autre que shutter ou fixed', () => {
+    const channels = [
+      { role: 'dimmer', strobeRange: [10, 200] },
+      { role: 'strobe', strobeRange: [10, 200] },
+      { role: 'fixed', value: 5, strobeRange: [10, 200] },
+    ]
+    const result = parseRig(lighting(channels).fixtures, lighting(channels).customProfiles)
+    expect(result.customProfiles[0]?.channels).toEqual([
+      { role: 'dimmer' },
+      { role: 'strobe' },
+      { role: 'fixed', value: 5, strobeRange: [10, 200] },
+    ])
+    expect(result.problems).toEqual([
+      'Profil sur mesure maison : 2 strobeRange invalide(s) ignorée(s) ([min, max] de 0 à 255, min ≤ max, sur un canal shutter ou fixed)',
     ])
   })
 

@@ -162,9 +162,19 @@ français puis en anglais. L'avertissement ne bloque rien : la configuration res
 
 Le logiciel ne connaît aucune plage stroboscope tout seul : aucun profil livré n'en renseigne. Pour un
 profil sur mesure, recopie la plage de la notice dans `strobeRange` (`[min, max]`, 0 à 255) sur le canal
-`shutter` ou `fixed`. Sans `strobeRange`, seul un `shutter` réglé sur autre chose que 255 (ouvert) ou 0
-(fermé) est signalé, en demandant de vérifier la notice. Au Diagnostic, la vitesse d'un canal `strobe`
-est plafonnée et coupée au bout de 3 secondes.
+`shutter` ou `fixed` ; une `strobeRange` posée sur un autre rôle est écartée et signalée. Saisis-la dans
+le JSON de « Configuration avancée » : l'éditeur de profil n'a pas de champ pour elle. Sans
+`strobeRange`, seul un `shutter` réglé sur autre chose que 255 (ouvert) ou 0 (fermé) est signalé, en
+demandant de vérifier la notice.
+
+Au Diagnostic, la vitesse d'un canal `strobe` est plafonnée et coupée au bout de 3 secondes. Le
+plafond vaut pour le réglage par appareil et pour le curseur de canal. Un gel de sortie remet le
+strobe à 0 avant de figer la trame. Deux limites restent :
+
+- une demande répétée après la coupure rouvre une fenêtre de 3 secondes (il n'y a pas de repos
+  imposé entre deux fenêtres) ;
+- le plafond s'applique appareil par appareil : deux stroboscopes lancés en même temps et non
+  synchronisés s'additionnent.
 
 > À vérifier sur le banc : la plage de chaque appareil et la fréquence réelle à la vitesse plafonnée
 > (test D10 du banc).

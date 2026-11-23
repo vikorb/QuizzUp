@@ -138,7 +138,13 @@ describe('diagnostic matériel', () => {
       })
       await controller.start()
       controller.diagnostics.begin()
-      return { clock, controller, speed: () => output.lastFrame()[40] }
+      return {
+        clock,
+        controller,
+        speed: () => output.lastFrame()[40],
+        dimmer: () => output.lastFrame()[39],
+        frame: () => output.lastFrame(),
+      }
     }
 
     it('ramène une vitesse demandée au-dessus du plafond', async () => {
@@ -211,6 +217,116 @@ describe('diagnostic matériel', () => {
       await advanceAsync(clock, 100)
       expect(speed()).toBe(0)
       await controller.stop()
+    })
+
+    it('la fenêtre d’avant la fin du diagnostic est vidée : la nouvelle part de sa demande', async () => {
+      const { controller, clock, speed } = await setupStrobe()
+      controller.diagnostics.setFixture('strobe', { strobe: 20 })
+      controller.diagnostics.end()
+      clock.jump(2_000)
+      controller.diagnostics.begin()
+      controller.diagnostics.setFixture('strobe', { strobe: 20 })
+      // L'ancienne fenêtre se serait fermée 3 s après la première demande, soit 1 s plus tôt.
+      clock.jump(2_000)
+      await advanceAsync(clock, 100)
+      expect(speed()).toBe(20)
+      clock.jump(DIAGNOSTIC_STROBE_MAX_MS - 2_000)
+      await advanceAsync(clock, 100)
+      expect(speed()).toBe(0)
+      await controller.stop()
+    })
+
+    it('clear() vide les fenêtres : la demande suivante repart de zéro', async () => {
+      const requests = [
+        (controller: Awaited<ReturnType<typeof setupStrobe>>['controller']) =>
+          controller.diagnostics.setFixture('strobe', { strobe: 20 }),
+        (controller: Awaited<ReturnType<typeof setupStrobe>>['controller']) =>
+          controller.diagnostics.setChannel(41, 20),
+      ]
+      for (const request of requests) {
+        const { controller, clock, speed } = await setupStrobe()
+        request(controller)
+        clock.jump(2_000)
+        controller.diagnostics.clear()
+        await advanceAsync(clock, 100)
+        expect(speed()).toBe(0)
+        request(controller)
+        // L'ancienne fenêtre se serait fermée 1 s plus tôt.
+        clock.jump(2_000)
+        await advanceAsync(clock, 100)
+        expect(speed()).toBe(20)
+        clock.jump(DIAGNOSTIC_STROBE_MAX_MS - 2_000)
+        await advanceAsync(clock, 100)
+        expect(speed()).toBe(0)
+        await controller.stop()
+      }
+    })
+
+    describe('canal brut', () => {
+      it('ramène 255 au plafond sur un canal strobe, sans toucher un canal d’un autre rôle', async () => {
+        const { controller, clock, speed, dimmer, frame } = await setupStrobe()
+        expect(controller.diagnostics.setChannel(41, 255)).toEqual({ ok: true })
+        expect(controller.diagnostics.setChannel(40, 255)).toEqual({ ok: true })
+        expect(controller.diagnostics.setChannel(2, 255)).toEqual({ ok: true })
+        await advanceAsync(clock, 100)
+        expect(speed()).toBe(DIAGNOSTIC_STROBE_MAX_VALUE)
+        expect(dimmer()).toBe(255)
+        expect(frame()[1]).toBe(255)
+        await controller.stop()
+      })
+
+      it('coupe le strobe après la durée maximale, un canal d’un autre rôle reste', async () => {
+        const { controller, clock, speed, dimmer } = await setupStrobe()
+        controller.diagnostics.setChannel(40, 255)
+        controller.diagnostics.setChannel(41, 20)
+        clock.jump(DIAGNOSTIC_STROBE_MAX_MS - 500)
+        await advanceAsync(clock, 100)
+        expect(speed()).toBe(20)
+        clock.jump(500)
+        await advanceAsync(clock, 100)
+        expect(speed()).toBe(0)
+        expect(dimmer()).toBe(255)
+        await controller.stop()
+      })
+
+      it('une valeur 0 arrête le strobe et la demande suivante ouvre une nouvelle fenêtre', async () => {
+        const { controller, clock, speed } = await setupStrobe()
+        controller.diagnostics.setChannel(41, 20)
+        clock.jump(2_000)
+        controller.diagnostics.setChannel(41, 0)
+        await advanceAsync(clock, 100)
+        expect(speed()).toBe(0)
+        controller.diagnostics.setChannel(41, 20)
+        // L'ancienne fenêtre se serait fermée 1 s plus tôt.
+        clock.jump(2_000)
+        await advanceAsync(clock, 100)
+        expect(speed()).toBe(20)
+        await controller.stop()
+      })
+    })
+
+    describe('gel de sortie', () => {
+      it('remet à 0 un strobe d’appareil avant la trame gelée', async () => {
+        const { controller, clock, speed } = await setupStrobe()
+        controller.diagnostics.setFixture('strobe', { intensity: 1, strobe: 20 })
+        await advanceAsync(clock, 100)
+        expect(speed()).toBe(20)
+        expect(controller.diagnostics.freezeOutput(10_000, { confirm: true })).toEqual({ ok: true })
+        await advanceAsync(clock, 100)
+        expect(speed()).toBe(0)
+        await controller.stop()
+      })
+
+      it('remet à 0 un strobe de canal brut avant la trame gelée', async () => {
+        const { controller, clock, speed } = await setupStrobe()
+        controller.diagnostics.setChannel(41, 20)
+        await advanceAsync(clock, 100)
+        expect(speed()).toBe(20)
+        expect(controller.diagnostics.freezeOutput(10_000, { confirm: true })).toEqual({ ok: true })
+        await advanceAsync(clock, 100)
+        expect(speed()).toBe(0)
+        await controller.stop()
+      })
     })
   })
 

@@ -305,10 +305,11 @@ sauf s'il tombe dans le même instant (plusieurs appareils qui s'allument ensemb
 `problems` de `parseRoomHardwareConfig` et aux `warnings` de l'assistant si la valeur envoyée
 (`open`/`closed` d'un shutter, `value` d'un fixed) tombe dedans. Aucun profil livré n'a de plage (aucune
 n'est documentée). Sans plage, seul un `shutter` réglé sur autre chose que 255 ou 0 est signalé. Une
-`strobeRange` invalide est ignorée et signalée. Au diagnostic, `setFixture({ strobe })` est ramené à
+`strobeRange` invalide, ou posée sur un autre rôle que `shutter` / `fixed`, est ignorée et signalée.
+Au diagnostic, `setFixture({ strobe })` et `setChannel` sur un canal de rôle `strobe` sont ramenés à
 `DIAGNOSTIC_STROBE_MAX_VALUE` (30, soit 3 Hz si le canal va linéairement de 0 à 25 Hz : hypothèse à
-mesurer) et retombe à 0 après `DIAGNOSTIC_STROBE_MAX_MS` (3 s). **Reste hors plafond** : une valeur
-`amber` / `uv`, `diagnostics.setChannel` (canal brut) et un stroboscope piloté par une liste
+mesurer) et retombent à 0 après `DIAGNOSTIC_STROBE_MAX_MS` (3 s) ; `freezeOutput` les remet à 0 avant la
+trame gelée. **Reste hors plafond** : une valeur `amber` / `uv` et un stroboscope piloté par une liste
 d'identifiants. Vérifier sur la notice de chaque appareil (banc D8, D10).
 
 Cadences par défaut (nombre d'éclairs × durée allumé / éteint ; période de 400 ms = 2,5 éclairs/s) :
