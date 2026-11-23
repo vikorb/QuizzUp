@@ -9,7 +9,7 @@ import type {
   SceneStep,
   SceneTarget,
 } from './scenes'
-import { stepDuration } from './scenes'
+import { FLASH_HIGH_LEVEL, MIN_FLASH_INTERVAL_MS, stepDuration } from './scenes'
 
 export type ScenePlayerOptions = {
   fixtures: readonly ResolvedFixture[]
@@ -61,6 +61,32 @@ export function createScenePlayer(options: ScenePlayerOptions): ScenePlayer {
   const lights = options.fixtures.filter(isLightFixture)
   const current = new Map<string, FixtureState>(lights.map((fixture) => [fixture.id, darkState()]))
   let active: Active | null = null
+
+  // Sécurité (photosensibilité) : plafond d'éclairs par seconde, tenu ici pour toute scène (par
+  // défaut, réglée par une salle, bouclée ou enchaînée). Un « éclair » est le passage d'un appareil
+  // du niveau bas au niveau haut (cf. `FLASH_HIGH_LEVEL`). Tout état écrit sur un appareil passe
+  // par `commit` : un passage au niveau haut moins de `MIN_FLASH_INTERVAL_MS` après le précédent est
+  // retenu dans `held` (l'appareil garde son niveau bas) et appliqué dès que le plafond le permet,
+  // sauf si une étape a écrit autre chose entre-temps (flash terminé : il est alors perdu).
+  const lastRiseAt = new Map<string, number>()
+  const held = new Map<string, FixtureState>()
+
+  const isHigh = (state: FixtureState) => state.intensity >= FLASH_HIGH_LEVEL
+
+  const commit = (id: string, next: FixtureState, now: number) => {
+    const previous = current.get(id)
+    const rising = isHigh(next) && !(previous && isHigh(previous))
+    const last = lastRiseAt.get(id)
+    if (rising && last !== undefined && now - last < MIN_FLASH_INTERVAL_MS) {
+      held.set(id, next)
+      return
+    }
+    if (rising) {
+      lastRiseAt.set(id, now)
+    }
+    held.delete(id)
+    current.set(id, next)
+  }
 
   // Sécurité : un stroboscope n'est jamais piloté par une cible générale (`all`, `desk`, `others`),
   // seulement par une liste qui le nomme. Sans cela, son canal « strobe » à 0 le laisserait allumé
@@ -119,7 +145,7 @@ export function createScenePlayer(options: ScenePlayerOptions): ScenePlayer {
     return fixture.deskPositions?.[context.desk] ?? fallback
   }
 
-  const applyStep = (step: SceneStep, entry: Active, elapsed: number) => {
+  const applyStep = (step: SceneStep, entry: Active, elapsed: number, now: number) => {
     const { context, from } = entry
     if (step.type === 'smoke' || step.type === 'wait') {
       return
@@ -129,11 +155,11 @@ export function createScenePlayer(options: ScenePlayerOptions): ScenePlayer {
       const progress = fade === 0 ? 1 : Math.min(1, elapsed / fade)
       for (const fixture of lights) {
         const start = from.get(fixture.id) ?? darkState()
-        current.set(fixture.id, {
-          ...cloneState(start),
-          intensity: lerp(start.intensity, 0, progress),
-          strobe: 0,
-        })
+        commit(
+          fixture.id,
+          { ...cloneState(start), intensity: lerp(start.intensity, 0, progress), strobe: 0 },
+          now
+        )
       }
       return
     }
@@ -146,23 +172,28 @@ export function createScenePlayer(options: ScenePlayerOptions): ScenePlayer {
       if (step.type === 'color') {
         const fade = Math.max(0, step.fadeMs ?? 0)
         const progress = fade === 0 ? 1 : Math.min(1, elapsed / fade)
-        current.set(fixture.id, {
-          color: lerpColor(start.color, color, progress),
-          intensity: lerp(start.intensity, step.intensity ?? 1, progress),
-          position,
-          strobe: 0,
-        })
+        commit(
+          fixture.id,
+          {
+            color: lerpColor(start.color, color, progress),
+            intensity: lerp(start.intensity, step.intensity ?? 1, progress),
+            position,
+            strobe: 0,
+          },
+          now
+        )
         continue
       }
 
       // Flash : alterne la couleur et l'état d'avant, puis revient à l'état d'avant.
       const period = Math.max(1, step.onMs + step.offMs)
       const lit = elapsed < stepDuration(step) && elapsed % period < step.onMs
-      current.set(
+      commit(
         fixture.id,
         lit
           ? { color: { ...color }, intensity: 1, position, strobe: 0 }
-          : { ...cloneState(start), position }
+          : { ...cloneState(start), position },
+        now
       )
     }
   }
@@ -182,7 +213,7 @@ export function createScenePlayer(options: ScenePlayerOptions): ScenePlayer {
     return next
   }
 
-  const update = (now: number) => {
+  const advance = (now: number) => {
     let entry = active
     if (!entry) {
       return
@@ -196,7 +227,7 @@ export function createScenePlayer(options: ScenePlayerOptions): ScenePlayer {
       }
       const duration = stepDuration(step)
       const elapsed = now - entry.stepStartedAt
-      applyStep(step, entry, Math.min(elapsed, duration))
+      applyStep(step, entry, Math.min(elapsed, duration), now)
       if (elapsed < duration) {
         return
       }
@@ -205,11 +236,21 @@ export function createScenePlayer(options: ScenePlayerOptions): ScenePlayer {
     }
   }
 
+  const update = (now: number) => {
+    advance(now)
+    // Applique les états retenus par le plafond d'éclairs que le temps écoulé rend maintenant permis
+    // (y compris quand plus aucune scène ne tourne : l'état final d'une scène ne se perd pas).
+    for (const [id, state] of held) {
+      commit(id, state, now)
+    }
+  }
+
   return {
     play(scene, context, now) {
       if (active && scene.priority < active.scene.priority) {
         return false
       }
+      held.clear()
       const entry: Active = { scene, context, stepIndex: 0, stepStartedAt: now, from: new Map() }
       active = enterStep(entry, 0, now, now)
       update(now)
@@ -218,9 +259,11 @@ export function createScenePlayer(options: ScenePlayerOptions): ScenePlayer {
     update,
     stop() {
       active = null
+      held.clear()
     },
     blackout() {
       active = null
+      held.clear()
       for (const fixture of lights) {
         current.set(fixture.id, darkState())
       }

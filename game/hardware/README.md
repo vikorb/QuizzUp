@@ -274,6 +274,35 @@ l'effet « bonne réponse »). Priorités : `idle` 0 ; `question`, `clip-playing
 `question-lost` 40 (un buzz juste après une mauvaise réponse n'est donc pas refusé) ; `victory`,
 `victory-tie` 50 ; `identify` 90. Couleurs : DA néon du backoffice, une couleur par pupitre.
 
+**Plafond d'éclairs (photosensibilité)** : aucun appareil ne fait plus de **3 éclairs par seconde**,
+quelle que soit la scène. Un **éclair** est le passage d'un appareil d'un niveau bas (intensité
+sous `FLASH_HIGH_LEVEL`, 0,5) à un niveau haut (0,5 ou plus) ; un fondu compte pour un seul passage,
+un changement de couleur à intensité constante n'en est pas un. Le réglage unique est
+`MAX_FLASHES_PER_SECOND` (3) dans `src/lighting/scenes.ts`, soit au moins
+`MIN_FLASH_INTERVAL_MS` = **334 ms** entre deux débuts d'éclair sur un même appareil.
+
+- Les scènes par défaut le respectent dans leur définition (un test le vérifie pour chaque flash).
+- Le lecteur (`createScenePlayer`) le garantit pour **toute** scène jouée (scène réglée par une
+  salle, étapes de couleur qui alternent, enchaînement de deux scènes) : tout état écrit sur un
+  appareil passe par une seule fonction qui retient un passage au niveau haut trop proche du
+  précédent, puis l'applique dès que le plafond le permet (un flash déjà terminé est perdu, pas
+  rejoué). Les écarts sont comptés appareil par appareil : le plafond est à confirmer sur le banc
+  matériel (appareils voisins, lyres, stroboscopes réels).
+
+Cadences par défaut (éclairs, durée allumé / éteint, période) :
+
+| Scène                  | Avant                       | Après                                   |
+| ---------------------- | --------------------------- | --------------------------------------- |
+| `game-start`           | 3 × 150/100 (4,0 éclairs/s) | 2 × 150/190 (2,9 éclairs/s)             |
+| `round-start`          | 2 × 150/100 (4,0 éclairs/s) | 2 × 150/190 (2,9 éclairs/s)             |
+| `buzz`                 | 3 × 80/60 (7,1 éclairs/s)   | 1 × 120/220, puis pupitre fixe à 340 ms |
+| `answer-correct`       | 3 × 120/80 (5,0 éclairs/s)  | 2 × 140/200 (2,9 éclairs/s)             |
+| `answer-wrong`         | 2 × 200/120 (3,1 éclairs/s) | 2 × 200/140 (2,9 éclairs/s)             |
+| `round-end`            | 2 × 200/120 (3,1 éclairs/s) | 2 × 200/140 (2,9 éclairs/s)             |
+| `victory`              | 6 × 100/80 (5,6 éclairs/s)  | 4 × 120/220 (2,9 éclairs/s)             |
+| `victory-tie`          | 3 × 150/100 (4,0 éclairs/s) | 3 × 150/230 (2,6 éclairs/s)             |
+| `identify` (inchangée) | 4 × 250/200 (2,2 éclairs/s) | 4 × 250/200 (2,2 éclairs/s)             |
+
 Cibles des scènes : un **stroboscope** (type `strobe`) n'est jamais piloté par `all`, `desk` ou
 `others` : seule une liste d'identifiants qui le nomme l'allume (hors scène qui le demande, son
 gradateur et son canal strobe restent à 0). Un pupitre **sans aucun appareil** (ni PAR dédié, ni

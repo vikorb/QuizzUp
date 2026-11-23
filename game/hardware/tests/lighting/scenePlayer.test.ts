@@ -5,11 +5,15 @@ import type { SceneDefinition } from '@hardware/lighting/scenes'
 import {
   DEFAULT_DESK_COLORS,
   DEFAULT_SCENES,
+  FLASH_HIGH_LEVEL,
   identifyScene,
+  MAX_FLASHES_PER_SECOND,
+  MIN_FLASH_INTERVAL_MS,
   NEON,
   SCENE_IDS,
   stepDuration,
 } from '@hardware/lighting/scenes'
+import type { Desk } from '@hardware/types'
 
 import { RIG } from '../_helpers/rig'
 
@@ -120,7 +124,8 @@ describe('lecteur de scènes', () => {
     player.play(
       scene([
         { type: 'color', color: BLUE, intensity: 0.3 },
-        { type: 'flash', target: ['par1'], color: RED, count: 2, onMs: 100, offMs: 50 },
+        // Période de 350 ms : sous le plafond de 3 éclairs par seconde.
+        { type: 'flash', target: ['par1'], color: RED, count: 2, onMs: 100, offMs: 250 },
       ]),
       { desk: null },
       0
@@ -128,9 +133,9 @@ describe('lecteur de scènes', () => {
     expect(state('par1')).toMatchObject({ color: RED, intensity: 1 })
     player.update(120)
     expect(state('par1')).toMatchObject({ color: BLUE, intensity: 0.3 })
-    player.update(160)
+    player.update(360)
     expect(state('par1')?.color).toMatchObject(RED)
-    player.update(300)
+    player.update(700)
     expect(state('par1')).toMatchObject({ color: BLUE, intensity: 0.3 })
     expect(player.currentSceneId()).toBeNull()
   })
@@ -303,6 +308,155 @@ describe('pupitre sans appareil', () => {
     for (const id of ['par1', 'par2', 'head', 'wash']) {
       expect(state(id), id).toMatchObject({ color: NEON.warn, intensity: 1 })
     }
+  })
+})
+
+describe('plafond d’éclairs par seconde (photosensibilité)', () => {
+  type Play = { at: number; scene: SceneDefinition; desk?: Desk | null }
+
+  /**
+   * Joue les scènes en échantillonnant chaque milliseconde ; renvoie, par appareil, les instants
+   * de chaque éclair (passage sous `FLASH_HIGH_LEVEL` puis à `FLASH_HIGH_LEVEL` ou plus). Au
+   * départ, tout est éteint.
+   */
+  const flashInstants = (plays: Play[], until: number, rig: FixtureConfig[] = RIG) => {
+    const { player } = setup(rig)
+    const rises = new Map<string, number[]>()
+    const level = new Map<string, number>()
+    for (let now = 0; now <= until; now += 1) {
+      const start = plays.find((entry) => entry.at === now)
+      if (start) {
+        player.play(start.scene, { desk: start.desk ?? null }, now)
+      } else {
+        player.update(now)
+      }
+      for (const [id, state] of player.states()) {
+        if (state.intensity >= FLASH_HIGH_LEVEL && (level.get(id) ?? 0) < FLASH_HIGH_LEVEL) {
+          rises.set(id, [...(rises.get(id) ?? []), now])
+        }
+        level.set(id, state.intensity)
+      }
+    }
+    return { rises, player }
+  }
+  const gaps = (instants: number[]) => instants.slice(1).map((at, index) => at - instants[index]!)
+  const expectCapped = (rises: Map<string, number[]>, label: string) => {
+    for (const [id, instants] of rises) {
+      for (const gap of gaps(instants)) {
+        expect(gap, `${label}, ${id} : éclairs à ${instants.join(', ')} ms`).toBeGreaterThanOrEqual(
+          MIN_FLASH_INTERVAL_MS
+        )
+      }
+    }
+  }
+
+  it('le plafond est de 3 éclairs par seconde, soit 334 ms entre deux débuts', () => {
+    expect(MAX_FLASHES_PER_SECOND).toBe(3)
+    expect(MIN_FLASH_INTERVAL_MS).toBe(334)
+  })
+
+  it('les flashs de chaque scène par défaut respectent le plafond dans leur définition', () => {
+    for (const definition of DEFAULT_SCENES) {
+      for (const step of definition.steps) {
+        if (step.type === 'flash') {
+          expect(step.onMs + step.offMs, definition.id).toBeGreaterThanOrEqual(
+            MIN_FLASH_INTERVAL_MS
+          )
+        }
+      }
+    }
+  })
+
+  it('chaque scène par défaut garde 334 ms entre deux allumages, sur chaque appareil', () => {
+    for (const definition of DEFAULT_SCENES) {
+      // Pupitre 1 (appareils dédiés), pupitre 3 (aucun appareil : toute la salle) et sans pupitre.
+      for (const desk of [1, 3, null] as const) {
+        const { rises } = flashInstants(
+          [{ at: 0, scene: definition, desk }],
+          totalDuration(definition) + 100
+        )
+        expectCapped(rises, `${definition.id}, pupitre ${desk}`)
+      }
+    }
+  })
+
+  it('les scènes par défaut gardent des éclairs visibles (le test ne mesure pas du vide)', () => {
+    const { rises } = flashInstants(
+      [{ at: 0, scene: defaultScene(SCENE_IDS.BUZZ), desk: 1 }],
+      1_000
+    )
+    expect(rises.get('par1')?.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('ramène au plafond une scène volontairement trop rapide', () => {
+    const tooFast = scene([
+      { type: 'flash', target: ['par1'], color: RED, count: 8, onMs: 50, offMs: 50 },
+    ])
+    const { rises } = flashInstants([{ at: 0, scene: tooFast }], 2_000)
+    const instants = rises.get('par1') ?? []
+    // Sans garde : 8 éclairs en 800 ms. Avec la garde : au plus un tous les 334 ms, et il en reste.
+    expect(instants.length).toBeGreaterThanOrEqual(2)
+    expect(instants.length).toBeLessThan(8)
+    expectCapped(rises, 'scène trop rapide')
+  })
+
+  it('ramène au plafond une scène bouclée ou faite d’étapes de couleur alternées', () => {
+    const blink = scene(
+      Array.from({ length: 6 }, () => [
+        { type: 'color' as const, target: ['par1'], color: RED, intensity: 1, holdMs: 50 },
+        { type: 'color' as const, target: ['par1'], color: RED, intensity: 0, holdMs: 50 },
+      ]).flat()
+    )
+    const { rises } = flashInstants([{ at: 0, scene: blink }], 2_000)
+    expect(rises.get('par1')?.length).toBeGreaterThanOrEqual(2)
+    expectCapped(rises, 'couleurs alternées')
+  })
+
+  it('garde l’écart à la jonction de deux scènes enchaînées', () => {
+    const first = scene([
+      { type: 'flash', target: ['par1'], color: RED, count: 1, onMs: 100, offMs: 0 },
+    ])
+    const second = scene([
+      { type: 'flash', target: ['par1'], color: BLUE, count: 1, onMs: 600, offMs: 0 },
+    ])
+    const { rises } = flashInstants(
+      [
+        { at: 0, scene: first },
+        { at: 150, scene: second },
+      ],
+      1_500
+    )
+    // Le second éclair attend le plafond (334 ms) au lieu de partir à 150 ms.
+    expect(rises.get('par1')).toEqual([0, MIN_FLASH_INTERVAL_MS])
+  })
+
+  it('n’oublie pas l’état final d’une scène instantanée repoussée par le plafond', () => {
+    const first = scene([
+      { type: 'flash', target: ['par1'], color: RED, count: 1, onMs: 100, offMs: 0 },
+    ])
+    // Une seule étape instantanée : la scène est finie avant que le plafond ne permette l’allumage.
+    const second = scene([{ type: 'color', target: ['par1'], color: BLUE, intensity: 1 }])
+    const { rises, player } = flashInstants(
+      [
+        { at: 0, scene: first },
+        { at: 150, scene: second },
+      ],
+      1_000
+    )
+    expect(rises.get('par1')).toEqual([0, MIN_FLASH_INTERVAL_MS])
+    expect(player.states().get('par1')).toMatchObject({ color: BLUE, intensity: 1 })
+  })
+
+  it('garde l’écart quand une mauvaise réponse est suivie d’un buzz', () => {
+    const { rises } = flashInstants(
+      [
+        { at: 0, scene: defaultScene(SCENE_IDS.WRONG), desk: 1 },
+        { at: 100, scene: defaultScene(SCENE_IDS.BUZZ), desk: 2 },
+      ],
+      3_000
+    )
+    expect(rises.size).toBeGreaterThan(0)
+    expectCapped(rises, 'mauvaise réponse puis buzz')
   })
 })
 

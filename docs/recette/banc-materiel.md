@@ -111,6 +111,8 @@ GitHub.
 | D5 Rubans | couleur du pupitre qui buzze | bonne couleur (ordre RGB), bon ruban |
 | D6 Coupure USB | débrancher l'interface en pleine partie, rebrancher | le jeu continue ; lumières reprises sans recharger |
 | D7 Fluidité | blind test + scènes lumière en continu 10 min | pas de saccade audio ni visuelle ; fréquence d'envoi DMX stable et **0 échec** dans l'onglet Diagnostic (compteur `meteredOutput`) |
+| D8 Plafond des éclairs | filmer au ralenti (240 images/s) `buzz`, `victory` et `game-start`, puis deux scènes enchaînées | **3 éclairs par seconde au plus** sur chaque appareil et pour l'œil (plusieurs appareils vus ensemble) ; 334 ms entre deux allumages tenus par de vraies lyres et de vrais PAR |
+| D9 Retard du plafond | buzzer juste après une mauvaise réponse | le pupitre s'allume en moins de 0,4 s, sans gêner le jeu |
 
 ### F. Fumée (sécurité, bloquant)
 
