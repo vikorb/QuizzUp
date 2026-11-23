@@ -103,7 +103,7 @@ services:
       "
 
   tests:
-    image: node:20-alpine
+    image: node:22-alpine
     working_dir: /workspace
     environment:
       DATABASE_URL: postgresql://quizzup:quizzup@postgres:5432/quizzup_backoffice
