@@ -13,6 +13,7 @@ export const API_RESOURCE = {
   VOUCHER: 'voucher',
   STATS: 'stats',
   ROOM_LOG: 'roomLog',
+  DEMO_REQUEST: 'demoRequest',
 } as const
 
 export const API_ACTION = {
@@ -133,6 +134,11 @@ const permissionsByRole: Record<ApiRole, PermissionKey[]> = {
 
     ...staffPlayerVoucherPermissions,
     ...adminPlayerVoucherPermissions,
+
+    // Lot 12c : demandes de démonstration de la vitrine, ressource de l'éditeur.
+    'demoRequest:list',
+    'demoRequest:update',
+    'demoRequest:delete',
   ],
 
   [ADMIN_ROLE_ADMIN]: [

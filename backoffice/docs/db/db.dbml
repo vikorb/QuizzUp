@@ -337,6 +337,32 @@ Table game_events {
   }
 }
 
+// Demandes de démonstration reçues de la vitrine (lot 12c). EXCEPTION au multi-tenant : ressource de
+// l'éditeur, sans company_id ; seul le superadmin y accède. Pas de colonne status (0/1/2 a un autre
+// sens dans le projet), ni adresse IP ni navigateur stockés. Supprimées 12 mois après created_at.
+Table demo_requests {
+  id bigint [pk, increment]
+
+  contact_name varchar(120) [not null]
+  center_name varchar(160) [not null]
+  email varchar(254) [not null]
+  phone varchar(32)
+  rooms_count smallint [not null, note: 'CHECK 1 à 50 (DEMO_REQUEST_ROOMS_MAX)']
+  message text
+  locale varchar(2) [note: 'fr ou en']
+
+  consent_at timestamptz [not null]
+  processed_at timestamptz [note: 'Renseigné = demande traitée']
+  processed_by bigint [ref: > admins.id, note: 'Compte qui a traité la demande ; ON DELETE SET NULL']
+
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (processed_at, created_at) [name: 'demo_requests_processed_at_created_at_index']
+  }
+}
+
 // Relations existantes
 Ref: admins.company_id > companies.id [delete: restrict]
 Ref: admins.room_id > rooms.id [delete: restrict]
