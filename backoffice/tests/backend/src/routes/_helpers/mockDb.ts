@@ -36,6 +36,7 @@ type DbState = {
   rooms: Row[]
   games: Row[]
   game_participants: Row[]
+  room_logs: Row[]
 }
 
 type TableName = keyof DbState
@@ -56,6 +57,7 @@ export const dbState: DbState = {
   rooms: [],
   games: [],
   game_participants: [],
+  room_logs: [],
 }
 
 const DEFAULT_COMPANIES: Row[] = [
@@ -139,6 +141,7 @@ export function resetDb(seed?: Partial<DbState>): void {
   dbState.rooms = structuredClone(seed?.rooms ?? [])
   dbState.games = structuredClone(seed?.games ?? [])
   dbState.game_participants = structuredClone(seed?.game_participants ?? [])
+  dbState.room_logs = structuredClone(seed?.room_logs ?? [])
   db.fn.now.mockClear()
   db.raw.mockClear()
 }
@@ -302,6 +305,14 @@ class ConditionGroup {
   }
 }
 
+const COMPARATORS: Record<string, (value: unknown, operand: unknown) => boolean> = {
+  '<': (value, operand) => (value as number) < (operand as number),
+  '<=': (value, operand) => (value as number) <= (operand as number),
+  '>': (value, operand) => (value as number) > (operand as number),
+  '>=': (value, operand) => (value as number) >= (operand as number),
+  '=': (value, operand) => value === operand,
+}
+
 function toPredicate(column: ClauseColumn, value: unknown): Predicate {
   if (typeof column === 'function') {
     const group = new ConditionGroup()
@@ -398,6 +409,8 @@ class QueryBuilder {
 
   private sortConfig: SortConfig | null = null
 
+  private limitCount: number | null = null
+
   private countMode = false
 
   private insertPayload: Row | Row[] | null = null
@@ -438,8 +451,30 @@ class QueryBuilder {
     return Promise.resolve(this.executeSelect()[0])
   }
 
-  public where(columnOrObject: ClauseColumn, value?: unknown): this {
-    this.filters.push(toPredicate(columnOrObject, value))
+  // `where(colonne, valeur)` ou `where(colonne, '<' | '>' | '<=' | '>=', valeur)`.
+  public where(columnOrObject: ClauseColumn, ...rest: unknown[]): this {
+    const [operator, operand] = rest
+
+    if (rest.length === 2 && typeof columnOrObject === 'string' && typeof operator === 'string') {
+      const column = columnOrObject
+      const compare = COMPARATORS[operator]
+
+      if (!compare) {
+        throw new Error(`mockDb : opérateur « ${operator} » non géré`)
+      }
+
+      this.filters.push((row) => compare(getRowValue(row, column), operand))
+
+      return this
+    }
+
+    this.filters.push(toPredicate(columnOrObject, operator))
+
+    return this
+  }
+
+  public limit(count: number): this {
+    this.limitCount = count
 
     return this
   }
@@ -622,7 +657,11 @@ class QueryBuilder {
       return [{ count: String(rows.length) }]
     }
 
-    return this.sortRows(rows).map((row) => this.mapSelectedRow(row))
+    const sorted = this.sortRows(rows)
+
+    return (this.limitCount === null ? sorted : sorted.slice(0, this.limitCount)).map((row) =>
+      this.mapSelectedRow(row)
+    )
   }
 
   private executeInsert(): Row[] {

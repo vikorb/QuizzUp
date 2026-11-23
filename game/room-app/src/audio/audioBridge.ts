@@ -1,6 +1,13 @@
 import type { GameEvent } from '@quizzup/game-engine'
+import { ROOM_LOG_LEVEL_WARN } from '@quizzup/shared'
 
 import type { ExtractPlayer } from '@/audio/player'
+import { errorText, reportRoomError } from '@/diagnostics/errorReporter'
+
+/** Extrait illisible : noté pour le personnel (sans l'adresse du média), la partie continue. */
+function reportUnreadable(error: unknown): void {
+  reportRoomError('audio_play_failed', errorText(error), { level: ROOM_LOG_LEVEL_WARN })
+}
 
 /**
  * Traduit les événements du moteur en ordres pour le lecteur d'extraits
@@ -28,7 +35,7 @@ export function createAudioBridge(player: ExtractPlayer) {
         if (isPlayable(mediaUrl)) {
           const startSec = (Number(payload.mediaStartMs) || 0) / 1000
           // Un extrait illisible ne doit pas arrêter la partie : le palier continue en silence.
-          player.play(mediaUrl, startSec, currentExtractMs).catch(() => undefined)
+          player.play(mediaUrl, startSec, currentExtractMs).catch(reportUnreadable)
         }
         break
       }
@@ -80,7 +87,7 @@ export function createAudioBridge(player: ExtractPlayer) {
       }
 
       const startSec = (options.mediaStartMs + options.elapsedMs) / 1000
-      player.play(options.mediaUrl, startSec, remainingMs).catch(() => undefined)
+      player.play(options.mediaUrl, startSec, remainingMs).catch(reportUnreadable)
       if (options.paused) {
         player.pause()
       }

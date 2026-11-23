@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Journaux des salles : l'écran de salle envoie ses erreurs au backoffice (`POST /room/logs`, table `room_logs`, erreurs regroupées, e-mails masqués, contexte limité à une liste blanche, 6 envois par minute et par salle). Lecture par le superadmin et l'admin : `GET /companies/:companyId/rooms/:roomId/logs`. Conservation : `ROOM_LOG_RETENTION_DAYS` jours (30 par défaut) et 5000 lignes par salle. L'écran du backoffice viendra dans un lot suivant.
+  US: US-LOG-01 (#157)
+
 - Socle des routes publiques : limiteur de débit en mémoire (connexion du personnel et des salles : 429 `too_many_requests` avec `Retry-After`), `TRUST_PROXY` (liste d'adresses ou de plages, jamais `true`), ressources de permissions `player`, `voucher`, `stats` et `roomLog`. Connexion : 10 échecs par couple adresse/identifiant et 100 tentatives par adresse en 15 minutes ; adresses IPv6 comptées par bloc /64 ; un compte inconnu passe par un `bcrypt.compare` factice ; `TRUST_PROXY` refuse les plages plus larges que /8 (IPv4) ou /16 (IPv6) et les adresses à zone.
   US: US-PUBLIC-00 (#141)
 - Préfixe `/public/v1` sans authentification : erreurs au format public, CORS piloté par `VITRINE_ORIGINS`, limite de débit par adresse, réponses `no-store`. Aucune route métier pour l'instant.

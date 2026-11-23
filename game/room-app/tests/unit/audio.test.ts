@@ -2,6 +2,8 @@ import type { GameEvent } from '@quizzup/game-engine'
 
 import { createAudioBridge } from '@/audio/audioBridge'
 import { createSilentExtractPlayer, type ExtractPlayer } from '@/audio/player'
+import { flushRoomErrors } from '@/diagnostics/errorReporter'
+import { setRoomToken } from '@/utils/auth'
 
 function event(type: GameEvent['type'], payload: Record<string, unknown> = {}): GameEvent {
   return { seq: 0, type, at: 0, payload }
@@ -66,6 +68,30 @@ describe('audioBridge', () => {
     ])
     await Promise.resolve()
     expect(player.play).toHaveBeenCalled()
+  })
+
+  it('note l’extrait illisible pour le personnel, en avertissement', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 204 }))
+    setRoomToken('tok')
+    const player = fakePlayer()
+    vi.mocked(player.play).mockRejectedValueOnce(new Error('decode'))
+
+    createAudioBridge(player).handleEvents([
+      event('blind_test_stage_started', { mediaUrl: 'x.mp3', mediaStartMs: 0, extractMs: 1000 }),
+    ])
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await flushRoomErrors()
+    setRoomToken(null)
+
+    const sent = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
+      entries: unknown[]
+    }
+    expect(sent.entries).toMatchObject([
+      { level: 'warn', code: 'audio_play_failed', message: 'decode' },
+    ])
+    fetchMock.mockRestore()
   })
 
   it('relance l’extrait en cours après une reprise, en pause si un joueur répondait', () => {

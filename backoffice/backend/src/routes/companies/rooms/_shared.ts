@@ -15,6 +15,18 @@ export const roomSelect = [
   'deleted_at as deletedAt',
 ]
 
+export const roomLogSelect = [
+  'id',
+  'level',
+  'code',
+  'message',
+  'context',
+  'app_version as appVersion',
+  'occurrences',
+  'occurred_at as occurredAt',
+  'created_at as createdAt',
+]
+
 export async function findRoomInCompany(
   companyId: number,
   roomId: number

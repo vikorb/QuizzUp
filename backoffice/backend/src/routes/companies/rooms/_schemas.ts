@@ -2,6 +2,9 @@ import { z } from 'zod'
 
 import {
   GAME_PODIUMS,
+  ROOM_LOG_LEVELS,
+  ROOM_LOG_LIST_DEFAULT_LIMIT,
+  ROOM_LOG_LIST_MAX_LIMIT,
   ROOM_MIN_DESKS,
   ROOM_STATUS_ACTIVE,
   ROOM_STATUS_DELETED,
@@ -62,6 +65,18 @@ export const updateRoomStatusSchema = z.object({
     z.literal(ROOM_STATUS_ACTIVE),
     z.literal(ROOM_STATUS_DELETED),
   ]),
+})
+
+/** Journaux d'une salle, du plus récent au plus ancien ; `before` = `id` de la dernière ligne lue. */
+export const roomLogsQuerySchema = z.object({
+  level: z.enum(ROOM_LOG_LEVELS).optional(),
+  before: z.coerce.number().int().positive().optional(),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .transform((limit) => Math.min(limit, ROOM_LOG_LIST_MAX_LIMIT))
+    .default(ROOM_LOG_LIST_DEFAULT_LIMIT),
 })
 
 /** Identifiant de connexion du PC de la salle (US-ROOM-02). */
