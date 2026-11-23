@@ -8,6 +8,16 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Site vitrine public (`vitrine/`) : accueil avec des captures réelles de l'écran de salle, demande
+  de démonstration, mentions légales, confidentialité, page 404. Site statique Vite, sans cookie ni
+  script tiers ; nom, domaine et coordonnées lus dans `vitrine/site.config.ts` (valeurs légales à
+  compléter). Le formulaire de démonstration vise `POST /public/v1/demo-requests`, route livrée
+  dans un lot suivant ; avec JavaScript, une erreur d'envoi affiche l'adresse de contact, sans
+  JavaScript le formulaire ouvre la messagerie (`mailto:`). Le build refuse les valeurs légales
+  non renseignées (dérogation `VITRINE_DRAFT=1`). Script de captures
+  `npm run captures` dans `game/e2e`. Nouveau job `vitrine` dans la CI GitHub (lint, types, tests,
+  build, Lighthouse à 95 au moins sur les quatre catégories).
+  US: US-SITE-01
 - Guides pour les centres (`docs/guides/`) : installation d'une salle, utilisation quotidienne,
   dépannage, migration d'une salle existante, sécurité de la fumée et des lumières. Les libellés
   cités sont ceux des écrans ; chaque point qui n'a pas été essayé sur du vrai matériel porte la
