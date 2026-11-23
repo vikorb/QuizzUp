@@ -27,9 +27,13 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
 ### 2.0 Point de reprise du 2026-11-24 : V1 menée en parallèle
 
 Consigne d'Enzo : mener de front tous les lots indépendants (coordinateur Fable 5.2, sous-agents
-selon `CLAUDE.md` §4.1). **Pour reprendre** : `gh pr list -R vikorb/QuizzUp` donne les PR
-ouvertes ; chaque PR ouverte a sa copie de travail sous `.claude/worktrees/<nom>` ; traiter les PR
-ouvertes ci-dessous avant de lancer un nouveau lot.
+selon `CLAUDE.md` §4.1). La session s'est arrêtée volontairement : plus aucun lot ni aucune
+relecture n'ont été lancés, les développements en cours ont été mis en PR tels quels.
+
+**Pour reprendre** : `gh pr list -R vikorb/QuizzUp` donne les PR ouvertes ; chaque PR ouverte a sa
+copie de travail sous `.claude/worktrees/<nom>`. **Première chose à faire** : faire relire les
+PR non relues du tableau ci-dessous (un relecteur par PR), corriger, merger. Ensuite seulement,
+lancer un nouveau lot.
 
 **Références** : conceptions par lot dans `docs/cadrage/conception-*.md` ;
 `docs/cadrage/conceptions-arbitrages.md` prévaut (ordre des lots, horodatages de migration
@@ -37,68 +41,78 @@ réservés, identifiants `US-…`).
 
 **Mergé sur `main` depuis le 23 novembre** :
 
-| Domaine               | PR                                                                                                                                       |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Pilotage en direct    | #130 flux SSE, #136 et #140 présence (backoffice, salle), #131 passer et pause                                                           |
-| Sécurité de salle     | #153 fumée non activable par le backoffice, #155 plafond de 3 éclairs par seconde, #159 fumée coupée à la pause                          |
-| Sessions programmées  | #154 socle (statut `scheduled`, contrainte d'exclusion), #171 réglages de créneaux d'une salle (serveur)                                 |
-| Exploitation, contenu | #160 feuille de résultats, #163 import CSV (serveur), #164 historique filtré et paginé, #169 consentement aux offres séparé              |
-| Console de l'éditeur  | #165 garde réseau du superadmin, #168 demandes de démonstration (serveur)                                                                |
-| Public                | #139 site vitrine (`vitrine/`), #150 socle `/public/v1` et limiteur de débit                                                             |
-| Jeu                   | #148 mini-jeux tirés sans remise, #151 effets sur les extraits et voix d'annonces, #162 boutons et mises en page de l'écran de salle     |
-| Production, outillage | #137 pile de production (`deploy/prod/`), #138 guides, #147 conceptions, #149 dépendances, #172 tests PostgreSQL de la CI pris par motif |
+| Domaine               | PR                                                                                                                                                                                                                                   |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Pilotage en direct    | #130 flux SSE, #136 et #140 présence (backoffice, salle), #131 passer et pause                                                                                                                                                       |
+| Sécurité de salle     | #153 fumée non activable par le backoffice, #155 plafond de 3 éclairs par seconde, #159 fumée coupée à la pause, #176 fumée armée après un test de coupure local, #179 stroboscope autonome signalé et strobe du Diagnostic plafonné |
+| Sessions programmées  | #154 socle (statut `scheduled`, contrainte d'exclusion), #171 et #173 réglages de créneaux d'une salle (serveur, écran), #177 programmer, modifier, ouvrir, annuler, #175 écran Agenda                                               |
+| Exploitation, contenu | #160 feuille de résultats, #163 et #174 import CSV (serveur, écran), #164 historique filtré et paginé, #169 consentement aux offres séparé, #167 journaux d'erreurs des salles (serveur, écran de salle), #170 logo du centre        |
+| Console de l'éditeur  | #165 garde réseau du superadmin, #168 demandes de démonstration (serveur)                                                                                                                                                            |
+| Public                | #139 site vitrine (`vitrine/`), #150 socle `/public/v1` et limiteur de débit, #181 formulaire de démonstration de la vitrine branché sur la route publique                                                                           |
+| Jeu                   | #148 mini-jeux tirés sans remise, #151 effets sur les extraits et voix d'annonces, #162 boutons et mises en page de l'écran de salle                                                                                                 |
+| Production, outillage | #137 pile de production (`deploy/prod/`), #138 guides, #147 conceptions, #149 dépendances, #172 tests PostgreSQL de la CI pris par motif                                                                                             |
 
-**PR ouvertes au moment de l'écriture** (relecture indépendante faite et corrections poussées,
-sauf mention) :
+**PR ouvertes au moment de l'arrêt** :
 
-| PR   | Lot                                           | Copie de travail   | Reste à faire                                                                                               |
-| ---- | --------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------- |
-| #170 | 6a logo du centre                             | `logo-centre`      | merger dès que la CI est verte                                                                              |
-| #174 | 8b écran d'import CSV                         | `import-ecran`     | merger dès que la CI est verte                                                                              |
-| #167 | 7e journaux d'erreurs des salles              | `journaux-salle`   | merger dès que la CI est verte                                                                              |
-| #176 | S4 fumée armée après un test de coupure local | `fumee-test-local` | merger dès que la CI est verte (même fichier `roomHardware.ts` que #167 : conflit possible)                 |
-| #173 | 13.7 écran de réglage des créneaux            | `reglages-ecran`   | merger dès que la CI est verte                                                                              |
-| #177 | 13.3 programmer, modifier, ouvrir, annuler    | `sessions-backend` | **relecture en cours**, puis corrections, puis merge                                                        |
-| #175 | 13.5 écran Agenda                             | `agenda`           | merger **après #177** ; « Programmer » attend 13.6                                                          |
-| #178 | 12d TOTP du superadmin (serveur)              | `totp-serveur`     | **relecture en cours** ; à merger avec l'écran en deux temps (12f), sinon le superadmin ne se connecte plus |
-| #179 | S5 stroboscope autonome                       | `strobe-autonome`  | **relecture en cours**, puis corrections, puis merge                                                        |
+| PR   | Lot                                       | Copie de travail | État et reste à faire                                                                                                                               |
+| ---- | ----------------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #178 | 12d TOTP du superadmin (serveur)          | `totp-serveur`   | relue et corrigée. **Ne pas merger seule** : sans l'écran 12f, le superadmin ne se connecte plus au backoffice. Merger #178 puis 12f dans la foulée |
+| #184 | 12f connexion en deux temps et enrôlement | `connexion-totp` | **non relue**. Branche empilée sur celle de #178 : son diff contient #178 tant que #178 n'est pas mergée                                            |
+| #183 | 7d statistiques d'exploitation            | `stats`          | **non relue**, écran jamais ouvert dans un navigateur                                                                                               |
+| #182 | 7f écran des journaux d'une salle         | `journaux-ecran` | **non relue** (brouillon), écran jamais ouvert dans un navigateur                                                                                   |
 
 Après chaque merge, les autres PR sont en conflit sur `backoffice/CHANGELOG.md` côté GitHub
-(l'attribut `merge=union` ne vaut qu'en local) : fusionner `origin/main` dans la branche, pousser,
-attendre la CI, merger. Une PR à la fois.
+(l'attribut `merge=union` ne vaut qu'en local) : fusionner `origin/main` dans la branche, pousser
+(`git push origin HEAD:refs/heads/<branche>`, car les branches des copies de travail suivent
+`origin/main`), attendre la CI, merger. Une PR à la fois.
 
 **Ordre des lots suivants** (chacun : issue, branche, PR, une relecture, merge) :
 
-1. Sessions (#142) : 13.4 routes de salle et 14.0 socle de réservation (après #177) ; 13.6
-   formulaire de programmation (après #175 ; `CreateGameView.vue` lit `?roomId=` et
-   `?scheduledAt=`) ; 13.8 écran de salle ; 13.9 événement `schedule_changed`.
-2. Console (#161) : 12f écran de connexion en deux temps (contrat de #178) ; 12e deux builds du
-   frontend (après #174 et #175, même routeur et même barre latérale) ; 12g écran des demandes de
-   démonstration ; formulaire de la vitrine branché sur `POST /public/v1/demo-requests`.
-3. Accueil par QR code (#166) : 2a après #177 (mêmes fichiers `routes/games*`), puis 2b à 2f.
-4. Exploitation (#157) : 7d statistiques, 7f écran des journaux (après #167), 7b, 7c, 7g.
+1. Console (#161) : relire puis merger #178 et 12f ; 12e deux builds du frontend ; 12g écran des
+   demandes de démonstration (après 12e).
+2. Sessions (#142) : 13.4 routes de salle (ajouter le filtre de salle à `openScheduledGame`) et
+   14.0 socle de réservation ; 13.6 formulaire de programmation (`CreateGameView.vue` lit
+   `?roomId=` et `?scheduledAt=`) ; 13.8 écran de salle ; 13.9 événement `schedule_changed`.
+3. Accueil par QR code (#166) : 2a (mêmes fichiers `routes/games*` ; lève l'index
+   `games_room_id_active_unique`, donc le 409 `room_busy` à l'ouverture d'une session pendant une
+   partie), puis 2b à 2f.
+4. Exploitation (#157) : relire puis merger #183 et #182 ; 7b, 7c, 7g.
 5. Après-partie (#156) : 6b à 6g (bons, e-mail de résultats). Contenu (#158) : 8c à 8e.
-6. Pilotage (#129) : fin du polling, suivi en direct, commandes à distance. Formats (#143),
-   spectacle (#145), audio (#144), API de réservation (lot 14, issue à créer).
+6. Pilotage (#129) : fin du polling, suivi en direct, commandes à distance. Formats (#143 ; le
+   lot 3.3 doit passer `format` à `custom` au PATCH), spectacle (#145), audio (#144), API de
+   réservation (lot 14, issue à créer).
 7. Ordre des modifications de `routes/room.ts` : 2a, 6a, 8c-1, 8d, 8e.
 
 **Jamais vérifié** : aucun écran neuf n'a été regardé dans un navigateur (agenda, créneaux, import,
-historique, feuille de résultats, logo, cases de consentement, alerte fumée) ; rien sur du vrai
-matériel ; pile de production jamais montée sur une machine ; SSE derrière Caddy ; SonarQube et
-Lighthouse du backoffice non lus (CI GitLab hors de portée de ce poste).
+historique, feuille de résultats, logo, cases de consentement, alerte fumée, journaux,
+statistiques, connexion en deux temps, formulaire de la vitrine) ; TOTP jamais essayé avec une
+vraie application d'authentification ; `docker compose config` des fichiers `deploy/` avec
+`TOTP_ENCRYPTION_KEY` ; CORS de la vitrine avec une vraie origine ; rien sur du vrai matériel ;
+pile de production jamais montée sur une machine ; SSE derrière Caddy ; SonarQube et Lighthouse du
+backoffice non lus (CI GitLab hors de portée de ce poste).
 
 **Choix par défaut pris sans Enzo, à confirmer** : plafond des éclairs (3 par seconde, 400 ms) ;
-fumée coupée à la pause ; chaque poste refait le test de coupure une fois (#176) ; le backoffice ne
-modifie plus `lighting` ; fuseaux en noms IANA seulement ; journaux de salle gardés 30 jours et
-5 000 lignes ; demandes de démonstration gardées 12 mois, 5 par heure et par adresse, sans envoi
-d'e-mail ; logo de 512 Ko au plus, sans SVG ; TOTP sans QR code ; mini-jeux du lot 4 hors V1.
+fumée coupée à la pause ; chaque poste refait le test de coupure une fois (#176) ; strobe du
+Diagnostic plafonné à la valeur 30 pendant 3 s, canal brut compris (#179) ; le backoffice ne
+modifie plus `lighting` ; fuseaux en noms IANA seulement ; ouvrir une session programmée pendant
+une partie renvoie 409 `room_busy` (jusqu'au lot 2a) ; journaux de salle gardés 30 jours et
+5 000 lignes, consultés dans un panneau du tableau des salles, sans accès pour le rôle `user` ;
+demandes de démonstration gardées 12 mois, 5 par heure et par adresse, sans envoi d'e-mail ; logo
+de 512 Ko au plus, sans SVG ; TOTP sans QR code, tentative comptée avant la comparaison, clé de
+démonstration refusée en production ; statistiques sur 30 jours par défaut et 366 au plus,
+réservées aux administrateurs ; mini-jeux du lot 4 hors V1.
 
 **Suivis mineurs relevés en relecture** (à regrouper dans une PR) : clés i18n `invalid_query`,
-`payload_too_large`, `bad_request` et codes `schedule_*` ; cibles de 48 px de `SwitchField` et
-`BaseToolBar` ; colonnes du modèle CSV à déplacer dans `@quizzup/shared` ; grille de créneaux
-vide à refuser ou signaler ; `diagnostics.setChannel` non plafonné ; §1.8 du guide de sécurité
-à mettre à jour (le plafond des éclairs existe) ; cas F9 du banc : test relancé puis page
-rechargée ; `openapi.yaml` référence des schémas absents de `components` ; `knip` à relancer.
+`payload_too_large`, `bad_request` et codes `schedule_*` ; cibles de 48 px de `SwitchField`,
+`BaseToolBar` et des boutons d'action de ligne des salles (38 px) ; colonnes du modèle CSV à
+déplacer dans `@quizzup/shared` ; grille de créneaux vide à refuser ou signaler ; `emergencyStop`
+ne termine pas le Diagnostic et ne vide pas `manualChannels` ; §1.8 du guide de sécurité à mettre à
+jour (le plafond des éclairs existe) ; cas F9 du banc : test relancé puis page rechargée ;
+`openapi.yaml` référence des schémas absents de `components` ; texte `rooms.errors` imprécis pour
+les journaux ; pot de miel du formulaire de la vitrine côté client seulement ; `periodBoundSchema`
+dupliqué entre `routes/games` et `routes/stats` ; identifiant `US-APRES-01` à remplacer par
+`US-RESULTS-01` ; issues des lots 4 et 14 à créer, #132 à fermer ; copies de travail des PR
+mergées à supprimer ; `CLAUDE.md` §2 à compléter (`vitrine/`) ; `knip` à relancer.
 
 ### 2.1 Sessions précédentes
 
