@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { PAGES } from '../build/pages'
 import { DRAFT_ENV } from '../build/plugins'
 import { site } from '../site.config'
+import { FIELD_NAMES, LIMITS } from '../src/form'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 let outDir = ''
@@ -126,6 +127,31 @@ describe('pages construites', () => {
 
   it('le formulaire pointe vers l’API configurée', () => {
     expect(read('demonstration.html')).toContain(`data-api-url="${site.apiUrl}"`)
+  })
+
+  it('les champs de la page suivent les bornes de la route', () => {
+    const html = read('demonstration.html')
+    const attrs = (id: string) =>
+      html.match(new RegExp(`<(?:input|textarea)\\s[^>]*id="${id}"[^>]*>`))?.[0] ?? ''
+    expect(attrs('f-name')).toContain(`maxlength="${LIMITS.name}"`)
+    expect(attrs('f-company')).toContain(`maxlength="${LIMITS.company}"`)
+    expect(attrs('f-email')).toContain(`maxlength="${LIMITS.email}"`)
+    expect(attrs('f-phone')).toContain(`maxlength="${LIMITS.phone}"`)
+    expect(attrs('f-rooms')).toContain(`max="${LIMITS.rooms}"`)
+    expect(attrs('f-message')).toContain(`maxlength="${LIMITS.message}"`)
+    // Le message est facultatif pour la route : la page ne l'exige pas.
+    expect(attrs('f-message')).not.toContain('required')
+    expect(attrs('f-company')).toContain('required')
+  })
+
+  it('chaque champ est relié à son message d’erreur, qui existe dans la page', () => {
+    const html = read('demonstration.html')
+    for (const name of FIELD_NAMES) {
+      const control = html.match(new RegExp(`<(?:input|textarea)\\s[^>]*id="f-${name}"[^>]*>`))?.[0]
+      expect(control, name).toContain(`f-${name}-error`)
+      expect(control, name).toMatch(/aria-describedby="[^"]*f-\w+-error[^"]*"/)
+      expect(html, name).toContain(`id="f-${name}-error"`)
+    }
   })
 
   it('les pages légales affichent les valeurs de la société de la configuration', () => {

@@ -1,0 +1,52 @@
+{
+  "agenda": {
+    "menu": "Agenda",
+    "title": "Agenda",
+    "subtitle": "Scheduled sessions by day and by room",
+    "filters": {
+      "title": "Room and day",
+      "company": "Company",
+      "room": "Room",
+      "date": "Day",
+      "previousDay": "Previous day",
+      "nextDay": "Next day"
+    },
+    "timezone": "Room times, {zone} time zone",
+    "list": {
+      "title": "Schedule for the day"
+    },
+    "loading": "Loading the agenda...",
+    "retry": "Retry",
+    "truncatedTitle": "Incomplete list",
+    "truncated": "Only {shown} of {total} sessions are shown: some are missing from this agenda.",
+    "empty": "No slot on this day: the room is closed or its slots are not set up.",
+    "noRoom": "No active room in this company: activate a room to schedule sessions.",
+    "settingsLink": "Set up the slots",
+    "row": {
+      "free": "Free slot",
+      "players": "{count} player | {count} players",
+      "noPlayers": "No player yet",
+      "reference": "Ref. {ref}",
+      "sourceApi": "Online booking"
+    },
+    "state": {
+      "notLaunched": "Not launched"
+    },
+    "actions": {
+      "schedule": "Schedule",
+      "view": "View details",
+      "open": "Open",
+      "cancel": "Cancel",
+      "viewAt": "View details of the {time} session",
+      "openAt": "Open the {time} session",
+      "cancelAt": "Cancel the {time} session",
+      "cancelTitle": "Cancel the session",
+      "keep": "Keep the session",
+      "cancelConfirm": "Cancel the {time} session in room \"{room}\"? The slot will be freed and the players' email addresses will be erased."
+    },
+    "banners": {
+      "opened": "The session in room \"{room}\" is open: it now waits to be launched in the room.",
+      "cancelled": "The session in room \"{room}\" has been cancelled."
+    }
+  }
+}

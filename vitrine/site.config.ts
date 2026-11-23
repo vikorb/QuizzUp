@@ -20,7 +20,10 @@ export const site = {
   url: `https://www.${domain}`,
   /** Application (backoffice) : cible du bouton « Connexion ». */
   appUrl: `https://app.${domain}`,
-  /** API du backoffice : le formulaire poste vers `<apiUrl>/public/v1/demo-requests`. */
+  /**
+   * API du backoffice : le formulaire poste vers `<apiUrl>/public/v1/demo-requests`. Vide : le
+   * formulaire ouvre la messagerie (`mailto:`) au lieu d'envoyer.
+   */
   apiUrl: `https://api.${domain}`,
   contactEmail: `a-completer@${domain}`,
   /** Logo affiché dans l'en-tête (fichier de `public/`) et ses dimensions réelles. */

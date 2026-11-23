@@ -13,7 +13,12 @@ import {
   withPlanPoint,
 } from '../config'
 import type { FixtureConfig, PanTilt } from '../dmx/fixtures'
-import { fixtureUniverse, parseRig, unsupportedUniverseProblems } from '../dmx/fixtures'
+import {
+  fixtureUniverse,
+  parseRig,
+  strobeProblems,
+  unsupportedUniverseProblems,
+} from '../dmx/fixtures'
 import type { DmxDriver } from '../dmx/output'
 import type { FixtureProfile } from '../dmx/profiles'
 import { findProfile, hasSmokeRelay } from '../dmx/profiles'
@@ -956,6 +961,7 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
           'Interface Open DMX : expérimentale, des scintillements sont possibles selon le PC'
         )
       }
+      warnings.push(...strobeProblems(rig.fixtures))
       for (const fixture of rig.fixtures) {
         if (fixture.profile.kind !== 'smoke' && fixtureTests[fixture.id] !== 'ok') {
           warnings.push(`« ${fixture.name} » n'a pas été validé au test`)

@@ -74,7 +74,7 @@
             name="company"
             type="text"
             autocomplete="organization"
-            maxlength="120"
+            maxlength="160"
             required
             aria-describedby="f-company-error"
           />
@@ -102,7 +102,7 @@
             name="phone"
             type="tel"
             autocomplete="tel"
-            maxlength="20"
+            maxlength="32"
             aria-describedby="f-phone-error"
           />
           <p class="field__error" id="f-phone-error"></p>
@@ -116,7 +116,7 @@
             type="number"
             inputmode="numeric"
             min="1"
-            max="99"
+            max="50"
             required
             aria-describedby="f-rooms-error"
           />
@@ -124,12 +124,11 @@
         </div>
 
         <div class="field">
-          <label for="f-message">Message</label>
+          <label for="f-message">Message <span class="field__hint">(facultatif)</span></label>
           <textarea
             id="f-message"
             name="message"
             maxlength="2000"
-            required
             aria-describedby="f-message-hint f-message-error"
           ></textarea>
           <p class="field__hint" id="f-message-hint">

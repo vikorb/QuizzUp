@@ -5,6 +5,7 @@ import { isAuthenticated, me, refreshMe } from '@/state/authState'
 import { isCompanyAdminRole, isSuperadminRole } from '@/utils/company/details/permissions'
 import { canCreateQuestion } from '@/utils/question/permissions'
 import { canCreateTheme } from '@/utils/theme/permissions'
+import AgendaView from '@/views/AgendaView.vue'
 import CreateAccountView from '@/views/clients/accounts/CreateAccountView.vue'
 import ClientDetailsView from '@/views/clients/ClientDetailsView.vue'
 import CreateClientView from '@/views/clients/CreateClientView.vue'
@@ -182,6 +183,12 @@ export const router = createRouter({
           path: 'games/:gameId',
           name: 'games-detail',
           component: GameDetailView,
+          meta: { requiresAuth: true },
+        },
+        {
+          path: 'agenda',
+          name: 'agenda',
+          component: AgendaView,
           meta: { requiresAuth: true },
         },
         {

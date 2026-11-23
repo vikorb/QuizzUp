@@ -5,7 +5,7 @@ import { cloneBuzzerLayout, defaultBuzzerLayout, parseBuzzerLayout } from './buz
 import type { ArtnetTargetConfig } from './dmx/bridgeOutput'
 import { isLocalArtnetTarget, parseBridgeUrl } from './dmx/bridgeOutput'
 import type { FixtureConfig, ResolvedFixture } from './dmx/fixtures'
-import { parseRig, unsupportedUniverseProblems } from './dmx/fixtures'
+import { parseRig, strobeProblems, unsupportedUniverseProblems } from './dmx/fixtures'
 import type { DmxDriver } from './dmx/output'
 import { DMX_DRIVERS } from './dmx/output'
 import type { FixtureProfile } from './dmx/profiles'
@@ -299,7 +299,7 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
   }
 
   const rig = parseRig(lighting.fixtures, lighting.customProfiles)
-  problems.push(...rig.problems)
+  problems.push(...rig.problems, ...strobeProblems(rig.fixtures))
 
   let desksCount = clampDeskCount(raw.desksCount)
   if (raw.desksCount === undefined) {
