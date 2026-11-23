@@ -5,7 +5,7 @@ import {
   getPlayableMiniGames,
   MAX_SEED,
 } from '@quizzup/game-engine'
-import { MINI_GAME_FLASH_BLIND_TEST, type MiniGame } from '@quizzup/shared'
+import { GAME_COMMAND_REFUSAL, MINI_GAME_FLASH_BLIND_TEST, type MiniGame } from '@quizzup/shared'
 import { computed, ref, shallowRef } from 'vue'
 
 import { createAudioBridge } from '@/audio/audioBridge'
@@ -25,7 +25,9 @@ import {
 } from '@/game/registrations'
 import {
   createLocalSessionStorage,
+  type GameCommandResult,
   GameSession,
+  refuse,
   type SessionSnapshot,
   type SessionStorage,
 } from '@/game/session'
@@ -42,6 +44,7 @@ const TICK_INTERVAL_MS = 50
 const session = shallowRef<GameSession | null>(null)
 const state = shallowRef<GameState | null>(null)
 const now = ref(0)
+const paused = ref(false)
 const eventListeners = new Set<(events: GameEvent[]) => void>()
 
 let storage: SessionStorage = createLocalSessionStorage()
@@ -54,6 +57,8 @@ let ticker: ReturnType<typeof setInterval> | null = null
 let unsubscribe: (() => void) | null = null
 
 let uiSounds: UiSoundOutput | null = null
+/** À la reprise, relancer l'extrait ? Non s'il était déjà arrêté avant la pause (joueur qui répond). */
+let resumeExtractOnResume = false
 
 /** Joue un son d'interface (sans effet tant que l'audio n'est pas configuré). */
 export function playUiSound(name: Parameters<UiSoundOutput['play']>[0]): void {
@@ -105,6 +110,7 @@ function attach(next: GameSession): void {
   session.value = next
   state.value = next.state
   now.value = next.now()
+  paused.value = next.paused
 
   unsubscribe = next.onChange((nextState, events) => {
     state.value = nextState
@@ -128,6 +134,17 @@ function attach(next: GameSession): void {
   }
 }
 
+/** Instant où un joueur a buzzé et où l'extrait attend sa réponse (blind test), sinon `null`. */
+function getBlindTestPausedAt(current: GameState | null): number | null {
+  const phase = current?.phase
+
+  if (phase?.name !== 'question' || phase.miniGameState.kind !== MINI_GAME_FLASH_BLIND_TEST) {
+    return null
+  }
+
+  return phase.miniGameState.status === 'answering' ? phase.miniGameState.pausedAt : null
+}
+
 /** Relance l'extrait du palier en cours d'une partie reprise. */
 function restoreAudio(resumed: GameSession): void {
   const { phase } = resumed.state
@@ -137,8 +154,8 @@ function restoreAudio(resumed: GameSession): void {
   }
 
   const mini = phase.miniGameState
-  const pausedAt = mini.status === 'answering' ? mini.pausedAt : null
-  const paused = pausedAt !== null
+  const pausedAt = getBlindTestPausedAt(resumed.state)
+  const answering = pausedAt !== null
   const reference = pausedAt ?? resumed.now()
 
   audioBridge.restore({
@@ -146,7 +163,7 @@ function restoreAudio(resumed: GameSession): void {
     mediaStartMs: mini.question.mediaStartMs,
     extractMs: FLASH_BLIND_TEST_STAGE_DURATIONS_MS[mini.stageIndex] ?? 0,
     elapsedMs: Math.max(0, reference - mini.stageStartedAt),
-    paused,
+    paused: answering,
   })
 }
 
@@ -320,6 +337,39 @@ export function abortGame(reason = 'operator_abort'): void {
   session.value?.abort(reason)
 }
 
+/** Pause : l'horloge de la partie est gelée, les buzzers sont ignorés, l'extrait est suspendu. */
+export function pauseGame(): GameCommandResult {
+  const result = session.value?.pause() ?? refuse(GAME_COMMAND_REFUSAL.GAME_OVER)
+
+  if (result.ok) {
+    paused.value = true
+    resumeExtractOnResume = getBlindTestPausedAt(state.value) === null
+    player.pause()
+  }
+
+  return result
+}
+
+export function resumeGame(): GameCommandResult {
+  const result = session.value?.resume() ?? refuse(GAME_COMMAND_REFUSAL.GAME_OVER)
+
+  if (result.ok) {
+    paused.value = false
+    now.value = session.value?.now() ?? now.value
+
+    if (resumeExtractOnResume) {
+      player.resume()
+    }
+  }
+
+  return result
+}
+
+/** Passe la question en cours : 0 point, aucune pénalité. Refusé en pause ou hors question. */
+export function skipQuestion(): GameCommandResult {
+  return session.value?.skip() ?? refuse(GAME_COMMAND_REFUSAL.GAME_OVER)
+}
+
 /** Ferme la partie et oublie sa sauvegarde. */
 export function closeGame(): void {
   stopTicking()
@@ -329,6 +379,7 @@ export function closeGame(): void {
   session.value?.discard()
   session.value = null
   state.value = null
+  paused.value = false
 }
 
 export function onGameEvents(listener: (events: GameEvent[]) => void): () => void {
@@ -341,5 +392,6 @@ export function useRoomGame() {
     session: computed(() => session.value),
     state: computed(() => state.value),
     now: computed(() => now.value),
+    paused: computed(() => paused.value),
   }
 }

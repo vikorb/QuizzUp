@@ -53,9 +53,18 @@
       "text": "La fenêtre du jeu n’a plus le focus : les buzzers ne sont plus reçus.",
       "action": "Clique n’importe où pour réactiver les buzzers"
     },
+    "pause": {
+      "title": "Pause",
+      "text": "La partie est en pause. Elle reprend quand le personnel la relance.",
+      "resume": "Reprendre la partie"
+    },
     "toolbar": {
       "fullscreen": "Plein écran",
       "exitFullscreen": "Quitter le plein écran",
+      "pause": "Mettre en pause",
+      "resume": "Reprendre la partie",
+      "skip": "Passer la question",
+      "skipConfirm": "Passer la question en cours ? Personne ne marque de point et personne n’est pénalisé.",
       "abort": "Arrêter la partie",
       "abortConfirm": "Arrêter la partie en cours ? Les scores actuels seront conservés comme résultat."
     },

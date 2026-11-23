@@ -29,6 +29,27 @@
         <UiButton
           v-if="!isOver"
           variant="icon"
+          data-test="toggle-pause"
+          :aria-label="paused ? $t('room.toolbar.resume') : $t('room.toolbar.pause')"
+          :title="paused ? $t('room.toolbar.resume') : $t('room.toolbar.pause')"
+          @click="onTogglePause"
+        >
+          <MdIcon :path="paused ? mdiPlay : mdiPause" :size="20" />
+        </UiButton>
+        <UiButton
+          v-if="!isOver"
+          variant="icon"
+          data-test="skip-question"
+          :disabled="paused"
+          :aria-label="$t('room.toolbar.skip')"
+          :title="$t('room.toolbar.skip')"
+          @click="onSkip"
+        >
+          <MdIcon :path="mdiSkipNext" :size="20" />
+        </UiButton>
+        <UiButton
+          v-if="!isOver"
+          variant="icon"
           :aria-label="$t('room.toolbar.abort')"
           :title="$t('room.toolbar.abort')"
           @click="onAbort"
@@ -106,15 +127,24 @@
       :answered-label="miniView?.mode === 'bet' ? $t('game.scoreboard.bet') : undefined"
       :tags="scoreTags"
     />
+
+    <PausedOverlay v-if="paused && !isOver" @resume="resumeGame" />
   </main>
 </template>
 
 <script setup lang="ts">
-import { mdiAlertOctagonOutline, mdiStopCircleOutline } from '@mdi/js'
+import {
+  mdiAlertOctagonOutline,
+  mdiPause,
+  mdiPlay,
+  mdiSkipNext,
+  mdiStopCircleOutline,
+} from '@mdi/js'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
 
+import PausedOverlay from '@/components/game/PausedOverlay.vue'
 import RoomTopBar from '@/components/game/RoomTopBar.vue'
 import ScoreBoard from '@/components/game/ScoreBoard.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
@@ -133,7 +163,15 @@ import {
   getRevealView,
   getThemeName,
 } from '@/game/selectors'
-import { abortGame, closeGame, pressBuzzer, useRoomGame } from '@/game/useRoomGame'
+import {
+  abortGame,
+  closeGame,
+  pauseGame,
+  pressBuzzer,
+  resumeGame,
+  skipQuestion,
+  useRoomGame,
+} from '@/game/useRoomGame'
 import { useRoomHardware } from '@/hardware/roomHardware'
 import { useBuzzers } from '@/hardware/useBuzzers'
 import { useEmergencyStop } from '@/hardware/useEmergencyStop'
@@ -151,7 +189,7 @@ import ThemeChoiceScreen from '@/views/game/ThemeChoiceScreen.vue'
 const { t } = useI18n()
 const router = useRouter()
 const { confirm } = useConfirm()
-const { state, now } = useRoomGame()
+const { state, now, paused } = useRoomGame()
 const { hardware, lighting } = useRoomHardware()
 const hasFixtures = computed(() => hardware.value.fixtures.length > 0)
 const emergency = useEmergencyStop()
@@ -257,6 +295,21 @@ async function onAbort(): Promise<void> {
   const ok = await confirm({ message: t('room.toolbar.abortConfirm'), variant: 'danger' })
   if (ok) {
     abortGame()
+  }
+}
+
+function onTogglePause(): void {
+  if (paused.value) {
+    resumeGame()
+  } else {
+    pauseGame()
+  }
+}
+
+async function onSkip(): Promise<void> {
+  const ok = await confirm({ message: t('room.toolbar.skipConfirm') })
+  if (ok) {
+    skipQuestion()
   }
 }
 

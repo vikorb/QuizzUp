@@ -394,6 +394,36 @@ export const ROUND_CHOOSER_REASONS = [
 
 export type RoundChooserReason = (typeof ROUND_CHOOSER_REASON)[keyof typeof ROUND_CHOOSER_REASON]
 
+/**
+ * Motifs de refus d'une commande de pilotage d'une partie en cours (pause, reprise, passer une
+ * question) : l'écran de salle les renvoie, le serveur les relaiera au backoffice.
+ */
+export const GAME_COMMAND_REFUSAL_ALREADY_PAUSED = 'already_paused' as const
+export const GAME_COMMAND_REFUSAL_NOT_PAUSED = 'not_paused' as const
+/** Passer une question est refusé pendant une pause. */
+export const GAME_COMMAND_REFUSAL_PAUSED = 'paused' as const
+export const GAME_COMMAND_REFUSAL_NOT_IN_QUESTION = 'not_in_question' as const
+/** Aucune partie en cours : terminée, arrêtée ou pas encore lancée. */
+export const GAME_COMMAND_REFUSAL_GAME_OVER = 'game_over' as const
+
+export const GAME_COMMAND_REFUSAL = {
+  ALREADY_PAUSED: GAME_COMMAND_REFUSAL_ALREADY_PAUSED,
+  NOT_PAUSED: GAME_COMMAND_REFUSAL_NOT_PAUSED,
+  PAUSED: GAME_COMMAND_REFUSAL_PAUSED,
+  NOT_IN_QUESTION: GAME_COMMAND_REFUSAL_NOT_IN_QUESTION,
+  GAME_OVER: GAME_COMMAND_REFUSAL_GAME_OVER,
+} as const
+
+export const GAME_COMMAND_REFUSALS = [
+  GAME_COMMAND_REFUSAL_ALREADY_PAUSED,
+  GAME_COMMAND_REFUSAL_NOT_PAUSED,
+  GAME_COMMAND_REFUSAL_PAUSED,
+  GAME_COMMAND_REFUSAL_NOT_IN_QUESTION,
+  GAME_COMMAND_REFUSAL_GAME_OVER,
+] as const
+
+export type GameCommandRefusal = (typeof GAME_COMMAND_REFUSAL)[keyof typeof GAME_COMMAND_REFUSAL]
+
 /** Format de partie et matériel d'une salle. */
 export const GAME_DEFAULT_ROUNDS = 10 as const
 export const GAME_DEFAULT_QUESTIONS_PER_ROUND = 10 as const

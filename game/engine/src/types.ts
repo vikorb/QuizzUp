@@ -91,12 +91,20 @@ export type RoundRecord = {
   /** Snapshot des questions jouées dans la manche. */
   questions: EngineQuestion[]
   answers: AnswerRecord[]
+  /**
+   * Questions passées par l'animateur (commande `skip`) : sans point, sans pénalité, et
+   * ignorées par les règles qui lisent l'historique de la manche (série, mort subite).
+   * Absent tant qu'aucune question n'a été passée.
+   */
+  skippedQuestionIds?: number[]
 }
 
 export type GameCommand =
   | { type: 'start'; at: number }
   | { type: 'tick'; at: number }
   | { type: 'press'; at: number; podium: number; button: ButtonIndex }
+  /** Passe la question en cours (phase `question` seulement) : 0 point, aucune pénalité. */
+  | { type: 'skip'; at: number }
   | { type: 'abort'; at: number; reason: string }
 
 export type GameEventType =

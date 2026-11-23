@@ -13,7 +13,7 @@ Format inspiré de Keep a Changelog.
   (`hello { streamId, heartbeatMs, statusEveryMs }`, puis `replaced` si un autre poste prend la
   place, `session_ended` si la session tombe) ; `POST /room/status` publie l'état de la salle
   (écran, partie, phase, manche, question, mini-jeu, pause, scores, audio prêt) et répond `204`,
-  `400 invalid_body`, ou `409 room_instance_replaced` si le `streamId` n'est plus le flux courant.
+  `400 invalid_body`, ou `409 room_instance_replaced` si un autre poste a ouvert le flux de la salle depuis.
   `GET /companies/:companyId/live` (droit `game:read`, même compagnie ou superadmin) ouvre un flux
   SSE du personnel : `snapshot { rooms }` (toutes les salles actives, hors ligne comprises) puis
   `room_status` à chaque changement ; `429 too_many_streams` au-delà de 5 flux ouverts par compte.
@@ -24,6 +24,20 @@ Format inspiré de Keep a Changelog.
   délais, types `RoomStatusReport` / `RoomLive` et `createSseParser`. `plugins/auth.ts` expose
   `checkSession` (même comportement qu'avant pour `authenticate`). Caddy de recette : les flux
   sortent de la compression et passent avec `flush_interval -1`. Pas de migration.
+  US: US-LIVE-01
+
+- Pilotage d'une partie en cours, côté écran de salle (lot 4, sans réseau ; les commandes du
+  backoffice viendront dans un lot suivant). Moteur (`game/engine`) : nouvelle commande `skip`,
+  acceptée seulement en phase `question` : la question se termine sans point ni pénalité et la
+  partie enchaîne comme après une question sans bonne réponse ; `question_ended` porte
+  `skipped: true`, la question est notée dans `rounds[].skippedQuestionIds` et ignorée par la série
+  et la mort subite. Écran de salle (`game/room-app`) : pause qui gèle l'horloge de la partie
+  (échéances reculées du temps de pause, buzzers ignorés, extrait suspendu), voile « Pause »,
+  commandes « Pause / Reprendre » et « Passer la question » à côté de l'arrêt local (fr / en) ;
+  `pauseGame`, `resumeGame` et `skipQuestion` renvoient appliqué ou refusé avec un code
+  (`GAME_COMMAND_REFUSALS` dans `@quizzup/shared` : `already_paused`, `not_paused`, `paused`,
+  `not_in_question`, `game_over`). Une partie rechargée pendant une pause reprend non pausée, à
+  l'instant de la pause.
   US: US-LIVE-01
 
 - Révision de la config de salle : deux postes connectés au même compte de salle ne s'écrasent plus

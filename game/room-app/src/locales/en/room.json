@@ -53,7 +53,16 @@
       "text": "The game window lost focus: buzzers are no longer received.",
       "action": "Click anywhere to reactivate the buzzers"
     },
+    "pause": {
+      "title": "Paused",
+      "text": "The game is paused. It resumes when the staff restarts it.",
+      "resume": "Resume the game"
+    },
     "toolbar": {
+      "pause": "Pause the game",
+      "resume": "Resume the game",
+      "skip": "Skip the question",
+      "skipConfirm": "Skip the current question? Nobody scores and nobody is penalised.",
       "fullscreen": "Fullscreen",
       "exitFullscreen": "Exit fullscreen",
       "abort": "Stop the game",

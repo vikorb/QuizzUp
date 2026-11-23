@@ -19,6 +19,7 @@ import {
 import { getMiniGameDefinition, type MiniGameState, type QuestionStep } from './miniGames'
 import { createRandom, drawMany, pickOne, type Random } from './random'
 import type {
+  EngineQuestion,
   EngineTheme,
   GameCommand,
   GameEvent,
@@ -299,7 +300,13 @@ function startQuestion(context: Context, questionIndex: number, at: number): voi
   const round = getCurrentRound(state) as RoundRecord
   const question = round.questions[questionIndex]
   const definition = getMiniGameDefinition(round.miniGame)
-  const playedQuestions = round.questions.slice(0, questionIndex)
+  // Les questions passées (`skip`) sont retirées de l'historique : ni série brisée, ni éliminé.
+  const skippedIds = round.skippedQuestionIds ?? []
+  const roundQuestions = round.questions.filter((candidate) => !skippedIds.includes(candidate.id))
+  const skippedBefore = round.questions.length - roundQuestions.length
+  const playedQuestions = round.questions
+    .slice(0, questionIndex)
+    .filter((candidate) => !skippedIds.includes(candidate.id))
   const roundOver =
     questionIndex > 0 &&
     definition.isRoundOver?.({
@@ -314,9 +321,9 @@ function startQuestion(context: Context, questionIndex: number, at: number): voi
   }
 
   const step = definition.start(question, state.setup.participants, at, {
-    questionIndex,
-    questionsCount: round.questions.length,
-    roundQuestions: round.questions,
+    questionIndex: questionIndex - skippedBefore,
+    questionsCount: roundQuestions.length,
+    roundQuestions,
     roundAnswers: round.answers,
     scores: state.scores,
   })
@@ -380,7 +387,12 @@ function selectTheme(context: Context, themeId: number, at: number, automatic: b
   startQuestion(context, 0, at)
 }
 
-function applyQuestionStep(context: Context, step: QuestionStep<MiniGameState>, at: number): void {
+function applyQuestionStep(
+  context: Context,
+  step: QuestionStep<MiniGameState>,
+  at: number,
+  skipped = false
+): void {
   const { state } = context
 
   if (state.phase.name !== 'question') {
@@ -431,12 +443,33 @@ function applyQuestionStep(context: Context, step: QuestionStep<MiniGameState>, 
           .map((answer) => answer.participantId),
         correctAnswerIds:
           question?.answers.filter((answer) => answer.isCorrect).map((answer) => answer.id) ?? [],
+        ...(skipped ? { skipped: true } : {}),
       },
     },
   ])
   const revealMs = getMiniGameDefinition(round.miniGame).revealMs ?? state.setup.timings.revealMs
 
   state.phase = { name: 'reveal', questionIndex, deadline: endedAt + revealMs }
+}
+
+/** Termine la question en cours sans réponse ni point, comme une question sans bonne réponse. */
+function skipQuestion(context: Context, at: number): void {
+  const { state } = context
+  const round = getCurrentRound(state) as RoundRecord
+
+  if (state.phase.name !== 'question') {
+    return
+  }
+
+  const question = round.questions[state.phase.questionIndex] as EngineQuestion
+
+  round.skippedQuestionIds = [...(round.skippedQuestionIds ?? []), question.id]
+  applyQuestionStep(
+    context,
+    { state: state.phase.miniGameState, events: [], answers: [] },
+    at,
+    true
+  )
 }
 
 function endRound(context: Context, at: number): void {
@@ -618,6 +651,13 @@ export function reduceGame(state: GameState, received: GameCommand): GameStep {
         // Les échéances passées s'appliquent avant l'appui (ex. palier terminé).
         runTimers(context, command.at)
         handlePress(context, command.podium, command.button, command.at)
+        break
+      }
+
+      case 'skip': {
+        // Comme un appui : les échéances passées s'appliquent d'abord (question déjà finie).
+        runTimers(context, command.at)
+        skipQuestion(context, command.at)
         break
       }
 
