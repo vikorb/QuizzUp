@@ -7,7 +7,13 @@
     "company_deleted": "This company is deleted: its rooms can no longer be changed.",
     "room_account_already_exists": "This room already has a sign-in account: it is shown below.",
     "room_account_not_found": "This room no longer has a sign-in account.",
-    "username_already_exists": "This username is already used by another account."
+    "username_already_exists": "This username is already used by another account.",
+    "unauthorized": "You must be signed in to do this.",
+    "forbidden": "You do not have the rights to do this.",
+    "server_error": "Server error.",
+    "too_many_streams": "Too many live tracking streams are open with this account (5 at most). Close another tab, then reload the page.",
+    "room_instance_replaced": "Another computer signed in to this room: this connection was closed.",
+    "session_ended": "Your session is no longer valid: sign in again to resume live tracking."
   },
   "success": {
     "roomCreated": "The room {name} has been created.",

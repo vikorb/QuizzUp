@@ -394,6 +394,36 @@ export const ROUND_CHOOSER_REASONS = [
 
 export type RoundChooserReason = (typeof ROUND_CHOOSER_REASON)[keyof typeof ROUND_CHOOSER_REASON]
 
+/**
+ * Motifs de refus d'une commande de pilotage d'une partie en cours (pause, reprise, passer une
+ * question) : l'écran de salle les renvoie, le serveur les relaiera au backoffice.
+ */
+export const GAME_COMMAND_REFUSAL_ALREADY_PAUSED = 'already_paused' as const
+export const GAME_COMMAND_REFUSAL_NOT_PAUSED = 'not_paused' as const
+/** Passer une question est refusé pendant une pause. */
+export const GAME_COMMAND_REFUSAL_PAUSED = 'paused' as const
+export const GAME_COMMAND_REFUSAL_NOT_IN_QUESTION = 'not_in_question' as const
+/** Aucune partie en cours : terminée, arrêtée ou pas encore lancée. */
+export const GAME_COMMAND_REFUSAL_GAME_OVER = 'game_over' as const
+
+export const GAME_COMMAND_REFUSAL = {
+  ALREADY_PAUSED: GAME_COMMAND_REFUSAL_ALREADY_PAUSED,
+  NOT_PAUSED: GAME_COMMAND_REFUSAL_NOT_PAUSED,
+  PAUSED: GAME_COMMAND_REFUSAL_PAUSED,
+  NOT_IN_QUESTION: GAME_COMMAND_REFUSAL_NOT_IN_QUESTION,
+  GAME_OVER: GAME_COMMAND_REFUSAL_GAME_OVER,
+} as const
+
+export const GAME_COMMAND_REFUSALS = [
+  GAME_COMMAND_REFUSAL_ALREADY_PAUSED,
+  GAME_COMMAND_REFUSAL_NOT_PAUSED,
+  GAME_COMMAND_REFUSAL_PAUSED,
+  GAME_COMMAND_REFUSAL_NOT_IN_QUESTION,
+  GAME_COMMAND_REFUSAL_GAME_OVER,
+] as const
+
+export type GameCommandRefusal = (typeof GAME_COMMAND_REFUSAL)[keyof typeof GAME_COMMAND_REFUSAL]
+
 /** Format de partie et matériel d'une salle. */
 export const GAME_DEFAULT_ROUNDS = 10 as const
 export const GAME_DEFAULT_QUESTIONS_PER_ROUND = 10 as const
@@ -497,6 +527,34 @@ export const ROOM_SCREENS = ['launch', 'lobby', 'play', 'setup', 'other'] as con
 
 export type RoomScreen = (typeof ROOM_SCREENS)[number]
 
+/**
+ * Phases du moteur de jeu (`GamePhase` de `game/engine`), telles que la salle les publie. Un test
+ * de contrat du moteur échoue si cette liste et le moteur divergent.
+ */
+export const GAME_PHASE_LOBBY = 'lobby' as const
+export const GAME_PHASE_FINISHED = 'finished' as const
+export const GAME_PHASE_ABORTED = 'aborted' as const
+
+export const GAME_PHASES = [
+  GAME_PHASE_LOBBY,
+  'round_intro',
+  'theme_choice',
+  'question',
+  'reveal',
+  'round_summary',
+  GAME_PHASE_FINISHED,
+  GAME_PHASE_ABORTED,
+] as const
+
+export type GamePhaseName = (typeof GAME_PHASES)[number]
+
+/** Phases où la salle est connectée mais ne joue pas. */
+export const GAME_IDLE_PHASES: ReadonlyArray<GamePhaseName> = [
+  GAME_PHASE_LOBBY,
+  GAME_PHASE_FINISHED,
+  GAME_PHASE_ABORTED,
+]
+
 export const ROOM_PRESENCE = {
   ONLINE: 'online',
   OFFLINE: 'offline',
@@ -516,7 +574,7 @@ export const LIVE_OFFLINE_AFTER_MS = 45_000 as const
 export type RoomStatusReport = {
   screen: RoomScreen
   gameId: number | null
-  phase: string | null
+  phase: GamePhaseName | null
   round: number | null
   questionIndex: number | null
   miniGame: MiniGame | null

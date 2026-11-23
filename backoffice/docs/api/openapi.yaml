@@ -1776,6 +1776,7 @@ paths:
                 scores:
                   type: array
                   maxItems: 6
+                  description: Un score par pupitre ; deux lignes pour le même pupitre sont refusées (`400 invalid_body`)
                   items:
                     type: object
                     required: [podium, score]
@@ -1906,10 +1907,20 @@ paths:
                   nullable: true
                 phase:
                   type: string
-                  minLength: 1
-                  maxLength: 40
                   nullable: true
-                  description: Phase du moteur de jeu (`lobby`, `question`, `finished`, …)
+                  enum:
+                    - lobby
+                    - round_intro
+                    - theme_choice
+                    - question
+                    - reveal
+                    - round_summary
+                    - finished
+                    - aborted
+                  description: >-
+                    Phase du moteur de jeu (liste `GAME_PHASES` de `@quizzup/shared`). Une valeur
+                    texte que le serveur ne connaît pas (écran de salle plus récent) est lue comme
+                    `null` : le rapport n'est pas refusé.
                 round:
                   type: integer
                   minimum: 0
@@ -1996,7 +2007,7 @@ paths:
         - `room_status` : un `RoomLive` à chaque rapport, ouverture ou fermeture du flux d'une salle, et quand une salle passe hors ligne. Un client ignore un `roomId` absent de son instantané (salle supprimée ou désactivée depuis).
         - `session_ended` : la session n'est plus valable (`{ error }`) ; le flux est fermé juste après.
 
-        `RoomLive` : `{ roomId, presence, controllable, lastSeenAt, status }`. `presence` vaut `offline` (aucun rapport depuis 45 s), `in_game` (en ligne, partie en cours, phase hors `lobby`, `finished`, `aborted`) ou `online`. `controllable` : en ligne et flux de la salle ouvert. `status` : dernier rapport de `POST /room/status`, `null` si la salle n'en a jamais envoyé.
+        `RoomLive` : `{ roomId, presence, controllable, lastSeenAt, status }`. `presence` vaut `offline` (aucun rapport depuis 45 s), `in_game` (en ligne, partie en cours, phase hors `lobby`, `finished`, `aborted`) ou `online`. `controllable` : en ligne et flux de la salle ouvert. `lastSeenAt` : date (ISO 8601) du dernier rapport de `POST /room/status`. `status` : ce dernier rapport, conservé tant que le backend tourne même quand la salle est hors ligne (pour afficher « vue pour la dernière fois »). Les deux valent `null` si la salle n'a envoyé aucun rapport depuis le démarrage du backend.
 
         Une ligne de commentaire `: ping` est écrite toutes les 15 s. La session est revérifiée toutes les 60 s sans être prolongée. 5 flux ouverts au plus par compte.
 
