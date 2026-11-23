@@ -11,6 +11,8 @@ Format inspiré de Keep a Changelog.
 - Écran « Agenda » du backoffice : les sessions programmées d'une salle, jour par jour, dans le fuseau de la salle, avec les créneaux libres de la grille, l'ouverture, l'annulation confirmée et l'accès au détail.
   US: US-SESSION-01 (#142)
 
+- Demandes de démonstration côté serveur : route publique `POST /public/v1/demo-requests` (5 envois par heure et par adresse, champ piège contre les robots), consultation, traitement et suppression par le superadmin (`/demo-requests`), purge automatique 12 mois après la création. Aucun e-mail n'est envoyé.
+  US: US-CONSOLE-02 (#161)
 - Consentement aux offres du centre séparé de la conservation de l'e-mail : deux cases distinctes à la création d'une partie, jamais pré-cochées, la seconde inactive sans e-mail. Nouvelles colonnes `marketing_consent_at` et `second_marketing_consent_at` sur `game_participants`, horodatées par le serveur et effacées par la purge à 3 ans. L'API renvoie `marketingConsent` et refuse un consentement sans e-mail (400 `marketing_consent_requires_email`).
   US: US-JOIN-01 (#166)
 
