@@ -1,0 +1,7 @@
+# Secrets et état propres à chaque installation : jamais dans le dépôt.
+.env
+state/
+
+# Site vitrine : on y dépose les fichiers construits, le dossier lui-même reste versionné.
+vitrine/*
+!vitrine/.gitkeep
