@@ -73,6 +73,7 @@ export async function apiFetch(options: ApiRequestOptions): Promise<Response | n
     headers: inputHeaders,
     authenticated = false,
     credentials = 'include',
+    signal,
   } = options
 
   if (authenticated && !token.value) {
@@ -87,6 +88,7 @@ export async function apiFetch(options: ApiRequestOptions): Promise<Response | n
       headers,
       body,
       credentials,
+      signal,
     })
   } catch {
     return null

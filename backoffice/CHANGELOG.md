@@ -17,6 +17,16 @@ Format inspiré de Keep a Changelog.
   moteur (`GAME_PHASES`, `GAME_IDLE_PHASES`) avec un test de contrat côté moteur. Serveur : le
   rapport refuse une phase inconnue et deux scores pour un même pupitre ; une salle hors ligne sans
   flux est oubliée une fois son départ diffusé.
+- Présence des salles en direct, côté backoffice. La liste des parties affiche, sous le nom de la
+  salle de chaque partie en attente ou en cours, une pastille « En ligne », « Hors ligne » (avec
+  « vu il y a … ») ou « En partie » ; le formulaire de lancement écrit la présence après le nom de
+  chaque salle et affiche la pastille de la salle choisie. Le flux `GET /companies/:companyId/live`
+  est lu avec `fetch` et l'en-tête `Authorization` (composable `useLiveCompany`) : reconnexion après
+  1, 2, 5, 10 puis 30 s, flux muet plus de 45 s rouvert, arrêt sans boucle sur `403` et
+  `429 too_many_streams`, vérification de la session sur `401` et `session_ended`, fermeture au
+  départ de l'écran. Pendant une coupure, les dernières présences connues sont affichées « État
+  inconnu ». Clés i18n `fr` et `en` (`live.*`, codes d'erreur `too_many_streams`,
+  `room_instance_replaced`, `session_ended`). `apiFetch` accepte un `signal`.
   US: US-LIVE-01
 
 - Présence des salles en direct, côté serveur (aucun client modifié dans ce lot). Le backend sait
