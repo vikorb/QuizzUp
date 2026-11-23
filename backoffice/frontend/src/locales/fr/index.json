@@ -3,6 +3,12 @@
   "requiredLegend": "champ obligatoire",
   "filters": "Filtres",
   "closeLabel": "Masquer le message",
+  "pagination": {
+    "label": "Pagination",
+    "range": "{from} à {to} sur {total}",
+    "previous": "Précédent",
+    "next": "Suivant"
+  },
   "confirm": {
     "title": "Confirmation",
     "confirm": "Confirmer",

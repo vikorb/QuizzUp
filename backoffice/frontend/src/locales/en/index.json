@@ -2,6 +2,12 @@
   "resetFilters": "Reset",
   "requiredLegend": "required field",
   "filters": "Filters",
+  "pagination": {
+    "label": "Pagination",
+    "range": "{from} to {to} of {total}",
+    "previous": "Previous",
+    "next": "Next"
+  },
   "errors": {
     "room_name_already_exists": "A room with this name already exists in this company.",
     "company_deleted": "This company is deleted: its rooms can no longer be changed.",

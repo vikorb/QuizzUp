@@ -6,7 +6,7 @@ import fastify, {
   type FastifyReply,
   type FastifyRequest,
 } from 'fastify'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   ADMIN_ROLE_ROOM,
@@ -417,6 +417,119 @@ describe('plugins/auth.ts (authenticate)', () => {
     expect(body.user.company_id).toBe(1)
 
     await app.close()
+  })
+})
+
+describe('plugins/auth.ts (garde réseau de la console éditeur)', () => {
+  // Plages de documentation (RFC 5737 et 3849) : aucune adresse réelle.
+  const OPERATOR_NET = '192.0.2.0/24 2001:db8::/32'
+  const OPERATOR = '192.0.2.10'
+  const OUTSIDE = '198.51.100.9'
+
+  beforeEach(() => {
+    resetDb()
+    vi.stubEnv('CONSOLE_ALLOWED_CIDRS', OPERATOR_NET)
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  async function callAs(
+    admin: { sub: string; role: string; sid: string },
+    remoteAddress: string,
+    headers: Record<string, string> = {}
+  ) {
+    const app = await buildApp()
+    const token = signToken(app, { ...admin, company_id: 1 })
+    const response = await app.inject({
+      method: 'GET',
+      url: '/protected',
+      remoteAddress,
+      headers: { authorization: `Bearer ${token}`, ...headers },
+    })
+    await app.close()
+
+    return response
+  }
+
+  const superadmin = { sub: '1', role: ADMIN_ROLE_SUPERADMIN, sid: 'sid-1' }
+  const companyAdmin = { sub: '2', role: 'admin', sid: 'sid-2' }
+
+  it('refuses a superadmin outside the console addresses, even with a valid token', async () => {
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+    seedSession({ id: 'sid-1', admin_id: 1, last_seen_at: tenMinutesAgo })
+
+    const response = await callAs(superadmin, OUTSIDE)
+
+    expect(response.statusCode).toBe(403)
+    expect(response.json()).toEqual({ error: 'forbidden' })
+    // Une requête refusée ne prolonge pas la session et ne la révoque pas.
+    expect(findSession('sid-1')?.last_seen_at).toBe(tenMinutesAgo)
+    expect(findSession('sid-1')?.revoked_at).toBeNull()
+  })
+
+  it('lets a superadmin in from an allowed address', async () => {
+    seedSession({ id: 'sid-1', admin_id: 1 })
+
+    expect((await callAs(superadmin, OPERATOR)).statusCode).toBe(200)
+  })
+
+  it('does not apply to the other roles, whatever their address', async () => {
+    seedSession({ id: 'sid-2', admin_id: 2 })
+
+    expect((await callAs(companyAdmin, OUTSIDE)).statusCode).toBe(200)
+  })
+
+  it('reads the role from the database, not from the token', async () => {
+    seedSession({ id: 'sid-1', admin_id: 1 })
+
+    // Jeton signé « user » pour un compte devenu superadmin : la garde s'applique quand même.
+    const response = await callAs({ ...superadmin, role: 'user' }, OUTSIDE)
+
+    expect(response.statusCode).toBe(403)
+  })
+
+  it('handles IPv6 ranges', async () => {
+    seedSession({ id: 'sid-1', admin_id: 1 })
+
+    // Refus d'abord : une requête acceptée prolonge la session (horloge de la base simulée).
+    expect((await callAs(superadmin, '3fff::5')).statusCode).toBe(403)
+    expect((await callAs(superadmin, '2001:db8::5')).statusCode).toBe(200)
+  })
+
+  it('matches an IPv4 address given in its IPv6-mapped form', async () => {
+    seedSession({ id: 'sid-1', admin_id: 1 })
+
+    expect((await callAs(superadmin, `::ffff:${OUTSIDE}`)).statusCode).toBe(403)
+    expect((await callAs(superadmin, `::ffff:${OPERATOR}`)).statusCode).toBe(200)
+  })
+
+  it('ignores a forged X-Forwarded-For when no proxy is trusted', async () => {
+    seedSession({ id: 'sid-1', admin_id: 1 })
+
+    const response = await callAs(superadmin, OUTSIDE, { 'x-forwarded-for': OPERATOR })
+
+    expect(response.statusCode).toBe(403)
+  })
+
+  it.each([undefined, '', '   '])(
+    'closes the console to every superadmin when the variable is %j, localhost included',
+    async (value) => {
+      vi.stubEnv('CONSOLE_ALLOWED_CIDRS', value)
+      seedSession({ id: 'sid-1', admin_id: 1 })
+      seedSession({ id: 'sid-2', admin_id: 2 })
+
+      expect((await callAs(superadmin, '127.0.0.1')).statusCode).toBe(403)
+      // Seul le superadmin est touché : le reste de l'API reste ouvert aux centres.
+      expect((await callAs(companyAdmin, '127.0.0.1')).statusCode).toBe(200)
+    }
+  )
+
+  it('refuses to start on an invalid entry', async () => {
+    vi.stubEnv('CONSOLE_ALLOWED_CIDRS', `${OPERATOR_NET} pas-une-adresse`)
+
+    await expect(buildApp()).rejects.toThrow(/CONSOLE_ALLOWED_CIDRS invalide/)
   })
 })
 
