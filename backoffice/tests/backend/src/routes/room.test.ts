@@ -419,6 +419,25 @@ describe('routes/room.ts — hardware config', () => {
     await app.close()
   })
 
+  it('still lets the room PC enable and set the smoke on site (the backoffice cannot)', async () => {
+    const stored = { lighting: { smoke: { enabled: false, maxDurationMs: 3000 } } }
+    seedRoom({ config: stored })
+    const app = await createRouteApp(roomRoutes)
+    const config = { lighting: { smoke: { enabled: true, maxDurationMs: 2000, restMs: 60_000 } } }
+
+    const saved = await app.inject({
+      method: 'PUT',
+      url: '/room/config',
+      headers: authHeaders(roomUser),
+      payload: { config },
+    })
+
+    expect(saved.statusCode).toBe(200)
+    expect(parseJson<{ room: { config: unknown } }>(saved).room.config).toEqual(config)
+
+    await app.close()
+  })
+
   it('keeps the sections the PC does not send, like the backoffice lights', async () => {
     seedRoom({ config: { lights: { profile: 'par-led' }, buzzers: { podiums: 2 } } })
     const app = await createRouteApp(roomRoutes)

@@ -18,5 +18,11 @@
       "@/*": ["../room-app/src/*"]
     }
   },
-  "include": ["playwright.config.ts", "harness", "tests"]
+  "include": [
+    "playwright.config.ts",
+    "playwright.captures.config.ts",
+    "captures",
+    "harness",
+    "tests"
+  ]
 }

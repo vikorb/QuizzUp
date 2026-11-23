@@ -8,6 +8,23 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Backoffice : une feuille de résultats imprimable (classement avec égalités, centre, salle, date, sans e-mail de joueur) est accessible depuis la fiche d'une partie terminée.
+  US: US-APRES-01 (#156)
+
+- Sessions programmées, socle (lot 13) : états de partie `scheduled` et `cancelled`, créneaux prévus avec interdiction de chevauchement par salle (contrainte d'exclusion PostgreSQL), réglages de créneaux d'une salle (`rooms.schedule`), constantes partagées et codes d'erreur `fr`/`en`. Aucune route ni écran pour l'instant.
+  US: US-SESSION-00 (#142)
+- Calcul pur des créneaux d'une salle (`computeRoomSlots`, `zonedLocalToUtc`) dans `@quizzup/shared`, avec gestion des changements d'heure.
+  US: US-SESSION-00 (#142)
+- Site vitrine public (`vitrine/`) : accueil avec des captures réelles de l'écran de salle, demande
+  de démonstration, mentions légales, confidentialité, page 404. Site statique Vite, sans cookie ni
+  script tiers ; nom, domaine et coordonnées lus dans `vitrine/site.config.ts` (valeurs légales à
+  compléter). Le formulaire de démonstration vise `POST /public/v1/demo-requests`, route livrée
+  dans un lot suivant ; avec JavaScript, une erreur d'envoi affiche l'adresse de contact, sans
+  JavaScript le formulaire ouvre la messagerie (`mailto:`). Le build refuse les valeurs légales
+  non renseignées (dérogation `VITRINE_DRAFT=1`). Script de captures
+  `npm run captures` dans `game/e2e`. Nouveau job `vitrine` dans la CI GitHub (lint, types, tests,
+  build, Lighthouse à 95 au moins sur les quatre catégories).
+  US: US-SITE-01
 - Guides pour les centres (`docs/guides/`) : installation d'une salle, utilisation quotidienne,
   dépannage, migration d'une salle existante, sécurité de la fumée et des lumières. Les libellés
   cités sont ceux des écrans ; chaque point qui n'a pas été essayé sur du vrai matériel porte la
@@ -300,6 +317,7 @@ Format inspiré de Keep a Changelog.
 ### Fixed
 
 - Sécurité : la mise en pause d'une partie coupe aussitôt tout jet de fumée en cours (trame à 0 envoyée tout de suite) et refuse tout nouveau jet pendant la pause, y compris l'étape fumée d'une scène déjà lancée, le test manuel et le test de gel. Les lumières continuent ; l'étape fumée manquée n'est pas rejouée à la reprise. L'arrêt d'une partie ramène toujours les lumières au repos. Non validé sur du vrai matériel (banc, cas F8).
+- Sécurité : le backoffice ne peut plus régler les lumières ni la machine à fumée d'une salle (section `lighting` : fumée, appareils DMX, profils, liaisons de scènes). `PATCH` et création de salle refusent avec 403 `smoke_config_forbidden` ; seule la coupure de la fumée (`lighting.smoke.enabled` de vrai à faux, le reste identique) reste permise. Le réglage se fait sur place, depuis l'écran de salle. Limite connue : le compte de salle (`PUT /room/config`) n'est pas couvert, c'est un lot à part (#152). Le `PATCH` d'une salle répond 409 `room_config_conflict` si sa configuration a changé entre-temps.
   US: US-SEC-03 (#152)
 - Mise à jour des dépendances du backoffice (`fastify`, `fast-jwt`, `zod`, `@fastify/swagger-ui` 6, `vue`, `vue-i18n`, `postcss`…) pour corriger les vulnérabilités signalées par `npm audit` en production ; `fastify-plugin` est déclaré dans le backend ; le build du frontend (`vue-tsc --build`) repasse et la CI le vérifie désormais.
 

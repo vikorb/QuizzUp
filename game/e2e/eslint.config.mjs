@@ -101,7 +101,7 @@ export default [
   {
     // Les tests et le banc écrivent des données externes telles quelles : codes de touches
     // (`KeyboardEvent.code` : KeyA, Escape…) et noms d'événements du moteur (buzzer_pressed…).
-    files: ['tests/**/*.ts', 'harness/**/*.ts'],
+    files: ['tests/**/*.ts', 'harness/**/*.ts', 'captures/**/*.ts'],
     rules: {
       '@typescript-eslint/naming-convention': [
         'error',
