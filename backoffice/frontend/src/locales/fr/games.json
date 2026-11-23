@@ -2,12 +2,6 @@
   "games": {
     "title": "Parties",
     "subtitle": "Lancement et suivi des parties dans les salles",
-    "stats": {
-      "total": "Parties",
-      "pending": "En attente",
-      "running": "En cours",
-      "finished": "Terminées"
-    },
     "state": {
       "pending": "En attente",
       "running": "En cours",
@@ -19,7 +13,11 @@
       "title": "Filtres",
       "company": "Compagnie",
       "state": "État",
-      "allStates": "Tous les états"
+      "allStates": "Tous les états",
+      "room": "Salle",
+      "allRooms": "Toutes les salles",
+      "from": "Du",
+      "to": "Au"
     },
     "table": {
       "title": "Liste des parties",
@@ -28,10 +26,12 @@
       "empty": "Aucune partie trouvée",
       "retry": "Réessayer",
       "columns": {
-        "room": "Salle",
-        "state": "État",
-        "participants": "Participants",
         "date": "Date",
+        "room": "Salle",
+        "participants": "Joueurs",
+        "duration": "Durée",
+        "topScore": "Meilleur score",
+        "state": "État",
         "actions": "Actions"
       }
     },

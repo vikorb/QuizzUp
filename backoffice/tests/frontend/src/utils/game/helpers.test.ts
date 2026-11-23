@@ -18,15 +18,17 @@ import { parseGameId, resolveGameCompanyId } from '@/utils/game/company'
 import { getGameErrorKey, isGameApiErrorCode, readGameApiError } from '@/utils/game/errors'
 import {
   formatGameDate,
+  formatGameDuration,
   formatGameParticipantsCount,
+  formatGameTopScore,
+  getGameDate,
   getGameMiniGameLabelKey,
   getGamePlayerEmailDisplay,
   getGameRoomName,
+  getLocalDayBounds,
 } from '@/utils/game/format'
 import {
   canAbortGame,
-  countGamesByState,
-  filterGamesByState,
   getGameStateLabelKey,
   getGameStateTone,
   isGamePendingOrRunning,
@@ -64,12 +66,6 @@ describe('utils/game/state', () => {
     expect(isGamePendingOrRunning({ state: GAME_STATE_FINISHED })).toBe(false)
     expect(isGamePendingOrRunning({ state: GAME_STATE_ABORTED })).toBe(false)
     expect(isGamePendingOrRunning(null)).toBe(false)
-  })
-
-  it('filters and counts games by state', () => {
-    expect(filterGamesByState(gamesFixture, '')).toHaveLength(gamesFixture.length)
-    expect(filterGamesByState(gamesFixture, GAME_STATE_RUNNING).map((game) => game.id)).toEqual([3])
-    expect(countGamesByState(gamesFixture, GAME_STATE_FINISHED)).toBe(1)
   })
 
   it('merges an updated game into the list and keeps its participants count', () => {
@@ -141,6 +137,48 @@ describe('utils/game/errors', () => {
 })
 
 describe('utils/game/format', () => {
+  it('dates a game from its start, or from its creation until it starts', () => {
+    expect(
+      getGameDate({ startedAt: '2026-11-05T09:00:00.000Z', createdAt: '2026-11-01T10:00:00.000Z' })
+    ).toBe('2026-11-05T09:00:00.000Z')
+    expect(getGameDate({ startedAt: null, createdAt: '2026-11-01T10:00:00.000Z' })).toBe(
+      '2026-11-01T10:00:00.000Z'
+    )
+  })
+
+  it.each([
+    [0, '0:00'],
+    [59, '0:59'],
+    [2527, '42:07'],
+    [3600, '1:00:00'],
+    [3725, '1:02:05'],
+    [null, '—'],
+    [undefined, '—'],
+    [-1, '—'],
+    [Number.NaN, '—'],
+  ])('formats a duration of %s seconds as %s', (seconds, expected) => {
+    expect(formatGameDuration(seconds)).toBe(expected)
+  })
+
+  it('shows the top score, or a dash while the game is not finished', () => {
+    expect(formatGameTopScore(30)).toBe('30')
+    expect(formatGameTopScore(0)).toBe('0')
+    expect(formatGameTopScore(null)).toBe('—')
+    expect(formatGameTopScore(undefined)).toBe('—')
+  })
+
+  it('turns a calendar day into the bounds of that local day', () => {
+    const start = getLocalDayBounds('2026-11-05', 'start')
+    const end = getLocalDayBounds('2026-11-05', 'end')
+
+    expect(new Date(start!).getTime()).toBe(new Date(2026, 10, 5, 0, 0, 0, 0).getTime())
+    expect(new Date(end!).getTime()).toBe(new Date(2026, 10, 5, 23, 59, 59, 999).getTime())
+  })
+
+  it.each(['', '05/11/2026', '2026-11-5', 'abc'])('has no bound for the day %j', (day) => {
+    expect(getLocalDayBounds(day, 'start')).toBeNull()
+  })
+
   it('shows the email, a masked mention for the staff, or nothing', () => {
     expect(getGamePlayerEmailDisplay({ email: 'a@quizzup.test', hasEmail: true })).toEqual({
       kind: 'value',

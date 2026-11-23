@@ -400,6 +400,10 @@ class QueryBuilder {
 
   private countMode = false
 
+  private limitValue: number | null = null
+
+  private offsetValue = 0
+
   private insertPayload: Row | Row[] | null = null
 
   private updatePayload: Row | null = null
@@ -481,6 +485,29 @@ class QueryBuilder {
   }
 
   public whereRaw(sql: string, bindings: unknown[]): this {
+    // Filtre de période : `COALESCE(a, b) >= ?` ou `<= ?` (première colonne non nulle).
+    const period = sql.match(/COALESCE\(([^)]+)\)\s*(>=|<=)\s*\?/i)
+
+    if (period?.[1]) {
+      const columns = period[1].split(',').map((column) => column.trim())
+      const bound = new Date(String(bindings[0])).getTime()
+      const isLowerBound = period[2] === '>='
+
+      this.filters.push((row) => {
+        const value = columns.map((column) => getRowValue(row, column)).find((v) => v != null)
+
+        if (value == null) {
+          return false
+        }
+
+        const time = new Date(value as string).getTime()
+
+        return isLowerBound ? time >= bound : time <= bound
+      })
+
+      return this
+    }
+
     const columnMatch = sql.match(/lower\(([\w.]+)\)/i)
     const column = columnMatch?.[1] ? normalizeColumn(columnMatch[1]) : null
     const expected = String(bindings[0] ?? '').toLowerCase()
@@ -535,6 +562,18 @@ class QueryBuilder {
       column,
       direction,
     }
+
+    return this
+  }
+
+  public limit(value: number): this {
+    this.limitValue = value
+
+    return this
+  }
+
+  public offset(value: number): this {
+    this.offsetValue = value
 
     return this
   }
@@ -622,7 +661,12 @@ class QueryBuilder {
       return [{ count: String(rows.length) }]
     }
 
-    return this.sortRows(rows).map((row) => this.mapSelectedRow(row))
+    return this.sortRows(rows)
+      .slice(
+        this.offsetValue,
+        this.limitValue === null ? undefined : this.offsetValue + this.limitValue
+      )
+      .map((row) => this.mapSelectedRow(row))
   }
 
   private executeInsert(): Row[] {

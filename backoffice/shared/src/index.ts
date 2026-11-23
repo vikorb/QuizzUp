@@ -330,6 +330,10 @@ export const GAME_STATES = [
 
 export type GameState = (typeof GAME_STATE)[keyof typeof GAME_STATE]
 
+/** Pagination de `GET /companies/:companyId/games` : taille par défaut et plafond de `limit`. */
+export const GAME_LIST_DEFAULT_LIMIT = 50
+export const GAME_LIST_MAX_LIMIT = 200
+
 /**
  * Mini-jeux disponibles (catalogue du cadrage §5.2). Chaque code est implémenté
  * par un module de `game/engine/src/miniGames` et autorisé par le CHECK de

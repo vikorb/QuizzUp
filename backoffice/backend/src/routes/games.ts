@@ -18,8 +18,15 @@ import { getCurrentAdminId } from './_shared/adminContext'
 import { isUniqueViolation } from './_shared/dbErrors'
 import { findCompanyById } from './companies/_shared'
 import { findRoomInCompany } from './companies/rooms/_shared'
-import { createGameSchema, gamesParamsSchema } from './games/_schemas'
-import { drawGameSeed, findStaffGame, gameSelect, toGameRow } from './games/_shared'
+import { createGameSchema, gamesListQuerySchema, gamesParamsSchema } from './games/_schemas'
+import {
+  addGameListFields,
+  drawGameSeed,
+  findStaffGame,
+  GAME_DATE_SQL,
+  gameSelect,
+  toGameRow,
+} from './games/_shared'
 import gamesIdRoutes from './games/id'
 
 /** Parties d'une compagnie, lancées par l'opérateur depuis le backoffice (US-GAME-08). */
@@ -45,19 +52,52 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(403).send({ error: 'forbidden' })
     }
 
-    const games = await db('games')
-      .join('rooms', 'rooms.id', 'games.room_id')
-      .where('games.company_id', companyId)
-      .whereNot('games.status', GAME_STATUS_DELETED)
-      .select([
-        ...gameSelect,
-        db.raw(
-          '(SELECT COUNT(*)::int FROM game_participants WHERE game_participants.game_id = games.id) as "participantsCount"'
-        ),
-      ])
-      .orderBy('games.id', 'desc')
+    const parsedQuery = gamesListQuerySchema.safeParse(req.query)
 
-    return { games: games.map((game) => toGameRow(game)) }
+    if (!parsedQuery.success) {
+      return reply.code(400).send({ error: 'invalid_params' })
+    }
+
+    const { state, roomId, from, to, limit, offset } = parsedQuery.data
+
+    // Même filtre pour la page et pour le total : `total` ne dépend pas de la page demandée.
+    const filteredGames = () => {
+      const query = db('games')
+        .join('rooms', 'rooms.id', 'games.room_id')
+        .where('games.company_id', companyId)
+        .whereNot('games.status', GAME_STATUS_DELETED)
+
+      if (state) {
+        query.where('games.state', state)
+      }
+
+      if (roomId) {
+        query.where('games.room_id', roomId)
+      }
+
+      if (from) {
+        query.whereRaw(`${GAME_DATE_SQL} >= ?`, [from])
+      }
+
+      if (to) {
+        query.whereRaw(`${GAME_DATE_SQL} <= ?`, [to])
+      }
+
+      return query
+    }
+
+    const [{ count }] = await filteredGames().count({ count: '*' })
+    // Tri sur l'id seul : total et sans égalité, donc deux pages ne se chevauchent jamais.
+    const rows = await filteredGames()
+      .select(gameSelect)
+      .orderBy('games.id', 'desc')
+      .limit(limit)
+      .offset(offset)
+
+    return {
+      games: await addGameListFields(rows.map((game) => toGameRow(game))),
+      total: Number(count),
+    }
   })
 
   app.post(

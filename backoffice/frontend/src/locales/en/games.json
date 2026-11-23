@@ -2,12 +2,6 @@
   "games": {
     "title": "Games",
     "subtitle": "Launch and follow the games played in the rooms",
-    "stats": {
-      "total": "Games",
-      "pending": "Pending",
-      "running": "Running",
-      "finished": "Finished"
-    },
     "state": {
       "pending": "Pending",
       "running": "Running",
@@ -19,7 +13,11 @@
       "title": "Filters",
       "company": "Company",
       "state": "State",
-      "allStates": "All states"
+      "allStates": "All states",
+      "room": "Room",
+      "allRooms": "All rooms",
+      "from": "From",
+      "to": "To"
     },
     "table": {
       "title": "Games",
@@ -28,10 +26,12 @@
       "empty": "No game found",
       "retry": "Retry",
       "columns": {
-        "room": "Room",
-        "state": "State",
-        "participants": "Participants",
         "date": "Date",
+        "room": "Room",
+        "participants": "Players",
+        "duration": "Duration",
+        "topScore": "Top score",
+        "state": "State",
         "actions": "Actions"
       }
     },

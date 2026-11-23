@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Backoffice : l'historique des sessions se filtre par salle, état et période, avec pagination et colonnes date, salle, joueurs, durée et meilleur score ; `GET /companies/:companyId/games` répond désormais `{ games, total }` et accepte `state`, `roomId`, `from`, `to`, `limit` et `offset`.
+  US: US-EXPLOIT-01 (#157)
+
 - Déploiement de production (`deploy/prod/`) : Caddy en HTTPS, API compilée, PostgreSQL, fichiers
   statiques, emplacement du site vitrine, console éditeur filtrée par plages réseau, secrets
   obligatoires hors du dépôt, sauvegardes chiffrées (restic) avec restauration, mise à jour avec

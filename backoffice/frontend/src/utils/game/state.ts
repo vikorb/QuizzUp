@@ -6,7 +6,7 @@ import {
   type GameState,
 } from '@quizzup/shared'
 
-import type { Game, GameStateFilter } from '@/types/game'
+import type { Game } from '@/types/game'
 
 export type GameStateTone = 'ok' | 'warn' | 'danger' | 'muted'
 
@@ -44,18 +44,6 @@ export function isGamePendingOrRunning(game: Pick<Game, 'state'> | null | undefi
 /** Seule une partie en attente ou en cours peut être arrêtée par l'opérateur. */
 export function canAbortGame(game: Pick<Game, 'state'> | null | undefined): boolean {
   return isGamePendingOrRunning(game)
-}
-
-export function filterGamesByState(games: Game[], state: GameStateFilter): Game[] {
-  if (!state) {
-    return games
-  }
-
-  return games.filter((game) => game.state === state)
-}
-
-export function countGamesByState(games: Game[], state: GameState): number {
-  return games.filter((game) => game.state === state).length
 }
 
 /**

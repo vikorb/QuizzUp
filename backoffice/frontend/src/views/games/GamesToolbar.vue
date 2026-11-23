@@ -22,11 +22,35 @@
       />
 
       <SelectField
+        id="games-room-filter"
+        :model-value="roomFilter"
+        :label="$t('games.filters.room')"
+        :options="roomSelectOptions"
+        @update:model-value="$emit('update:roomFilter', $event)"
+      />
+
+      <SelectField
         id="games-state-filter"
         :model-value="stateFilter"
         :label="$t('games.filters.state')"
         :options="stateOptions"
         @update:model-value="$emit('update:stateFilter', $event)"
+      />
+
+      <FormField
+        id="games-from-filter"
+        type="date"
+        :model-value="from"
+        :label="$t('games.filters.from')"
+        @update:model-value="$emit('update:from', $event)"
+      />
+
+      <FormField
+        id="games-to-filter"
+        type="date"
+        :model-value="to"
+        :label="$t('games.filters.to')"
+        @update:model-value="$emit('update:to', $event)"
       />
     </div>
   </BaseToolBar>
@@ -39,6 +63,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import BaseToolBar, { type ActiveFilter } from '@/components/ui/BaseToolBar.vue'
+import FormField from '@/components/ui/form/FormField.vue'
 import SelectField from '@/components/ui/form/SelectField.vue'
 import type { SelectFieldOption } from '@/types/form'
 import { getGameStateLabelKey } from '@/utils/game/state'
@@ -46,6 +71,11 @@ import { getGameStateLabelKey } from '@/utils/game/state'
 const props = withDefaults(
   defineProps<{
     stateFilter?: string
+    roomFilter?: string
+    roomOptions?: SelectFieldOption[]
+    /** Jour de début et de fin (`AAAA-MM-JJ`), vide = sans borne. */
+    from?: string
+    to?: string
     companyId?: string
     companyOptions?: SelectFieldOption[]
     showCompany?: boolean
@@ -53,6 +83,10 @@ const props = withDefaults(
   }>(),
   {
     stateFilter: '',
+    roomFilter: '',
+    roomOptions: () => [],
+    from: '',
+    to: '',
     companyId: '',
     companyOptions: () => [],
     showCompany: false,
@@ -62,13 +96,23 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (event: 'update:stateFilter', value: string): void
+  (event: 'update:roomFilter', value: string): void
+  (event: 'update:from', value: string): void
+  (event: 'update:to', value: string): void
   (event: 'update:companyId', value: string): void
   (event: 'create'): void
 }>()
 
 const { t } = useI18n()
 
-const hasActiveFilters = computed(() => props.stateFilter !== '')
+const hasActiveFilters = computed(
+  () => props.stateFilter !== '' || props.roomFilter !== '' || props.from !== '' || props.to !== ''
+)
+
+const roomSelectOptions = computed<SelectFieldOption[]>(() => [
+  { label: t('games.filters.allRooms'), value: '' },
+  ...props.roomOptions,
+])
 
 const stateOptions = computed<SelectFieldOption[]>(() => [
   {
@@ -85,30 +129,53 @@ const activeFilters = computed<ActiveFilter[]>(() => {
   const state = stateOptions.value.find(
     (option) => option.value !== '' && option.value === props.stateFilter
   )
+  const room = props.roomOptions.find((option) => String(option.value) === props.roomFilter)
+  const filters: ActiveFilter[] = []
 
-  if (!state) {
-    return []
-  }
-
-  return [
-    {
+  if (state) {
+    filters.push({
       key: 'state',
       label: state.label,
       onRemove: () => emit('update:stateFilter', ''),
-    },
-  ]
+    })
+  }
+
+  if (room) {
+    filters.push({ key: 'room', label: room.label, onRemove: () => emit('update:roomFilter', '') })
+  }
+
+  if (props.from) {
+    filters.push({
+      key: 'from',
+      label: `${t('games.filters.from')} ${props.from}`,
+      onRemove: () => emit('update:from', ''),
+    })
+  }
+
+  if (props.to) {
+    filters.push({
+      key: 'to',
+      label: `${t('games.filters.to')} ${props.to}`,
+      onRemove: () => emit('update:to', ''),
+    })
+  }
+
+  return filters
 })
 
 // La compagnie n'est pas un filtre : c'est le contexte de l'écran, on ne la réinitialise pas.
 function resetFilters(): void {
   emit('update:stateFilter', '')
+  emit('update:roomFilter', '')
+  emit('update:from', '')
+  emit('update:to', '')
 }
 </script>
 
 <style scoped>
 .games-toolbar__filters {
   display: grid;
-  grid-template-columns: minmax(180px, 220px);
+  grid-template-columns: repeat(auto-fit, minmax(180px, 220px));
   align-items: end;
   gap: 12px;
   width: 100%;
@@ -116,15 +183,17 @@ function resetFilters(): void {
 }
 
 .games-toolbar__filters--company {
-  grid-template-columns: minmax(220px, 280px) minmax(180px, 220px);
+  grid-template-columns: minmax(220px, 280px) repeat(auto-fit, minmax(180px, 220px));
 }
 
+/* Cibles de 48 px : les listes déroulantes et les champs date ont la même hauteur. */
 .games-toolbar__filters :deep(select),
-.games-toolbar__filters :deep(.select-field__trigger) {
+.games-toolbar__filters :deep(.select-field__trigger),
+.games-toolbar__filters :deep(.ff__control) {
   box-sizing: border-box;
   width: 100%;
-  height: 46px;
-  min-height: 46px;
+  height: 48px;
+  min-height: 48px;
 }
 
 @media (max-width: 700px) {
