@@ -22,6 +22,10 @@ if [ -x game/e2e/node_modules/.bin/lint-staged ]; then
   (cd game/e2e && npx --no -- lint-staged) || exit 1
 fi
 
+if [ -x vitrine/node_modules/.bin/lint-staged ]; then
+  (cd vitrine && npx --no -- lint-staged) || exit 1
+fi
+
 if [ -d game/artnet-bridge/node_modules ]; then
   (cd game/artnet-bridge && npx --no -- lint-staged) || exit 1
 fi

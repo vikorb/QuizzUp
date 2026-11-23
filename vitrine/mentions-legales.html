@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="%SITE_LANG%">
+  <head>
+    <!-- @include head -->
+    <title>Mentions légales | %SITE_NAME%</title>
+    <meta
+      name="description"
+      content="Mentions légales du site %SITE_NAME% : éditeur, directeur de la publication, hébergeur et contact."
+    />
+    <meta property="og:title" content="Mentions légales | %SITE_NAME%" />
+    <meta
+      property="og:description"
+      content="Éditeur, directeur de la publication, hébergeur et contact du site %SITE_NAME%."
+    />
+    <meta property="og:url" content="%SITE_URL%/mentions-legales.html" />
+  </head>
+  <body>
+    <!-- @include header -->
+
+    <main id="contenu" class="wrap page">
+      <div class="prose">
+        <h1>Mentions légales</h1>
+        <p class="meta">Dernière mise à jour : %SITE_LEGAL_UPDATED_AT%</p>
+
+        <h2>Éditeur du site</h2>
+        <dl>
+          <dt>Dénomination</dt>
+          <dd>%SITE_COMPANY_LEGAL_NAME%</dd>
+          <dt>Forme juridique</dt>
+          <dd>%SITE_COMPANY_LEGAL_FORM%</dd>
+          <dt>Capital social</dt>
+          <dd>%SITE_COMPANY_SHARE_CAPITAL%</dd>
+          <dt>Siège social</dt>
+          <dd>%SITE_COMPANY_ADDRESS%</dd>
+          <dt>Immatriculation</dt>
+          <dd>%SITE_COMPANY_REGISTRATION%</dd>
+          <dt>TVA intracommunautaire</dt>
+          <dd>%SITE_COMPANY_VAT_NUMBER%</dd>
+          <dt>Téléphone</dt>
+          <dd>%SITE_COMPANY_PHONE%</dd>
+          <dt>E-mail</dt>
+          <dd><a href="mailto:%SITE_CONTACT_EMAIL%">%SITE_CONTACT_EMAIL%</a></dd>
+        </dl>
+
+        <h2>Directeur de la publication</h2>
+        <p>%SITE_COMPANY_PUBLICATION_DIRECTOR%</p>
+
+        <h2>Hébergement</h2>
+        <p>Ce site est un ensemble de fichiers statiques, servis par l’hébergeur suivant.</p>
+        <dl>
+          <dt>Hébergeur</dt>
+          <dd>%SITE_HOST_NAME%</dd>
+          <dt>Adresse</dt>
+          <dd>%SITE_HOST_ADDRESS%</dd>
+          <dt>Téléphone</dt>
+          <dd>%SITE_HOST_PHONE%</dd>
+        </dl>
+
+        <h2>Propriété intellectuelle</h2>
+        <p>
+          Les textes et les captures d’écran de ce site sont la propriété de l’éditeur. Les captures
+          montrent l’écran de salle de %SITE_NAME% en mode démo ; elles ne contiennent aucune donnée
+          de joueur réel. Toute reproduction sans autorisation écrite est interdite.
+        </p>
+        <p>
+          La police de caractères Exo 2 (© The Exo 2 Project Authors) est distribuée sous licence
+          SIL Open Font License 1.1. Elle est hébergée sur ce site : aucune requête n’est envoyée à
+          un service de polices tiers.
+        </p>
+
+        <h2>Données personnelles</h2>
+        <p>
+          Le traitement des informations saisies dans le formulaire de démonstration est décrit dans
+          la <a href="/confidentialite.html">politique de confidentialité</a>.
+        </p>
+
+        <h2>Contact</h2>
+        <p>
+          Pour toute question sur ce site, écrivez à
+          <a href="mailto:%SITE_CONTACT_EMAIL%">%SITE_CONTACT_EMAIL%</a>.
+        </p>
+      </div>
+    </main>
+
+    <!-- @include footer -->
+  </body>
+</html>
