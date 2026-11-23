@@ -36,6 +36,7 @@ type DbState = {
   rooms: Row[]
   games: Row[]
   game_participants: Row[]
+  demo_requests: Row[]
 }
 
 type TableName = keyof DbState
@@ -56,6 +57,7 @@ export const dbState: DbState = {
   rooms: [],
   games: [],
   game_participants: [],
+  demo_requests: [],
 }
 
 const DEFAULT_COMPANIES: Row[] = [
@@ -139,6 +141,7 @@ export function resetDb(seed?: Partial<DbState>): void {
   dbState.rooms = structuredClone(seed?.rooms ?? [])
   dbState.games = structuredClone(seed?.games ?? [])
   dbState.game_participants = structuredClone(seed?.game_participants ?? [])
+  dbState.demo_requests = structuredClone(seed?.demo_requests ?? [])
   db.fn.now.mockClear()
   db.raw.mockClear()
 }

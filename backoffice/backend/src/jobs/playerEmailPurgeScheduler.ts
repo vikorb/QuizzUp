@@ -49,6 +49,8 @@ type SchedulerOptions = {
   /** Intervalle en heures ; `0` = désactivé (aucun minuteur). */
   intervalHours: number
   initialDelayMs?: number
+  /** Nom de la purge dans les journaux (défaut : la purge des emails joueurs). */
+  label?: string
 }
 
 /**
@@ -58,9 +60,10 @@ type SchedulerOptions = {
  */
 export function startPlayerEmailPurgeScheduler(options: SchedulerOptions): () => void {
   const { purge, log, intervalHours } = options
+  const label = options.label ?? 'Purge RGPD des emails joueurs'
 
   if (!(intervalHours > 0)) {
-    log.info({}, 'Purge RGPD des emails joueurs désactivée')
+    log.info({}, `${label} désactivée`)
 
     return () => undefined
   }
@@ -77,9 +80,9 @@ export function startPlayerEmailPurgeScheduler(options: SchedulerOptions): () =>
 
     try {
       const purged = await purge()
-      log.info({ purged }, 'Purge RGPD des emails joueurs terminée')
+      log.info({ purged }, `${label} terminée`)
     } catch (error) {
-      log.error({ err: error }, 'Purge RGPD des emails joueurs en échec')
+      log.error({ err: error }, `${label} en échec`)
     } finally {
       running = false
     }

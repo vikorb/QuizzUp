@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Demandes de démonstration côté serveur : route publique `POST /public/v1/demo-requests` (5 envois par heure et par adresse, champ piège contre les robots), consultation, traitement et suppression par le superadmin (`/demo-requests`), purge automatique 12 mois après la création. Aucun e-mail n'est envoyé.
+  US: US-CONSOLE-02 (#161)
+
 - Site vitrine public (`vitrine/`) : accueil avec des captures réelles de l'écran de salle, demande
   de démonstration, mentions légales, confidentialité, page 404. Site statique Vite, sans cookie ni
   script tiers ; nom, domaine et coordonnées lus dans `vitrine/site.config.ts` (valeurs légales à
