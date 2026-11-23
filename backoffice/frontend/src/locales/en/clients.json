@@ -6,6 +6,7 @@
           "label": "Center logo",
           "alt": "Logo of {name}",
           "empty": "No logo",
+          "previewUnavailable": "Preview unavailable",
           "choose": "Choose a logo",
           "replace": "Replace the logo",
           "uploading": "Uploading...",

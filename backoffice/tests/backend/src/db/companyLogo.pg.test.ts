@@ -1,14 +1,15 @@
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { assertTestDatabase } from '../../setup/assertTestDatabase'
 
 /**
  * Migration `add_logo_to_companies` sur PostgreSQL (`PG_INTEGRATION_URL`, base DÉDIÉE dont le nom
  * finit par `_test`) : `up` est joué par `migrate.latest`, `down` puis `up` dans une transaction
- * annulée.
+ * annulée, puis le `down` réel (refus tant qu'un logo existe). Les tables `admins` et `companies`
+ * sont vidées avant chaque test.
  */
 const require = createRequire(import.meta.url)
 const migration = require(
@@ -36,6 +37,11 @@ describe.skipIf(!PG_INTEGRATION_URL)('add_logo_to_companies sur PostgreSQL', () 
 
   afterAll(async () => {
     await db?.destroy()
+  })
+
+  // Base partagée avec les autres fichiers `*.pg.test.ts` : on ne dépend pas de ce qu'ils laissent.
+  beforeEach(async () => {
+    await db.raw('TRUNCATE admins, companies RESTART IDENTITY CASCADE')
   })
 
   const ROLLBACK = new Error('rollback voulu')
@@ -119,5 +125,48 @@ describe.skipIf(!PG_INTEGRATION_URL)('add_logo_to_companies sur PostgreSQL', () 
 
     // Le retour arrière annulé ne touche pas à la base réelle.
     expect(await logoColumns(db)).toHaveLength(3)
+  })
+
+  describe('retour arrière réel de la migration (down)', () => {
+    const migration = {
+      directory: path.resolve(process.cwd(), 'backend/db/migrations'),
+      name: '20261124030000_add_logo_to_companies.js',
+    }
+
+    // Quoi qu'il arrive, la base de test doit retrouver le schéma à jour pour les tests suivants.
+    afterEach(async () => {
+      await db.migrate.latest({ directory: migration.directory })
+    })
+
+    it('refuse tant qu’une compagnie a un logo, puis passe une fois le logo retiré', async () => {
+      await db('companies').insert({ id: 912, name: 'Avec logo', email: 'avec-logo@x.test' })
+      await db('companies').where({ id: 912 }).update({
+        logo_key: 'logos/22222222-2222-4222-8222-222222222222.png',
+        logo_mime_type: 'image/png',
+        logo_updated_at: db.fn.now(),
+      })
+
+      await expect(db.migrate.down(migration)).rejects.toThrow(
+        /Rollback impossible : des compagnies ont un logo \(companies\.logo_key\)\./
+      )
+      // Refus : le schéma n'a pas bougé, le logo est toujours là.
+      expect(await logoColumns(db)).toHaveLength(3)
+      expect((await db('companies').where({ id: 912 }).first('logo_key')).logo_key).toBe(
+        'logos/22222222-2222-4222-8222-222222222222.png'
+      )
+
+      await db('companies').where({ id: 912 }).update({
+        logo_key: null,
+        logo_mime_type: null,
+        logo_updated_at: null,
+      })
+      await db.migrate.down(migration)
+
+      expect(await logoColumns(db)).toEqual([])
+
+      await db.migrate.latest({ directory: migration.directory })
+
+      expect(await logoColumns(db)).toHaveLength(3)
+    })
   })
 })

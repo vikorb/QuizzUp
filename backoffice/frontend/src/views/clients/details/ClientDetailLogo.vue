@@ -12,7 +12,11 @@
           @error="imageBroken = true"
         />
         <span v-else class="company-logo__empty">
-          {{ $t('clients.details.form.logo.empty') }}
+          {{
+            logoUrl
+              ? $t('clients.details.form.logo.previewUnavailable')
+              : $t('clients.details.form.logo.empty')
+          }}
         </span>
       </div>
 
@@ -78,6 +82,8 @@ const props = defineProps<{
   /** Chemin public du logo (`/public/v1/logos/…`), `null` sans logo. */
   logoUrl: string | null
   canManage: boolean
+  /** Bloque l'envoi et le retrait (ex. fiche en cours d'enregistrement). */
+  disabled?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -95,7 +101,7 @@ const inputId = `company-logo-${props.companyId}`
 const accept = COMPANY_LOGO_MIME_TYPES.join(',')
 const maxKilobytes = COMPANY_LOGO_MAX_BYTES / 1024
 
-const busy = computed(() => uploading.value || removing.value)
+const busy = computed(() => uploading.value || removing.value || props.disabled === true)
 const previewSrc = computed(() =>
   props.logoUrl && !imageBroken.value ? `${getApiBase()}${props.logoUrl}` : null
 )
@@ -245,7 +251,7 @@ async function removeLogo(): Promise<void> {
 .company-logo__help {
   margin: 0;
   font-size: 12px;
-  color: var(--text-3);
+  color: var(--text-2);
 }
 
 @media (max-width: 760px) {

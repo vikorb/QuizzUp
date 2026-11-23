@@ -18,6 +18,7 @@ type Props = {
   companyName: string
   logoUrl: string | null
   canManage: boolean
+  disabled?: boolean
 }
 
 function mountLogo(overrides: Partial<Props> = {}) {
@@ -87,13 +88,18 @@ describe('views/clients/details/ClientDetailLogo.vue', () => {
     expect(removeButton(wrapper).text()).toBe('clients.details.form.logo.remove')
   })
 
-  it('falls back to the empty preview when the image cannot be loaded', async () => {
+  it('says the preview is unavailable, not that there is no logo, when the image cannot be loaded', async () => {
     const wrapper = mountLogo({ logoUrl: LOGO_URL })
 
     await wrapper.find('img').trigger('error')
 
     expect(wrapper.find('img').exists()).toBe(false)
-    expect(wrapper.find('.company-logo__empty').exists()).toBe(true)
+    expect(wrapper.find('.company-logo__empty').text()).toBe(
+      'clients.details.form.logo.previewUnavailable'
+    )
+    // Le logo est bien enregistré : on peut toujours le remplacer ou le retirer.
+    expect(chooseButton(wrapper).text()).toBe('clients.details.form.logo.replace')
+    expect(removeButton(wrapper).text()).toBe('clients.details.form.logo.remove')
 
     await wrapper.setProps({ logoUrl: LOGO_URL.replace('1111', '2222') })
 
@@ -107,6 +113,24 @@ describe('views/clients/details/ClientDetailLogo.vue', () => {
     expect(wrapper.find('.company-logo__button').exists()).toBe(false)
     expect(wrapper.find('[data-test="company-logo-input"]').attributes('disabled')).toBeDefined()
     expect(wrapper.find('.company-logo__help').exists()).toBe(false)
+  })
+
+  it('blocks the buttons and the file input while disabled by its parent', async () => {
+    const wrapper = mountLogo({ logoUrl: LOGO_URL, disabled: true })
+
+    expect(chooseButton(wrapper).attributes('disabled')).toBeDefined()
+    expect(removeButton(wrapper).attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[data-test="company-logo-input"]').attributes('disabled')).toBeDefined()
+
+    await pickFile(wrapper, png)
+    await removeButton(wrapper).trigger('click')
+
+    expect(uploadCompanyLogoServiceMock).not.toHaveBeenCalled()
+    expect(deleteCompanyLogoServiceMock).not.toHaveBeenCalled()
+
+    await wrapper.setProps({ disabled: false })
+
+    expect(chooseButton(wrapper).attributes('disabled')).toBeUndefined()
   })
 
   it('accepts only the shared image types in the file picker', () => {

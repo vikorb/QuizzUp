@@ -209,6 +209,48 @@ describe('views/clients/details/ClientDetailForm.vue', () => {
       expect(wrapper.find('.company-logo__button').exists()).toBe(false)
     })
 
+    it('disables the logo field while the company is being saved, and re-enables it after', async () => {
+      setAuthenticatedAdmin()
+
+      let finishSave!: (value: unknown) => void
+
+      saveClientDetailCompanyMock.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            finishSave = resolve
+          })
+      )
+
+      const wrapper = mountWithFrontendMocks(ClientDetailForm, {
+        props: { company: { ...company, logoUrl: LOGO_URL } },
+      })
+      const logoButtons = () => wrapper.findAll('.company-logo__button')
+
+      expect(logoButtons()).toHaveLength(2)
+      expect(logoButtons().every((button) => button.attributes('disabled') === undefined)).toBe(
+        true
+      )
+
+      await findInput(wrapper, 'name').setValue('Updated')
+      await wrapper.find('form').trigger('submit')
+
+      expect(logoButtons().every((button) => button.attributes('disabled') !== undefined)).toBe(
+        true
+      )
+      expect(wrapper.find('[data-test="company-logo-input"]').attributes('disabled')).toBeDefined()
+
+      finishSave({
+        ok: true,
+        company: { ...company, name: 'Updated', logoUrl: LOGO_URL },
+        successMessage: 'clients.details.success.updated',
+      })
+      await flushPromises()
+
+      expect(logoButtons().every((button) => button.attributes('disabled') === undefined)).toBe(
+        true
+      )
+    })
+
     it('does not add a second primary button to the screen', () => {
       setAuthenticatedAdmin()
 

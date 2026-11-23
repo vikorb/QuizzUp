@@ -30,6 +30,7 @@
       :company-name="company.name"
       :logo-url="company.logoUrl ?? null"
       :can-manage="permissions.canManageCompany"
+      :disabled="companySaving"
       @changed="handleLogoChanged"
     />
 

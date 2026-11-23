@@ -21,13 +21,20 @@ exports.up = async function (knex) {
 }
 
 /**
- * Les fichiers déjà envoyés restent dans le stockage média : les logos sont à renvoyer après un
- * retour arrière suivi d'un nouveau `up`.
+ * Retour arrière refusé tant qu'une compagnie a un logo : supprimer la colonne `logo_key`
+ * perdrait la référence du fichier, qui resterait orphelin dans le stockage média. Il faut
+ * d'abord retirer les logos depuis le backoffice.
  *
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
 exports.down = async function (knex) {
+  const usedCompany = await knex('companies').whereNotNull('logo_key').first('id')
+
+  if (usedCompany) {
+    throw new Error('Rollback impossible : des compagnies ont un logo (companies.logo_key).')
+  }
+
   await knex.raw("SET LOCAL lock_timeout = '5s'")
 
   await knex.schema.alterTable('companies', (table) => {

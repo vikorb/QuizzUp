@@ -11,6 +11,7 @@ import {
 import db from '../../db'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
 import { requireApiPermission } from '../../security/requireApiPermission'
+import { removeStoredMediaFile } from '../_shared/storedMedia'
 import {
   matchesAudioSignature,
   normalizeAudioMimeType,
@@ -28,7 +29,6 @@ import {
   lockQuestionMediaRow,
   QuestionRuleError,
   type QuestionMediaRow,
-  removeStoredMediaFile,
 } from './_media'
 import {
   canEditQuestion,

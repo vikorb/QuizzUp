@@ -11,7 +11,7 @@ import { requireApiPermission } from '../../security/requireApiPermission'
 import { canUpdateCompanyContext } from '../../security/companiesPolicy'
 import { detectLogoMimeType } from '../../storage/logoFile'
 import { buildCompanyLogoKey, getMediaStorage } from '../../storage/mediaStorage'
-import { removeStoredMediaFile } from '../questions/_media'
+import { removeStoredMediaFile } from '../_shared/storedMedia'
 
 import { companyAdminParamsSchema } from './_schemas'
 import { companyLogoUrl, findCompanyById } from './_shared'

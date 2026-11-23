@@ -130,6 +130,7 @@
           "label": "Logo du centre",
           "alt": "Logo de {name}",
           "empty": "Aucun logo",
+          "previewUnavailable": "Aperçu indisponible",
           "choose": "Choisir un logo",
           "replace": "Remplacer le logo",
           "uploading": "Envoi en cours...",
