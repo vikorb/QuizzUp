@@ -10,6 +10,8 @@ Format inspiré de Keep a Changelog.
 
 - Backoffice : l'historique des sessions se filtre par salle, état et période, avec pagination et colonnes date, salle, joueurs, durée et meilleur score ; `GET /companies/:companyId/games` répond désormais `{ games, total }` et accepte `state`, `roomId`, `from`, `to`, `limit` et `offset`.
   US: US-HISTORY-01 (#157)
+- Import de questions par fichier CSV (`POST /questions/import`) : essai à blanc, import tout ou rien avec erreurs numérotées par ligne, portée `global` ou `company` selon les droits, sans écran pour l'instant.
+  US: US-IMPORT-01 (#158)
 - Backoffice : une feuille de résultats imprimable (classement avec égalités, centre, salle, date, sans e-mail de joueur) est accessible depuis la fiche d'une partie terminée.
   US: US-APRES-01 (#156)
 

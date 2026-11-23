@@ -1,19 +1,12 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import type { Knex } from 'knex'
 
-import {
-  DEFAULT_QUESTION_KIND,
-  QUESTION_STATUS_DELETED,
-  THEME_SCOPE_COMPANY,
-  THEME_SCOPE_GLOBAL,
-  getQuestionKindMediaError,
-} from '@quizzup/shared'
+import { QUESTION_STATUS_DELETED, THEME_SCOPE_COMPANY, THEME_SCOPE_GLOBAL } from '@quizzup/shared'
 import db from '../db'
 import { API_ACTION, API_RESOURCE } from '../security/permissions'
 import { requireApiPermission } from '../security/requireApiPermission'
 import { getCurrentCompanyId, isSuperadmin } from '../security/companiesPolicy'
 import {
-  DEFAULT_QUESTION_MEDIA_TYPE,
   attachThemesToQuestions,
   ensureThemesAreUsable,
   getCreateAnswerStatus,
@@ -22,17 +15,13 @@ import {
   getQuestionCompanyId,
   getQuestionScope,
   getQuestionWithAnswers,
-  hasInvalidAnswerStatus,
   isValidQuestionKind,
   isValidQuestionMediaType,
   isValidQuestionScope,
   isValidQuestionStatus,
-  normalizeAnswers,
   parseOptionalNumber,
-  parseQuestionThemeIds,
   questionSelect,
-  validateAnswers,
-  validateAnswersForKind,
+  validateQuestionInput,
   type QuestionBody,
   type QuestionQuery,
 } from './questions/_shared'
@@ -41,11 +30,13 @@ import questionAnswerIdRoutes from './questions/answers/id'
 import questionAnswerIdStatusRoutes from './questions/answers/idStatus'
 import questionIdRoutes from './questions/id'
 import questionIdStatusRoutes from './questions/idStatus'
+import questionImportRoutes from './questions/import'
 import questionMediaRoutes from './questions/media'
 
 const questionsRoutes: FastifyPluginAsync = async (app) => {
   app.register(questionIdRoutes)
   app.register(questionIdStatusRoutes)
+  app.register(questionImportRoutes)
   app.register(questionMediaRoutes)
   app.register(questionAnswersRoutes)
   app.register(questionAnswerIdRoutes)
@@ -144,44 +135,13 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(401).send({ error: 'unauthorized' })
       }
 
-      const questionText = req.body.question?.trim()
-      const themeIds = parseQuestionThemeIds(req.body)
-      const typeMedia = req.body.typeMedia ?? DEFAULT_QUESTION_MEDIA_TYPE
-      const kind = req.body.kind ?? DEFAULT_QUESTION_KIND
-      const mediaUrl = req.body.mediaUrl ?? null
-      const answers = normalizeAnswers(req.body.answers)
+      const validation = validateQuestionInput(req.body)
 
-      if (!questionText) {
-        return reply.code(400).send({ error: 'question_required' })
+      if ('error' in validation) {
+        return reply.code(400).send({ error: validation.error })
       }
 
-      if (themeIds.length === 0) {
-        return reply.code(400).send({ error: 'question_theme_required' })
-      }
-
-      if (!isValidQuestionMediaType(typeMedia)) {
-        return reply.code(400).send({ error: 'question_type_media_invalid' })
-      }
-
-      if (!isValidQuestionKind(kind)) {
-        return reply.code(400).send({ error: 'question_kind_invalid' })
-      }
-
-      const kindMediaError = getQuestionKindMediaError(kind, typeMedia)
-
-      if (kindMediaError) {
-        return reply.code(400).send({ error: kindMediaError })
-      }
-
-      const answersError = validateAnswers(answers) ?? validateAnswersForKind(kind, answers)
-
-      if (answersError) {
-        return reply.code(400).send({ error: answersError })
-      }
-
-      if (hasInvalidAnswerStatus(answers)) {
-        return reply.code(400).send({ error: 'question_answer_status_invalid' })
-      }
+      const { questionText, themeIds, typeMedia, kind, mediaUrl, answers } = validation.input
 
       const requestedScope = isValidQuestionScope(req.body.scope) ? req.body.scope : undefined
       const scope = getQuestionScope(req, requestedScope)
