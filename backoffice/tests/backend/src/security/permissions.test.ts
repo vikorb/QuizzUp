@@ -65,3 +65,63 @@ describe('security/permissions — salles (US-ROOM-01)', () => {
     }
   })
 })
+
+describe('security/permissions — joueurs, bons, statistiques, journaux (lots 6 et 7)', () => {
+  const { PLAYER, VOUCHER, STATS, ROOM_LOG } = API_RESOURCE
+  const can = canRoleAccessApi
+
+  it('lets the whole staff list players and handle vouchers', () => {
+    for (const role of [ADMIN_ROLE_SUPERADMIN, ADMIN_ROLE_ADMIN, ADMIN_ROLE_USER]) {
+      expect(can(role, PLAYER, API_ACTION.LIST)).toBe(true)
+
+      for (const action of [
+        API_ACTION.LIST,
+        API_ACTION.READ,
+        API_ACTION.CREATE,
+        API_ACTION.UPDATE,
+      ]) {
+        expect(can(role, VOUCHER, action)).toBe(true)
+      }
+    }
+  })
+
+  it('keeps export, unsubscribe and erasure of players to superadmin and admin', () => {
+    for (const action of [API_ACTION.READ, API_ACTION.UPDATE, API_ACTION.DELETE]) {
+      expect(can(ADMIN_ROLE_SUPERADMIN, PLAYER, action)).toBe(true)
+      expect(can(ADMIN_ROLE_ADMIN, PLAYER, action)).toBe(true)
+      expect(can(ADMIN_ROLE_USER, PLAYER, action)).toBe(false)
+    }
+  })
+
+  it('reserves voucher cancellation to superadmin and admin', () => {
+    expect(can(ADMIN_ROLE_SUPERADMIN, VOUCHER, API_ACTION.UPDATE_STATUS)).toBe(true)
+    expect(can(ADMIN_ROLE_ADMIN, VOUCHER, API_ACTION.UPDATE_STATUS)).toBe(true)
+    expect(can(ADMIN_ROLE_USER, VOUCHER, API_ACTION.UPDATE_STATUS)).toBe(false)
+  })
+
+  it('hides statistics and room logs from the user role (Q11, Q14)', () => {
+    for (const [resource, action] of [
+      [STATS, API_ACTION.READ],
+      [ROOM_LOG, API_ACTION.LIST],
+    ] as const) {
+      expect(can(ADMIN_ROLE_SUPERADMIN, resource, action)).toBe(true)
+      expect(can(ADMIN_ROLE_ADMIN, resource, action)).toBe(true)
+      expect(can(ADMIN_ROLE_USER, resource, action)).toBe(false)
+    }
+  })
+
+  it('grants nothing on the new resources to the room role or an unknown role', () => {
+    for (const resource of [PLAYER, VOUCHER, STATS, ROOM_LOG]) {
+      for (const action of Object.values(API_ACTION)) {
+        expect(can(ADMIN_ROLE_ROOM, resource, action)).toBe(false)
+        expect(can('ghost', resource, action)).toBe(false)
+      }
+    }
+  })
+
+  it('does not hand out actions that no route needs', () => {
+    expect(can(ADMIN_ROLE_SUPERADMIN, STATS, API_ACTION.LIST)).toBe(false)
+    expect(can(ADMIN_ROLE_SUPERADMIN, ROOM_LOG, API_ACTION.DELETE)).toBe(false)
+    expect(can(ADMIN_ROLE_SUPERADMIN, PLAYER, API_ACTION.CREATE)).toBe(false)
+  })
+})

@@ -16,6 +16,8 @@ export function loginReasonToI18nKey(reason: LoginFailReason): string {
       return 'auth.errors.invalidCredentials'
     case 'invalid_form':
       return 'auth.errors.invalidForm'
+    case 'too_many_requests':
+      return 'auth.errors.tooManyRequests'
     case 'missing_token':
       return 'auth.errors.missingToken'
     case 'api_unreachable':
@@ -44,6 +46,7 @@ export async function loginApi(args: {
     if (!res.ok) {
       if (res.status === 401) return { ok: false, reason: 'invalid_credentials' }
       if (res.status === 400) return { ok: false, reason: 'invalid_form' }
+      if (res.status === 429) return { ok: false, reason: 'too_many_requests' }
       return { ok: false, reason: 'server_error' }
     }
 
