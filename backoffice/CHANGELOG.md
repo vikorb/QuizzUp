@@ -8,6 +8,11 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Sessions programmées, socle (lot 13) : états de partie `scheduled` et `cancelled`, créneaux prévus avec interdiction de chevauchement par salle (contrainte d'exclusion PostgreSQL), réglages de créneaux d'une salle (`rooms.schedule`), constantes partagées et codes d'erreur `fr`/`en`. Aucune route ni écran pour l'instant.
+  US: US-SESSION-00 (#142)
+- Calcul pur des créneaux d'une salle (`computeRoomSlots`, `zonedLocalToUtc`) dans `@quizzup/shared`, avec gestion des changements d'heure.
+  US: US-SESSION-00 (#142)
+
 - Présence des salles en direct, côté serveur (aucun client modifié dans ce lot). Le backend sait
   quelle salle est en ligne et le diffuse. `GET /room/stream` (compte de salle) ouvre un flux SSE
   (`hello { streamId, heartbeatMs, statusEveryMs }`, puis `replaced` si un autre poste prend la
