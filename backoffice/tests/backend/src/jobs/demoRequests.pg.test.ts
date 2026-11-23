@@ -53,6 +53,7 @@ describe.skipIf(!PG_INTEGRATION_URL)('demo_requests sur PostgreSQL', () => {
     // Base partagée avec les autres tests `*.pg` : ils insèrent des comptes à identifiant explicite
     // sans avancer les séquences. Sans RESTART IDENTITY, nos insertions sans identifiant
     // retomberaient sur ces lignes (companies_pkey / admins_pkey).
+    // TRUNCATE (et non DELETE) : c'est lui qui remet les séquences à zéro, voir ci-dessus.
     await db.raw('TRUNCATE demo_requests, admins, companies RESTART IDENTITY CASCADE')
   })
 

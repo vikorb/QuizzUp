@@ -55,6 +55,30 @@ describe('routes/demoRequests/id.ts — PATCH /demo-requests/:id', () => {
     await app.close()
   })
 
+  it('keeps the author and the date of a request already processed', async () => {
+    const processedAt = '2026-11-02T09:00:00.000Z'
+    resetDb({
+      demo_requests: [demoRequestRow({ processed_at: processedAt, processed_by: 999 })],
+    })
+    const app = await createRouteApp(demoRequestsRoutes)
+
+    const response = await patch(app, '/demo-requests/1', { processed: true })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json().demoRequest).toMatchObject({
+      id: 1,
+      name: 'Camille Martin',
+      processedAt,
+      processedBy: 999,
+    })
+    expect(dbState.demo_requests[0]).toMatchObject({
+      processed_at: processedAt,
+      processed_by: 999,
+    })
+
+    await app.close()
+  })
+
   it('answers 404 not_found for an unknown id', async () => {
     resetDb({ demo_requests: [demoRequestRow()] })
     const app = await createRouteApp(demoRequestsRoutes)

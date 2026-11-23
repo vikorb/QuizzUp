@@ -31,14 +31,25 @@ const demoRequestsIdRoutes: FastifyPluginAsync = async (app) => {
 
     const { processed } = parsedBody.data
 
-    const [demoRequest] = await db('demo_requests')
-      .where('id', parsedParams.data.id)
+    const query = db('demo_requests').where('id', parsedParams.data.id)
+
+    // Deux comptes qui traitent la même demande : le premier garde l'auteur et la date.
+    if (processed) query.whereNull('processed_at')
+
+    let [demoRequest] = await query
       .update({
         processed_at: processed ? db.fn.now() : null,
         processed_by: processed ? getCurrentAdminId(req) : null,
         updated_at: db.fn.now(),
       })
       .returning(demoRequestSelect)
+
+    // Aucune ligne modifiée : déjà traitée (on la renvoie telle quelle) ou inexistante.
+    if (!demoRequest && processed) {
+      demoRequest = await db('demo_requests')
+        .where('id', parsedParams.data.id)
+        .first(demoRequestSelect)
+    }
 
     if (!demoRequest) {
       return reply.code(404).send({ error: 'not_found' })

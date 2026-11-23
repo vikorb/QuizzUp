@@ -115,6 +115,17 @@ describe('routes/public/demoRequests — POST /public/v1/demo-requests', () => {
     await app.close()
   })
 
+  it('stores null for a message made only of spaces', async () => {
+    const app = await createApp()
+
+    const response = await send(app, { ...validBody, message: '   \n  ' })
+
+    expect(response.statusCode).toBe(202)
+    expect(dbState.demo_requests[0]).toMatchObject({ message: null })
+
+    await app.close()
+  })
+
   it('accepts the limits of every field', async () => {
     const app = await createApp()
 
@@ -186,6 +197,9 @@ describe('routes/public/demoRequests — POST /public/v1/demo-requests', () => {
       { message: 'm'.repeat(DEMO_REQUEST_MESSAGE_MAX + 1) },
       'message',
     ],
+    ['name holds a NUL character', { name: 'a\u0000b' }, 'name'],
+    ['centerName holds a NUL character', { centerName: 'a\u0000b' }, 'centerName'],
+    ['message holds a NUL character', { message: 'a\u0000b' }, 'message'],
     ['consent is false', { consent: false }, 'consent'],
     ['consent is missing', { consent: undefined }, 'consent'],
     ['consent is the string "true"', { consent: 'true' }, 'consent'],

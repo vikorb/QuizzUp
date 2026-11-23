@@ -2491,7 +2491,8 @@ paths:
         Statut : **Disponible**
 
         `processed: true` renseigne `processedAt` et `processedBy` (compte appelant) ;
-        `processed: false` les efface.
+        `processed: false` les efface. Une demande déjà traitée est renvoyée telle quelle
+        (auteur et date du premier traitement conservés).
 
         Accès : réservé au rôle `superadmin`.
       operationId: updateDemoRequest
@@ -4321,11 +4322,13 @@ components:
           type: string
           minLength: 1
           maxLength: 120
+          description: Espaces de début et de fin retirés ; le caractère NUL (`\u0000`) est refusé
           example: Camille Martin
         centerName:
           type: string
           minLength: 1
           maxLength: 160
+          description: Espaces de début et de fin retirés ; le caractère NUL (`\u0000`) est refusé
           example: Escape Test
         email:
           type: string
@@ -4344,6 +4347,9 @@ components:
         message:
           type: string
           maxLength: 2000
+          description: >-
+            Espaces de début et de fin retirés (un message vide est stocké comme absent) ;
+            le caractère NUL (`\u0000`) est refusé
         consent:
           type: boolean
           enum: [true]
