@@ -20,7 +20,10 @@ export function getGameStateLabelKey(state: unknown): string {
   return isGameState(state) ? `games.state.${state}` : 'games.state.unknown'
 }
 
-/** En cours = vert, en attente = orange, arrêtée = rouge, terminée = neutre. */
+/**
+ * En cours = vert, en attente = orange, arrêtée = rouge ; terminée, programmée et annulée = neutre
+ * (une session programmée n'a encore rien d'urgent : l'agenda la distingue autrement).
+ */
 export function getGameStateTone(state: unknown): GameStateTone {
   if (state === GAME_STATE_RUNNING) {
     return 'ok'
