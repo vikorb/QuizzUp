@@ -310,7 +310,14 @@
       <ul class="list">
         <li v-for="fixture in testableFixtures" :key="fixture.id">
           <span>
-            <strong>{{ fixture.name }}</strong>
+            <strong>
+              <span
+                v-if="view.fixtureTests[fixture.id] === 'ok'"
+                class="status-dot"
+                aria-hidden="true"
+              />
+              {{ fixture.name }}
+            </strong>
             <small>{{ $t('hardware.diagnostic.address', { n: fixture.address }) }}</small>
           </span>
           <span class="hw-actions">
@@ -321,7 +328,6 @@
               {{ $t('hardware.assistant.test.off') }}
             </UiButton>
             <UiButton
-              :class="{ 'is-ok': view.fixtureTests[fixture.id] === 'ok' }"
               :aria-pressed="view.fixtureTests[fixture.id] === 'ok'"
               :data-test="`ok-${fixture.id}`"
               @click="mark(fixture.id, 'ok')"
@@ -1431,10 +1437,20 @@ onBeforeUnmount(() => {
   outline-offset: 2px;
 }
 
-/* Test d'appareil validé : bordure de statut, pas de second bouton primaire. */
-.list .is-ok {
-  border-color: var(--ok);
-  color: var(--ok);
+/* Test d'appareil validé : bouton mat enfoncé, la couleur de statut reste sur la pastille. */
+.list [aria-pressed='true'] {
+  background: var(--surface-3);
+  border-color: var(--border-hover);
+  color: var(--text-0);
+}
+
+.status-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--ok);
 }
 
 .file-btn input {

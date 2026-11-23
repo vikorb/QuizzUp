@@ -43,6 +43,8 @@ async function click(wrapper: Wrapper, name: string) {
   await flushPromises()
 }
 
+const stepOf = (wrapper: Wrapper) => wrapper.find('[data-step]').attributes('data-step')
+
 const RIG_SIZE = createSixDeskRoomRig().fixtures.length
 
 const SMOKE_ROOM = {
@@ -114,6 +116,29 @@ describe('lumières plein écran : interface', () => {
     await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('launch'))
     // « Plus tard » n'enregistre rien.
     expect(getRoomHardwareConfig().lighting).toEqual(before)
+  })
+
+  it('Retour de l’équipement ramène à la recherche d’interface', async () => {
+    const { wrapper } = await toEquip()
+    expect(stepOf(wrapper)).toBe('equip')
+    await click(wrapper, 'lights-equip-back')
+    expect(stepOf(wrapper)).toBe('scan')
+  })
+
+  it('Retour est inactif tant qu’un choix d’équipement est en cours', async () => {
+    await seedLighting(SMOKE_ROOM)
+    const { wrapper } = await toEquip()
+    expect(sel(wrapper, 'lights-equip-back').attributes('disabled')).toBeUndefined()
+
+    // Les lumières existent : le remplacement demande confirmation, Retour attend la réponse.
+    void sel(wrapper, 'lights-six-desk').trigger('click')
+    await vi.waitFor(() => expect(useConfirm().state.open).toBe(true))
+    expect(sel(wrapper, 'lights-equip-back').attributes('disabled')).toBeDefined()
+
+    useConfirm().cancel()
+    await flushPromises()
+    expect(stepOf(wrapper)).toBe('equip')
+    expect(sel(wrapper, 'lights-equip-back').attributes('disabled')).toBeUndefined()
   })
 
   it('quitter après une recherche USB referme la connexion ouverte', async () => {

@@ -76,7 +76,8 @@
             aria-labelledby="lights-choice-six-title"
             aria-describedby="lights-choice-six-hint"
             data-test="lights-six-desk"
-            @click="onSixDesk"
+            :disabled="choosing"
+            @click="choose(onSixDesk)"
           >
             <strong id="lights-choice-six-title">{{ $t('setupLights.equip.sixDesk') }}</strong>
             <span id="lights-choice-six-hint">{{ $t('setupLights.equip.sixDeskHint') }}</span>
@@ -88,7 +89,8 @@
             aria-labelledby="lights-choice-keep-title"
             aria-describedby="lights-choice-keep-hint"
             data-test="lights-keep"
-            @click="onKeep"
+            :disabled="choosing"
+            @click="choose(onKeep)"
           >
             <strong id="lights-choice-keep-title">{{ $t('setupLights.equip.keep') }}</strong>
             <span id="lights-choice-keep-hint">
@@ -181,6 +183,7 @@
       <UiButton
         v-if="step === 'equip'"
         size="lg"
+        :disabled="choosing"
         data-test="lights-equip-back"
         @click="onEquipBack"
       >
@@ -336,6 +339,8 @@ const phase = ref<'asking' | 'help'>('asking')
 const saving = ref(false)
 const saveError = ref(false)
 const equipError = ref(false)
+// Un choix d'équipement est en cours (confirmation ouverte, lumières appliquées) : pas de Retour.
+const choosing = ref(false)
 let confirming = false
 let leaving = false
 // Une connexion (pont ou USB) a été ouverte pendant la recherche : à refermer si on quitte.
@@ -435,6 +440,18 @@ function onScanNext(): void {
 }
 
 // ── Étape 2 : équipement ───────────────────────────────────────────────────
+
+async function choose(action: () => Promise<void>): Promise<void> {
+  if (choosing.value) {
+    return
+  }
+  choosing.value = true
+  try {
+    await action()
+  } finally {
+    choosing.value = false
+  }
+}
 
 function onEquipBack(): void {
   equipError.value = false

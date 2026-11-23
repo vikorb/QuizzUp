@@ -6,15 +6,6 @@
         <p class="hw-panel__status">{{ $t('hardware.diagnostic.hint') }}</p>
       </div>
       <div class="hw-panel__actions">
-        <UiButton
-          v-if="!diag.active"
-          :variant="state?.emergency ? 'default' : 'primary'"
-          :disabled="!lighting || state?.emergency"
-          data-test="diag-begin"
-          @click="onBegin"
-        >
-          {{ $t('hardware.diagnostic.begin') }}
-        </UiButton>
         <UiButton v-if="state?.emergency" variant="primary" @click="emergency.reset">
           {{ $t('hardware.lights.emergencyReset') }}
         </UiButton>
@@ -86,6 +77,16 @@
       <p v-if="allowUnknown" class="hw-alert" role="status">
         {{ $t('hardware.diagnostic.unplugSmoke') }}
       </p>
+      <div class="hw-actions">
+        <UiButton
+          :variant="state?.emergency ? 'default' : 'primary'"
+          :disabled="!lighting || state?.emergency"
+          data-test="diag-begin"
+          @click="onBegin"
+        >
+          {{ $t('hardware.diagnostic.begin') }}
+        </UiButton>
+      </div>
     </template>
     <template v-else>
       <p class="hw-hint">{{ $t('hardware.diagnostic.activeHint') }}</p>

@@ -18,13 +18,17 @@ import { mountWithApp, PRELOAD_TIMEOUT_MS, preloadRoutes } from '../_helpers/mou
 beforeAll(preloadRoutes, PRELOAD_TIMEOUT_MS)
 
 // Permet de faire échouer l'enregistrement du parcours (panne du réseau, du compte…).
-const failure = vi.hoisted(() => ({ on: false }))
+const failure = vi.hoisted(() => ({ on: false, hang: false }))
 vi.mock('@/hardware/roomHardware', async (importOriginal) => {
   const actual = await importOriginal<typeof Hardware>()
   return {
     ...actual,
     saveRoomSetup: (setup: Parameters<typeof actual.saveRoomSetup>[0]) =>
-      failure.on ? Promise.reject(new Error('réseau')) : actual.saveRoomSetup(setup),
+      failure.hang
+        ? new Promise<void>(() => undefined)
+        : failure.on
+          ? Promise.reject(new Error('réseau'))
+          : actual.saveRoomSetup(setup),
   }
 })
 
@@ -42,8 +46,11 @@ async function press(code: string) {
   await flushPromises()
 }
 
+const stepOf = (wrapper: Wrapper) => wrapper.find('[data-step]').attributes('data-step')
+
 beforeEach(() => {
   failure.on = false
+  failure.hang = false
   localStorage.clear()
   syncRoomAuth()
   enterDemo()
@@ -240,6 +247,37 @@ describe('parcours de configuration plein écran', () => {
     await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('launch'))
   })
 
+  it('Retour ramène à l’étape précédente (disposition, puis accueil)', async () => {
+    const { wrapper } = await mountWithApp(SetupView, { route: '/setup' })
+    await click(wrapper, 'setup-start')
+    await click(wrapper, 'setup-layout-ok')
+    expect(stepOf(wrapper)).toBe('desks')
+
+    await click(wrapper, 'setup-desks-back')
+    expect(stepOf(wrapper)).toBe('layout')
+    await click(wrapper, 'setup-layout-back')
+    expect(stepOf(wrapper)).toBe('welcome')
+  })
+
+  it('pendant l’enregistrement, les boutons et la sortie sont inactifs', async () => {
+    const { wrapper, router } = await mountWithApp(SetupView, { route: '/setup' })
+    await click(wrapper, 'setup-start')
+    await click(wrapper, 'setup-layout-ok')
+    await click(wrapper, 'setup-desks-1')
+    await click(wrapper, 'setup-desks-ok')
+    for (const _step of [1, 2, 3, 4]) {
+      await click(wrapper, 'setup-skip')
+    }
+
+    failure.hang = true
+    await click(wrapper, 'setup-finish')
+    expect(sel(wrapper, 'setup-finish').attributes('disabled')).toBeDefined()
+    expect(sel(wrapper, 'setup-lights').attributes('disabled')).toBeDefined()
+    await click(wrapper, 'setup-quit')
+    expect(useConfirm().state.open).toBe(false)
+    expect(router.currentRoute.value.name).toBe('setup')
+  })
+
   it('« Régler les lumières » ouvre le parcours des lumières', async () => {
     const { wrapper, router } = await mountWithApp(SetupView, { route: '/setup' })
     await click(wrapper, 'setup-start')
@@ -284,7 +322,8 @@ describe('squelette du parcours : barre d’actions et bouton principal', () => 
     for (const _step of [1, 2, 3, 4]) {
       await click(wrapper, 'setup-skip')
     }
-    check(['setup-done-back', 'setup-lights', 'setup-finish'], ['setup-finish'])
+    // Dernière étape : pas de Retour (il effaçait les buzzers déjà associés).
+    check(['setup-lights', 'setup-finish'], ['setup-finish'])
   })
 
   it('« Quitter » reste en haut, hors de la barre, et n’est pas un principal', async () => {

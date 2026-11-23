@@ -14,6 +14,9 @@ const TABS = ['assistant', 'buzzers', 'plan', 'lights', 'diagnostic', 'advanced'
 
 const sel = (wrapper: Wrapper, name: string) => wrapper.find(`[data-test="${name}"]`)
 const primaries = (wrapper: Wrapper) => wrapper.findAll('.ui-btn--primary')
+/** `after` vient après `before` dans l'ordre du DOM. */
+const follows = (before: Element, after: Element) =>
+  Boolean(before.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING)
 
 async function click(wrapper: Wrapper, name: string) {
   await sel(wrapper, name).trigger('click')
@@ -151,14 +154,34 @@ describe('écran Matériel : un seul bouton primaire par onglet', () => {
     )
   })
 
-  it('Diagnostic : « Lancer » est le primaire, à droite de l’en-tête', async () => {
+  it('Diagnostic : « Lancer » est le primaire, après la case des canaux inconnus et l’alerte fumée', async () => {
     const { wrapper } = await mountWithApp(HardwareView, { route: '/hardware?tab=diagnostic' })
     await flushPromises()
 
     expect(primaries(wrapper)).toHaveLength(1)
-    expect(wrapper.find('.hw-panel__actions [data-test="diag-begin"]').classes()).toContain(
-      'ui-btn--primary'
-    )
+    const begin = sel(wrapper, 'diag-begin')
+    expect(begin.classes()).toContain('ui-btn--primary')
+    // Ni dans l'en-tête, ni avant la case : l'opérateur lit l'avertissement avant de lancer.
+    expect(begin.element.closest('.hw-panel__head')).toBeNull()
+    expect(follows(sel(wrapper, 'diag-unknown').element, begin.element)).toBe(true)
+
+    await sel(wrapper, 'diag-unknown').setValue(true)
+    const alert = wrapper.findAll('[role="status"].hw-alert').at(-1)!
+    expect(alert.text()).toContain('Débranche')
+    expect(follows(alert.element, begin.element)).toBe(true)
+  })
+
+  it('Diagnostic : après un arrêt d’urgence, « Rallumer les lumières » reste le seul primaire', async () => {
+    const { wrapper } = await mountWithApp(HardwareView, { route: '/hardware?tab=diagnostic' })
+    await flushPromises()
+    await click(wrapper, 'diag-emergency')
+
+    const head = wrapper.find('.hw-panel__head .hw-panel__actions')
+    expect(primaries(wrapper)).toHaveLength(1)
+    expect(head.find('.ui-btn--primary').exists()).toBe(true)
+    expect(sel(wrapper, 'diag-emergency').classes()).toContain('ui-btn--danger')
+    expect(sel(wrapper, 'diag-begin').classes()).not.toContain('ui-btn--primary')
+    expect(sel(wrapper, 'diag-begin').attributes('disabled')).toBeDefined()
   })
 
   it('Configuration avancée : « Enregistrer » est le seul primaire (éditeur de profils compris)', async () => {

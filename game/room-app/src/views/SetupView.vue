@@ -171,14 +171,6 @@
       >
         {{ $t('setup.back') }}
       </UiButton>
-      <UiButton
-        v-else-if="step === 'done'"
-        size="lg"
-        data-test="setup-done-back"
-        @click="go('desks')"
-      >
-        {{ $t('setup.back') }}
-      </UiButton>
     </template>
 
     <template #secondary>
@@ -403,7 +395,8 @@ function startLearning(): void {
 }
 
 async function onQuit(): Promise<void> {
-  if (confirming) {
+  // Pas de sortie pendant l'enregistrement : la navigation de fin de parcours est déjà en route.
+  if (confirming || saving.value) {
     return
   }
   confirming = true

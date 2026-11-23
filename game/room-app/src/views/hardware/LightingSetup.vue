@@ -107,7 +107,7 @@
     <div class="hw-fields">
       <label class="hw-field">
         {{ $t('hardware.lights.sceneDesk') }}
-        <select v-model.number="sceneDesk">
+        <select v-model.number="sceneDesk" data-test="scene-desk-select">
           <option v-for="desk in desks" :key="desk" :value="desk">{{ desk }}</option>
         </select>
       </label>

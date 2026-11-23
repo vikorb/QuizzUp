@@ -20,7 +20,7 @@
       </UiButton>
     </header>
 
-    <div class="wizard__body">
+    <div class="wizard__body" data-test="wizard-body">
       <div class="wizard__content">
         <slot />
       </div>
@@ -36,6 +36,7 @@
 
 <script setup lang="ts">
 import { mdiClose } from '@mdi/js'
+import { useId } from 'vue'
 
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
@@ -55,8 +56,7 @@ defineProps<{
 
 const emit = defineEmits<{ quit: [] }>()
 
-const uid = Math.random().toString(16).slice(2)
-const labelId = `wizard_step_${uid}`
+const labelId = `wizard_step_${useId()}`
 </script>
 
 <style scoped>
