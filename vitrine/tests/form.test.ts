@@ -1,3 +1,4 @@
+import { DEMO_REQUEST_MESSAGE_MAX, DEMO_REQUEST_ROOMS_MAX } from '@quizzup/shared'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -23,6 +24,13 @@ const valid: FormValues = {
 
 const withValues = (patch: Partial<FormValues>): FormValues => ({ ...valid, ...patch })
 
+describe('LIMITS', () => {
+  it('reprend les bornes partagées avec le serveur', () => {
+    expect(LIMITS.rooms).toBe(DEMO_REQUEST_ROOMS_MAX)
+    expect(LIMITS.message).toBe(DEMO_REQUEST_MESSAGE_MAX)
+  })
+})
+
 describe('validate', () => {
   it('accepte une demande complète, téléphone facultatif absent', () => {
     expect(validate(valid)).toEqual({})
@@ -32,12 +40,16 @@ describe('validate', () => {
     expect(validate(withValues({ phone: '+33 6 12 34 56 78' }))).toEqual({})
   })
 
-  it.each(['name', 'company', 'message', 'email', 'rooms'] as const)(
+  it.each(['name', 'company', 'email', 'rooms'] as const)(
     'exige le champ %s, espaces seuls compris',
     (field) => {
       expect(validate(withValues({ [field]: '   ' }))[field]).toBe('required')
     }
   )
+
+  it('accepte un message vide : il est facultatif', () => {
+    expect(validate(withValues({ message: '   ' }))).toEqual({})
+  })
 
   it('exige le consentement', () => {
     expect(validate(withValues({ consent: false }))).toEqual({ consent: 'required' })
@@ -50,10 +62,12 @@ describe('validate', () => {
   })
 
   it('refuse un téléphone mal formé', () => {
-    expect(validate(withValues({ phone: 'abc' })).phone).toBe('invalid')
+    for (const phone of ['abc', '12345', '06\t12 34 56', '+33 6 12 34 56 7A']) {
+      expect(validate(withValues({ phone })).phone).toBe('invalid')
+    }
   })
 
-  it.each(['0', '100', '2,5', '-1', 'deux'])('refuse %s salles', (rooms) => {
+  it.each(['0', '51', '2,5', '-1', 'deux'])('refuse %s salles', (rooms) => {
     expect(validate(withValues({ rooms })).rooms).toBe('invalid')
   })
 
@@ -92,7 +106,7 @@ describe('sendDemoRequest', () => {
 
   it('poste le JSON attendu vers la route publique, sans identifiants', async () => {
     const fetchFn = respond(201)
-    const result = await sendDemoRequest(
+    const { result } = await sendDemoRequest(
       'https://api.example.org/',
       withValues({ name: '  Camille  ', phone: ' 0612345678 ' }),
       fetchFn
@@ -107,38 +121,76 @@ describe('sendDemoRequest', () => {
     expect(init.headers).toEqual({ 'Content-Type': 'application/json' })
     expect(JSON.parse(init.body as string)).toEqual({
       name: 'Camille',
-      company: 'Escape du Port',
+      centerName: 'Escape du Port',
       email: 'camille@example.org',
       phone: '0612345678',
-      rooms: 3,
+      roomsCount: 3,
       message: 'Nous voulons voir le blind test.',
       consent: true,
       website: '',
     })
   })
 
-  it('omet le téléphone quand il est vide', async () => {
+  it('omet le téléphone et le message quand ils sont vides', async () => {
     const fetchFn = respond(200)
-    await sendDemoRequest('https://api.example.org', valid, fetchFn)
+    await sendDemoRequest('https://api.example.org', withValues({ message: '  ' }), fetchFn)
     const body = JSON.parse((fetchFn.mock.calls[0]?.[1] as RequestInit).body as string)
     expect(body).not.toHaveProperty('phone')
+    expect(body).not.toHaveProperty('message')
+  })
+
+  it('ne renvoie jamais le champ piège de la page : `website` part vide', async () => {
+    const fetchFn = respond(202)
+    await sendDemoRequest('https://api.example.org', withValues({ trap: 'x' }), fetchFn)
+    const body = JSON.parse((fetchFn.mock.calls[0]?.[1] as RequestInit).body as string)
+    expect(body.website).toBe('')
+    expect(body).not.toHaveProperty('trap')
   })
 
   it.each([
     [200, 'success'],
+    [202, 'success'],
     [204, 'success'],
     [400, 'invalid'],
     [422, 'invalid'],
     [429, 'rateLimited'],
     [500, 'error'],
     [404, 'error'],
+    [413, 'error'],
+    [415, 'error'],
   ])('traduit le statut %i en %s', async (status, expected) => {
-    expect(await sendDemoRequest('https://api.example.org', valid, respond(status))).toBe(expected)
+    const { result } = await sendDemoRequest('https://api.example.org', valid, respond(status))
+    expect(result).toBe(expected)
+  })
+
+  it('lit les champs refusés d’un 400 invalid_body et les ramène aux champs de la page', async () => {
+    const body = {
+      error: 'invalid_body',
+      details: {
+        fieldErrors: { roomsCount: ['Too big'], centerName: ['Too small'], website: ['x'] },
+      },
+    }
+    const fetchFn = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(JSON.stringify(body), { status: 400 }))
+    expect(await sendDemoRequest('https://api.example.org', valid, fetchFn)).toEqual({
+      result: 'invalid',
+      fields: ['company', 'rooms'],
+    })
+  })
+
+  it('un 400 sans corps lisible reste « refusé », sans champ', async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(new Response('<html>', { status: 400 }))
+    expect(await sendDemoRequest('https://api.example.org', valid, fetchFn)).toEqual({
+      result: 'invalid',
+      fields: [],
+    })
   })
 
   it('traduit une absence de réponse en erreur réseau', async () => {
     const fetchFn = vi.fn<typeof fetch>().mockRejectedValue(new TypeError('Failed to fetch'))
-    expect(await sendDemoRequest('https://api.example.org', valid, fetchFn)).toBe('network')
+    const { result } = await sendDemoRequest('https://api.example.org', valid, fetchFn)
+    expect(result).toBe('network')
   })
 
   it('abandonne la requête après le délai prévu', async () => {
@@ -152,7 +204,7 @@ describe('sendDemoRequest', () => {
       )
       const pending = sendDemoRequest('https://api.example.org', valid, fetchFn)
       await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS)
-      expect(await pending).toBe('network')
+      expect((await pending).result).toBe('network')
     } finally {
       vi.useRealTimers()
     }
