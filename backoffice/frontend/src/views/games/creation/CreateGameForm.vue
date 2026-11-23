@@ -65,6 +65,13 @@
           required
         />
       </div>
+
+      <RoomPresenceBadge
+        v-if="selectedRoomPresence"
+        :room="selectedRoomPresence.room"
+        :uncertain="liveUncertain"
+        :now="now"
+      />
     </section>
 
     <section class="game-form__section">
@@ -135,7 +142,7 @@
 
 <script setup lang="ts">
 import { mdiAccountPlusOutline } from '@mdi/js'
-import type { MiniGame } from '@quizzup/shared'
+import type { MiniGame, RoomLive } from '@quizzup/shared'
 import { GAME_MAX_QUESTIONS_PER_ROUND, GAME_MAX_ROUNDS } from '@quizzup/shared'
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -145,6 +152,7 @@ import FormField from '@/components/ui/form/FormField.vue'
 import FormResult from '@/components/ui/form/FormResult.vue'
 import SelectField from '@/components/ui/form/SelectField.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
+import RoomPresenceBadge from '@/components/ui/RoomPresenceBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { createGameService } from '@/services/gamesService'
 import type { SelectFieldOption } from '@/types/form'
@@ -176,6 +184,7 @@ import {
   openGameSecondPlayer,
   validateGameForm,
 } from '@/utils/game/form'
+import { getRoomPresenceKind, getRoomPresenceLabelKey } from '@/utils/room/presence'
 
 import GameMiniGamesField from './GameMiniGamesField.vue'
 import GameParticipantFields from './GameParticipantFields.vue'
@@ -188,9 +197,16 @@ const props = withDefaults(
     companyId: number
     rooms: GameRoom[]
     roomsLoading?: boolean
+    /** Présence des salles reçue du flux en direct ; absente, aucune présence n'est affichée. */
+    liveRooms?: Record<number, RoomLive>
+    liveUncertain?: boolean
+    now?: number
   }>(),
   {
     roomsLoading: false,
+    liveRooms: undefined,
+    liveUncertain: true,
+    now: 0,
   }
 )
 
@@ -216,9 +232,27 @@ const desksCount = computed(() => getGameRoomDesksCount(props.rooms, form.roomId
 const canAddParticipant = computed(() => canAddGameParticipant(form.participants, desksCount.value))
 const canRemoveParticipant = computed(() => canRemoveGameParticipant(form.participants))
 
+function getRoomPresence(roomId: number): { room: RoomLive | null } | null {
+  return props.liveRooms ? { room: props.liveRooms[roomId] ?? null } : null
+}
+
+// Une liste déroulante n'affiche pas de pastille : la présence est écrite après le nom de la salle,
+// seulement quand le direct est certain (sinon le nom seul : pas de « inconnue » à chaque ligne).
+function getRoomOptionLabel(room: GameRoom): string {
+  const presence = props.liveUncertain ? null : getRoomPresence(room.id)
+
+  return presence
+    ? `${room.name} · ${t(getRoomPresenceLabelKey(getRoomPresenceKind(presence.room, props.liveUncertain)))}`
+    : room.name
+}
+
+const selectedRoomPresence = computed(() =>
+  form.roomId ? getRoomPresence(Number(form.roomId)) : null
+)
+
 const roomOptions = computed<SelectFieldOption[]>(() =>
   activeRooms.value.map((room) => ({
-    label: room.name,
+    label: getRoomOptionLabel(room),
     value: String(room.id),
   }))
 )

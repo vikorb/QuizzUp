@@ -26,7 +26,8 @@ Les `events` (numérotés par `seq`) sont destinés à `game_events` ; `state.ro
 
 ## Déroulé d'une manche
 
-1. `round_intro` : annonce du mini-jeu tiré au sort (pas deux fois le même d'affilée si possible).
+1. `round_intro` : annonce du mini-jeu, tiré sans remise : aucun mini-jeu ne revient tant que tous
+   les mini-jeux jouables n'ont pas été joués, et jamais deux fois de suite quand il y a le choix.
 2. `theme_choice` : 4 thèmes proposés (jamais joués d'abord), un joueur désigné (manche 1 au
    hasard, ensuite au hasard hors leader(s), repli si égalité générale) choisit avec A-D. Sans
    choix dans le temps imparti, tirage automatique.
