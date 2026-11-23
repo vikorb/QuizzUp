@@ -8,6 +8,8 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Lecteur audio : effets sur les extraits (inversé, ralenti à 0,75, reprise après pause) et lecteur d'annonces vocales avec atténuation de l'extrait et repli silencieux (`game/audio`, pas encore branché à l'écran de salle).
+  US: US-AUDIO-02 (#144)
 - Déploiement de production (`deploy/prod/`) : Caddy en HTTPS, API compilée, PostgreSQL, fichiers
   statiques, emplacement du site vitrine, console éditeur filtrée par plages réseau, secrets
   obligatoires hors du dépôt, sauvegardes chiffrées (restic) avec restauration, mise à jour avec
