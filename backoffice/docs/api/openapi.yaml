@@ -882,6 +882,15 @@ paths:
 
         Crée une salle active. La configuration matérielle est vide par défaut.
 
+        Sécurité : une configuration contenant une section `lighting` non vide (appareils DMX,
+        profils, liaisons de scènes, fumée) est refusée (403 `smoke_config_forbidden`), pour tous les
+        rôles, superadmin compris : la machine à fumée dépend de toute cette section. Les lumières et
+        la fumée se règlent sur place, depuis l'écran de salle.
+
+        Limite connue : cette garde ne couvre pas le compte de salle (`PUT /room/config`), dont le
+        mot de passe est choisi par un admin ; vérifier côté poste de salle que la fumée a passé son
+        test de coupure est un lot à part (S4, issue n° 152).
+
         Accès : superadmin (toutes les compagnies) et `admin` de la compagnie.
       operationId: createCompanyRoom
       x-availability: disponible
@@ -911,7 +920,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ValidationError'
         '403':
-          description: Accès interdit
+          description: Accès interdit, ou section `lighting` (lumières, fumée) présente dans la configuration (`smoke_config_forbidden`)
           content:
             application/json:
               schema:
@@ -980,7 +989,24 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Modifie le nom et/ou la configuration matérielle.
+        Modifie le nom et/ou la configuration matérielle (la configuration envoyée remplace la
+        précédente).
+
+        Sécurité : le backoffice ne règle ni les lumières ni la fumée. La machine à fumée dépend de
+        toute la section `lighting` (`smoke`, mais aussi `fixtures`, `customProfiles` et `bindings` :
+        un appareil repassé en `par` à la même adresse de relais, un canal fumée rendu `binary`, une
+        scène à fumée liée à `buzz`). Le `config` reçu est donc refusé (403 `smoke_config_forbidden`,
+        tous rôles, superadmin compris) s'il change `lighting` par rapport à la configuration
+        stockée, sauf pour couper la fumée : `lighting.smoke.enabled` de `true` à `false`, tout le
+        reste de `lighting` identique. Une section `lighting` identique, un `config` sans `lighting`
+        modifié, ou l'absence de `config`, passent ; le reste du `config` reste libre.
+
+        Limite connue : cette garde ne couvre pas le compte de salle (`PUT /room/config`), dont le
+        mot de passe est choisi par un admin ; vérifier côté poste de salle que la fumée a passé son
+        test de coupure est un lot à part (S4, issue n° 152).
+
+        La configuration n'est écrite que si elle n'a pas changé depuis la lecture faite pour cette
+        vérification (409 `room_config_conflict` sinon : recharger puis réessayer).
 
         Accès : superadmin (toutes les compagnies) et `admin` de la compagnie.
       operationId: updateCompanyRoom
@@ -1012,7 +1038,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ValidationError'
         '403':
-          description: Accès interdit
+          description: Accès interdit, ou section `lighting` (lumières, fumée) modifiée autrement que par la coupure de la fumée (`smoke_config_forbidden`)
           content:
             application/json:
               schema:
@@ -1024,7 +1050,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: Nom de salle déjà utilisé dans la compagnie (`room_name_already_exists`) ou compagnie supprimée (`company_deleted`)
+          description: Nom de salle déjà utilisé dans la compagnie (`room_name_already_exists`), compagnie supprimée (`company_deleted`) ou configuration modifiée entre-temps (`room_config_conflict`)
           content:
             application/json:
               schema:
@@ -1358,6 +1384,66 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /companies/{companyId}/rooms/{roomId}/schedule:
+    put:
+      tags:
+        - Rooms
+      summary: "[NON DISPONIBLE] Régler les créneaux d'une salle"
+      description: |
+        Statut : **Non disponible** (à venir, lot 13)
+
+        Remplace les réglages de créneaux de la salle (`rooms.schedule`) ; `schedule: null` les désactive (la salle n'est plus réservable). `rooms.config` n'est pas touché : il appartient au PC de salle.
+
+        Une fois la route livrée, `schedule` est aussi renvoyé par `GET /companies/{companyId}/rooms*` et par `/room/me`.
+
+        Accès : superadmin (toutes les compagnies) et `admin` de la compagnie ; refusé au rôle `user`.
+      operationId: updateRoomSchedule
+      x-availability: non_disponible
+      x-us: 'Lot 13 / sessions programmées'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/RoomIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRoomScheduleRequest'
+      responses:
+        '200':
+          description: Salle mise à jour
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  room:
+                    $ref: '#/components/schemas/Room'
+        '400':
+          description: Corps invalide (`invalid_body`, avec détails) ; fuseau inconnu, durée ou pause hors bornes, `firstSessionAt` hors plage d'ouverture, jours consécutifs qui se chevauchent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Salle introuvable (`not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Compagnie supprimée (`company_deleted`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /room/me:
     get:
       tags:
@@ -1366,7 +1452,7 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Renvoie la salle (avec sa configuration matérielle) et la compagnie du compte de salle connecté.
+        Renvoie la salle (avec sa configuration matérielle) et la compagnie du compte de salle connecté. À venir (lot 13) : la salle gagnera `schedule`, qui donne le fuseau d'affichage des sessions programmées.
 
         Accès : réservé au rôle `room`.
       operationId: getCurrentRoom
@@ -1412,12 +1498,56 @@ paths:
 
         Parties de la compagnie, de la plus récente à la plus ancienne, avec le nom de la salle et le nombre de participants.
 
+        **À venir (lot 13)** : paramètres `state`, `roomId`, `from`, `to` (filtre de dates sur `COALESCE(scheduled_at, started_at, created_at)`), `limit` (200 au plus) et `offset` ; la réponse devient `{ games, total }` (`total` : nombre de parties qui correspondent aux filtres, avant pagination) ; chaque ligne gagnera les champs de `GameSchedulingFields` (puis `source`, `backoffice` ou `api`, avec le lot 14). Il n'y a pas de plafond sur la durée entre `from` et `to` : la pagination borne la réponse. Tant que la route n'est pas livrée, ces paramètres sont ignorés.
+
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
       operationId: listCompanyGames
       x-availability: disponible
       x-us: 'US-GAME-08'
       parameters:
         - $ref: '#/components/parameters/CompanyIdParam'
+        - name: state
+          in: query
+          required: false
+          description: '**À venir (lot 13).** Ne garder que les parties dans cet état.'
+          schema:
+            type: string
+            enum: [scheduled, pending, running, finished, aborted, cancelled]
+        - name: roomId
+          in: query
+          required: false
+          description: '**À venir (lot 13).** Ne garder que les parties de cette salle.'
+          schema:
+            type: integer
+        - name: from
+          in: query
+          required: false
+          description: '**À venir (lot 13).** Borne basse incluse (date ISO 8601).'
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          description: '**À venir (lot 13).** Borne haute exclue (date ISO 8601).'
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          required: false
+          description: '**À venir (lot 13).** Nombre de parties renvoyées, 200 au plus.'
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+        - name: offset
+          in: query
+          required: false
+          description: '**À venir (lot 13).** Nombre de parties à sauter (pagination).'
+          schema:
+            type: integer
+            minimum: 0
       responses:
         '200':
           description: Parties
@@ -1430,6 +1560,9 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/GameSummary'
+                  total:
+                    type: integer
+                    description: '**À venir (lot 13).** Nombre de parties qui correspondent aux filtres, avant pagination.'
         '403':
           description: Accès interdit
           content:
@@ -1445,6 +1578,8 @@ paths:
         Statut : **Disponible**
 
         Crée une partie en attente dans une salle active et libre, avec 1 à 4 participants (un par pupitre). Un email n'est accepté qu'avec `emailConsent: true` (consentement RGPD horodaté dans `consentAt`). Format par défaut : 10 manches × 10 questions. La graine de tirage (0 à 2³² − 1) est tirée par le serveur.
+
+        **À venir (lot 13)** : le corps gagnera les champs de `CreateGameSchedulingFields` (`scheduledAt`, `durationMinutes`, `playersCount`, `externalRef`, `locale`). Avec `scheduledAt`, la partie est créée à l'état `scheduled` (participants de 0 à 6, pas de contrôle `room_busy`) ; nouvelles erreurs : 400 `session_in_past` (fin ≤ maintenant), 400 `session_too_far` (au-delà de 365 jours), 409 `slot_taken` (chevauchement d'une autre session de la salle). Sans `scheduledAt`, rien ne change.
 
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
       operationId: createCompanyGame
@@ -1530,6 +1665,158 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Partie introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    patch:
+      tags:
+        - Games
+      summary: '[NON DISPONIBLE] Modifier une session programmée'
+      description: |
+        Statut : **Non disponible** (à venir, lot 13)
+
+        Modifie une session à l'état `scheduled` : `roomId`, `scheduledAt`, `durationMinutes`, `roundsCount`, `questionsPerRound`, `miniGames`, `playersCount`, `externalRef`, `locale`, et `participants` (remplacement complet, dans une transaction). Seul le chevauchement d'une autre session de la salle est interdit.
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: updateCompanyGame
+      x-availability: non_disponible
+      x-us: 'Lot 13 / sessions programmées'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/GameIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateGameRequest'
+      responses:
+        '200':
+          description: Session modifiée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  game:
+                    allOf:
+                      - $ref: '#/components/schemas/GameDetail'
+        '400':
+          description: Corps invalide (`invalid_body`), session dans le passé (`session_in_past`), trop loin (`session_too_far`) ou pupitre absent de la salle (`podium_not_in_room`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Partie ou salle introuvable (`not_found`, `room_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La partie n'est plus à l'état `scheduled` (`game_not_scheduled`) ou le créneau chevauche une autre session de la salle (`slot_taken`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/games/{gameId}/cancel:
+    post:
+      tags:
+        - Games
+      summary: '[NON DISPONIBLE] Annuler une session programmée'
+      description: |
+        Statut : **Non disponible** (à venir, lot 13)
+
+        Passe une session `scheduled` à l'état `cancelled` (`cancelledAt` renseigné) et libère son créneau. Annuler n'est pas supprimer : `status` reste à `1`. Idempotent : refaire l'appel sur une session déjà annulée renvoie `200`.
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: cancelCompanyGame
+      x-availability: non_disponible
+      x-us: 'Lot 13 / sessions programmées'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/GameIdParam'
+      responses:
+        '200':
+          description: Session annulée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  game:
+                    allOf:
+                      - $ref: '#/components/schemas/GameDetail'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Partie introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La partie n'est ni programmée ni déjà annulée (`game_not_scheduled`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/games/{gameId}/open:
+    post:
+      tags:
+        - Games
+      summary: '[NON DISPONIBLE] Ouvrir une session programmée'
+      description: |
+        Statut : **Non disponible** (à venir, lot 13)
+
+        Passe une session `scheduled` à l'état `pending`, comme si l'opérateur l'avait lancée. Possible dès 60 minutes avant le début ; il n'y a pas de borne de fin : une session non lancée, même après son créneau, peut toujours être ouverte. Rien ne démarre seul : l'ouverture est toujours faite par une personne.
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: openCompanyGame
+      x-availability: non_disponible
+      x-us: 'Lot 13 / sessions programmées'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/GameIdParam'
+      responses:
+        '200':
+          description: Session ouverte
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  game:
+                    allOf:
+                      - $ref: '#/components/schemas/GameDetail'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Partie introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Session pas à l'état `scheduled` (`game_not_scheduled`), ouverture à plus de 60 minutes du début (`session_not_open_yet`), partie déjà en attente ou en cours dans la salle (`room_busy`), salle inactive (`room_inactive`) ou compagnie inactive (`company_inactive`)
           content:
             application/json:
               schema:
@@ -1680,6 +1967,8 @@ paths:
 
         Partie en attente ou en cours de la salle du compte connecté, ou `null`. Les emails des participants ne sont pas renvoyés.
 
+        **À venir (lot 13)** : la réponse gagnera `next`, la session `scheduled` la plus proche de la salle dont la fin prévue (`scheduledEndAt`) est dans le futur, au même format que `game` (noms seulement, aucun email), ou `null`.
+
         Accès : réservé au rôle `room`.
       operationId: getCurrentRoomGame
       x-availability: disponible
@@ -1696,6 +1985,11 @@ paths:
                     allOf:
                       - $ref: '#/components/schemas/RoomGame'
                     nullable: true
+                  next:
+                    allOf:
+                      - $ref: '#/components/schemas/RoomGame'
+                    nullable: true
+                    description: '**À venir (lot 13).** Prochaine session programmée de la salle.'
         '403':
           description: Compte qui n'est pas un compte de salle
           content:
@@ -1816,6 +2110,51 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Pas de partie courante (`game_not_found`) ou extrait indisponible (`question_media_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /room/games/{gameId}/open:
+    post:
+      tags:
+        - Rooms
+      summary: '[NON DISPONIBLE] Ouvrir une session programmée de la salle'
+      description: |
+        Statut : **Non disponible** (à venir, lot 13)
+
+        Passe une session `scheduled` de la salle à l'état `pending` (bouton « Lancer » de l'écran de salle). Mêmes règles et mêmes codes que `POST /companies/{companyId}/games/{gameId}/open`, avec le même traitement côté serveur.
+
+        Accès : réservé au rôle `room`, limité à sa propre salle (une autre salle : `404`).
+      operationId: openRoomGame
+      x-availability: non_disponible
+      x-us: 'Lot 13 / sessions programmées'
+      parameters:
+        - $ref: '#/components/parameters/GameIdParam'
+      responses:
+        '200':
+          description: Session ouverte
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  game:
+                    $ref: '#/components/schemas/RoomGame'
+        '403':
+          description: Compte qui n'est pas un compte de salle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Partie introuvable ou d'une autre salle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Session pas à l'état `scheduled` (`game_not_scheduled`), ouverture à plus de 60 minutes du début (`session_not_open_yet`), partie déjà en attente ou en cours (`room_busy`), salle inactive (`room_inactive`) ou compagnie inactive (`company_inactive`)
           content:
             application/json:
               schema:
@@ -4048,6 +4387,13 @@ components:
             Révision de `config` : 0 à la création, +1 à chaque écriture (`PUT /room/config`, ou
             `PATCH` du backoffice qui modifie `config`). À renvoyer dans `revision` de `PUT /room/config`.
           example: 3
+        schedule:
+          allOf:
+            - $ref: '#/components/schemas/RoomSchedule'
+          nullable: true
+          description: >-
+            **À venir (lot 13).** Réglages de créneaux de la salle ; `null` : pas de créneaux, salle
+            non réservable. La colonne `rooms.schedule` existe, mais aucune route ne la renvoie encore.
         status:
           type: integer
           enum: [0, 1, 2]
@@ -4063,6 +4409,195 @@ components:
           type: string
           format: date-time
           nullable: true
+
+    RoomScheduleDay:
+      type: object
+      description: >-
+        **À venir (lot 13).** Horaires d'un jour, au format `HH:MM` sur 24 h, en heure locale de la
+        salle. `closesAt` ≤ `opensAt` veut dire « ferme le lendemain » (24 h d'ouverture au plus).
+        `firstSessionAt` doit tomber dans la plage d'ouverture ; il vaut `opensAt` s'il est absent.
+      required: [opensAt, closesAt]
+      properties:
+        opensAt:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+          example: '10:00'
+        firstSessionAt:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+          example: '10:30'
+        closesAt:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+          example: '22:00'
+
+    RoomSchedule:
+      type: object
+      description: >-
+        **À venir (lot 13).** Réglages de créneaux d'une salle (`rooms.schedule`). Tout est stocké en
+        UTC ; le fuseau de la salle sert à lire les horaires. Deux jours consécutifs ne doivent pas se
+        chevaucher (une fermeture après minuit au-delà de l'ouverture du lendemain est refusée).
+      required: [timezone, slotMinutes, breakMinutes, bookableDesks, publicBooking, days]
+      properties:
+        timezone:
+          type: string
+          description: Fuseau IANA valide. Défaut proposé `Europe/Paris`.
+          example: Europe/Paris
+        slotMinutes:
+          type: integer
+          minimum: 10
+          maximum: 240
+          description: Durée d'un créneau en minutes (`SESSION_MIN_MINUTES` à `SESSION_MAX_MINUTES`).
+          example: 60
+        breakMinutes:
+          type: integer
+          minimum: 0
+          maximum: 120
+          default: 0
+          description: Pause entre deux créneaux (`SESSION_MAX_BREAK_MINUTES` au plus), `0` pour des créneaux bout à bout.
+        bookableDesks:
+          type: integer
+          minimum: 1
+          maximum: 6
+          description: >-
+            Pupitres ouverts à la réservation. Valeur effective :
+            `min(bookableDesks, nombre de pupitres de la salle)`.
+          example: 4
+        publicBooking:
+          type: boolean
+          description: La salle apparaît dans l'API publique de réservation.
+        days:
+          type: object
+          description: >-
+            Jours ISO, clés `"1"` (lundi) à `"7"` (dimanche), pas d'autre clé. Une clé absente veut
+            dire jour fermé.
+          additionalProperties:
+            $ref: '#/components/schemas/RoomScheduleDay'
+          example:
+            '1': { opensAt: '10:00', closesAt: '22:00' }
+            '6': { opensAt: '10:00', firstSessionAt: '10:30', closesAt: '01:00' }
+
+    UpdateRoomScheduleRequest:
+      type: object
+      description: '**À venir (lot 13).** `schedule: null` désactive les créneaux de la salle.'
+      required: [schedule]
+      properties:
+        schedule:
+          allOf:
+            - $ref: '#/components/schemas/RoomSchedule'
+          nullable: true
+
+    GameSchedulingFields:
+      type: object
+      description: >-
+        **À venir (lot 13).** Champs de session programmée que les lignes de partie
+        (`GameSummary`, `GameDetail`, `RoomGame`) gagneront. Les colonnes existent déjà en base
+        (`games.scheduled_at`, `scheduled_end_at`, `cancelled_at`, `players_count`, `external_ref`,
+        `locale`) ; aucune route ne les renvoie encore.
+      properties:
+        scheduledAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Début prévu (UTC), `null` pour une partie immédiate.
+        scheduledEndAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Fin prévue (UTC), strictement après `scheduledAt`.
+        cancelledAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Renseigné si et seulement si `state` vaut `cancelled`.
+        playersCount:
+          type: integer
+          minimum: 1
+          maximum: 12
+          nullable: true
+          description: Nombre de joueurs annoncé (6 pupitres × 2 joueurs au plus).
+        externalRef:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: Référence du système de réservation du client.
+        locale:
+          type: string
+          enum: [fr, en]
+          nullable: true
+
+    CreateGameSchedulingFields:
+      type: object
+      description: >-
+        **À venir (lot 13).** Champs facultatifs ajoutés au corps de `POST /companies/{companyId}/games`.
+        Avec `scheduledAt`, la partie est créée à l'état `scheduled`, `participants` peut être vide
+        (0 à 6) et le contrôle `room_busy` ne s'applique pas. Sans `scheduledAt`, rien ne change.
+        Seul le chevauchement d'une autre session de la salle est interdit (`slot_taken`) : une
+        création manuelle peut sortir de la grille des créneaux.
+      properties:
+        scheduledAt:
+          type: string
+          format: date-time
+          description: Date ISO 8601 avec décalage, à la minute près (secondes à 0).
+          example: '2027-03-10T14:00:00+01:00'
+        durationMinutes:
+          type: integer
+          minimum: 10
+          maximum: 240
+          description: Par défaut le `slotMinutes` de la salle, sinon 60.
+        playersCount:
+          type: integer
+          minimum: 1
+          maximum: 12
+        externalRef:
+          type: string
+          maxLength: 100
+        locale:
+          type: string
+          enum: [fr, en]
+
+    UpdateGameRequest:
+      type: object
+      description: >-
+        **À venir (lot 13).** Au moins un champ. Seule une session `scheduled` se modifie.
+        `participants` remplace la liste complète (même forme que `CreateGameRequest`).
+      properties:
+        roomId:
+          type: integer
+        scheduledAt:
+          type: string
+          format: date-time
+        durationMinutes:
+          type: integer
+          minimum: 10
+          maximum: 240
+        roundsCount:
+          type: integer
+          minimum: 1
+          maximum: 20
+        questionsPerRound:
+          type: integer
+          minimum: 1
+          maximum: 20
+        miniGames:
+          type: array
+          items:
+            type: string
+        playersCount:
+          type: integer
+          minimum: 1
+          maximum: 12
+        externalRef:
+          type: string
+          maxLength: 100
+        locale:
+          type: string
+          enum: [fr, en]
+        participants:
+          type: array
+          maxItems: 6
+          items:
+            type: object
 
     CreateRoomRequest:
       type: object
@@ -4259,7 +4794,7 @@ components:
           maximum: 4294967295
         state:
           type: string
-          enum: [pending, running, finished, aborted]
+          enum: [scheduled, pending, running, finished, aborted, cancelled]
         startedAt:
           type: string
           format: date-time

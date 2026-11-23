@@ -53,6 +53,8 @@
       "errors": {
         "room_name_already_exists": "Une salle porte déjà ce nom dans cette compagnie.",
         "company_deleted": "Impossible d’ajouter une salle à une compagnie supprimée.",
+        "smoke_config_forbidden": "Les lumières et la machine à fumée d’une salle ne se règlent pas depuis le backoffice : cela se fait sur place, depuis l’écran de salle. Seule la coupure de la fumée est permise.",
+        "room_config_conflict": "La configuration de la salle vient de changer. Rechargez la page puis réessayez.",
         "invalid_body": "Les informations envoyées sont invalides.",
         "invalid_params": "Paramètres invalides.",
         "forbidden": "Vous n’avez pas les droits nécessaires.",

@@ -36,3 +36,16 @@ export function getGameDetailRoute(
     query: buildCompanyQuery(options),
   }
 }
+
+export function getGameResultsRoute(
+  gameId: number | string,
+  options: GameCompanyQuery = {}
+): RouteLocationRaw {
+  return {
+    name: 'games-results',
+    params: {
+      gameId: String(gameId),
+    },
+    query: buildCompanyQuery(options),
+  }
+}

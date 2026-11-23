@@ -160,6 +160,7 @@ Table rooms {
   name varchar(255) [not null, note: 'Unique par compagnie (insensible à la casse, hors supprimées)']
   config jsonb [not null, default: '{}', note: 'Configuration matérielle : buzzers, lumières, fumée (format RoomHardwareConfig v1, voir game/hardware/README.md)']
   config_revision integer [not null, default: 0, note: 'Augmente de 1 à chaque écriture de config ; PUT /room/config refuse (409) une révision périmée']
+  schedule jsonb [note: 'Réglages de créneaux (format RoomSchedule de @quizzup/shared : timezone, slotMinutes, breakMinutes, bookableDesks, publicBooking, days). Null = pas de créneaux, salle non réservable. Colonne distincte de config, qui appartient au PC de salle']
 
   status smallint [not null, default: 1, note: '0=inactive, 1=active, 2=deleted']
   created_at timestamptz [not null, default: `now()`]
@@ -204,8 +205,15 @@ Table games {
   rounds_count smallint [not null, default: 10, note: '1 à 20']
   questions_per_round smallint [not null, default: 10, note: '1 à 20']
   seed bigint [not null, note: 'Graine des tirages : rejouer la partie à l’identique']
-  state varchar(50) [not null, default: 'pending', note: 'pending, running, finished, aborted']
+  state varchar(50) [not null, default: 'pending', note: 'scheduled, pending, running, finished, aborted, cancelled (GAME_STATES). scheduled : session programmée, pas encore ouverte ; cancelled : session programmée annulée']
   mini_games jsonb [note: 'Mini-jeux choisis au lancement (MINI_GAMES) ; null = tous']
+
+  scheduled_at timestamptz [note: 'Début prévu d’une session programmée ; null = partie immédiate']
+  scheduled_end_at timestamptz [note: 'Fin prévue (stockée plutôt qu’une durée : tstzrange(a, b) est immuable, pas timestamptz + interval). Nulle avec scheduled_at, sinon strictement après']
+  cancelled_at timestamptz [note: 'Renseigné si et seulement si state = cancelled']
+  players_count smallint [note: '1 à 12 (GAME_MAX_PLAYERS : 6 pupitres × 2 joueurs) ; nombre de joueurs annoncé à la réservation']
+  external_ref varchar(100) [note: 'Référence du système de réservation du client']
+  locale varchar(5) [note: 'fr ou en (GAME_LOCALES)']
 
   started_at timestamptz
   finished_at timestamptz
@@ -221,9 +229,18 @@ Table games {
     (admin_id) [name: 'games_admin_id_index']
     (state) [name: 'games_state_index']
     (status) [name: 'games_status_index']
+    (company_id, scheduled_at) [name: 'games_company_id_scheduled_at_index', note: 'Partiel : WHERE scheduled_at IS NOT NULL (agenda)']
   }
 
-  Note: 'Index unique partiel : une seule partie pending/running par salle'
+  Note: '''
+    Index unique partiel : une seule partie pending/running par salle (games_room_id_active_unique).
+    Contrainte d’exclusion games_room_schedule_no_overlap : EXCLUDE USING gist (room_id WITH =, tstzrange(scheduled_at, scheduled_end_at, '[)') WITH &&)
+    WHERE (scheduled_at IS NOT NULL AND status <> 2 AND state IN ('scheduled', 'pending', 'running')) :
+    pas de chevauchement de sessions dans une salle (SQLSTATE 23P01, extension btree_gist). Intervalles semi-ouverts : deux sessions bout à bout sont acceptées ;
+    annulée, terminée, arrêtée ou supprimée libère le créneau ; une partie sans scheduled_at n’est pas concernée.
+    CHECK : games_schedule_range_check (bornes nulles ensemble, sinon fin > début), games_scheduled_state_check (scheduled exige scheduled_at),
+    games_cancelled_check ((state = cancelled) = (cancelled_at non nul)), games_players_count_check, games_locale_check.
+  '''
 }
 
 Table question_kind_retypings {
