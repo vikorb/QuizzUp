@@ -1,5 +1,51 @@
 {
   "questionImport": {
+    "title": "Importer des questions",
+    "subtitle": "Ajoutez plusieurs questions à la fois depuis un fichier CSV. Rien n'est écrit tant que vous n'avez pas confirmé.",
+    "open": "Importer un CSV",
+    "file": {
+      "title": "Fichier",
+      "label": "Fichier CSV",
+      "help": "CSV en UTF-8, séparateur « ; » ou « , ». {rows} lignes et {size} au plus.",
+      "template": "Télécharger le modèle"
+    },
+    "template": {
+      "theme": "Culture générale",
+      "qcmQuestion": "Quelle est la capitale de la France ?",
+      "trueFalseQuestion": "La Terre est plate.",
+      "estimateQuestion": "Quelle est la hauteur de la tour Eiffel, en mètres ?"
+    },
+    "scope": {
+      "label": "Importer dans",
+      "companyLabel": "Compagnie",
+      "companyPlaceholder": "Choisir une compagnie",
+      "companyLoading": "Chargement des compagnies…",
+      "companyEmpty": "Aucune compagnie disponible.",
+      "companyLoadError": "Impossible de charger les compagnies."
+    },
+    "actions": {
+      "check": "Vérifier le fichier",
+      "checking": "Vérification en cours…",
+      "import": "Importer {count} question | Importer {count} questions",
+      "importing": "Import en cours…",
+      "another": "Importer un autre fichier",
+      "list": "Voir les questions"
+    },
+    "report": {
+      "title": "Résultat de la vérification",
+      "rows": "{count} ligne lue | {count} lignes lues",
+      "valid": "{count} valide | {count} valides",
+      "invalid": "{count} en erreur",
+      "clean": "Aucune erreur : {count} question peut être importée. | Aucune erreur : {count} questions peuvent être importées.",
+      "blocked": "Corrigez le fichier puis relancez la vérification : tant qu'il reste une erreur, rien ne peut être importé.",
+      "truncated": "Seules les {shown} premières erreurs sont affichées.",
+      "line": "Ligne",
+      "column": "Colonne",
+      "error": "Erreur"
+    },
+    "result": {
+      "created": "{count} question importée. | {count} questions importées."
+    },
     "errors": {
       "csv_invalid": "Le fichier contient des erreurs : rien n'a été importé.",
       "csv_empty": "Le fichier ne contient aucune question.",
@@ -8,10 +54,10 @@
       "csv_too_many_rows": "Le fichier contient trop de lignes ({max} au maximum).",
       "csv_too_many_columns": "La ligne a plus de colonnes que l'en-tête : mettez entre guillemets les textes qui contiennent le séparateur.",
       "csv_field_unterminated": "Un texte entre guillemets commence à la ligne {line} et n'est jamais refermé.",
-      "csv_content_type_unsupported": "Le fichier doit être envoyé au format CSV (text/csv).",
+      "csv_content_type_unsupported": "Le fichier doit être un fichier CSV (extension .csv).",
       "csv_theme_not_found": "Thème introuvable parmi ceux que vous pouvez utiliser.",
       "csv_theme_ambiguous": "Plusieurs thèmes portent ce nom : précisez-le.",
-      "csv_correct_invalid": "La colonne « correct » doit indiquer des numéros de réponses renseignées, de 1 à 4, séparés par « | ».",
+      "csv_correct_invalid": "La colonne « correct » doit indiquer des numéros de réponses renseignées, de 1 à 4, séparés par « {'|'} ».",
       "csv_audio_unsupported": "L'import ne gère pas l'audio : ajoutez l'extrait depuis la fiche de la question.",
       "csv_media_url_required": "Une image ou une vidéo demande une adresse dans « media_url ».",
       "csv_media_url_invalid": "L'adresse du média doit commencer par http:// ou https://.",
@@ -26,7 +72,12 @@
       "question_answers_min_required": "Une question demande au moins deux réponses.",
       "question_correct_answer_required": "Une bonne réponse au moins est obligatoire.",
       "question_true_false_answers_invalid": "Une question vrai / faux a deux réponses, « Vrai » et « Faux », dont une juste.",
-      "question_estimate_answers_invalid": "Une estimation a 3 ou 4 fourchettes commençant par un nombre, dont une juste."
+      "question_estimate_answers_invalid": "Une estimation a 3 ou 4 fourchettes commençant par un nombre, dont une juste.",
+      "file_too_large": "Le fichier est trop volumineux ({size} au maximum).",
+      "api_unreachable": "Le serveur est injoignable. Vérifiez votre connexion puis réessayez.",
+      "unauthorized": "Votre session a expiré : reconnectez-vous.",
+      "forbidden": "Vous n'avez pas le droit d'importer des questions ici.",
+      "server_error": "Le serveur a rencontré une erreur : rien n'a été importé. Réessayez dans quelques instants."
     }
   }
 }

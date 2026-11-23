@@ -143,6 +143,14 @@ vi.mock('@/services/questionsService', async () => {
   }
 })
 
+vi.mock('@/services/questionImportService', async () => {
+  const questionImportService = await import('./questionImportServiceMock')
+
+  return {
+    importQuestionsService: questionImportService.importQuestionsServiceMock,
+  }
+})
+
 vi.mock('@/services/questionMediaService', async () => {
   const questionMediaService = await import('./questionMediaServiceMock')
 

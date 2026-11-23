@@ -1,5 +1,51 @@
 {
   "questionImport": {
+    "title": "Import questions",
+    "subtitle": "Add several questions at once from a CSV file. Nothing is written until you confirm.",
+    "open": "Import a CSV",
+    "file": {
+      "title": "File",
+      "label": "CSV file",
+      "help": "UTF-8 CSV, separator « ; » or « , ». {rows} rows and {size} at most.",
+      "template": "Download the template"
+    },
+    "template": {
+      "theme": "General knowledge",
+      "qcmQuestion": "What is the capital of France?",
+      "trueFalseQuestion": "The Earth is flat.",
+      "estimateQuestion": "How tall is the Eiffel Tower, in meters?"
+    },
+    "scope": {
+      "label": "Import into",
+      "companyLabel": "Company",
+      "companyPlaceholder": "Choose a company",
+      "companyLoading": "Loading companies…",
+      "companyEmpty": "No company available.",
+      "companyLoadError": "Could not load the companies."
+    },
+    "actions": {
+      "check": "Check the file",
+      "checking": "Checking…",
+      "import": "Import {count} question | Import {count} questions",
+      "importing": "Importing…",
+      "another": "Import another file",
+      "list": "See the questions"
+    },
+    "report": {
+      "title": "Check result",
+      "rows": "{count} row read | {count} rows read",
+      "valid": "{count} valid",
+      "invalid": "{count} with errors",
+      "clean": "No error: {count} question can be imported. | No error: {count} questions can be imported.",
+      "blocked": "Fix the file, then check it again: as long as one error remains, nothing can be imported.",
+      "truncated": "Only the first {shown} errors are shown.",
+      "line": "Row",
+      "column": "Column",
+      "error": "Error"
+    },
+    "result": {
+      "created": "{count} question imported. | {count} questions imported."
+    },
     "errors": {
       "csv_invalid": "The file has errors: nothing was imported.",
       "csv_empty": "The file contains no question.",
@@ -8,10 +54,10 @@
       "csv_too_many_rows": "The file has too many rows (maximum {max}).",
       "csv_too_many_columns": "The row has more columns than the header: put texts that contain the separator between quotes.",
       "csv_field_unterminated": "A quoted text starts on line {line} and is never closed.",
-      "csv_content_type_unsupported": "The file must be sent as CSV (text/csv).",
+      "csv_content_type_unsupported": "The file must be a CSV file (.csv extension).",
       "csv_theme_not_found": "Theme not found among the ones you can use.",
       "csv_theme_ambiguous": "Several themes have this name: make it more precise.",
-      "csv_correct_invalid": "The « correct » column must list filled-in answer numbers, from 1 to 4, separated by « | ».",
+      "csv_correct_invalid": "The « correct » column must list filled-in answer numbers, from 1 to 4, separated by « {'|'} ».",
       "csv_audio_unsupported": "The import does not handle audio: add the excerpt from the question page.",
       "csv_media_url_required": "An image or a video needs an address in « media_url ».",
       "csv_media_url_invalid": "The media address must start with http:// or https://.",
@@ -26,7 +72,12 @@
       "question_answers_min_required": "A question needs at least two answers.",
       "question_correct_answer_required": "At least one correct answer is required.",
       "question_true_false_answers_invalid": "A true / false question has two answers, « Vrai » and « Faux », with one correct.",
-      "question_estimate_answers_invalid": "An estimate has 3 or 4 ranges starting with a number, with one correct."
+      "question_estimate_answers_invalid": "An estimate has 3 or 4 ranges starting with a number, with one correct.",
+      "file_too_large": "The file is too large ({size} at most).",
+      "api_unreachable": "The server cannot be reached. Check your connection and try again.",
+      "unauthorized": "Your session has expired: sign in again.",
+      "forbidden": "You are not allowed to import questions here.",
+      "server_error": "The server hit an error: nothing was imported. Try again in a moment."
     }
   }
 }
