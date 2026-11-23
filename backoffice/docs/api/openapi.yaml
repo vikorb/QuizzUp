@@ -1435,9 +1435,9 @@ paths:
 
         Parties de la compagnie, de la plus récente à la plus ancienne (date de la partie, puis identifiant décroissant pour départager les égalités), avec le nom de la salle, le nombre de joueurs nommés, la durée et le meilleur score. Les parties supprimées sont exclues.
 
-        Tous les filtres sont facultatifs et se cumulent. `from` et `to` filtrent la date de la partie, c'est-à-dire la date de démarrage, ou la date de création tant qu'elle n'a pas démarré ; l'intervalle est semi-ouvert : borne basse incluse, borne haute exclue. L'année 0000 est refusée. Il n'y a pas de plafond de période : la pagination borne la réponse. `total` est le nombre de parties qui passent les filtres, quelle que soit la page.
+        Tous les filtres sont facultatifs et se cumulent. `from` et `to` filtrent la date de la partie, c'est-à-dire le début prévu d'une session programmée (`scheduledAt`), sinon la date de démarrage, sinon la date de création ; l'intervalle est semi-ouvert : borne basse incluse, borne haute exclue. L'année 0000 est refusée. Il n'y a pas de plafond de période : la pagination borne la réponse. `total` est le nombre de parties qui passent les filtres, quelle que soit la page.
 
-        **À venir (lot 13)** : le filtre de dates portera sur `COALESCE(scheduled_at, started_at, created_at)` ; chaque ligne gagnera les champs de `GameSchedulingFields` (puis `source`, `backoffice` ou `api`, avec le lot 14).
+        Chaque ligne porte les champs de session programmée (`scheduledAt`, `scheduledEndAt`, `cancelledAt`, `playersCount`, `externalRef`, `locale`). Le champ `source` (`backoffice` ou `api`) arrive avec le lot 14.
 
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
       operationId: listCompanyGames
@@ -1524,7 +1524,7 @@ paths:
 
         Crée une partie en attente dans une salle active et libre, avec 1 à 4 participants (un par pupitre). Un email n'est accepté qu'avec `emailConsent: true` (consentement RGPD horodaté dans `consentAt`). Le consentement à recevoir les offres du centre (`marketingConsent`) est distinct : il n'est accepté qu'avec un email, et horodaté par le serveur (`marketingConsent` vaut alors `true` dans la réponse). Format par défaut : 10 manches × 10 questions. La graine de tirage (0 à 2³² − 1) est tirée par le serveur.
 
-        **À venir (lot 13)** : le corps gagnera les champs de `CreateGameSchedulingFields` (`scheduledAt`, `durationMinutes`, `playersCount`, `externalRef`, `locale`). Avec `scheduledAt`, la partie est créée à l'état `scheduled` (participants de 0 à 6, pas de contrôle `room_busy`) ; nouvelles erreurs : 400 `session_in_past` (fin ≤ maintenant), 400 `session_too_far` (au-delà de 365 jours), 409 `slot_taken` (chevauchement d'une autre session de la salle). Sans `scheduledAt`, rien ne change.
+        Le corps accepte aussi `scheduledAt`, `durationMinutes`, `playersCount`, `externalRef` et `locale` (voir `CreateGameRequest`). Avec `scheduledAt`, la partie est créée à l'état `scheduled` (participants de 0 à 6, pas de contrôle `room_busy`) ; erreurs propres : 400 `session_in_past` (fin ≤ maintenant), 400 `session_too_far` (début au-delà de 365 jours), 409 `slot_taken` (chevauchement d'une autre session de la salle). Sans `scheduledAt`, rien ne change.
 
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
       operationId: createCompanyGame
@@ -1618,15 +1618,15 @@ paths:
     patch:
       tags:
         - Games
-      summary: '[NON DISPONIBLE] Modifier une session programmée'
+      summary: '[DISPONIBLE] Modifier une session programmée'
       description: |
-        Statut : **Non disponible** (à venir, lot 13)
+        Statut : **Disponible**
 
-        Modifie une session à l'état `scheduled` : `roomId`, `scheduledAt`, `durationMinutes`, `roundsCount`, `questionsPerRound`, `miniGames`, `playersCount`, `externalRef`, `locale`, et `participants` (remplacement complet, dans une transaction). Seul le chevauchement d'une autre session de la salle est interdit.
+        Modifie une session à l'état `scheduled` : `roomId`, `scheduledAt`, `durationMinutes`, `roundsCount`, `questionsPerRound`, `miniGames`, `playersCount`, `externalRef`, `locale`, et `participants` (remplacement complet, dans une transaction). Seul le chevauchement d'une autre session de la salle est interdit. Les contrôles `session_in_past` et `session_too_far` ne s'appliquent que si le début ou la durée change.
 
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
       operationId: updateCompanyGame
-      x-availability: non_disponible
+      x-availability: disponible
       x-us: 'Lot 13 / sessions programmées'
       parameters:
         - $ref: '#/components/parameters/CompanyIdParam'
@@ -1677,15 +1677,15 @@ paths:
     post:
       tags:
         - Games
-      summary: '[NON DISPONIBLE] Annuler une session programmée'
+      summary: '[DISPONIBLE] Annuler une session programmée'
       description: |
-        Statut : **Non disponible** (à venir, lot 13)
+        Statut : **Disponible**
 
-        Passe une session `scheduled` à l'état `cancelled` (`cancelledAt` renseigné) et libère son créneau. Annuler n'est pas supprimer : `status` reste à `1`. Idempotent : refaire l'appel sur une session déjà annulée renvoie `200`.
+        Passe une session `scheduled` à l'état `cancelled` (`cancelledAt` renseigné) et libère son créneau. Annuler n'est pas supprimer : `status` reste à `1`. Les emails et les consentements des joueurs de la session sont effacés tout de suite (les noms sont gardés). Idempotent : refaire l'appel sur une session déjà annulée renvoie `200`.
 
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
       operationId: cancelCompanyGame
-      x-availability: non_disponible
+      x-availability: disponible
       x-us: 'Lot 13 / sessions programmées'
       parameters:
         - $ref: '#/components/parameters/CompanyIdParam'
@@ -1724,15 +1724,15 @@ paths:
     post:
       tags:
         - Games
-      summary: '[NON DISPONIBLE] Ouvrir une session programmée'
+      summary: '[DISPONIBLE] Ouvrir une session programmée'
       description: |
-        Statut : **Non disponible** (à venir, lot 13)
+        Statut : **Disponible**
 
         Passe une session `scheduled` à l'état `pending`, comme si l'opérateur l'avait lancée. Possible dès 60 minutes avant le début ; il n'y a pas de borne de fin : une session non lancée, même après son créneau, peut toujours être ouverte. Rien ne démarre seul : l'ouverture est toujours faite par une personne.
 
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
       operationId: openCompanyGame
-      x-availability: non_disponible
+      x-availability: disponible
       x-us: 'Lot 13 / sessions programmées'
       parameters:
         - $ref: '#/components/parameters/CompanyIdParam'
@@ -4544,86 +4544,22 @@ components:
             - $ref: '#/components/schemas/RoomSchedule'
           nullable: true
 
-    GameSchedulingFields:
-      type: object
-      description: >-
-        **À venir (lot 13).** Champs de session programmée que les lignes de partie
-        (`GameSummary`, `GameDetail`, `RoomGame`) gagneront. Les colonnes existent déjà en base
-        (`games.scheduled_at`, `scheduled_end_at`, `cancelled_at`, `players_count`, `external_ref`,
-        `locale`) ; aucune route ne les renvoie encore.
-      properties:
-        scheduledAt:
-          type: string
-          format: date-time
-          nullable: true
-          description: Début prévu (UTC), `null` pour une partie immédiate.
-        scheduledEndAt:
-          type: string
-          format: date-time
-          nullable: true
-          description: Fin prévue (UTC), strictement après `scheduledAt`.
-        cancelledAt:
-          type: string
-          format: date-time
-          nullable: true
-          description: Renseigné si et seulement si `state` vaut `cancelled`.
-        playersCount:
-          type: integer
-          minimum: 1
-          maximum: 12
-          nullable: true
-          description: Nombre de joueurs annoncé (6 pupitres × 2 joueurs au plus).
-        externalRef:
-          type: string
-          maxLength: 100
-          nullable: true
-          description: Référence du système de réservation du client.
-        locale:
-          type: string
-          enum: [fr, en]
-          nullable: true
-
-    CreateGameSchedulingFields:
-      type: object
-      description: >-
-        **À venir (lot 13).** Champs facultatifs ajoutés au corps de `POST /companies/{companyId}/games`.
-        Avec `scheduledAt`, la partie est créée à l'état `scheduled`, `participants` peut être vide
-        (0 à 6) et le contrôle `room_busy` ne s'applique pas. Sans `scheduledAt`, rien ne change.
-        Seul le chevauchement d'une autre session de la salle est interdit (`slot_taken`) : une
-        création manuelle peut sortir de la grille des créneaux.
-      properties:
-        scheduledAt:
-          type: string
-          format: date-time
-          description: Date ISO 8601 avec décalage, à la minute près (secondes à 0).
-          example: '2027-03-10T14:00:00+01:00'
-        durationMinutes:
-          type: integer
-          minimum: 10
-          maximum: 240
-          description: Par défaut le `slotMinutes` de la salle, sinon 60.
-        playersCount:
-          type: integer
-          minimum: 1
-          maximum: 12
-        externalRef:
-          type: string
-          maxLength: 100
-        locale:
-          type: string
-          enum: [fr, en]
-
     UpdateGameRequest:
       type: object
       description: >-
-        **À venir (lot 13).** Au moins un champ. Seule une session `scheduled` se modifie.
-        `participants` remplace la liste complète (même forme que `CreateGameRequest`).
+        Au moins un champ (`400 invalid_body` sinon) ; les champs absents sont gardés. Seule une
+        session `scheduled` se modifie. `participants` remplace la liste complète (même forme que
+        `CreateGameRequest`, de 0 à 6 participants). `playersCount`, `externalRef` et `locale`
+        acceptent `null` pour être effacés. `miniGames` : la liste complète est enregistrée comme
+        `null` (tous les mini-jeux). `scheduledAt` sans `durationMinutes` garde la durée de la
+        session, `durationMinutes` sans `scheduledAt` garde son début.
       properties:
         roomId:
           type: integer
         scheduledAt:
           type: string
           format: date-time
+          description: Date ISO 8601 avec décalage, à la minute près (secondes à 0).
         durationMinutes:
           type: integer
           minimum: 10
@@ -4644,12 +4580,15 @@ components:
           type: integer
           minimum: 1
           maximum: 12
+          nullable: true
         externalRef:
           type: string
           maxLength: 100
+          nullable: true
         locale:
           type: string
           enum: [fr, en]
+          nullable: true
         participants:
           type: array
           maxItems: 6
@@ -4787,6 +4726,36 @@ components:
           type: string
           format: date-time
           nullable: true
+        scheduledAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Début prévu (UTC), `null` pour une partie immédiate.
+        scheduledEndAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Fin prévue (UTC), strictement après `scheduledAt`.
+        cancelledAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Renseigné si et seulement si `state` vaut `cancelled`.
+        playersCount:
+          type: integer
+          minimum: 1
+          maximum: 12
+          nullable: true
+          description: Nombre de joueurs annoncé à la réservation (6 pupitres × 2 joueurs au plus).
+        externalRef:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: Référence du système de réservation du client.
+        locale:
+          type: string
+          enum: [fr, en]
+          nullable: true
         status:
           type: integer
           enum: [0, 1, 2]
@@ -4898,8 +4867,35 @@ components:
 
     CreateGameRequest:
       type: object
-      required: [roomId, participants]
+      required: [roomId]
+      description: >-
+        Sans `scheduledAt`, `participants` est requis (1 à 6). Avec `scheduledAt`, la partie est
+        créée à l'état `scheduled`, `participants` peut être vide (0 à 6) et le contrôle
+        `room_busy` ne s'applique pas. Seul le chevauchement d'une autre session de la salle est
+        interdit (`slot_taken`) : une création manuelle peut sortir de la grille des créneaux.
       properties:
+        scheduledAt:
+          type: string
+          format: date-time
+          description: Date ISO 8601 avec décalage, à la minute près (secondes à 0).
+          example: '2027-03-10T14:00:00+01:00'
+        durationMinutes:
+          type: integer
+          minimum: 10
+          maximum: 240
+          description: >-
+            Par défaut le `slotMinutes` de la salle, sinon 60. Refusé (`400 invalid_body`) sans
+            `scheduledAt`.
+        playersCount:
+          type: integer
+          minimum: 1
+          maximum: 12
+        externalRef:
+          type: string
+          maxLength: 100
+        locale:
+          type: string
+          enum: [fr, en]
         roomId:
           type: integer
         roundsCount:
@@ -4925,10 +4921,9 @@ components:
             vide donnent `400 invalid_body`.
         participants:
           type: array
-          minItems: 1
           maxItems: 6
           description: >-
-            Au plus autant de participants que la salle a de pupitres (`desksCount`, 4 par défaut,
+            Au moins un participant sans `scheduledAt`. Au plus autant de participants que la salle a de pupitres (`desksCount`, 4 par défaut,
             6 au maximum) ; un pupitre au-delà donne `400 podium_not_in_room`.
           items:
             type: object

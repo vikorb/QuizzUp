@@ -5,7 +5,7 @@ import {
   COMPANY_STATUS_DELETED,
   GAME_STATE_PENDING,
   GAME_STATE_RUNNING,
-  GAME_STATUS_ACTIVE,
+  GAME_STATE_SCHEDULED,
   GAME_STATUS_DELETED,
   getRoomDesksCount,
   ROOM_STATUS_ACTIVE,
@@ -15,23 +15,30 @@ import { canAccessCompanyContext } from '../security/companiesPolicy'
 import { API_ACTION, API_RESOURCE } from '../security/permissions'
 import { requireApiPermission } from '../security/requireApiPermission'
 import { getCurrentAdminId } from './_shared/adminContext'
-import { isUniqueViolation } from './_shared/dbErrors'
+import { isExclusionViolation, isUniqueViolation } from './_shared/dbErrors'
 import { findCompanyById } from './companies/_shared'
 import { findRoomInCompany } from './companies/rooms/_shared'
 import { createGameSchema, gamesListQuerySchema, gamesParamsSchema } from './games/_schemas'
 import {
   addGameListFields,
-  drawGameSeed,
+  addMinutes,
   findStaffGame,
   GAME_DATE_SQL,
   gameSelect,
+  getRoomSlotMinutes,
+  getSessionWindowError,
+  insertGameWithParticipants,
   toGameRow,
 } from './games/_shared'
 import gamesIdRoutes from './games/id'
+import gamesIdCancelRoutes from './games/idCancel'
+import gamesIdOpenRoutes from './games/idOpen'
 
 /** Parties d'une compagnie, lancées par l'opérateur depuis le backoffice (US-GAME-08). */
 const gamesRoutes: FastifyPluginAsync = async (app) => {
   app.register(gamesIdRoutes)
+  app.register(gamesIdOpenRoutes)
+  app.register(gamesIdCancelRoutes)
 
   app.get('/companies/:companyId/games', { preHandler: [app.authenticate] }, async (req, reply) => {
     const hasPermission = requireApiPermission(req, reply, API_RESOURCE.GAME, API_ACTION.LIST)
@@ -128,7 +135,17 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const { companyId } = parsedParams.data
-      const { roomId, roundsCount, questionsPerRound, participants, miniGames } = parsedBody.data
+      const {
+        roomId,
+        roundsCount,
+        questionsPerRound,
+        participants,
+        miniGames,
+        scheduledAt,
+        playersCount,
+        externalRef,
+        locale,
+      } = parsedBody.data
 
       if (!canAccessCompanyContext(req, companyId)) {
         return reply.code(403).send({ error: 'forbidden' })
@@ -166,65 +183,64 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(400).send({ error: 'podium_not_in_room', desksCount })
       }
 
-      const busyGame = await db('games')
-        .where('room_id', roomId)
-        .whereIn('state', [GAME_STATE_PENDING, GAME_STATE_RUNNING])
-        .whereNot('status', GAME_STATUS_DELETED)
-        .first('id')
+      let schedule: { startsAt: Date; endsAt: Date } | undefined
 
-      if (busyGame) {
-        return reply.code(409).send({ error: 'room_busy' })
+      if (scheduledAt) {
+        const startsAt = new Date(scheduledAt)
+        const durationMinutes =
+          parsedBody.data.durationMinutes ?? (await getRoomSlotMinutes(roomId))
+        const endsAt = addMinutes(startsAt, durationMinutes)
+        const windowError = getSessionWindowError(startsAt, endsAt)
+
+        if (windowError) {
+          return reply.code(400).send({ error: windowError })
+        }
+
+        schedule = { startsAt, endsAt }
+      } else {
+        // Une session programmée ne prend pas la salle tout de suite : seul `open` contrôle `room_busy`.
+        const busyGame = await db('games')
+          .where('room_id', roomId)
+          .whereIn('state', [GAME_STATE_PENDING, GAME_STATE_RUNNING])
+          .whereNot('status', GAME_STATUS_DELETED)
+          .first('id')
+
+        if (busyGame) {
+          return reply.code(409).send({ error: 'room_busy' })
+        }
       }
 
       let gameId: number
 
       try {
-        // La partie et ses participants sont créés ensemble : rien en base si l'un échoue.
-        gameId = await db.transaction(async (trx) => {
-          const inserted = await trx('games')
-            .insert({
-              company_id: companyId,
-              room_id: roomId,
-              admin_id: getCurrentAdminId(req),
-              rounds_count: roundsCount,
-              questions_per_round: questionsPerRound,
-              mini_games: miniGames ? JSON.stringify(miniGames) : null,
-              seed: drawGameSeed(),
-              state: GAME_STATE_PENDING,
-              status: GAME_STATUS_ACTIVE,
-              deleted_at: null,
-            })
-            .returning(['id'])
-          const createdId = Number((Array.isArray(inserted) ? inserted[0] : inserted)?.id)
-
-          await trx('game_participants').insert(
-            participants.map((participant) => {
-              const email = participant.email ?? null
-              const second = participant.secondPlayer ?? null
-              const secondEmail = second?.email ?? null
-
-              return {
-                game_id: createdId,
-                podium: participant.podium,
-                display_name: participant.displayName,
-                email,
-                consent_at: email ? db.fn.now() : null,
-                marketing_consent_at: email && participant.marketingConsent ? db.fn.now() : null,
-                second_display_name: second?.displayName ?? null,
-                second_email: secondEmail,
-                second_consent_at: secondEmail ? db.fn.now() : null,
-                second_marketing_consent_at:
-                  secondEmail && second?.marketingConsent ? db.fn.now() : null,
-              }
-            })
+        gameId = await db.transaction((trx) =>
+          insertGameWithParticipants(
+            trx,
+            {
+              companyId,
+              roomId,
+              adminId: getCurrentAdminId(req),
+              roundsCount,
+              questionsPerRound,
+              miniGames,
+              state: schedule ? GAME_STATE_SCHEDULED : GAME_STATE_PENDING,
+              schedule,
+              playersCount,
+              externalRef,
+              locale,
+            },
+            participants
           )
-
-          return createdId
-        })
+        )
       } catch (error) {
         // Deux lancements simultanés dans la même salle : l'index unique tranche.
         if (isUniqueViolation(error)) {
           return reply.code(409).send({ error: 'room_busy' })
+        }
+
+        // Deux sessions simultanées sur le même créneau : la contrainte d'exclusion tranche.
+        if (isExclusionViolation(error)) {
+          return reply.code(409).send({ error: 'slot_taken' })
         }
 
         throw error
