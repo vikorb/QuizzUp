@@ -6,12 +6,13 @@ import type { Readable } from 'node:stream'
 import { QUESTION_AUDIO_DEFAULT_MAX_BYTES } from '@quizzup/shared'
 
 /**
- * Stockage des fichiers média (extraits audio des questions).
+ * Stockage des fichiers média (extraits audio des questions, logos des compagnies).
  *
  * V1 : disque du serveur (`MEDIA_STORAGE_DIR`, volume Docker). L'interface est volontairement
  * minimale pour pouvoir brancher plus tard un stockage objet compatible S3 sans toucher aux
- * routes. Les fichiers ne sont jamais servis directement : l'API vérifie les droits puis
- * renvoie le flux (cf. `GET /questions/:questionId/media`).
+ * routes. Les fichiers ne sont jamais servis directement : l'API renvoie le flux, après avoir
+ * vérifié les droits (`GET /questions/:questionId/media`) ou, pour un logo, après avoir retrouvé
+ * la compagnie qui l'utilise (`GET /public/v1/logos/:file`).
  */
 export interface MediaStorage {
   save(key: string, content: Buffer): Promise<void>
@@ -19,9 +20,11 @@ export interface MediaStorage {
   remove(key: string): Promise<void>
 }
 
-// Clé : `questions/<id>/<uuid>.<ext>`. Rien d'autre n'est accepté (pas de `..`, pas de `/`
-// initial) pour qu'une clé ne puisse jamais sortir du dossier de stockage.
-const MEDIA_KEY_PATTERN = /^questions\/\d+\/[0-9a-f-]{36}\.(mp3|ogg)$/
+// Clé : `questions/<id>/<uuid>.<ext>` (audio) ou `logos/<uuid>.<ext>` (logo d'une compagnie).
+// Rien d'autre n'est accepté (pas de `..`, pas de `/` initial) pour qu'une clé ne puisse jamais
+// sortir du dossier de stockage.
+const MEDIA_KEY_PATTERN =
+  /^(questions\/\d+\/[0-9a-f-]{36}\.(mp3|ogg)|logos\/[0-9a-f-]{36}\.(png|jpg|webp))$/
 
 export function isValidMediaKey(key: unknown): key is string {
   return typeof key === 'string' && MEDIA_KEY_PATTERN.test(key)
@@ -29,6 +32,10 @@ export function isValidMediaKey(key: unknown): key is string {
 
 export function buildQuestionMediaKey(questionId: number, extension: string): string {
   return `questions/${questionId}/${randomUUID()}.${extension}`
+}
+
+export function buildCompanyLogoKey(extension: string): string {
+  return `logos/${randomUUID()}.${extension}`
 }
 
 export function createDiskMediaStorage(rootDir: string): MediaStorage {

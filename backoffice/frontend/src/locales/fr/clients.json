@@ -126,6 +126,27 @@
             "pendingInactiveHelp": "Le statut passera en inactif après avoir cliqué sur Enregistrer."
           }
         },
+        "logo": {
+          "label": "Logo du centre",
+          "alt": "Logo de {name}",
+          "empty": "Aucun logo",
+          "previewUnavailable": "Aperçu indisponible",
+          "choose": "Choisir un logo",
+          "replace": "Remplacer le logo",
+          "uploading": "Envoi en cours...",
+          "remove": "Retirer le logo",
+          "removing": "Retrait en cours...",
+          "help": "PNG, JPEG ou WebP, {max} Ko au plus. Le logo est enregistré dès l’envoi.",
+          "errors": {
+            "logo_type_invalid": "Ce fichier n’est pas une image PNG, JPEG ou WebP.",
+            "logo_too_large": "Ce fichier est trop lourd : {max} Ko au plus.",
+            "forbidden": "Vous n’avez pas les droits nécessaires.",
+            "not_found": "Compagnie introuvable.",
+            "unauthorized": "Votre session a expiré : reconnectez-vous.",
+            "api_unreachable": "API injoignable.",
+            "server_error": "Une erreur serveur est survenue. Réessayez dans quelques instants."
+          }
+        },
         "success": {
           "updated": "La compagnie a bien été mise à jour."
         },

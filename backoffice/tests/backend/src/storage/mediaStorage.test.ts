@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { QUESTION_AUDIO_DEFAULT_MAX_BYTES } from '@quizzup/shared'
 import {
+  buildCompanyLogoKey,
   buildQuestionMediaKey,
   createDiskMediaStorage,
   getMediaMaxBytes,
@@ -48,6 +49,19 @@ describe('storage/mediaStorage — keys', () => {
     expect(isValidMediaKey('questions/1/../../x.mp3')).toBe(false)
     expect(isValidMediaKey('questions/1/00000000-0000-0000-0000-000000000000.exe')).toBe(false)
     expect(isValidMediaKey(null)).toBe(false)
+  })
+
+  it('accepts a company logo key and nothing that could leave its folder', () => {
+    const key = buildCompanyLogoKey('png')
+
+    expect(key).toMatch(/^logos\/[0-9a-f-]{36}\.png$/)
+    expect(isValidMediaKey(key)).toBe(true)
+    expect(isValidMediaKey('logos/00000000-0000-0000-0000-000000000000.jpg')).toBe(true)
+    expect(isValidMediaKey('logos/00000000-0000-0000-0000-000000000000.webp')).toBe(true)
+    expect(isValidMediaKey('logos/00000000-0000-0000-0000-000000000000.svg')).toBe(false)
+    expect(isValidMediaKey('logos/../x/00000000-0000-0000-0000-000000000000.png')).toBe(false)
+    expect(isValidMediaKey('logos/a/00000000-0000-0000-0000-000000000000.png')).toBe(false)
+    expect(isValidMediaKey('/logos/00000000-0000-0000-0000-000000000000.png')).toBe(false)
   })
 })
 

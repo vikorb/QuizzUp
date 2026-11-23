@@ -13,7 +13,11 @@ export type CompanyRow = {
   updatedAt: string | null
   deletedAt: string | null
   accountsCount: number
+  logoUrl: string | null
 }
+
+/** Compagnie telle que lue en base : `logoKey` (clé de stockage) ne sort jamais de l'API. */
+export type CompanyDbRow = Omit<CompanyRow, 'logoUrl'> & { logoKey?: string | null }
 
 export type CompanyCreateBody = {
   name: string
