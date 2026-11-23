@@ -92,10 +92,10 @@ export async function listGamesService(
     }
   }
 
-  const search = params.toString()
+  const queryString = params.toString()
 
   return requestGameJson<GamesResponse>({
-    path: `/companies/${companyId}/games${search ? `?${search}` : ''}`,
+    path: `/companies/${companyId}/games${queryString ? `?${queryString}` : ''}`,
   })
 }
 

@@ -1,6 +1,6 @@
 <template>
   <main class="already-open">
-    <div class="already-open__card neon neon--no-hover" role="alert">
+    <div class="already-open__card" role="alert">
       <MdIcon :path="mdiMonitorMultiple" :size="56" />
       <h1 class="already-open__title">{{ $t('room.alreadyOpen.title') }}</h1>
       <p class="already-open__text">{{ $t('room.alreadyOpen.text') }}</p>
@@ -28,7 +28,7 @@ import MdIcon from '@/components/ui/MdIcon.vue'
   gap: 12px;
   max-width: 640px;
   padding: 36px 40px;
-  border-radius: 22px;
+  border-radius: var(--radius-card);
   border: 1px solid var(--warn);
   background: var(--bg-elevated);
   color: var(--warn);

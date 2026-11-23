@@ -110,4 +110,24 @@ onBeforeUnmount(() => document.removeEventListener('fullscreenchange', sync))
   justify-content: flex-end;
   gap: 10px;
 }
+
+/* Les boutons gardent leur cible tactile : ils ne rétrécissent pas quand la barre est étroite. */
+.topbar__actions :deep(.ui-btn) {
+  flex: none;
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+}
+
+/* Sous 1024 px, rien ne tient sur une ligne : le centre passe sous la marque et les actions. */
+@media (max-width: 1023px) {
+  .topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .topbar__center {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    flex-wrap: wrap;
+  }
+}
 </style>

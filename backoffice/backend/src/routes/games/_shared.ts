@@ -6,6 +6,7 @@ import {
   ADMIN_ROLE_ADMIN,
   ADMIN_ROLE_SUPERADMIN,
   GAME_SEED_MAX,
+  GAME_STATE_FINISHED,
   GAME_STATUS_DELETED,
   MINI_GAMES,
   type MiniGame,
@@ -32,15 +33,23 @@ export const gameSelect = [
   'games.updated_at as updatedAt',
 ]
 
+/**
+ * Date d'une partie pour les filtres `from` et `to` : le lot des sessions programmées ajoutera
+ * `games.scheduled_at` en tête du COALESCE (arbitrage 9).
+ */
+export const GAME_DATE_SQL = 'COALESCE(games.started_at, games.created_at)'
+
 export const participantSelect = [
   'id',
   'podium',
   'display_name as displayName',
   'email',
   'consent_at as consentAt',
+  'marketing_consent_at as marketingConsentAt',
   'second_display_name as secondDisplayName',
   'second_email as secondEmail',
   'second_consent_at as secondConsentAt',
+  'second_marketing_consent_at as secondMarketingConsentAt',
   'score',
 ]
 
@@ -50,9 +59,11 @@ type ParticipantDbRow = {
   displayName: string
   email: string | null
   consentAt: string | null
+  marketingConsentAt?: string | null
   secondDisplayName: string | null
   secondEmail: string | null
   secondConsentAt: string | null
+  secondMarketingConsentAt?: string | null
   score: number | string
 }
 
@@ -124,6 +135,51 @@ export function toGameRow(row: Record<string, unknown>): GameRow {
   }
 }
 
+type ParticipantStatsRow = {
+  game_id: number | string
+  second_display_name: string | null
+  score: number | string
+}
+
+function secondsBetween(start: unknown, end: unknown): number | null {
+  const seconds = (new Date(end as string).getTime() - new Date(start as string).getTime()) / 1000
+
+  return Number.isFinite(seconds) ? Math.max(0, Math.round(seconds)) : null
+}
+
+/**
+ * Champs calculés de la liste des parties : joueurs nommés, durée et meilleur score. Durée et
+ * meilleur score n'existent que pour une partie terminée (un score n'est enregistré qu'à la fin).
+ */
+export async function addGameListFields(games: GameRow[]): Promise<GameRow[]> {
+  if (games.length === 0) {
+    return games
+  }
+
+  const participants = (await db('game_participants')
+    .whereIn(
+      'game_id',
+      games.map((game) => game.id)
+    )
+    .select(['game_id', 'second_display_name', 'score'])) as ParticipantStatsRow[]
+
+  return games.map((game) => {
+    const own = participants.filter((participant) => Number(participant.game_id) === game.id)
+    const finished = game.state === GAME_STATE_FINISHED
+
+    return {
+      ...game,
+      participantsCount:
+        own.length + own.filter((participant) => participant.second_display_name).length,
+      durationSeconds:
+        finished && game.startedAt && game.finishedAt
+          ? secondsBetween(game.startedAt, game.finishedAt)
+          : null,
+      topScore: finished && own.length > 0 ? Math.max(...own.map((p) => Number(p.score))) : null,
+    }
+  })
+}
+
 export async function findGameParticipants(gameId: number): Promise<GameParticipantRow[]> {
   const participants = (await db('game_participants')
     .where('game_id', gameId)
@@ -137,12 +193,14 @@ export async function findGameParticipants(gameId: number): Promise<GameParticip
     email: participant.email ?? null,
     hasEmail: Boolean(participant.email),
     consentAt: participant.consentAt ?? null,
+    marketingConsent: Boolean(participant.marketingConsentAt),
     secondPlayer: participant.secondDisplayName
       ? {
           displayName: participant.secondDisplayName,
           email: participant.secondEmail ?? null,
           hasEmail: Boolean(participant.secondEmail),
           consentAt: participant.secondConsentAt ?? null,
+          marketingConsent: Boolean(participant.secondMarketingConsentAt),
         }
       : null,
     score: Number(participant.score),

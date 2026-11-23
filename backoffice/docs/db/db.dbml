@@ -236,9 +236,11 @@ Table game_participants {
   display_name varchar(100) [not null]
   email varchar(255) [note: 'RGPD : uniquement si consent_at est renseigné']
   consent_at timestamptz
+  marketing_consent_at timestamptz [note: 'Consentement aux offres du centre, distinct de consent_at ; uniquement si email est renseigné (CHECK). Effacé par la purge à 3 ans']
   second_display_name varchar(100) [note: '2e joueur facultatif du pupitre']
   second_email varchar(255) [note: 'RGPD : uniquement si second_consent_at est renseigné']
   second_consent_at timestamptz
+  second_marketing_consent_at timestamptz [note: 'Consentement du 2e joueur aux offres du centre ; uniquement si second_email est renseigné (CHECK). Effacé par la purge à 3 ans']
   score integer [not null, default: 0, note: 'score du pupitre (partagé par ses joueurs)']
 
   created_at timestamptz [not null, default: `now()`]

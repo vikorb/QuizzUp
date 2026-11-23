@@ -7,7 +7,7 @@ import {
   type GameState,
 } from '@quizzup/shared'
 
-import type { Game, GameStateFilter } from '@/types/game'
+import type { Game } from '@/types/game'
 
 export type GameStateTone = 'ok' | 'warn' | 'danger' | 'muted'
 
@@ -55,21 +55,10 @@ export function canShowGameResults(game: Pick<Game, 'state'> | null | undefined)
   return game?.state === GAME_STATE_FINISHED
 }
 
-export function filterGamesByState(games: Game[], state: GameStateFilter): Game[] {
-  if (!state) {
-    return games
-  }
-
-  return games.filter((game) => game.state === state)
-}
-
-export function countGamesByState(games: Game[], state: GameState): number {
-  return games.filter((game) => game.state === state).length
-}
-
 /**
  * Remplace une partie de la liste. Le détail renvoyé par l'API (arrêt) n'a pas de
- * `participantsCount` : on garde celui de la liste, ou on le déduit des participants.
+ * `participantsCount` : on garde celui de la liste (joueurs nommés, seconds joueurs compris),
+ * et on ne compte les pupitres du détail qu'à défaut.
  */
 export function updateGameInList(games: Game[], updatedGame: Game): Game[] {
   return games.map((game) =>
@@ -78,9 +67,9 @@ export function updateGameInList(games: Game[], updatedGame: Game): Game[] {
           ...game,
           ...updatedGame,
           participantsCount:
+            game.participantsCount ??
             updatedGame.participantsCount ??
-            updatedGame.participants?.length ??
-            game.participantsCount,
+            updatedGame.participants?.length,
         }
       : game
   )

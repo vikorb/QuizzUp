@@ -1,22 +1,15 @@
 <template>
-  <main class="setup stage-bg" :data-step="step">
-    <UiButton class="setup__quit" data-test="setup-quit" @click="onQuit">
-      <MdIcon :path="mdiClose" :size="18" />
-      {{ $t('setup.quit') }}
-    </UiButton>
-
+  <WizardStage
+    :step="stepNumber"
+    :total="STEPS.length"
+    :data-step="step"
+    quit-test="setup-quit"
+    @quit="onQuit"
+  >
     <Transition name="setup-step" mode="out-in">
       <section v-if="step === 'welcome'" key="welcome" class="setup__stage">
         <h1 class="setup__title">{{ $t('setup.welcome.title') }}</h1>
         <p class="setup__text">{{ $t('setup.welcome.text') }}</p>
-        <UiButton
-          variant="primary"
-          class="setup__big"
-          data-test="setup-start"
-          @click="go('layout')"
-        >
-          {{ $t('setup.welcome.start') }}
-        </UiButton>
       </section>
 
       <section v-else-if="step === 'layout'" key="layout" class="setup__stage">
@@ -65,19 +58,6 @@
             />
           </div>
         </div>
-        <div class="setup__actions">
-          <UiButton :aria-pressed="swapping" data-test="setup-swap" @click="swapping = !swapping">
-            {{ swapping ? $t('setup.layout.swapping') : $t('setup.layout.swap') }}
-          </UiButton>
-          <UiButton
-            variant="primary"
-            class="setup__big"
-            data-test="setup-layout-ok"
-            @click="go('desks')"
-          >
-            {{ $t('setup.ok') }}
-          </UiButton>
-        </div>
       </section>
 
       <section v-else-if="step === 'desks'" key="desks" class="setup__stage">
@@ -97,34 +77,9 @@
             {{ n }}
           </button>
         </div>
-        <div class="setup__actions">
-          <UiButton
-            variant="primary"
-            class="setup__big"
-            data-test="setup-desks-ok"
-            @click="startLearning"
-          >
-            {{ $t('setup.ok') }}
-          </UiButton>
-        </div>
       </section>
 
       <section v-else-if="step === 'learn' && state?.current" key="learn" class="setup__stage">
-        <div
-          class="progress"
-          role="progressbar"
-          aria-valuemin="0"
-          :aria-valuemax="state.totalSteps"
-          :aria-valuenow="state.stepIndex"
-          :aria-label="
-            $t('setup.learn.progress', { n: state.stepIndex + 1, total: state.totalSteps })
-          "
-        >
-          <div
-            class="progress__bar"
-            :style="{ width: `${(state.stepIndex / state.totalSteps) * 100}%` }"
-          />
-        </div>
         <p class="setup__small">
           {{ $t('setup.learn.progress', { n: state.stepIndex + 1, total: state.totalSteps }) }}
         </p>
@@ -169,18 +124,6 @@
           />
           {{ feedback.text }}
         </p>
-        <div class="setup__actions">
-          <UiButton
-            data-test="setup-back"
-            :disabled="state.stepIndex === 0"
-            @click="learning?.back()"
-          >
-            {{ $t('setup.learn.back') }}
-          </UiButton>
-          <UiButton data-test="setup-skip" @click="learning?.skip()">
-            {{ $t('setup.learn.skip') }}
-          </UiButton>
-        </div>
       </section>
 
       <section v-else key="done" class="setup__stage">
@@ -199,27 +142,110 @@
         <p v-if="saveError" class="feedback--error" role="alert" data-test="setup-save-error">
           {{ $t('setup.done.saveError') }}
         </p>
-        <div class="setup__actions">
-          <UiButton :disabled="saving" data-test="setup-lights" @click="onFinish('lights')">
-            {{ $t('setup.done.lights') }}
-          </UiButton>
-          <UiButton
-            variant="primary"
-            class="setup__big"
-            :disabled="saving"
-            data-test="setup-finish"
-            @click="onFinish()"
-          >
-            {{ $t('setup.done.finish') }}
-          </UiButton>
-        </div>
       </section>
     </Transition>
-  </main>
+
+    <template #back>
+      <UiButton
+        v-if="step === 'layout'"
+        size="lg"
+        data-test="setup-layout-back"
+        @click="go('welcome')"
+      >
+        {{ $t('setup.back') }}
+      </UiButton>
+      <UiButton
+        v-else-if="step === 'desks'"
+        size="lg"
+        data-test="setup-desks-back"
+        @click="go('layout')"
+      >
+        {{ $t('setup.back') }}
+      </UiButton>
+      <UiButton
+        v-else-if="step === 'learn'"
+        size="lg"
+        data-test="setup-back"
+        :disabled="state?.stepIndex === 0"
+        @click="learning?.back()"
+      >
+        {{ $t('setup.back') }}
+      </UiButton>
+    </template>
+
+    <template #secondary>
+      <UiButton
+        v-if="step === 'layout'"
+        size="lg"
+        :aria-pressed="swapping"
+        data-test="setup-swap"
+        @click="swapping = !swapping"
+      >
+        {{ swapping ? $t('setup.layout.swapping') : $t('setup.layout.swap') }}
+      </UiButton>
+      <UiButton
+        v-else-if="step === 'learn'"
+        size="lg"
+        data-test="setup-skip"
+        @click="learning?.skip()"
+      >
+        {{ $t('setup.learn.skip') }}
+      </UiButton>
+      <UiButton
+        v-else-if="step === 'done'"
+        size="lg"
+        :disabled="saving"
+        data-test="setup-lights"
+        @click="onFinish('lights')"
+      >
+        {{ $t('setup.done.lights') }}
+      </UiButton>
+    </template>
+
+    <template #primary>
+      <UiButton
+        v-if="step === 'welcome'"
+        variant="primary"
+        size="lg"
+        data-test="setup-start"
+        @click="go('layout')"
+      >
+        {{ $t('setup.welcome.start') }}
+      </UiButton>
+      <UiButton
+        v-else-if="step === 'layout'"
+        variant="primary"
+        size="lg"
+        data-test="setup-layout-ok"
+        @click="go('desks')"
+      >
+        {{ $t('setup.ok') }}
+      </UiButton>
+      <UiButton
+        v-else-if="step === 'desks'"
+        variant="primary"
+        size="lg"
+        data-test="setup-desks-ok"
+        @click="startLearning"
+      >
+        {{ $t('setup.ok') }}
+      </UiButton>
+      <UiButton
+        v-else-if="step === 'done'"
+        variant="primary"
+        size="lg"
+        :disabled="saving"
+        data-test="setup-finish"
+        @click="onFinish()"
+      >
+        {{ $t('setup.done.finish') }}
+      </UiButton>
+    </template>
+  </WizardStage>
 </template>
 
 <script setup lang="ts">
-import { mdiCheckCircle, mdiClose } from '@mdi/js'
+import { mdiCheckCircle } from '@mdi/js'
 import {
   buttonsByCorner,
   BUZZER_COLORS,
@@ -240,6 +266,7 @@ import { useRouter } from 'vue-router'
 
 import DeskBadge from '@/components/game/DeskBadge.vue'
 import BuzzerSquare from '@/components/hardware/BuzzerSquare.vue'
+import WizardStage from '@/components/setup/WizardStage.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { useConfirm } from '@/composables/useConfirm'
@@ -247,7 +274,8 @@ import { playUiSound } from '@/game/useRoomGame'
 import { formatKeyCode, getDeskKeys } from '@/hardware/buzzers'
 import { getBuzzerInput, saveRoomSetup, useRoomHardware } from '@/hardware/roomHardware'
 
-type Step = 'welcome' | 'layout' | 'desks' | 'learn' | 'done'
+const STEPS = ['welcome', 'layout', 'desks', 'learn', 'done'] as const
+type Step = (typeof STEPS)[number]
 
 const { t } = useI18n()
 const router = useRouter()
@@ -270,6 +298,7 @@ let confirming = false
 let offLearning: (() => void) | null = null
 let offKeys: (() => void) | null = null
 
+const stepNumber = computed(() => STEPS.indexOf(step.value) + 1)
 const byCorner = computed(() => buttonsByCorner(draft.value))
 const desks = computed(() => desksForCount(desksCount.value))
 
@@ -366,7 +395,8 @@ function startLearning(): void {
 }
 
 async function onQuit(): Promise<void> {
-  if (confirming) {
+  // Pas de sortie pendant l'enregistrement : la navigation de fin de parcours est déjà en route.
+  if (confirming || saving.value) {
     return
   }
   confirming = true
@@ -404,26 +434,12 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.setup {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 64px 24px 24px;
-  text-align: center;
-  color: var(--text-0);
-}
-
-.setup__quit {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-}
-
 .setup__stage {
   display: grid;
   justify-items: center;
   gap: clamp(10px, 2.4vh, 28px);
   width: min(960px, 100%);
+  margin: 0 auto;
 }
 
 .setup__title {
@@ -449,19 +465,6 @@ onBeforeUnmount(() => {
   color: var(--text-2);
   font-size: var(--stage-small);
   font-weight: 700;
-}
-
-.setup__actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 16px;
-}
-
-.setup__big {
-  padding: 18px 44px;
-  font-size: var(--stage-text);
-  font-weight: 800;
 }
 
 .layout {
@@ -504,8 +507,8 @@ onBeforeUnmount(() => {
 }
 
 .palette__swatch {
-  width: clamp(44px, 7vh, 60px);
-  height: clamp(44px, 7vh, 60px);
+  width: clamp(48px, 7vh, 60px);
+  height: clamp(48px, 7vh, 60px);
   border-radius: 50%;
   border: 4px solid transparent;
   cursor: pointer;
@@ -527,7 +530,7 @@ onBeforeUnmount(() => {
 .count__btn {
   width: clamp(64px, 11vh, 110px);
   aspect-ratio: 1;
-  border-radius: 24px;
+  border-radius: var(--radius-card);
   border: 3px solid var(--border-ui);
   background: var(--bg-card-hi);
   color: var(--text-0);
@@ -542,20 +545,6 @@ onBeforeUnmount(() => {
   background: var(--accent-blue);
   color: var(--bg-0);
   transform: scale(1.08);
-}
-
-.progress {
-  width: min(560px, 100%);
-  height: 12px;
-  border-radius: 6px;
-  background: var(--border-ui);
-  overflow: hidden;
-}
-
-.progress__bar {
-  height: 100%;
-  background: var(--accent-blue);
-  transition: width 300ms ease;
 }
 
 .pulse :deep(.square__cell--on) {

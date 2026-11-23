@@ -72,6 +72,16 @@ describe('LobbyView', () => {
     wrapper.unmount()
   })
 
+  it('n’a qu’un bouton principal : « Démarrer la partie », en grand format', async () => {
+    const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+
+    const primaries = wrapper.findAll('.ui-btn--primary')
+    expect(primaries.map((button) => button.attributes('data-test'))).toEqual(['start-demo'])
+    expect(primaries[0]!.classes()).toContain('ui-btn--lg')
+    expect(primaries[0]!.text()).toContain('Démarrer la partie')
+    wrapper.unmount()
+  })
+
   it('fait briller le pupitre dont un buzzer est pressé', async () => {
     const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
 

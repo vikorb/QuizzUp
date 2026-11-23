@@ -23,7 +23,7 @@ import { GAME_STATE_PENDING, ROOM_STATUS_ACTIVE, ROOM_STATUS_INACTIVE } from '@q
 import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { GameRoom } from '@/types/game'
+import type { Game, GameRoom } from '@/types/game'
 import AgendaView from '@/views/AgendaView.vue'
 
 vi.mock('@/services/gamesService', async () => {
@@ -57,8 +57,12 @@ function serveRooms(rooms: GameRoom[]): void {
   listGameRoomsServiceMock.mockResolvedValue({ ok: true, status: 200, data: { rooms } })
 }
 
-function serveGames(games: Extract<GamesResult, { ok: true }>['data']): void {
-  listGamesServiceMock.mockResolvedValue({ ok: true, status: 200, data: games })
+function serveGames({ games }: { games: Game[] }): void {
+  listGamesServiceMock.mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { games, total: games.length },
+  })
 }
 
 function deferred<T>() {
@@ -251,7 +255,7 @@ describe('views/AgendaView.vue', () => {
       expect(wrapper.get('[data-test="base-card-loading"]').text()).toBe('agenda.loading')
       expect(wrapper.find('[data-test="agenda-list"]').exists()).toBe(false)
 
-      pending.resolve({ ok: true, status: 200, data: { games: [] } })
+      pending.resolve({ ok: true, status: 200, data: { games: [], total: 0 } })
       await flushPromises()
 
       expect(wrapper.get('[data-test="base-card"]').attributes('data-loading')).toBe('false')
@@ -456,13 +460,19 @@ describe('views/AgendaView.vue', () => {
       second.resolve({
         ok: true,
         status: 200,
-        data: { games: [createScheduledGameFixture('2026-11-26T10:00:00.000Z', { id: 26 })] },
+        data: {
+          games: [createScheduledGameFixture('2026-11-26T10:00:00.000Z', { id: 26 })],
+          total: 1,
+        },
       })
       await flushPromises()
       first.resolve({
         ok: true,
         status: 200,
-        data: { games: [createScheduledGameFixture('2026-11-25T10:00:00.000Z', { id: 25 })] },
+        data: {
+          games: [createScheduledGameFixture('2026-11-25T10:00:00.000Z', { id: 25 })],
+          total: 1,
+        },
       })
       await flushPromises()
 

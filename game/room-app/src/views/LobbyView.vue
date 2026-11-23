@@ -53,8 +53,9 @@
           </p>
           <UiButton
             variant="primary"
-            class="lobby__start-btn"
+            size="lg"
             :disabled="starting"
+            data-test="start-demo"
             @click="onStart"
           >
             <MdIcon :path="mdiPlay" :size="24" />
@@ -256,7 +257,7 @@ async function onStart(): Promise<void> {
   gap: 8px;
   margin: 0;
   padding: 12px 16px;
-  border-radius: 14px;
+  border-radius: var(--radius-card);
   border: 1px solid var(--border-ui);
   background: var(--surface-0);
 }
@@ -271,12 +272,16 @@ async function onStart(): Promise<void> {
 .format__option {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+  min-height: var(--tap-min);
   color: var(--text-1);
   cursor: pointer;
 }
 
 .format__option input {
+  flex: none;
+  width: 24px;
+  height: 24px;
   accent-color: var(--accent-purple);
 }
 
@@ -289,11 +294,5 @@ async function onStart(): Promise<void> {
 .lobby__error {
   margin: 0;
   color: var(--danger);
-}
-
-.lobby__start-btn {
-  padding: 18px 36px;
-  border-radius: 18px;
-  font-size: 20px;
 }
 </style>

@@ -43,6 +43,8 @@ async function click(wrapper: Wrapper, name: string) {
   await flushPromises()
 }
 
+const stepOf = (wrapper: Wrapper) => wrapper.find('[data-step]').attributes('data-step')
+
 const RIG_SIZE = createSixDeskRoomRig().fixtures.length
 
 const SMOKE_ROOM = {
@@ -114,6 +116,29 @@ describe('lumières plein écran : interface', () => {
     await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('launch'))
     // « Plus tard » n'enregistre rien.
     expect(getRoomHardwareConfig().lighting).toEqual(before)
+  })
+
+  it('Retour de l’équipement ramène à la recherche d’interface', async () => {
+    const { wrapper } = await toEquip()
+    expect(stepOf(wrapper)).toBe('equip')
+    await click(wrapper, 'lights-equip-back')
+    expect(stepOf(wrapper)).toBe('scan')
+  })
+
+  it('Retour est inactif tant qu’un choix d’équipement est en cours', async () => {
+    await seedLighting(SMOKE_ROOM)
+    const { wrapper } = await toEquip()
+    expect(sel(wrapper, 'lights-equip-back').attributes('disabled')).toBeUndefined()
+
+    // Les lumières existent : le remplacement demande confirmation, Retour attend la réponse.
+    void sel(wrapper, 'lights-six-desk').trigger('click')
+    await vi.waitFor(() => expect(useConfirm().state.open).toBe(true))
+    expect(sel(wrapper, 'lights-equip-back').attributes('disabled')).toBeDefined()
+
+    useConfirm().cancel()
+    await flushPromises()
+    expect(stepOf(wrapper)).toBe('equip')
+    expect(sel(wrapper, 'lights-equip-back').attributes('disabled')).toBeUndefined()
   })
 
   it('quitter après une recherche USB referme la connexion ouverte', async () => {
@@ -258,5 +283,80 @@ describe('lumières plein écran : fumée', () => {
     expect(sel(wrapper, 'lights-done').exists()).toBe(true)
     await click(wrapper, 'lights-finish')
     expect(getRoomHardwareConfig().lighting.smoke.enabled).toBe(false)
+  })
+})
+
+const barTests = (wrapper: Wrapper) =>
+  wrapper.findAll('[data-test="wizard-bar"] button').map((button) => button.attributes('data-test'))
+const primaryTests = (wrapper: Wrapper) =>
+  wrapper.findAll('.ui-btn--primary').map((button) => button.attributes('data-test'))
+
+describe('lumières plein écran : squelette, bouton principal et accessibilité', () => {
+  it('chaque étape a un seul principal à droite, tous les boutons de la barre de même taille', async () => {
+    await seedLighting(SMOKE_ROOM)
+    const { wrapper } = await mountLights()
+
+    const check = (bar: string[], primaries: string[]) => {
+      expect(barTests(wrapper)).toEqual(bar)
+      expect(primaryTests(wrapper)).toEqual(primaries)
+      for (const button of wrapper.findAll('[data-test="wizard-bar"] button')) {
+        expect(button.classes()).toContain('ui-btn--lg')
+      }
+    }
+
+    check(['lights-scan-next'], ['lights-scan-next'])
+    await click(wrapper, 'lights-scan-next')
+    // Équipement : le choix se fait sur les cartes, la barre ne garde que Retour.
+    check(['lights-equip-back'], [])
+    await click(wrapper, 'lights-keep')
+    check(['lights-no', 'lights-yes'], ['lights-yes'])
+    await click(wrapper, 'lights-no')
+    check(['lights-skip', 'lights-retry'], ['lights-retry'])
+    await click(wrapper, 'lights-retry')
+    await click(wrapper, 'lights-yes')
+    check(['lights-smoke-link', 'lights-smoke-next'], ['lights-smoke-next'])
+    await click(wrapper, 'lights-smoke-next')
+    check(['lights-finish'], ['lights-finish'])
+  })
+
+  it('les cartes de choix de l’équipement ont un nom accessible non vide', async () => {
+    await seedLighting(SMOKE_ROOM)
+    const { wrapper } = await toEquip()
+
+    const cards = wrapper.findAll('.choice')
+    expect(cards.map((card) => card.attributes('data-test'))).toEqual([
+      'lights-six-desk',
+      'lights-keep',
+      'lights-later',
+    ])
+    for (const card of cards) {
+      const ids = (card.attributes('aria-labelledby') ?? '').split(' ').filter(Boolean)
+      expect(ids.length).toBeGreaterThan(0)
+      const name = ids
+        .map((id) => document.getElementById(id)?.textContent?.trim() ?? '')
+        .join(' ')
+        .trim()
+      expect(name).not.toBe('')
+      expect(card.attributes('aria-describedby')).toBeTruthy()
+    }
+  })
+
+  it('les messages d’état sont du texte avec role="status", jamais un bouton', async () => {
+    // Rien trouvé.
+    const empty = await mountLights()
+    const none = sel(empty.wrapper, 'lights-none')
+    expect(none.element.tagName).toBe('LI')
+    expect(none.attributes('role')).toBe('status')
+    expect(none.find('button').exists()).toBe(false)
+    empty.wrapper.unmount()
+
+    // Interface USB trouvée.
+    installFakeSerial(createFakeUsbPort())
+    const { wrapper } = await mountLights()
+    await click(wrapper, 'lights-usb')
+    const found = sel(wrapper, 'lights-found-usb')
+    expect(found.element.tagName).toBe('LI')
+    expect(found.attributes('role')).toBe('status')
+    expect(found.find('button').exists()).toBe(false)
   })
 })

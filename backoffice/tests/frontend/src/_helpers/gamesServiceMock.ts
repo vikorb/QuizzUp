@@ -23,7 +23,7 @@ type ServiceErrorResult = {
 }
 
 type GamesResult =
-  { ok: true; status: number; data: { games: Game[]; total?: number } } | ServiceErrorResult
+  { ok: true; status: number; data: { games: Game[]; total: number } } | ServiceErrorResult
 type GameResult = { ok: true; status: number; data: { game: Game } } | ServiceErrorResult
 type RoomsResult = { ok: true; status: number; data: { rooms: GameRoom[] } } | ServiceErrorResult
 
@@ -37,6 +37,7 @@ export function createParticipantFixture(
     email: null,
     hasEmail: false,
     consentAt: null,
+    marketingConsent: false,
     secondPlayer: null,
     score: 0,
     ...overrides,
@@ -76,7 +77,10 @@ export const gamesFixture: Game[] = [
   createGameFixture({
     id: 2,
     state: GAME_STATE_FINISHED,
+    startedAt: '2026-11-02T21:17:53.000Z',
     finishedAt: '2026-11-02T22:00:00.000Z',
+    durationSeconds: 2527,
+    topScore: 30,
   }),
   createGameFixture({ id: 1, state: GAME_STATE_ABORTED }),
 ]
@@ -116,7 +120,7 @@ export const listGamesServiceMock = vi.fn(
   async (_companyId: number, _query?: GamesQuery): Promise<GamesResult> => ({
     ok: true,
     status: 200,
-    data: { games: gamesFixture },
+    data: { games: gamesFixture, total: gamesFixture.length },
   })
 )
 
@@ -206,7 +210,11 @@ export function resetGamesServiceMock(): void {
   cancelGameServiceMock.mockReset()
   listGameRoomsServiceMock.mockReset()
 
-  listGamesServiceMock.mockResolvedValue({ ok: true, status: 200, data: { games: gamesFixture } })
+  listGamesServiceMock.mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { games: gamesFixture, total: gamesFixture.length },
+  })
   loadGameServiceMock.mockImplementation(async (_companyId, gameId) => ({
     ok: true,
     status: 200,

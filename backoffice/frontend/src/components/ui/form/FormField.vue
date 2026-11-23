@@ -51,7 +51,7 @@ const props = withDefaults(
     name?: string
     id?: string
     placeholder?: string
-    type?: 'text' | 'email' | 'password'
+    type?: 'text' | 'email' | 'password' | 'date'
     autocomplete?: string
     inputmode?: 'text' | 'email' | 'numeric' | 'search' | 'tel' | 'url' | 'none'
     required?: boolean

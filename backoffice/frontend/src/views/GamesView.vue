@@ -1,9 +1,11 @@
 <template>
   <SectionLayout :title="$t('games.title')" :subtitle="$t('games.subtitle')">
-    <StatBar :stats="stats" />
-
     <GamesToolbar
       v-model:state-filter="stateFilter"
+      v-model:room-filter="roomFilter"
+      v-model:from="fromDay"
+      v-model:to="toDay"
+      :room-options="roomOptions"
       :company-id="companyId ? String(companyId) : ''"
       :company-options="companyOptions"
       :show-company="showCompanySelector"
@@ -22,7 +24,7 @@
 
     <GamesTable
       :company-id="companyId ?? 0"
-      :games="filteredGames"
+      :games="games"
       :loading="loading"
       :error="error"
       :live-rooms="liveRooms"
@@ -33,39 +35,42 @@
       @aborted="handleGameAborted"
       @error="handleActionError"
     />
+
+    <BasePagination
+      :offset="offset"
+      :total="total"
+      :limit="GAME_LIST_DEFAULT_LIMIT"
+      :disabled="loading"
+      @update:offset="offset = $event"
+    />
   </SectionLayout>
 </template>
 
 <script setup lang="ts">
-import { GAME_STATE_FINISHED, GAME_STATE_PENDING, GAME_STATE_RUNNING } from '@quizzup/shared'
+import { GAME_LIST_DEFAULT_LIMIT } from '@quizzup/shared'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
 import SectionLayout from '@/components/SectionLayout.vue'
 import BaseBanner from '@/components/ui/BaseBanner.vue'
+import BasePagination from '@/components/ui/BasePagination.vue'
 import LiveConnectionNote from '@/components/ui/LiveConnectionNote.vue'
-import StatBar, { type Stat } from '@/components/ui/StatBar.vue'
 import { useLiveCompany } from '@/composables/useLiveCompany'
 import { getCreateGameRoute, getGameDetailRoute, getGamesRoute } from '@/router/games'
 import { loadCompaniesService } from '@/services/companiesService'
-import { listGamesService } from '@/services/gamesService'
+import { listGameRoomsService, listGamesService } from '@/services/gamesService'
 import { authState } from '@/state/authState'
 import type { ActionBanner } from '@/types/banner'
 import type { Company } from '@/types/company'
 import type { SelectFieldOption } from '@/types/form'
-import type { Game, GameStateFilter } from '@/types/game'
+import type { Game, GameRoom, GamesQuery, GameStateFilter } from '@/types/game'
 import { createErrorBanner, createSuccessBanner, getBannerVariant } from '@/utils/banner'
 import { isSuperadminRole } from '@/utils/company/details/permissions'
 import { GAME_BANNER_ABORTED, GAME_BANNER_CREATED, getGameBannerMessage } from '@/utils/game/banner'
 import { parseGameId, resolveGameCompanyId } from '@/utils/game/company'
-import { getGameRoomName } from '@/utils/game/format'
-import {
-  countGamesByState,
-  filterGamesByState,
-  isGameState,
-  updateGameInList,
-} from '@/utils/game/state'
+import { getGameRoomName, getLocalDayBounds } from '@/utils/game/format'
+import { isGameState, updateGameInList } from '@/utils/game/state'
 
 import GamesTable from './games/GamesTable.vue'
 import GamesToolbar from './games/GamesToolbar.vue'
@@ -75,11 +80,18 @@ const route = useRoute()
 const router = useRouter()
 
 const games = ref<Game[]>([])
+const total = ref(0)
+const offset = ref(0)
+const rooms = ref<GameRoom[]>([])
 const companies = ref<Company[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
 const actionBanner = ref<ActionBanner | null>(null)
 const stateFilterValue = ref<GameStateFilter>('')
+const roomFilter = ref('')
+// Jours du calendrier local (`<input type="date">`), convertis en instants pour l'API.
+const fromDay = ref('')
+const toDay = ref('')
 const selectedCompanyId = ref<number | null>(null)
 
 const isSuperAdmin = computed(() => isSuperadminRole(authState.me.value?.role))
@@ -104,8 +116,6 @@ const stateFilter = computed<string>({
   },
 })
 
-const filteredGames = computed(() => filterGamesByState(games.value, stateFilterValue.value))
-
 const companyOptions = computed<SelectFieldOption[]>(() =>
   companies.value.map((company) => ({
     label: company.name || `#${company.id}`,
@@ -115,31 +125,9 @@ const companyOptions = computed<SelectFieldOption[]>(() =>
 
 const showCompanySelector = computed(() => isSuperAdmin.value && companyOptions.value.length > 0)
 
-const ratioOf = (part: number, total: number): number => (total > 0 ? (part / total) * 100 : 0)
-
-const stats = computed<Stat[]>(() => {
-  const total = games.value.length
-  const pending = countGamesByState(games.value, GAME_STATE_PENDING)
-  const running = countGamesByState(games.value, GAME_STATE_RUNNING)
-  const finished = countGamesByState(games.value, GAME_STATE_FINISHED)
-
-  return [
-    { label: t('games.stats.total'), value: total },
-    {
-      label: t('games.stats.pending'),
-      value: pending,
-      tone: 'warn',
-      ratio: ratioOf(pending, total),
-    },
-    { label: t('games.stats.running'), value: running, tone: 'ok', ratio: ratioOf(running, total) },
-    {
-      label: t('games.stats.finished'),
-      value: finished,
-      tone: 'accent',
-      ratio: ratioOf(finished, total),
-    },
-  ]
-})
+const roomOptions = computed<SelectFieldOption[]>(() =>
+  rooms.value.map((room) => ({ label: room.name, value: String(room.id) }))
+)
 
 const actionBannerVariant = computed(() => getBannerVariant(actionBanner.value))
 const actionBannerMessage = computed(() => getGameBannerMessage(actionBanner.value, t))
@@ -163,31 +151,73 @@ async function loadCompanies(): Promise<void> {
   companies.value = result.ok ? result.companies : []
 }
 
+// Même garde que `loadPage` : les salles d'une compagnie quittée ne remplacent pas celles de la courante.
+let lastRoomsRequest = 0
+
+async function loadRooms(): Promise<void> {
+  const request = (lastRoomsRequest += 1)
+  const result = companyId.value === null ? null : await listGameRoomsService(companyId.value)
+
+  if (request !== lastRoomsRequest) {
+    return
+  }
+
+  rooms.value = result?.ok ? result.data.rooms : []
+}
+
+function buildQuery(): GamesQuery {
+  return {
+    state: stateFilterValue.value || undefined,
+    roomId: parseGameId(roomFilter.value) ?? undefined,
+    from: getLocalDayBounds(fromDay.value, 'start') ?? undefined,
+    to: getLocalDayBounds(toDay.value, 'end') ?? undefined,
+    limit: GAME_LIST_DEFAULT_LIMIT,
+    offset: offset.value,
+  }
+}
+
+// Une réponse plus ancienne que la dernière demande (filtre changé entre-temps) est ignorée.
+let lastRequest = 0
+
 async function loadPage(): Promise<void> {
   if (companyId.value === null) {
     games.value = []
+    total.value = 0
     error.value = 'invalid_params'
     return
   }
+
+  const request = (lastRequest += 1)
 
   loading.value = true
   error.value = null
 
   try {
-    const result = await listGamesService(companyId.value)
+    const result = await listGamesService(companyId.value, buildQuery())
+
+    if (request !== lastRequest) {
+      return
+    }
 
     if (!result.ok) {
       error.value = result.error
       games.value = []
+      total.value = 0
       return
     }
 
     games.value = result.data.games
+    total.value = result.data.total
   } catch {
-    error.value = 'server_error'
-    games.value = []
+    if (request === lastRequest) {
+      error.value = 'server_error'
+      games.value = []
+      total.value = 0
+    }
   } finally {
-    loading.value = false
+    if (request === lastRequest) {
+      loading.value = false
+    }
   }
 }
 
@@ -216,6 +246,7 @@ function handleCompanyChange(value: string): void {
   }
 
   clearActionBanner()
+  roomFilter.value = ''
   selectedCompanyId.value = nextCompanyId
   void router.replace(getGamesRoute({ companyId: nextCompanyId }))
 }
@@ -229,7 +260,12 @@ function goToDetail(gameId: number): void {
 }
 
 function handleGameAborted(abortedGame: Game): void {
-  games.value = updateGameInList(games.value, abortedGame)
+  // Avec un filtre d'état, la partie arrêtée n'a plus sa place dans la vue et `total` change : on recharge.
+  if (stateFilterValue.value) {
+    void loadPage()
+  } else {
+    games.value = updateGameInList(games.value, abortedGame)
+  }
 
   actionBanner.value = createSuccessBanner(GAME_BANNER_ABORTED, {
     room: getGameRoomName(abortedGame),
@@ -240,12 +276,27 @@ function handleActionError(errorCode: string): void {
   actionBanner.value = createErrorBanner(errorCode)
 }
 
-watch(selectedCompanyId, () => {
+// Un filtre change : retour à la première page. Si on y est déjà, c'est le filtre qui recharge ;
+// sinon le retour à la page 0 déclenche le rechargement (watcher de `offset`).
+watch([selectedCompanyId, stateFilterValue, roomFilter, fromDay, toDay], () => {
+  if (offset.value === 0) {
+    void loadPage()
+  } else {
+    offset.value = 0
+  }
+})
+
+watch(offset, () => {
   void loadPage()
+})
+
+watch(selectedCompanyId, () => {
+  void loadRooms()
 })
 
 onMounted(async () => {
   void loadCompanies()
+  void loadRooms()
   await loadPage()
   showCreatedBanner()
 })
