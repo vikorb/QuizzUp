@@ -65,6 +65,8 @@
   --print-rule: #b9b6cf;
 
   --radius: 13px;
+  --radius-sm: 4px; /* anneau de focus, petits éléments */
+  --on-primary: #fff; /* texte sur fond primaire (bouton principal) */
   --side-w: 232px; /* menu latéral complet */
   --rail-w: 78px; /* menu en rail d'icônes (tablette portrait) */
   --tr: all 0.16s cubic-bezier(0.4, 0, 0.2, 1);

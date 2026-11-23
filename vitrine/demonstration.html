@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="%SITE_LANG%">
+  <head>
+    <!-- @include head -->
+    <title>Demander une démonstration | %SITE_NAME%</title>
+    <meta
+      name="description"
+      content="Demandez une démonstration de %SITE_NAME% : indiquez votre centre, le nombre de salles et votre matériel, nous vous répondons par e-mail."
+    />
+    <meta property="og:title" content="Demander une démonstration | %SITE_NAME%" />
+    <meta
+      property="og:description"
+      content="Indiquez votre centre, le nombre de salles et votre matériel, nous vous répondons par e-mail."
+    />
+    <meta property="og:url" content="%SITE_URL%/demonstration.html" />
+    <meta property="og:image" content="%SITE_URL%/captures/question-1280.jpg" />
+  </head>
+  <body>
+    <!-- @include header current=/demonstration.html -->
+
+    <main id="contenu" class="wrap demo">
+      <div class="demo__intro">
+        <h1>Demander une démonstration</h1>
+        <p>
+          Dites-nous qui vous êtes, combien de salles vous gérez et quel matériel vous utilisez :
+          pupitres, buzzers, lumières, fumée. Nous vous répondons par e-mail.
+        </p>
+        <p class="meta">
+          Les informations saisies servent uniquement à répondre à votre demande. Détails dans la
+          <a href="/confidentialite.html">politique de confidentialité</a>.
+        </p>
+        <p class="fallback">
+          Vous préférez écrire directement ?
+          <a href="mailto:%SITE_CONTACT_EMAIL%?subject=Demande%20de%20d%C3%A9monstration"
+            >%SITE_CONTACT_EMAIL%</a
+          >
+        </p>
+      </div>
+
+      <form
+        class="form"
+        id="demo-form"
+        action="mailto:%SITE_CONTACT_EMAIL%"
+        method="post"
+        enctype="text/plain"
+        data-api-url="%SITE_API_URL%"
+        data-contact="%SITE_CONTACT_EMAIL%"
+      >
+        <noscript>
+          <p class="fallback">
+            JavaScript est désactivé : en validant ce formulaire, votre messagerie s’ouvrira avec
+            votre demande, à envoyer à %SITE_CONTACT_EMAIL%.
+          </p>
+        </noscript>
+
+        <div class="field">
+          <label for="f-name">Nom et prénom</label>
+          <input
+            id="f-name"
+            name="name"
+            type="text"
+            autocomplete="name"
+            maxlength="120"
+            required
+            aria-describedby="f-name-error"
+          />
+          <p class="field__error" id="f-name-error"></p>
+        </div>
+
+        <div class="field">
+          <label for="f-company">Centre</label>
+          <input
+            id="f-company"
+            name="company"
+            type="text"
+            autocomplete="organization"
+            maxlength="120"
+            required
+            aria-describedby="f-company-error"
+          />
+          <p class="field__error" id="f-company-error"></p>
+        </div>
+
+        <div class="field">
+          <label for="f-email">Adresse e-mail</label>
+          <input
+            id="f-email"
+            name="email"
+            type="email"
+            autocomplete="email"
+            maxlength="254"
+            required
+            aria-describedby="f-email-error"
+          />
+          <p class="field__error" id="f-email-error"></p>
+        </div>
+
+        <div class="field">
+          <label for="f-phone">Téléphone <span class="field__hint">(facultatif)</span></label>
+          <input
+            id="f-phone"
+            name="phone"
+            type="tel"
+            autocomplete="tel"
+            maxlength="20"
+            aria-describedby="f-phone-error"
+          />
+          <p class="field__error" id="f-phone-error"></p>
+        </div>
+
+        <div class="field">
+          <label for="f-rooms">Nombre de salles</label>
+          <input
+            id="f-rooms"
+            name="rooms"
+            type="number"
+            inputmode="numeric"
+            min="1"
+            max="99"
+            required
+            aria-describedby="f-rooms-error"
+          />
+          <p class="field__error" id="f-rooms-error"></p>
+        </div>
+
+        <div class="field">
+          <label for="f-message">Message</label>
+          <textarea
+            id="f-message"
+            name="message"
+            maxlength="2000"
+            required
+            aria-describedby="f-message-hint f-message-error"
+          ></textarea>
+          <p class="field__hint" id="f-message-hint">
+            Votre matériel, vos questions, la date qui vous arrangerait.
+          </p>
+          <p class="field__error" id="f-message-error"></p>
+        </div>
+
+        <div class="field field--consent">
+          <label for="f-consent">
+            <input
+              id="f-consent"
+              name="consent"
+              type="checkbox"
+              required
+              aria-describedby="f-consent-error"
+            />
+            <span>
+              J’accepte que ces informations soient utilisées pour répondre à ma demande, comme
+              l’explique la <a href="/confidentialite.html">politique de confidentialité</a>.
+            </span>
+          </label>
+          <p class="field__error" id="f-consent-error"></p>
+        </div>
+
+        <div class="trap" aria-hidden="true">
+          <label for="f-trap">Ne pas remplir ce champ</label>
+          <input
+            id="f-trap"
+            name="trap"
+            type="text"
+            tabindex="-1"
+            autocomplete="off"
+            data-lpignore="true"
+            data-1p-ignore
+            data-form-type="other"
+          />
+        </div>
+
+        <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
+
+        <div class="form-actions">
+          <button class="btn btn--primary" type="submit" id="form-submit">
+            Envoyer la demande
+          </button>
+        </div>
+      </form>
+    </main>
+
+    <!-- @include footer -->
+    <script type="module" src="/src/demo.ts"></script>
+  </body>
+</html>
