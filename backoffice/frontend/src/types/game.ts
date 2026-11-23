@@ -7,6 +7,8 @@ export type GameSecondPlayer = {
   email: string | null
   hasEmail: boolean
   consentAt: string | null
+  /** Accepte de recevoir les offres du centre (jamais vrai sans email). */
+  marketingConsent: boolean
 }
 
 export type GameParticipant = {
@@ -17,6 +19,8 @@ export type GameParticipant = {
   email: string | null
   hasEmail: boolean
   consentAt: string | null
+  /** Accepte de recevoir les offres du centre (jamais vrai sans email). */
+  marketingConsent: boolean
   secondPlayer: GameSecondPlayer | null
   /** Score du pupitre, partagé par ses joueurs. */
   score: number
@@ -42,7 +46,12 @@ export type Game = {
   status: GameStatus
   createdAt: string
   updatedAt: string | null
+  /** Joueurs nommés ; liste des parties seulement. */
   participantsCount?: number
+  /** Durée d'une partie terminée, `null` sinon ; liste des parties seulement. */
+  durationSeconds?: number | null
+  /** Meilleur score d'une partie terminée, `null` sinon ; liste des parties seulement. */
+  topScore?: number | null
   participants?: GameParticipant[]
 }
 
@@ -63,6 +72,8 @@ export type CreateGameSecondPlayerPayload = {
   displayName: string
   email?: string
   emailConsent?: boolean
+  /** Offres du centre, distinct de `emailConsent` ; exige un email. */
+  marketingConsent?: boolean
 }
 
 export type CreateGameParticipantPayload = {
@@ -70,6 +81,7 @@ export type CreateGameParticipantPayload = {
   displayName: string
   email?: string
   emailConsent?: boolean
+  marketingConsent?: boolean
   /** Envoyé seulement quand le bloc du 2e joueur est ouvert. */
   secondPlayer?: CreateGameSecondPlayerPayload
 }
@@ -90,11 +102,14 @@ export type GameParticipantFormValues = {
   displayName: string
   email: string
   emailConsent: boolean
+  /** Case « offres du centre », jamais pré-cochée, inactive sans email. */
+  marketingConsent: boolean
   /** Bloc « 2e joueur » ouvert sur ce pupitre. */
   hasSecondPlayer: boolean
   secondDisplayName: string
   secondEmail: string
   secondEmailConsent: boolean
+  secondMarketingConsent: boolean
 }
 
 /** Champs saisissables d'un pupitre (joueur 1 et 2e joueur). */
@@ -103,9 +118,11 @@ export type GameParticipantField =
   | 'displayName'
   | 'email'
   | 'emailConsent'
+  | 'marketingConsent'
   | 'secondDisplayName'
   | 'secondEmail'
   | 'secondEmailConsent'
+  | 'secondMarketingConsent'
 
 export type GameFormValues = {
   roomId: string
@@ -152,6 +169,7 @@ export type GameApiErrorCode =
   | 'company_inactive'
   | 'game_already_over'
   | 'email_consent_required'
+  | 'marketing_consent_requires_email'
   | 'conflict'
   | 'session_in_past'
   | 'session_too_far'
@@ -176,6 +194,18 @@ export type GameApiResult<T> = GameApiSuccess<T> | GameApiFailure
 
 export type GamesResponse = {
   games: Game[]
+  /** Parties qui passent les filtres, toutes pages confondues. */
+  total: number
+}
+
+/** Filtres et page de `GET /companies/:companyId/games` ; `from` et `to` sont des instants ISO. */
+export type GamesQuery = {
+  state?: GameState
+  roomId?: number
+  from?: string
+  to?: string
+  limit?: number
+  offset?: number
 }
 
 export type GameResponse = {

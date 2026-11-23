@@ -3,6 +3,8 @@ import './routes/_helpers/registerDbMock'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { GAME_STATES } from '@quizzup/shared'
+
 import { buildApp } from '../../../backend/src/app'
 
 // Garde-fou des mises à jour de @fastify/swagger-ui / @fastify/static : la documentation
@@ -35,6 +37,21 @@ describe('app.ts (buildApp, documentation /docs)', () => {
 
     expect(response.statusCode).toBe(200)
     expect(response.json()).toHaveProperty('paths')
+  })
+
+  it('documents exactly the game states accepted by the games list filter', async () => {
+    const response = await app.inject({ method: 'GET', url: '/docs/json' })
+    const spec = response.json() as {
+      paths: Record<
+        string,
+        { get?: { parameters?: Array<{ name?: string; schema?: { enum?: string[] } }> } }
+      >
+    }
+    const state = spec.paths['/companies/{companyId}/games']?.get?.parameters?.find(
+      (parameter) => parameter.name === 'state'
+    )
+
+    expect(state?.schema?.enum).toEqual([...GAME_STATES])
   })
 
   it('serves the static swagger-ui assets', async () => {

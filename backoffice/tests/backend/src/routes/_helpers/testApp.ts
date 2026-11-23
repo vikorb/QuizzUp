@@ -1,6 +1,8 @@
 import fastify, { type FastifyReply, type FastifyRequest } from 'fastify'
 import { expect, vi } from 'vitest'
 
+import { createConsoleNetwork } from '../../../../../backend/src/security/consoleNetwork'
+
 export type TestUser = {
   sub: string
   id?: number
@@ -59,6 +61,9 @@ export async function createRouteApp(plugin: unknown) {
     lookupToken: vi.fn(),
     options: {},
   } as never)
+
+  // Comme le plugin d'authentification : la variable est lue à la création de l'application.
+  app.decorate('consoleNetwork', createConsoleNetwork(process.env.CONSOLE_ALLOWED_CIDRS))
 
   app.decorate('authenticate', async (req: FastifyRequest, reply: FastifyReply) => {
     const rawUser = req.headers['x-test-user']

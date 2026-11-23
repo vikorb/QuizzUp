@@ -115,7 +115,9 @@ jobs:
             tests/backend/src/jobs/purgePlayerEmails.pg.test.ts \
             tests/backend/src/db/retypeLegacyQuestions.pg.test.ts \
             tests/backend/src/db/bigintIds.pg.test.ts \
-            tests/backend/src/db/gameSchedule.pg.test.ts
+            tests/backend/src/db/marketingConsent.pg.test.ts \
+            tests/backend/src/db/gameSchedule.pg.test.ts \
+            tests/backend/src/routes/games/gamesList.pg.test.ts
 
   game-engine:
     name: Moteur de jeu (lint, type-check, tests)

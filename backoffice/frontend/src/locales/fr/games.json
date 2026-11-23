@@ -2,12 +2,6 @@
   "games": {
     "title": "Parties",
     "subtitle": "Lancement et suivi des parties dans les salles",
-    "stats": {
-      "total": "Parties",
-      "pending": "En attente",
-      "running": "En cours",
-      "finished": "Terminées"
-    },
     "state": {
       "scheduled": "Programmée",
       "pending": "En attente",
@@ -21,7 +15,11 @@
       "title": "Filtres",
       "company": "Compagnie",
       "state": "État",
-      "allStates": "Tous les états"
+      "allStates": "Tous les états",
+      "room": "Salle",
+      "allRooms": "Toutes les salles",
+      "from": "Du",
+      "to": "Au"
     },
     "table": {
       "title": "Liste des parties",
@@ -30,10 +28,12 @@
       "empty": "Aucune partie trouvée",
       "retry": "Réessayer",
       "columns": {
-        "room": "Salle",
-        "state": "État",
-        "participants": "Participants",
         "date": "Date",
+        "room": "Salle",
+        "participants": "Joueurs",
+        "duration": "Durée",
+        "topScore": "Meilleur score",
+        "state": "État",
         "actions": "Actions"
       }
     },
@@ -94,8 +94,11 @@
       "email": "Email",
       "emailPlaceholder": "Ex : joueur{'@'}exemple.fr (facultatif)",
       "emailHint": "Facultatif.",
-      "consent": "J'accepte que mon adresse email soit utilisée pour recevoir les résultats de la partie et des offres du centre.",
+      "consent": "J'accepte que le centre conserve mon adresse email pour m'envoyer les résultats de la partie.",
       "consentHint": "Obligatoire si un email est saisi. Le joueur peut retirer son consentement à tout moment.",
+      "marketingConsent": "J'accepte aussi de recevoir les offres du centre à cette adresse.",
+      "marketingConsentHint": "Facultatif, et indépendant de la conservation de l'email.",
+      "marketingConsentNeedsEmail": "Disponible une fois un email saisi.",
       "addParticipant": "Ajouter un participant",
       "removeParticipant": "Retirer le participant {index}",
       "cancel": "Annuler",
@@ -186,6 +189,7 @@
       "sessionNotOpenYet": "Cette session ne peut être ouverte que dans l'heure qui précède son début.",
       "slotTaken": "Ce créneau chevauche une autre session de cette salle.",
       "emailConsentRequired": "Un email ne peut être enregistré qu'avec le consentement explicite du joueur.",
+      "marketingConsentRequiresEmail": "Les offres ne peuvent être envoyées qu'à une adresse email : saisissez un email ou décochez la case des offres.",
       "conflict": "Conflit avec l'état actuel des données. Rechargez la page.",
       "serverError": "Erreur serveur. Réessayez dans quelques instants."
     }

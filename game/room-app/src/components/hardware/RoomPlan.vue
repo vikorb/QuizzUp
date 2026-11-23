@@ -302,11 +302,13 @@ onBeforeUnmount(commit)
   display: inline-flex;
   justify-self: start;
   border: 1px solid var(--border-ui);
-  border-radius: 10px;
+  border-radius: var(--radius-ctl);
   overflow: hidden;
 }
 
 .plan-views__btn {
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
   padding: 6px 14px;
   font: inherit;
   font-size: 13px;
@@ -318,7 +320,7 @@ onBeforeUnmount(commit)
 }
 
 .plan-views__btn[aria-pressed='true'] {
-  border-radius: 9px;
+  border-radius: var(--radius-ctl);
   color: var(--text-0);
   background: linear-gradient(135deg, var(--glow-blue), var(--glow-pink)), var(--bg-card-hi);
   box-shadow: 0 0 12px var(--glow-soft);
@@ -337,14 +339,14 @@ onBeforeUnmount(commit)
 
 .plan-stage {
   width: 100%;
-  border-radius: 18px;
+  border-radius: var(--radius-card);
 }
 
 .plan {
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   border: 1px solid var(--border-ui);
   background:
     linear-gradient(var(--border-ui) 1px, transparent 1px) 0 0 / 10% 10%,
@@ -413,6 +415,10 @@ onBeforeUnmount(commit)
   position: absolute;
   display: grid;
   justify-items: center;
+  /* Zone de clic d'au moins 48 px pour tout élément ; le contenu reste centré dans la zone. */
+  align-content: center;
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
   gap: 4px;
   transform: translate(-50%, -50%);
   cursor: grab;
@@ -428,7 +434,7 @@ onBeforeUnmount(commit)
 .item:focus-visible {
   outline: 3px solid var(--text-0);
   outline-offset: 4px;
-  border-radius: 8px;
+  border-radius: var(--radius-ctl);
   z-index: 2;
 }
 
@@ -445,7 +451,7 @@ onBeforeUnmount(commit)
 .item--screen {
   min-width: 28%;
   padding: 10px 0 6px;
-  border-radius: 10px;
+  border-radius: var(--radius-ctl);
   border: 2px solid var(--accent-blue);
   background: var(--bg-card-hi);
 }

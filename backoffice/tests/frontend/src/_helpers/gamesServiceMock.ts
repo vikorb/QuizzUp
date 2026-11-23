@@ -9,7 +9,7 @@ import {
 } from '@quizzup/shared'
 import { vi } from 'vitest'
 
-import type { Game, GameParticipant, GameRoom } from '@/types/game'
+import type { Game, GameParticipant, GameRoom, GamesQuery } from '@/types/game'
 
 type ServiceErrorResult = {
   ok: false
@@ -17,7 +17,8 @@ type ServiceErrorResult = {
   error: string
 }
 
-type GamesResult = { ok: true; status: number; data: { games: Game[] } } | ServiceErrorResult
+type GamesResult =
+  { ok: true; status: number; data: { games: Game[]; total: number } } | ServiceErrorResult
 type GameResult = { ok: true; status: number; data: { game: Game } } | ServiceErrorResult
 type RoomsResult = { ok: true; status: number; data: { rooms: GameRoom[] } } | ServiceErrorResult
 
@@ -31,6 +32,7 @@ export function createParticipantFixture(
     email: null,
     hasEmail: false,
     consentAt: null,
+    marketingConsent: false,
     secondPlayer: null,
     score: 0,
     ...overrides,
@@ -70,7 +72,10 @@ export const gamesFixture: Game[] = [
   createGameFixture({
     id: 2,
     state: GAME_STATE_FINISHED,
+    startedAt: '2026-11-02T21:17:53.000Z',
     finishedAt: '2026-11-02T22:00:00.000Z',
+    durationSeconds: 2527,
+    topScore: 30,
   }),
   createGameFixture({ id: 1, state: GAME_STATE_ABORTED }),
 ]
@@ -81,11 +86,13 @@ export const roomsFixture: GameRoom[] = [
   { id: 12, name: 'Salle fermée', status: ROOM_STATUS_INACTIVE },
 ]
 
-export const listGamesServiceMock = vi.fn(async (_companyId: number): Promise<GamesResult> => ({
-  ok: true,
-  status: 200,
-  data: { games: gamesFixture },
-}))
+export const listGamesServiceMock = vi.fn(
+  async (_companyId: number, _query?: GamesQuery): Promise<GamesResult> => ({
+    ok: true,
+    status: 200,
+    data: { games: gamesFixture, total: gamesFixture.length },
+  })
+)
 
 export const loadGameServiceMock = vi.fn(
   async (_companyId: number, gameId: number): Promise<GameResult> => ({
@@ -151,7 +158,11 @@ export function resetGamesServiceMock(): void {
   abortGameServiceMock.mockReset()
   listGameRoomsServiceMock.mockReset()
 
-  listGamesServiceMock.mockResolvedValue({ ok: true, status: 200, data: { games: gamesFixture } })
+  listGamesServiceMock.mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { games: gamesFixture, total: gamesFixture.length },
+  })
   loadGameServiceMock.mockImplementation(async (_companyId, gameId) => ({
     ok: true,
     status: 200,

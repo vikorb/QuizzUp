@@ -37,12 +37,20 @@
         <StatusPill :tone="getGameStateTone(value)" :label="$t(getGameStateLabelKey(value))" />
       </template>
 
-      <template #cell-participantsCount="{ value }">
-        <span class="participants-count">{{ formatGameParticipantsCount(value) }}</span>
+      <template #cell-date="{ value }">
+        <span class="game-date">{{ formatGameDate(toDateValue(value), locale) }}</span>
       </template>
 
-      <template #cell-createdAt="{ value }">
-        <span class="game-date">{{ formatGameDate(toDateValue(value), locale) }}</span>
+      <template #cell-participantsCount="{ value }">
+        <span class="game-number">{{ formatGameParticipantsCount(value) }}</span>
+      </template>
+
+      <template #cell-durationSeconds="{ value }">
+        <span class="game-number">{{ formatGameDuration(toNumberValue(value)) }}</span>
+      </template>
+
+      <template #cell-topScore="{ value }">
+        <span class="game-number">{{ formatGameTopScore(toNumberValue(value)) }}</span>
       </template>
 
       <template #cell-actions="{ item }">
@@ -70,7 +78,14 @@ import RoomPresenceBadge from '@/components/ui/RoomPresenceBadge.vue'
 import StatusPill from '@/components/ui/StatusPill.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import type { Game, GameTableRow } from '@/types/game'
-import { formatGameDate, formatGameParticipantsCount, getGameRoomName } from '@/utils/game/format'
+import {
+  formatGameDate,
+  formatGameDuration,
+  formatGameParticipantsCount,
+  formatGameTopScore,
+  getGameDate,
+  getGameRoomName,
+} from '@/utils/game/format'
 import { getGameStateLabelKey, getGameStateTone, isGamePendingOrRunning } from '@/utils/game/state'
 
 import GameTableActions from './table/GameTableActions.vue'
@@ -96,21 +111,25 @@ const emit = defineEmits<{
 const { t, locale } = useI18n()
 
 const columns = computed<BaseTableColumn[]>(() => [
+  { key: 'date', label: t('games.table.columns.date') },
   { key: 'roomName', label: t('games.table.columns.room') },
+  { key: 'participantsCount', label: t('games.table.columns.participants'), align: 'right' },
+  { key: 'durationSeconds', label: t('games.table.columns.duration'), align: 'right' },
+  { key: 'topScore', label: t('games.table.columns.topScore'), align: 'right' },
   { key: 'state', label: t('games.table.columns.state') },
-  {
-    key: 'participantsCount',
-    label: t('games.table.columns.participants'),
-    align: 'center',
-  },
-  { key: 'createdAt', label: t('games.table.columns.date') },
   { key: 'actions', label: t('games.table.columns.actions'), align: 'right' },
 ])
 
-const tableItems = computed<GameTableRow[]>(() => props.games.map((game) => ({ ...game })))
+const tableItems = computed<GameTableRow[]>(() =>
+  props.games.map((game) => ({ ...game, date: getGameDate(game) }))
+)
 
 function toGame(item: Record<string, unknown>): GameTableRow {
   return item as GameTableRow
+}
+
+function toNumberValue(value: unknown): number | null {
+  return typeof value === 'number' ? value : null
 }
 
 function toDateValue(value: unknown): string | null {
@@ -144,12 +163,9 @@ function toDateValue(value: unknown): string | null {
   text-decoration: underline;
 }
 
-.participants-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 24px;
+.game-number {
   font-weight: 800;
+  font-variant-numeric: tabular-nums;
   color: var(--text-1);
 }
 

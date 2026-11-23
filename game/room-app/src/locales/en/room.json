@@ -116,6 +116,8 @@
   },
   "setup": {
     "quit": "Quit",
+    "stepOf": "Step {n} of {total}",
+    "back": "Back",
     "quitConfirm": "Quit the setup without saving? What you just set will be lost.",
     "ok": "Looks good",
     "welcome": {
@@ -141,7 +143,6 @@
       "assigned": "Got it! (key {key})",
       "duplicate": "Key {key} is already used by buzzer {button} of desk {desk}. Press the right buzzer.",
       "forbidden": "Key {key} is reserved by the system. Press the buzzer.",
-      "back": "Back",
       "skip": "Skip"
     },
     "done": {

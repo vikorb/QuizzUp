@@ -6,7 +6,7 @@ import { getDemoThemes } from '@/game/demoContent'
 import { readPendingFinishes } from '@/game/pendingFinishes'
 import { createMemorySessionStorage, GameSession } from '@/game/session'
 import { closeGame, configureRoomGame, startNewGame, useRoomGame } from '@/game/useRoomGame'
-import { lockBuzzerSystemKeys } from '@/hardware/roomHardware'
+import { lockBuzzerSystemKeys, saveBuzzerKeymap } from '@/hardware/roomHardware'
 import { enterDemo, refreshRoomAccount, signIn, syncRoomAuth } from '@/state/roomAuth'
 import * as roomApi from '@/utils/roomApi'
 import LaunchView from '@/views/LaunchView.vue'
@@ -311,6 +311,55 @@ describe('LaunchView', () => {
 
       expect(wrapper.text()).not.toContain('Une partie est en cours')
       expect(storage.current).toBeNull()
+    })
+  })
+
+  describe('un seul bouton principal selon l’état de la salle', () => {
+    type Mounted = Awaited<ReturnType<typeof mountWithApp>>['wrapper']
+
+    const primaryTests = (wrapper: Mounted) =>
+      wrapper.findAll('.ui-btn--primary').map((button) => button.attributes('data-test'))
+
+    /** Les actions de la colonne partagent la même classe de largeur et la même taille. */
+    function expectAlignedColumn(wrapper: Mounted, tests: string[]): void {
+      const column = wrapper.findAll('.launch__actions > button')
+      expect(column.map((button) => button.attributes('data-test'))).toEqual(tests)
+      for (const button of column) {
+        expect(button.classes()).toContain('launch__action')
+        expect(button.classes()).toContain('ui-btn--lg')
+      }
+    }
+
+    it('partie sauvegardée : « Reprendre » est le seul principal, « Abandonner » est destructeur', async () => {
+      GameSession.create(
+        {
+          seed: 3,
+          participants: [{ id: 1, podium: 1, displayName: 'Léa' }],
+          themes: getDemoThemes(),
+        },
+        REGISTRATIONS.slice(0, 1),
+        { storage, demo: true }
+      ).start()
+      const { wrapper } = await mountWithApp(LaunchView)
+
+      expect(primaryTests(wrapper)).toEqual(['resume-saved'])
+      expect(wrapper.find('[data-test="discard-saved"]').classes()).toContain('ui-btn--danger')
+      expectAlignedColumn(wrapper, ['start-setup', 'start-room'])
+    })
+
+    it('salle à configurer : la configuration est le seul principal', async () => {
+      const { wrapper } = await mountWithApp(LaunchView)
+
+      expect(primaryTests(wrapper)).toEqual(['start-setup'])
+      expectAlignedColumn(wrapper, ['start-setup', 'start-room'])
+    })
+
+    it('salle prête : « Lancer la salle » est le seul principal', async () => {
+      await saveBuzzerKeymap(Object.fromEntries([['KeyB', { desk: 1, button: 'A' } as const]]))
+      const { wrapper } = await mountWithApp(LaunchView)
+
+      expect(primaryTests(wrapper)).toEqual(['start-room'])
+      expectAlignedColumn(wrapper, ['start-room', 'reconfigure-room'])
     })
   })
 

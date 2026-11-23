@@ -3,7 +3,7 @@ import './_helpers/registerRouteMocks'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   ADMIN_ROLE_ROOM,
@@ -298,7 +298,8 @@ describe('routes/auth.ts — limite de débit sur /login', () => {
 
   type App = Awaited<ReturnType<typeof createRouteApp>>
 
-  function login(app: App, payload: Record<string, string>, remoteAddress = '203.0.113.1') {
+  // 127.0.0.1 : adresse de la console dans les tests (`setup/env.ts`) ; `root` est superadmin.
+  function login(app: App, payload: Record<string, string>, remoteAddress = '127.0.0.1') {
     return app.inject({ method: 'POST', url: '/login', payload, remoteAddress })
   }
 
@@ -470,6 +471,90 @@ describe('routes/auth.ts — limite de débit sur /login', () => {
     }
 
     expect((await login(app, wrongPassword)).statusCode).toBe(429)
+
+    await app.close()
+  })
+})
+
+describe('routes/auth.ts — garde réseau de la console éditeur sur /login', () => {
+  // Plages de documentation (RFC 5737 et 3849) : aucune adresse réelle.
+  const OPERATOR = '192.0.2.10'
+  const OUTSIDE = '198.51.100.9'
+
+  beforeEach(() => {
+    vi.stubEnv('CONSOLE_ALLOWED_CIDRS', '192.0.2.0/24 2001:db8::/32')
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  const superadminLogin = { identifier: 'root', password: 'root-password' }
+  const adminLogin = { identifier: 'alice', password: 'alice-password' }
+
+  function loginFrom(app: Awaited<ReturnType<typeof createRouteApp>>, payload: object, ip: string) {
+    return app.inject({ method: 'POST', url: '/login', payload, remoteAddress: ip })
+  }
+
+  it('answers a superadmin outside the console like a wrong password, with no session', async () => {
+    const app = await createRouteApp(authRoutes)
+
+    const outside = await loginFrom(app, superadminLogin, OUTSIDE)
+    const wrong = await loginFrom(app, { ...superadminLogin, password: 'bad-password' }, OUTSIDE)
+
+    expect(outside.statusCode).toBe(401)
+    expect(parseJson(outside)).toEqual({ error: 'invalid_credentials' })
+    expect(outside.body).toBe(wrong.body)
+    expect(dbState.admin_sessions).toHaveLength(0)
+    expect(jwtSignMock).not.toHaveBeenCalled()
+
+    await app.close()
+  })
+
+  it('logs a superadmin in from an allowed address, IPv4, IPv6 or IPv4-mapped', async () => {
+    const app = await createRouteApp(authRoutes)
+
+    for (const ip of [OPERATOR, '2001:db8::5', `::ffff:${OPERATOR}`]) {
+      expect((await loginFrom(app, superadminLogin, ip)).statusCode, ip).toBe(200)
+    }
+    expect(dbState.admin_sessions).toHaveLength(3)
+
+    await app.close()
+  })
+
+  it('does not touch the other roles, whatever their address', async () => {
+    const app = await createRouteApp(authRoutes)
+
+    const response = await loginFrom(app, adminLogin, OUTSIDE)
+
+    expect(response.statusCode).toBe(200)
+    expect(dbState.admin_sessions).toHaveLength(1)
+
+    await app.close()
+  })
+
+  it('keeps counting the refused attempts of a superadmin outside, so the password cannot be guessed', async () => {
+    const app = await createRouteApp(authRoutes)
+
+    for (let i = 0; i < 10; i += 1) {
+      expect((await loginFrom(app, superadminLogin, OUTSIDE)).statusCode).toBe(401)
+    }
+
+    expect((await loginFrom(app, superadminLogin, OUTSIDE)).statusCode).toBe(429)
+
+    await app.close()
+  })
+
+  it('refuses every superadmin when the variable is empty, localhost included', async () => {
+    vi.stubEnv('CONSOLE_ALLOWED_CIDRS', '')
+    const app = await createRouteApp(authRoutes)
+
+    const superadmin = await loginFrom(app, superadminLogin, '127.0.0.1')
+    const admin = await loginFrom(app, adminLogin, '127.0.0.1')
+
+    expect(superadmin.statusCode).toBe(401)
+    expect(admin.statusCode).toBe(200)
+    expect(dbState.admin_sessions).toHaveLength(1)
 
     await app.close()
   })
