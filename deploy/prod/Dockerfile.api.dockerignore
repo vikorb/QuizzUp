@@ -1,0 +1,14 @@
+# Contexte de build de Dockerfile.api (racine du dépôt) : rien de local ni de secret.
+.git
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+!**/.env.example
+**/coverage
+**/storage
+deploy
+game
+docs
+backoffice/tests
+backoffice/frontend

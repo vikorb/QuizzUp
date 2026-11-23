@@ -18,6 +18,14 @@ Format inspiré de Keep a Changelog.
   `npm run captures` dans `game/e2e`. Nouveau job `vitrine` dans la CI GitHub (lint, types, tests,
   build, Lighthouse à 95 au moins sur les quatre catégories).
   US: US-SITE-01
+- Déploiement de production (`deploy/prod/`) : Caddy en HTTPS, API compilée, PostgreSQL, fichiers
+  statiques, emplacement du site vitrine, console éditeur filtrée par plages réseau, secrets
+  obligatoires hors du dépôt, sauvegardes chiffrées (restic) avec restauration, mise à jour avec
+  retour arrière automatique, supervision par webhook ou e-mail. La pile n'a pas encore tourné sur
+  une vraie machine : la liste des essais à rejouer est dans `deploy/prod/README.md`.
+  Sécurité : l'API refuse de démarrer en production (`NODE_ENV=production`) si `JWT_SECRET` est
+  absent, fait moins de 32 caractères ou vaut la valeur de développement.
+  US: US-PROD-01
 - Présence en direct de l'écran de salle. L'écran ouvre le flux `GET /room/stream` et publie son
   état par `POST /room/status` (écran, partie, phase, manche, question, mini-jeu, pause, scores par
   pupitre, son prêt) à chaque changement, au plus une fois par seconde, et au rythme annoncé par le

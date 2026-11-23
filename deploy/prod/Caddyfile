@@ -1,0 +1,158 @@
+# Une surface = un nom d'hôte, lu depuis .env (voir .env.example). Caddy obtient et renouvelle seul
+# les certificats HTTPS. Valider après modification :
+#   docker compose exec caddy caddy validate --config /etc/caddy/Caddyfile
+# puis recharger sans coupure :
+#   docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
+{
+	email {$ACME_EMAIL}
+
+	servers {
+		# Derrière un relais, l'adresse du visiteur vient de X-Forwarded-For, mais seulement si la
+		# requête arrive d'un relais déclaré. Sinon l'en-tête serait falsifiable et la liste de la
+		# console éditeur contournable.
+		trusted_proxies static {$TRUSTED_PROXIES}
+		# Un relais qui AJOUTE l'adresse à X-Forwarded-For (au lieu de la remplacer) laisse passer en
+		# tête de liste une valeur envoyée par le visiteur. En mode strict, Caddy lit la liste de
+		# droite à gauche et s'arrête au premier relais non déclaré : la valeur falsifiée n'est
+		# jamais retenue.
+		trusted_proxies_strict
+	}
+}
+
+# Journal d'accès (les en-têtes Authorization et Cookie sont masqués par Caddy) et en-têtes
+# communs. Les jetons ne circulent jamais dans l'URL : rien de sensible n'est journalisé.
+(common) {
+	log
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		# Même rôle que `frame-ancestors 'none'` de la CSP, qui n'est pas appliquée tant que la CSP est
+		# en `Report-Only` (valeur par défaut de CSP_HEADER) : sans cela, détournement de clic possible.
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
+
+# Site statique à application monopage (Vite). Arguments : dossier, politique CSP,
+# politique de permissions.
+(static_site) {
+	root * {args[0]}
+	encode zstd gzip
+
+	header {$CSP_HEADER} {args[1]}
+	header Permissions-Policy {args[2]}
+
+	# Fichiers à empreinte (/assets/nom.<hash>.js) : jamais modifiés, cache d'un an. Tout le reste,
+	# index.html compris, est revalidé à chaque fois : une mise à jour est vue au prochain chargement.
+	@hashed path /assets/*
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+	@mutable not path /assets/*
+	header @mutable Cache-Control "no-cache"
+
+	try_files {path} /index.html
+	file_server
+}
+
+# Espace centre et console éditeur : même application, deux noms d'hôte.
+# Polices Google : l'application importe aujourd'hui Exo 2 depuis fonts.googleapis.com
+# (backoffice/frontend/src/assets/styles/main.css). Retirer ces deux sources quand elle sera
+# auto-hébergée. 'unsafe-inline' sur les styles seulement : aucun script en ligne n'est admis.
+(app_site) {
+	import static_site /srv/web/app "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https://{$HOST_API}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), gamepad=(), fullscreen=(self)"
+}
+
+# --- Site vitrine ----------------------------------------------------------------------------
+# VITRINE_ENABLED=true : sert le dossier VITRINE_DIR. Sinon, le nom d'hôte renvoie vers l'espace centre.
+{$HOST_WWW} {
+	import common
+
+	@vitrine_off expression `'{$VITRINE_ENABLED}' != 'true'`
+	handle @vitrine_off {
+		redir https://{$HOST_APP}{uri} 302
+	}
+
+	handle {
+		import static_site /srv/vitrine "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://{$HOST_API}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), gamepad=(), fullscreen=(self)"
+	}
+}
+
+# --- Espace centre ---------------------------------------------------------------------------
+{$HOST_APP} {
+	import common
+	import app_site
+}
+
+# --- Console éditeur -------------------------------------------------------------------------
+# Ce nom d'hôte sert la même application que l'espace centre, filtrée par les plages de
+# EDITOR_ALLOWED_RANGES (CIDR séparés par des espaces ; variable vide : refus pour tout le monde).
+# Attention : cela masque l'adresse de la console, cela ne la protège pas. HOST_APP sert la même
+# application sans filtre et l'API ne distingue pas le nom d'hôte. La protection arrive avec le lot
+# « console éditeur » (lot 12) ; seul Swagger (/docs) est réellement protégé par ce filtre.
+{$HOST_CONSOLE} {
+	import common
+
+	@allowed client_ip {$EDITOR_ALLOWED_RANGES}
+	handle @allowed {
+		import app_site
+	}
+
+	handle {
+		respond "Forbidden" 403
+	}
+}
+
+# --- Écran de salle --------------------------------------------------------------------------
+# Permissions-Policy : Web Serial (interface DMX USB), plein écran et manettes (buzzers) autorisés
+# pour l'origine de l'écran de salle uniquement. connect-src : l'API, et le pont Art-Net local
+# (ws://127.0.0.1:<port>, exception « localhost » du contenu mixte).
+{$HOST_SALLE} {
+	import common
+	import static_site /srv/web/salle "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https://{$HOST_API} ws://127.0.0.1:* ws://localhost:*; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" "serial=(self), fullscreen=(self), gamepad=(self), camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+}
+
+# --- API -------------------------------------------------------------------------------------
+{$HOST_API} {
+	import common
+
+	# Envoi d'extraits audio : l'API refuse au-delà de MEDIA_MAX_BYTES (10 Mio par défaut) ; cette
+	# limite-ci est un peu plus haute pour que ce soit l'API qui réponde avec son message.
+	# À relever en même temps que MEDIA_MAX_BYTES.
+	request_body {
+		max_size 12MB
+	}
+
+	# Swagger : réservé aux plages de la console éditeur (voir plus haut).
+	@docs path /docs /docs/*
+	@docs_denied {
+		path /docs /docs/*
+		not client_ip {$EDITOR_ALLOWED_RANGES}
+	}
+	handle @docs_denied {
+		respond "Forbidden" 403
+	}
+	handle @docs {
+		reverse_proxy api:3001
+	}
+
+	# Flux en direct (SSE) : ni compression ni tampon, sinon les événements n'arrivent pas.
+	@sse path /room/stream /companies/*/live
+	handle @sse {
+		reverse_proxy api:3001 {
+			flush_interval -1
+		}
+	}
+
+	handle {
+		encode zstd gzip
+		header {$CSP_HEADER} "default-src 'none'; frame-ancestors 'none'"
+
+		# Pendant le redémarrage de l'API (mise à jour), Caddy retient la requête jusqu'à 15 s au lieu
+		# de répondre 502 : seule une connexion refusée est rejouée, jamais une requête déjà envoyée.
+		reverse_proxy api:3001 {
+			lb_try_duration 15s
+			lb_try_interval 500ms
+		}
+	}
+}
