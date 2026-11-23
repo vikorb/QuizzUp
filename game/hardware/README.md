@@ -299,12 +299,17 @@ sauf s'il tombe dans le même instant (plusieurs appareils qui s'allument ensemb
   s'allumer jusqu'à 400 ms plus tard. L'arrêt d'urgence et `blackout()` restent immédiats et
   oublient tout état retenu.
 
-**Hors du plafond (non couvert par ce code, lot S5)** : un appareil qui clignote tout seul ne passe
-pas par le niveau mesuré. Cela concerne un canal `shutter` ou `fixed` d'un profil sur mesure dont la
-valeur tombe dans la plage stroboscope de l'appareil (ou une valeur `amber` / `uv` dans ce cas), le
-diagnostic (`diagnostics.setChannel`, `setFixture({ strobe })`) qui n'est pas plafonné, et un
-stroboscope piloté par une liste d'identifiants. Vérifier sur la notice de chaque appareil les
-valeurs `shutter` et `fixed` choisies (banc D8) ; aucun avertissement automatique pour l'instant.
+**Appareil qui clignote tout seul (lot S5)** : il ne passe pas par le niveau mesuré. Un canal
+`shutter` ou `fixed` peut porter `strobeRange: [min, max]` (0-255), la plage stroboscope de la notice ;
+`strobeProblems` ajoute alors un avertissement (non bloquant, fr puis en, appareil et canal nommés) aux
+`problems` de `parseRoomHardwareConfig` et aux `warnings` de l'assistant si la valeur envoyée
+(`open`/`closed` d'un shutter, `value` d'un fixed) tombe dedans. Aucun profil livré n'a de plage (aucune
+n'est documentée). Sans plage, seul un `shutter` réglé sur autre chose que 255 ou 0 est signalé. Une
+`strobeRange` invalide est ignorée et signalée. Au diagnostic, `setFixture({ strobe })` est ramené à
+`DIAGNOSTIC_STROBE_MAX_VALUE` (30, soit 3 Hz si le canal va linéairement de 0 à 25 Hz : hypothèse à
+mesurer) et retombe à 0 après `DIAGNOSTIC_STROBE_MAX_MS` (3 s). **Reste hors plafond** : une valeur
+`amber` / `uv`, `diagnostics.setChannel` (canal brut) et un stroboscope piloté par une liste
+d'identifiants. Vérifier sur la notice de chaque appareil (banc D8, D10).
 
 Cadences par défaut (nombre d'éclairs × durée allumé / éteint ; période de 400 ms = 2,5 éclairs/s) :
 

@@ -151,6 +151,24 @@ Ce que tu dois faire en attendant :
 > un appareil lent, change ce que le public voit). Contrôle visuel obligatoire. On ne sait pas encore si
 > « Passer en simulation » reste actif après un nouveau « Lancer la salle ».
 
+### 1.9 Un appareil qui clignote tout seul
+
+Certains projecteurs clignotent d'eux-mêmes quand un de leurs canaux est tenu dans la plage
+« stroboscope » de l'appareil (typiquement un canal `shutter`, ou un canal `fixed` à valeur fixe). Ce
+clignotement ne passe pas par le plafond d'éclairs : le logiciel ne le voit pas. Dans Matériel,
+« Configuration avancée », la liste « Points à corriger » nomme l'appareil et le canal concernés, en
+français puis en anglais. L'avertissement ne bloque rien : la configuration reste enregistrable, c'est
+à toi de corriger la valeur.
+
+Le logiciel ne connaît aucune plage stroboscope tout seul : aucun profil livré n'en renseigne. Pour un
+profil sur mesure, recopie la plage de la notice dans `strobeRange` (`[min, max]`, 0 à 255) sur le canal
+`shutter` ou `fixed`. Sans `strobeRange`, seul un `shutter` réglé sur autre chose que 255 (ouvert) ou 0
+(fermé) est signalé, en demandant de vérifier la notice. Au Diagnostic, la vitesse d'un canal `strobe`
+est plafonnée et coupée au bout de 3 secondes.
+
+> À vérifier sur le banc : la plage de chaque appareil et la fréquence réelle à la vitesse plafonnée
+> (test D10 du banc).
+
 ## 2. Ce que le logiciel ne garantit pas
 
 Le logiciel **ne remplace pas**, et ne peut pas remplacer :

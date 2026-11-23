@@ -1,13 +1,15 @@
 import { createSimulationOutput } from '@hardware/dmx/simulationOutput'
 import {
   createLightingController,
+  DIAGNOSTIC_STROBE_MAX_MS,
+  DIAGNOSTIC_STROBE_MAX_VALUE,
   DIAGNOSTICS_IDLE_MS,
   MAX_FREEZE_MS,
 } from '@hardware/lighting/lightingController'
 import { SCENE_IDS } from '@hardware/lighting/scenes'
 
 import { advanceAsync, createManualClock } from '../_helpers/manualClock'
-import { lightingConfig } from '../_helpers/rig'
+import { lightingConfig, RIG } from '../_helpers/rig'
 
 const SMOKE = 30
 
@@ -119,6 +121,97 @@ describe('diagnostic matériel', () => {
     await advanceAsync(clock, 100)
     expect(frame().every((value) => value === 0)).toBe(true)
     await controller.stop()
+  })
+
+  describe('stroboscope', () => {
+    // Stroboscope à l'adresse 40 : gradateur (canal 40), vitesse (canal 41).
+    const setupStrobe = async () => {
+      const clock = createManualClock(10_000)
+      const output = createSimulationOutput()
+      const controller = createLightingController({
+        config: lightingConfig({
+          fixtures: [...RIG, { id: 'strobe', name: 'Strobe', profileId: 'strobe', address: 40 }],
+        }),
+        output,
+        clock,
+        doc: null,
+      })
+      await controller.start()
+      controller.diagnostics.begin()
+      return { clock, controller, speed: () => output.lastFrame()[40] }
+    }
+
+    it('ramène une vitesse demandée au-dessus du plafond', async () => {
+      const { controller, clock, speed } = await setupStrobe()
+      controller.diagnostics.setFixture('strobe', { intensity: 1, strobe: 255 })
+      await advanceAsync(clock, 100)
+      expect(DIAGNOSTIC_STROBE_MAX_VALUE).toBe(30)
+      expect(speed()).toBe(DIAGNOSTIC_STROBE_MAX_VALUE)
+
+      // Une vitesse sous le plafond est gardée telle quelle.
+      controller.diagnostics.setFixture('strobe', { strobe: 12 })
+      await advanceAsync(clock, 100)
+      expect(speed()).toBe(12)
+      await controller.stop()
+    })
+
+    it('coupe le strobe après la durée maximale, gradateur inchangé', async () => {
+      const { controller, clock, speed } = await setupStrobe()
+      controller.diagnostics.setFixture('strobe', { intensity: 1, strobe: 20 })
+      // Sauts dans le temps : avancer 3 s par pas de 10 ms serait trop long.
+      clock.jump(DIAGNOSTIC_STROBE_MAX_MS - 500)
+      await advanceAsync(clock, 100)
+      expect(speed()).toBe(20)
+      clock.jump(500)
+      await advanceAsync(clock, 100)
+      expect(speed()).toBe(0)
+      await controller.stop()
+    })
+
+    it('une nouvelle demande pendant le strobe ne prolonge pas la durée', async () => {
+      const { controller, clock, speed } = await setupStrobe()
+      controller.diagnostics.setFixture('strobe', { strobe: 20 })
+      clock.jump(DIAGNOSTIC_STROBE_MAX_MS - 1_000)
+      controller.diagnostics.setFixture('strobe', { strobe: 25 })
+      clock.jump(1_200)
+      await advanceAsync(clock, 100)
+      expect(speed()).toBe(0)
+
+      // Une demande après l'arrêt ouvre une nouvelle fenêtre bornée.
+      controller.diagnostics.setFixture('strobe', { strobe: 20 })
+      await advanceAsync(clock, 100)
+      expect(speed()).toBe(20)
+      clock.jump(DIAGNOSTIC_STROBE_MAX_MS)
+      await advanceAsync(clock, 100)
+      expect(speed()).toBe(0)
+      await controller.stop()
+    })
+
+    it('une vitesse 0, négative ou invalide arrête le strobe', async () => {
+      const { controller, clock, speed } = await setupStrobe()
+      for (const stop of [0, -5, Number.NaN]) {
+        controller.diagnostics.setFixture('strobe', { strobe: 20 })
+        await advanceAsync(clock, 100)
+        expect(speed()).toBe(20)
+        controller.diagnostics.setFixture('strobe', { strobe: stop })
+        await advanceAsync(clock, 100)
+        expect(speed()).toBe(0)
+      }
+      await controller.stop()
+    })
+
+    it('la fin du diagnostic ne laisse aucun strobe derrière elle', async () => {
+      const { controller, clock, speed } = await setupStrobe()
+      controller.diagnostics.setFixture('strobe', { intensity: 1, strobe: 20 })
+      controller.diagnostics.end()
+      await advanceAsync(clock, 100)
+      expect(speed()).toBe(0)
+      controller.diagnostics.begin()
+      controller.diagnostics.setFixture('strobe', { intensity: 1 })
+      await advanceAsync(clock, 100)
+      expect(speed()).toBe(0)
+      await controller.stop()
+    })
   })
 
   it('teste la fumée par le contrôleur sécurisé uniquement', async () => {
