@@ -4,6 +4,7 @@ import {
   BLIND_TEST_STAGES,
   getBlindTestView,
   getLeaderboard,
+  getLiveQuestionId,
   getQuestionNumber,
   getRemaining,
   getRevealView,
@@ -49,6 +50,21 @@ describe('selectors', () => {
       ['Léa', 2],
       ['Inès', 2],
     ])
+  })
+
+  it('donne l’identifiant de la question en cours, seulement pendant la question', () => {
+    const { session, clock } = startedSession()
+
+    expect(getLiveQuestionId(session.state)).toBeNull()
+
+    driveToQuestion(session, clock)
+    const id = session.state.rounds[0]?.questions[0]?.id
+    expect(id).toBeDefined()
+    expect(getLiveQuestionId(session.state)).toBe(id)
+
+    session.skip(id as number)
+    expect(session.state.phase.name).toBe('reveal')
+    expect(getLiveQuestionId(session.state)).toBeNull()
   })
 
   it('décrit la question : écoute, fenêtre de buzz, réponse', () => {

@@ -38,17 +38,24 @@ Format inspiré de Keep a Changelog.
   US: US-LIVE-01
 
 - Pilotage d'une partie en cours, côté écran de salle (lot 4, sans réseau ; les commandes du
-  backoffice viendront dans un lot suivant). Moteur (`game/engine`) : nouvelle commande `skip`,
-  acceptée seulement en phase `question` : la question se termine sans point ni pénalité et la
-  partie enchaîne comme après une question sans bonne réponse ; `question_ended` porte
-  `skipped: true`, la question est notée dans `rounds[].skippedQuestionIds` et ignorée par la série
-  et la mort subite. Écran de salle (`game/room-app`) : pause qui gèle l'horloge de la partie
-  (échéances reculées du temps de pause, buzzers ignorés, extrait suspendu), voile « Pause »,
-  commandes « Pause / Reprendre » et « Passer la question » à côté de l'arrêt local (fr / en) ;
-  `pauseGame`, `resumeGame` et `skipQuestion` renvoient appliqué ou refusé avec un code
-  (`GAME_COMMAND_REFUSALS` dans `@quizzup/shared` : `already_paused`, `not_paused`, `paused`,
-  `not_in_question`, `game_over`). Une partie rechargée pendant une pause reprend non pausée, à
-  l'instant de la pause.
+  backoffice viendront dans un lot suivant). Moteur (`game/engine`) : nouvelle commande
+  `skip { at, questionId }`, acceptée seulement en phase `question` et seulement si `questionId`
+  est la question en cours (sinon sans effet : l'opérateur a visé une question qui a fini entre le
+  clic et la validation) : la question se termine sans point ni pénalité et la partie enchaîne
+  comme après une question sans bonne réponse ; `question_ended` porte `skipped: true`, la question
+  est notée dans `rounds[].skippedQuestionIds` et ignorée par la série et la mort subite. Exception
+  en mort subite : si la dernière question de la manche est passée, les survivants touchent quand
+  même le bonus de fin de manche (200 points, une seule fois). Écran de salle (`game/room-app`) :
+  pause qui gèle l'horloge de la partie (échéances déjà tombées appliquées avant le gel,
+  échéances reculées du temps de pause, buzzers ignorés, extrait suspendu), voile « Pause » borné
+  à la zone de jeu (l'arrêt d'urgence et l'arrêt de la partie restent accessibles), commandes
+  « Pause / Reprendre » et « Passer la question » à côté de l'arrêt local (fr / en) ;
+  `pauseGame`, `resumeGame` et `skipQuestion(questionId)` renvoient appliqué ou refusé avec
+  un code (`GAME_COMMAND_REFUSALS` dans `@quizzup/shared` : `already_paused`, `not_paused`,
+  `paused`, `not_in_question`, `game_over`), traduit à l'écran (fr / en). La pause est sauvegardée
+  (champ facultatif `paused` de l'instantané de session) : une partie rechargée pendant une pause
+  reprend en pause, à l'instant de la pause ; les anciennes sauvegardes, sans ce champ, reprennent
+  non pausées.
   US: US-LIVE-01
 
 - Révision de la config de salle : deux postes connectés au même compte de salle ne s'écrasent plus

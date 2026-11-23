@@ -31,6 +31,11 @@ export type SessionSnapshot = {
    * reprises que si leur graine est celle de la partie retenue du backoffice.
    */
   demo?: boolean
+  /**
+   * Partie en pause au moment de la sauvegarde : une page rechargée reprend en pause.
+   * Absent des sauvegardes d'avant ce champ : elles reprennent non pausées.
+   */
+  paused?: boolean
 }
 
 export type SessionStorage = {
@@ -127,7 +132,7 @@ export class GameSession {
     private readonly setup: GameSetup,
     private readonly registrations: Registration[],
     options: SessionOptions,
-    restored?: { state: GameState; commands: GameCommand[]; lastAt: number }
+    restored?: { state: GameState; commands: GameCommand[]; lastAt: number; paused: boolean }
   ) {
     this.storage = options.storage
     this.baseNow = options.now ?? (() => performance.now())
@@ -137,6 +142,7 @@ export class GameSession {
     // Après un rechargement, `performance.now()` repart de zéro : on décale
     // l'horloge pour que la partie reprenne à l'instant où elle s'était arrêtée.
     this.offset = restored ? restored.lastAt - this.baseNow() : 0
+    this.pausedAt = restored?.paused ? restored.lastAt : null
     this.lastAt = restored?.lastAt ?? this.now()
     this.lastSavedAt = this.lastAt
   }
@@ -168,6 +174,7 @@ export class GameSession {
           state: replayed.state,
           commands: snapshot.commands,
           lastAt: snapshot.lastAt,
+          paused: snapshot.paused === true,
         }
       )
     } catch {
@@ -238,9 +245,17 @@ export class GameSession {
       return refuse(GAME_COMMAND_REFUSAL.ALREADY_PAUSED)
     }
 
-    this.pausedAt = this.now()
-    this.lastAt = Math.max(this.lastAt, this.pausedAt)
-    // Sans sauvegarde ici, un rechargement reprendrait jusqu'à une seconde plus tôt.
+    // Les échéances déjà tombées s'appliquent avant de figer l'horloge : le moteur n'a pas encore
+    // vu passer le temps depuis le dernier tick, et rien ne doit s'émettre (sons, lumières) pendant
+    // la pause.
+    const at = this.now()
+    this.dispatch({ type: 'tick', at })
+    if (this.isOver) {
+      return refuse(GAME_COMMAND_REFUSAL.GAME_OVER)
+    }
+
+    this.pausedAt = at
+    // Sauvegardée tout de suite : un rechargement reprend en pause, à cet instant.
     this.persist()
     return COMMAND_APPLIED
   }
@@ -259,8 +274,11 @@ export class GameSession {
     return COMMAND_APPLIED
   }
 
-  /** Passe la question en cours : 0 point, aucune pénalité (commande `skip` du moteur). */
-  skip(): GameCommandResult {
+  /**
+   * Passe la question `questionId` (celle que l'opérateur visait) : 0 point, aucune pénalité
+   * (commande `skip` du moteur). Refusé si une autre question est en cours depuis.
+   */
+  skip(questionId: number): GameCommandResult {
     if (this.isOver) {
       return refuse(GAME_COMMAND_REFUSAL.GAME_OVER)
     }
@@ -271,9 +289,9 @@ export class GameSession {
       return refuse(GAME_COMMAND_REFUSAL.NOT_IN_QUESTION)
     }
 
-    // La question a pu se terminer d'elle-même depuis le dernier tick : le moteur l'a alors
-    // laissée finir et la commande n'a rien passé.
-    const events = this.dispatch({ type: 'skip', at: this.now() })
+    // La question visée a pu se terminer d'elle-même depuis le dernier tick (ou la suivante a
+    // démarré) : le moteur applique les échéances, la laisse finir et la commande ne passe rien.
+    const events = this.dispatch({ type: 'skip', at: this.now(), questionId })
     const skipped = events.some(
       (event) => event.type === 'question_ended' && event.payload.skipped === true
     )
@@ -325,6 +343,7 @@ export class GameSession {
       lastAt: this.lastAt,
       registrations: this.registrations,
       demo: this.demo,
+      paused: this.pausedAt !== null,
     })
   }
 }

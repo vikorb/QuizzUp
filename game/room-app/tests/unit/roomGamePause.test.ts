@@ -3,6 +3,7 @@ import { GAME_COMMAND_REFUSAL, MINI_GAME_FLASH_BLIND_TEST } from '@quizzup/share
 
 import { createSilentExtractPlayer, type ExtractPlayer } from '@/audio/player'
 import { getDemoThemes } from '@/game/demoContent'
+import { getLiveQuestionId } from '@/game/selectors'
 import { createMemorySessionStorage } from '@/game/session'
 import {
   abortGame,
@@ -11,6 +12,7 @@ import {
   pauseGame,
   pressBuzzer,
   resumeGame,
+  resumeSavedGame,
   skipQuestion,
   startNewGame,
   useRoomGame,
@@ -28,6 +30,12 @@ function fakePlayer(): ExtractPlayer {
     stop: vi.fn(),
     isLoaded: vi.fn(() => true),
   }
+}
+
+/** Question visée par un clic à cet instant. */
+function aimed(): number {
+  const { state } = useRoomGame()
+  return (state.value ? getLiveQuestionId(state.value) : null) ?? 0
 }
 
 describe('useRoomGame : pause et passage de question', () => {
@@ -74,7 +82,7 @@ describe('useRoomGame : pause et passage de question', () => {
 
     expect(pauseGame()).toEqual(refused)
     expect(resumeGame()).toEqual(refused)
-    expect(skipQuestion()).toEqual(refused)
+    expect(skipQuestion(1)).toEqual(refused)
   })
 
   it('met en pause : horloge gelée, extrait suspendu, indicateur exposé, puis reprise', () => {
@@ -129,11 +137,12 @@ describe('useRoomGame : pause et passage de question', () => {
 
   it('refuse avec le bon code : déjà en pause, pas en pause, passer en pause', () => {
     startQuestion()
+    const id = aimed()
 
     expect(resumeGame()).toEqual({ ok: false, code: GAME_COMMAND_REFUSAL.NOT_PAUSED })
     pauseGame()
     expect(pauseGame()).toEqual({ ok: false, code: GAME_COMMAND_REFUSAL.ALREADY_PAUSED })
-    expect(skipQuestion()).toEqual({ ok: false, code: GAME_COMMAND_REFUSAL.PAUSED })
+    expect(skipQuestion(id)).toEqual({ ok: false, code: GAME_COMMAND_REFUSAL.PAUSED })
     // Les refus ne touchent pas à l'extrait.
     expect(player.pause).toHaveBeenCalledTimes(1)
   })
@@ -146,7 +155,20 @@ describe('useRoomGame : pause et passage de question', () => {
       miniGames: [MINI_GAME_FLASH_BLIND_TEST],
     })
 
-    expect(skipQuestion()).toEqual({ ok: false, code: GAME_COMMAND_REFUSAL.NOT_IN_QUESTION })
+    expect(skipQuestion(1)).toEqual({ ok: false, code: GAME_COMMAND_REFUSAL.NOT_IN_QUESTION })
+  })
+
+  it('refuse de passer une autre question que celle visée, et ne touche pas à la partie', () => {
+    startQuestion()
+    const { state } = useRoomGame()
+    const id = aimed()
+
+    expect(skipQuestion(id + 1)).toEqual({
+      ok: false,
+      code: GAME_COMMAND_REFUSAL.NOT_IN_QUESTION,
+    })
+    expect(state.value?.phase.name).toBe('question')
+    expect(state.value?.rounds[0]?.skippedQuestionIds).toBeUndefined()
   })
 
   it('passe la question en cours : scores inchangés, révélation', () => {
@@ -154,7 +176,7 @@ describe('useRoomGame : pause et passage de question', () => {
     const { state } = useRoomGame()
     const scores = state.value?.scores.map((line) => line.score)
 
-    expect(skipQuestion()).toEqual({ ok: true })
+    expect(skipQuestion(aimed())).toEqual({ ok: true })
 
     expect(state.value?.phase.name).toBe('reveal')
     expect(state.value?.scores.map((line) => line.score)).toEqual(scores)
@@ -169,7 +191,31 @@ describe('useRoomGame : pause et passage de question', () => {
 
     expect(pauseGame()).toEqual(refused)
     expect(resumeGame()).toEqual(refused)
-    expect(skipQuestion()).toEqual(refused)
+    expect(skipQuestion(1)).toEqual(refused)
+  })
+
+  it('rechargée en pause, la partie reprend en pause, l’extrait suspendu jusqu’à la reprise', async () => {
+    const { paused, now } = useRoomGame()
+    startQuestion()
+    const frozen = now.value
+    pauseGame()
+
+    // Rechargement : la session sauvegardée est rouverte à la place de celle en mémoire.
+    expect(await resumeSavedGame()).toBe(true)
+
+    expect(paused.value).toBe(true)
+    expect(now.value).toBe(frozen)
+    // L'extrait relancé par la reprise est aussitôt suspendu : la salle reste silencieuse.
+    expect(player.play).toHaveBeenCalledTimes(2)
+    expect(player.pause).toHaveBeenCalledTimes(2)
+    clock.advance(120_000)
+    vi.advanceTimersByTime(50)
+    expect(now.value).toBe(frozen)
+
+    vi.mocked(player.resume).mockClear()
+    expect(resumeGame()).toEqual({ ok: true })
+    expect(paused.value).toBe(false)
+    expect(player.resume).toHaveBeenCalledTimes(1)
   })
 
   it('fermer la partie remet l’indicateur de pause à zéro', () => {

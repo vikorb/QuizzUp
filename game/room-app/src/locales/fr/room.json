@@ -65,6 +65,15 @@
       "text": "La partie est en pause. Elle reprend quand le personnel la relance.",
       "resume": "Reprendre la partie"
     },
+    "command": {
+      "refused": {
+        "already_paused": "La partie est déjà en pause.",
+        "not_paused": "La partie n’est pas en pause.",
+        "paused": "Impossible de passer la question pendant la pause.",
+        "not_in_question": "La question avait déjà changé : rien n’a été passé.",
+        "game_over": "La partie est terminée."
+      }
+    },
     "toolbar": {
       "fullscreen": "Plein écran",
       "exitFullscreen": "Quitter le plein écran",

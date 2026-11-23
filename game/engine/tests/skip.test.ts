@@ -1,6 +1,7 @@
 import { createGame, type GameState, reduceGame, replayGame } from '@engine/engine'
 import { getMiniGameQuestion } from '@engine/miniGames'
 import { STREAK_BASE_POINTS } from '@engine/miniGames/streak'
+import { SUDDEN_DEATH_POINTS, SUDDEN_DEATH_SURVIVOR_BONUS } from '@engine/miniGames/suddenDeath'
 import type { ButtonIndex, EngineQuestion, GameCommand, GameEvent, GameSetup } from '@engine/types'
 import {
   MINI_GAME_ESTIMATE,
@@ -108,6 +109,19 @@ function scoresOf(state: GameState): number[] {
   return state.scores.map((line) => line.score)
 }
 
+/** Identifiant de la question affichée (en cours ou en révélation), 0 hors question. */
+function shownQuestionId(state: GameState): number {
+  const { phase } = state
+  const index = phase.name === 'question' || phase.name === 'reveal' ? phase.questionIndex : 0
+
+  return state.rounds.at(-1)?.questions[index]?.id ?? 0
+}
+
+/** Passe la question affichée à l'instant du clic (son identifiant est relevé avant l'envoi). */
+function skip(driver: Driver, at: number): GameEvent[] {
+  return driver.send({ type: 'skip', at, questionId: shownQuestionId(driver.state) })
+}
+
 describe('skip : commande', () => {
   it('ends the question with no point and no answer, then moves on like a question without winner', () => {
     const driver = startFirstQuestion(setupFor(MINI_GAME_FLASH_BLIND_TEST))
@@ -115,7 +129,7 @@ describe('skip : commande', () => {
 
     expect(driver.state.phase.name).toBe('question')
 
-    const events = driver.send({ type: 'skip', at: 4500 })
+    const events = skip(driver, 4500)
 
     expect(events.map((event) => event.type)).toEqual(['question_ended'])
     expect(events[0]).toMatchObject({
@@ -168,7 +182,7 @@ describe('skip : commande', () => {
       'the reveal',
       (): Driver => {
         const driver = startFirstQuestion(setupFor(MINI_GAME_FLASH_BLIND_TEST))
-        driver.send({ type: 'skip', at: 4500 })
+        skip(driver, 4500)
         return driver
       },
     ],
@@ -197,29 +211,68 @@ describe('skip : commande', () => {
     const at = driver.state.lastAt ?? 0
 
     // Même instant que le dernier événement : aucune échéance ne passe à cause du skip.
-    expect(driver.send({ type: 'skip', at }).map((event) => event.type)).toEqual([])
+    expect(skip(driver, at).map((event) => event.type)).toEqual([])
     expect(driver.state.phase).toEqual(phaseBefore)
     expect(scoresOf(driver.state)).toEqual(scoresBefore)
     expect(driver.state.rounds).toEqual(roundsBefore)
   })
 
-  it('lets the deadlines pass first : only the question live at that instant is skipped', () => {
+  // La question 1 démarre à 4000 et dure 35 s ; sa révélation dure 5 s (jusqu'à 44 000).
+  it.each([
+    ['during its reveal', 4000 + 36_000, 'reveal'],
+    ['after its reveal, the next question being live', 4000 + 41_000, 'question'],
+    ['long after', 4000 + 60_000, 'question'],
+  ])('passes nothing when the aimed question is already over (%s)', (_label, at, expectedPhase) => {
     const driver = startFirstQuestion(setupFor(MINI_GAME_FLASH_BLIND_TEST))
-    const events = driver.send({ type: 'skip', at: 4000 + 60_000 })
-    const ended = events.filter((event) => event.type === 'question_ended')
+    const aimed = shownQuestionId(driver.state)
+    const events = driver.send({ type: 'skip', at, questionId: aimed })
     const round = driver.state.rounds[0]
 
-    // La 1re question est arrivée à son terme normalement, la suivante est passée.
-    expect(ended).toHaveLength(2)
+    // La question visée est arrivée à son terme normalement ; la suivante n'est pas touchée.
+    const ended = events.filter((event) => event.type === 'question_ended')
+    expect(ended).toHaveLength(1)
     expect(ended[0]?.payload).not.toHaveProperty('skipped')
-    expect(ended[1]?.payload).toMatchObject({ skipped: true })
-    expect(round?.skippedQuestionIds).toEqual([round?.questions[1]?.id])
+    expect(round?.skippedQuestionIds).toBeUndefined()
+    expect(driver.state.phase.name).toBe(expectedPhase)
+    expect(shownQuestionId(driver.state) === aimed).toBe(expectedPhase === 'reveal')
+  })
+
+  it('passes nothing when the question changed between the click and the confirmation', () => {
+    const driver = startFirstQuestion(setupFor(MINI_GAME_FLASH_BLIND_TEST))
+    const aimed = shownQuestionId(driver.state)
+
+    // Entre le clic et la validation, la question visée finit et la suivante démarre.
+    driver.send({ type: 'tick', at: 4000 + 35_000 })
+    driver.send({ type: 'tick', at: 4000 + 40_000 })
+    expect(driver.state.phase).toMatchObject({ name: 'question', questionIndex: 1 })
+
+    const before = structuredClone(driver.state.phase)
+    const events = driver.send({ type: 'skip', at: 4000 + 41_000, questionId: aimed })
+
+    expect(events).toEqual([])
+    expect(driver.state.phase).toEqual(before)
+    expect(driver.state.rounds[0]?.skippedQuestionIds).toBeUndefined()
+  })
+
+  it('passes nothing for an identifier that is not the live question', () => {
+    const driver = startFirstQuestion(setupFor(MINI_GAME_FLASH_BLIND_TEST))
+    const before = structuredClone(driver.state)
+
+    const events = driver.send({
+      type: 'skip',
+      at: 4500,
+      questionId: shownQuestionId(driver.state) + 1,
+    })
+
+    expect(events).toEqual([])
+    expect(driver.state.phase).toEqual(before.phase)
+    expect(driver.state.rounds).toEqual(before.rounds)
   })
 
   it('ignores a skip whose time is not finite', () => {
     const driver = startFirstQuestion(setupFor(MINI_GAME_FLASH_BLIND_TEST))
 
-    expect(driver.send({ type: 'skip', at: Number.NaN })).toEqual([])
+    expect(skip(driver, Number.NaN)).toEqual([])
     expect(driver.state.phase.name).toBe('question')
   })
 
@@ -227,7 +280,7 @@ describe('skip : commande', () => {
     const driver = startFirstQuestion(setupFor(MINI_GAME_FLASH_BLIND_TEST))
     const snapshot = structuredClone(driver.state)
 
-    reduceGame(driver.state, { type: 'skip', at: 4500 })
+    reduceGame(driver.state, { type: 'skip', at: 4500, questionId: shownQuestionId(driver.state) })
 
     expect(driver.state).toEqual(snapshot)
   })
@@ -247,7 +300,7 @@ describe('skip : chaque mini-jeu', () => {
 
     const scoresBefore = scoresOf(driver.state)
     const answersBefore = driver.state.rounds[0]?.answers.length
-    const events = driver.send({ type: 'skip', at: 4200 })
+    const events = skip(driver, 4200)
     const ended = events.filter((event) => event.type === 'question_ended')
 
     expect(ended).toHaveLength(1)
@@ -283,7 +336,7 @@ describe('skip : historique de la manche', () => {
     expect(scoresOf(driver.state)).toEqual(Array(4).fill(STREAK_BASE_POINTS))
     driver.send({ type: 'tick', at: (driver.state.phase as { deadline: number }).deadline })
 
-    driver.send({ type: 'skip', at: (driver.state.lastAt ?? 0) + 10 })
+    skip(driver, (driver.state.lastAt ?? 0) + 10)
     driver.send({ type: 'tick', at: (driver.state.phase as { deadline: number }).deadline })
     expect(driver.state.phase).toMatchObject({ name: 'question', questionIndex: 2 })
 
@@ -299,7 +352,7 @@ describe('skip : historique de la manche', () => {
 
     driver.send({ type: 'press', at: 4100, podium: 1, button: correctButton(driver.state) })
     driver.send({ type: 'tick', at: (driver.state.phase as { deadline: number }).deadline })
-    driver.send({ type: 'skip', at: (driver.state.lastAt ?? 0) + 10 })
+    skip(driver, (driver.state.lastAt ?? 0) + 10)
     driver.send({ type: 'tick', at: (driver.state.phase as { deadline: number }).deadline })
 
     // Sans l'exclusion de la question passée, le survivant solo serait éliminé : fin de manche.
@@ -314,7 +367,7 @@ describe('skip : rejouabilité', () => {
     const driver = startFirstQuestion(setup)
 
     driver.send({ type: 'press', at: 4100, podium: 1, button: correctButton(driver.state) })
-    driver.send({ type: 'skip', at: 4200 })
+    skip(driver, 4200)
     driver.send({ type: 'tick', at: 100_000_000 })
 
     const replay = replayGame(setup, driver.commands)
@@ -322,5 +375,148 @@ describe('skip : rejouabilité', () => {
     expect(replay.events).toEqual(driver.events)
     expect(replay.state).toEqual(driver.state)
     expect(driver.state.phase.name).toBe('finished')
+  })
+})
+
+/** Manche de 3 questions, 4 joueurs. */
+function startSuddenDeath(): Driver {
+  return startFirstQuestion(setupFor(MINI_GAME_SUDDEN_DEATH))
+}
+
+function toNextQuestion(driver: Driver): void {
+  const { phase } = driver.state
+  if (phase.name === 'reveal') {
+    driver.send({ type: 'tick', at: phase.deadline })
+  }
+}
+
+/** Les joueurs donnés répondent juste, puis la fenêtre de réponse se ferme et la révélation passe. */
+function playQuestion(driver: Driver, podiums: number[]): void {
+  for (const podium of podiums) {
+    driver.send({
+      type: 'press',
+      at: (driver.state.lastAt ?? 0) + 10,
+      podium,
+      button: correctButton(driver.state),
+    })
+  }
+
+  const { phase } = driver.state
+  if (phase.name === 'question' && phase.miniGameState.kind === MINI_GAME_SUDDEN_DEATH) {
+    driver.send({ type: 'tick', at: phase.miniGameState.answering.deadline })
+  }
+  toNextQuestion(driver)
+}
+
+/** Passe la question affichée, puis laisse la révélation s'écouler. */
+function skipQuestion(driver: Driver): GameEvent[] {
+  const events = skip(driver, (driver.state.lastAt ?? 0) + 10)
+  toNextQuestion(driver)
+  return events
+}
+
+function bonusRecords(driver: Driver) {
+  return (driver.state.rounds[0]?.answers ?? []).filter(
+    (answer) => answer.points === SUDDEN_DEATH_SURVIVOR_BONUS
+  )
+}
+
+describe('skip : mort subite, bonus de fin de manche', () => {
+  const BONUS = SUDDEN_DEATH_SURVIVOR_BONUS
+  const POINTS = SUDDEN_DEATH_POINTS
+
+  it('pays the survivors once when the last question is skipped (3 survivors)', () => {
+    const driver = startSuddenDeath()
+
+    playQuestion(driver, [1, 2, 3]) // Tom ne répond pas : éliminé, 3 survivants
+    playQuestion(driver, [1, 2, 3])
+    expect(scoresOf(driver.state)).toEqual([2 * POINTS, 2 * POINTS, 2 * POINTS, 0])
+    expect(driver.state.phase).toMatchObject({ name: 'question', questionIndex: 2 })
+
+    const events = skipQuestion(driver)
+    const awarded = events.filter((event) => event.type === 'points_awarded')
+
+    expect(awarded.map((event) => event.payload)).toEqual([
+      { participantId: 1, points: BONUS, total: 2 * POINTS + BONUS },
+      { participantId: 2, points: BONUS, total: 2 * POINTS + BONUS },
+      { participantId: 3, points: BONUS, total: 2 * POINTS + BONUS },
+    ])
+    expect(events.find((event) => event.type === 'question_ended')?.payload).toMatchObject({
+      skipped: true,
+      winnerIds: [],
+    })
+    expect(bonusRecords(driver).map((record) => record.participantId)).toEqual([1, 2, 3])
+
+    // La manche se termine : le bonus n'est pas versé une deuxième fois.
+    expect(driver.state.phase.name).toBe('round_summary')
+    expect(scoresOf(driver.state)).toEqual([
+      2 * POINTS + BONUS,
+      2 * POINTS + BONUS,
+      2 * POINTS + BONUS,
+      0,
+    ])
+  })
+
+  it('is replayed identically from the commands', () => {
+    const setup = setupFor(MINI_GAME_SUDDEN_DEATH)
+    const driver = startFirstQuestion(setup)
+
+    playQuestion(driver, [1, 2, 3])
+    playQuestion(driver, [1, 2, 3])
+    skipQuestion(driver)
+
+    const replay = replayGame(setup, driver.commands)
+
+    expect(replay.events).toEqual(driver.events)
+    expect(replay.state).toEqual(driver.state)
+  })
+
+  it('leaves the behaviour unchanged when the last question is played normally', () => {
+    const driver = startSuddenDeath()
+
+    playQuestion(driver, [1, 2, 3])
+    playQuestion(driver, [1, 2, 3])
+    driver.send({ type: 'tick', at: (driver.state.lastAt ?? 0) + 10 })
+    playQuestion(driver, [1, 2, 3])
+
+    // 50 points par bonne réponse + le bonus aux survivants de la dernière question, une seule fois.
+    expect(scoresOf(driver.state)).toEqual([
+      3 * POINTS + BONUS,
+      3 * POINTS + BONUS,
+      3 * POINTS + BONUS,
+      0,
+    ])
+    expect(bonusRecords(driver)).toHaveLength(0)
+    expect(
+      (driver.state.rounds[0]?.answers ?? []).filter((answer) => answer.points === POINTS + BONUS)
+    ).toHaveLength(3)
+    expect(driver.state.rounds[0]?.skippedQuestionIds).toBeUndefined()
+  })
+
+  it('pays the bonus once when every remaining question is skipped', () => {
+    const driver = startSuddenDeath()
+
+    playQuestion(driver, [1, 2, 3])
+    // Passer une question qui n'est pas la dernière ne verse rien.
+    const middle = skipQuestion(driver)
+    expect(middle.filter((event) => event.type === 'points_awarded')).toEqual([])
+    expect(scoresOf(driver.state)).toEqual([POINTS, POINTS, POINTS, 0])
+
+    skipQuestion(driver)
+
+    expect(scoresOf(driver.state)).toEqual([POINTS + BONUS, POINTS + BONUS, POINTS + BONUS, 0])
+    expect(bonusRecords(driver)).toHaveLength(3)
+    expect(driver.state.rounds[0]?.skippedQuestionIds).toHaveLength(2)
+  })
+
+  it('pays everyone alive when every question of the round is skipped', () => {
+    const driver = startSuddenDeath()
+
+    skipQuestion(driver)
+    skipQuestion(driver)
+    skipQuestion(driver)
+
+    expect(scoresOf(driver.state)).toEqual([BONUS, BONUS, BONUS, BONUS])
+    expect(bonusRecords(driver)).toHaveLength(4)
   })
 })

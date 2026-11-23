@@ -453,7 +453,7 @@ function applyQuestionStep(
 }
 
 /** Termine la question en cours sans réponse ni point, comme une question sans bonne réponse. */
-function skipQuestion(context: Context, at: number): void {
+function skipQuestion(context: Context, at: number, questionId: number): void {
   const { state } = context
   const round = getCurrentRound(state) as RoundRecord
 
@@ -463,13 +463,16 @@ function skipQuestion(context: Context, at: number): void {
 
   const question = round.questions[state.phase.questionIndex] as EngineQuestion
 
+  // L'opérateur a visé une question précise : si une autre est en cours, on ne passe rien.
+  if (question.id !== questionId) {
+    return
+  }
+
   round.skippedQuestionIds = [...(round.skippedQuestionIds ?? []), question.id]
-  applyQuestionStep(
-    context,
-    { state: state.phase.miniGameState, events: [], answers: [] },
-    at,
-    true
-  )
+  const { miniGameState } = state.phase
+  const answers = getMiniGameDefinition(round.miniGame).skipRecords?.(miniGameState) ?? []
+
+  applyQuestionStep(context, { state: miniGameState, events: [], answers }, at, true)
 }
 
 function endRound(context: Context, at: number): void {
@@ -657,7 +660,7 @@ export function reduceGame(state: GameState, received: GameCommand): GameStep {
       case 'skip': {
         // Comme un appui : les échéances passées s'appliquent d'abord (question déjà finie).
         runTimers(context, command.at)
-        skipQuestion(context, command.at)
+        skipQuestion(context, command.at, command.questionId)
         break
       }
 
