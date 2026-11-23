@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Backoffice : une feuille de résultats imprimable (classement avec égalités, centre, salle, date, sans e-mail de joueur) est accessible depuis la fiche d'une partie terminée.
+  US: US-APRES-01 (#156)
+
 - Sessions programmées, socle (lot 13) : états de partie `scheduled` et `cancelled`, créneaux prévus avec interdiction de chevauchement par salle (contrainte d'exclusion PostgreSQL), réglages de créneaux d'une salle (`rooms.schedule`), constantes partagées et codes d'erreur `fr`/`en`. Aucune route ni écran pour l'instant.
   US: US-SESSION-00 (#142)
 - Calcul pur des créneaux d'une salle (`computeRoomSlots`, `zonedLocalToUtc`) dans `@quizzup/shared`, avec gestion des changements d'heure.
