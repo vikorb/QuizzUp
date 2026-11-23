@@ -535,12 +535,13 @@ describe('volume', () => {
     void player.play(SONG, 0, 1000)
     const master = ctx.gains[0]
 
+    const target = () => master?.gain.events.at(-1)?.value
     player.setVolume(0.3)
-    expect(master?.gain.value).toBe(0.3)
+    expect(target()).toBe(0.3)
     player.setVolume(4)
-    expect(master?.gain.value).toBe(1)
+    expect(target()).toBe(1)
     player.setVolume(-1)
-    expect(master?.gain.value).toBe(0)
+    expect(target()).toBe(0)
     player.setVolume(Number.NaN)
     expect(player.getVolume()).toBe(0)
   })

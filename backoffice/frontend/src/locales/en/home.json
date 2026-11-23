@@ -21,6 +21,7 @@
     "login": "Sign in",
     "logout": "Sign out",
     "errors": {
+      "tooManyRequests": "Too many sign-in attempts. Please try again in a few minutes.",
       "roomAccount": "This is a room account: use it on the room screen, not in the backoffice."
     }
   }

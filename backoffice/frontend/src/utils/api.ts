@@ -18,6 +18,8 @@ const API_ERROR_CODES: ApiErrorCode[] = [
   'room_account_not_found',
   'username_already_exists',
   'company_deleted',
+  'smoke_config_forbidden',
+  'room_config_conflict',
   'server_error',
 ]
 

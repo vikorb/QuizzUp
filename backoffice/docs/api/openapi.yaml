@@ -29,6 +29,20 @@ tags:
     description: Salles de jeu d'une compagnie et leur configuration matérielle
   - name: Games
     description: Parties lancées par l'opérateur dans une salle
+  - name: Public
+    description: |
+      API publique sous `/public/v1` (vitrine, réservation) : sans compte, sans jeton, sans cookie.
+      Aucune route n'y est livrée pour l'instant ; les routes à venir suivent ces conventions.
+
+      - Erreurs au format `PublicError` : statut HTTP et `{ "error": "<code_snake_case>" }`, avec
+        `details.fieldErrors` pour `invalid_body` seulement. Codes communs : `invalid_json` (400),
+        `invalid_body` (400), `payload_too_large` (413), `unsupported_media_type` (415),
+        `not_found` (404), `too_many_requests` (429), `server_error` (500). Toute autre erreur de
+        requête (4xx) détectée par le serveur garde son statut avec le code `bad_request`.
+      - Limite de débit par adresse du client (120 requêtes par minute par défaut) : refus en `429`
+        avec l'en-tête `Retry-After` (secondes).
+      - Réponses jamais mises en cache (`Cache-Control: no-store`).
+      - CORS réservé aux sites listés dans la variable `VITRINE_ORIGINS` (aucun si elle est vide).
 
 security:
   - bearerAuth: []
@@ -102,6 +116,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: |
+            Trop de tentatives, par adresse (100 par fenêtre de 15 minutes) ou par couple adresse et
+            identifiant (10 par fenêtre, casse ignorée) ; seuls les échecs comptent. Une adresse IPv6
+            est comptée par bloc /64. Code `too_many_requests`, identique que le compte existe ou
+            non. Même route pour le personnel et pour les comptes de salle.
+          headers:
+            Retry-After:
+              description: Secondes à attendre avant de réessayer
+              schema:
+                type: integer
+                example: 600
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: too_many_requests
 
   /logout:
     post:
@@ -850,6 +882,15 @@ paths:
 
         Crée une salle active. La configuration matérielle est vide par défaut.
 
+        Sécurité : une configuration contenant une section `lighting` non vide (appareils DMX,
+        profils, liaisons de scènes, fumée) est refusée (403 `smoke_config_forbidden`), pour tous les
+        rôles, superadmin compris : la machine à fumée dépend de toute cette section. Les lumières et
+        la fumée se règlent sur place, depuis l'écran de salle.
+
+        Limite connue : cette garde ne couvre pas le compte de salle (`PUT /room/config`), dont le
+        mot de passe est choisi par un admin ; vérifier côté poste de salle que la fumée a passé son
+        test de coupure est un lot à part (S4, issue n° 152).
+
         Accès : superadmin (toutes les compagnies) et `admin` de la compagnie.
       operationId: createCompanyRoom
       x-availability: disponible
@@ -879,7 +920,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ValidationError'
         '403':
-          description: Accès interdit
+          description: Accès interdit, ou section `lighting` (lumières, fumée) présente dans la configuration (`smoke_config_forbidden`)
           content:
             application/json:
               schema:
@@ -948,7 +989,24 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Modifie le nom et/ou la configuration matérielle.
+        Modifie le nom et/ou la configuration matérielle (la configuration envoyée remplace la
+        précédente).
+
+        Sécurité : le backoffice ne règle ni les lumières ni la fumée. La machine à fumée dépend de
+        toute la section `lighting` (`smoke`, mais aussi `fixtures`, `customProfiles` et `bindings` :
+        un appareil repassé en `par` à la même adresse de relais, un canal fumée rendu `binary`, une
+        scène à fumée liée à `buzz`). Le `config` reçu est donc refusé (403 `smoke_config_forbidden`,
+        tous rôles, superadmin compris) s'il change `lighting` par rapport à la configuration
+        stockée, sauf pour couper la fumée : `lighting.smoke.enabled` de `true` à `false`, tout le
+        reste de `lighting` identique. Une section `lighting` identique, un `config` sans `lighting`
+        modifié, ou l'absence de `config`, passent ; le reste du `config` reste libre.
+
+        Limite connue : cette garde ne couvre pas le compte de salle (`PUT /room/config`), dont le
+        mot de passe est choisi par un admin ; vérifier côté poste de salle que la fumée a passé son
+        test de coupure est un lot à part (S4, issue n° 152).
+
+        La configuration n'est écrite que si elle n'a pas changé depuis la lecture faite pour cette
+        vérification (409 `room_config_conflict` sinon : recharger puis réessayer).
 
         Accès : superadmin (toutes les compagnies) et `admin` de la compagnie.
       operationId: updateCompanyRoom
@@ -980,7 +1038,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ValidationError'
         '403':
-          description: Accès interdit
+          description: Accès interdit, ou section `lighting` (lumières, fumée) modifiée autrement que par la coupure de la fumée (`smoke_config_forbidden`)
           content:
             application/json:
               schema:
@@ -992,7 +1050,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: Nom de salle déjà utilisé dans la compagnie (`room_name_already_exists`) ou compagnie supprimée (`company_deleted`)
+          description: Nom de salle déjà utilisé dans la compagnie (`room_name_already_exists`), compagnie supprimée (`company_deleted`) ou configuration modifiée entre-temps (`room_config_conflict`)
           content:
             application/json:
               schema:
@@ -3533,6 +3591,27 @@ components:
       properties:
         error:
           type: string
+
+    PublicError:
+      type: object
+      description: Erreur de l'API publique `/public/v1` (jamais de pile ni de message brut)
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Code stable en snake_case
+          example: too_many_requests
+        details:
+          type: object
+          description: Présent pour `invalid_body` seulement
+          properties:
+            fieldErrors:
+              type: object
+              additionalProperties:
+                type: array
+                items:
+                  type: string
 
     QuestionMediaFile:
       type: object

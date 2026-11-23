@@ -12,6 +12,7 @@ import { roomParamsSchema, updateRoomSchema } from './_schemas'
 import { isUniqueViolation } from '../../_shared/dbErrors'
 import { softDeleteRoom } from './_account'
 import { findRoomInCompany, isRoomCompanyDeleted, isRoomNameTaken, roomSelect } from './_shared'
+import { isLightingConfigChangeForbidden } from './_lighting'
 
 const companyRoomIdRoutes: FastifyPluginAsync = async (app) => {
   app.get(
@@ -88,6 +89,12 @@ const companyRoomIdRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(409).send({ error: 'company_deleted' })
       }
 
+      // Sécurité : les lumières et la fumée (`lighting`) ne se règlent pas depuis le backoffice, même en
+      // superadmin ; seule la coupure de la fumée est permise.
+      if (config !== undefined && isLightingConfigChangeForbidden(room.config, config)) {
+        return reply.code(403).send({ error: 'smoke_config_forbidden' })
+      }
+
       if (name !== undefined && (await isRoomNameTaken(companyId, name, roomId))) {
         return reply.code(409).send({ error: 'room_name_already_exists' })
       }
@@ -95,8 +102,15 @@ const companyRoomIdRoutes: FastifyPluginAsync = async (app) => {
       let updated
 
       try {
-        updated = await db('rooms')
-          .where('id', roomId)
+        const query = db('rooms').where('id', roomId)
+
+        // La garde a comparé à `room.config` : l'écriture n'a lieu que si l'écran de salle ne l'a
+        // pas changée entre-temps (sinon la fumée pourrait être réactivée par une config périmée).
+        if (config !== undefined) {
+          query.where('config_revision', room.configRevision)
+        }
+
+        updated = await query
           .update({
             ...(name !== undefined ? { name } : {}),
             ...(config !== undefined
@@ -114,6 +128,10 @@ const companyRoomIdRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const updatedRoom = Array.isArray(updated) ? updated[0] : updated
+
+      if (!updatedRoom) {
+        return reply.code(409).send({ error: 'room_config_conflict' })
+      }
 
       return { room: updatedRoom as RoomRow }
     }

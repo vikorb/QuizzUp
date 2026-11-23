@@ -47,6 +47,9 @@ jobs:
       - name: Type-check
         run: npm run type-check
 
+      - name: Build du frontend
+        run: npm --prefix frontend run build
+
       - name: Tests
         run: npm test
 
@@ -142,6 +145,30 @@ jobs:
 
       - name: Tests et couverture
         run: npm run test:coverage
+
+  game-audio:
+    name: Audio (type-check, tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: game/audio
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: game/audio/package-lock.json
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Type-check
+        run: npm run type-check
+
+      - name: Tests
+        run: npm test
 
   room-app:
     name: Écran de salle (lint, type-check, tests, build)
@@ -255,6 +282,56 @@ jobs:
           path: |
             game/e2e/playwright-report
             game/e2e/test-results
+          retention-days: 7
+
+  vitrine:
+    name: Site vitrine (lint, type-check, tests, build, Lighthouse)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vitrine
+    env:
+      # Le build refuse les valeurs « À COMPLÉTER » de site.config.ts. La CI construit un
+      # brouillon pour les tests et Lighthouse ; ce dist/ n'est jamais publié.
+      VITRINE_DRAFT: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: vitrine/package-lock.json
+
+      # Les variables de la charte (backoffice) et `@quizzup/shared` sont lues en sources.
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format
+        run: npm run format:check
+
+      - name: Type-check
+        run: npm run type-check
+
+      - name: Tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      # Seuils bloquants (>= 95) : performance, accessibilité, bonnes pratiques, SEO.
+      - name: Lighthouse CI
+        run: npm run lighthouse
+
+      - name: Rapports Lighthouse (en cas d'échec)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: vitrine/.lighthouseci
           retention-days: 7
 
   artnet-bridge:

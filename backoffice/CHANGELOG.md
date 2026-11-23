@@ -11,6 +11,27 @@ Format inspiré de Keep a Changelog.
 - Backoffice : l'historique des sessions se filtre par salle, état et période, avec pagination et colonnes date, salle, joueurs, durée et meilleur score ; `GET /companies/:companyId/games` répond désormais `{ games, total }` et accepte `state`, `roomId`, `from`, `to`, `limit` et `offset`.
   US: US-EXPLOIT-01 (#157)
 
+- Site vitrine public (`vitrine/`) : accueil avec des captures réelles de l'écran de salle, demande
+  de démonstration, mentions légales, confidentialité, page 404. Site statique Vite, sans cookie ni
+  script tiers ; nom, domaine et coordonnées lus dans `vitrine/site.config.ts` (valeurs légales à
+  compléter). Le formulaire de démonstration vise `POST /public/v1/demo-requests`, route livrée
+  dans un lot suivant ; avec JavaScript, une erreur d'envoi affiche l'adresse de contact, sans
+  JavaScript le formulaire ouvre la messagerie (`mailto:`). Le build refuse les valeurs légales
+  non renseignées (dérogation `VITRINE_DRAFT=1`). Script de captures
+  `npm run captures` dans `game/e2e`. Nouveau job `vitrine` dans la CI GitHub (lint, types, tests,
+  build, Lighthouse à 95 au moins sur les quatre catégories).
+  US: US-SITE-01
+- Guides pour les centres (`docs/guides/`) : installation d'une salle, utilisation quotidienne,
+  dépannage, migration d'une salle existante, sécurité de la fumée et des lumières. Les libellés
+  cités sont ceux des écrans ; chaque point qui n'a pas été essayé sur du vrai matériel porte la
+  mention « À vérifier sur le banc ».
+  US: US-DOC-01
+- Socle des routes publiques : limiteur de débit en mémoire (connexion du personnel et des salles : 429 `too_many_requests` avec `Retry-After`), `TRUST_PROXY` (liste d'adresses ou de plages, jamais `true`), ressources de permissions `player`, `voucher`, `stats` et `roomLog`. Connexion : 10 échecs par couple adresse/identifiant et 100 tentatives par adresse en 15 minutes ; adresses IPv6 comptées par bloc /64 ; un compte inconnu passe par un `bcrypt.compare` factice ; `TRUST_PROXY` refuse les plages plus larges que /8 (IPv4) ou /16 (IPv6) et les adresses à zone.
+  US: US-PUBLIC-00 (#141)
+- Préfixe `/public/v1` sans authentification : erreurs au format public, CORS piloté par `VITRINE_ORIGINS`, limite de débit par adresse, réponses `no-store`. Aucune route métier pour l'instant.
+  US: US-PUBLIC-00 (#141)
+- Lecteur audio : effets sur les extraits (inversé, ralenti à 0,75, reprise après pause) et lecteur d'annonces vocales avec atténuation de l'extrait et repli silencieux (`game/audio`, pas encore branché à l'écran de salle).
+  US: US-AUDIO-02 (#144)
 - Déploiement de production (`deploy/prod/`) : Caddy en HTTPS, API compilée, PostgreSQL, fichiers
   statiques, emplacement du site vitrine, console éditeur filtrée par plages réseau, secrets
   obligatoires hors du dépôt, sauvegardes chiffrées (restic) avec restauration, mise à jour avec
@@ -255,6 +276,8 @@ Format inspiré de Keep a Changelog.
 
 ### Changed
 
+- Images Docker du backoffice (backend, frontend, service `tests`) passées à Node 22, requis par les dépendances mises à jour. Sur une démo déjà installée, lancer `npm run demo:reset` pour que les volumes `*_node_modules` reprennent les nouvelles dépendances (la base est alors vidée).
+  US: US-SEC-01 (#146)
 - Moteur de jeu : les mini-jeux d'une partie sont tirés sans remise (aucun mini-jeu ne revient tant que tous les mini-jeux jouables n'ont pas été joués, et jamais deux fois de suite quand il y a le choix).
   US: US-FORMAT-01 (#143)
 
@@ -288,6 +311,10 @@ Format inspiré de Keep a Changelog.
   US: us-front-design-01
 
 ### Fixed
+
+- Sécurité : le backoffice ne peut plus régler les lumières ni la machine à fumée d'une salle (section `lighting` : fumée, appareils DMX, profils, liaisons de scènes). `PATCH` et création de salle refusent avec 403 `smoke_config_forbidden` ; seule la coupure de la fumée (`lighting.smoke.enabled` de vrai à faux, le reste identique) reste permise. Le réglage se fait sur place, depuis l'écran de salle. Limite connue : le compte de salle (`PUT /room/config`) n'est pas couvert, c'est un lot à part (#152). Le `PATCH` d'une salle répond 409 `room_config_conflict` si sa configuration a changé entre-temps.
+  US: US-SEC-03 (#152)
+- Mise à jour des dépendances du backoffice (`fastify`, `fast-jwt`, `zod`, `@fastify/swagger-ui` 6, `vue`, `vue-i18n`, `postcss`…) pour corriger les vulnérabilités signalées par `npm audit` en production ; `fastify-plugin` est déclaré dans le backend ; le build du frontend (`vue-tsc --build`) repasse et la CI le vérifie désormais.
 
 - Droits d'un admin de compagnie : il n'obtient plus de 403 (`forbidden`, `question_theme_forbidden`) sur
   ses propres thèmes et peut de nouveau créer des questions. Cause : `pg` renvoyait les `bigint`
