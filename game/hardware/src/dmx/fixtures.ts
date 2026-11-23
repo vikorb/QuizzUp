@@ -218,6 +218,52 @@ export function unsupportedUniverseProblems(
     )
 }
 
+/** Valeurs que le logiciel envoie à un canal `shutter` (ouvert, fermé) ou `fixed`. */
+const sentValues = (spec: ChannelSpec): number[] =>
+  spec.role === 'shutter'
+    ? [spec.open ?? 255, ...(spec.closed === undefined ? [] : [spec.closed])]
+    : [spec.value ?? 0]
+
+/**
+ * Avertissements (non bloquants) sur les appareils qui clignotent tout seul : un canal `shutter` ou
+ * `fixed` dont la valeur tombe dans la plage stroboscope (`strobeRange`) du profil. Ce clignotement
+ * ne passe pas par le plafond d'éclairs (`MIN_FLASH_INTERVAL_MS`). Sans plage connue, seul un
+ * `shutter` est jugé : toute autre valeur que 255 (ouvert) ou 0 (fermé) est signalée. Textes en
+ * français puis en anglais : ce paquet n'a pas de catalogue de traduction.
+ */
+export function strobeProblems(fixtures: readonly ResolvedFixture[]): string[] {
+  const problems: string[] = []
+  for (const fixture of fixtures) {
+    fixture.profile.channels.forEach((spec, offset) => {
+      if (spec.role !== 'shutter' && spec.role !== 'fixed') {
+        return
+      }
+      const range = spec.strobeRange
+      const value = sentValues(spec).find((candidate) =>
+        range
+          ? candidate >= range[0] && candidate <= range[1]
+          : spec.role === 'shutter' && candidate !== 255 && candidate !== 0
+      )
+      if (value === undefined) {
+        return
+      }
+      const channel = `${fixture.address + offset} (${spec.role})`
+      problems.push(
+        range
+          ? `Appareil « ${fixture.name} » : le canal ${channel} est réglé sur ${value}, dans la plage stroboscope ` +
+              `${range[0]}-${range[1]} : l'appareil clignotera tout seul, hors du plafond d'éclairs. / ` +
+              `Fixture "${fixture.name}": channel ${channel} is set to ${value}, inside the strobe range ` +
+              `${range[0]}-${range[1]}: the fixture will flash on its own, outside the flash cap.`
+          : `Appareil « ${fixture.name} » : le canal ${channel} est réglé sur ${value} et la plage stroboscope ` +
+              "du profil est inconnue : à vérifier sur la notice, l'appareil peut clignoter tout seul. / " +
+              `Fixture "${fixture.name}": channel ${channel} is set to ${value} and the profile's strobe ` +
+              'range is unknown: check the manual, the fixture may flash on its own.'
+      )
+    })
+  }
+  return problems
+}
+
 export type RigParseResult = {
   fixtures: ResolvedFixture[]
   customProfiles: FixtureProfile[]
@@ -312,6 +358,7 @@ function parseCustomProfiles(input: unknown, problems: string[]): FixtureProfile
     const specs: ChannelSpec[] = []
     let problem: string | null = null
     let discardedSlots = 0
+    let discardedRanges = 0
     for (const channel of channels as Record<string, unknown>[]) {
       if (!(CHANNEL_ROLES as readonly unknown[]).includes(channel?.role)) {
         problem = 'rôle de canal inconnu'
@@ -320,9 +367,21 @@ function parseCustomProfiles(input: unknown, problems: string[]): FixtureProfile
       const parsed = channel.role === 'colorWheel' ? parseSlots(channel.slots) : null
       discardedSlots += parsed?.discarded ?? 0
       const slots = parsed?.slots
+      let strobeRange: [number, number] | null = null
+      if (channel.strobeRange !== undefined) {
+        // Une plage posée sur un autre rôle que `shutter` ou `fixed` est écartée et signalée.
+        if (channel.role === 'shutter' || channel.role === 'fixed') {
+          strobeRange = parseRange(channel.strobeRange)
+        }
+        if (!strobeRange || strobeRange[1] > 255) {
+          strobeRange = null
+          discardedRanges += 1
+        }
+      }
       specs.push({
         role: channel.role as ChannelSpec['role'],
         ...(typeof channel.value === 'number' ? { value: clampByte(channel.value) } : {}),
+        ...(strobeRange ? { strobeRange } : {}),
         ...(channel.binary === true ? { binary: true } : {}),
         ...(slots ? { slots } : {}),
         ...(typeof channel.open === 'number' ? { open: clampByte(channel.open) } : {}),
@@ -337,6 +396,12 @@ function parseCustomProfiles(input: unknown, problems: string[]): FixtureProfile
       problems.push(
         `Profil sur mesure ${raw.id} : ${discardedSlots} emplacement(s) de roue invalide(s) écarté(s) ` +
           `(valeur entière 0-255, rgb = 3 entiers 0-255, ${MAX_COLOR_SLOTS} emplacements au plus)`
+      )
+    }
+    if (discardedRanges > 0) {
+      problems.push(
+        `Profil sur mesure ${raw.id} : ${discardedRanges} strobeRange invalide(s) ignorée(s) ` +
+          '([min, max] de 0 à 255, min ≤ max, sur un canal shutter ou fixed)'
       )
     }
     profiles.push({

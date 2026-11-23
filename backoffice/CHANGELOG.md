@@ -347,6 +347,8 @@ Format inspiré de Keep a Changelog.
 
 ### Fixed
 
+- Sécurité lumière : avertissement non bloquant quand un canal `shutter` ou `fixed` est réglé dans la plage stroboscope de l'appareil (`strobeRange`, facultatif, à saisir sur un profil sur mesure) ; stroboscope du Diagnostic plafonné en vitesse et coupé après 3 secondes. Non validé sur du vrai matériel (banc, cas D10).
+  US: US-SEC-05 (#152)
 - Sécurité : l'écran de salle n'arme la fumée activée par la configuration du serveur que si un test de coupure réussi est mémorisé sur ce poste, pour cette salle et ces réglages de fumée ; sinon aucun jet ne part et un message demande de refaire le test. Un test relancé efface la preuve jusqu'à sa réussite. Non validé sur du vrai matériel (banc, cas F9).
   US: US-SEC-04 (#152)
 - Import CSV : le message d'erreur sur la colonne des bonnes réponses était tronqué, le caractère `|` étant lu comme un séparateur de pluriel par la traduction.
