@@ -19,7 +19,7 @@
         class="room-schedule__close"
         variant="icon"
         type="button"
-        :disabled="busy"
+        :disabled="saving || disabling"
         :title="$t('rooms.schedule.actions.close')"
         :aria-label="$t('rooms.schedule.actions.close')"
         @click="emit('close')"
@@ -40,22 +40,25 @@
 
       <div class="room-schedule__fields">
         <div class="room-schedule__field">
-          <label class="room-schedule__label" for="room-schedule-timezone">
-            {{ $t('rooms.schedule.fields.timezone.label') }}
-          </label>
+          <LabelField
+            :label="$t('rooms.schedule.fields.timezone.label')"
+            for-id="room-schedule-timezone"
+            :required="true"
+          />
           <select
             id="room-schedule-timezone"
             v-model="form.timezone"
             class="room-schedule__input"
-            :class="{ 'room-schedule__input--error': shownErrors.timezone }"
+            :class="{ 'room-schedule__input--error': liveErrors.timezone }"
             name="timezone"
+            required
             :disabled="busy"
-            :aria-invalid="Boolean(shownErrors.timezone)"
+            :aria-invalid="Boolean(liveErrors.timezone)"
           >
             <option v-for="zone in timezones" :key="zone" :value="zone">{{ zone }}</option>
           </select>
-          <p v-if="shownErrors.timezone" class="room-schedule__error">
-            {{ shownErrors.timezone }}
+          <p v-if="liveErrors.timezone" class="room-schedule__error">
+            {{ liveErrors.timezone }}
           </p>
         </div>
 
@@ -66,11 +69,12 @@
           name="slotMinutes"
           inputmode="numeric"
           autocomplete="off"
+          :required="true"
           :hint="
             $t('rooms.schedule.fields.slotMinutes.hint', ROOM_SCHEDULE_NUMBER_LIMITS.slotMinutes)
           "
           :disabled="busy"
-          :error="shownErrors.slotMinutes"
+          :error="liveErrors.slotMinutes"
         />
 
         <FormField
@@ -80,11 +84,12 @@
           name="breakMinutes"
           inputmode="numeric"
           autocomplete="off"
+          :required="true"
           :hint="
             $t('rooms.schedule.fields.breakMinutes.hint', ROOM_SCHEDULE_NUMBER_LIMITS.breakMinutes)
           "
           :disabled="busy"
-          :error="shownErrors.breakMinutes"
+          :error="liveErrors.breakMinutes"
         />
 
         <FormField
@@ -94,6 +99,7 @@
           name="bookableDesks"
           inputmode="numeric"
           autocomplete="off"
+          :required="true"
           :hint="
             $t(
               'rooms.schedule.fields.bookableDesks.hint',
@@ -101,22 +107,23 @@
             )
           "
           :disabled="busy"
-          :error="shownErrors.bookableDesks"
+          :error="liveErrors.bookableDesks"
         />
 
         <div class="room-schedule__field room-schedule__field--switch">
           <SwitchField
+            :id="PUBLIC_BOOKING_SWITCH_ID"
             :model-value="form.publicBooking"
             :label="$t('rooms.schedule.fields.publicBooking.label')"
             :disabled="busy"
             @change="form.publicBooking = $event"
           />
-          <span class="room-schedule__switch-text">
+          <label class="room-schedule__switch-text" :for="PUBLIC_BOOKING_SWITCH_ID">
             {{ $t('rooms.schedule.fields.publicBooking.label') }}
             <span class="room-schedule__hint">
               {{ $t('rooms.schedule.fields.publicBooking.hint') }}
             </span>
-          </span>
+          </label>
         </div>
       </div>
 
@@ -127,67 +134,60 @@
           v-for="key in ROOM_SCHEDULE_DAYS"
           :key="key"
           class="room-schedule__day"
+          role="group"
+          :aria-labelledby="dayDomId(key, 'name')"
           :data-day="key"
           :data-open="String(form.days[key].open)"
         >
           <div class="room-schedule__day-name">
             <SwitchField
+              :id="dayDomId(key, 'switch')"
               :model-value="form.days[key].open"
               :label="$t('rooms.schedule.days.toggle', { day: $t(`rooms.schedule.days.${key}`) })"
               :disabled="busy"
               @change="form.days[key].open = $event"
             />
-            <span>{{ $t(`rooms.schedule.days.${key}`) }}</span>
+            <label
+              :id="dayDomId(key, 'name')"
+              class="room-schedule__day-label"
+              :for="dayDomId(key, 'switch')"
+            >
+              {{ $t(`rooms.schedule.days.${key}`) }}
+            </label>
           </div>
 
           <template v-if="form.days[key].open">
-            <label class="room-schedule__time">
-              <span class="room-schedule__label">{{ $t('rooms.schedule.days.opensAt') }}</span>
+            <label v-for="field in TIME_FIELDS" :key="field" class="room-schedule__time">
+              <span class="room-schedule__label">{{ $t(`rooms.schedule.days.${field}`) }}</span>
               <input
-                v-model="form.days[key].opensAt"
+                v-model="form.days[key][field]"
                 class="room-schedule__input"
+                :class="{ 'room-schedule__input--error': liveErrors.days[key] }"
                 type="time"
-                :name="`opensAt-${key}`"
+                :name="`${field}-${key}`"
+                :required="field !== 'firstSessionAt'"
                 :disabled="busy"
-              />
-            </label>
-
-            <label class="room-schedule__time">
-              <span class="room-schedule__label">
-                {{ $t('rooms.schedule.days.firstSessionAt') }}
-              </span>
-              <input
-                v-model="form.days[key].firstSessionAt"
-                class="room-schedule__input"
-                type="time"
-                :name="`firstSessionAt-${key}`"
-                :disabled="busy"
-              />
-            </label>
-
-            <label class="room-schedule__time">
-              <span class="room-schedule__label">{{ $t('rooms.schedule.days.closesAt') }}</span>
-              <input
-                v-model="form.days[key].closesAt"
-                class="room-schedule__input"
-                type="time"
-                :name="`closesAt-${key}`"
-                :disabled="busy"
+                :aria-invalid="Boolean(liveErrors.days[key])"
+                :aria-describedby="liveErrors.days[key] ? dayDomId(key, 'error') : undefined"
               />
             </label>
           </template>
 
           <span v-else class="room-schedule__closed">{{ $t('rooms.schedule.days.closed') }}</span>
 
-          <p v-if="shownErrors.days[key]" class="room-schedule__error room-schedule__day-error">
-            {{ shownErrors.days[key] }}
+          <p
+            v-if="liveErrors.days[key]"
+            :id="dayDomId(key, 'error')"
+            class="room-schedule__error room-schedule__day-error"
+          >
+            {{ liveErrors.days[key] }}
           </p>
         </div>
 
         <p class="room-schedule__hint">{{ $t('rooms.schedule.days.hint') }}</p>
       </fieldset>
 
-      <section class="room-schedule__preview" aria-live="polite" data-schedule-preview>
+      <section class="room-schedule__preview" data-schedule-preview>
         <h3 class="room-schedule__legend">{{ $t('rooms.schedule.preview.title') }}</h3>
 
         <p v-if="hasLiveErrors" class="room-schedule__hint" data-preview="blocked">
@@ -247,7 +247,7 @@
 
 <script setup lang="ts">
 import { mdiCalendarCheck, mdiCalendarRemove, mdiClose, mdiMinusCircleOutline } from '@mdi/js'
-import { ROOM_SCHEDULE_DAYS, type RoomSchedule } from '@quizzup/shared'
+import { ROOM_SCHEDULE_DAYS, type RoomSchedule, type RoomScheduleDayKey } from '@quizzup/shared'
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -255,12 +255,13 @@ import BaseCard from '@/components/ui/BaseCard.vue'
 import FormActions from '@/components/ui/form/FormActions.vue'
 import FormField from '@/components/ui/form/FormField.vue'
 import FormResult from '@/components/ui/form/FormResult.vue'
+import LabelField from '@/components/ui/form/LabelField.vue'
 import SwitchField from '@/components/ui/form/SwitchField.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import { loadCompanyRoomService, updateRoomScheduleService } from '@/services/roomsService'
-import type { Room, RoomScheduleFieldErrors, RoomScheduleFormValues } from '@/types/room'
+import type { Room, RoomScheduleFormValues } from '@/types/room'
 import { getRoomDisplayName } from '@/utils/room/list'
 import {
   buildRoomSchedule,
@@ -287,11 +288,18 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const { confirm } = useConfirm()
 
+const TIME_FIELDS = ['opensAt', 'firstSessionAt', 'closesAt'] as const
+const PUBLIC_BOOKING_SWITCH_ID = 'room-schedule-public-booking'
+
+/** Identifiant DOM d'un élément d'une ligne de jour (lien label, groupe, erreur). */
+function dayDomId(key: RoomScheduleDayKey, part: 'name' | 'switch' | 'error'): string {
+  return `room-schedule-day-${key}-${part}`
+}
+
 const loading = ref(false)
 const loadError = ref<string | null>(null)
 const saving = ref(false)
 const disabling = ref(false)
-const submitted = ref(false)
 const formError = ref<string | null>(null)
 const successMessage = ref<string | null>(null)
 /** Réglages enregistrés côté serveur ; `null` : pas de créneaux. */
@@ -305,11 +313,9 @@ const roomName = computed(() => getRoomDisplayName(props.room))
 const hasSchedule = computed(() => savedSchedule.value !== null)
 const timezones = computed(() => getRoomScheduleTimezones(form.timezone))
 
-// Validation en direct (elle pilote l'aperçu) ; les messages ne s'affichent qu'après un envoi.
+// Validation en direct : elle marque les champs en erreur et pilote l'aperçu.
 const liveErrors = computed(() => validateRoomScheduleForm(form, t))
 const hasLiveErrors = computed(() => hasRoomScheduleFormErrors(liveErrors.value))
-const noErrors: RoomScheduleFieldErrors = { days: {} }
-const shownErrors = computed(() => (submitted.value ? liveErrors.value : noErrors))
 const preview = computed(() =>
   hasLiveErrors.value ? [] : previewRoomSchedule(buildRoomSchedule(form))
 )
@@ -322,7 +328,6 @@ function resetMessages(): void {
 function applySchedule(schedule: RoomSchedule | null | undefined): void {
   savedSchedule.value = schedule ?? null
   Object.assign(form, toRoomScheduleFormValues(schedule, props.room.config))
-  submitted.value = false
 }
 
 async function loadSchedule(): Promise<void> {
@@ -357,7 +362,13 @@ async function save(schedule: RoomSchedule | null): Promise<void> {
       return
     }
 
-    applySchedule(result.data.room.schedule ?? schedule)
+    if (schedule === null) {
+      // La saisie reste dans le formulaire : « Enregistrer » rétablit la salle.
+      savedSchedule.value = null
+    } else {
+      applySchedule(result.data.room.schedule ?? schedule)
+    }
+
     successMessage.value = t(
       schedule === null ? 'rooms.schedule.success.disabled' : 'rooms.schedule.success.saved'
     )
@@ -374,7 +385,6 @@ async function onSubmit(): Promise<void> {
   }
 
   resetMessages()
-  submitted.value = true
 
   if (hasLiveErrors.value) {
     return
@@ -466,11 +476,15 @@ watch(
   gap: 12px;
 }
 
+/* Le texte prolonge la zone de clic de l'interrupteur (cible ≥ 48 px). */
 .room-schedule__switch-text {
   display: grid;
+  align-content: center;
   gap: 2px;
+  min-height: 48px;
   color: var(--text-1);
   font-size: 14px;
+  cursor: pointer;
 }
 
 .room-schedule__label {
@@ -549,8 +563,17 @@ watch(
   align-items: center;
   gap: 12px;
   min-height: 48px;
+}
+
+/* Le nom du jour prolonge la zone de clic de l'interrupteur (cible ≥ 48 px). */
+.room-schedule__day-label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-height: 48px;
   color: var(--text-0);
   font-weight: 700;
+  cursor: pointer;
 }
 
 .room-schedule__time {
@@ -606,10 +629,7 @@ watch(
   align-items: center;
   justify-content: space-between;
   gap: 12px 16px;
-  padding: 10px 12px;
-  border: 1px solid var(--danger);
-  border-radius: 12px;
-  background: var(--danger-bg);
+  padding: 10px 0;
 }
 
 .room-schedule__danger-text {

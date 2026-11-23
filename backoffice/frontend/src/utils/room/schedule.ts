@@ -3,6 +3,7 @@ import {
   GAME_PODIUMS,
   getRoomDesksCount,
   ROOM_DEFAULT_TIMEZONE,
+  ROOM_MIN_DESKS,
   ROOM_SCHEDULE_DAYS,
   type RoomSchedule,
   type RoomScheduleDay,
@@ -34,7 +35,7 @@ const ROOM_SCHEDULE_PREVIEW_MAX_SLOTS = 6
 export const ROOM_SCHEDULE_NUMBER_LIMITS = {
   slotMinutes: { min: SESSION_MIN_MINUTES, max: SESSION_MAX_MINUTES },
   breakMinutes: { min: 0, max: SESSION_MAX_BREAK_MINUTES },
-  bookableDesks: { min: 1, max: GAME_PODIUMS },
+  bookableDesks: { min: ROOM_MIN_DESKS, max: GAME_PODIUMS },
 } as const
 
 function createClosedDay(): RoomScheduleDayFormValues {

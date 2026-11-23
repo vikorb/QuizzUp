@@ -127,7 +127,7 @@
       },
       "days": {
         "title": "Horaires d’ouverture",
-        "toggle": "Ouvert le {day}",
+        "toggle": "{day} : ouvert",
         "opensAt": "Ouverture",
         "firstSessionAt": "Première session",
         "closesAt": "Fermeture",
@@ -151,10 +151,10 @@
         "cancel": "Fermer",
         "save": "Enregistrer les créneaux",
         "saving": "Enregistrement...",
-        "close": "Fermer les créneaux",
+        "close": "Fermer le panneau des créneaux",
         "disable": "Désactiver les créneaux",
         "disabling": "Désactivation...",
-        "disableConfirm": "Désactiver les créneaux de la salle {name} ? Elle ne sera plus réservable ; les sessions déjà programmées ne sont pas supprimées."
+        "disableConfirm": "Désactiver les créneaux de la salle {name} ? Elle ne sera plus réservable et les horaires enregistrés seront effacés côté serveur (le formulaire garde votre saisie : « Enregistrer » les rétablira). Les sessions déjà programmées ne sont pas supprimées."
       },
       "hints": {
         "disable": "Désactiver les créneaux rend la salle non réservable."

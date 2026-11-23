@@ -10,11 +10,32 @@ import {
   updateRoomScheduleServiceMock,
 } from '@frontend-tests/_helpers/roomsServiceMock'
 import { flushPromises } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import RoomSchedulePanel from '@/views/clients/rooms/RoomSchedulePanel.vue'
 
+// Traductions que le double i18n connaît (par défaut il renvoie la clé).
+const translations = vi.hoisted(() => ({}) as Record<string, string>)
+
+vi.mock('vue-i18n', async (importOriginal) => {
+  const actual = await importOriginal<{ useI18n: () => Record<string, unknown> }>()
+
+  return {
+    ...actual,
+    useI18n: () => ({
+      ...actual.useI18n(),
+      t: (key: string) => translations[key] ?? key,
+    }),
+  }
+})
+
 resetFrontendMocksBeforeEach()
+
+beforeEach(() => {
+  for (const key of Object.keys(translations)) {
+    delete translations[key]
+  }
+})
 
 type Wrapper = ReturnType<typeof mountWithFrontendMocks>
 
@@ -148,14 +169,19 @@ describe('views/clients/rooms/RoomSchedulePanel.vue', () => {
 
     expect(wrapper.find('[data-preview="blocked"]').exists()).toBe(true)
     expect(wrapper.find('[data-preview-day]').exists()).toBe(false)
+    // Le message de l'aperçu renvoie à des champs réellement marqués.
+    expect(fieldErrors(wrapper)).toEqual(['rooms.schedule.validation.slotMinutesInvalid'])
+    expect(wrapper.find('[data-schedule-preview]').attributes('aria-live')).toBeUndefined()
   })
 
   it('validates the fields locally before calling the API', async () => {
     const wrapper = await mountPanel()
 
-    // Aucune erreur affichée avant un envoi.
-    await wrapper.find('input[name="slotMinutes"]').setValue('3')
     expect(fieldErrors(wrapper)).toEqual([])
+
+    // L'erreur s'affiche dès que la valeur est invalide, sans attendre l'envoi.
+    await wrapper.find('input[name="slotMinutes"]').setValue('3')
+    expect(fieldErrors(wrapper)).toEqual(['rooms.schedule.validation.slotMinutesInvalid'])
 
     await wrapper.find('input[name="bookableDesks"]').setValue('9')
     await submit(wrapper)
@@ -219,6 +245,7 @@ describe('views/clients/rooms/RoomSchedulePanel.vue', () => {
   })
 
   it('shows the server error as a form message and keeps the typed values', async () => {
+    translations['rooms.schedule.errors.invalid_body'] = 'Réglages invalides'
     mockUpdateRoomScheduleFailure('invalid_body')
 
     const wrapper = await mountPanel()
@@ -226,16 +253,26 @@ describe('views/clients/rooms/RoomSchedulePanel.vue', () => {
     await wrapper.find('input[name="slotMinutes"]').setValue('30')
     await submit(wrapper)
 
-    // Le mock i18n renvoie la clé : le message retombe sur le texte par défaut.
-    expect(wrapper.find('[data-test="form-result-error"]').text()).toBe(
-      'rooms.schedule.errors.default'
-    )
+    // Échoue si la clé demandée n'est pas exactement `rooms.schedule.errors.invalid_body`.
+    expect(wrapper.find('[data-test="form-result-error"]').text()).toBe('Réglages invalides')
     expect(wrapper.find('input[name="slotMinutes"]').element).toHaveProperty('value', '30')
     expect(wrapper.emitted('saved')).toBeUndefined()
   })
 
+  it('falls back to the default message for an unknown server code', async () => {
+    mockUpdateRoomScheduleFailure('something_new')
+
+    const wrapper = await mountPanel()
+
+    await submit(wrapper)
+
+    expect(wrapper.find('[data-test="form-result-error"]').text()).toBe(
+      'rooms.schedule.errors.default'
+    )
+  })
+
   it('confirms in danger variant, then disables the schedule with null', async () => {
-    mockLoadCompanyRoomSchedule(roomScheduleFixture)
+    mockLoadCompanyRoomSchedule({ ...roomScheduleFixture, slotMinutes: 45 })
     setConfirmResult(true)
 
     const wrapper = await mountPanel()
@@ -254,6 +291,17 @@ describe('views/clients/rooms/RoomSchedulePanel.vue', () => {
     expect(wrapper.find('[data-schedule="unset"]').exists()).toBe(true)
     expect(wrapper.find('.room-schedule__disable').exists()).toBe(false)
     expect(wrapper.emitted('saved')).toHaveLength(1)
+
+    // La saisie reste : un « Enregistrer » rétablit la salle avec les mêmes réglages.
+    expect(wrapper.find('input[name="slotMinutes"]').element).toHaveProperty('value', '45')
+    expect(day(wrapper, 1).attributes('data-open')).toBe('true')
+
+    await submit(wrapper)
+
+    expect(updateRoomScheduleServiceMock).toHaveBeenLastCalledWith(1, 1, {
+      schedule: { ...roomScheduleFixture, slotMinutes: 45 },
+    })
+    expect(wrapper.find('[data-schedule="set"]').exists()).toBe(true)
   })
 
   it('keeps the schedule when the deactivation is cancelled or fails', async () => {
@@ -275,6 +323,96 @@ describe('views/clients/rooms/RoomSchedulePanel.vue', () => {
     expect(wrapper.find('[data-test="form-result-error"]').exists()).toBe(true)
     expect(wrapper.find('[data-schedule="set"]').exists()).toBe(true)
     expect(wrapper.emitted('saved')).toBeUndefined()
+  })
+
+  it('groups each day row under its name, so the time fields say which day they belong to', async () => {
+    mockLoadCompanyRoomSchedule(roomScheduleFixture)
+
+    const wrapper = await mountPanel()
+    const monday = day(wrapper, 1)
+    const name = wrapper.find(`#${monday.attributes('aria-labelledby')}`)
+
+    expect(monday.attributes('role')).toBe('group')
+    expect(name.text()).toBe('rooms.schedule.days.1')
+    expect(monday.findAll('input[type="time"]')).toHaveLength(3)
+  })
+
+  it('makes the day name and the public booking text clickable labels of their switch', async () => {
+    const wrapper = await mountPanel()
+    const tuesday = day(wrapper, 2)
+    const dayLabel = tuesday.find('label.room-schedule__day-label')
+
+    expect(dayLabel.attributes('for')).toBe(
+      tuesday.find('[data-test="switch-field"]').attributes('id')
+    )
+
+    await dayLabel.trigger('click')
+
+    expect(tuesday.attributes('data-open')).toBe('true')
+
+    const publicSwitch = wrapper.find('.room-schedule__field--switch [data-test="switch-field"]')
+    const publicLabel = wrapper.find('label.room-schedule__switch-text')
+
+    expect(publicLabel.attributes('for')).toBe(publicSwitch.attributes('id'))
+
+    await publicLabel.trigger('click')
+
+    expect(publicSwitch.attributes('aria-checked')).toBe('true')
+  })
+
+  it('links the day error to the three time fields of that day only', async () => {
+    const wrapper = await mountPanel()
+
+    await toggleDay(wrapper, 6)
+    await toggleDay(wrapper, 7)
+    await day(wrapper, 6).find('input[name="closesAt-6"]').setValue('01:00')
+    await day(wrapper, 7).find('input[name="opensAt-7"]').setValue('00:30')
+
+    const errorId = day(wrapper, 6).find('.room-schedule__day-error').attributes('id')
+    const saturday = day(wrapper, 6).findAll('input[type="time"]')
+
+    expect(errorId).toBeTruthy()
+    expect(saturday).toHaveLength(3)
+
+    for (const input of saturday) {
+      expect(input.attributes('aria-invalid')).toBe('true')
+      expect(input.attributes('aria-describedby')).toBe(errorId)
+      expect(input.classes()).toContain('room-schedule__input--error')
+    }
+
+    for (const input of day(wrapper, 7).findAll('input[type="time"]')) {
+      expect(input.attributes('aria-invalid')).toBe('false')
+      expect(input.attributes('aria-describedby')).toBeUndefined()
+    }
+  })
+
+  it('only disables the close button while saving or disabling', async () => {
+    mockLoadCompanyRoomSchedule(roomScheduleFixture)
+
+    const wrapper = mountWithFrontendMocks(RoomSchedulePanel, {
+      props: { companyId: 1, room: roomsFixture[0] },
+    })
+    const close = () => wrapper.find('.room-schedule__close').attributes('disabled')
+
+    // Chargement en cours : on peut fermer.
+    expect(wrapper.find('[data-test="base-card"]').attributes('data-loading')).toBe('true')
+    expect(close()).toBeUndefined()
+
+    await flushPromises()
+
+    let release: ((result: { ok: false; error: string }) => void) | undefined
+
+    updateRoomScheduleServiceMock.mockImplementationOnce(
+      () => new Promise((resolve) => (release = resolve))
+    )
+    await wrapper.find('form').trigger('submit')
+
+    expect(close()).toBeDefined()
+
+    release?.({ ok: false, error: 'server_error' })
+    await flushPromises()
+
+    expect(close()).toBeUndefined()
   })
 
   it('emits close from the close button and the cancel button', async () => {

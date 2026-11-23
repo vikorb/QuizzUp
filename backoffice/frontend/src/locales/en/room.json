@@ -127,7 +127,7 @@
       },
       "days": {
         "title": "Opening hours",
-        "toggle": "Open on {day}",
+        "toggle": "{day}: open",
         "opensAt": "Opens",
         "firstSessionAt": "First session",
         "closesAt": "Closes",
@@ -151,10 +151,10 @@
         "cancel": "Close",
         "save": "Save the time slots",
         "saving": "Saving...",
-        "close": "Close the time slots",
+        "close": "Close the time slots panel",
         "disable": "Disable the time slots",
         "disabling": "Disabling...",
-        "disableConfirm": "Disable the time slots of the room {name}? It can no longer be booked; sessions already scheduled are not deleted."
+        "disableConfirm": "Disable the time slots of the room {name}? It can no longer be booked and the saved hours will be erased on the server (the form keeps what you typed: “Save” will restore them). Sessions already scheduled are not deleted."
       },
       "hints": {
         "disable": "Disabling the time slots makes the room unbookable."
