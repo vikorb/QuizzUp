@@ -61,7 +61,7 @@ test.describe('Écran de salle — lumières en simulation DMX', () => {
 
     // Scène « buzz » sur le pupitre 2 : son PAR prend la couleur du pupitre, l'autre baisse.
     const { r, g, b } = config.lighting.deskColors['2']!
-    await page.locator('.scene-desk select').selectOption('2')
+    await page.locator('[data-test="scene-desk-select"]').selectOption('2')
     await page.locator('[data-test="scene-buzz"]').click()
     await expect.poll(() => lampColor(page, 'PAR pupitre 2')).toBe(`rgb(${r} ${g} ${b})`)
     await expect.poll(() => lampIntensity(page, 'PAR pupitre 2')).toBeGreaterThan(0.5)

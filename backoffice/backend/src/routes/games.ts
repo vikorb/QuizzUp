@@ -209,9 +209,12 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
                 display_name: participant.displayName,
                 email,
                 consent_at: email ? db.fn.now() : null,
+                marketing_consent_at: email && participant.marketingConsent ? db.fn.now() : null,
                 second_display_name: second?.displayName ?? null,
                 second_email: secondEmail,
                 second_consent_at: secondEmail ? db.fn.now() : null,
+                second_marketing_consent_at:
+                  secondEmail && second?.marketingConsent ? db.fn.now() : null,
               }
             })
           )

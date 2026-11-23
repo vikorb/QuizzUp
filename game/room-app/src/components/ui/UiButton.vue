@@ -1,5 +1,5 @@
 <template>
-  <button class="ui-btn" :class="variantClass" :type="type">
+  <button class="ui-btn" :class="[variantClass, sizeClass]" :type="type">
     <slot />
   </button>
 </template>
@@ -8,12 +8,15 @@
 import { computed } from 'vue'
 const props = withDefaults(
   defineProps<{
-    variant?: 'default' | 'primary' | 'danger' | 'seg' | 'icon'
+    variant?: 'default' | 'primary' | 'danger' | 'icon'
+    /** `lg` : écrans vus de loin (accueil, assistants plein écran). */
+    size?: 'md' | 'lg'
     type?: 'button' | 'submit'
   }>(),
-  { variant: 'default', type: 'button' }
+  { variant: 'default', size: 'md', type: 'button' }
 )
 const variantClass = computed(() => `ui-btn--${props.variant}`)
+const sizeClass = computed(() => `ui-btn--${props.size}`)
 </script>
 
 <style scoped>
@@ -22,16 +25,26 @@ const variantClass = computed(() => `ui-btn--${props.variant}`)
   align-items: center;
   justify-content: center;
   gap: 8px;
+  min-height: var(--tap-min);
   border: 1px solid var(--border-ui);
   background: var(--surface-1);
   color: var(--text-1);
-  border-radius: 12px;
-  padding: 10px 18px;
+  border-radius: var(--radius-ctl);
+  padding: 0 18px;
   font-size: 14px;
   font-weight: 600;
-  line-height: 1;
+  line-height: 1.2;
+  text-align: center;
   cursor: pointer;
   transition: var(--tr);
+}
+
+/* Écrans vus de loin : cible de 64 px, texte plus grand. */
+.ui-btn--lg {
+  min-height: var(--tap-lg);
+  padding: 0 32px;
+  font-size: 20px;
+  font-weight: 800;
 }
 
 .ui-btn:hover {
@@ -68,27 +81,6 @@ const variantClass = computed(() => `ui-btn--${props.variant}`)
     0 0 0 1px rgba(255, 255, 255, 0.14) inset;
 }
 
-.ui-btn--seg {
-  width: 100%;
-  justify-content: flex-start;
-  gap: 10px;
-  border-radius: 14px;
-  padding: 10px 12px;
-  background: var(--surface-0);
-  color: var(--text-1);
-}
-
-.ui-btn--seg:hover {
-  background: var(--surface-2);
-}
-
-.ui-btn--seg.is-active {
-  border-color: var(--border-2);
-  background: linear-gradient(135deg, var(--glow-blue), var(--glow-pink)), var(--bg-card-hi);
-  box-shadow: 0 0 12px var(--glow-soft);
-  color: var(--text-0);
-}
-
 /* Danger : rouge plein au centre (fond rouge doux), pas de néon autour. */
 .ui-btn--danger {
   background: var(--danger-bg);
@@ -105,10 +97,10 @@ const variantClass = computed(() => `ui-btn--${props.variant}`)
 }
 
 .ui-btn--icon {
-  width: 38px;
-  height: 38px;
+  width: var(--tap-min);
+  height: var(--tap-min);
   padding: 0;
-  border-radius: 12px;
+  border-radius: var(--radius-ctl);
   justify-content: center;
   gap: 0;
   background: var(--surface-2);

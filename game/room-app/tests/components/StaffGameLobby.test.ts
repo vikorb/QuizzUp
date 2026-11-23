@@ -86,6 +86,23 @@ async function clickStart(
   return { wrapper, start }
 }
 
+const primaryTests = (wrapper: Awaited<ReturnType<typeof mountWithApp>>['wrapper']) =>
+  wrapper.findAll('.ui-btn--primary').map((button) => button.attributes('data-test'))
+
+/** Une partie du backoffice déjà sauvegardée sur ce PC. */
+function saveGame(storage: SessionStorage): void {
+  rememberBackofficeGameId(GAME.id, GAME.seed)
+  GameSession.create(
+    {
+      seed: GAME.seed,
+      participants: [{ id: 1, podium: 1, displayName: 'Léa' }],
+      themes: getPlayableThemes(),
+    },
+    [],
+    { storage }
+  )
+}
+
 describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
   let player: ExtractPlayer
   let storage: SessionStorage
@@ -462,6 +479,46 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
     await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('play'))
     expect(JSON.parse(localStorage.getItem('quizzup_room_backoffice_game') ?? '')).toMatchObject({
       id: 42,
+    })
+  })
+
+  describe('un seul bouton principal visible', () => {
+    it('partie prête : « Démarrer » seul, en grand format', async () => {
+      vi.spyOn(roomApi, 'fetchCurrentGame').mockResolvedValue(GAME)
+      const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+      await flushPromises()
+
+      expect(primaryTests(wrapper)).toEqual(['start-game'])
+      expect(wrapper.find('[data-test="start-game"]').classes()).toContain('ui-btn--lg')
+    })
+
+    it('partie en cours avec sauvegarde : « Reprendre » seul, « Recommencer » passe en secondaire', async () => {
+      saveGame(storage)
+      vi.spyOn(roomApi, 'fetchCurrentGame').mockResolvedValue({ ...GAME, state: 'running' })
+      const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+      await flushPromises()
+
+      expect(primaryTests(wrapper)).toEqual(['resume-game'])
+      for (const test of ['resume-game', 'start-game']) {
+        expect(wrapper.find(`[data-test="${test}"]`).classes()).toContain('ui-btn--lg')
+      }
+    })
+
+    it('partie en cours sans sauvegarde : « Recommencer » seul', async () => {
+      vi.spyOn(roomApi, 'fetchCurrentGame').mockResolvedValue({ ...GAME, state: 'running' })
+      const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+      await flushPromises()
+
+      expect(primaryTests(wrapper)).toEqual(['start-game'])
+    })
+
+    it('backoffice injoignable : aucun bouton principal, seulement « Réessayer »', async () => {
+      vi.spyOn(roomApi, 'fetchCurrentGame').mockRejectedValue(new Error('network'))
+      const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+      await flushPromises()
+
+      expect(primaryTests(wrapper)).toEqual([])
+      expect(wrapper.find('[role="alert"] button').exists()).toBe(true)
     })
   })
 

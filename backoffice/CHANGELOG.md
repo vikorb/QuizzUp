@@ -10,6 +10,8 @@ Format inspiré de Keep a Changelog.
 
 - Réglages de créneaux d'une salle : `PUT /companies/:companyId/rooms/:roomId/schedule` (admin et superadmin) écrit `rooms.schedule` (fuseau, durée de créneau, pause, pupitres réservables, heures d'ouverture par jour). `null` remet la salle sans créneaux. Le champ `schedule` est renvoyé par les routes des salles et par `/room/me`.
   US: US-SESSION-01 (#142)
+- Consentement aux offres du centre séparé de la conservation de l'e-mail : deux cases distinctes à la création d'une partie, jamais pré-cochées, la seconde inactive sans e-mail. Nouvelles colonnes `marketing_consent_at` et `second_marketing_consent_at` sur `game_participants`, horodatées par le serveur et effacées par la purge à 3 ans. L'API renvoie `marketingConsent` et refuse un consentement sans e-mail (400 `marketing_consent_requires_email`).
+  US: US-JOIN-01 (#166)
 
 - Backoffice : l'historique des sessions se filtre par salle, état et période, avec pagination et colonnes date, salle, joueurs, durée et meilleur score ; `GET /companies/:companyId/games` répond désormais `{ games, total }` et accepte `state`, `roomId`, `from`, `to`, `limit` et `offset`.
   US: US-HISTORY-01 (#157)
@@ -287,6 +289,8 @@ Format inspiré de Keep a Changelog.
 
 ### Changed
 
+- Écran de salle : boutons et mises en page recalés sur l'accueil, les assistants de configuration, l'écran Matériel, le lobby, l'inscription et la connexion. Un seul bouton principal par écran, cibles d'au moins 48 px (plan de salle compris), barres d'actions alignées, rien ne déborde à 1280 px ni à 768 px.
+  US: US-UX-01 (#132)
 - **Rupture de déploiement.** Console éditeur : le compte superadmin ne peut plus se connecter ni appeler l'API que depuis les adresses de `CONSOLE_ALLOWED_CIDRS` (401 `invalid_credentials` à la connexion, 403 `forbidden` ensuite). Variable vide ou absente = console fermée : la renseigner avant de déployer. La même variable, séparée par des espaces, remplace `EDITOR_ALLOWED_RANGES` côté Caddy de production, et les réseaux Docker de recette et de production ont un sous-réseau fixe à nommer dans `TRUST_PROXY` (réseau à recréer une fois, voir les README de `deploy/`).
   US: US-CONSOLE-01 (#161)
 - Images Docker du backoffice (backend, frontend, service `tests`) passées à Node 22, requis par les dépendances mises à jour. Sur une démo déjà installée, lancer `npm run demo:reset` pour que les volumes `*_node_modules` reprennent les nouvelles dépendances (la base est alors vidée).

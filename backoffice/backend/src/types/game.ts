@@ -7,6 +7,8 @@ export type GameSecondPlayerRow = {
   email: string | null
   hasEmail: boolean
   consentAt: string | null
+  /** Accepte de recevoir les offres du centre (jamais vrai sans email). */
+  marketingConsent: boolean
 }
 
 export type GameParticipantRow = {
@@ -17,6 +19,8 @@ export type GameParticipantRow = {
   email: string | null
   hasEmail: boolean
   consentAt: string | null
+  /** Accepte de recevoir les offres du centre (jamais vrai sans email). */
+  marketingConsent: boolean
   secondPlayer: GameSecondPlayerRow | null
   /** Score du pupitre, partagé par ses joueurs. */
   score: number
