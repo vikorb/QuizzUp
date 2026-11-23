@@ -202,3 +202,12 @@ export function getQuestionNumber(state: GameState): number | null {
   }
   return null
 }
+
+/** Identifiant de la question en cours de jeu (phase `question`), `null` ailleurs. */
+export function getLiveQuestionId(state: GameState): number | null {
+  const { phase } = state
+  if (phase.name !== 'question') {
+    return null
+  }
+  return getCurrentRound(state)?.questions[phase.questionIndex]?.id ?? null
+}

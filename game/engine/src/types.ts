@@ -103,8 +103,11 @@ export type GameCommand =
   | { type: 'start'; at: number }
   | { type: 'tick'; at: number }
   | { type: 'press'; at: number; podium: number; button: ButtonIndex }
-  /** Passe la question en cours (phase `question` seulement) : 0 point, aucune pénalité. */
-  | { type: 'skip'; at: number }
+  /**
+   * Passe la question `questionId` (phase `question` seulement) : 0 point, aucune pénalité.
+   * Sans effet si la question en cours n'est plus celle-là (finie d'elle-même, ou suivante).
+   */
+  | { type: 'skip'; at: number; questionId: number }
   | { type: 'abort'; at: number; reason: string }
 
 export type GameEventType =

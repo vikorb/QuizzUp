@@ -58,6 +58,15 @@
       "text": "The game is paused. It resumes when the staff restarts it.",
       "resume": "Resume the game"
     },
+    "command": {
+      "refused": {
+        "already_paused": "The game is already paused.",
+        "not_paused": "The game is not paused.",
+        "paused": "The question cannot be skipped while the game is paused.",
+        "not_in_question": "The question had already changed: nothing was skipped.",
+        "game_over": "The game is over."
+      }
+    },
     "toolbar": {
       "pause": "Pause the game",
       "resume": "Resume the game",

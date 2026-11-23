@@ -163,7 +163,7 @@ function restoreAudio(resumed: GameSession): void {
     mediaStartMs: mini.question.mediaStartMs,
     extractMs: FLASH_BLIND_TEST_STAGE_DURATIONS_MS[mini.stageIndex] ?? 0,
     elapsedMs: Math.max(0, reference - mini.stageStartedAt),
-    paused: answering,
+    paused: answering || resumed.paused,
   })
 }
 
@@ -321,6 +321,8 @@ export async function resumeSavedGame(): Promise<boolean> {
   await preloadExtracts(resumed.state.setup.themes)
   attach(resumed)
   restoreAudio(resumed)
+  // Rechargée en pause : l'extrait attend la reprise (sauf si un joueur répondait déjà).
+  resumeExtractOnResume = getBlindTestPausedAt(resumed.state) === null
   return true
 }
 
@@ -365,9 +367,12 @@ export function resumeGame(): GameCommandResult {
   return result
 }
 
-/** Passe la question en cours : 0 point, aucune pénalité. Refusé en pause ou hors question. */
-export function skipQuestion(): GameCommandResult {
-  return session.value?.skip() ?? refuse(GAME_COMMAND_REFUSAL.GAME_OVER)
+/**
+ * Passe la question `questionId` : 0 point, aucune pénalité. Refusé en pause, hors question, ou
+ * si la question en cours n'est plus celle que l'opérateur visait.
+ */
+export function skipQuestion(questionId: number): GameCommandResult {
+  return session.value?.skip(questionId) ?? refuse(GAME_COMMAND_REFUSAL.GAME_OVER)
 }
 
 /** Ferme la partie et oublie sa sauvegarde. */
