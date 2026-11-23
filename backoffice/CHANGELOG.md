@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Réglages de créneaux d'une salle : `PUT /companies/:companyId/rooms/:roomId/schedule` (admin et superadmin) écrit `rooms.schedule` (fuseau, durée de créneau, pause, pupitres réservables, heures d'ouverture par jour). `null` remet la salle sans créneaux. Le champ `schedule` est renvoyé par les routes des salles et par `/room/me`.
+  US: US-SESSION-01 (#142)
+
 - Import de questions par fichier CSV (`POST /questions/import`) : essai à blanc, import tout ou rien avec erreurs numérotées par ligne, portée `global` ou `company` selon les droits, sans écran pour l'instant.
   US: US-IMPORT-01 (#158)
 - Backoffice : une feuille de résultats imprimable (classement avec égalités, centre, salle, date, sans e-mail de joueur) est accessible depuis la fiche d'une partie terminée.

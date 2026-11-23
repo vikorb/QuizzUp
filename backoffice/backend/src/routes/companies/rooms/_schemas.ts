@@ -3,9 +3,17 @@ import { z } from 'zod'
 import {
   GAME_PODIUMS,
   ROOM_MIN_DESKS,
+  ROOM_SCHEDULE_DAYS,
   ROOM_STATUS_ACTIVE,
   ROOM_STATUS_DELETED,
   ROOM_STATUS_INACTIVE,
+  SESSION_MAX_BREAK_MINUTES,
+  SESSION_MAX_MINUTES,
+  SESSION_MIN_MINUTES,
+  timeToMinutes,
+  type RoomSchedule,
+  type RoomScheduleDay,
+  type RoomScheduleDayKey,
 } from '@quizzup/shared'
 
 export const ROOM_NAME_MAX_LENGTH = 255
@@ -74,3 +82,75 @@ export const createRoomAccountSchema = z.object({
     .regex(/^[\w.-]+$/),
   password: z.string().min(8).max(100),
 })
+
+const DAY_MINUTES = 1440
+
+const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'schedule_time_invalid')
+
+/** Fuseau IANA valide : `Intl` lève une `RangeError` pour un nom inconnu. */
+function isValidTimeZone(timeZone: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone })
+
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Fermeture en minutes depuis l'ouverture du jour : `closesAt` ≤ `opensAt` veut dire « le lendemain ». */
+function closingMinutes({ opensAt, closesAt }: RoomScheduleDay): number {
+  const closes = timeToMinutes(closesAt)
+
+  return closes <= timeToMinutes(opensAt) ? closes + DAY_MINUTES : closes
+}
+
+const roomScheduleDaySchema = z
+  .object({
+    opensAt: timeSchema,
+    firstSessionAt: timeSchema.optional(),
+    closesAt: timeSchema,
+  })
+  .refine(
+    (day) => {
+      if (day.firstSessionAt === undefined) {
+        return true
+      }
+
+      const first = timeToMinutes(day.firstSessionAt)
+
+      // Avant l'ouverture dans la journée : c'est après minuit, le lendemain.
+      return (
+        (first < timeToMinutes(day.opensAt) ? first + DAY_MINUTES : first) < closingMinutes(day)
+      )
+    },
+    { message: 'schedule_first_session_out_of_range', path: ['firstSessionAt'] }
+  )
+
+/** Deux jours consécutifs (le dimanche précède le lundi) ne se chevauchent pas. */
+function hasOverlappingDays(days: Partial<Record<RoomScheduleDayKey, RoomScheduleDay>>): boolean {
+  return ROOM_SCHEDULE_DAYS.some((key, index) => {
+    const day = days[key]
+    const next = days[ROOM_SCHEDULE_DAYS[(index + 1) % ROOM_SCHEDULE_DAYS.length]!]
+
+    return (
+      day !== undefined &&
+      next !== undefined &&
+      closingMinutes(day) > DAY_MINUTES + timeToMinutes(next.opensAt)
+    )
+  })
+}
+
+export const roomScheduleSchema = z.object({
+  timezone: z.string().refine(isValidTimeZone, { message: 'schedule_timezone_invalid' }),
+  slotMinutes: z.number().int().min(SESSION_MIN_MINUTES).max(SESSION_MAX_MINUTES),
+  breakMinutes: z.number().int().min(0).max(SESSION_MAX_BREAK_MINUTES).default(0),
+  bookableDesks: z.number().int().min(ROOM_MIN_DESKS).max(GAME_PODIUMS),
+  publicBooking: z.boolean(),
+  days: z
+    .partialRecord(z.enum(ROOM_SCHEDULE_DAYS), roomScheduleDaySchema)
+    .refine((days) => !hasOverlappingDays(days), { message: 'schedule_days_overlap' }),
+}) satisfies z.ZodType<RoomSchedule, unknown>
+
+/** `schedule: null` désactive les créneaux : la salle n'est plus réservable. */
+export const updateRoomScheduleSchema = z.object({ schedule: roomScheduleSchema.nullable() })
