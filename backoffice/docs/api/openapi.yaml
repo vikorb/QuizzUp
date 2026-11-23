@@ -41,10 +41,12 @@ tags:
     description: Salles de jeu d'une compagnie et leur configuration matérielle
   - name: Games
     description: Parties lancées par l'opérateur dans une salle
+  - name: DemoRequests
+    description: Demandes de démonstration reçues de la vitrine, consultées dans la console de l'éditeur
   - name: Public
     description: |
       API publique sous `/public/v1` (vitrine, réservation) : sans compte, sans jeton, sans cookie.
-      Aucune route n'y est livrée pour l'instant ; les routes à venir suivent ces conventions.
+      Les routes suivent ces conventions.
 
       - Erreurs au format `PublicError` : statut HTTP et `{ "error": "<code_snake_case>" }`, avec
         `details.fieldErrors` pour `invalid_body` seulement. Codes communs : `invalid_json` (400),
@@ -1325,17 +1327,17 @@ paths:
     put:
       tags:
         - Rooms
-      summary: "[NON DISPONIBLE] Régler les créneaux d'une salle"
+      summary: "[DISPONIBLE] Régler les créneaux d'une salle"
       description: |
-        Statut : **Non disponible** (à venir, lot 13)
+        Statut : **Disponible**
 
         Remplace les réglages de créneaux de la salle (`rooms.schedule`) ; `schedule: null` les désactive (la salle n'est plus réservable). `rooms.config` n'est pas touché : il appartient au PC de salle.
 
-        Une fois la route livrée, `schedule` est aussi renvoyé par `GET /companies/{companyId}/rooms*` et par `/room/me`.
+        `schedule` est aussi renvoyé par `GET /companies/{companyId}/rooms*` et par `/room/me`. Un jour absent de `days` est fermé ; `breakMinutes` vaut `0` s'il est omis ; un champ inconnu est ignoré.
 
         Accès : superadmin (toutes les compagnies) et `admin` de la compagnie ; refusé au rôle `user`.
       operationId: updateRoomSchedule
-      x-availability: non_disponible
+      x-availability: disponible
       x-us: 'Lot 13 / sessions programmées'
       parameters:
         - $ref: '#/components/parameters/CompanyIdParam'
@@ -1357,7 +1359,12 @@ paths:
                   room:
                     $ref: '#/components/schemas/Room'
         '400':
-          description: Corps invalide (`invalid_body`, avec détails) ; fuseau inconnu, durée ou pause hors bornes, `firstSessionAt` hors plage d'ouverture, jours consécutifs qui se chevauchent
+          description: >-
+            Corps invalide (`invalid_body`, avec détails) ou identifiants invalides (`invalid_params`). Fuseau inconnu
+            (`schedule_timezone_invalid`), heure qui n'est pas `HH:MM` (`schedule_time_invalid`), durée ou pause hors bornes,
+            `firstSessionAt` hors plage d'ouverture (`schedule_first_session_out_of_range`), jours consécutifs qui se
+            chevauchent, le dimanche précédant le lundi (`schedule_days_overlap`) : ces trois codes sont des messages de
+            détail du corps, pas des codes d'erreur de premier niveau
           content:
             application/json:
               schema:
@@ -1389,7 +1396,7 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Renvoie la salle (avec sa configuration matérielle) et la compagnie du compte de salle connecté. À venir (lot 13) : la salle gagnera `schedule`, qui donne le fuseau d'affichage des sessions programmées.
+        Renvoie la salle (avec sa configuration matérielle) et la compagnie du compte de salle connecté. La salle porte aussi `schedule` (`null` sans créneaux), qui donne le fuseau d'affichage des sessions programmées.
 
         Accès : réservé au rôle `room`.
       operationId: getCurrentRoom
@@ -2444,6 +2451,208 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+
+  /demo-requests:
+    get:
+      tags:
+        - DemoRequests
+      summary: '[DISPONIBLE] Lister les demandes de démonstration'
+      description: |
+        Statut : **Disponible**
+
+        Demandes reçues de la vitrine (`POST /public/v1/demo-requests`), les plus récentes d'abord,
+        sans pagination. `pendingCount` est le nombre de demandes non traitées.
+
+        Accès : réservé au rôle `superadmin`. Une demande est une ressource de l'éditeur : elle
+        n'appartient à aucune compagnie.
+      operationId: listDemoRequests
+      x-availability: disponible
+      responses:
+        '200':
+          description: Demandes de démonstration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DemoRequestsResponse'
+        '401':
+          description: Non authentifié
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /demo-requests/{demoRequestId}:
+    patch:
+      tags:
+        - DemoRequests
+      summary: '[DISPONIBLE] Marquer une demande traitée ou la rouvrir'
+      description: |
+        Statut : **Disponible**
+
+        `processed: true` renseigne `processedAt` et `processedBy` (compte appelant) ;
+        `processed: false` les efface. Une demande déjà traitée est renvoyée telle quelle
+        (auteur et date du premier traitement conservés).
+
+        Accès : réservé au rôle `superadmin`.
+      operationId: updateDemoRequest
+      x-availability: disponible
+      parameters:
+        - $ref: '#/components/parameters/DemoRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDemoRequestRequest'
+      responses:
+        '200':
+          description: Demande mise à jour
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  demoRequest:
+                    $ref: '#/components/schemas/DemoRequest'
+        '400':
+          description: Paramètres ou corps invalides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non authentifié
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Demande introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags:
+        - DemoRequests
+      summary: '[DISPONIBLE] Supprimer définitivement une demande'
+      description: |
+        Statut : **Disponible**
+
+        Suppression définitive de la ligne (droit à l'effacement), sans suppression logique.
+        Les demandes sont de toute façon supprimées 12 mois après leur création.
+
+        Accès : réservé au rôle `superadmin`.
+      operationId: deleteDemoRequest
+      x-availability: disponible
+      parameters:
+        - $ref: '#/components/parameters/DemoRequestId'
+      responses:
+        '204':
+          description: Demande supprimée
+        '400':
+          description: Paramètres invalides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non authentifié
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Demande introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /public/v1/demo-requests:
+    post:
+      tags:
+        - Public
+      summary: '[DISPONIBLE] Envoyer une demande de démonstration'
+      description: |
+        Statut : **Disponible**
+
+        Route publique du formulaire de la vitrine : aucune authentification. La demande est
+        enregistrée sans envoi d'e-mail ; l'éditeur la consulte dans sa console. On ne stocke ni
+        l'adresse IP ni le navigateur, et la demande est supprimée 12 mois après sa création.
+
+        Champ piège `website` : s'il est rempli, la réponse est la même `202` mais rien n'est
+        enregistré. Le corps est limité à 16 Ko. Limite : 5 envois par heure et par adresse
+        (`429` `too_many_requests`, en-tête `Retry-After`).
+      operationId: createDemoRequest
+      x-availability: disponible
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDemoRequestRequest'
+      responses:
+        '202':
+          description: Demande reçue (ou ignorée si le champ piège est rempli)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          description: Corps invalide (`invalid_json`, `invalid_body` avec `details.fieldErrors`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '413':
+          description: Corps de plus de 16 Ko (`payload_too_large`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '415':
+          description: Corps qui n'est pas du JSON (`unsupported_media_type`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '429':
+          description: Trop d'envois depuis cette adresse (`too_many_requests`)
+          headers:
+            Retry-After:
+              description: Secondes avant de pouvoir réessayer
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '500':
+          description: Erreur serveur (`server_error`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
 
   /players:
     get:
@@ -4005,6 +4214,15 @@ components:
         type: integer
         example: 1
 
+    DemoRequestId:
+      name: demoRequestId
+      in: path
+      required: true
+      description: Identifiant de la demande de démonstration
+      schema:
+        type: integer
+        example: 1
+
     CompanyIdParam:
       name: companyId
       in: path
@@ -4095,6 +4313,119 @@ components:
                 type: array
                 items:
                   type: string
+
+    CreateDemoRequestRequest:
+      type: object
+      required:
+        - name
+        - centerName
+        - email
+        - roomsCount
+        - consent
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: Espaces de début et de fin retirés ; le caractère NUL (`\u0000`) est refusé
+          example: Camille Martin
+        centerName:
+          type: string
+          minLength: 1
+          maxLength: 160
+          description: Espaces de début et de fin retirés ; le caractère NUL (`\u0000`) est refusé
+          example: Escape Test
+        email:
+          type: string
+          format: email
+          maxLength: 254
+          example: camille@example.com
+        phone:
+          type: string
+          pattern: '^[+0-9 ().-]{6,32}$'
+          example: '+33 1 23 45 67 89'
+        roomsCount:
+          type: integer
+          minimum: 1
+          maximum: 50
+          example: 3
+        message:
+          type: string
+          maxLength: 2000
+          description: >-
+            Espaces de début et de fin retirés (un message vide est stocké comme absent) ;
+            le caractère NUL (`\u0000`) est refusé
+        consent:
+          type: boolean
+          enum: [true]
+          description: Doit valoir `true` (consentement au traitement de la demande)
+        website:
+          type: string
+          maxLength: 0
+          description: Champ piège, laissé vide (invisible dans le formulaire)
+        locale:
+          type: string
+          enum: [fr, en]
+
+    DemoRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+        centerName:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          nullable: true
+        roomsCount:
+          type: integer
+        message:
+          type: string
+          nullable: true
+        locale:
+          type: string
+          enum: [fr, en]
+          nullable: true
+        consentAt:
+          type: string
+          format: date-time
+        processedAt:
+          type: string
+          format: date-time
+          nullable: true
+        processedBy:
+          type: integer
+          nullable: true
+          description: Compte superadmin qui a traité la demande (vide s'il a été supprimé)
+        createdAt:
+          type: string
+          format: date-time
+
+    DemoRequestsResponse:
+      type: object
+      properties:
+        demoRequests:
+          type: array
+          items:
+            $ref: '#/components/schemas/DemoRequest'
+        pendingCount:
+          type: integer
+          description: Nombre de demandes non traitées
+          example: 2
+
+    UpdateDemoRequestRequest:
+      type: object
+      required:
+        - processed
+      properties:
+        processed:
+          type: boolean
 
     QuestionMediaFile:
       type: object
@@ -4449,8 +4780,8 @@ components:
             - $ref: '#/components/schemas/RoomSchedule'
           nullable: true
           description: >-
-            **À venir (lot 13).** Réglages de créneaux de la salle ; `null` : pas de créneaux, salle
-            non réservable. La colonne `rooms.schedule` existe, mais aucune route ne la renvoie encore.
+            Réglages de créneaux de la salle, écrits par `PUT /companies/{companyId}/rooms/{roomId}/schedule` ;
+            `null` : pas de créneaux, salle non réservable.
         status:
           type: integer
           enum: [0, 1, 2]
@@ -4470,7 +4801,7 @@ components:
     RoomScheduleDay:
       type: object
       description: >-
-        **À venir (lot 13).** Horaires d'un jour, au format `HH:MM` sur 24 h, en heure locale de la
+        Horaires d'un jour, au format `HH:MM` sur 24 h, en heure locale de la
         salle. `closesAt` ≤ `opensAt` veut dire « ferme le lendemain » (24 h d'ouverture au plus).
         `firstSessionAt` doit tomber dans la plage d'ouverture ; il vaut `opensAt` s'il est absent.
       required: [opensAt, closesAt]
@@ -4491,14 +4822,17 @@ components:
     RoomSchedule:
       type: object
       description: >-
-        **À venir (lot 13).** Réglages de créneaux d'une salle (`rooms.schedule`). Tout est stocké en
+        Réglages de créneaux d'une salle (`rooms.schedule`). Tout est stocké en
         UTC ; le fuseau de la salle sert à lire les horaires. Deux jours consécutifs ne doivent pas se
         chevaucher (une fermeture après minuit au-delà de l'ouverture du lendemain est refusée).
       required: [timezone, slotMinutes, breakMinutes, bookableDesks, publicBooking, days]
       properties:
         timezone:
           type: string
-          description: Fuseau IANA valide. Défaut proposé `Europe/Paris`.
+          description: >-
+            Fuseau IANA (`Europe/Paris`, `UTC`). Les décalages fixes (`+01:00`) et les abréviations sans `/` (`EST`,
+            `CET`) sont refusés (`schedule_timezone_invalid`). Le nom est stocké normalisé (`europe/paris` devient
+            `Europe/Paris`). Défaut proposé `Europe/Paris`.
           example: Europe/Paris
         slotMinutes:
           type: integer
@@ -4536,7 +4870,7 @@ components:
 
     UpdateRoomScheduleRequest:
       type: object
-      description: '**À venir (lot 13).** `schedule: null` désactive les créneaux de la salle.'
+      description: '`schedule: null` désactive les créneaux de la salle.'
       required: [schedule]
       properties:
         schedule:
