@@ -2,6 +2,7 @@
 import 'dotenv/config'
 import { buildApp } from './app'
 import db from './db'
+import { purgeExpiredDemoRequests } from './jobs/purgeDemoRequests'
 import { purgeExpiredPlayerEmails } from './jobs/purgePlayerEmails'
 import {
   parsePlayerEmailPurgeIntervalHours,
@@ -11,13 +12,26 @@ import {
 const app = buildApp()
 const port = Number(process.env.API_PORT || 3001)
 
-// Purge RGPD des emails joueurs (3 ans après la dernière partie), arrêtée à la fermeture de l'app.
+// Purges RGPD, arrêtées à la fermeture de l'app. Un seul intervalle règle les deux :
+// emails joueurs (3 ans après la dernière partie) et demandes de démonstration (12 mois).
+const purgeIntervalHours = parsePlayerEmailPurgeIntervalHours(
+  process.env.PLAYER_EMAIL_PURGE_INTERVAL_HOURS
+)
 const stopPlayerEmailPurge = startPlayerEmailPurgeScheduler({
   purge: () => purgeExpiredPlayerEmails(db),
   log: app.log,
-  intervalHours: parsePlayerEmailPurgeIntervalHours(process.env.PLAYER_EMAIL_PURGE_INTERVAL_HOURS),
+  intervalHours: purgeIntervalHours,
 })
-app.addHook('onClose', async () => stopPlayerEmailPurge())
+const stopDemoRequestPurge = startPlayerEmailPurgeScheduler({
+  purge: () => purgeExpiredDemoRequests(db),
+  log: app.log,
+  intervalHours: purgeIntervalHours,
+  label: 'Purge RGPD des demandes de démonstration',
+})
+app.addHook('onClose', async () => {
+  stopPlayerEmailPurge()
+  stopDemoRequestPurge()
+})
 
 app.listen({ port, host: '0.0.0.0' }).catch((err) => {
   app.log.error(err)
