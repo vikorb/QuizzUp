@@ -4,6 +4,7 @@ import jwt from '@fastify/jwt'
 
 import { ADMIN_ROLE_ROOM, ADMIN_STATUS_ACTIVE } from '@quizzup/shared'
 import db from '../db'
+import { assertJwtSecretIsSafe } from '../security/jwtSecret'
 import { isRoomAccountUsable } from '../security/roomCompany'
 
 type JwtPayload = {
@@ -103,6 +104,7 @@ export async function checkSession(
 const authPlugin: FastifyPluginAsync = async (app) => {
   const jwtSecret = process.env.JWT_SECRET
   if (!jwtSecret) throw new Error('Missing env JWT_SECRET')
+  assertJwtSecretIsSafe(jwtSecret)
 
   app.register(jwt, { secret: jwtSecret })
 
