@@ -34,14 +34,14 @@ export type FormValues = {
 
 /**
  * Bornes de `POST /public/v1/demo-requests` (`CreateDemoRequestRequest` de l'OpenAPI). Recopiées :
- * le paquet reste autonome à l'installation. `tests/form.test.ts` compare `message` et `rooms` à
- * `@quizzup/shared`.
+ * le paquet reste autonome à l'installation. `tests/form.test.ts` compare chaque borne et le motif
+ * du téléphone à `@quizzup/shared`.
  */
 export const LIMITS = { name: 120, company: 160, email: 254, phone: 32, message: 2000, rooms: 50 }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-// Même motif que le serveur (`^[+0-9 ().-]{6,32}$`) ; la longueur maximale est testée à part.
-const PHONE = /^[+0-9 ().-]{6,}$/
+// Même motif que le serveur ; la longueur trop grande est signalée avant, comme `tooLong`.
+export const PHONE = /^[+0-9 ().-]{6,32}$/
 
 export function validate(values: FormValues): FieldErrors {
   const errors: FieldErrors = {}
@@ -92,7 +92,7 @@ export function isSpam(values: FormValues): boolean {
 
 export type SubmitResult = 'success' | 'invalid' | 'rateLimited' | 'error' | 'network'
 
-/** `fields` : champs que le serveur dit refusés (400 `invalid_body`), renseignés pour `invalid`. */
+/** `fields` : champs que le serveur dit refusés (400 `invalid_body`), toujours renseignés pour `invalid`. */
 export type SubmitOutcome = { result: SubmitResult; fields: FieldName[] }
 
 /** Noms des champs du corps de la route, ramenés à ceux de la page. */
@@ -119,13 +119,15 @@ async function rejectedFields(response: Response): Promise<FieldName[]> {
 
 /**
  * Poste la demande en JSON. Le résultat est un code, jamais le message brut du serveur :
- * 2xx envoyé, 400 ou 422 refusé par la validation du serveur, 429 limite de débit, autre
- * statut erreur du serveur, pas de réponse erreur réseau.
+ * 2xx envoyé, 400 ou 422 refusé avec au moins un champ nommé, 429 limite de débit, autre
+ * statut (dont un 400 ou 422 sans champ exploitable) erreur du serveur, pas de réponse erreur
+ * réseau. `locale` : langue de la page, envoyée seulement si elle est connue.
  */
 export async function sendDemoRequest(
   apiUrl: string,
   values: FormValues,
-  fetchFn: typeof fetch = (...args) => fetch(...args)
+  fetchFn: typeof fetch = (...args) => fetch(...args),
+  locale?: Locale
 ): Promise<SubmitOutcome> {
   const phone = values.phone.trim()
   const message = values.message.trim()
@@ -141,6 +143,7 @@ export async function sendDemoRequest(
     // et gestionnaires de mots de passe ne remplissent pas) : un robot qui le remplit est écarté
     // ici, avant l'envoi.
     website: '',
+    ...(locale ? { locale } : {}),
   }
 
   const controller = new AbortController()
@@ -157,7 +160,10 @@ export async function sendDemoRequest(
       return { result: 'success', fields: [] }
     }
     if (response.status === 400 || response.status === 422) {
-      return { result: 'invalid', fields: await rejectedFields(response) }
+      const fields = await rejectedFields(response)
+      if (fields.length > 0) {
+        return { result: 'invalid', fields }
+      }
     }
     return { result: response.status === 429 ? 'rateLimited' : 'error', fields: [] }
   } catch {
@@ -195,7 +201,8 @@ type InitOptions = { fetchFn?: typeof fetch; text?: Messages }
  */
 export function initForm(form: HTMLFormElement, options: InitOptions = {}): void {
   const lang = document.documentElement.lang as Locale
-  const text = options.text ?? messages[lang in messages ? lang : 'fr']
+  const locale = lang in messages ? lang : undefined
+  const text = options.text ?? messages[locale ?? 'fr']
   const apiUrl = form.dataset.apiUrl ?? ''
   const contact = form.dataset.contact ?? ''
   const status = form.querySelector<HTMLElement>('#form-status')
@@ -275,7 +282,7 @@ export function initForm(form: HTMLFormElement, options: InitOptions = {}): void
     submit.setAttribute('aria-busy', 'true')
     setStatus('sending', text.sending)
 
-    const { result, fields } = await sendDemoRequest(apiUrl, values, options.fetchFn)
+    const { result, fields } = await sendDemoRequest(apiUrl, values, options.fetchFn, locale)
 
     sending = false
     submit.removeAttribute('aria-disabled')
@@ -288,7 +295,8 @@ export function initForm(form: HTMLFormElement, options: InitOptions = {}): void
       case 'invalid': {
         const rejected: FieldErrors = {}
         for (const name of fields) {
-          rejected[name] = 'rejected'
+          // Pour l'e-mail, le texte « adresse non valide » dit déjà quoi corriger.
+          rejected[name] = name === 'email' ? 'invalid' : 'rejected'
         }
         showErrors(rejected)
         setStatus('warning', text.invalid)

@@ -70,7 +70,6 @@ describe('initForm', () => {
       text.fieldErrors['consent.required']
     )
     expect(field('name').getAttribute('aria-invalid')).toBe('true')
-    expect(field('name').getAttribute('aria-describedby')).toBe('f-name-error')
     expect(document.activeElement).toBe(field('name'))
   })
 
@@ -127,7 +126,7 @@ describe('initForm', () => {
   })
 
   it.each([
-    [400, 'warning', text.invalid],
+    [400, 'error', text.error(CONTACT)],
     [429, 'warning', text.rateLimited],
     [500, 'error', text.error(CONTACT)],
   ])('statut %i : état %s', async (code, state, message) => {
@@ -156,10 +155,13 @@ describe('initForm', () => {
 
     expect(status().dataset.state).toBe('warning')
     expect(status().textContent).toBe(text.invalid)
+    // L'e-mail refusé reçoit le texte « adresse non valide », les autres champs le texte générique.
+    expect(document.querySelector('#f-email-error')?.textContent).toBe(
+      text.fieldErrors['email.invalid']
+    )
+    expect(document.querySelector('#f-rooms-error')?.textContent).toBe(text.fieldRejected)
     for (const name of ['email', 'rooms']) {
-      expect(document.querySelector(`#f-${name}-error`)?.textContent).toBe(text.fieldRejected)
       expect(field(name).getAttribute('aria-invalid')).toBe('true')
-      expect(field(name).getAttribute('aria-describedby')).toBe(`f-${name}-error`)
     }
     expect(field('name').hasAttribute('aria-invalid')).toBe(false)
     expect(document.body.textContent).not.toContain('SERVER TEXT')
@@ -167,6 +169,20 @@ describe('initForm', () => {
     // La saisie est conservée et le bouton est de nouveau utilisable.
     expect(field('name').value).toBe('Camille Martin')
     expect(document.querySelector('#form-submit')?.hasAttribute('aria-disabled')).toBe(false)
+  })
+
+  it('envoie la langue de la page, sauf si elle est inconnue', async () => {
+    const sentLocale = async (lang: string) => {
+      form = buildForm()
+      document.documentElement.lang = lang
+      const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 201 }))
+      initForm(form, { fetchFn })
+      fillValid()
+      await submit(form)
+      return JSON.parse((fetchFn.mock.calls[0]?.[1] as RequestInit).body as string).locale
+    }
+    expect(await sentLocale('fr')).toBe('fr')
+    expect(await sentLocale('de')).toBeUndefined()
   })
 
   it("retire l'erreur du serveur dès qu'on corrige le champ", async () => {

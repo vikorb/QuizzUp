@@ -1,4 +1,12 @@
-import { DEMO_REQUEST_MESSAGE_MAX, DEMO_REQUEST_ROOMS_MAX } from '@quizzup/shared'
+import {
+  DEMO_REQUEST_CENTER_NAME_MAX,
+  DEMO_REQUEST_EMAIL_MAX,
+  DEMO_REQUEST_MESSAGE_MAX,
+  DEMO_REQUEST_NAME_MAX,
+  DEMO_REQUEST_PHONE_MAX,
+  DEMO_REQUEST_PHONE_PATTERN,
+  DEMO_REQUEST_ROOMS_MAX,
+} from '@quizzup/shared'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -6,6 +14,7 @@ import {
   type FormValues,
   isSpam,
   LIMITS,
+  PHONE,
   REQUEST_TIMEOUT_MS,
   sendDemoRequest,
   validate,
@@ -26,8 +35,19 @@ const withValues = (patch: Partial<FormValues>): FormValues => ({ ...valid, ...p
 
 describe('LIMITS', () => {
   it('reprend les bornes partagées avec le serveur', () => {
-    expect(LIMITS.rooms).toBe(DEMO_REQUEST_ROOMS_MAX)
-    expect(LIMITS.message).toBe(DEMO_REQUEST_MESSAGE_MAX)
+    expect(LIMITS).toEqual({
+      name: DEMO_REQUEST_NAME_MAX,
+      company: DEMO_REQUEST_CENTER_NAME_MAX,
+      email: DEMO_REQUEST_EMAIL_MAX,
+      phone: DEMO_REQUEST_PHONE_MAX,
+      message: DEMO_REQUEST_MESSAGE_MAX,
+      rooms: DEMO_REQUEST_ROOMS_MAX,
+    })
+  })
+
+  it('reprend le motif du téléphone du serveur', () => {
+    expect(PHONE.source).toBe(DEMO_REQUEST_PHONE_PATTERN.source)
+    expect(PHONE.flags).toBe(DEMO_REQUEST_PHONE_PATTERN.flags)
   })
 })
 
@@ -151,8 +171,8 @@ describe('sendDemoRequest', () => {
     [200, 'success'],
     [202, 'success'],
     [204, 'success'],
-    [400, 'invalid'],
-    [422, 'invalid'],
+    [400, 'error'],
+    [422, 'error'],
     [429, 'rateLimited'],
     [500, 'error'],
     [404, 'error'],
@@ -179,12 +199,30 @@ describe('sendDemoRequest', () => {
     })
   })
 
-  it('un 400 sans corps lisible reste « refusé », sans champ', async () => {
-    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(new Response('<html>', { status: 400 }))
+  it.each([
+    ['un corps illisible', '<html>'],
+    ['sans détail', JSON.stringify({ error: 'invalid_body' })],
+    [
+      'seulement des champs inconnus de la page',
+      JSON.stringify({ details: { fieldErrors: { website: ['x'] } } }),
+    ],
+  ])('un 400 avec %s est une erreur générique, pas un refus de champ', async (_label, body) => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(new Response(body, { status: 400 }))
     expect(await sendDemoRequest('https://api.example.org', valid, fetchFn)).toEqual({
-      result: 'invalid',
+      result: 'error',
       fields: [],
     })
+  })
+
+  it('envoie la langue de la page quand elle est connue, sinon rien', async () => {
+    const fetchFn = respond(201)
+    await sendDemoRequest('https://api.example.org', valid, fetchFn, 'fr')
+    await sendDemoRequest('https://api.example.org', valid, fetchFn)
+    const [withLocale, without] = fetchFn.mock.calls.map(([, init]) =>
+      JSON.parse((init as RequestInit).body as string)
+    )
+    expect(withLocale.locale).toBe('fr')
+    expect(without).not.toHaveProperty('locale')
   })
 
   it('traduit une absence de réponse en erreur réseau', async () => {
