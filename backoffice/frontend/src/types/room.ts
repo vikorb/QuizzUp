@@ -1,4 +1,8 @@
-import type { RoomStatus as SharedRoomStatus } from '@quizzup/shared'
+import type {
+  RoomSchedule,
+  RoomScheduleDayKey,
+  RoomStatus as SharedRoomStatus,
+} from '@quizzup/shared'
 
 export type RoomStatus = SharedRoomStatus
 
@@ -12,6 +16,8 @@ export type Room = {
   companyId: number
   name: string
   config: RoomConfig
+  /** Créneaux réservables (lot 13) ; `null` ou absent : pas de créneaux. */
+  schedule?: RoomSchedule | null
   status: RoomStatus
   createdAt: string
   updatedAt: string | null
@@ -51,6 +57,37 @@ export type RoomFieldErrors = {
 }
 
 export type RoomFormMode = 'create' | 'edit'
+
+/** Corps de `PUT /companies/:companyId/rooms/:roomId/schedule` : `null` désactive les créneaux. */
+export type UpdateRoomSchedulePayload = {
+  schedule: RoomSchedule | null
+}
+
+/** Un jour du formulaire de créneaux : tout en texte, comme les champs natifs. */
+export type RoomScheduleDayFormValues = {
+  open: boolean
+  opensAt: string
+  /** Vide : la première session tombe à l'ouverture. */
+  firstSessionAt: string
+  closesAt: string
+}
+
+export type RoomScheduleFormValues = {
+  timezone: string
+  slotMinutes: string
+  breakMinutes: string
+  bookableDesks: string
+  publicBooking: boolean
+  days: Record<RoomScheduleDayKey, RoomScheduleDayFormValues>
+}
+
+export type RoomScheduleFieldErrors = {
+  timezone?: string
+  slotMinutes?: string
+  breakMinutes?: string
+  bookableDesks?: string
+  days: Partial<Record<RoomScheduleDayKey, string>>
+}
 
 /** US-ROOM-02 : compte de connexion du PC de la salle (rôle `room`). */
 export type RoomAccount = {

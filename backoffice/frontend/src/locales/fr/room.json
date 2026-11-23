@@ -83,7 +83,8 @@
         "deleteConfirm": "Supprimer la salle {name} ?",
         "enableConfirm": "Voulez-vous vraiment activer la salle {name} ?",
         "disableConfirm": "Voulez-vous vraiment désactiver la salle {name} ?",
-        "account": "Gérer le compte de salle"
+        "account": "Gérer le compte de salle",
+        "schedule": "Régler les créneaux de la salle"
       }
     },
     "errors": {
@@ -95,6 +96,91 @@
       "invalidBody": "Les informations envoyées sont invalides.",
       "serverError": "Erreur serveur lors du chargement des salles.",
       "default": "Une erreur est survenue."
+    },
+    "schedule": {
+      "title": "Créneaux — {name}",
+      "loading": "Chargement des créneaux...",
+      "state": {
+        "set": "Créneaux réglés",
+        "unset": "Aucun créneau : la salle n’est pas réservable"
+      },
+      "fields": {
+        "timezone": {
+          "label": "Fuseau horaire de la salle"
+        },
+        "slotMinutes": {
+          "label": "Durée d’un créneau (minutes)",
+          "hint": "Entre {min} et {max} minutes."
+        },
+        "breakMinutes": {
+          "label": "Pause entre deux créneaux (minutes)",
+          "hint": "De {min} à {max} minutes ; 0 pour des créneaux bout à bout."
+        },
+        "bookableDesks": {
+          "label": "Pupitres ouverts à la réservation",
+          "hint": "De {min} à {max}, dans la limite des pupitres de la salle."
+        },
+        "publicBooking": {
+          "label": "Réservation publique",
+          "hint": "La salle apparaît dans l’API de réservation."
+        }
+      },
+      "days": {
+        "title": "Horaires d’ouverture",
+        "toggle": "Ouvert le {day}",
+        "opensAt": "Ouverture",
+        "firstSessionAt": "Première session",
+        "closesAt": "Fermeture",
+        "closed": "Fermé",
+        "hint": "Une fermeture à une heure inférieure ou égale à l’ouverture signifie « le lendemain ». Sans première session, la grille commence à l’ouverture.",
+        "1": "Lundi",
+        "2": "Mardi",
+        "3": "Mercredi",
+        "4": "Jeudi",
+        "5": "Vendredi",
+        "6": "Samedi",
+        "7": "Dimanche"
+      },
+      "preview": {
+        "title": "Aperçu d’une semaine type",
+        "empty": "Aucun jour ouvert : aucun créneau.",
+        "invalid": "Corrigez les champs en erreur pour voir l’aperçu.",
+        "count": "Aucun créneau | {count} créneau | {count} créneaux"
+      },
+      "actions": {
+        "cancel": "Fermer",
+        "save": "Enregistrer les créneaux",
+        "saving": "Enregistrement...",
+        "close": "Fermer les créneaux",
+        "disable": "Désactiver les créneaux",
+        "disabling": "Désactivation...",
+        "disableConfirm": "Désactiver les créneaux de la salle {name} ? Elle ne sera plus réservable ; les sessions déjà programmées ne sont pas supprimées."
+      },
+      "hints": {
+        "disable": "Désactiver les créneaux rend la salle non réservable."
+      },
+      "success": {
+        "saved": "Les créneaux ont bien été enregistrés.",
+        "disabled": "Les créneaux ont bien été désactivés."
+      },
+      "validation": {
+        "timezoneInvalid": "Ce fuseau horaire n’existe pas.",
+        "slotMinutesInvalid": "La durée du créneau est hors des limites.",
+        "breakMinutesInvalid": "La pause est hors des limites.",
+        "bookableDesksInvalid": "Le nombre de pupitres est hors des limites.",
+        "timeRequired": "Renseignez des heures d’ouverture et de fermeture valides.",
+        "firstSessionOutOfRange": "La première session doit tomber dans la plage d’ouverture.",
+        "daysOverlap": "La fermeture après minuit dépasse l’ouverture du lendemain."
+      },
+      "errors": {
+        "invalid_body": "Les réglages envoyés sont invalides. Vérifiez les champs puis réessayez.",
+        "company_deleted": "Cette compagnie est supprimée : les créneaux de ses salles ne peuvent plus être modifiés.",
+        "forbidden": "Vous n’avez pas les droits nécessaires.",
+        "not_found": "Salle introuvable.",
+        "server_error": "Erreur serveur.",
+        "api_unreachable": "Le serveur est actuellement inaccessible.",
+        "default": "Une erreur est survenue."
+      }
     },
     "account": {
       "title": "Compte de connexion — {name}",

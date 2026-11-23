@@ -83,7 +83,8 @@
         "deleteConfirm": "Delete the room {name}?",
         "enableConfirm": "Do you really want to enable the room {name}?",
         "disableConfirm": "Do you really want to disable the room {name}?",
-        "account": "Manage the room account"
+        "account": "Manage the room account",
+        "schedule": "Set the room time slots"
       }
     },
     "errors": {
@@ -95,6 +96,91 @@
       "invalidBody": "The submitted information is invalid.",
       "serverError": "Server error while loading rooms.",
       "default": "An error occurred."
+    },
+    "schedule": {
+      "title": "Time slots — {name}",
+      "loading": "Loading the time slots...",
+      "state": {
+        "set": "Time slots set",
+        "unset": "No time slots: the room cannot be booked"
+      },
+      "fields": {
+        "timezone": {
+          "label": "Room time zone"
+        },
+        "slotMinutes": {
+          "label": "Slot length (minutes)",
+          "hint": "Between {min} and {max} minutes."
+        },
+        "breakMinutes": {
+          "label": "Break between two slots (minutes)",
+          "hint": "From {min} to {max} minutes; 0 for back-to-back slots."
+        },
+        "bookableDesks": {
+          "label": "Desks open for booking",
+          "hint": "From {min} to {max}, up to the number of desks in the room."
+        },
+        "publicBooking": {
+          "label": "Public booking",
+          "hint": "The room appears in the booking API."
+        }
+      },
+      "days": {
+        "title": "Opening hours",
+        "toggle": "Open on {day}",
+        "opensAt": "Opens",
+        "firstSessionAt": "First session",
+        "closesAt": "Closes",
+        "closed": "Closed",
+        "hint": "A closing time equal to or earlier than the opening time means “the next day”. Without a first session, the grid starts at opening time.",
+        "1": "Monday",
+        "2": "Tuesday",
+        "3": "Wednesday",
+        "4": "Thursday",
+        "5": "Friday",
+        "6": "Saturday",
+        "7": "Sunday"
+      },
+      "preview": {
+        "title": "Preview of a typical week",
+        "empty": "No open day: no time slots.",
+        "invalid": "Fix the fields in error to see the preview.",
+        "count": "No slot | {count} slot | {count} slots"
+      },
+      "actions": {
+        "cancel": "Close",
+        "save": "Save the time slots",
+        "saving": "Saving...",
+        "close": "Close the time slots",
+        "disable": "Disable the time slots",
+        "disabling": "Disabling...",
+        "disableConfirm": "Disable the time slots of the room {name}? It can no longer be booked; sessions already scheduled are not deleted."
+      },
+      "hints": {
+        "disable": "Disabling the time slots makes the room unbookable."
+      },
+      "success": {
+        "saved": "The time slots have been saved.",
+        "disabled": "The time slots have been disabled."
+      },
+      "validation": {
+        "timezoneInvalid": "This time zone does not exist.",
+        "slotMinutesInvalid": "The slot length is out of range.",
+        "breakMinutesInvalid": "The break is out of range.",
+        "bookableDesksInvalid": "The number of desks is out of range.",
+        "timeRequired": "Enter valid opening and closing times.",
+        "firstSessionOutOfRange": "The first session must fall within the opening hours.",
+        "daysOverlap": "The closing time after midnight runs past the next day’s opening time."
+      },
+      "errors": {
+        "invalid_body": "The submitted settings are invalid. Check the fields and try again.",
+        "company_deleted": "This company is deleted: the time slots of its rooms can no longer be changed.",
+        "forbidden": "You do not have the required permissions.",
+        "not_found": "Room not found.",
+        "server_error": "Server error.",
+        "api_unreachable": "The server is currently unreachable.",
+        "default": "An error occurred."
+      }
     },
     "account": {
       "title": "Sign-in account — {name}",
