@@ -8,8 +8,10 @@ import {
   ADMIN_STATUS_DELETED,
   COMPANY_STATUS_DELETED,
   GAME_STATE_ABORTED,
+  GAME_STATE_CANCELLED,
   GAME_STATE_FINISHED,
   GAME_STATE_RUNNING,
+  GAME_STATE_SCHEDULED,
   ROOM_STATUS_ACTIVE,
   ROOM_STATUS_DELETED,
 } from '@quizzup/shared'
@@ -279,6 +281,48 @@ describe('routes/companies/rooms/account (US-ROOM-02)', () => {
       await app.close()
     }
   )
+
+  it('cancels the scheduled sessions of a deleted room and erases their players emails', async () => {
+    seedRoom()
+    seedRoom({ id: 2, name: 'Autre salle' })
+    const scheduled = { company_id: 1, state: GAME_STATE_SCHEDULED, status: 1, cancelled_at: null }
+    dbState.games.push({ id: 1, room_id: 1, ...scheduled }, { id: 2, room_id: 2, ...scheduled })
+    for (const gameId of [1, 2]) {
+      dbState.game_participants.push({
+        id: gameId,
+        game_id: gameId,
+        podium: 1,
+        display_name: 'Léa',
+        email: 'lea@exemple.fr',
+        consent_at: MOCK_NOW,
+        marketing_consent_at: MOCK_NOW,
+        second_email: 'noe@exemple.fr',
+        score: 0,
+      })
+    }
+    const app = await buildApp()
+
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/companies/1/rooms/1',
+      headers: authHeaders(companyAdminUser),
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(dbState.games[0]).toMatchObject({ state: GAME_STATE_CANCELLED, cancelled_at: MOCK_NOW })
+    expect(dbState.game_participants[0]).toMatchObject({
+      display_name: 'Léa',
+      email: null,
+      consent_at: null,
+      marketing_consent_at: null,
+      second_email: null,
+    })
+    // Les sessions des autres salles ne bougent pas.
+    expect(dbState.games[1]).toMatchObject({ state: GAME_STATE_SCHEDULED, cancelled_at: null })
+    expect(dbState.game_participants[1]).toMatchObject({ email: 'lea@exemple.fr' })
+
+    await app.close()
+  })
 
   it('keeps room accounts out of the staff accounts list', async () => {
     seedRoom()
