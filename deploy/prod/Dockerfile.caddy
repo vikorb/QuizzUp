@@ -1,0 +1,8 @@
+# Caddy officiel, lancé sans les droits root. Le Caddyfile est monté (docker-compose.yml), pas copié :
+# le modifier ne demande qu'un rechargement, pas une reconstruction.
+FROM caddy:2-alpine
+
+# /data (certificats) et /config doivent appartenir à l'utilisateur : le volume nommé en hérite à
+# sa création. Sur un volume créé AVANT ce changement, corriger à la main (voir README).
+RUN mkdir -p /data/caddy /config/caddy && chown -R 65532:65532 /data /config
+USER 65532:65532

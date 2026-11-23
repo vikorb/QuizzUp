@@ -10,12 +10,17 @@ import {
   resetGamesServiceMock,
   roomsFixture,
 } from '@frontend-tests/_helpers/gamesServiceMock'
+import {
+  liveErrorKeyMock,
+  liveStateMock,
+  useLiveCompanyMock,
+} from '@frontend-tests/_helpers/liveCompanyMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { currentRouteMock, pushMock } from '@frontend-tests/_helpers/routerMock'
 import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, h } from 'vue'
+import { defineComponent, h, toValue } from 'vue'
 
 import CreateGameView from '@/views/games/CreateGameView.vue'
 
@@ -135,6 +140,35 @@ describe('views/games/CreateGameView.vue', () => {
       name: 'games',
       query: { companyId: '2', created: '99' },
     })
+  })
+
+  it('follows the live presence of the company the form is for', async () => {
+    setAuthenticatedUser({ companyId: 1 })
+
+    const wrapper = await mountView()
+
+    expect(useLiveCompanyMock).toHaveBeenCalledTimes(1)
+    expect(toValue(useLiveCompanyMock.mock.calls[0][0])).toBe(1)
+    expect(wrapper.get('[data-test="live-connection-note"]').text()).toBe('live.connection.live')
+  })
+
+  it('tells the operator when the live tracking is interrupted or stopped', async () => {
+    setAuthenticatedUser()
+    liveStateMock.value = 'reconnecting'
+
+    const wrapper = await mountView()
+
+    expect(wrapper.get('[data-test="live-connection-note"]').text()).toBe(
+      'live.connection.reconnecting'
+    )
+
+    liveStateMock.value = 'error'
+    liveErrorKeyMock.value = 'errors.too_many_streams'
+    await flushPromises()
+
+    expect(wrapper.get('[data-test="live-connection-note"]').text()).toBe('errors.too_many_streams')
+    // Sans le direct, le formulaire reste utilisable.
+    expect(wrapper.find('[data-test="create-game-form-stub"]').exists()).toBe(true)
   })
 
   it('shows the rooms loading error', async () => {

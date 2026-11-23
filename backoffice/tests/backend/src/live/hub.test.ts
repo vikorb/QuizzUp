@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  GAME_IDLE_PHASES,
   LIVE_EVENT,
   LIVE_OFFLINE_AFTER_MS,
   ROOM_PRESENCE,
@@ -99,7 +100,7 @@ describe('live hub presence', () => {
     hub.report(1, 10, playingReport)
     expect(hub.roomLive(1).presence).toBe(ROOM_PRESENCE.IN_GAME)
 
-    for (const phase of ['lobby', 'finished', 'aborted']) {
+    for (const phase of GAME_IDLE_PHASES) {
       hub.report(1, 10, { ...playingReport, phase })
       expect(hub.roomLive(1).presence).toBe(ROOM_PRESENCE.ONLINE)
     }
@@ -219,6 +220,78 @@ describe('live hub broadcast', () => {
 
     expect(hub.staffStreamCount(7)).toBe(2)
     expect(hub.staffStreamCount(8)).toBe(1)
+  })
+})
+
+describe('live hub memory of offline rooms', () => {
+  it('keeps the last report and the last seen date of a room that went offline', () => {
+    const { hub, clock } = newHub()
+    const staff = makeSink()
+    const reportedAt = new Date(clock.now).toISOString()
+
+    hub.report(1, 10, playingReport)
+    hub.subscribeStaff(10, 1, staff)
+    clock.now += LIVE_OFFLINE_AFTER_MS
+    hub.sweep()
+
+    expect(staff.events).toHaveLength(1)
+    expect(hub.roomLive(1)).toEqual({
+      roomId: 1,
+      presence: ROOM_PRESENCE.OFFLINE,
+      controllable: false,
+      lastSeenAt: reportedAt,
+      status: playingReport,
+    })
+  })
+
+  it('keeps an offline room after its stream closed too', () => {
+    const { hub, clock } = newHub()
+    const reportedAt = new Date(clock.now).toISOString()
+    const streamId = hub.openRoomStream(1, 10, makeSink())
+
+    hub.report(1, 10, idleReport)
+    clock.now += LIVE_OFFLINE_AFTER_MS
+    hub.sweep()
+    hub.closeRoomStream(1, streamId)
+
+    expect(hub.roomLive(1)).toMatchObject({
+      presence: ROOM_PRESENCE.OFFLINE,
+      lastSeenAt: reportedAt,
+      status: idleReport,
+    })
+  })
+
+  it('keeps an online room whose stream closed, and its last seen date once offline', () => {
+    const { hub, clock } = newHub()
+    const reportedAt = new Date(clock.now).toISOString()
+    const streamId = hub.openRoomStream(1, 10, makeSink())
+
+    hub.report(1, 10, idleReport)
+    hub.closeRoomStream(1, streamId)
+
+    expect(hub.roomLive(1).presence).toBe(ROOM_PRESENCE.ONLINE)
+
+    clock.now += LIVE_OFFLINE_AFTER_MS
+    hub.sweep()
+
+    expect(hub.roomLive(1)).toMatchObject({
+      presence: ROOM_PRESENCE.OFFLINE,
+      lastSeenAt: reportedAt,
+    })
+  })
+
+  it('comes back online when an offline room reports again', () => {
+    const { hub, clock } = newHub()
+
+    hub.report(1, 10, idleReport)
+    clock.now += LIVE_OFFLINE_AFTER_MS
+    hub.sweep()
+    hub.report(1, 10, playingReport)
+
+    expect(hub.roomLive(1)).toMatchObject({
+      presence: ROOM_PRESENCE.IN_GAME,
+      status: playingReport,
+    })
   })
 })
 

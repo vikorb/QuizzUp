@@ -32,6 +32,7 @@ import {
   filterGamesByState,
   getGameStateLabelKey,
   getGameStateTone,
+  isGamePendingOrRunning,
   isGameState,
   updateGameInList,
 } from '@/utils/game/state'
@@ -94,6 +95,14 @@ describe('utils/game/state', () => {
         expect((locale.errors as Record<string, string>)[key]).toBeTruthy()
       }
     }
+  })
+
+  it('tells a game that still occupies its room (pending or running) from the others', () => {
+    expect(isGamePendingOrRunning({ state: GAME_STATE_PENDING })).toBe(true)
+    expect(isGamePendingOrRunning({ state: GAME_STATE_RUNNING })).toBe(true)
+    expect(isGamePendingOrRunning({ state: GAME_STATE_FINISHED })).toBe(false)
+    expect(isGamePendingOrRunning({ state: GAME_STATE_ABORTED })).toBe(false)
+    expect(isGamePendingOrRunning(null)).toBe(false)
   })
 
   it('filters and counts games by state', () => {

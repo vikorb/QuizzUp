@@ -14,11 +14,16 @@
         </UiButton>
       </template>
 
+      <LiveConnectionNote :state="liveState" :error-key="liveErrorKey" />
+
       <CreateGameForm
         v-if="companyId !== null"
         :company-id="companyId"
         :rooms="rooms"
         :rooms-loading="roomsLoading"
+        :live-rooms="liveRooms"
+        :live-uncertain="liveUncertain"
+        :now="liveNow"
         @created="handleCreated"
         @cancel="goBack"
       />
@@ -32,7 +37,9 @@ import { useRoute, useRouter } from 'vue-router'
 
 import SectionLayout from '@/components/SectionLayout.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
+import LiveConnectionNote from '@/components/ui/LiveConnectionNote.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import { useLiveCompany } from '@/composables/useLiveCompany'
 import { getGamesRoute } from '@/router/games'
 import { listGameRoomsService } from '@/services/gamesService'
 import { authState } from '@/state/authState'
@@ -50,6 +57,14 @@ const roomsLoading = ref(false)
 const roomsError = ref<string | null>(null)
 
 const companyId = computed(() => resolveGameCompanyId(authState.me.value, route.query.companyId))
+
+const {
+  rooms: liveRooms,
+  state: liveState,
+  errorKey: liveErrorKey,
+  uncertain: liveUncertain,
+  now: liveNow,
+} = useLiveCompany(companyId)
 
 const companyContext = computed(() => ({
   companyId: isSuperadminRole(authState.me.value?.role) ? companyId.value : null,

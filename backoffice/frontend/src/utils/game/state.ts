@@ -39,9 +39,14 @@ export function getGameStateTone(state: unknown): GameStateTone {
   return 'muted'
 }
 
+/** Partie qui occupe encore sa salle : en attente ou en cours. */
+export function isGamePendingOrRunning(game: Pick<Game, 'state'> | null | undefined): boolean {
+  return game?.state === GAME_STATE_PENDING || game?.state === GAME_STATE_RUNNING
+}
+
 /** Seule une partie en attente ou en cours peut être arrêtée par l'opérateur. */
 export function canAbortGame(game: Pick<Game, 'state'> | null | undefined): boolean {
-  return game?.state === GAME_STATE_PENDING || game?.state === GAME_STATE_RUNNING
+  return isGamePendingOrRunning(game)
 }
 
 export function filterGamesByState(games: Game[], state: GameStateFilter): Game[] {
