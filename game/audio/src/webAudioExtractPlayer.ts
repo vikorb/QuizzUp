@@ -1,4 +1,12 @@
-import type { ExtractPlayer, PlayOutcome, PreloadOptions, PreloadResult } from './extractPlayer'
+import {
+  SLOWED_PLAYBACK_RATE,
+  type ExtractEffect,
+  type ExtractPlayer,
+  type PlayOptions,
+  type PlayOutcome,
+  type PreloadOptions,
+  type PreloadResult,
+} from './extractPlayer'
 
 export const DEFAULT_FADE_MS = 15
 /** Délai max pour qu'un contexte suspendu reprenne avant que `play()` n'abandonne. */
@@ -19,10 +27,15 @@ export type WebAudioExtractPlayerOptions = {
   fetch?: FetchFn
 }
 
-/** Palier en cours : un extrait joué depuis `startSec` pendant `totalMs`, éventuellement en pause. */
+/**
+ * Palier en cours : un extrait joué depuis `startSec` pendant `totalMs`, éventuellement en pause.
+ * `totalMs` et `playedMs` sont du temps réel (horloge audio), quel que soit l'effet : c'est ce
+ * que le moteur attend de `pause()`.
+ */
 type Segment = {
   url: string
   startSec: number
+  effect: ExtractEffect
   totalMs: number
   playedMs: number
   paused: boolean
@@ -42,6 +55,8 @@ export class WebAudioExtractPlayer implements ExtractPlayer {
   private readonly createContext: () => AudioContext
   private readonly fadeSec: number
   private volume: number
+  /** Facteur d'atténuation courant (1 = aucune), voir `duck()`. */
+  private duckFactor = 1
   private fetchFn: FetchFn
   private readonly resumeTimeoutMs: number
   private context: AudioContext | null = null
@@ -77,11 +92,27 @@ export class WebAudioExtractPlayer implements ExtractPlayer {
 
   setVolume(volume: number): void {
     this.volume = clampVolume(volume, this.volume)
-    if (this.master) this.master.gain.value = this.volume
+    if (this.master) this.master.gain.value = this.volume * this.duckFactor
   }
 
   getVolume(): number {
     return this.volume
+  }
+
+  /**
+   * Atténue les extraits (`factor` < 1) le temps d'une annonce vocale, ou les rétablit
+   * (`factor` = 1), avec une rampe de `rampMs`. Passe par le gain maître : le volume réglé par
+   * `setVolume` n'est jamais modifié, et un extrait déjà en cours est concerné.
+   */
+  duck(factor: number, rampMs: number): void {
+    this.duckFactor = clampVolume(factor, this.duckFactor)
+    const master = this.master
+    if (!master) return
+    const now = this.getContext().currentTime
+    const rampSec = Number.isFinite(rampMs) ? Math.max(0, rampMs) / 1000 : 0
+    master.gain.cancelScheduledValues(now)
+    master.gain.setValueAtTime(master.gain.value, now)
+    master.gain.linearRampToValueAtTime(this.volume * this.duckFactor, now + rampSec)
   }
 
   isLoaded(url: string): boolean {
@@ -126,7 +157,12 @@ export class WebAudioExtractPlayer implements ExtractPlayer {
     }
   }
 
-  play(url: string, startSec: number, durationMs: number): Promise<PlayOutcome> {
+  play(
+    url: string,
+    startSec: number,
+    durationMs: number,
+    options: PlayOptions = {}
+  ): Promise<PlayOutcome> {
     this.stop()
     if (!(durationMs > 0)) return Promise.resolve('ended')
 
@@ -138,7 +174,7 @@ export class WebAudioExtractPlayer implements ExtractPlayer {
     }
 
     return new Promise<PlayOutcome>((resolve, reject) => {
-      const segment = createSegment(url, sanitizeStart(startSec), durationMs, resolve)
+      const segment = createSegment(url, sanitizeStart(startSec), durationMs, options, resolve)
       this.current = segment
       if (context.state === 'suspended') this.resumeFor(segment, context, reject)
       const buffer = this.buffers.get(url)
@@ -232,11 +268,19 @@ export class WebAudioExtractPlayer implements ExtractPlayer {
     this.master = null
   }
 
-  /** Le buffer est disponible : on borne le palier à la fin du fichier puis on lance. */
+  /**
+   * Le buffer est disponible : on borne le palier à la fin du fichier (en temps réel : un
+   * extrait ralenti dure plus longtemps que ce qu'il reste de fichier) puis on lance. Pour
+   * `reverse`, on ne garde que la fenêtre du palier, déjà inversée : la lecture démarre à son
+   * début, qui est la fin de la fenêtre dans le fichier.
+   */
   private begin(segment: Segment, buffer: AudioBuffer): void {
-    segment.buffer = buffer
-    const availableMs = (buffer.duration - segment.startSec) * 1000
+    const availableMs = ((buffer.duration - segment.startSec) * 1000) / rateOf(segment.effect)
     segment.totalMs = Math.min(segment.totalMs, Math.max(0, availableMs))
+    segment.buffer =
+      segment.effect === 'reverse' && segment.totalMs > 0
+        ? reverseWindow(this.getContext(), buffer, segment.startSec, segment.totalMs / 1000)
+        : buffer
     if (segment.paused) return
     this.startRun(segment)
   }
@@ -250,16 +294,20 @@ export class WebAudioExtractPlayer implements ExtractPlayer {
     }
     const context = this.getContext()
     const now = context.currentTime
-    const durationSec = remainingMs / 1000
-    const offsetSec = segment.startSec + segment.playedMs / 1000
+    const rate = rateOf(segment.effect)
+    // `offset` et `duration` de `start()` sont en secondes du fichier, pas en temps réel.
+    const durationSec = (remainingMs / 1000) * rate
+    const baseSec = segment.effect === 'reverse' ? 0 : segment.startSec
+    const offsetSec = baseSec + (segment.playedMs / 1000) * rate
 
     const output = this.output()
     const gain = context.createGain()
     const source = context.createBufferSource()
     source.buffer = segment.buffer
+    if (rate !== 1) source.playbackRate.value = rate
     source.connect(gain)
     gain.connect(output)
-    this.applyFadeEnvelope(gain.gain, now, durationSec)
+    this.applyFadeEnvelope(gain.gain, now, remainingMs / 1000)
     source.onended = () => this.handleEnded(segment, source)
     source.start(now, offsetSec, durationSec)
 
@@ -317,7 +365,7 @@ export class WebAudioExtractPlayer implements ExtractPlayer {
     if (this.master) return this.master
     const context = this.getContext()
     this.master = context.createGain()
-    this.master.gain.value = this.volume
+    this.master.gain.value = this.volume * this.duckFactor
     this.master.connect(context.destination)
     return this.master
   }
@@ -364,13 +412,16 @@ function createSegment(
   url: string,
   startSec: number,
   durationMs: number,
+  options: PlayOptions,
   resolve: (outcome: PlayOutcome) => void
 ): Segment {
+  const { elapsedMs } = options
   return {
     url,
     startSec,
+    effect: options.effect ?? 'none',
     totalMs: durationMs,
-    playedMs: 0,
+    playedMs: elapsedMs !== undefined && elapsedMs > 0 ? Math.min(elapsedMs, durationMs) : 0,
     paused: false,
     buffer: null,
     source: null,
@@ -378,6 +429,31 @@ function createSegment(
     runStartedAt: 0,
     resolve,
   }
+}
+
+/** Vitesse de lecture d'un effet : seul `slowed` change la vitesse. */
+function rateOf(effect: ExtractEffect): number {
+  return effect === 'slowed' ? SLOWED_PLAYBACK_RATE : 1
+}
+
+/**
+ * Copie la fenêtre `[startSec, startSec + windowSec]` du fichier, échantillons dans l'ordre
+ * inverse. On ne copie que la fenêtre du palier (quelques secondes), pas le fichier entier.
+ */
+function reverseWindow(
+  context: AudioContext,
+  source: AudioBuffer,
+  startSec: number,
+  windowSec: number
+): AudioBuffer {
+  const from = Math.min(source.length, Math.round(startSec * source.sampleRate))
+  const to = Math.min(source.length, Math.round((startSec + windowSec) * source.sampleRate))
+  const reversed = context.createBuffer(source.numberOfChannels, to - from, source.sampleRate)
+  for (let channel = 0; channel < source.numberOfChannels; channel++) {
+    // `slice` copie : `reverse()` sur une vue `subarray` retournerait le buffer d'origine.
+    reversed.getChannelData(channel).set(source.getChannelData(channel).slice(from, to).reverse())
+  }
+  return reversed
 }
 
 function sanitizeStart(startSec: number): number {

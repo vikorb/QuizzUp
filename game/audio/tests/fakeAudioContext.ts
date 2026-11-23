@@ -58,8 +58,28 @@ export class FakeGainNode extends FakeNode {
   readonly gain = new FakeAudioParam(1)
 }
 
+/**
+ * Faux AudioBuffer. Les échantillons sont une rampe connue (`index + canal × 1 000 000`),
+ * créée à la demande, pour vérifier l'ordre des échantillons après une inversion.
+ */
 export class FakeAudioBuffer {
-  constructor(readonly duration: number) {}
+  readonly length: number
+  private readonly channels: Float32Array[] = []
+
+  constructor(
+    readonly duration: number,
+    readonly numberOfChannels = 2,
+    readonly sampleRate = 1000
+  ) {
+    this.length = Math.round(duration * sampleRate)
+  }
+
+  getChannelData(channel: number): Float32Array {
+    return (this.channels[channel] ??= Float32Array.from(
+      { length: this.length },
+      (_, index) => index + channel * 1_000_000
+    ))
+  }
 }
 
 type StartCall = { when: number; offset: number; duration: number | undefined }
@@ -87,16 +107,20 @@ class FakeScheduledNode extends FakeNode {
 
 export class FakeBufferSource extends FakeScheduledNode {
   buffer: FakeAudioBuffer | null = null
+  readonly playbackRate = new FakeAudioParam(1)
 
   start(when = 0, offset = 0, duration?: number): void {
     this.startCall = { when, offset, duration }
   }
 
+  /** `offset` et `duration` sont en secondes du fichier : à vitesse r, le temps réel est divisé par r. */
   override naturalEnd(): number {
     if (!this.startCall || !this.buffer) return Number.POSITIVE_INFINITY
     const { when, offset, duration } = this.startCall
     const available = Math.max(0, this.buffer.duration - offset)
-    return when + Math.min(duration ?? Number.POSITIVE_INFINITY, available)
+    return (
+      when + Math.min(duration ?? Number.POSITIVE_INFINITY, available) / this.playbackRate.value
+    )
   }
 }
 
@@ -116,6 +140,8 @@ export class FakeAudioContext {
   readonly sources: FakeBufferSource[] = []
   readonly oscillators: FakeOscillator[] = []
   readonly gains: FakeGainNode[] = []
+  /** Buffers créés par `createBuffer` (ex. fenêtre inversée), pas ceux issus du décodage. */
+  readonly createdBuffers: FakeAudioBuffer[] = []
   resumeCalls = 0
   decodeCalls = 0
 
@@ -140,6 +166,12 @@ export class FakeAudioContext {
     const node = new FakeOscillator(this)
     this.oscillators.push(node)
     return node
+  }
+
+  createBuffer(numberOfChannels: number, length: number, sampleRate: number): FakeAudioBuffer {
+    const buffer = new FakeAudioBuffer(length / sampleRate, numberOfChannels, sampleRate)
+    this.createdBuffers.push(buffer)
+    return buffer
   }
 
   async decodeAudioData(data: ArrayBuffer): Promise<FakeAudioBuffer> {
