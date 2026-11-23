@@ -1,7 +1,7 @@
 import '../routes/_helpers/registerDbMock'
 
 import fastify from 'fastify'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import authPlugin from '../../../../backend/src/plugins/auth'
 import {
@@ -36,17 +36,15 @@ describe('security/jwtSecret — garde-fou de production', () => {
 })
 
 describe('plugins/auth.ts — démarrage en production', () => {
-  const savedEnv = { jwt: process.env.JWT_SECRET, node: process.env.NODE_ENV }
-
+  // stubEnv(nom, undefined) supprime la variable ; unstubAllEnvs la remet comme elle était (absente
+  // comprise : affecter `undefined` à process.env y écrirait la chaîne « undefined »).
   afterEach(() => {
-    process.env.JWT_SECRET = savedEnv.jwt
-    process.env.NODE_ENV = savedEnv.node
+    vi.unstubAllEnvs()
   })
 
   async function boot(secret: string | undefined, nodeEnv: string): Promise<void> {
-    if (secret === undefined) delete process.env.JWT_SECRET
-    else process.env.JWT_SECRET = secret
-    process.env.NODE_ENV = nodeEnv
+    vi.stubEnv('JWT_SECRET', secret)
+    vi.stubEnv('NODE_ENV', nodeEnv)
 
     const app = fastify({ logger: false })
     await app.register(authPlugin as never)

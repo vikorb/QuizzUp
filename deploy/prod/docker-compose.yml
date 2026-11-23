@@ -68,7 +68,10 @@ services:
       - pgdata:/var/lib/postgresql/data
     networks: [internal]
     healthcheck:
-      test: ["CMD-SHELL", 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      # -h 127.0.0.1 : par TCP. Sans lui, pg_isready passe par le socket local, le seul sur lequel
+      # écoute le serveur temporaire de l'initialisation : la base serait déclarée saine trop tôt
+      # et `migrate`, qui se connecte en TCP, échouerait au premier démarrage.
+      test: ["CMD-SHELL", 'pg_isready -h 127.0.0.1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
       interval: 10s
       timeout: 5s
       retries: 6
@@ -98,7 +101,10 @@ services:
     <<: *base
     build: *api-build
     image: quizzup/api:${QUIZZUP_VERSION:?QUIZZUP_VERSION manquant dans .env}
-    init: true # Node en PID 1 n'obéit pas à SIGTERM sans cela : arrêt propre et rapide
+    # Node en PID 1 n'obéit pas à SIGTERM sans `init`. L'API n'a pas de gestionnaire SIGTERM
+    # (server.ts) : arrêt immédiat, les requêtes en cours sont coupées (un envoi de résultats est
+    # rejoué par la file de l'écran de salle). Pas de fermeture en douceur, donc.
+    init: true
     stop_grace_period: 20s
     read_only: true
     tmpfs: [/tmp]
@@ -247,14 +253,36 @@ services:
         condition: service_completed_successfully
     networks: [internal]
 
+  # Un volume nommé neuf appartient à root : on le donne à l'utilisateur de `restic` (65534) avant
+  # chaque usage (`depends_on` ci-dessous), sans quoi restic ne pourrait pas y écrire son cache.
+  restic-cache-init:
+    <<: *base
+    image: restic/restic:0.18.0
+    restart: "no"
+    profiles: [tools]
+    entrypoint: ["chown", "65534:65534", "/cache"]
+    user: "0:0"
+    cap_add: [CHOWN]
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 32m
+    network_mode: none
+    volumes:
+      - restic_cache:/cache
+
   # restic : sauvegardes chiffrées (backup.sh, restore.sh). Le nom d'hôte est fixe : restic range
   # les instantanés par nom d'hôte, un nom différent à chaque conteneur casserait la rétention.
+  # Le cache (index du dépôt) est dans un volume : sur un tmpfs, chaque passage retélécharge l'index
+  # (trafic de stockage) et la mémoire du conteneur est mise à contribution.
   restic: &restic
     <<: *base
     image: restic/restic:0.18.0
     restart: "no"
     profiles: [tools]
     entrypoint: ["restic"]
+    depends_on:
+      restic-cache-init:
+        condition: service_completed_successfully
     hostname: quizzup-prod
     user: "65534:65534" # lecture seule des médias : aucun droit particulier nécessaire
     read_only: true
@@ -264,12 +292,13 @@ services:
     environment:
       RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:?RESTIC_REPOSITORY manquant dans .env}
       RESTIC_PASSWORD: ${RESTIC_PASSWORD:?RESTIC_PASSWORD manquant dans .env}
-      RESTIC_CACHE_DIR: /tmp/restic-cache
+      RESTIC_CACHE_DIR: /cache
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
     volumes:
       - media_data:/media:ro
+      - restic_cache:/cache
     networks: [edge]
 
   # Même outil, mais en root et avec les médias en écriture : réservé à restore.sh.
@@ -279,10 +308,12 @@ services:
     cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
     volumes:
       - media_data:/media
+      - restic_cache:/cache
 
 volumes:
   pgdata:
   media_data:
+  restic_cache:
   caddy_data:
   caddy_config:
   static:

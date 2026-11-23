@@ -12,6 +12,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 # shellcheck source=lib.sh
 . ./lib.sh
 require_env_file
+acquire_lock
 
 restic() { dc run --rm -T restic "$@"; }
 

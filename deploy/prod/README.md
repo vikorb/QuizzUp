@@ -21,7 +21,7 @@ secrets, stockage des sauvegardes) vient du fichier `.env`, jamais du dépôt.
 | Espace centre     | `HOST_APP`            | backoffice (admin du centre, collaborateurs)            |
 | Écran de salle    | `HOST_SALLE`          | `game/room-app`                                         |
 | API               | `HOST_API`            | API ; Swagger (`/docs`) réservé à la console éditeur    |
-| Console éditeur   | `HOST_CONSOLE`        | même application que l'espace centre, **accès filtré par plages réseau** |
+| Console éditeur   | `HOST_CONSOLE`        | même application que l'espace centre ; le filtrage par plages réseau **masque son adresse, il ne la protège pas** (voir « Limites connues ») |
 
 | Fichier                                | Rôle                                                            |
 | -------------------------------------- | --------------------------------------------------------------- |
@@ -38,7 +38,9 @@ secrets, stockage des sauvegardes) vient du fichier `.env`, jamais du dépôt.
 - Linux (Debian 12 / Ubuntu 24.04 ou plus récent), **8 Go de RAM**, 40 Go de disque minimum
   (images, base, médias, anciens fichiers à empreinte).
 - Docker Engine avec le plugin Compose **2.24 ou plus** (`docker compose version`), `git`, `curl`,
-  `openssl`. Facultatif : la commande `mail` pour les alertes par e-mail.
+  `openssl`, `flock` (paquet `util-linux`, présent par défaut sur Debian et Ubuntu : verrou entre
+  mise à jour, sauvegarde et restauration). Facultatif : la commande `mail` pour les alertes par
+  e-mail, `tmux` pour lancer les mises à jour (voir « Mise à jour »).
 - Ports **80 et 443 (TCP et UDP)** joignables depuis internet. L'accès SSH, lui, restreint.
 - Un stockage distant pour les sauvegardes (S3 compatible, ou serveur REST restic, voir
   `.env.example`), **hors de cette machine**.
@@ -57,9 +59,11 @@ www, app, salle, api, console  ->  adresse du serveur
 
 Les noms sont libres : ce sont les cinq variables `HOST_*`. Si un relais (tunnel, proxy frontal)
 reçoit le trafic à la place du serveur, le DNS pointe sur le relais, et ses adresses vont dans
-`TRUSTED_PROXIES` (sinon la console éditeur ne voit que l'adresse du relais). Le certificat de la
-console éditeur est émis comme les autres : le nom d'hôte reste visible dans les journaux publics
-des certificats, la protection est le filtrage par `EDITOR_ALLOWED_RANGES`, pas le secret du nom.
+`TRUSTED_PROXIES` (sinon la console éditeur ne voit que l'adresse du relais). Caddy lit alors `X-Forwarded-For` de droite à
+gauche et ne croit que les relais déclarés (`trusted_proxies_strict`) : un relais qui ajoute
+l'adresse à l'en-tête, au lieu de la remplacer, est géré. Le certificat de la console éditeur est
+émis comme les autres : le nom d'hôte reste visible dans les journaux publics des certificats, et
+le filtrage par `EDITOR_ALLOWED_RANGES` ne protège pas la console (voir « Limites connues »).
 
 ## Première installation
 
@@ -91,7 +95,10 @@ chmod +x ./*.sh
    ```
 
    `backup.sh` et `check.sh` alertent eux-mêmes (webhook ou e-mail) : la sortie ne sert qu'au
-   diagnostic. Une sonde extérieure (n'importe quel service qui interroge une URL) sur
+   diagnostic. `backup.sh`, `update.sh` et `restore.sh` se partagent un verrou : si l'un tourne,
+   un autre lancé en même temps refuse tout de suite (« une autre opération est en cours »). Une
+   sauvegarde planifiée qui tombe pendant une mise à jour est donc sautée, sans conséquence
+   (`check.sh` ne s'alarme qu'après 26 h). Une sonde extérieure (n'importe quel service qui interroge une URL) sur
    `https://<HOST_API>/health` complète `check.sh`, qui ne voit pas une panne de la machine entière.
 6. **Dérouler la liste de contrôle** en fin de document.
 
@@ -172,16 +179,23 @@ Critère de réussite : le script se termine par « Restauration terminée », l
 
 ```bash
 cd deploy/prod
+tmux new -s maj          # ou : nohup ./update.sh vX.Y.Z > update.log 2>&1 &
 ./update.sh vX.Y.Z
 ```
 
+Lancer la mise à jour dans `tmux` (ou `nohup`) : la construction dure 5 à 10 minutes et une session
+SSH qui tombe en plein milieu coupe le script. Si cela arrive quand même, le script reçoit le signal
+de fin de session et fait le retour arrière décrit plus bas.
+
 `update.sh` : refuse si des fichiers suivis sont modifiés ; refuse s'il y a une **partie en cours**
-(`games.state = 'running'`) ; passe sur le tag ; **construit les images sans rien arrêter** ; fait
-une **sauvegarde** ; applique (`migrate` une fois, puis API, fichiers statiques, rechargement de
-Caddy) ; vérifie la santé de l'API et de Caddy puis le chemin public `https://<HOST_API>/health`.
-Au moindre échec, il revient au code et à l'ancienne version, alerte, et dit si des migrations ont
-déjà été appliquées. Lire les notes de version avant : une variable obligatoire nouvelle apparaît
-dans `.env.example`, et il faut la renseigner **avant** de lancer `update.sh`.
+(`games.state = 'running'`) ; refuse si la base contient des migrations que le tag ne connaît pas
+(cible plus ancienne que la base, voir « Retour arrière ») ; passe sur le tag ; **construit les
+images sans rien arrêter** ; fait une **sauvegarde** ; applique (`migrate` une fois, puis API,
+fichiers statiques, rechargement de Caddy) ; vérifie la santé de l'API et de Caddy puis le chemin
+public `https://<HOST_API>/health`. Au moindre échec, il **annule les migrations ajoutées**,
+revient au code et à l'ancienne version, et alerte. Lire les notes de version avant : une variable
+obligatoire nouvelle apparaît dans `.env.example`, et il faut la renseigner **avant** de lancer
+`update.sh`.
 
 `--force` passe outre une partie en cours. Il ne coupe pas la partie (voir ci-dessous) mais, après
 une partie « bloquée » (écran fermé en cours de route, jamais terminée), c'est le seul moyen de
@@ -222,19 +236,53 @@ Les sessions et le `JWT_SECRET` sont inchangés : personne n'est déconnecté.
   chargée (`game/room-app/src/router/index.ts` : chargement à la demande) se chargent encore.
   Seul `index.html` change : la nouvelle version n'apparaît qu'au rechargement suivant. Le volume
   grossit de quelques Mo par version : sans souci avant des années.
-- **Une migration qui casse la compatibilité avec l'ancienne API** : le retour arrière automatique
-  remet l'ancien code sur la base déjà migrée ; si l'ancienne version refuse de démarrer, voir
-  ci-dessous.
+- **Une migration qui supprime des données** : le retour arrière exécute les `down` des migrations
+  (testés en CI) ; un `down` ne ressuscite pas ce qu'un `up` a effacé. Lire les notes de version.
 
 ## Retour arrière
 
-- **Automatique** : `update.sh` s'en charge si la vérification échoue.
-- **Volontaire** : `./update.sh vANCIENNE.VERSION` (même procédure, avec sauvegarde). Les images des
-  versions précédentes sont conservées (`docker image ls quizzup/api`).
-- **Si l'ancienne version ne démarre pas sur la base déjà migrée** : la restaurer (perd les
-  écritures depuis la dernière sauvegarde, celle faite par `update.sh` juste avant la migration) :
-  `docker compose down -v && ./restore.sh --yes` après être revenu sur l'ancien tag et
-  `QUIZZUP_VERSION`. **`down -v` efface les volumes** : ne le lancer qu'avec une sauvegarde vérifiée.
+Pourquoi les migrations d'abord : knex refuse de démarrer si la base contient une migration que le
+code ne connaît pas. Remettre l'ancien code sur une base déjà migrée ne démarre donc pas. Il faut
+annuler les migrations de la nouvelle version, avec **son** image (c'est elle qui a leurs `down`),
+puis remettre l'ancien code.
+
+- **Automatique** : si la vérification échoue (ou si la session est coupée en cours de route),
+  `update.sh` compare le dernier lot de `knex_migrations` à sa valeur d'avant la mise à jour.
+  - Lot inchangé : aucune migration n'a été appliquée, rien n'est annulé (annuler quoi que ce soit
+    défairait les migrations de la version précédente).
+  - Lot augmenté (y compris une migration qui a échoué en cours de lot : les précédentes sont
+    validées une à une) : `knex migrate:rollback` annule ce lot, puis le script remet le code, `.env`
+    et les conteneurs de l'ancienne version (sans reconstruire : ses images sont conservées).
+  - Annulation impossible (base illisible, `down` en erreur, verrou knex resté pris, état de lots
+    inattendu) : **le script s'arrête sans rien toucher d'autre** et alerte. Le code, `.env` et les
+    conteneurs restent sur la nouvelle version. Faire alors la procédure manuelle ci-dessous.
+  - Si le retour échoue après l'annulation, le script le dit et alerte : voir « Si le serveur
+    tombe ».
+- **Volontaire** vers une version qui connaît toutes les migrations de la base :
+  `./update.sh vAUTRE.VERSION` (même procédure, avec sauvegarde). Les images des versions
+  précédentes sont conservées (`docker image ls quizzup/api`).
+- **Volontaire vers une version plus ancienne que la base** (le tag ne connaît pas des migrations déjà
+  appliquées) : `update.sh` refuse et liste les migrations en trop. Ce n'est pas automatique, car
+  annuler des migrations peut perdre des données. À la main, dans l'ordre :
+  1. `./backup.sh`.
+  2. `docker compose stop api`.
+  3. `docker compose run --rm --no-deps migrate node_modules/.bin/knex migrate:rollback` : annule un lot
+     (avec l'image de la version **actuelle**). Relancer `./update.sh vANCIENNE.VERSION` ; s'il
+     refuse encore, répéter 3.
+  4. Sinon, restaurer une sauvegarde antérieure à ces migrations (procédure suivante).
+- **Procédure manuelle quand l'annulation automatique a échoué** (la pile est toujours sur la nouvelle
+  version, la base est partiellement ou entièrement migrée), au choix :
+  - *Annuler à la main* : si le message parle d'un verrou, `docker compose run --rm --no-deps migrate
+    node_modules/.bin/knex migrate:unlock` ; puis `docker compose stop api`, puis
+    `docker compose run --rm --no-deps migrate node_modules/.bin/knex migrate:rollback` ; puis
+    `git checkout <ancien tag>`, mettre `QUIZZUP_VERSION=<ancien tag>` dans `.env`, et
+    `docker compose up -d --remove-orphans`.
+  - *Restaurer la sauvegarde* faite par `update.sh` juste avant la migration (perd les écritures
+    depuis). Revenir sur l'ancien tag et `QUIZZUP_VERSION` comme ci-dessus, puis
+    `docker compose down`, `docker volume rm quizzup-prod_pgdata`, `./restore.sh --yes`. Seul le
+    volume de la base est supprimé : `docker compose down -v` effacerait aussi les certificats de
+    Caddy (`caddy_data`) et les fichiers statiques. Ne supprimer le volume qu'avec une sauvegarde
+    vérifiée.
 
 ## Si le serveur tombe pendant une session
 
@@ -249,9 +297,15 @@ Les sessions et le `JWT_SECRET` sont inchangés : personne n'est déconnecté.
    - disque plein : `df -h`, `docker system df`, libérer (anciennes images : `docker image prune`) ;
    - API « unhealthy » : `docker compose logs api` ; un `JWT_SECRET` refusé ou une variable
      manquante s'y lit en clair.
-4. Machine perdue : nouvelle machine, installation (sections précédentes, sans le bootstrap du
-   superadmin), `./restore.sh --yes`, changer le DNS. C'est l'essai de restauration (A) qui prouve que
-   cela marche.
+4. Machine perdue : nouvelle machine. Reprendre la « Première installation » **jusqu'à l'étape 1
+   (`.env`) seulement**, avec le tag qui tournait au moment de la panne et le `.env` conservé dans le
+   gestionnaire de mots de passe. Ne pas faire `docker compose up` (il lancerait les migrations, et
+   `restore.sh` refuse une base qui contient déjà des tables), ni le bootstrap du superadmin, ni
+   `./backup.sh init` (le dépôt existe déjà). Ensuite, comme l'essai de restauration (A) :
+   `docker compose build`, changer le DNS vers la nouvelle machine (Caddy demande ses certificats
+   au démarrage), puis `./restore.sh --yes` (restaure puis démarre toute la pile). Reprendre
+   ensuite l'étape 5 de l'installation (planification). L'essai de restauration (A) prouve que cela
+   marche.
 5. Après coup : vérifier que les résultats des parties jouées pendant la panne sont arrivés
    (`games.state = 'finished'`), sinon relancer l'écran de salle concerné (il vide sa file à
    l'ouverture).
@@ -288,11 +342,12 @@ avec un délai de 1 s ; `200 {"status":"ok","db":"ok"}`, sinon `503 {"status":"d
       cet essai extérieur, pas au pare-feu de la machine. `docker compose ps` ne montre un port
       publié que pour `caddy`.
 - [ ] HTTPS valide sur les cinq noms d'hôte ; `http://` redirige vers `https://`.
-- [ ] **Console éditeur** : depuis une adresse hors de `EDITOR_ALLOWED_RANGES`,
+- [ ] **Filtrage par adresse** : depuis une adresse hors de `EDITOR_ALLOWED_RANGES`,
       `https://<HOST_CONSOLE>/` et `https://<HOST_API>/docs/` répondent **403** ; depuis une adresse
-      autorisée, la console s'ouvre. Vide `EDITOR_ALLOWED_RANGES` = 403 partout.
+      autorisée, la console s'ouvre. Vide `EDITOR_ALLOWED_RANGES` = 403 partout. (Cela ne prouve que
+      le filtre, qui ne protège pas la console : voir « Limites connues ».)
 - [ ] **En-têtes** : `curl -sI https://<HOST_APP>/` montre HSTS, `X-Content-Type-Options`,
-      `Referrer-Policy`, `Permissions-Policy`, et `Cache-Control: no-cache` ; un fichier
+      `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, et `Cache-Control: no-cache` ; un fichier
       de `/assets/` a `immutable`.
 - [ ] **CSP** : ouvrir chaque surface (espace centre, écran de salle avec une partie complète et un
       extrait audio, vitrine si activée) avec `CSP_HEADER=Content-Security-Policy-Report-Only`,
@@ -310,14 +365,19 @@ avec un délai de 1 s ; `200 {"status":"ok","db":"ok"}`, sinon `503 {"status":"d
       puis `docker compose up -d`).
 - [ ] Redémarrage de la machine : toute la pile remonte seule (`docker compose ps`, tout `healthy`).
 - [ ] `./update.sh` rejoué à blanc sur le même tag (il doit passer sans erreur) puis, en pré-production,
-      avec un échec provoqué (tag dont la construction échoue) : retour arrière constaté.
+      avec deux échecs provoqués : un tag dont la construction échoue (lot de migrations inchangé,
+      rien annulé), puis un tag qui ajoute une migration et dont l'API échoue (migration annulée,
+      ancienne version qui redémarre) : retour arrière constaté dans les deux cas.
 - [ ] Pas de nom de domaine, d'adresse IP ni de secret commités (`git grep` sur le dépôt).
 
 ## Limites connues
 
-- **Console éditeur** : le filtrage ici est celui du proxy. L'API, elle, reste joignable sur
-  `HOST_API` avec les routes superadmin ; le contrôle réseau côté API et le double facteur sont le
-  lot 12.
+- **Console éditeur** : le filtrage par nom d'hôte et par plage réseau **masque l'adresse de la
+  console, il ne la protège pas**. `HOST_APP` sert la même application sans filtre : un superadmin
+  qui s'y connecte, depuis n'importe quelle adresse, obtient toute la console. L'API reste
+  joignable sur `HOST_API` avec les routes superadmin. Seul Swagger (`/docs`) est réellement
+  protégé par `EDITOR_ALLOWED_RANGES`. La vraie protection (contrôle côté API, double facteur)
+  arrive avec le lot « console éditeur » (lot 12).
 - **Un seul serveur** : une panne de la machine coupe l'API (les parties en cours continuent, mais
   aucune nouvelle ne démarre) ; le rétablissement est la restauration. Pas de haute disponibilité.
 - **Polices** : le backoffice et l'écran de salle importent encore leurs polices depuis un service

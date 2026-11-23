@@ -6,12 +6,14 @@
 #
 # Variables : SNAPSHOT_DB et SNAPSHOT_MEDIA (identifiant d'instantané restic, `latest` par défaut).
 # Refuse de toucher une base qui contient déjà des tables : pour repartir de zéro, `docker compose
-# down -v` d'abord (efface la base ET les médias de cette pile).
+# down` puis `docker volume rm quizzup-prod_pgdata` (la base seule : `down -v` effacerait aussi les
+# certificats de Caddy et les fichiers statiques).
 set -Eeuo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 # shellcheck source=lib.sh
 . ./lib.sh
 require_env_file
+acquire_lock
 
 confirmed=0
 start=1
@@ -31,12 +33,14 @@ echo "== Base PostgreSQL démarrée"
 dc up -d --wait postgres
 
 tables=$(sql "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'")
-[ "$tables" = 0 ] || die "la base contient déjà $tables table(s) : pile non vide (docker compose down -v pour repartir de zéro)"
+[ "$tables" = 0 ] || die "la base contient déjà $tables table(s) : pile non vide (docker compose down puis docker volume rm quizzup-prod_pgdata pour repartir de zéro)"
 
 echo "== Restauration de la base (${SNAPSHOT_DB:-latest})"
+# --single-transaction : tout ou rien. Un échec en cours ne laisse pas de base à moitié remplie, donc
+# on peut relancer le script tel quel sans vider la base d'abord.
 # shellcheck disable=SC2016 # variables du conteneur, pas de l'hôte
 restic dump --tag db "${SNAPSHOT_DB:-latest}" /db.pgdump |
-  dc exec -T postgres sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner --exit-on-error'
+  dc exec -T postgres sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner --exit-on-error --single-transaction'
 
 echo "== Restauration des médias (${SNAPSHOT_MEDIA:-latest})"
 restic_root restore --tag media "${SNAPSHOT_MEDIA:-latest}" --target /

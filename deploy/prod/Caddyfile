@@ -11,6 +11,11 @@
 		# requête arrive d'un relais déclaré. Sinon l'en-tête serait falsifiable et la liste de la
 		# console éditeur contournable.
 		trusted_proxies static {$TRUSTED_PROXIES}
+		# Un relais qui AJOUTE l'adresse à X-Forwarded-For (au lieu de la remplacer) laisse passer en
+		# tête de liste une valeur envoyée par le visiteur. En mode strict, Caddy lit la liste de
+		# droite à gauche et s'arrête au premier relais non déclaré : la valeur falsifiée n'est
+		# jamais retenue.
+		trusted_proxies_strict
 	}
 }
 
@@ -22,6 +27,9 @@
 	header {
 		Strict-Transport-Security "max-age=31536000"
 		X-Content-Type-Options "nosniff"
+		# Même rôle que `frame-ancestors 'none'` de la CSP, qui n'est pas appliquée tant que la CSP est
+		# en `Report-Only` (valeur par défaut de CSP_HEADER) : sans cela, détournement de clic possible.
+		X-Frame-Options "DENY"
 		Referrer-Policy "strict-origin-when-cross-origin"
 		-Server
 	}
@@ -77,8 +85,11 @@
 }
 
 # --- Console éditeur -------------------------------------------------------------------------
-# Accès réservé aux plages de EDITOR_ALLOWED_RANGES (CIDR séparés par des espaces). Variable vide :
-# refus pour tout le monde. Ce filtre ne remplace pas le contrôle côté API (lot 12) : il s'ajoute.
+# Ce nom d'hôte sert la même application que l'espace centre, filtrée par les plages de
+# EDITOR_ALLOWED_RANGES (CIDR séparés par des espaces ; variable vide : refus pour tout le monde).
+# Attention : cela masque l'adresse de la console, cela ne la protège pas. HOST_APP sert la même
+# application sans filtre et l'API ne distingue pas le nom d'hôte. La protection arrive avec le lot
+# « console éditeur » (lot 12) ; seul Swagger (/docs) est réellement protégé par ce filtre.
 {$HOST_CONSOLE} {
 	import common
 
