@@ -1,10 +1,11 @@
-import { DEFAULT_GAME_TIMINGS } from '@quizzup/game-engine'
+import { DEFAULT_GAME_TIMINGS, type GameEvent } from '@quizzup/game-engine'
 import { GAME_COMMAND_REFUSAL, MINI_GAME_FLASH_BLIND_TEST } from '@quizzup/shared'
 
 import { createSilentExtractPlayer, type ExtractPlayer } from '@/audio/player'
 import { getDemoThemes } from '@/game/demoContent'
 import { getLiveQuestionId } from '@/game/selectors'
 import { createMemorySessionStorage } from '@/game/session'
+import * as roomGame from '@/game/useRoomGame'
 import {
   abortGame,
   closeGame,
@@ -17,9 +18,12 @@ import {
   startNewGame,
   useRoomGame,
 } from '@/game/useRoomGame'
+import { saveRoomHardwareConfig, startLighting, stopLighting } from '@/hardware/roomHardware'
 import { setDemoMode } from '@/utils/auth'
 
 import { createManualClock, getPlayableThemes, REGISTRATIONS } from '../_helpers/fixtures'
+
+const noop = () => undefined
 
 function fakePlayer(): ExtractPlayer {
   return {
@@ -226,5 +230,172 @@ describe('useRoomGame : pause et passage de question', () => {
     closeGame()
 
     expect(paused.value).toBe(false)
+  })
+
+  describe('fumée', () => {
+    const SMOKE_CONFIG = {
+      lighting: {
+        fixtures: [{ id: 'fumee', name: 'Fumée', profileId: 'smoke-relay', address: 40 }],
+        smoke: { enabled: true, requireConfirmation: false },
+      },
+    }
+    const VICTORY: GameEvent = {
+      seq: 1,
+      type: 'game_ended',
+      at: 0,
+      payload: { winnerIds: [1], desk: 1 },
+    }
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    async function startLights() {
+      await saveRoomHardwareConfig(SMOKE_CONFIG)
+      return startLighting()
+    }
+
+    /** Écoute des événements remplacée : le test les injecte lui-même, partie en pause ou non. */
+    function captureGameEvents() {
+      let listener: (events: GameEvent[]) => void = noop
+      vi.spyOn(roomGame, 'onGameEvents').mockImplementation((next) => {
+        listener = next
+        return noop
+      })
+      return (events: GameEvent[]) => listener(events)
+    }
+
+    it('coupe le jet en cours dès la mise en pause', async () => {
+      const lights = await startLights()
+      startQuestion()
+      expect(lights.smoke.fire(3_000)).toMatchObject({ ok: true })
+      expect(lights.getState().smoke.status).toBe('firing')
+
+      pauseGame()
+
+      expect(lights.getState().smoke.status).toBe('cooldown')
+      expect(lights.getState().smoke.level).toBe(0)
+      expect(lights.getState().smoke.lastStopReason).toBe('manual')
+    })
+
+    it('ne relance aucun jet à la reprise', async () => {
+      const lights = await startLights()
+      startQuestion()
+      lights.smoke.fire(3_000)
+
+      pauseGame()
+      resumeGame()
+
+      expect(lights.getState().smoke.status).not.toBe('firing')
+      vi.advanceTimersByTime(60_000)
+      expect(lights.getState().smoke.status).toBe('ready')
+    })
+
+    it('ne touche ni à l’armement ni au temps de repos quand aucun jet n’est en cours', async () => {
+      const lights = await startLights()
+      startQuestion()
+
+      pauseGame()
+
+      expect(lights.getState().smoke).toMatchObject({ status: 'ready', armed: true })
+    })
+
+    it('hors pause, un événement de victoire déclenche la fumée', async () => {
+      const emit = captureGameEvents()
+      const lights = await startLights()
+      startQuestion()
+
+      emit([VICTORY])
+      vi.advanceTimersByTime(500)
+
+      expect(lights.getState().smoke.status).toBe('firing')
+    })
+
+    it('en pause, un événement qui déclencherait la fumée ne la déclenche pas', async () => {
+      const emit = captureGameEvents()
+      const lights = await startLights()
+      startQuestion()
+      pauseGame()
+
+      emit([VICTORY])
+      vi.advanceTimersByTime(500)
+
+      expect(lights.getState().smoke.status).toBe('ready')
+      expect(lights.getState().currentSceneId).not.toBe('victory')
+    })
+
+    it('à la reprise, la fumée ne revient que sur un nouvel événement', async () => {
+      const emit = captureGameEvents()
+      const lights = await startLights()
+      startQuestion()
+      pauseGame()
+      emit([VICTORY])
+      resumeGame()
+      vi.advanceTimersByTime(500)
+      expect(lights.getState().smoke.status).toBe('ready')
+
+      emit([VICTORY])
+      vi.advanceTimersByTime(500)
+
+      expect(lights.getState().smoke.status).toBe('firing')
+    })
+
+    it('l’arrêt de partie pendant la pause remet les lumières au repos, même sur une scène prioritaire', async () => {
+      const lights = await startLights()
+      startQuestion()
+      lights.playScene('answer-correct', { desk: 1 })
+      expect(lights.getState().currentSceneId).toBe('answer-correct')
+      pauseGame()
+
+      abortGame()
+
+      expect(lights.getState().currentSceneId).toBe('idle')
+    })
+
+    it('une scène de victoire lancée avant la pause ne tire pas la fumée pendant la pause', async () => {
+      const lights = await startLights()
+      startQuestion()
+      lights.playScene('victory', { desk: 1 })
+
+      pauseGame()
+      vi.advanceTimersByTime(500)
+
+      expect(lights.getState().smoke.status).not.toBe('firing')
+      expect(lights.getState().smoke.status).toBe('ready')
+    })
+
+    it('pendant la pause, le test manuel de fumée est refusé avec le motif paused', async () => {
+      const lights = await startLights()
+      startQuestion()
+      pauseGame()
+
+      expect(lights.smoke.fire(1_000)).toEqual({ ok: false, reason: 'paused' })
+      expect(lights.getState().smoke.status).toBe('ready')
+    })
+
+    it('à la reprise, un tir immédiat tombe dans le temps de repos du jet coupé par la pause', async () => {
+      const lights = await startLights()
+      startQuestion()
+      lights.smoke.fire(3_000)
+      pauseGame()
+      resumeGame()
+
+      expect(lights.smoke.fire(1_000)).toEqual({ ok: false, reason: 'cooldown' })
+    })
+
+    it('des lumières redémarrées pendant une pause naissent en pause et refusent la fumée', async () => {
+      const first = await startLights()
+      startQuestion()
+      pauseGame()
+
+      await stopLighting()
+      const again = await startLighting()
+
+      expect(again).not.toBe(first)
+      expect(again.smoke.fire(1_000)).toEqual({ ok: false, reason: 'paused' })
+
+      resumeGame()
+      expect(again.smoke.fire(1_000)).toMatchObject({ ok: true })
+    })
   })
 })

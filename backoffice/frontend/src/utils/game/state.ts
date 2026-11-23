@@ -1,5 +1,6 @@
 import {
   GAME_STATE_ABORTED,
+  GAME_STATE_FINISHED,
   GAME_STATE_PENDING,
   GAME_STATE_RUNNING,
   GAME_STATES,
@@ -19,7 +20,10 @@ export function getGameStateLabelKey(state: unknown): string {
   return isGameState(state) ? `games.state.${state}` : 'games.state.unknown'
 }
 
-/** En cours = vert, en attente = orange, arrêtée = rouge, terminée = neutre. */
+/**
+ * En cours = vert, en attente = orange, arrêtée = rouge ; terminée, programmée et annulée = neutre
+ * (une session programmée n'a encore rien d'urgent : l'agenda la distingue autrement).
+ */
 export function getGameStateTone(state: unknown): GameStateTone {
   if (state === GAME_STATE_RUNNING) {
     return 'ok'
@@ -44,6 +48,11 @@ export function isGamePendingOrRunning(game: Pick<Game, 'state'> | null | undefi
 /** Seule une partie en attente ou en cours peut être arrêtée par l'opérateur. */
 export function canAbortGame(game: Pick<Game, 'state'> | null | undefined): boolean {
   return isGamePendingOrRunning(game)
+}
+
+/** La feuille de résultats n'existe que pour une partie terminée. */
+export function canShowGameResults(game: Pick<Game, 'state'> | null | undefined): boolean {
+  return game?.state === GAME_STATE_FINISHED
 }
 
 export function filterGamesByState(games: Game[], state: GameStateFilter): Game[] {
