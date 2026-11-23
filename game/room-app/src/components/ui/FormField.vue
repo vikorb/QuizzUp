@@ -115,7 +115,7 @@ function onInput(event: Event): void {
   min-height: var(--tap-min);
   border: 1px solid var(--border-ui);
   background: var(--bg-field);
-  border-radius: 14px;
+  border-radius: var(--radius-ctl);
   padding: 0 12px;
   transition: var(--tr);
 }

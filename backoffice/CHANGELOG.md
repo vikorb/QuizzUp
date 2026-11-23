@@ -223,6 +223,9 @@ Format inspiré de Keep a Changelog.
 
 ### Changed
 
+- Écran de salle : boutons et mises en page recalés sur l'accueil, les assistants de configuration, l'écran Matériel, le lobby, l'inscription et la connexion. Un seul bouton principal par écran, cibles d'au moins 48 px (plan de salle compris), barres d'actions alignées, rien ne déborde à 1280 px ni à 768 px.
+  US: US-UX-01 (#132)
+
 - `backend/.env` n'est plus versionné (seul `backend/.env.example` l'est) ; les tests backend
   chargent `backend/.env` s'il existe, sinon `backend/.env.example`.
   **Avant le pull**, sauvegarder son `backend/.env` local : git le supprime du disque. Le remettre

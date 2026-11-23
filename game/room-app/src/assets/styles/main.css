@@ -46,6 +46,15 @@
   --glow-active: 0 0 12px var(--glow-soft);
 }
 
+/* Les contrôles de formulaire n'héritent pas de la police du corps (Arial par défaut) : on la leur donne.
+   Sélecteurs d'élément, donc moins spécifiques que les classes : tailles et graisses des composants priment. */
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
 /* Fond d'écran de salle : halos bleu-violet sur le fond spatial du backoffice. */
 .stage-bg {
   background:
