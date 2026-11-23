@@ -47,6 +47,9 @@ jobs:
       - name: Type-check
         run: npm run type-check
 
+      - name: Build du frontend
+        run: npm --prefix frontend run build
+
       - name: Tests
         run: npm test
 
