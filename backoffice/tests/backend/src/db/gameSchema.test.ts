@@ -99,6 +99,14 @@ describe('game schema migrations', () => {
     expect(exclusion).toContain('status <> 2')
   })
 
+  it('fails fast instead of queueing behind a lock when the scheduling migration runs', () => {
+    // Premier ordre de `up` : il vaut pour toute la transaction de la migration.
+    expect(schedulingUp.indexOf("SET LOCAL lock_timeout = '5s'")).toBeGreaterThan(-1)
+    expect(schedulingUp.indexOf("SET LOCAL lock_timeout = '5s'")).toBeLessThan(
+      schedulingUp.indexOf('CREATE EXTENSION')
+    )
+  })
+
   it('keeps a safe rollback for the scheduling migration', () => {
     expect(schedulingDown).toContain('Rollback impossible')
     expect(schedulingDown).toContain("whereIn('state', ['scheduled', 'cancelled'])")

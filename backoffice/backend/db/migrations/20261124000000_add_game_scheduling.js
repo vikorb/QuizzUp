@@ -22,6 +22,10 @@
  * @returns { Promise<void> }
  */
 exports.up = async function (knex) {
+  // Si une transaction longue tient `games` ou `rooms`, mieux vaut échouer vite que bloquer en
+  // file d'attente toutes les requêtes de parties. Vaut pour la transaction de la migration.
+  await knex.raw("SET LOCAL lock_timeout = '5s'")
+
   await knex.raw('CREATE EXTENSION IF NOT EXISTS btree_gist')
 
   await knex.schema.alterTable('games', (table) => {

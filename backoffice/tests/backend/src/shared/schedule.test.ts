@@ -124,6 +124,19 @@ describe('@quizzup/shared — zonedLocalToUtc', () => {
     expect(() => zonedLocalToUtc('2027-06-15 10:00', 'Europe/Paris')).toThrow(RangeError)
     expect(() => zonedLocalToUtc('2027-06-15T10:00', 'Mars/Olympus')).toThrow(RangeError)
   })
+
+  it('refuse une date ou une heure impossibles au lieu de les faire déborder', () => {
+    expect(() => zonedLocalToUtc('2027-02-30T10:00', 'Europe/Paris')).toThrow(RangeError)
+    expect(() => zonedLocalToUtc('2027-06-31T10:00', 'Europe/Paris')).toThrow(RangeError)
+    expect(() => zonedLocalToUtc('2027-13-01T10:00', 'Europe/Paris')).toThrow(RangeError)
+    expect(() => zonedLocalToUtc('2027-06-15T24:00', 'Europe/Paris')).toThrow(RangeError)
+    expect(() => zonedLocalToUtc('2027-06-15T10:99', 'Europe/Paris')).toThrow(RangeError)
+    // 2028 est bissextile : le 29 février existe, pas en 2027.
+    expect(zonedLocalToUtc('2028-02-29T10:00', 'Europe/Paris')?.toISOString()).toBe(
+      '2028-02-29T09:00:00.000Z'
+    )
+    expect(() => zonedLocalToUtc('2027-02-29T10:00', 'Europe/Paris')).toThrow(RangeError)
+  })
 })
 
 describe('@quizzup/shared — computeRoomSlots', () => {
@@ -231,6 +244,56 @@ describe('@quizzup/shared — computeRoomSlots', () => {
     ])
     // Il n'y a pas de 02:30 local ce jour-là.
     expect(result.some((slot) => slot.localTime === '02:30')).toBe(false)
+  })
+
+  it('Europe/Paris, nuit du 27 au 28 mars 2027 : un créneau qui enjambe le saut ne chevauche pas le suivant', () => {
+    // 120 min d'horloge locale : 01:00 locale = 00:00Z-02:00Z, 03:00 locale = 01:00Z, donc le
+    // créneau de 03:00 commencerait avant la fin réelle de celui de 01:00. Il est écarté.
+    const schedule = makeSchedule(
+      { opensAt: '23:00', closesAt: '05:00' },
+      { slotMinutes: 120, breakMinutes: 0 }
+    )
+    const result = slots(schedule, '2027-03-27')
+
+    expect(result.map((slot) => [slot.localTime, slot.startsAt, slot.endsAt])).toEqual([
+      ['23:00', '2027-03-27T22:00:00.000Z', '2027-03-28T00:00:00.000Z'],
+      ['01:00', '2027-03-28T00:00:00.000Z', '2027-03-28T02:00:00.000Z'],
+    ])
+
+    for (let index = 1; index < result.length; index += 1) {
+      expect(Date.parse(result[index].startsAt)).toBeGreaterThanOrEqual(
+        Date.parse(result[index - 1].endsAt)
+      )
+    }
+  })
+
+  it('Europe/Paris, 28 mars 2027 : aucun créneau ne finit après l’instant de fermeture', () => {
+    // Fermeture 03:00 locale = 01:00Z. Le créneau de 01:00 (00:00Z) durerait jusqu'à 02:00Z, soit
+    // 04:00 locale : après la fermeture, donc refusé. Pas de créneau du tout.
+    const schedule = makeSchedule(
+      { opensAt: '01:00', closesAt: '03:00' },
+      { slotMinutes: 120, breakMinutes: 0 }
+    )
+
+    expect(slots(schedule, '2027-03-28')).toEqual([])
+
+    // Même fermeture, créneaux d'une heure : 01:00-02:00 locale (00:00Z-01:00Z) tient pile.
+    expect(
+      slots(makeSchedule({ opensAt: '01:00', closesAt: '03:00' }), '2027-03-28').map(
+        (slot) => slot.endsAt
+      )
+    ).toEqual(['2027-03-28T01:00:00.000Z'])
+  })
+
+  it('Europe/Paris, 28 mars 2027 : la grille ne dépend pas de l’heure à laquelle on la calcule', () => {
+    const schedule = makeSchedule(
+      { opensAt: '23:00', closesAt: '05:00' },
+      { slotMinutes: 120, breakMinutes: 0 }
+    )
+    // Le créneau de 23:00 est passé : celui de 03:00 locale (01:00Z) ne doit pas réapparaître.
+    const result = slots(schedule, '2027-03-27', { now: new Date('2027-03-27T22:00:00.000Z') })
+
+    expect(result.map((slot) => slot.localTime)).toEqual(['01:00'])
   })
 
   it('Europe/Paris, 31 octobre 2027 : pas de chevauchement, un trou d’une heure', () => {
@@ -353,6 +416,15 @@ describe('@quizzup/shared — computeRoomSlots', () => {
     expect(() => slots({ ...schedule, slotMinutes: 0 }, '2027-06-15')).toThrow(RangeError)
     expect(() => slots({ ...schedule, breakMinutes: -1 }, '2027-06-15')).toThrow(RangeError)
     expect(() => slots(schedule, '15/06/2027')).toThrow(RangeError)
+    // Jour qui n'existe pas : pas de report sur le 2 mars.
+    expect(() => slots(schedule, '2027-02-30')).toThrow(RangeError)
+    expect(() => slots(schedule, '2027-13-01')).toThrow(RangeError)
+    expect(() =>
+      slots(makeSchedule({ opensAt: '10:00', closesAt: '24:00' }), '2027-06-15')
+    ).toThrow(RangeError)
+    expect(() =>
+      slots(makeSchedule({ opensAt: '10:99', closesAt: '12:00' }), '2027-06-15')
+    ).toThrow(RangeError)
     expect(() =>
       slots(makeSchedule({ opensAt: '25:00', closesAt: '12:00' }), '2027-06-15')
     ).toThrow(RangeError)

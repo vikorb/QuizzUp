@@ -20,6 +20,11 @@ const GAME_API_ERROR_CODES: GameApiErrorCode[] = [
   'game_already_over',
   GAME_EMAIL_CONSENT_REQUIRED,
   'conflict',
+  'session_in_past',
+  'session_too_far',
+  'slot_taken',
+  'game_not_scheduled',
+  'session_not_open_yet',
   'server_error',
 ]
 

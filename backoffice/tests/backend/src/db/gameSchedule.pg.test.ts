@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { isExclusionViolation } from '@backend/routes/_shared/dbErrors'
 import { assertTestDatabase } from '../../setup/assertTestDatabase'
@@ -249,6 +249,56 @@ describe.skipIf(!PG_INTEGRATION_URL)('sessions programmées sur PostgreSQL', () 
 
     expect((await db('rooms').where({ id: 1 }).first()).schedule).toEqual({
       timezone: 'Europe/Paris',
+    })
+  })
+
+  describe('retour arrière de la migration (down)', () => {
+    const migration = {
+      directory: path.resolve(process.cwd(), 'backend/db/migrations'),
+      name: '20261124000000_add_game_scheduling.js',
+    }
+
+    // Quoi qu'il arrive, la base de test doit retrouver le schéma à jour pour les tests suivants.
+    afterEach(async () => {
+      await db.migrate.latest({ directory: migration.directory })
+    })
+
+    it('refuse tant qu’une partie est programmée, puis passe sur une base vide et se rejoue', async () => {
+      await addGame({ start: at('10:00'), end: at('11:00') })
+
+      await expect(db.migrate.down(migration)).rejects.toThrow(/Rollback impossible/)
+      // Refus : le schéma n'a pas bougé, la ligne est toujours là.
+      expect(await db.schema.hasColumn('games', 'scheduled_at')).toBe(true)
+      expect(await db('games').where({ state: 'scheduled' })).toHaveLength(1)
+
+      await db('games').delete()
+      await db.migrate.down(migration)
+
+      expect(await db.schema.hasColumn('games', 'scheduled_at')).toBe(false)
+      expect(await db.schema.hasColumn('rooms', 'schedule')).toBe(false)
+      // L'ancien CHECK est revenu : `scheduled` n'est plus un état connu.
+      await expect(
+        db('games').insert({
+          company_id: 1,
+          room_id: 1,
+          admin_id: 1,
+          seed: 1,
+          state: 'scheduled',
+        })
+      ).rejects.toMatchObject({ code: '23514' })
+
+      await db.migrate.latest({ directory: migration.directory })
+
+      await expect(addGame({ start: at('10:00'), end: at('11:00') })).resolves.toHaveLength(1)
+    })
+
+    it('refuse aussi tant qu’une salle a des réglages de créneaux', async () => {
+      await db('rooms')
+        .where({ id: 1 })
+        .update({ schedule: JSON.stringify({ timezone: 'Europe/Paris' }) })
+
+      await expect(db.migrate.down(migration)).rejects.toThrow(/rooms\.schedule/)
+      expect(await db.schema.hasColumn('rooms', 'schedule')).toBe(true)
     })
   })
 })

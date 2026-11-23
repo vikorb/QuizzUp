@@ -354,14 +354,14 @@ export const GAME_SLOT_STATES = [
 /**
  * Sessions programmées (lot 13). Durées en minutes. Une session s'ouvre au plus
  * `SESSION_OPEN_EARLY_MINUTES` avant son début et ne se réserve pas au-delà de
- * `SESSION_HORIZON_DAYS` jours.
+ * `SESSION_HORIZON_DAYS` jours (constante définie dans `schedule.ts`, ré-exportée en bas de ce
+ * fichier).
  */
 export const SESSION_DEFAULT_MINUTES = 60 as const
 export const SESSION_MIN_MINUTES = 10 as const
 export const SESSION_MAX_MINUTES = 240 as const
 export const SESSION_MAX_BREAK_MINUTES = 120 as const
 export const SESSION_OPEN_EARLY_MINUTES = 60 as const
-export const SESSION_HORIZON_DAYS = 365 as const
 
 /** Langue d'une réservation (CHECK `games.locale`). */
 export const GAME_LOCALES = ['fr', 'en'] as const

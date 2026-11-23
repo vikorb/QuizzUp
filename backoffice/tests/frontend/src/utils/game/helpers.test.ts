@@ -37,6 +37,15 @@ import {
   updateGameInList,
 } from '@/utils/game/state'
 
+// Codes d'erreur des sessions programmées (lot 13) → clé i18n de `games.errors`.
+const SESSION_ERROR_KEYS: ReadonlyArray<[code: string, key: string]> = [
+  ['session_in_past', 'sessionInPast'],
+  ['session_too_far', 'sessionTooFar'],
+  ['slot_taken', 'slotTaken'],
+  ['game_not_scheduled', 'gameNotScheduled'],
+  ['session_not_open_yet', 'sessionNotOpenYet'],
+]
+
 describe('utils/game/state', () => {
   it('recognises the shared game states only', () => {
     expect(isGameState(GAME_STATE_RUNNING)).toBe(true)
@@ -78,23 +87,20 @@ describe('utils/game/state', () => {
       import('@/locales/fr/games.json'),
       import('@/locales/en/games.json'),
     ])
-    // Codes du lot 13 en camelCase (clé i18n de `games.errors`, cf. `getGameErrorKey`).
-    const sessionErrors = [
-      'sessionInPast',
-      'sessionTooFar',
-      'slotTaken',
-      'gameNotScheduled',
-      'sessionNotOpenYet',
-    ]
-
     for (const locale of [fr.default.games, en.default.games]) {
       for (const state of GAME_STATES) {
         expect(locale.state[state]).toBeTruthy()
       }
-      for (const key of sessionErrors) {
+      for (const [, key] of SESSION_ERROR_KEYS) {
         expect((locale.errors as Record<string, string>)[key]).toBeTruthy()
       }
     }
+  })
+
+  it.each(SESSION_ERROR_KEYS)('maps the session error code %s to its i18n key %s', (code, key) => {
+    expect(isGameApiErrorCode(code)).toBe(true)
+    expect(readGameApiError({ error: code })).toBe(code)
+    expect(getGameErrorKey(code)).toBe(`games.errors.${key}`)
   })
 
   it('tells a game that still occupies its room (pending or running) from the others', () => {
