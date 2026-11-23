@@ -2,11 +2,14 @@ import type { GameEvent } from '@quizzup/game-engine'
 import { ROOM_LOG_LEVEL_WARN } from '@quizzup/shared'
 
 import type { ExtractPlayer } from '@/audio/player'
-import { errorText, reportRoomError } from '@/diagnostics/errorReporter'
+import { reportRoomError } from '@/diagnostics/errorReporter'
 
-/** Extrait illisible : noté pour le personnel (sans l'adresse du média), la partie continue. */
-function reportUnreadable(error: unknown): void {
-  reportRoomError('audio_play_failed', errorText(error), { level: ROOM_LOG_LEVEL_WARN })
+/**
+ * Extrait illisible : noté pour le personnel, la partie continue. Le message d'erreur du lecteur
+ * contient l'adresse du média : il n'est pas envoyé, seul un message fixe l'est.
+ */
+function reportUnreadable(): void {
+  reportRoomError('audio_play_failed', 'audio_play_failed', { level: ROOM_LOG_LEVEL_WARN })
 }
 
 /**

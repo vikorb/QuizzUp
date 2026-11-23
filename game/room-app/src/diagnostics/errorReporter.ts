@@ -2,6 +2,8 @@ import {
   cleanRoomLogText,
   pickRoomLogContext,
   ROOM_LOG_BATCH_MAX_ENTRIES,
+  ROOM_LOG_CODE_MAX_LENGTH,
+  ROOM_LOG_CODE_PATTERN,
   ROOM_LOG_LEVEL_ERROR,
   ROOM_LOG_MESSAGE_MAX_LENGTH,
   ROOM_LOG_OCCURRENCES_MAX,
@@ -17,9 +19,10 @@ import { version as APP_VERSION } from '../../package.json'
 
 /**
  * Journaux d'erreurs de la salle, envoyés au backoffice (`POST /room/logs`) pour que le personnel
- * voie ce qui s'est passé sans être sur place. Les erreurs sont gardées en mémoire, regroupées
- * quand elles se répètent, puis envoyées par paquets à intervalle régulier. Rien ne bloque la
- * partie : un échec d'envoi est silencieux (jamais signalé lui-même) et réessayé plus tard.
+ * voie ce qui s'est passé sans être sur place. Les erreurs sont gardées en mémoire et copiées dans
+ * `localStorage` (relues au démarrage), regroupées quand elles se répètent, puis envoyées par
+ * paquets à intervalle régulier. Rien ne bloque la partie : un échec d'envoi ou de stockage est
+ * silencieux (jamais signalé lui-même) et réessayé plus tard.
  *
  * Aucune donnée de joueur : les adresses e-mail sont masquées et le contexte se limite à la liste
  * blanche de `@quizzup/shared` (le serveur applique les mêmes filtres).
@@ -37,14 +40,82 @@ export type RoomErrorCode =
 
 /** Intervalle d'envoi : bien au-dessus de la limite du serveur (6 envois par minute). */
 export const FLUSH_EVERY_MS = 30_000
-/** Entrées gardées en mémoire quand le réseau manque ; les plus anciennes partent d'abord. */
-export const MAX_BUFFERED_ENTRIES = 100
+/** Entrées gardées quand le réseau manque ; les plus anciennes partent d'abord. */
+export const MAX_BUFFERED_ENTRIES = 200
+/** File d'attente persistée : elle survit au rechargement de la page (stockage local du poste). */
+export const PENDING_LOGS_KEY = 'quizzup_room_pending_logs'
 
 /** Refus définitifs : le même paquet serait refusé indéfiniment, on l'abandonne. */
 const DISCARDED_STATUSES: ReadonlySet<number> = new Set([400, 413])
 
-const buffer: RoomLogEntryInput[] = []
 const keys = new WeakMap<RoomLogEntryInput, string>()
+
+function entryKey(
+  level: RoomLogLevel,
+  code: string,
+  message: string,
+  context: RoomLogContext | null
+): string {
+  return `${level}|${code}|${message}|${JSON.stringify(context)}`
+}
+
+/** Entrée relue du stockage, remise aux normes ; `null` si elle est illisible. */
+function toEntry(value: unknown): RoomLogEntryInput | null {
+  const item = value as Partial<RoomLogEntryInput> | null
+  if (
+    typeof item !== 'object' ||
+    item === null ||
+    (item.level !== 'error' && item.level !== 'warn') ||
+    typeof item.code !== 'string' ||
+    !ROOM_LOG_CODE_PATTERN.test(item.code) ||
+    item.code.length > ROOM_LOG_CODE_MAX_LENGTH ||
+    typeof item.message !== 'string' ||
+    typeof item.occurredAt !== 'string' ||
+    Number.isNaN(Date.parse(item.occurredAt))
+  ) {
+    return null
+  }
+  const message = cleanRoomLogText(item.message, ROOM_LOG_MESSAGE_MAX_LENGTH)
+  const context = pickRoomLogContext(item.context)
+  const occurrences = Number.isInteger(item.occurrences) ? Number(item.occurrences) : 1
+  const entry: RoomLogEntryInput = {
+    level: item.level,
+    code: item.code,
+    message: message.trim() === '' ? item.code : message,
+    occurrences: Math.min(Math.max(occurrences, 1), ROOM_LOG_OCCURRENCES_MAX),
+    occurredAt: item.occurredAt,
+    ...(context ? { context } : {}),
+  }
+  keys.set(entry, entryKey(entry.level, entry.code, message, context))
+  return entry
+}
+
+/** File relue au démarrage ; vide si le stockage est indisponible ou son contenu corrompu. */
+function loadPending(): RoomLogEntryInput[] {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PENDING_LOGS_KEY) ?? '[]') as unknown
+    const entries = (Array.isArray(saved) ? saved : []).flatMap((value) => toEntry(value) ?? [])
+    return entries.slice(-MAX_BUFFERED_ENTRIES)
+  } catch {
+    return []
+  }
+}
+
+const buffer: RoomLogEntryInput[] = loadPending()
+
+/** Copie la file dans le stockage local ; plein ou bloqué, la file reste en mémoire. */
+function savePending(): void {
+  try {
+    if (buffer.length === 0) {
+      localStorage.removeItem(PENDING_LOGS_KEY)
+    } else {
+      localStorage.setItem(PENDING_LOGS_KEY, JSON.stringify(buffer))
+    }
+  } catch {
+    // Stockage plein ou indisponible : jamais d'exception, la file en mémoire continue.
+  }
+}
+
 let flushing: Promise<void> | null = null
 let stopListening: (() => void) | null = null
 
@@ -65,11 +136,12 @@ export function reportRoomError(
   const level = options.level ?? ROOM_LOG_LEVEL_ERROR
   const text = cleanRoomLogText(message, ROOM_LOG_MESSAGE_MAX_LENGTH)
   const context = pickRoomLogContext(options.context)
-  const key = `${level}|${code}|${text}|${JSON.stringify(context)}`
+  const key = entryKey(level, code, text, context)
 
   const known = buffer.find((entry) => keys.get(entry) === key)
   if (known) {
     known.occurrences = Math.min((known.occurrences ?? 1) + 1, ROOM_LOG_OCCURRENCES_MAX)
+    savePending()
     return
   }
 
@@ -88,6 +160,7 @@ export function reportRoomError(
   if (buffer.length > MAX_BUFFERED_ENTRIES) {
     buffer.shift()
   }
+  savePending()
 }
 
 async function sendBuffered(): Promise<void> {
@@ -108,6 +181,7 @@ async function sendBuffered(): Promise<void> {
         buffer.splice(at, 1)
       }
     }
+    savePending()
   }
 
   try {
@@ -128,6 +202,17 @@ export function flushRoomErrors(): Promise<void> {
     flushing = null
   })
   return flushing
+}
+
+/**
+ * Branché sur `app.config.errorHandler` de Vue : signale l'erreur (avec la route en cours) et la
+ * laisse visible dans la console, car ce gestionnaire remplace celui de Vue qui l'y écrivait.
+ */
+export function reportVueError(error: unknown, route?: unknown): void {
+  reportRoomError('vue_error', errorText(error), {
+    context: typeof route === 'string' ? { route } : undefined,
+  })
+  console.error(error)
 }
 
 function onError(event: ErrorEvent): void {
@@ -167,9 +252,10 @@ export function startErrorReporter(): () => void {
   return stop
 }
 
-/** Arrête l'écoute et vide la mémoire (tests). */
+/** Arrête l'écoute et vide la file, mémoire et stockage (tests). */
 export function resetErrorReporter(): void {
   stopListening?.()
   buffer.length = 0
+  savePending()
   flushing = null
 }

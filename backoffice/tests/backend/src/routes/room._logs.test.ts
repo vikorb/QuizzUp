@@ -19,6 +19,9 @@ describe('getRoomLogRetentionDays', () => {
     ['1', 1],
     [' 7 ', 7],
     ['90', 90],
+    ['3650', 3650],
+    ['3651', ROOM_LOG_DEFAULT_RETENTION_DAYS],
+    ['999999999999', ROOM_LOG_DEFAULT_RETENTION_DAYS],
   ])('%j -> %i days', (value, expected) => {
     expect(getRoomLogRetentionDays(value)).toBe(expected)
   })

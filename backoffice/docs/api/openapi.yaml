@@ -1217,7 +1217,7 @@ paths:
             minimum: 1
             maximum: 200
             default: 100
-          description: Nombre de lignes renvoyées
+          description: Nombre de lignes renvoyées. Une valeur au-dessus de 200 est ramenée à 200.
       responses:
         '200':
           description: Journaux de la salle (liste vide s'il n'y en a pas)

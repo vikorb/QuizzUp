@@ -5,7 +5,9 @@ import {
   FLUSH_EVERY_MS,
   flushRoomErrors,
   MAX_BUFFERED_ENTRIES,
+  PENDING_LOGS_KEY,
   reportRoomError,
+  reportVueError,
   resetErrorReporter,
   startErrorReporter,
 } from '@/diagnostics/errorReporter'
@@ -37,6 +39,16 @@ function answer(status = 204) {
           : new Response(JSON.stringify({ error: 'x' }), { status })
       )
     )
+}
+
+function storedPending(): unknown[] {
+  return JSON.parse(localStorage.getItem(PENDING_LOGS_KEY) ?? '[]') as unknown[]
+}
+
+/** Nouvelle instance du module, comme après un rechargement de la page (le stockage reste). */
+async function reloadReporter() {
+  vi.resetModules()
+  return import('@/diagnostics/errorReporter')
 }
 
 function sentBody(fetchMock: ReturnType<typeof answer>, call = 0): Sent {
@@ -163,6 +175,20 @@ describe("journaux d'erreurs de la salle", () => {
     expect(sentBody(fetchMock).entries[0]?.message).toHaveLength(300)
   })
 
+  it('traite vite un message énorme sans espace (pas de temps quadratique)', async () => {
+    const fetchMock = answer()
+    const start = performance.now()
+
+    reportRoomError('window_error', 'a'.repeat(100_000))
+    reportRoomError('window_error', `${'a'.repeat(100_000)}@b`, {
+      context: { route: 'r'.repeat(100_000) },
+    })
+
+    expect(performance.now() - start).toBeLessThan(200)
+    await flushRoomErrors()
+    expect(sentBody(fetchMock).entries.map((entry) => entry.message.length)).toEqual([300, 300])
+  })
+
   it('envoie 50 entrées au plus par paquet, le reste au passage suivant', async () => {
     const fetchMock = answer()
 
@@ -177,15 +203,169 @@ describe("journaux d'erreurs de la salle", () => {
     expect(sentBody(fetchMock, 1).entries[0]?.message).toBe(`erreur ${ROOM_LOG_BATCH_MAX_ENTRIES}`)
   })
 
-  it('garde les 100 entrées les plus récentes quand le réseau manque', async () => {
+  it('garde les 200 entrées les plus récentes quand le réseau manque', async () => {
     const fetchMock = answer()
 
+    expect(MAX_BUFFERED_ENTRIES).toBe(200)
     for (let index = 0; index < MAX_BUFFERED_ENTRIES + 3; index += 1) {
       reportRoomError('vue_error', `erreur ${index}`)
     }
+
+    expect(storedPending()).toHaveLength(MAX_BUFFERED_ENTRIES)
     await flushRoomErrors()
 
     expect(sentBody(fetchMock).entries[0]?.message).toBe('erreur 3')
+  })
+
+  describe('file d’attente persistée', () => {
+    it('copie la file dans le stockage local et la vide après un envoi réussi', async () => {
+      answer()
+
+      reportRoomError('dmx_output_error', 'Interface débranchée', { context: { driver: 'usbpro' } })
+      reportRoomError('dmx_output_error', 'Interface débranchée', { context: { driver: 'usbpro' } })
+      expect(storedPending()).toMatchObject([
+        { code: 'dmx_output_error', occurrences: 2, context: { driver: 'usbpro' } },
+      ])
+
+      await flushRoomErrors()
+      expect(localStorage.getItem(PENDING_LOGS_KEY)).toBeNull()
+    })
+
+    it('garde la file stockée quand l’envoi échoue', async () => {
+      vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('offline'))
+      reportRoomError('vue_error', 'boom')
+
+      await flushRoomErrors()
+
+      expect(storedPending()).toHaveLength(1)
+    })
+
+    it('retrouve la file après un rechargement de la page, et regroupe encore avec elle', async () => {
+      reportRoomError('audio_play_failed', 'decode', { level: 'warn', context: { desk: 2 } })
+      reportRoomError('vue_error', 'boom')
+      vi.setSystemTime(new Date('2026-11-23T10:05:00.000Z'))
+
+      const reloaded = await reloadReporter()
+      const fetchMock = answer()
+      reloaded.reportRoomError('vue_error', 'boom')
+      await reloaded.flushRoomErrors()
+
+      expect(sentBody(fetchMock).entries).toEqual([
+        {
+          level: 'warn',
+          code: 'audio_play_failed',
+          message: 'decode',
+          context: { desk: 2 },
+          occurrences: 1,
+          occurredAt: '2026-11-23T10:00:00.000Z',
+        },
+        {
+          level: 'error',
+          code: 'vue_error',
+          message: 'boom',
+          occurrences: 2,
+          occurredAt: '2026-11-23T10:00:00.000Z',
+        },
+      ])
+    })
+
+    it.each([
+      ['du texte qui n’est pas du JSON', '{ pas du json'],
+      ['un objet au lieu d’une liste', '{"code":"vue_error"}'],
+      ['un nombre', '42'],
+    ])('repart d’une file vide quand le contenu est corrompu (%s)', async (_name, content) => {
+      localStorage.setItem(PENDING_LOGS_KEY, content)
+
+      const reloaded = await reloadReporter()
+      const fetchMock = answer()
+      await reloaded.flushRoomErrors()
+
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('écarte les entrées illisibles et garde les autres', async () => {
+      const valid = {
+        level: 'error',
+        code: 'vue_error',
+        message: 'écrit par lea@exemple.fr',
+        occurrences: 3,
+        occurredAt: '2026-11-23T09:00:00.000Z',
+        context: { route: 'play', displayName: 'Léa' },
+      }
+      localStorage.setItem(
+        PENDING_LOGS_KEY,
+        JSON.stringify([
+          null,
+          'texte',
+          { ...valid, level: 'info' },
+          { ...valid, code: 'Pas Valide' },
+          { ...valid, message: 12 },
+          { ...valid, occurredAt: 'hier' },
+          valid,
+        ])
+      )
+
+      const reloaded = await reloadReporter()
+      const fetchMock = answer()
+      await reloaded.flushRoomErrors()
+
+      expect(sentBody(fetchMock).entries).toEqual([
+        {
+          ...valid,
+          message: 'écrit par [email]',
+          context: { route: 'play' },
+        },
+      ])
+    })
+
+    it('ne relit pas plus de 200 entrées', async () => {
+      localStorage.setItem(
+        PENDING_LOGS_KEY,
+        JSON.stringify(
+          Array.from({ length: MAX_BUFFERED_ENTRIES + 20 }, (_item, index) => ({
+            level: 'error',
+            code: 'vue_error',
+            message: `erreur ${index}`,
+            occurrences: 1,
+            occurredAt: '2026-11-23T09:00:00.000Z',
+          }))
+        )
+      )
+
+      const reloaded = await reloadReporter()
+      const fetchMock = answer()
+      await reloaded.flushRoomErrors()
+      await reloaded.flushRoomErrors()
+
+      expect(sentBody(fetchMock, 0).entries[0]?.message).toBe('erreur 20')
+    })
+
+    it('ne lève jamais quand le stockage est plein ou bloqué, la file reste en mémoire', async () => {
+      const fetchMock = answer()
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new DOMException('quota', 'QuotaExceededError')
+      })
+      vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+        throw new DOMException('bloqué', 'SecurityError')
+      })
+
+      expect(() => reportRoomError('vue_error', 'boom')).not.toThrow()
+      await expect(flushRoomErrors()).resolves.toBeUndefined()
+
+      expect(sentBody(fetchMock).entries).toHaveLength(1)
+    })
+
+    it('repart d’une file vide quand le stockage est indisponible au démarrage', async () => {
+      vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+        throw new DOMException('bloqué', 'SecurityError')
+      })
+
+      const reloaded = await reloadReporter()
+      const fetchMock = answer()
+      await reloaded.flushRoomErrors()
+
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
   })
 
   it('n’envoie rien sans jeton ni en mode démo, et garde les erreurs pour plus tard', async () => {
@@ -302,10 +482,13 @@ describe("journaux d'erreurs de la salle", () => {
     await flushRoomErrors()
     await flushRoomErrors()
 
+    await flushRoomErrors()
+    await flushRoomErrors()
+
     // « erreur 0 » est partie dans le premier paquet puis évincée : elle ne doit pas coûter une autre entrée.
     expect(sentBody(fetchMock, 1).entries).toHaveLength(ROOM_LOG_BATCH_MAX_ENTRIES)
     expect(sentBody(fetchMock, 1).entries[0]?.message).toBe(`erreur ${ROOM_LOG_BATCH_MAX_ENTRIES}`)
-    expect(sentBody(fetchMock, 2).entries.map((entry) => entry.message)).toEqual(['nouvelle'])
+    expect(sentBody(fetchMock, 4).entries.map((entry) => entry.message)).toEqual(['nouvelle'])
   })
 
   describe('écoute de la page', () => {
@@ -366,6 +549,26 @@ describe("journaux d'erreurs de la salle", () => {
       startErrorReporter()
 
       expect(vi.getTimerCount()).toBe(before + 1)
+    })
+  })
+
+  describe('reportVueError', () => {
+    it('signale l’erreur avec la route, et la garde visible dans la console', async () => {
+      const fetchMock = answer()
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      const original = new TypeError('rendu cassé')
+
+      reportVueError(original, 'play')
+      reportVueError('texte', Symbol('route-sans-nom'))
+      await flushRoomErrors()
+
+      expect(consoleError).toHaveBeenNthCalledWith(1, original)
+      expect(consoleError).toHaveBeenNthCalledWith(2, 'texte')
+      expect(sentBody(fetchMock).entries).toMatchObject([
+        { code: 'vue_error', message: 'rendu cassé', context: { route: 'play' } },
+        { code: 'vue_error', message: 'texte' },
+      ])
+      expect(sentBody(fetchMock).entries[1]).not.toHaveProperty('context')
     })
   })
 

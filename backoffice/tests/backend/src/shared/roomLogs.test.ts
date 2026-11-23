@@ -33,6 +33,29 @@ describe('cleanRoomLogText', () => {
     expect(cleanRoomLogText('abc a@b', 12)).toBe('abc [email]')
     expect(cleanRoomLogText('abc a@b', 6)).toBe('abc [e')
   })
+
+  it.each([
+    ['without @', 'a'.repeat(100_000)],
+    ['with a @ at the end', `${'a'.repeat(100_000)}@b`],
+    ['with a @ at the start', `a@${'b'.repeat(100_000)}`],
+  ])('stays fast on a 100 000 character word %s', (_name, text) => {
+    const start = performance.now()
+    const cleaned = cleanRoomLogText(text, 300)
+
+    expect(performance.now() - start).toBeLessThan(200)
+    expect(cleaned.length).toBeLessThanOrEqual(300)
+  })
+
+  it('does not leak an address cut by maxLength', () => {
+    // L'adresse commence avant la coupe et finit après : elle est masquée en entier.
+    const text = `${'x'.repeat(290)} lea.martin@exemple.fr`
+
+    const cleaned = cleanRoomLogText(text, 300)
+
+    expect(cleaned).not.toContain('@')
+    expect(cleaned).not.toContain('exemple')
+    expect(cleaned).toBe(`${'x'.repeat(290)} [email]`.slice(0, 300))
+  })
 })
 
 describe('pickRoomLogContext', () => {

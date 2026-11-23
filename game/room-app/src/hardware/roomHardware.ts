@@ -346,8 +346,10 @@ async function useBridge(controller: LightingController): Promise<void> {
   dmxPort = null
   await controller.setOutput(output)
   const { outputStatus, outputError } = controller.getState()
+  // Signalé au changement d'état seulement : un pont absent est réessayé toutes les 10 s.
+  const wasFailing = bridgeError.value !== null
   bridgeError.value = outputStatus === 'open' ? null : (outputError ?? 'bridge_unavailable')
-  if (bridgeError.value !== null) {
+  if (bridgeError.value !== null && !wasFailing) {
     reportRoomError('artnet_bridge_unavailable', bridgeError.value, {
       level: ROOM_LOG_LEVEL_WARN,
       context: { driver: 'artnet-bridge' },

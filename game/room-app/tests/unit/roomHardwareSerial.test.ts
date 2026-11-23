@@ -386,6 +386,39 @@ describe('pont Art-Net de la salle', () => {
     fetchMock.mockRestore()
   })
 
+  it('ne note le pont injoignable qu’au changement d’état, pas à chaque essai automatique', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    FakeBridgeSocket.mode = 'absent'
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(() => Promise.resolve(new Response(null, { status: 204 })))
+    setRoomToken('tok')
+    await saveRoomHardwareConfig(BRIDGE_CONFIG)
+    const sentEntries = (call: number) =>
+      (JSON.parse(String(fetchMock.mock.calls[call]?.[1]?.body)) as { entries: unknown[] }).entries
+
+    // Trois essais automatiques en plus du premier : une seule entrée, une seule occurrence.
+    await startLighting()
+    await vi.advanceTimersByTimeAsync(BRIDGE_RETRY_MS * 3)
+    expect(FakeBridgeSocket.instances).toHaveLength(4)
+    await flushRoomErrors()
+    expect(sentEntries(0)).toMatchObject([{ code: 'artnet_bridge_unavailable', occurrences: 1 }])
+
+    // Retour à la normale, puis nouvel échec : il est signalé de nouveau.
+    FakeBridgeSocket.mode = 'ready'
+    await vi.advanceTimersByTimeAsync(BRIDGE_RETRY_MS)
+    expect(useRoomHardware().bridgeError.value).toBeNull()
+    FakeBridgeSocket.mode = 'absent'
+    await stopLighting()
+    await startLighting()
+    await vi.advanceTimersByTimeAsync(BRIDGE_RETRY_MS * 2)
+    await flushRoomErrors()
+    expect(sentEntries(1)).toMatchObject([{ code: 'artnet_bridge_unavailable', occurrences: 1 }])
+
+    setRoomToken(null)
+    fetchMock.mockRestore()
+  })
+
   it('reste en simulation quand le pont est absent, puis le reprend dès qu’il est lancé', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     FakeBridgeSocket.mode = 'absent'

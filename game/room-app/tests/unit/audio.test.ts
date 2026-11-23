@@ -76,7 +76,10 @@ describe('audioBridge', () => {
       .mockResolvedValue(new Response(null, { status: 204 }))
     setRoomToken('tok')
     const player = fakePlayer()
-    vi.mocked(player.play).mockRejectedValueOnce(new Error('decode'))
+    // Le message d'erreur du lecteur contient l'adresse du média : il ne part jamais au journal.
+    vi.mocked(player.play).mockRejectedValueOnce(
+      new Error('Extrait illisible : https://media.example/x.mp3?token=secret')
+    )
 
     createAudioBridge(player).handleEvents([
       event('blind_test_stage_started', { mediaUrl: 'x.mp3', mediaStartMs: 0, extractMs: 1000 }),
@@ -85,12 +88,13 @@ describe('audioBridge', () => {
     await flushRoomErrors()
     setRoomToken(null)
 
-    const sent = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
-      entries: unknown[]
-    }
+    const body = String(fetchMock.mock.calls[0]?.[1]?.body)
+    const sent = JSON.parse(body) as { entries: unknown[] }
     expect(sent.entries).toMatchObject([
-      { level: 'warn', code: 'audio_play_failed', message: 'decode' },
+      { level: 'warn', code: 'audio_play_failed', message: 'audio_play_failed' },
     ])
+    expect(body).not.toContain('media.example')
+    expect(body).not.toContain('secret')
     fetchMock.mockRestore()
   })
 

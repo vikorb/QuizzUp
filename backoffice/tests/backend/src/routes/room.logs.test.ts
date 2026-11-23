@@ -261,6 +261,14 @@ describe('POST /room/logs', () => {
     ['a fractional occurrences count', batch({ entries: [entry({ occurrences: 1.5 })] })],
     ['a date that is not ISO', batch({ entries: [entry({ occurredAt: 'hier' })] })],
     ['a context that is not an object', batch({ entries: [entry({ context: 'route=play' })] })],
+    [
+      'a context value over 256 characters',
+      batch({ entries: [entry({ context: { route: 'a'.repeat(257) } })] }),
+    ],
+    [
+      'a context value of 100 000 characters',
+      batch({ entries: [entry({ context: { route: `${'a'.repeat(100_000)}@b` } })] }),
+    ],
   ])('answers 400 invalid_body for %s', async (_name, payload) => {
     seedRooms()
 

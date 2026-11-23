@@ -83,9 +83,17 @@ export function scrubEmails(text: string): string {
   return text.replace(EMAIL_LIKE, ROOM_LOG_EMAIL_PLACEHOLDER)
 }
 
-/** Texte de journal : adresses masquées d'abord, puis texte coupé à `maxLength` caractères. */
+/** Longueur maximale d'une adresse e-mail (RFC 5321). */
+const EMAIL_MAX_LENGTH = 254
+
+/**
+ * Texte de journal : adresses masquées d'abord, puis texte coupé à `maxLength` caractères.
+ * `EMAIL_LIKE` coûte un temps quadratique sur un long mot sans espace : on coupe d'abord à
+ * `maxLength` plus la taille d'une adresse (une adresse à cheval sur la coupe est ainsi vue en
+ * entier, donc masquée), ce qui borne le travail quelle que soit la taille de l'entrée.
+ */
 export function cleanRoomLogText(text: string, maxLength: number): string {
-  return scrubEmails(text).slice(0, maxLength)
+  return scrubEmails(text.slice(0, maxLength + EMAIL_MAX_LENGTH)).slice(0, maxLength)
 }
 
 /**
