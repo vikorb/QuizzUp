@@ -299,7 +299,7 @@ Format inspiré de Keep a Changelog.
 
 ### Fixed
 
-- Sécurité : la mise en pause d'une partie coupe aussitôt tout jet de fumée en cours sur l'écran de salle. Aucun jet ne démarre pendant la pause et la reprise ne relance rien. Non validé sur du vrai matériel (banc, cas F8).
+- Sécurité : la mise en pause d'une partie coupe aussitôt tout jet de fumée en cours (trame à 0 envoyée tout de suite) et refuse tout nouveau jet pendant la pause, y compris l'étape fumée d'une scène déjà lancée, le test manuel et le test de gel. Les lumières continuent ; l'étape fumée manquée n'est pas rejouée à la reprise. L'arrêt d'une partie ramène toujours les lumières au repos. Non validé sur du vrai matériel (banc, cas F8).
   US: US-SEC-03 (#152)
 - Mise à jour des dépendances du backoffice (`fastify`, `fast-jwt`, `zod`, `@fastify/swagger-ui` 6, `vue`, `vue-i18n`, `postcss`…) pour corriger les vulnérabilités signalées par `npm audit` en production ; `fastify-plugin` est déclaré dans le backend ; le build du frontend (`vue-tsc --build`) repasse et la CI le vérifie désormais.
 

@@ -55,6 +55,8 @@ export type SmokeRefusal =
   | 'emergency'
   | 'invalid_duration'
   | 'page_hidden'
+  /** Partie en pause : refusé par le contrôleur de lumières, jamais par le contrôleur de fumée. */
+  | 'paused'
 
 export type SmokeFireResult = { ok: true; durationMs: number } | { ok: false; reason: SmokeRefusal }
 

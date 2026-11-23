@@ -478,9 +478,11 @@ async function createLighting(
     }
     wasEmergency = state.emergency
   })
-  // Pause : aucun événement de jeu ne pilote les lumières (donc aucun jet), sauf l'arrêt de la
-  // partie, qui les remet au repos. Le jet en cours est coupé aussitôt (`flush: 'sync'`) ; la
-  // reprise ne le relance pas, la fumée ne revient que sur un nouvel événement de jeu.
+  // Pause : le contrôleur coupe le jet en cours et refuse tout nouveau jet (scène déjà lancée,
+  // test manuel, test de gel) ; la reprise ne relance rien, la fumée ne revient que sur un nouvel
+  // événement de jeu. Lu tout de suite (`immediate`) : des lumières créées ou recréées pendant une
+  // pause naissent en pause. Aucun événement de jeu ne pilote les lumières pendant la pause,
+  // sauf l'arrêt de la partie, qui les remet au repos.
   const { paused } = useRoomGame()
   const stopEvents = onGameEvents((events: GameEvent[]) => {
     for (const event of events) {
@@ -489,15 +491,10 @@ async function createLighting(
       }
     }
   })
-  const stopPauseWatch = watch(
-    paused,
-    (isPaused) => {
-      if (isPaused) {
-        controller.smoke.stop()
-      }
-    },
-    { flush: 'sync' }
-  )
+  const stopPauseWatch = watch(paused, (isPaused) => controller.setGamePaused(isPaused), {
+    flush: 'sync',
+    immediate: true,
+  })
   stopLightingEvents = () => {
     stopEvents()
     stopPauseWatch()

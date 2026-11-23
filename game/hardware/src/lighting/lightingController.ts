@@ -95,6 +95,13 @@ export type LightingController = {
   /** Remplace la sortie (ex. simulation → interface USB après « Connecter l'interface »). */
   setOutput: (output: DmxOutput) => Promise<void>
   handleGameEvent: (event: HardwareGameEvent) => void
+  /**
+   * Partie en pause : le jet en cours est coupé (trame à 0 envoyée aussitôt) et toute demande de
+   * jet est refusée (`paused`) tant que la pause dure, scène, test manuel ou test de gel compris.
+   * Les lumières continuent ; une étape `smoke` refusée n'est pas rejouée à la reprise. L'arrêt
+   * d'urgence garde la priorité.
+   */
+  setGamePaused: (paused: boolean) => void
   playScene: (sceneId: string, context?: SceneContext) => boolean
   identifyFixture: (fixtureId: string) => boolean
   smoke: {
@@ -238,6 +245,7 @@ export function createLightingController(options: LightingControllerOptions): Li
   let session = 0
   let emergency = false
   let emergencyReason: string | null = null
+  let gamePaused = false
   let diagnosticsActive = false
   let allowUnknownChannels = false
   let diagnosticsTouchedAt = 0
@@ -733,12 +741,39 @@ export function createLightingController(options: LightingControllerOptions): Li
 
   const isHidden = () => doc?.visibilityState === 'hidden'
 
+  /** Passage unique de tout jet (scène, test manuel, test de gel). L'arrêt d'urgence prime. */
   const fireSmoke = (durationMs: number): SmokeFireResult => {
+    if (gamePaused && !emergency) {
+      return { ok: false, reason: 'paused' }
+    }
     if (isHidden()) {
       // Onglet en arrière-plan : les minuteurs sont bridés, la trame d'arrêt pourrait tarder.
       return { ok: false, reason: 'page_hidden' }
     }
     return smoke.fire(durationMs)
+  }
+
+  /**
+   * Coupe le jet en cours (arrêt manuel, mise en pause) et envoie la trame à 0 tout de suite :
+   * sans cela elle ne partirait qu'au tick suivant, jusqu'à une période de trame plus tard.
+   */
+  const stopSmoke = () => {
+    const wasFiring = smoke.getState().status === 'firing'
+    smoke.stop('manual')
+    if (frozenUntil !== null) {
+      // Arrêt pendant un test de coupure : la fumée doit être réautorisée par un humain.
+      smoke.disarm()
+    }
+    cancelFreeze()
+    if (wasFiring && running && !emergency && outputStatus !== 'error') {
+      const now = clock.now()
+      send(
+        diagnosticsActive
+          ? renderDiagnostics(now)
+          : renderUniverses(fixtures, player.states(), smoke.level(now))
+      )
+    }
+    notify()
   }
 
   const onVisibilityChange = () => {
@@ -861,7 +896,20 @@ export function createLightingController(options: LightingControllerOptions): Li
       const { key, desk } = resolveEvent(event)
       const sceneId = Object.hasOwn(bindings, key) ? bindings[key] : undefined
       if (sceneId) {
+        if (event.type === 'game_aborted') {
+          // Partie arrêtée : retour au repos, même si une scène plus prioritaire tourne encore.
+          player.stop()
+        }
         playScene(sceneId, { desk })
+      }
+    },
+    setGamePaused(paused) {
+      if (gamePaused === paused) {
+        return
+      }
+      gamePaused = paused
+      if (paused) {
+        stopSmoke()
       }
     },
     playScene,
@@ -890,15 +938,7 @@ export function createLightingController(options: LightingControllerOptions): Li
         notify()
         return result
       },
-      stop() {
-        smoke.stop('manual')
-        if (frozenUntil !== null) {
-          // Arrêt pendant un test de coupure : la fumée doit être réautorisée par un humain.
-          smoke.disarm()
-        }
-        cancelFreeze()
-        notify()
-      },
+      stop: stopSmoke,
     },
     emergencyStop(reason = 'Arrêt d’urgence') {
       emergency = true

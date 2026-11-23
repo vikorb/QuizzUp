@@ -18,7 +18,7 @@ import {
   startNewGame,
   useRoomGame,
 } from '@/game/useRoomGame'
-import { saveRoomHardwareConfig, startLighting } from '@/hardware/roomHardware'
+import { saveRoomHardwareConfig, startLighting, stopLighting } from '@/hardware/roomHardware'
 import { setDemoMode } from '@/utils/auth'
 
 import { createManualClock, getPlayableThemes, REGISTRATIONS } from '../_helpers/fixtures'
@@ -340,16 +340,62 @@ describe('useRoomGame : pause et passage de question', () => {
       expect(lights.getState().smoke.status).toBe('firing')
     })
 
-    it('l’arrêt de partie pendant la pause parvient quand même aux lumières', async () => {
+    it('l’arrêt de partie pendant la pause remet les lumières au repos, même sur une scène prioritaire', async () => {
       const lights = await startLights()
-      const handle = vi.spyOn(lights, 'handleGameEvent')
       startQuestion()
+      lights.playScene('answer-correct', { desk: 1 })
+      expect(lights.getState().currentSceneId).toBe('answer-correct')
       pauseGame()
-      handle.mockClear()
 
       abortGame()
 
-      expect(handle).toHaveBeenCalledWith(expect.objectContaining({ type: 'game_aborted' }))
+      expect(lights.getState().currentSceneId).toBe('idle')
+    })
+
+    it('une scène de victoire lancée avant la pause ne tire pas la fumée pendant la pause', async () => {
+      const lights = await startLights()
+      startQuestion()
+      lights.playScene('victory', { desk: 1 })
+
+      pauseGame()
+      vi.advanceTimersByTime(500)
+
+      expect(lights.getState().smoke.status).not.toBe('firing')
+      expect(lights.getState().smoke.status).toBe('ready')
+    })
+
+    it('pendant la pause, le test manuel de fumée est refusé avec le motif paused', async () => {
+      const lights = await startLights()
+      startQuestion()
+      pauseGame()
+
+      expect(lights.smoke.fire(1_000)).toEqual({ ok: false, reason: 'paused' })
+      expect(lights.getState().smoke.status).toBe('ready')
+    })
+
+    it('à la reprise, un tir immédiat tombe dans le temps de repos du jet coupé par la pause', async () => {
+      const lights = await startLights()
+      startQuestion()
+      lights.smoke.fire(3_000)
+      pauseGame()
+      resumeGame()
+
+      expect(lights.smoke.fire(1_000)).toEqual({ ok: false, reason: 'cooldown' })
+    })
+
+    it('des lumières redémarrées pendant une pause naissent en pause et refusent la fumée', async () => {
+      const first = await startLights()
+      startQuestion()
+      pauseGame()
+
+      await stopLighting()
+      const again = await startLighting()
+
+      expect(again).not.toBe(first)
+      expect(again.smoke.fire(1_000)).toEqual({ ok: false, reason: 'paused' })
+
+      resumeGame()
+      expect(again.smoke.fire(1_000)).toMatchObject({ ok: true })
     })
   })
 })

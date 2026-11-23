@@ -167,7 +167,8 @@
         "cooldown": "Pause de sécurité en cours, réessaie dans quelques secondes.",
         "emergency": "Arrêt d’urgence actif.",
         "invalid_duration": "Durée refusée.",
-        "page_hidden": "Onglet masqué : fumée refusée."
+        "page_hidden": "Onglet masqué : fumée refusée.",
+        "paused": "Partie en pause : fumée refusée jusqu’à la reprise."
       }
     },
     "advanced": {
