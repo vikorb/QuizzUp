@@ -125,3 +125,29 @@ describe('security/permissions — joueurs, bons, statistiques, journaux (lots 6
     expect(can(ADMIN_ROLE_SUPERADMIN, PLAYER, API_ACTION.CREATE)).toBe(false)
   })
 })
+
+describe('security/permissions — demandes de démonstration (lot 12c)', () => {
+  const { DEMO_REQUEST } = API_RESOURCE
+  const actions = [API_ACTION.LIST, API_ACTION.UPDATE, API_ACTION.DELETE]
+
+  it('reserves list, update and delete to the superadmin', () => {
+    for (const action of actions) {
+      expect(canRoleAccessApi(ADMIN_ROLE_SUPERADMIN, DEMO_REQUEST, action)).toBe(true)
+      expect(canRoleAccessApi(ADMIN_ROLE_ADMIN, DEMO_REQUEST, action)).toBe(false)
+      expect(canRoleAccessApi(ADMIN_ROLE_USER, DEMO_REQUEST, action)).toBe(false)
+      expect(canRoleAccessApi(ADMIN_ROLE_ROOM, DEMO_REQUEST, action)).toBe(false)
+      expect(canRoleAccessApi('ghost', DEMO_REQUEST, action)).toBe(false)
+    }
+  })
+
+  it('does not hand out actions that no route needs', () => {
+    for (const action of [
+      API_ACTION.READ,
+      API_ACTION.CREATE,
+      API_ACTION.UPDATE_STATUS,
+      API_ACTION.PERMANENT_DELETE,
+    ]) {
+      expect(canRoleAccessApi(ADMIN_ROLE_SUPERADMIN, DEMO_REQUEST, action)).toBe(false)
+    }
+  })
+})
