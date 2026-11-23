@@ -168,7 +168,8 @@
         "cooldown": "Safety pause, try again in a few seconds.",
         "emergency": "Emergency stop active.",
         "invalid_duration": "Duration refused.",
-        "page_hidden": "Tab hidden: smoke refused."
+        "page_hidden": "Tab hidden: smoke refused.",
+        "paused": "Game paused: smoke refused until it resumes."
       }
     },
     "advanced": {

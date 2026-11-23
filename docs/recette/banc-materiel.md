@@ -125,6 +125,7 @@ GitHub.
 | F5 Sans relais | case « coupe sur perte de signal » + test guidé de débranchement | avec la machine 12 : refus tant que le test n'est pas réussi. Avec une machine DMX (12b) : test réussi, puis coupure réelle à la perte de signal |
 | F6 Plantage page (B) | tuer Chrome pendant un jet, chaîne Art-Net | le pont passe au noir en ≤ 2,5 s (`SILENCE_TIMEOUT_MS`) |
 | F7 Pont ou réseau coupé (B) | tuer le pont, puis débrancher le câble Ethernet, pendant un jet | relais temporisé : coupure en ≤ 10 s, quel que soit le comportement du NET-2/3 |
+| F8 Pause pendant un jet | mettre la partie en pause au milieu d'un jet (victoire forcée par une scène de test), puis reprendre ; refaire en lançant la scène victoire juste avant la pause ; pendant la pause, essayer le test de fumée de l'écran Matériel | voyant du relais éteint à la pause, sans attendre la trame suivante (la trame à 0 part tout de suite : mesurer le temps du relais seul) ; aucun jet ne part pendant la pause (scène, test manuel et test de gel refusés, motif « partie en pause ») ; aucun jet ne repart à la reprise ; temps de repos respecté (un tir tout de suite après la reprise est refusé) |
 
 ### G. Partie complète
 

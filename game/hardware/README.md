@@ -342,6 +342,13 @@ Le contrôleur de fumée applique, quoi que dise la configuration :
   perdue derrière une écriture lente ; en changeant d'interface ou à l'arrêt, plus aucune trame
   de jeu ne part et une trame noire est envoyée **en dernier** ;
 - pas de célébration ni de fumée sur une partie terminée faute de contenu ;
+- **partie en pause** (`lights.setGamePaused(true)`, appelé par l'écran de salle) : le jet en cours
+  est coupé et sa trame à 0 part aussitôt (comme pour `smoke.stop()`), puis toute demande de jet est
+  refusée avec le motif `paused`, quel que soit l'appelant : étape `smoke` d'une scène déjà lancée,
+  `smoke.fire`, test de gel. Les lumières continuent ; une étape refusée n'est pas rejouée à la
+  reprise (`setGamePaused(false)`), et le temps de repos du jet coupé reste dû. L'arrêt d'urgence
+  garde la priorité ;
+- `game_aborted` arrête la scène en cours, même plus prioritaire, avant de jouer `idle` ;
 - **arrêt d'urgence logiciel** (`lights.emergencyStop()`) : noir complet, fumée coupée et
   verrouillée ; `resetEmergency()` rallume l'ambiance ; la fumée reste désarmée et doit toujours être
   réarmée à la main, même si la salle n'exige pas de confirmation. L'application de salle retient
