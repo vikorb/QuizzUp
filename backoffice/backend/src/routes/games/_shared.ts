@@ -2,18 +2,37 @@ import { randomInt } from 'node:crypto'
 
 import type { FastifyRequest } from 'fastify'
 
+import type { Knex } from 'knex'
+
 import {
   ADMIN_ROLE_ADMIN,
   ADMIN_ROLE_SUPERADMIN,
+  COMPANY_STATUS_ACTIVE,
   GAME_SEED_MAX,
+  GAME_STATE_CANCELLED,
   GAME_STATE_FINISHED,
+  GAME_STATE_PENDING,
+  GAME_STATE_SCHEDULED,
+  GAME_STATUS_ACTIVE,
   GAME_STATUS_DELETED,
+  type GameLocale,
+  type GameState,
   MINI_GAMES,
   type MiniGame,
+  ROOM_STATUS_ACTIVE,
+  SESSION_DEFAULT_MINUTES,
+  SESSION_HORIZON_DAYS,
+  SESSION_OPEN_EARLY_MINUTES,
 } from '@quizzup/shared'
 
 import db from '../../db'
 import type { GameParticipantRow, GameRow } from '../../types/game'
+import { isUniqueViolation } from '../_shared/dbErrors'
+import { findCompanyById } from '../companies/_shared'
+import { durationMinutesSchema, type GameParticipantInput } from './_schemas'
+
+export const MINUTE_MS = 60_000
+const DAY_MS = 24 * 60 * MINUTE_MS
 
 export const gameSelect = [
   'games.id',
@@ -28,16 +47,19 @@ export const gameSelect = [
   'games.state',
   'games.started_at as startedAt',
   'games.finished_at as finishedAt',
+  'games.scheduled_at as scheduledAt',
+  'games.scheduled_end_at as scheduledEndAt',
+  'games.cancelled_at as cancelledAt',
+  'games.players_count as playersCount',
+  'games.external_ref as externalRef',
+  'games.locale',
   'games.status',
   'games.created_at as createdAt',
   'games.updated_at as updatedAt',
 ]
 
-/**
- * Date d'une partie pour les filtres `from` et `to` : le lot des sessions programmées ajoutera
- * `games.scheduled_at` en tête du COALESCE (arbitrage 9).
- */
-export const GAME_DATE_SQL = 'COALESCE(games.started_at, games.created_at)'
+/** Date d'une partie pour les filtres `from` et `to` et pour le tri (arbitrage 9). */
+export const GAME_DATE_SQL = 'COALESCE(games.scheduled_at, games.started_at, games.created_at)'
 
 export const participantSelect = [
   'id',
@@ -131,6 +153,12 @@ export function toGameRow(row: Record<string, unknown>): GameRow {
     adminId: Number(row.adminId),
     seed: Number(row.seed),
     miniGames: toMiniGames(row.miniGames),
+    scheduledAt: game.scheduledAt ?? null,
+    scheduledEndAt: game.scheduledEndAt ?? null,
+    cancelledAt: game.cancelledAt ?? null,
+    playersCount: toOptionalNumber(row.playersCount) ?? null,
+    externalRef: game.externalRef ?? null,
+    locale: game.locale ?? null,
     ...(participantsCount === undefined ? {} : { participantsCount }),
   }
 }
@@ -239,4 +267,233 @@ export async function findStaffGame(
   const game = await findGameInCompany(companyId, gameId)
 
   return game ? maskPlayerEmails(game, req) : undefined
+}
+
+/** Efface l'email et les consentements des deux joueurs, noms et scores gardés. */
+const ERASED_PLAYER_PERSONAL_DATA = {
+  email: null,
+  consent_at: null,
+  marketing_consent_at: null,
+  second_email: null,
+  second_consent_at: null,
+  second_marketing_consent_at: null,
+}
+
+function toParticipantRow(gameId: number, participant: GameParticipantInput) {
+  const email = participant.email ?? null
+  const second = participant.secondPlayer ?? null
+  const secondEmail = second?.email ?? null
+
+  return {
+    game_id: gameId,
+    podium: participant.podium,
+    display_name: participant.displayName,
+    email,
+    consent_at: email ? db.fn.now() : null,
+    marketing_consent_at: email && participant.marketingConsent ? db.fn.now() : null,
+    second_display_name: second?.displayName ?? null,
+    second_email: secondEmail,
+    second_consent_at: secondEmail ? db.fn.now() : null,
+    second_marketing_consent_at: secondEmail && second?.marketingConsent ? db.fn.now() : null,
+  }
+}
+
+export async function insertParticipants(
+  trx: Knex.Transaction,
+  gameId: number,
+  participants: GameParticipantInput[]
+): Promise<void> {
+  if (participants.length > 0) {
+    await trx('game_participants').insert(
+      participants.map((participant) => toParticipantRow(gameId, participant))
+    )
+  }
+}
+
+export type NewGame = {
+  companyId: number
+  roomId: number
+  adminId: number | null
+  roundsCount: number
+  questionsPerRound: number
+  /** `undefined` = tous les mini-jeux. */
+  miniGames?: MiniGame[]
+  state: GameState
+  /** Créneau prévu d'une session programmée. */
+  schedule?: { startsAt: Date; endsAt: Date }
+  playersCount?: number
+  externalRef?: string
+  locale?: GameLocale
+}
+
+/** La partie et ses participants sont créés ensemble : rien en base si l'un échoue. */
+export async function insertGameWithParticipants(
+  trx: Knex.Transaction,
+  game: NewGame,
+  participants: GameParticipantInput[]
+): Promise<number> {
+  const inserted = await trx('games')
+    .insert({
+      company_id: game.companyId,
+      room_id: game.roomId,
+      admin_id: game.adminId,
+      rounds_count: game.roundsCount,
+      questions_per_round: game.questionsPerRound,
+      mini_games: game.miniGames ? JSON.stringify(game.miniGames) : null,
+      seed: drawGameSeed(),
+      state: game.state,
+      scheduled_at: game.schedule?.startsAt.toISOString() ?? null,
+      scheduled_end_at: game.schedule?.endsAt.toISOString() ?? null,
+      players_count: game.playersCount ?? null,
+      external_ref: game.externalRef ?? null,
+      locale: game.locale ?? null,
+      status: GAME_STATUS_ACTIVE,
+      deleted_at: null,
+    })
+    .returning(['id'])
+  const gameId = Number((Array.isArray(inserted) ? inserted[0] : inserted)?.id)
+
+  await insertParticipants(trx, gameId, participants)
+
+  return gameId
+}
+
+/** Durée par défaut d'une session : le créneau réglé sur la salle, sinon `SESSION_DEFAULT_MINUTES`. */
+export async function getRoomSlotMinutes(roomId: number): Promise<number> {
+  const room = await db('rooms').where('id', roomId).first('schedule')
+  const slotMinutes = (room?.schedule as { slotMinutes?: unknown } | null | undefined)?.slotMinutes
+
+  const parsed = durationMinutesSchema.safeParse(slotMinutes)
+
+  return parsed.success ? parsed.data : SESSION_DEFAULT_MINUTES
+}
+
+export function addMinutes(date: Date, minutes: number): Date {
+  return new Date(date.getTime() + minutes * MINUTE_MS)
+}
+
+/** Une session qui se termine déjà, ou qui commence au-delà de l'horizon, est refusée. */
+export function getSessionWindowError(
+  startsAt: Date,
+  endsAt: Date,
+  now = new Date()
+): 'session_in_past' | 'session_too_far' | null {
+  if (endsAt.getTime() <= now.getTime()) {
+    return 'session_in_past'
+  }
+
+  return startsAt.getTime() > now.getTime() + SESSION_HORIZON_DAYS * DAY_MS
+    ? 'session_too_far'
+    : null
+}
+
+/**
+ * Annule les sessions `scheduled` d'une partie ou d'une salle et efface sur-le-champ les emails
+ * et consentements de leurs joueurs : ils n'ont jamais joué (arbitrage 13). Renvoie le nombre
+ * de sessions annulées.
+ */
+export async function cancelScheduledGames(
+  conn: Knex | Knex.Transaction,
+  where: { id: number } | { room_id: number }
+): Promise<number> {
+  const cancelled = (await conn('games')
+    .where(where)
+    .where('state', GAME_STATE_SCHEDULED)
+    .update({
+      state: GAME_STATE_CANCELLED,
+      cancelled_at: db.fn.now(),
+      updated_at: db.fn.now(),
+    })
+    .returning(['id'])) as Array<{ id: number }>
+
+  if (cancelled.length > 0) {
+    await conn('game_participants')
+      .whereIn(
+        'game_id',
+        cancelled.map((game) => Number(game.id))
+      )
+      .update({ ...ERASED_PLAYER_PERSONAL_DATA, updated_at: db.fn.now() })
+  }
+
+  return cancelled.length
+}
+
+export type OpenGameError =
+  | 'not_found'
+  | 'game_not_scheduled'
+  | 'company_inactive'
+  | 'room_inactive'
+  | 'session_not_open_yet'
+  | 'room_busy'
+
+/**
+ * Ouvre une session programmée (`scheduled` → `pending`), pour le backoffice comme pour la salle.
+ * Renvoie le code d'erreur, ou `null` si la session est ouverte. Pas de borne de fin : une session
+ * non lancée, même après son créneau, peut toujours être ouverte.
+ */
+export async function openScheduledGame(
+  companyId: number,
+  gameId: number,
+  now = new Date()
+): Promise<OpenGameError | null> {
+  const game = await db('games')
+    .where('company_id', companyId)
+    .where('id', gameId)
+    .whereNot('status', GAME_STATUS_DELETED)
+    .first(['state', 'room_id as roomId', 'scheduled_at as scheduledAt'])
+
+  if (!game) {
+    return 'not_found'
+  }
+
+  if (game.state !== GAME_STATE_SCHEDULED) {
+    return 'game_not_scheduled'
+  }
+
+  const company = await findCompanyById(companyId)
+
+  if (Number(company?.status) !== COMPANY_STATUS_ACTIVE) {
+    return 'company_inactive'
+  }
+
+  const room = await db('rooms').where('id', game.roomId).first('status')
+
+  if (room?.status !== ROOM_STATUS_ACTIVE) {
+    return 'room_inactive'
+  }
+
+  const earliestOpening =
+    new Date(game.scheduledAt as string).getTime() - SESSION_OPEN_EARLY_MINUTES * MINUTE_MS
+
+  if (now.getTime() < earliestOpening) {
+    return 'session_not_open_yet'
+  }
+
+  // Seule une partie en attente bloque (arbitrage 4) ; en attendant le lot 2, l'index unique
+  // refuse aussi l'ouverture pendant qu'une partie est en cours (23505, traité plus bas).
+  const pendingGame = await db('games')
+    .where('room_id', game.roomId)
+    .where('state', GAME_STATE_PENDING)
+    .whereNot('status', GAME_STATUS_DELETED)
+    .first('id')
+
+  if (pendingGame) {
+    return 'room_busy'
+  }
+
+  try {
+    const opened = await db('games')
+      .where('id', gameId)
+      .where('state', GAME_STATE_SCHEDULED)
+      .update({ state: GAME_STATE_PENDING, updated_at: db.fn.now() })
+
+    return opened === 0 ? 'game_not_scheduled' : null
+  } catch (error) {
+    // Deux ouvertures simultanées dans la même salle : l'index unique tranche.
+    if (isUniqueViolation(error)) {
+      return 'room_busy'
+    }
+
+    throw error
+  }
 }

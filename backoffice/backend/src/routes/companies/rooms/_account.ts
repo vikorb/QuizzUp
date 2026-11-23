@@ -12,6 +12,7 @@ import {
 import type { Knex } from 'knex'
 
 import db from '../../../db'
+import { cancelScheduledGames } from '../../games/_shared'
 
 export type RoomAccountRow = {
   id: number
@@ -81,11 +82,16 @@ export async function deleteRoomAccount(
   return Number(account.id)
 }
 
-/** Arrête les parties en attente ou en cours d'une salle (salle supprimée). */
+/**
+ * Arrête les parties en attente ou en cours d'une salle supprimée, et annule ses sessions
+ * programmées (emails de leurs joueurs effacés). Renvoie le nombre de parties arrêtées.
+ */
 export async function abortRoomActiveGames(
   roomId: number,
   conn: Knex | Knex.Transaction = db
 ): Promise<number> {
+  await cancelScheduledGames(conn, { room_id: roomId })
+
   return conn('games')
     .where('room_id', roomId)
     .whereIn('state', [GAME_STATE_PENDING, GAME_STATE_RUNNING])
