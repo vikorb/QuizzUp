@@ -55,6 +55,36 @@
         "estimate": "Estimate: 3 or 4 ranges starting with a number (« Moins de 100 », « 100 à 199 », « 1 000 ou plus »), one correct. Entry order does not matter."
       }
     },
+    "import": {
+      "errors": {
+        "csv_invalid": "The file has errors: nothing was imported.",
+        "csv_empty": "The file contains no question.",
+        "csv_encoding_invalid": "The file is not UTF-8. Save it as « CSV UTF-8 » from your spreadsheet.",
+        "csv_header_invalid": "The file columns do not match the template (column concerned: {column}).",
+        "csv_too_many_rows": "The file has too many rows (maximum {max}).",
+        "csv_too_many_columns": "The row has more columns than the header: put texts that contain the separator between quotes.",
+        "csv_field_unterminated": "A quoted text starts on line {line} and is never closed.",
+        "csv_content_type_unsupported": "The file must be sent as CSV (text/csv).",
+        "csv_theme_not_found": "Theme not found among the ones you can use.",
+        "csv_theme_ambiguous": "Several themes have this name: make it more precise.",
+        "csv_correct_invalid": "The « correct » column must list filled-in answer numbers, from 1 to 4, separated by « | ».",
+        "csv_audio_unsupported": "The import does not handle audio: add the excerpt from the question page.",
+        "csv_media_url_required": "An image or a video needs an address in « media_url ».",
+        "csv_media_url_invalid": "The media address must start with http:// or https://.",
+        "csv_question_duplicate": "This question already exists in the theme, or earlier in the file.",
+        "invalid_query": "Invalid import parameters.",
+        "question_company_required": "Choose the company to import into.",
+        "question_required": "The question is required.",
+        "question_theme_required": "The theme is required.",
+        "question_kind_invalid": "Unknown question type (qcm, true_false or estimate).",
+        "question_type_media_invalid": "Unknown media type (none, image or video).",
+        "question_kind_media_invalid": "A true / false or estimate question only accepts text or an image.",
+        "question_answers_min_required": "A question needs at least two answers.",
+        "question_correct_answer_required": "At least one correct answer is required.",
+        "question_true_false_answers_invalid": "A true / false question has two answers, « Vrai » and « Faux », with one correct.",
+        "question_estimate_answers_invalid": "An estimate has 3 or 4 ranges starting with a number, with one correct."
+      }
+    },
     "kinds": {
       "qcm": "Multiple choice",
       "true_false": "True / false",

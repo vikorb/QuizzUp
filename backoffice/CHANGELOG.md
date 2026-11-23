@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Import de questions par fichier CSV (`POST /questions/import`) : essai à blanc, import tout ou rien avec erreurs numérotées par ligne, portée `global` ou `company` selon les droits, sans écran pour l'instant.
+  US: US-CONTENU-01 (#158)
+
 - Déploiement de production (`deploy/prod/`) : Caddy en HTTPS, API compilée, PostgreSQL, fichiers
   statiques, emplacement du site vitrine, console éditeur filtrée par plages réseau, secrets
   obligatoires hors du dépôt, sauvegardes chiffrées (restic) avec restauration, mise à jour avec
