@@ -33,6 +33,16 @@
           </span>
         </UiButton>
 
+        <UiButton
+          v-if="canShowResults"
+          variant="default"
+          type="button"
+          data-test="game-detail-results"
+          @click="openResults"
+        >
+          {{ $t('games.detail.results') }}
+        </UiButton>
+
         <UiButton variant="default" type="button" @click="goBack">
           {{ $t('games.actions.back') }}
         </UiButton>
@@ -105,17 +115,21 @@ import MdIcon from '@/components/ui/MdIcon.vue'
 import StatusPill from '@/components/ui/StatusPill.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { useConfirm } from '@/composables/useConfirm'
-import { getGamesRoute } from '@/router/games'
+import { getGameResultsRoute, getGamesRoute } from '@/router/games'
 import { abortGameService, loadGameService } from '@/services/gamesService'
 import { authState } from '@/state/authState'
 import type { ActionBanner } from '@/types/banner'
 import type { Game } from '@/types/game'
 import { createErrorBanner, createSuccessBanner, getBannerVariant } from '@/utils/banner'
-import { isSuperadminRole } from '@/utils/company/details/permissions'
 import { GAME_BANNER_ABORTED, getGameBannerMessage } from '@/utils/game/banner'
-import { parseGameId, resolveGameCompanyId } from '@/utils/game/company'
+import { getGameRouteCompanyId, parseGameId, resolveGameCompanyId } from '@/utils/game/company'
 import { formatGameDate, getGameMiniGameLabelKey, getGameRoomName } from '@/utils/game/format'
-import { canAbortGame, getGameStateLabelKey, getGameStateTone } from '@/utils/game/state'
+import {
+  canAbortGame,
+  canShowGameResults,
+  getGameStateLabelKey,
+  getGameStateTone,
+} from '@/utils/game/state'
 
 import GameParticipantsTable from './detail/GameParticipantsTable.vue'
 
@@ -135,6 +149,7 @@ const gameId = computed(() => parseGameId(route.params.gameId))
 
 const isNotFound = computed(() => error.value === 'not_found')
 const canAbort = computed(() => canAbortGame(game.value))
+const canShowResults = computed(() => canShowGameResults(game.value))
 
 const cardTitle = computed(() =>
   gameId.value === null
@@ -229,8 +244,18 @@ async function handleAbort(): Promise<void> {
 
 function goBack(): void {
   void router.push(
-    getGamesRoute({
-      companyId: isSuperadminRole(authState.me.value?.role) ? companyId.value : null,
+    getGamesRoute({ companyId: getGameRouteCompanyId(authState.me.value, companyId.value) })
+  )
+}
+
+function openResults(): void {
+  if (gameId.value === null) {
+    return
+  }
+
+  void router.push(
+    getGameResultsRoute(gameId.value, {
+      companyId: getGameRouteCompanyId(authState.me.value, companyId.value),
     })
   )
 }

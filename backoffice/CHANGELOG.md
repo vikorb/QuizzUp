@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Backoffice : une feuille de résultats imprimable (classement avec égalités, centre, salle, date, sans e-mail de joueur) est accessible depuis la fiche d'une partie terminée.
+  US: US-APRES-01 (#156)
+
 - Déploiement de production (`deploy/prod/`) : Caddy en HTTPS, API compilée, PostgreSQL, fichiers
   statiques, emplacement du site vitrine, console éditeur filtrée par plages réseau, secrets
   obligatoires hors du dépôt, sauvegardes chiffrées (restic) avec restauration, mise à jour avec

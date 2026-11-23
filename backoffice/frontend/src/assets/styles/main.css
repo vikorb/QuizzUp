@@ -58,6 +58,12 @@
   --row-hover: rgba(116, 88, 230, 0.08); /* survol de ligne (tables) */
   --bg-elevated: rgba(10, 12, 24, 0.98); /* menus / dropdowns opaques */
 
+  /* ---- Impression (feuille de résultats) : encre sombre sur papier blanc, sans lueur ---- */
+  --print-paper: #ffffff;
+  --print-ink: #14122b;
+  --print-ink-muted: #4b4868;
+  --print-rule: #b9b6cf;
+
   --radius: 13px;
   --side-w: 232px; /* menu latéral complet */
   --rail-w: 78px; /* menu en rail d'icônes (tablette portrait) */
@@ -92,6 +98,12 @@ body {
     -apple-system,
     sans-serif;
   overflow: hidden;
+}
+
+/* Feuille A4 : marges d'imprimante des pages imprimables (feuille de résultats). */
+@page {
+  size: A4;
+  margin: 12mm;
 }
 
 /* Scrollbar harmonisée avec le thème (violet) */

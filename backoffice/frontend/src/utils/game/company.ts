@@ -36,6 +36,14 @@ export function resolveGameCompanyId(
   return toPositiveInteger(user?.companyId)
 }
 
+/** `companyId` à mettre dans l'adresse d'une page de partie : le superadmin seul en a besoin. */
+export function getGameRouteCompanyId(
+  user: GameCompanyUser,
+  companyId: number | null
+): number | null {
+  return isSuperadminRole(user?.role) ? companyId : null
+}
+
 export function parseGameId(value: unknown): number | null {
   return toPositiveInteger(value)
 }

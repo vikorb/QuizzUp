@@ -1,5 +1,6 @@
 import {
   GAME_STATE_ABORTED,
+  GAME_STATE_FINISHED,
   GAME_STATE_PENDING,
   GAME_STATE_RUNNING,
   GAME_STATES,
@@ -44,6 +45,11 @@ export function isGamePendingOrRunning(game: Pick<Game, 'state'> | null | undefi
 /** Seule une partie en attente ou en cours peut être arrêtée par l'opérateur. */
 export function canAbortGame(game: Pick<Game, 'state'> | null | undefined): boolean {
   return isGamePendingOrRunning(game)
+}
+
+/** La feuille de résultats n'existe que pour une partie terminée. */
+export function canShowGameResults(game: Pick<Game, 'state'> | null | undefined): boolean {
+  return game?.state === GAME_STATE_FINISHED
 }
 
 export function filterGamesByState(games: Game[], state: GameStateFilter): Game[] {
