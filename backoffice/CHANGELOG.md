@@ -8,6 +8,15 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Déploiement de production (`deploy/prod/`) : Caddy en HTTPS, API compilée, PostgreSQL, fichiers
+  statiques, emplacement du site vitrine, console éditeur filtrée par plages réseau, secrets
+  obligatoires hors du dépôt, sauvegardes chiffrées (restic) avec restauration, mise à jour avec
+  retour arrière automatique, supervision par webhook ou e-mail. La pile n'a pas encore tourné sur
+  une vraie machine : la liste des essais à rejouer est dans `deploy/prod/README.md`.
+  Sécurité : l'API refuse de démarrer en production (`NODE_ENV=production`) si `JWT_SECRET` est
+  absent, fait moins de 32 caractères ou vaut la valeur de développement.
+  US: US-PROD-01
+
 - Présence des salles en direct, côté serveur (aucun client modifié dans ce lot). Le backend sait
   quelle salle est en ligne et le diffuse. `GET /room/stream` (compte de salle) ouvre un flux SSE
   (`hello { streamId, heartbeatMs, statusEveryMs }`, puis `replaced` si un autre poste prend la

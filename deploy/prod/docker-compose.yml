@@ -1,0 +1,295 @@
+# QuizzUP en production : Caddy (HTTPS), API, PostgreSQL, fichiers statiques.
+# Aucune valeur par défaut faible : tout secret est obligatoire (`${VAR:?message}`) et vient du
+# fichier `.env` (non versionné, modèle : `.env.example`). Guide complet : README.md.
+#
+#   cd deploy/prod && docker compose up -d --build         (première installation)
+#   ./update.sh <version>                                   (toutes les mises à jour)
+#
+# Seul Caddy publie des ports. La base et l'API vivent sur un réseau Docker sans accès à internet.
+
+name: quizzup-prod
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m" # 5 fichiers de 10 Mo par service : les journaux ne remplissent jamais le disque
+    max-file: "5"
+
+# Valeurs communes : redémarrage automatique, journaux bornés, aucune capacité Linux par défaut.
+x-base: &base
+  restart: unless-stopped
+  logging: *logging
+  cap_drop: [ALL]
+
+x-api-build: &api-build
+  context: ../..
+  dockerfile: deploy/prod/Dockerfile.api
+
+x-api-env: &api-env
+  NODE_ENV: production
+  DATABASE_URL: postgresql://quizzup:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant dans .env}@postgres:5432/quizzup_backoffice
+
+# Mémoire (machine de 8 Go partagée avec le système et son cache disque) :
+#   postgres 1 Go (shared_buffers 256 Mo + connexions ; le reste du cache disque profite à la base),
+#   api 512 Mo (tas Node borné à 384 Mo), caddy 256 Mo, restic 512 Mo (le temps d'une sauvegarde).
+#   Total plafonné à 2,3 Go : il reste de quoi construire les images (Vite ~1,5 Go) sans arrêter la pile.
+
+services:
+  postgres:
+    <<: *base
+    image: postgres:16-alpine
+    user: "70:70" # utilisateur `postgres` de l'image alpine : la base ne tourne jamais en root
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run/postgresql
+    security_opt: ["no-new-privileges:true"]
+    shm_size: 256m
+    mem_limit: 1g
+    environment:
+      POSTGRES_USER: quizzup
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant dans .env}
+      POSTGRES_DB: quizzup_backoffice
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - effective_cache_size=768MB
+      - -c
+      - work_mem=8MB
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - max_connections=50 # le pool de l'API est de 10
+      - -c
+      - log_min_duration_statement=1000
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  # Migrations Knex : une seule exécution par démarrage, avant l'API. Knex pose un verrou en base
+  # (knex_migrations_lock) et chaque migration est transactionnelle. Un échec (code de sortie non
+  # nul) empêche l'API de démarrer : `depends_on: service_completed_successfully` ci-dessous.
+  # Service ponctuel : pas de healthcheck ni de redémarrage.
+  migrate:
+    <<: *base
+    build: *api-build
+    image: quizzup/api:${QUIZZUP_VERSION:?QUIZZUP_VERSION manquant dans .env}
+    restart: "no"
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 512m
+    command: ["node_modules/.bin/knex", "migrate:latest"]
+    environment: *api-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+
+  api:
+    <<: *base
+    build: *api-build
+    image: quizzup/api:${QUIZZUP_VERSION:?QUIZZUP_VERSION manquant dans .env}
+    init: true # Node en PID 1 n'obéit pas à SIGTERM sans cela : arrêt propre et rapide
+    stop_grace_period: 20s
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 512m
+    environment:
+      <<: *api-env
+      API_PORT: "3001"
+      NODE_OPTIONS: --max-old-space-size=384
+      DOTENV_CONFIG_QUIET: "true"
+      # Refus de démarrer si le secret fait moins de 32 caractères (src/security/jwtSecret.ts).
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET manquant dans .env (openssl rand -hex 32)}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-2h}
+      CORS_ORIGIN: https://${HOST_APP:?HOST_APP manquant dans .env},https://${HOST_SALLE:?HOST_SALLE manquant dans .env},https://${HOST_CONSOLE:?HOST_CONSOLE manquant dans .env},https://${HOST_WWW:?HOST_WWW manquant dans .env}
+      MEDIA_STORAGE_DIR: /data/media
+      MEDIA_MAX_BYTES: ${MEDIA_MAX_BYTES:-10485760}
+      PLAYER_EMAIL_PURGE_INTERVAL_HOURS: ${PLAYER_EMAIL_PURGE_INTERVAL_HOURS:-24}
+      # Jamais de comptes de démonstration en production. Les seeds ne sont de toute façon pas
+      # lancés : seul le service `bootstrap-admin` ci-dessous crée le premier superadmin.
+      DEMO_SEED: "false"
+    volumes:
+      - media_data:/data/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  # Copie les fichiers construits dans le volume `static`, puis s'arrête. Les anciens fichiers à
+  # empreinte restent en place : une page de salle ouverte avant la mise à jour peut encore charger
+  # ses écrans paresseux (voir README, « Mise à jour »). Service ponctuel : pas de healthcheck.
+  static:
+    <<: *base
+    build:
+      context: ../..
+      dockerfile: deploy/prod/Dockerfile.web
+      args:
+        API_URL: https://${HOST_API:?HOST_API manquant dans .env}
+    image: quizzup/static:${QUIZZUP_VERSION:?QUIZZUP_VERSION manquant dans .env}
+    restart: "no"
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    command:
+      - sh
+      - -c
+      - mkdir -p /srv/web/app /srv/web/salle && cp -R /dist/app/. /srv/web/app/ && cp -R /dist/salle/. /srv/web/salle/
+    volumes:
+      - static:/srv/web
+    networks: [internal]
+
+  caddy:
+    <<: *base
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
+    image: quizzup/caddy:local
+    # Port < 1024 sans root : Docker abaisse déjà le seuil des ports privilégiés dans le conteneur ;
+    # NET_BIND_SERVICE couvre le cas contraire (capacité de fichier du binaire Caddy). Pas de
+    # `no-new-privileges` ici : il neutraliserait cette capacité de fichier.
+    cap_add: [NET_BIND_SERVICE]
+    read_only: true
+    tmpfs: [/tmp]
+    mem_limit: 256m
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL manquant dans .env}
+      HOST_WWW: ${HOST_WWW:?HOST_WWW manquant dans .env}
+      HOST_APP: ${HOST_APP:?HOST_APP manquant dans .env}
+      HOST_SALLE: ${HOST_SALLE:?HOST_SALLE manquant dans .env}
+      HOST_API: ${HOST_API:?HOST_API manquant dans .env}
+      HOST_CONSOLE: ${HOST_CONSOLE:?HOST_CONSOLE manquant dans .env}
+      VITRINE_ENABLED: ${VITRINE_ENABLED:-false}
+      # Console éditeur : liste vide = accès refusé à tout le monde. `192.0.2.1/32` (plage de
+      # documentation, jamais routée) sert de liste « personne » car Caddy refuse une liste vide.
+      EDITOR_ALLOWED_RANGES: ${EDITOR_ALLOWED_RANGES:-192.0.2.1/32}
+      # Relais devant Caddy : seules ces adresses sont crues sur X-Forwarded-For. Même astuce.
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-192.0.2.1/32}
+      # En-tête CSP : `Content-Security-Policy-Report-Only` pour observer, sans bloquer, avant de
+      # passer à `Content-Security-Policy` (voir README, liste de contrôle).
+      CSP_HEADER: ${CSP_HEADER:-Content-Security-Policy-Report-Only}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - static:/srv/web:ro
+      # Site vitrine : dossier de fichiers statiques construits ailleurs (vide tant qu'il n'existe pas).
+      - ${VITRINE_DIR:-./vitrine}:/srv/vitrine:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+      static:
+        condition: service_completed_successfully
+    networks: [edge, internal]
+    healthcheck:
+      # Le point d'administration de Caddy n'écoute qu'à l'intérieur du conteneur.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:2019/config/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # --- Outils (profil `tools`, jamais démarrés par `up`) ---------------------------------------
+
+  # Premier superadmin. À lancer UNE fois : le seed écrase le mot de passe d'un compte existant.
+  #   docker compose run --rm bootstrap-admin
+  bootstrap-admin:
+    <<: *base
+    build: *api-build
+    image: quizzup/api:${QUIZZUP_VERSION:?QUIZZUP_VERSION manquant dans .env}
+    restart: "no"
+    profiles: [tools]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      <<: *api-env
+      DEMO_SEED: "false"
+      ADMIN_SEED_EMAIL: ${ADMIN_SEED_EMAIL:-}
+      ADMIN_SEED_USERNAME: ${ADMIN_SEED_USERNAME:-}
+      ADMIN_SEED_PASSWORD: ${ADMIN_SEED_PASSWORD:-}
+      ADMIN_SEED_COMPANY_NAME: ${ADMIN_SEED_COMPANY_NAME:-}
+      ADMIN_SEED_COMPANY_EMAIL: ${ADMIN_SEED_COMPANY_EMAIL:-}
+    command:
+      - sh
+      - -c
+      - |
+        if [ -z "$$ADMIN_SEED_EMAIL" ] || [ -z "$$ADMIN_SEED_USERNAME" ] || [ "$${#ADMIN_SEED_PASSWORD}" -lt 14 ]; then
+          echo "ADMIN_SEED_EMAIL, ADMIN_SEED_USERNAME et ADMIN_SEED_PASSWORD (14 caractères minimum) sont requis dans .env" >&2
+          exit 1
+        fi
+        exec node_modules/.bin/knex seed:run --specific=company_and_admin.js
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks: [internal]
+
+  # restic : sauvegardes chiffrées (backup.sh, restore.sh). Le nom d'hôte est fixe : restic range
+  # les instantanés par nom d'hôte, un nom différent à chaque conteneur casserait la rétention.
+  restic: &restic
+    <<: *base
+    image: restic/restic:0.18.0
+    restart: "no"
+    profiles: [tools]
+    entrypoint: ["restic"]
+    hostname: quizzup-prod
+    user: "65534:65534" # lecture seule des médias : aucun droit particulier nécessaire
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 512m
+    environment:
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:?RESTIC_REPOSITORY manquant dans .env}
+      RESTIC_PASSWORD: ${RESTIC_PASSWORD:?RESTIC_PASSWORD manquant dans .env}
+      RESTIC_CACHE_DIR: /tmp/restic-cache
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
+    volumes:
+      - media_data:/media:ro
+    networks: [edge]
+
+  # Même outil, mais en root et avec les médias en écriture : réservé à restore.sh.
+  restic-restore:
+    <<: *restic
+    user: "0:0"
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+    volumes:
+      - media_data:/media
+
+volumes:
+  pgdata:
+  media_data:
+  caddy_data:
+  caddy_config:
+  static:
+
+networks:
+  edge: {}
+  # Sans accès à internet : l'API et la base ne peuvent ni être jointes ni sortir par ce réseau.
+  # Si l'API doit un jour envoyer des e-mails (SMTP), la rattacher aussi à `edge`.
+  internal:
+    internal: true
