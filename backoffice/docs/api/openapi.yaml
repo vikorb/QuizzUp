@@ -37,7 +37,8 @@ tags:
       - Erreurs au format `PublicError` : statut HTTP et `{ "error": "<code_snake_case>" }`, avec
         `details.fieldErrors` pour `invalid_body` seulement. Codes communs : `invalid_json` (400),
         `invalid_body` (400), `payload_too_large` (413), `unsupported_media_type` (415),
-        `not_found` (404), `too_many_requests` (429), `server_error` (500).
+        `not_found` (404), `too_many_requests` (429), `server_error` (500). Toute autre erreur de
+        requête (4xx) détectée par le serveur garde son statut avec le code `bad_request`.
       - Limite de débit par adresse du client (120 requêtes par minute par défaut) : refus en `429`
         avec l'en-tête `Retry-After` (secondes).
       - Réponses jamais mises en cache (`Cache-Control: no-store`).
@@ -117,9 +118,10 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '429':
           description: |
-            Trop de tentatives depuis cette adresse (20 par fenêtre de 15 minutes, seuls les échecs
-            comptent). Code `too_many_requests`, identique que le compte existe ou non. Même route
-            pour le personnel et pour les comptes de salle.
+            Trop de tentatives, par adresse (100 par fenêtre de 15 minutes) ou par couple adresse et
+            identifiant (10 par fenêtre, casse ignorée) ; seuls les échecs comptent. Une adresse IPv6
+            est comptée par bloc /64. Code `too_many_requests`, identique que le compte existe ou
+            non. Même route pour le personnel et pour les comptes de salle.
           headers:
             Retry-After:
               description: Secondes à attendre avant de réessayer

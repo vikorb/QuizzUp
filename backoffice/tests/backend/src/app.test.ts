@@ -88,6 +88,70 @@ describe('app.ts — /public/v1 et CORS', () => {
     await app.close()
   })
 
+  it('judges the CORS regime on the decoded path, like the router does', async () => {
+    vi.stubEnv('CORS_ORIGIN', BACKOFFICE_ORIGIN)
+    vi.stubEnv('VITRINE_ORIGINS', VITRINE_ORIGIN)
+    const app = await startApp()
+
+    for (const url of ['/public/v%31/x', '/%70ublic/v1/x']) {
+      const response = await app.inject({
+        method: 'GET',
+        url,
+        headers: { origin: BACKOFFICE_ORIGIN },
+      })
+
+      expect(response.headers['access-control-allow-origin']).toBeUndefined()
+      expect(response.headers['access-control-allow-credentials']).toBeUndefined()
+    }
+
+    const vitrine = await app.inject({
+      method: 'GET',
+      url: '/public/v%31/x',
+      headers: { origin: VITRINE_ORIGIN },
+    })
+    expect(vitrine.statusCode).toBe(404)
+    expect(vitrine.json()).toEqual({ error: 'not_found' })
+    expect(vitrine.headers['access-control-allow-origin']).toBe(VITRINE_ORIGIN)
+
+    await app.close()
+  })
+
+  it('answers every 404 under /public/v1 in the public format with no-store, OPTIONS included', async () => {
+    vi.stubEnv('VITRINE_ORIGINS', '')
+    const app = await startApp()
+
+    for (const [method, url] of [
+      ['OPTIONS', '/public/v1/x'],
+      ['OPTIONS', '/public/v1'],
+      ['GET', '/public/v1/x'],
+      ['OPTIONS', '/public/v%31/x'],
+    ] as const) {
+      const response = await app.inject({ method, url })
+
+      expect(response.statusCode, `${method} ${url}`).toBe(404)
+      expect(response.json(), `${method} ${url}`).toEqual({ error: 'not_found' })
+      expect(response.headers['cache-control'], `${method} ${url}`).toBe('no-store')
+    }
+
+    await app.close()
+  })
+
+  it('keeps the default Fastify 404 outside /public/v1', async () => {
+    const app = await startApp()
+
+    const response = await app.inject({ method: 'GET', url: '/nope' })
+
+    expect(response.statusCode).toBe(404)
+    expect(response.json()).toEqual({
+      message: 'Route GET:/nope not found',
+      error: 'Not Found',
+      statusCode: 404,
+    })
+    expect(response.headers['cache-control']).toBeUndefined()
+
+    await app.close()
+  })
+
   it('opens /public/v1 to nobody when VITRINE_ORIGINS is empty', async () => {
     vi.stubEnv('CORS_ORIGIN', BACKOFFICE_ORIGIN)
     vi.stubEnv('VITRINE_ORIGINS', '')

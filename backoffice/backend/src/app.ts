@@ -6,7 +6,7 @@ import path from 'node:path'
 import fs from 'node:fs'
 
 import routes from './routes'
-import { PUBLIC_API_PREFIX } from './routes/public/_shared'
+import { isPublicPath, sendPublicError } from './routes/public/_shared'
 import authPlugin from './plugins/auth'
 import { parseCorsOrigin, parseOriginList } from './utils/cors'
 import { parseTrustProxy } from './utils/trustProxy'
@@ -59,11 +59,22 @@ export function buildApp() {
 
   app.register(cors, {
     delegator: (req, callback) => {
-      const path = req.url.split('?')[0]
-      const isPublic = path === PUBLIC_API_PREFIX || path.startsWith(`${PUBLIC_API_PREFIX}/`)
-
-      callback(null, isPublic ? publicCors : backofficeCors)
+      callback(null, isPublicPath(req.url) ? publicCors : backofficeCors)
     },
+  })
+
+  // `@fastify/cors` répond aux OPTIONS par un 404 de la racine (hors plugin public) : sous
+  // `/public/v1`, il doit avoir le même format et le même `no-store` que les autres 404 publics.
+  app.setNotFoundHandler((req, reply) => {
+    if (isPublicPath(req.url)) {
+      return sendPublicError(reply.header('Cache-Control', 'no-store'), 404, 'not_found')
+    }
+
+    return reply.code(404).send({
+      message: `Route ${req.method}:${req.url} not found`,
+      error: 'Not Found',
+      statusCode: 404,
+    })
   })
 
   const openApiPath = resolveOpenApiPath()

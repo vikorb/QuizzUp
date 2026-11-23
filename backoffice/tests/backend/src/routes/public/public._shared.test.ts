@@ -10,8 +10,10 @@ import {
 
 // Le préfixe n'a aucune route livrée : les conventions se prouvent avec des routes de test,
 // enregistrées dans un plugin qui reçoit les mêmes défauts que `routes/public/index.ts`.
-async function createPublicApp() {
-  const app = fastify({ logger: false })
+async function createPublicApp(logs?: string[]) {
+  const app = fastify({
+    logger: logs ? { level: 'warn', stream: { write: (line: string) => logs.push(line) } } : false,
+  })
 
   await app.register(
     async (scope) => {
@@ -23,6 +25,9 @@ async function createPublicApp() {
       scope.post('/tiny', { bodyLimit: 16 }, async () => ({ ok: true }))
       scope.get('/boom', async () => {
         throw new Error('secret internal detail')
+      })
+      scope.get('/conflict', async () => {
+        throw Object.assign(new Error('internal detail'), { statusCode: 409 })
       })
       scope.get('/invalid', async (_req, reply) =>
         sendPublicError(reply as never, 400, 'invalid_body', {
@@ -115,6 +120,37 @@ describe('routes/public/_shared — conventions de /public/v1', () => {
 
     expect(response.statusCode).toBe(413)
     expect(response.json()).toEqual({ error: 'payload_too_large' })
+
+    await app.close()
+  })
+
+  it('keeps the status of another Fastify 4xx error as bad_request, logged as a warning', async () => {
+    const logs: string[] = []
+    const app = await createPublicApp(logs)
+
+    const response = await app.inject({ method: 'GET', url: `${PUBLIC_API_PREFIX}/conflict` })
+
+    expect(response.statusCode).toBe(409)
+    expect(response.json()).toEqual({ error: 'bad_request' })
+    expect(response.body).not.toContain('internal detail')
+    expect(logs).toHaveLength(1)
+    expect(JSON.parse(logs[0])).toMatchObject({ level: 40, msg: 'public API bad request' })
+
+    await app.close()
+  })
+
+  it('answers 400 bad_request, not invalid_json, when Content-Length does not match the body', async () => {
+    const app = await createPublicApp()
+
+    const response = await app.inject({
+      method: 'POST',
+      url: `${PUBLIC_API_PREFIX}/echo`,
+      headers: { 'content-type': 'application/json', 'content-length': '5' },
+      payload: '{"a":1}',
+    })
+
+    expect(response.statusCode).toBe(400)
+    expect(response.json()).toEqual({ error: 'bad_request' })
 
     await app.close()
   })

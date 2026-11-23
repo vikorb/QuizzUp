@@ -11,11 +11,11 @@ describe('utils/trustProxy parseTrustProxy', () => {
   })
 
   it('accepts addresses and CIDR ranges, IPv4 and IPv6, and trims blanks', () => {
-    expect(parseTrustProxy(' 172.18.0.0/16 , 10.0.0.5,::1, fd00::/8 ')).toEqual([
+    expect(parseTrustProxy(' 172.18.0.0/16 , 10.0.0.5,::1, fd00::/16 ')).toEqual([
       '172.18.0.0/16',
       '10.0.0.5',
       '::1',
-      'fd00::/8',
+      'fd00::/16',
     ])
   })
 
@@ -31,6 +31,29 @@ describe('utils/trustProxy parseTrustProxy', () => {
     expect(() => parseTrustProxy('fd00::/129')).toThrow(/préfixe CIDR hors limites/)
     expect(() => parseTrustProxy('10.0.0.0/8/8')).toThrow(/TRUST_PROXY invalide/)
     expect(() => parseTrustProxy('10.0.0.0/8,true')).toThrow(/« true »/)
+  })
+
+  it.each(['0.0.0.0/1,128.0.0.0/1', '1.0.0.0/7', '::/1', '8000::/15', '::ffff:0:0/96', '::/8'])(
+    'refuses the range %s, too wide to be a proxy network',
+    (value) => {
+      expect(() => parseTrustProxy(value)).toThrow(/TRUST_PROXY invalide/)
+    }
+  )
+
+  it('explains why a range is refused', () => {
+    expect(() => parseTrustProxy('10.0.0.0/7')).toThrow(/au moins \/8 en IPv4/)
+    expect(() => parseTrustProxy('fd00::/15')).toThrow(/au moins \/16 en IPv6/)
+    expect(() => parseTrustProxy('::ffff:0:0/96')).toThrow(/IPv4 \(::ffff:0:0\/96\)/)
+    expect(() => parseTrustProxy('::ffff:0:0/80')).toThrow(/IPv4 \(::ffff:0:0\/96\)/)
+  })
+
+  it('accepts the narrowest ranges allowed and single mapped addresses', () => {
+    expect(parseTrustProxy('10.0.0.0/8,2001::/16,::ffff:172.18.0.2,::ffff:0:0/112')).toHaveLength(4)
+  })
+
+  it('refuses an address with a zone', () => {
+    expect(() => parseTrustProxy('fe80::1%eth0')).toThrow(/zone/)
+    expect(() => parseTrustProxy('fe80::%eth0/64')).toThrow(/zone/)
   })
 
   it('explains that an all-internet range trusts everyone', () => {

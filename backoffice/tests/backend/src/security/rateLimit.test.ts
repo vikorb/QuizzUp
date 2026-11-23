@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { createRateLimiter } from '@backend/security/rateLimit'
+import { createRateLimiter, RATE_LIMIT_MAX_KEYS } from '@backend/security/rateLimit'
 
 /** Horloge simulée : on la fait avancer à la main, aucune attente réelle. */
 function fakeClock(start = 1_000_000) {
@@ -70,6 +70,53 @@ describe('security/rateLimit — fenêtre', () => {
   })
 })
 
+describe('security/rateLimit — adresses IPv6', () => {
+  it('counts every address of the same /64 together', () => {
+    const limiter = createRateLimiter({ max: 1, windowMs: 60_000, now: fakeClock().now })
+
+    expect(limiter.hit('2001:db8:1:2::1').allowed).toBe(true)
+    expect(limiter.hit('2001:db8:1:2:aaaa:bbbb:cccc:dddd').allowed).toBe(false)
+    expect(limiter.hit('2001:0DB8:0001:0002:0:0:0:9').allowed).toBe(false)
+    expect(limiter.hit('2001:db8:1:2::1%eth0').allowed).toBe(false)
+    expect(limiter.size()).toBe(1)
+  })
+
+  it('keeps two different /64 apart', () => {
+    const limiter = createRateLimiter({ max: 1, windowMs: 60_000, now: fakeClock().now })
+
+    expect(limiter.hit('2001:db8:1:2::1').allowed).toBe(true)
+    expect(limiter.hit('2001:db8:1:3::1').allowed).toBe(true)
+  })
+
+  it('expands the compressed forms before cutting at 64 bits', () => {
+    const limiter = createRateLimiter({ max: 1, windowMs: 60_000, now: fakeClock().now })
+
+    // `1::2:3:4:5:6:7` vaut 1:0:2:3:4:5:6:7 : le /64 est 1:0:2:3.
+    expect(limiter.hit('1::2:3:4:5:6:7').allowed).toBe(true)
+    expect(limiter.hit('1:0:2:3:ffff::1').allowed).toBe(false)
+    expect(limiter.hit('::1').allowed).toBe(true)
+    expect(limiter.hit('::2').allowed).toBe(false)
+  })
+
+  it('treats an IPv4-mapped address as the IPv4 address itself', () => {
+    const limiter = createRateLimiter({ max: 1, windowMs: 60_000, now: fakeClock().now })
+
+    expect(limiter.hit('::ffff:203.0.113.7').allowed).toBe(true)
+    expect(limiter.hit('203.0.113.7').allowed).toBe(false)
+    expect(limiter.hit('::ffff:cb00:7107').allowed).toBe(false)
+    expect(limiter.hit('::ffff:203.0.113.8').allowed).toBe(true)
+  })
+
+  it('refunds on the same /64 key', () => {
+    const limiter = createRateLimiter({ max: 1, windowMs: 60_000, now: fakeClock().now })
+
+    limiter.hit('2001:db8:1:2::1')
+    limiter.refund('2001:db8:1:2::ffff')
+
+    expect(limiter.hit('2001:db8:1:2::5').allowed).toBe(true)
+  })
+})
+
 describe('security/rateLimit — refund', () => {
   it('gives a hit back inside the window', () => {
     const limiter = createRateLimiter({ max: 1, windowMs: 60_000, now: fakeClock().now })
@@ -127,5 +174,22 @@ describe('security/rateLimit — ménage', () => {
 
     // Le ménage a retiré la première fenêtre (terminée) mais pas la deuxième (encore ouverte).
     expect(limiter.size()).toBe(2)
+  })
+})
+
+describe('security/rateLimit — plafond de la table', () => {
+  it('never holds more than the maximum, evicting the oldest keys first', () => {
+    const limiter = createRateLimiter({ max: 1, windowMs: 60_000, now: fakeClock().now })
+
+    for (let i = 0; i < RATE_LIMIT_MAX_KEYS; i += 1) limiter.hit(`key-${i}`)
+    expect(limiter.size()).toBe(RATE_LIMIT_MAX_KEYS)
+
+    limiter.hit('one-more')
+    expect(limiter.size()).toBe(RATE_LIMIT_MAX_KEYS)
+
+    // La plus ancienne a été oubliée (compteur vide), la suivante est toujours suivie.
+    expect(limiter.hit('key-1').allowed).toBe(false)
+    expect(limiter.hit('key-0').allowed).toBe(true)
+    expect(limiter.size()).toBe(RATE_LIMIT_MAX_KEYS)
   })
 })

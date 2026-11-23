@@ -31,8 +31,9 @@ services:
       API_PORT: "3001"
       CORS_ORIGIN: https://bo.${DOMAIN:?DOMAIN manquant dans .env},https://salle.${DOMAIN}
       # Caddy est devant l'API : sans TRUST_PROXY, tous les clients auraient l'adresse de Caddy et
-      # partageraient les mêmes limites de débit (voir .env.example). Vide = adresse du socket.
-      TRUST_PROXY: ${TRUST_PROXY:-}
+      # partageraient les mêmes limites de débit (voir .env.example). Par défaut : la plage des
+      # réseaux Docker, pour qu'un .env créé avant cette variable ne laisse pas l'API sans réglage.
+      TRUST_PROXY: ${TRUST_PROXY:-172.16.0.0/12}
       VITRINE_ORIGINS: ${VITRINE_ORIGINS:-}
       PUBLIC_APP_URL: https://bo.${DOMAIN}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET manquant dans .env}
