@@ -23,6 +23,7 @@
     </RoomTopBar>
 
     <section class="launch__body">
+      <RoomReplacedNotice />
       <h1 class="launch__title">{{ $t('room.launch.title') }}</h1>
       <p class="launch__subtitle">{{ $t('room.launch.subtitle') }}</p>
 
@@ -109,6 +110,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
 import RoomTopBar from '@/components/game/RoomTopBar.vue'
+import RoomReplacedNotice from '@/components/live/RoomReplacedNotice.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { useConfirm } from '@/composables/useConfirm'

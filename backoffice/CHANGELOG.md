@@ -8,6 +8,46 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Guides pour les centres (`docs/guides/`) : installation d'une salle, utilisation quotidienne,
+  dépannage, migration d'une salle existante, sécurité de la fumée et des lumières. Les libellés
+  cités sont ceux des écrans ; chaque point qui n'a pas été essayé sur du vrai matériel porte la
+  mention « À vérifier sur le banc ».
+  US: US-DOC-01
+- Socle des routes publiques : limiteur de débit en mémoire (connexion du personnel et des salles : 429 `too_many_requests` avec `Retry-After`), `TRUST_PROXY` (liste d'adresses ou de plages, jamais `true`), ressources de permissions `player`, `voucher`, `stats` et `roomLog`. Connexion : 10 échecs par couple adresse/identifiant et 100 tentatives par adresse en 15 minutes ; adresses IPv6 comptées par bloc /64 ; un compte inconnu passe par un `bcrypt.compare` factice ; `TRUST_PROXY` refuse les plages plus larges que /8 (IPv4) ou /16 (IPv6) et les adresses à zone.
+  US: US-PUBLIC-00 (#141)
+- Préfixe `/public/v1` sans authentification : erreurs au format public, CORS piloté par `VITRINE_ORIGINS`, limite de débit par adresse, réponses `no-store`. Aucune route métier pour l'instant.
+  US: US-PUBLIC-00 (#141)
+- Lecteur audio : effets sur les extraits (inversé, ralenti à 0,75, reprise après pause) et lecteur d'annonces vocales avec atténuation de l'extrait et repli silencieux (`game/audio`, pas encore branché à l'écran de salle).
+  US: US-AUDIO-02 (#144)
+- Déploiement de production (`deploy/prod/`) : Caddy en HTTPS, API compilée, PostgreSQL, fichiers
+  statiques, emplacement du site vitrine, console éditeur filtrée par plages réseau, secrets
+  obligatoires hors du dépôt, sauvegardes chiffrées (restic) avec restauration, mise à jour avec
+  retour arrière automatique, supervision par webhook ou e-mail. La pile n'a pas encore tourné sur
+  une vraie machine : la liste des essais à rejouer est dans `deploy/prod/README.md`.
+  Sécurité : l'API refuse de démarrer en production (`NODE_ENV=production`) si `JWT_SECRET` est
+  absent, fait moins de 32 caractères ou vaut la valeur de développement.
+  US: US-PROD-01
+- Présence en direct de l'écran de salle. L'écran ouvre le flux `GET /room/stream` et publie son
+  état par `POST /room/status` (écran, partie, phase, manche, question, mini-jeu, pause, scores par
+  pupitre, son prêt) à chaque changement, au plus une fois par seconde, et au rythme annoncé par le
+  serveur. Reconnexion après 1, 2, 5, 10 puis 30 s. Rien n'est publié sans flux ouvert. Quand un
+  autre poste ouvre la même salle, l'écran affiche « Reprendre la main ici » ; une session terminée
+  renvoie à la connexion, après la partie en cours s'il y en a une. `@quizzup/shared` : phases du
+  moteur (`GAME_PHASES`, `GAME_IDLE_PHASES`) avec un test de contrat côté moteur. Serveur : le
+  rapport refuse une phase inconnue et deux scores pour un même pupitre ; une salle hors ligne sans
+  flux est oubliée une fois son départ diffusé.
+- Présence des salles en direct, côté backoffice. La liste des parties affiche, sous le nom de la
+  salle de chaque partie en attente ou en cours, une pastille « En ligne », « Hors ligne » (avec
+  « vu il y a … ») ou « En partie » ; le formulaire de lancement écrit la présence après le nom de
+  chaque salle et affiche la pastille de la salle choisie. Le flux `GET /companies/:companyId/live`
+  est lu avec `fetch` et l'en-tête `Authorization` (composable `useLiveCompany`) : reconnexion après
+  1, 2, 5, 10 puis 30 s, flux muet plus de 45 s rouvert, arrêt sans boucle sur `403` et
+  `429 too_many_streams`, vérification de la session sur `401` et `session_ended`, fermeture au
+  départ de l'écran. Pendant une coupure, les dernières présences connues sont affichées « État
+  inconnu ». Clés i18n `fr` et `en` (`live.*`, codes d'erreur `too_many_streams`,
+  `room_instance_replaced`, `session_ended`). `apiFetch` accepte un `signal`.
+  US: US-LIVE-01
+
 - Présence des salles en direct, côté serveur (aucun client modifié dans ce lot). Le backend sait
   quelle salle est en ligne et le diffuse. `GET /room/stream` (compte de salle) ouvre un flux SSE
   (`hello { streamId, heartbeatMs, statusEveryMs }`, puis `replaced` si un autre poste prend la
@@ -225,6 +265,10 @@ Format inspiré de Keep a Changelog.
 
 - Écran de salle : boutons et mises en page recalés sur l'accueil, les assistants de configuration, l'écran Matériel, le lobby, l'inscription et la connexion. Un seul bouton principal par écran, cibles d'au moins 48 px (plan de salle compris), barres d'actions alignées, rien ne déborde à 1280 px ni à 768 px.
   US: US-UX-01 (#132)
+- Images Docker du backoffice (backend, frontend, service `tests`) passées à Node 22, requis par les dépendances mises à jour. Sur une démo déjà installée, lancer `npm run demo:reset` pour que les volumes `*_node_modules` reprennent les nouvelles dépendances (la base est alors vidée).
+  US: US-SEC-01 (#146)
+- Moteur de jeu : les mini-jeux d'une partie sont tirés sans remise (aucun mini-jeu ne revient tant que tous les mini-jeux jouables n'ont pas été joués, et jamais deux fois de suite quand il y a le choix).
+  US: US-FORMAT-01 (#143)
 
 - `backend/.env` n'est plus versionné (seul `backend/.env.example` l'est) ; les tests backend
   chargent `backend/.env` s'il existe, sinon `backend/.env.example`.
@@ -256,6 +300,8 @@ Format inspiré de Keep a Changelog.
   US: us-front-design-01
 
 ### Fixed
+
+- Mise à jour des dépendances du backoffice (`fastify`, `fast-jwt`, `zod`, `@fastify/swagger-ui` 6, `vue`, `vue-i18n`, `postcss`…) pour corriger les vulnérabilités signalées par `npm audit` en production ; `fastify-plugin` est déclaré dans le backend ; le build du frontend (`vue-tsc --build`) repasse et la CI le vérifie désormais.
 
 - Droits d'un admin de compagnie : il n'obtient plus de 403 (`forbidden`, `question_theme_forbidden`) sur
   ses propres thèmes et peut de nouveau créer des questions. Cause : `pg` renvoyait les `bigint`

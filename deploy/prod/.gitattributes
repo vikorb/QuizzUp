@@ -1,0 +1,4 @@
+# Les scripts shell tournent sous Linux : fins de ligne LF même après un checkout Windows.
+*.sh text eol=lf
+Caddyfile text eol=lf
+Dockerfile* text eol=lf

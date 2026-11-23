@@ -1,0 +1,18 @@
+{
+  "live": {
+    "presence": {
+      "online": "En ligne",
+      "offline": "Hors ligne",
+      "in_game": "En partie",
+      "unknown": "État inconnu",
+      "seenAgo": "Vu {ago}",
+      "neverSeen": "Jamais vue"
+    },
+    "connection": {
+      "connecting": "Connexion au suivi en direct…",
+      "live": "Suivi en direct actif.",
+      "reconnecting": "Suivi en direct interrompu, nouvelle tentative en cours…",
+      "error": "Suivi en direct arrêté."
+    }
+  }
+}

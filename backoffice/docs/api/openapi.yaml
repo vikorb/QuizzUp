@@ -29,6 +29,20 @@ tags:
     description: Salles de jeu d'une compagnie et leur configuration matérielle
   - name: Games
     description: Parties lancées par l'opérateur dans une salle
+  - name: Public
+    description: |
+      API publique sous `/public/v1` (vitrine, réservation) : sans compte, sans jeton, sans cookie.
+      Aucune route n'y est livrée pour l'instant ; les routes à venir suivent ces conventions.
+
+      - Erreurs au format `PublicError` : statut HTTP et `{ "error": "<code_snake_case>" }`, avec
+        `details.fieldErrors` pour `invalid_body` seulement. Codes communs : `invalid_json` (400),
+        `invalid_body` (400), `payload_too_large` (413), `unsupported_media_type` (415),
+        `not_found` (404), `too_many_requests` (429), `server_error` (500). Toute autre erreur de
+        requête (4xx) détectée par le serveur garde son statut avec le code `bad_request`.
+      - Limite de débit par adresse du client (120 requêtes par minute par défaut) : refus en `429`
+        avec l'en-tête `Retry-After` (secondes).
+      - Réponses jamais mises en cache (`Cache-Control: no-store`).
+      - CORS réservé aux sites listés dans la variable `VITRINE_ORIGINS` (aucun si elle est vide).
 
 security:
   - bearerAuth: []
@@ -102,6 +116,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: |
+            Trop de tentatives, par adresse (100 par fenêtre de 15 minutes) ou par couple adresse et
+            identifiant (10 par fenêtre, casse ignorée) ; seuls les échecs comptent. Une adresse IPv6
+            est comptée par bloc /64. Code `too_many_requests`, identique que le compte existe ou
+            non. Même route pour le personnel et pour les comptes de salle.
+          headers:
+            Retry-After:
+              description: Secondes à attendre avant de réessayer
+              schema:
+                type: integer
+                example: 600
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: too_many_requests
 
   /logout:
     post:
@@ -1776,6 +1808,7 @@ paths:
                 scores:
                   type: array
                   maxItems: 6
+                  description: Un score par pupitre ; deux lignes pour le même pupitre sont refusées (`400 invalid_body`)
                   items:
                     type: object
                     required: [podium, score]
@@ -1906,10 +1939,20 @@ paths:
                   nullable: true
                 phase:
                   type: string
-                  minLength: 1
-                  maxLength: 40
                   nullable: true
-                  description: Phase du moteur de jeu (`lobby`, `question`, `finished`, …)
+                  enum:
+                    - lobby
+                    - round_intro
+                    - theme_choice
+                    - question
+                    - reveal
+                    - round_summary
+                    - finished
+                    - aborted
+                  description: >-
+                    Phase du moteur de jeu (liste `GAME_PHASES` de `@quizzup/shared`). Une valeur
+                    texte que le serveur ne connaît pas (écran de salle plus récent) est lue comme
+                    `null` : le rapport n'est pas refusé.
                 round:
                   type: integer
                   minimum: 0
@@ -1996,7 +2039,7 @@ paths:
         - `room_status` : un `RoomLive` à chaque rapport, ouverture ou fermeture du flux d'une salle, et quand une salle passe hors ligne. Un client ignore un `roomId` absent de son instantané (salle supprimée ou désactivée depuis).
         - `session_ended` : la session n'est plus valable (`{ error }`) ; le flux est fermé juste après.
 
-        `RoomLive` : `{ roomId, presence, controllable, lastSeenAt, status }`. `presence` vaut `offline` (aucun rapport depuis 45 s), `in_game` (en ligne, partie en cours, phase hors `lobby`, `finished`, `aborted`) ou `online`. `controllable` : en ligne et flux de la salle ouvert. `status` : dernier rapport de `POST /room/status`, `null` si la salle n'en a jamais envoyé.
+        `RoomLive` : `{ roomId, presence, controllable, lastSeenAt, status }`. `presence` vaut `offline` (aucun rapport depuis 45 s), `in_game` (en ligne, partie en cours, phase hors `lobby`, `finished`, `aborted`) ou `online`. `controllable` : en ligne et flux de la salle ouvert. `lastSeenAt` : date (ISO 8601) du dernier rapport de `POST /room/status`. `status` : ce dernier rapport, conservé tant que le backend tourne même quand la salle est hors ligne (pour afficher « vue pour la dernière fois »). Les deux valent `null` si la salle n'a envoyé aucun rapport depuis le démarrage du backend.
 
         Une ligne de commentaire `: ping` est écrite toutes les 15 s. La session est revérifiée toutes les 60 s sans être prolongée. 5 flux ouverts au plus par compte.
 
@@ -3469,6 +3512,27 @@ components:
       properties:
         error:
           type: string
+
+    PublicError:
+      type: object
+      description: Erreur de l'API publique `/public/v1` (jamais de pile ni de message brut)
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Code stable en snake_case
+          example: too_many_requests
+        details:
+          type: object
+          description: Présent pour `invalid_body` seulement
+          properties:
+            fieldErrors:
+              type: object
+              additionalProperties:
+                type: array
+                items:
+                  type: string
 
     QuestionMediaFile:
       type: object

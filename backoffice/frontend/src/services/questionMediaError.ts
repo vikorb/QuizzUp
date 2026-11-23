@@ -12,8 +12,11 @@ export type QuestionMediaErrorCode =
   | 'server_error'
 
 export class QuestionMediaError extends Error {
-  constructor(public readonly code: QuestionMediaErrorCode) {
+  readonly code: QuestionMediaErrorCode
+
+  constructor(code: QuestionMediaErrorCode) {
     super(code)
+    this.code = code
     this.name = 'QuestionMediaError'
   }
 }

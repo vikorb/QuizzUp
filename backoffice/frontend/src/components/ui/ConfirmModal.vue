@@ -29,7 +29,6 @@
             </UiButton>
 
             <UiButton
-              ref="confirmRef"
               :variant="state.variant === 'danger' ? 'danger' : 'primary'"
               type="button"
               @click="handleConfirm"
@@ -59,7 +58,6 @@ const messageId = `${baseId}-message`
 
 const dialogRef = ref<HTMLElement | null>(null)
 const cancelRef = ref<InstanceType<typeof UiButton> | null>(null)
-const confirmRef = ref<InstanceType<typeof UiButton> | null>(null)
 
 let previouslyFocused: HTMLElement | null = null
 
@@ -101,13 +99,13 @@ function handleKeydown(event: KeyboardEvent): void {
   }
 
   const focusables = focusableElements()
+  const first = focusables[0]
+  const last = focusables[focusables.length - 1]
 
-  if (focusables.length === 0) {
+  if (!first || !last) {
     return
   }
 
-  const first = focusables[0]
-  const last = focusables[focusables.length - 1]
   const active = document.activeElement as HTMLElement | null
 
   if (event.shiftKey && active === first) {

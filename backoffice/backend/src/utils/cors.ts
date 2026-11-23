@@ -10,3 +10,15 @@ export function parseCorsOrigin(value: string | undefined): true | string[] {
 
   return origins.length === 0 || origins.includes('*') ? true : origins
 }
+
+/**
+ * Liste d'origines exactes séparées par des virgules (`VITRINE_ORIGINS`). Contrairement à
+ * `parseCorsOrigin`, vide veut dire aucune origine : l'API publique est fermée aux navigateurs
+ * tant qu'on n'a pas nommé le site qui a le droit de l'appeler.
+ */
+export function parseOriginList(value: string | undefined): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+}
