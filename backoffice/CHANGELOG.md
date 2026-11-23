@@ -254,6 +254,9 @@ Format inspiré de Keep a Changelog.
 
 ### Fixed
 
+- Lumières : les stroboscopes ne sont plus allumés en continu par les scènes générales ; un pupitre sans appareil n'assombrit plus la salle au buzz ; le buzz juste après une mauvaise réponse garde sa lumière ; la victoire à égalité a sa propre scène qui allume toute la salle.
+  US: US-SHOW-01 (#145)
+
 - Droits d'un admin de compagnie : il n'obtient plus de 403 (`forbidden`, `question_theme_forbidden`) sur
   ses propres thèmes et peut de nouveau créer des questions. Cause : `pg` renvoyait les `bigint`
   (ids, `company_id`) en chaîne, donc `"10" === 10` (JWT / session) était faux dans les contrôles de

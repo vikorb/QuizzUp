@@ -62,10 +62,15 @@ export function createScenePlayer(options: ScenePlayerOptions): ScenePlayer {
   const current = new Map<string, FixtureState>(lights.map((fixture) => [fixture.id, darkState()]))
   let active: Active | null = null
 
+  // Sécurité : un stroboscope n'est jamais piloté par une cible générale (`all`, `desk`, `others`),
+  // seulement par une liste qui le nomme. Sans cela, son canal « strobe » à 0 le laisserait allumé
+  // en continu (lampe fixe) pendant toute la partie.
+  const generalLights = lights.filter((fixture) => fixture.profile.kind !== 'strobe')
+
   const deskFixtures = (desk: Desk | null) =>
     desk === null
       ? []
-      : lights.filter(
+      : generalLights.filter(
           (fixture) =>
             fixture.desk === desk ||
             (fixture.profile.kind === 'movingHead' && fixture.deskPositions?.[desk] !== undefined)
@@ -75,14 +80,21 @@ export function createScenePlayer(options: ScenePlayerOptions): ScenePlayer {
     if (Array.isArray(target)) {
       return lights.filter((fixture) => target.includes(fixture.id))
     }
+    const own = deskFixtures(context.desk)
+    // Pupitre connu mais sans aucun appareil : repli lisible, toute la salle prend son rôle et
+    // « les autres » est vide (sinon le buzz ou la victoire assombrirait toute la salle).
+    const noDeskFixture = context.desk !== null && own.length === 0
     if (target === 'desk') {
-      return deskFixtures(context.desk)
+      return noDeskFixture ? generalLights : own
     }
     if (target === 'others') {
-      const excluded = new Set(deskFixtures(context.desk).map((fixture) => fixture.id))
-      return lights.filter((fixture) => !excluded.has(fixture.id))
+      if (noDeskFixture) {
+        return []
+      }
+      const excluded = new Set(own.map((fixture) => fixture.id))
+      return generalLights.filter((fixture) => !excluded.has(fixture.id))
     }
-    return lights
+    return generalLights
   }
 
   const resolveColor = (color: SceneColor, context: SceneContext): Rgbw => {

@@ -263,11 +263,21 @@ est fourni, sinon de `payload.participantId` via `resolveDesk`.
 | `question_ended` sans gagnant                          | `question-lost`                   |
 | `round_ended`                                          | `round-end`                       |
 | `game_ended` (un seul gagnant → spot sur son pupitre)  | `victory` (+ fumée si armée)      |
+| `game_ended` à égalité (clé `game_ended_tie`)          | `victory-tie` (+ fumée si armée)  |
 | `game_aborted`                                         | `idle`                            |
 
-Chaque salle peut surcharger une liaison (`lighting.bindings`, `null` pour la couper). Une scène
+Chaque salle peut surcharger une liaison (`lighting.bindings`, `null` pour la couper). Une salle qui
+a réglé `game_ended` sans régler `game_ended_tie` garde son choix à égalité. Une scène
 moins prioritaire n'interrompt pas la scène en cours (un extrait qui reprend ne coupe pas
-l'effet « bonne réponse »). Couleurs : DA néon du backoffice, une couleur par pupitre.
+l'effet « bonne réponse »). Priorités : `idle` 0 ; `question`, `clip-playing` 10 ; `game-start`,
+`round-start`, `chooser`, `round-end` 20 ; `buzz`, `answer-correct`, `answer-wrong`,
+`question-lost` 40 (un buzz juste après une mauvaise réponse n'est donc pas refusé) ; `victory`,
+`victory-tie` 50 ; `identify` 90. Couleurs : DA néon du backoffice, une couleur par pupitre.
+
+Cibles des scènes : un **stroboscope** (type `strobe`) n'est jamais piloté par `all`, `desk` ou
+`others` : seule une liste d'identifiants qui le nomme l'allume (hors scène qui le demande, son
+gradateur et son canal strobe restent à 0). Un pupitre **sans aucun appareil** (ni PAR dédié, ni
+position de lyre) fait que `desk` vise toute la salle et `others` ne vise personne.
 
 ## Sécurité fumée
 

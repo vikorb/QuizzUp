@@ -87,6 +87,7 @@ export const SCENE_IDS = {
   LOST: 'question-lost',
   ROUND_END: 'round-end',
   VICTORY: 'victory',
+  VICTORY_TIE: 'victory-tie',
   IDENTIFY: 'identify',
 } as const
 
@@ -142,7 +143,9 @@ export const DEFAULT_SCENES: readonly SceneDefinition[] = [
   {
     id: SCENE_IDS.BUZZ,
     name: 'Buzz',
-    priority: 30,
+    // Au niveau des réponses : un buzz juste après une mauvaise réponse (autre pupitre, ou le
+    // même) ne doit pas être refusé par `answer-wrong`.
+    priority: 40,
     steps: [
       { type: 'color', target: 'others', color: AMBIENT, intensity: 0.1, fadeMs: 100 },
       { type: 'flash', target: 'desk', color: 'desk', count: 3, onMs: 80, offMs: 60, aim: 'desk' },
@@ -216,6 +219,21 @@ export const DEFAULT_SCENES: readonly SceneDefinition[] = [
       { type: 'color', color: AMBIENT, intensity: 0.3, fadeMs: 1500, aim: 'home' },
     ],
   },
+  {
+    // Égalité en tête : pas de pupitre à mettre en avant, toute la salle fête. La fumée garde le
+    // même passage par le contrôleur sécurisé que la victoire. Cadence des flashs plus lente que
+    // celle de `victory` (4 éclairs/s contre 5,5), et palier fixe moins fort (0,6).
+    id: SCENE_IDS.VICTORY_TIE,
+    name: 'Victoire à égalité',
+    priority: 50,
+    steps: [
+      { type: 'color', color: NEON.warn, intensity: 0.2, fadeMs: 300 },
+      { type: 'smoke', durationMs: 3_000 },
+      { type: 'flash', color: NEON.warn, count: 3, onMs: 150, offMs: 100, aim: 'home' },
+      { type: 'color', color: NEON.warn, intensity: 0.6, holdMs: 4_000 },
+      { type: 'color', color: AMBIENT, intensity: 0.3, fadeMs: 1500, aim: 'home' },
+    ],
+  },
 ]
 
 /**
@@ -235,6 +253,8 @@ export const DEFAULT_BINDINGS: Readonly<Record<string, string>> = Object.fromEnt
   ['question_lost', SCENE_IDS.LOST],
   ['round_ended', SCENE_IDS.ROUND_END],
   ['game_ended', SCENE_IDS.VICTORY],
+  // Clé dérivée de `game_ended` quand plusieurs pupitres gagnent (cf. `resolveEvent`).
+  ['game_ended_tie', SCENE_IDS.VICTORY_TIE],
   ['game_aborted', SCENE_IDS.IDLE],
 ])
 

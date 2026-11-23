@@ -1,17 +1,31 @@
-import { parseRig } from '@hardware/dmx/fixtures'
+import type { FixtureConfig } from '@hardware/dmx/fixtures'
+import { parseRig, renderUniverse } from '@hardware/dmx/fixtures'
 import { createScenePlayer } from '@hardware/lighting/scenePlayer'
 import type { SceneDefinition } from '@hardware/lighting/scenes'
-import { DEFAULT_DESK_COLORS, DEFAULT_SCENES, stepDuration } from '@hardware/lighting/scenes'
+import {
+  DEFAULT_DESK_COLORS,
+  DEFAULT_SCENES,
+  identifyScene,
+  NEON,
+  SCENE_IDS,
+  stepDuration,
+} from '@hardware/lighting/scenes'
 
 import { RIG } from '../_helpers/rig'
 
 const RED = { r: 255, g: 0, b: 0 }
 const BLUE = { r: 0, g: 0, b: 255 }
 
-const setup = () => {
+/** Deux stroboscopes : un libre, un « dédié » au pupitre 1 (adresses 40-41 et 42-43). */
+const STROBES: FixtureConfig[] = [
+  { id: 'strobe-free', name: 'Strobe', profileId: 'strobe', address: 40 },
+  { id: 'strobe-desk1', name: 'Strobe pupitre 1', profileId: 'strobe', address: 42, desk: 1 },
+]
+
+const setup = (rig: FixtureConfig[] = RIG) => {
   const onSmoke = vi.fn()
   const player = createScenePlayer({
-    fixtures: parseRig(RIG, []).fixtures,
+    fixtures: parseRig(rig, []).fixtures,
     deskColors: DEFAULT_DESK_COLORS,
     onSmoke,
   })
@@ -204,5 +218,113 @@ describe('lecteur de scènes', () => {
     expect(stepDuration({ type: 'flash', color: RED, count: 2, onMs: 10, offMs: 5 })).toBe(30)
     expect(stepDuration({ type: 'wait', durationMs: -5 })).toBe(0)
     expect(stepDuration({ type: 'smoke', durationMs: 1_000 })).toBe(0)
+  })
+})
+
+const defaultScene = (id: string) => DEFAULT_SCENES.find((definition) => definition.id === id)!
+const totalDuration = (definition: SceneDefinition) =>
+  definition.steps.reduce((sum, step) => sum + stepDuration(step), 0)
+
+describe('stroboscopes : jamais pilotés par une scène qui ne les nomme pas', () => {
+  const rig = [...RIG, ...STROBES]
+  const fixtures = parseRig(rig, []).fixtures
+
+  it('restent à zéro (gradateur et canal strobe) dans chaque scène par défaut', () => {
+    for (const definition of DEFAULT_SCENES) {
+      // Pupitre 1 (strobe dédié), pupitre 3 (aucun appareil) et aucun pupitre.
+      for (const desk of [1, 3, null] as const) {
+        const { player } = setup(rig)
+        player.play(definition, { desk }, 0)
+        for (let now = 0; now <= totalDuration(definition) + 100; now += 10) {
+          player.update(now)
+          const frame = renderUniverse(fixtures, player.states(), 0)
+          // Adresses 40 à 43 : gradateur et strobe des deux stroboscopes.
+          expect(
+            [...frame.subarray(39, 43)],
+            `${definition.id} pupitre ${desk} à ${now} ms`
+          ).toEqual([0, 0, 0, 0])
+        }
+      }
+    }
+  })
+
+  it('ne s’allument que si la cible les nomme', () => {
+    const { player, state } = setup(rig)
+    player.play(identifyScene('strobe-free'), { desk: null }, 0)
+    expect(state('strobe-free')?.intensity).toBe(1)
+    expect(state('strobe-desk1')?.intensity).toBe(0)
+    expect(state('par1')?.intensity).toBe(0)
+  })
+})
+
+describe('pupitre sans appareil', () => {
+  // Pupitre 3 : ni PAR dédié, ni position de lyre enregistrée.
+  it('le buzz éclaire toute la salle au lieu de l’assombrir', () => {
+    const buzz = defaultScene(SCENE_IDS.BUZZ)
+    const { player, state } = setup()
+    player.play(buzz, { desk: 3 }, 0)
+    player.update(totalDuration(buzz) + 1)
+    for (const id of ['par1', 'par2', 'head', 'wash']) {
+      expect(state(id), id).toMatchObject({ color: DEFAULT_DESK_COLORS[3], intensity: 1 })
+    }
+  })
+
+  it('le buzz d’un pupitre équipé laisse les autres appareils en retrait', () => {
+    const buzz = defaultScene(SCENE_IDS.BUZZ)
+    const { player, state } = setup()
+    player.play(buzz, { desk: 1 }, 0)
+    player.update(totalDuration(buzz) + 1)
+    expect(state('par1')).toMatchObject({ color: DEFAULT_DESK_COLORS[1], intensity: 1 })
+    expect(state('par2')?.intensity).toBe(0.1)
+    expect(state('wash')?.intensity).toBe(0.1)
+  })
+
+  it('« desk » vaut tout et « others » rien, sans toucher aux lumières déjà réglées', () => {
+    const { player, state } = setup()
+    player.play(
+      scene([
+        { type: 'color', target: 'others', color: BLUE },
+        { type: 'color', target: 'desk', color: RED },
+      ]),
+      { desk: 3 },
+      0
+    )
+    for (const id of ['par1', 'par2', 'head', 'wash']) {
+      expect(state(id)?.color, id).toMatchObject(RED)
+    }
+  })
+
+  it('victoire : la salle fait la fête au lieu d’être grisée', () => {
+    const victory = defaultScene(SCENE_IDS.VICTORY)
+    const { player, state } = setup()
+    player.play(victory, { desk: 3 }, 0)
+    // Pendant les flashs (300 ms de fondu, puis 100 ms allumé).
+    player.update(350)
+    for (const id of ['par1', 'par2', 'head', 'wash']) {
+      expect(state(id), id).toMatchObject({ color: NEON.warn, intensity: 1 })
+    }
+  })
+})
+
+describe('victoire à égalité', () => {
+  it('les flashs visent toute la salle', () => {
+    const tie = defaultScene(SCENE_IDS.VICTORY_TIE)
+    const { player, state, onSmoke } = setup()
+    player.play(tie, { desk: null }, 0)
+    expect(onSmoke).not.toHaveBeenCalled()
+    // Fondu de 300 ms, puis la fumée (soumise au contrôleur), puis le premier flash allumé.
+    player.update(350)
+    expect(onSmoke).toHaveBeenCalledWith(3_000)
+    for (const id of ['par1', 'par2', 'head', 'wash']) {
+      expect(state(id), id).toMatchObject({ color: NEON.warn, intensity: 1 })
+    }
+  })
+
+  it('ne flashe pas plus vite que la victoire d’un seul pupitre', () => {
+    const period = (id: string) => {
+      const flash = defaultScene(id).steps.find((step) => step.type === 'flash')
+      return flash?.type === 'flash' ? flash.onMs + flash.offMs : 0
+    }
+    expect(period(SCENE_IDS.VICTORY_TIE)).toBeGreaterThanOrEqual(period(SCENE_IDS.VICTORY))
   })
 })
