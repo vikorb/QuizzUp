@@ -8,6 +8,12 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Guides pour les centres (`docs/guides/`) : installation d'une salle, utilisation quotidienne,
+  dépannage, migration d'une salle existante, sécurité de la fumée et des lumières. Les libellés
+  cités sont ceux des écrans ; chaque point qui n'a pas été essayé sur du vrai matériel porte la
+  mention « À vérifier sur le banc ».
+  US: US-DOC-01
+
 - Présence des salles en direct, côté serveur (aucun client modifié dans ce lot). Le backend sait
   quelle salle est en ligne et le diffuse. `GET /room/stream` (compte de salle) ouvre un flux SSE
   (`hello { streamId, heartbeatMs, statusEveryMs }`, puis `replaced` si un autre poste prend la
