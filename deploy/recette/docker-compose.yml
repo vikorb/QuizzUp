@@ -30,6 +30,11 @@ services:
       DATABASE_URL: postgresql://quizzup:${POSTGRES_PASSWORD}@postgres:5432/quizzup_backoffice
       API_PORT: "3001"
       CORS_ORIGIN: https://bo.${DOMAIN:?DOMAIN manquant dans .env},https://salle.${DOMAIN}
+      # Caddy est devant l'API : sans TRUST_PROXY, tous les clients auraient l'adresse de Caddy et
+      # partageraient les mêmes limites de débit (voir .env.example). Vide = adresse du socket.
+      TRUST_PROXY: ${TRUST_PROXY:-}
+      VITRINE_ORIGINS: ${VITRINE_ORIGINS:-}
+      PUBLIC_APP_URL: https://bo.${DOMAIN}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET manquant dans .env}
       JWT_EXPIRES_IN: "2h"
       MEDIA_STORAGE_DIR: /data/media

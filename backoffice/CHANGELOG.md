@@ -8,6 +8,11 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Socle des routes publiques : limiteur de débit en mémoire (connexion du personnel et des salles : 429 `too_many_requests` avec `Retry-After`), `TRUST_PROXY` (liste d'adresses ou de plages, jamais `true`), ressources de permissions `player`, `voucher`, `stats` et `roomLog`.
+  US: US-PUBLIC-00 (#141)
+- Préfixe `/public/v1` sans authentification : erreurs au format public, CORS piloté par `VITRINE_ORIGINS`, limite de débit par adresse, réponses `no-store`. Aucune route métier pour l'instant.
+  US: US-PUBLIC-00 (#141)
+
 - Présence des salles en direct, côté serveur (aucun client modifié dans ce lot). Le backend sait
   quelle salle est en ligne et le diffuse. `GET /room/stream` (compte de salle) ouvre un flux SSE
   (`hello { streamId, heartbeatMs, statusEveryMs }`, puis `replaced` si un autre poste prend la

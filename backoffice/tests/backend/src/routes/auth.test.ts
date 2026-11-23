@@ -1,6 +1,6 @@
 import './_helpers/registerRouteMocks'
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   ADMIN_ROLE_ROOM,
@@ -252,6 +252,127 @@ describe('routes/auth.ts', () => {
     expect(response.statusCode).toBe(200)
     expect(parseJson(response)).toEqual({ ok: true })
     expect(dbState.admin_sessions[0].revoked_at).toBe(MOCK_NOW)
+
+    await app.close()
+  })
+})
+
+describe('routes/auth.ts — limite de débit sur /login', () => {
+  // Le seuil est de 20 tentatives par adresse (LOGIN_RATE_LIMIT_MAX) sur 15 minutes.
+  const LIMIT = 20
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  type App = Awaited<ReturnType<typeof createRouteApp>>
+
+  function login(app: App, payload: Record<string, string>, remoteAddress = '203.0.113.1') {
+    return app.inject({ method: 'POST', url: '/login', payload, remoteAddress })
+  }
+
+  const wrongPassword = { identifier: 'root', password: 'bad-password' }
+
+  it('answers 429 too_many_requests with Retry-After once the threshold is reached', async () => {
+    const app = await createRouteApp(authRoutes)
+
+    for (let i = 0; i < LIMIT; i += 1) {
+      expect((await login(app, wrongPassword)).statusCode).toBe(401)
+    }
+
+    const blocked = await login(app, wrongPassword)
+
+    expect(blocked.statusCode).toBe(429)
+    expect(parseJson(blocked)).toEqual({ error: 'too_many_requests' })
+    expect(Number(blocked.headers['retry-after'])).toBeGreaterThan(0)
+
+    await app.close()
+  })
+
+  it('blocks even the right password once the threshold is reached, without a session', async () => {
+    const app = await createRouteApp(authRoutes)
+
+    for (let i = 0; i < LIMIT; i += 1) await login(app, wrongPassword)
+
+    const response = await login(app, { identifier: 'root', password: 'root-password' })
+
+    expect(response.statusCode).toBe(429)
+    expect(dbState.admin_sessions).toHaveLength(0)
+
+    await app.close()
+  })
+
+  it('answers the same 429 whether the account exists or not', async () => {
+    const app = await createRouteApp(authRoutes)
+
+    for (let i = 0; i < LIMIT; i += 1) await login(app, wrongPassword)
+
+    const known = await login(app, { identifier: 'root', password: 'x' })
+    const unknown = await login(app, { identifier: 'nobody', password: 'x' })
+
+    expect(known.statusCode).toBe(429)
+    expect(unknown.statusCode).toBe(429)
+    expect(known.body).toBe(unknown.body)
+
+    await app.close()
+  })
+
+  it('lets the same address in again once the window has elapsed', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-23T10:00:00Z'))
+    const app = await createRouteApp(authRoutes)
+
+    for (let i = 0; i < LIMIT; i += 1) await login(app, wrongPassword)
+
+    vi.setSystemTime(new Date('2026-11-23T10:05:00Z'))
+    const blocked = await login(app, wrongPassword)
+    expect(blocked.statusCode).toBe(429)
+    expect(blocked.headers['retry-after']).toBe('600')
+
+    vi.setSystemTime(new Date('2026-11-23T10:15:00Z'))
+    expect((await login(app, wrongPassword)).statusCode).toBe(401)
+
+    await app.close()
+  })
+
+  it('counts each address on its own', async () => {
+    const app = await createRouteApp(authRoutes)
+
+    for (let i = 0; i < LIMIT; i += 1) await login(app, wrongPassword, '203.0.113.1')
+
+    expect((await login(app, wrongPassword, '203.0.113.1')).statusCode).toBe(429)
+    expect((await login(app, wrongPassword, '203.0.113.2')).statusCode).toBe(401)
+
+    await app.close()
+  })
+
+  it('does not count successful logins, but keeps counting the failures around them', async () => {
+    const app = await createRouteApp(authRoutes)
+
+    // Bien plus de connexions réussies que le seuil : aucune n'est bloquée.
+    for (let i = 0; i < LIMIT + 5; i += 1) {
+      expect((await login(app, { identifier: 'root', password: 'root-password' })).statusCode).toBe(
+        200
+      )
+    }
+
+    // Les réussites n'ont pas remis le compteur à zéro : 20 échecs suffisent encore.
+    for (let i = 0; i < LIMIT; i += 1) await login(app, wrongPassword)
+    expect((await login(app, { identifier: 'root', password: 'root-password' })).statusCode).toBe(
+      429
+    )
+
+    await app.close()
+  })
+
+  it('also counts malformed payloads, which cost nothing to send', async () => {
+    const app = await createRouteApp(authRoutes)
+
+    for (let i = 0; i < LIMIT; i += 1) {
+      expect((await login(app, { identifier: '', password: '' })).statusCode).toBe(400)
+    }
+
+    expect((await login(app, wrongPassword)).statusCode).toBe(429)
 
     await app.close()
   })

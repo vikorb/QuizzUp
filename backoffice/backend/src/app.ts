@@ -6,8 +6,10 @@ import path from 'node:path'
 import fs from 'node:fs'
 
 import routes from './routes'
+import { PUBLIC_API_PREFIX } from './routes/public/_shared'
 import authPlugin from './plugins/auth'
-import { parseCorsOrigin } from './utils/cors'
+import { parseCorsOrigin, parseOriginList } from './utils/cors'
+import { parseTrustProxy } from './utils/trustProxy'
 
 import type { FastifyStaticSwaggerOptions } from '@fastify/swagger'
 
@@ -33,13 +35,35 @@ function resolveOpenApiPath() {
 }
 
 export function buildApp() {
-  const app = Fastify({ logger: true })
+  // Derrière un proxy (Caddy), `req.ip` ne vaut l'adresse du client que si on nomme ce proxy ici ;
+  // une valeur trop large est refusée au démarrage (cf. utils/trustProxy.ts).
+  const app = Fastify({ logger: true, trustProxy: parseTrustProxy(process.env.TRUST_PROXY) })
 
-  app.register(cors, {
+  const backofficeCors = {
     origin: parseCorsOrigin(process.env.CORS_ORIGIN),
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+  }
+
+  // API publique : sans cookie ni jeton, ouverte aux seuls sites listés dans VITRINE_ORIGINS
+  // (aucune origine si la variable est vide, comme pour un appel de serveur à serveur).
+  const vitrineOrigins = parseOriginList(process.env.VITRINE_ORIGINS)
+  const publicCors = {
+    origin: vitrineOrigins.length > 0 ? vitrineOrigins : false,
+    credentials: false,
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type'],
+    exposedHeaders: ['Retry-After'],
+  }
+
+  app.register(cors, {
+    delegator: (req, callback) => {
+      const path = req.url.split('?')[0]
+      const isPublic = path === PUBLIC_API_PREFIX || path.startsWith(`${PUBLIC_API_PREFIX}/`)
+
+      callback(null, isPublic ? publicCors : backofficeCors)
+    },
   })
 
   const openApiPath = resolveOpenApiPath()

@@ -4,10 +4,19 @@ import { z } from 'zod'
 import { randomUUID } from 'node:crypto'
 import { ADMIN_ROLE_ROOM } from '@quizzup/shared'
 import db from '../db'
+import { createRateLimiter, replyTooManyRequests } from '../security/rateLimit'
 import { isRoomAccountUsable } from '../security/roomCompany'
 
 /** Jeton d'un compte de salle (appareil fixe) : la révocation se fait en base. */
 const ROOM_TOKEN_EXPIRES_IN = '365d'
+
+/**
+ * Limite des tentatives de connexion par adresse : 20 en 15 minutes. Large, car tout le personnel
+ * d'un centre et les PC de ses salles partagent la même adresse publique ; seuls les échecs
+ * restent comptés (une connexion réussie rend son passage, cf. plus bas).
+ */
+const LOGIN_RATE_LIMIT_MAX = 20
+const LOGIN_RATE_LIMIT_WINDOW_MS = 15 * 60_000
 
 type AdminRow = {
   id: number
@@ -36,6 +45,12 @@ const loginSchema = z.object({
 })
 
 const authRoutes: FastifyPluginAsync = async (app) => {
+  // Un limiteur par application : les tests repartent d'un compteur vide.
+  const loginLimiter = createRateLimiter({
+    max: LOGIN_RATE_LIMIT_MAX,
+    windowMs: LOGIN_RATE_LIMIT_WINDOW_MS,
+  })
+
   app.post(
     '/login',
     async (
@@ -56,6 +71,11 @@ const authRoutes: FastifyPluginAsync = async (app) => {
         }
       | FastifyReply
     > => {
+      // Avant tout accès à la base ou à bcrypt, et quel que soit l'identifiant : la réponse ne
+      // dit rien sur l'existence d'un compte. Même route pour le personnel et les comptes de salle.
+      const limit = loginLimiter.hit(req.ip)
+      if (!limit.allowed) return replyTooManyRequests(reply, limit.retryAfterSeconds)
+
       const parsed = loginSchema.safeParse(req.body)
       if (!parsed.success) return reply.code(400).send(parsed.error.flatten())
 
@@ -93,6 +113,11 @@ const authRoutes: FastifyPluginAsync = async (app) => {
       ) {
         return reply.code(401).send({ error: 'invalid_credentials' })
       }
+
+      // Succès : le passage est rendu. Sinon un centre dont le personnel se connecte souvent
+      // finirait bloqué, alors que seuls les échecs ressemblent à une attaque. Celui qui
+      // devine le mot de passe d'un autre compte n'y gagne rien : ses essais ratés restent comptés.
+      loginLimiter.refund(req.ip)
 
       const sid = randomUUID()
 
