@@ -1,8 +1,10 @@
 <template>
   <section class="hw-panel" data-test="plan-tab">
     <header class="hw-panel__head">
-      <h2 class="hw-panel__title">{{ $t('hardware.plan.title') }}</h2>
-      <p class="hw-hint">{{ $t('hardware.plan.hint') }}</p>
+      <div class="hw-panel__heading">
+        <h2 class="hw-panel__title">{{ $t('hardware.plan.title') }}</h2>
+        <p class="hw-hint">{{ $t('hardware.plan.hint') }}</p>
+      </div>
     </header>
     <RoomPlan
       :config="hardware.config"

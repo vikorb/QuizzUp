@@ -149,7 +149,7 @@ async function onDemo(): Promise<void> {
 .form-error {
   margin: 0;
   padding: 10px 12px;
-  border-radius: 12px;
+  border-radius: var(--radius-ctl);
   border: 1px solid var(--danger);
   background: var(--danger-bg);
   color: var(--text-1);
@@ -158,8 +158,6 @@ async function onDemo(): Promise<void> {
 
 .submit {
   width: 100%;
-  border-radius: 14px;
-  padding: 12px 18px;
 }
 
 .demo {

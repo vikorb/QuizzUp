@@ -1,14 +1,25 @@
 <template>
   <section class="hw-panel">
     <header class="hw-panel__head">
-      <h2 class="hw-panel__title">{{ $t('hardware.buzzers.title') }}</h2>
-      <p class="hw-panel__status">
-        {{
-          usesSimulationKeys
-            ? $t('hardware.buzzers.simulation')
-            : $t('hardware.buzzers.learned', { n: learnedCount }, learnedCount)
-        }}
-      </p>
+      <div class="hw-panel__heading">
+        <h2 class="hw-panel__title">{{ $t('hardware.buzzers.title') }}</h2>
+        <p class="hw-panel__status">
+          {{
+            usesSimulationKeys
+              ? $t('hardware.buzzers.simulation')
+              : $t('hardware.buzzers.learned', { n: learnedCount }, learnedCount)
+          }}
+        </p>
+      </div>
+      <div v-if="!choosingLayout && !learningState" class="hw-panel__actions">
+        <UiButton v-if="!usesSimulationKeys" @click="onResetToSimulation">
+          {{ $t('hardware.buzzers.resetToSimulation') }}
+        </UiButton>
+        <UiButton :variant="primary" data-test="start-config" @click="openLayout">
+          <MdIcon :path="mdiGestureTapButton" :size="20" />
+          {{ $t('hardware.buzzers.configure') }}
+        </UiButton>
+      </div>
     </header>
 
     <p v-if="buzzerState && !buzzerState.active" class="hw-alert" role="alert">
@@ -17,7 +28,7 @@
       }}
     </p>
 
-    <div class="hw-actions">
+    <div class="hw-fields">
       <label class="hw-field">
         {{ $t('hardware.buzzers.desksCount') }}
         <select
@@ -32,19 +43,19 @@
       <p class="hw-hint">{{ $t('hardware.buzzers.desksCountHint') }}</p>
     </div>
 
-    <div v-if="choosingLayout" class="learn neon neon--no-hover" data-test="layout-step">
+    <div v-if="choosingLayout" class="learn" data-test="layout-step">
       <h3 class="hw-panel__subtitle">{{ $t('hardware.layout.title') }}</h3>
       <p class="hw-hint">{{ $t('hardware.layout.hint') }}</p>
       <BuzzerLayoutPicker v-model="draftLayout" />
       <div class="hw-actions">
-        <UiButton variant="primary" data-test="layout-continue" @click="onLayoutContinue">
+        <UiButton :variant="primary" data-test="layout-continue" @click="onLayoutContinue">
           {{ $t('hardware.layout.continue') }}
         </UiButton>
         <UiButton @click="choosingLayout = false">{{ $t('hardware.buzzers.cancel') }}</UiButton>
       </div>
     </div>
 
-    <div v-else-if="learningState" class="learn neon neon--no-hover" data-test="learning">
+    <div v-else-if="learningState" class="learn" data-test="learning">
       <template v-if="learningState.current">
         <p class="learn__step">
           {{
@@ -97,7 +108,7 @@
           </UiButton>
           <UiButton @click="learning?.skip()">{{ $t('hardware.buzzers.skip') }}</UiButton>
         </template>
-        <UiButton v-else variant="primary" :disabled="learnedInSession === 0" @click="onSave">
+        <UiButton v-else :variant="primary" :disabled="learnedInSession === 0" @click="onSave">
           {{ $t('hardware.buzzers.save') }}
         </UiButton>
         <UiButton @click="learning?.restart()">{{ $t('hardware.buzzers.restart') }}</UiButton>
@@ -107,16 +118,7 @@
       </div>
     </div>
 
-    <div v-else class="hw-actions">
-      <UiButton variant="primary" class="start" data-test="start-config" @click="openLayout">
-        <MdIcon :path="mdiGestureTapButton" :size="28" />
-        {{ $t('hardware.buzzers.configure') }}
-      </UiButton>
-      <UiButton v-if="!usesSimulationKeys" @click="onResetToSimulation">
-        {{ $t('hardware.buzzers.resetToSimulation') }}
-      </UiButton>
-      <p class="hw-hint">{{ $t('hardware.buzzers.learnHint') }}</p>
-    </div>
+    <p v-else class="hw-hint">{{ $t('hardware.buzzers.learnHint') }}</p>
 
     <p v-if="saved" class="hw-ok" role="status">{{ $t('hardware.buzzers.saved') }}</p>
 
@@ -178,6 +180,12 @@ import {
 import { useBuzzers } from '@/hardware/useBuzzers'
 
 const FLASH_MS = 450
+
+const props = defineProps<{
+  /** Dans l'assistant : le bouton « Suivant » est le seul primaire de l'écran. */
+  embedded?: boolean
+}>()
+const primary = computed(() => (props.embedded ? 'default' : 'primary'))
 
 const { t } = useI18n()
 const { confirm } = useConfirm()
@@ -309,12 +317,6 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.start {
-  padding: 20px 36px;
-  font-size: 20px;
-  font-weight: 800;
-}
-
 .learn__ask {
   display: flex;
   align-items: center;
@@ -325,7 +327,7 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 12px;
   padding: 20px 24px;
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   border: 1px solid var(--border-2);
   background: var(--bg-card-hi);
 }
@@ -372,7 +374,7 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 12px;
   padding: 14px;
-  border-radius: 16px;
+  border-radius: var(--radius-ctl);
   border: 1px solid var(--border-ui);
   background: var(--surface-0);
 }

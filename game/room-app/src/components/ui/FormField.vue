@@ -112,11 +112,11 @@ function onInput(event: Event): void {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 42px;
+  min-height: var(--tap-min);
   border: 1px solid var(--border-ui);
   background: var(--bg-field);
-  border-radius: 14px;
-  padding: 7px 12px;
+  border-radius: var(--radius-ctl);
+  padding: 0 12px;
   transition: var(--tr);
 }
 

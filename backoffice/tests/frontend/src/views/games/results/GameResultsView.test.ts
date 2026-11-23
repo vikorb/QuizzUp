@@ -97,7 +97,13 @@ describe('views/games/results/GameResultsView.vue', () => {
             id: 1,
             displayName: 'Team A',
             score: 3,
-            secondPlayer: { displayName: 'Alex', email: null, hasEmail: false, consentAt: null },
+            secondPlayer: {
+              displayName: 'Alex',
+              email: null,
+              hasEmail: false,
+              consentAt: null,
+              marketingConsent: false,
+            },
           }),
         ],
       })
@@ -126,6 +132,7 @@ describe('views/games/results/GameResultsView.vue', () => {
               email: 'second@quizzup.test',
               hasEmail: true,
               consentAt: '2026-11-03T10:00:00.000Z',
+              marketingConsent: false,
             },
           }),
         ],

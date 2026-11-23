@@ -1,13 +1,29 @@
 <template>
   <section class="hw-panel">
     <header class="hw-panel__head">
-      <h2 class="hw-panel__title">{{ $t('hardware.lights.title') }}</h2>
-      <p class="hw-panel__status" data-test="lights-status">
-        {{ $t('hardware.lights.driver') }} : {{ $t(`hardware.lights.drivers.${driver}`) }}
-        <template v-if="state && !state.simulation">
-          — {{ $t(`hardware.lights.status.${state.outputStatus}`) }}
-        </template>
-      </p>
+      <div class="hw-panel__heading">
+        <h2 class="hw-panel__title">{{ $t('hardware.lights.title') }}</h2>
+        <p class="hw-panel__status" data-test="lights-status">
+          {{ $t('hardware.lights.driver') }} : {{ $t(`hardware.lights.drivers.${driver}`) }}
+          <template v-if="state && !state.simulation">
+            — {{ $t(`hardware.lights.status.${state.outputStatus}`) }}
+          </template>
+        </p>
+      </div>
+      <div class="hw-panel__actions">
+        <UiButton
+          v-if="state?.emergency"
+          variant="primary"
+          data-test="emergency-reset"
+          @click="emergency.reset"
+        >
+          {{ $t('hardware.lights.emergencyReset') }}
+        </UiButton>
+        <UiButton v-else variant="danger" data-test="emergency-stop" @click="emergency.stop">
+          <MdIcon :path="mdiAlertOctagonOutline" :size="18" />
+          {{ $t('hardware.lights.emergencyStop') }}
+        </UiButton>
+      </div>
     </header>
 
     <div v-if="state?.emergency" class="hw-alert hw-alert--danger" role="alert">
@@ -29,33 +45,18 @@
       {{ $t('hardware.lights.connectFailed') }}
     </p>
 
-    <div class="hw-actions">
+    <div v-if="driver !== 'simulation'" class="hw-actions">
       <UiButton
-        v-if="state?.emergency"
-        variant="primary"
-        data-test="emergency-reset"
-        @click="emergency.reset"
+        :disabled="(!webSerial && driver !== 'artnet-bridge') || connecting"
+        data-test="dmx-connect"
+        @click="onConnect"
       >
-        {{ $t('hardware.lights.emergencyReset') }}
+        <MdIcon :path="mdiUsb" :size="18" />
+        {{ $t('hardware.lights.connect') }}
       </UiButton>
-      <UiButton v-else variant="danger" data-test="emergency-stop" @click="emergency.stop">
-        <MdIcon :path="mdiAlertOctagonOutline" :size="18" />
-        {{ $t('hardware.lights.emergencyStop') }}
+      <UiButton v-if="state && !state.simulation" @click="onUseSimulation">
+        {{ $t('hardware.lights.useSimulation') }}
       </UiButton>
-
-      <template v-if="driver !== 'simulation'">
-        <UiButton
-          :disabled="(!webSerial && driver !== 'artnet-bridge') || connecting"
-          data-test="dmx-connect"
-          @click="onConnect"
-        >
-          <MdIcon :path="mdiUsb" :size="18" />
-          {{ $t('hardware.lights.connect') }}
-        </UiButton>
-        <UiButton v-if="state && !state.simulation" @click="onUseSimulation">
-          {{ $t('hardware.lights.useSimulation') }}
-        </UiButton>
-      </template>
     </div>
     <p class="hw-hint">
       {{
@@ -103,10 +104,10 @@
     </div>
 
     <h3 class="hw-panel__subtitle">{{ $t('hardware.lights.scenes') }}</h3>
-    <div class="hw-actions">
-      <label class="scene-desk">
+    <div class="hw-fields">
+      <label class="hw-field">
         {{ $t('hardware.lights.sceneDesk') }}
-        <select v-model.number="sceneDesk">
+        <select v-model.number="sceneDesk" data-test="scene-desk-select">
           <option v-for="desk in desks" :key="desk" :value="desk">{{ desk }}</option>
         </select>
       </label>
@@ -308,14 +309,16 @@ onBeforeUnmount(() => {
 .smoke__arm {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+  min-height: var(--tap-min);
   font-weight: 700;
   cursor: pointer;
 }
 
 .smoke__arm input {
-  width: 18px;
-  height: 18px;
+  flex: none;
+  width: 24px;
+  height: 24px;
   accent-color: var(--accent-purple);
 }
 
@@ -325,21 +328,6 @@ onBeforeUnmount(() => {
 
 .smoke__hint {
   flex-basis: 100%;
-}
-
-.scene-desk {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-1);
-}
-
-.scene-desk select {
-  padding: 6px 10px;
-  border-radius: 10px;
-  border: 1px solid var(--border-ui);
-  background: var(--bg-field);
-  color: var(--text-0);
 }
 
 .rig {
@@ -353,7 +341,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
-  border-radius: 14px;
+  border-radius: var(--radius-ctl);
   border: 1px solid var(--border-ui);
   background: var(--surface-0);
 }

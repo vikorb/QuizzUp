@@ -2,12 +2,6 @@
   "games": {
     "title": "Games",
     "subtitle": "Launch and follow the games played in the rooms",
-    "stats": {
-      "total": "Games",
-      "pending": "Pending",
-      "running": "Running",
-      "finished": "Finished"
-    },
     "state": {
       "scheduled": "Scheduled",
       "pending": "Pending",
@@ -21,7 +15,11 @@
       "title": "Filters",
       "company": "Company",
       "state": "State",
-      "allStates": "All states"
+      "allStates": "All states",
+      "room": "Room",
+      "allRooms": "All rooms",
+      "from": "From",
+      "to": "To"
     },
     "table": {
       "title": "Games",
@@ -30,10 +28,12 @@
       "empty": "No game found",
       "retry": "Retry",
       "columns": {
-        "room": "Room",
-        "state": "State",
-        "participants": "Participants",
         "date": "Date",
+        "room": "Room",
+        "participants": "Players",
+        "duration": "Duration",
+        "topScore": "Top score",
+        "state": "State",
         "actions": "Actions"
       }
     },
@@ -94,8 +94,11 @@
       "email": "Email",
       "emailPlaceholder": "e.g. player{'@'}example.com (optional)",
       "emailHint": "Optional.",
-      "consent": "I agree that my email address may be used to receive the game results and offers from the centre.",
+      "consent": "I agree that the centre keeps my email address to send me the game results.",
       "consentHint": "Required when an email is entered. The player can withdraw consent at any time.",
+      "marketingConsent": "I also agree to receive the centre's offers at this address.",
+      "marketingConsentHint": "Optional, and independent from keeping the email.",
+      "marketingConsentNeedsEmail": "Available once an email is entered.",
       "addParticipant": "Add a participant",
       "removeParticipant": "Remove participant {index}",
       "cancel": "Cancel",
@@ -186,6 +189,7 @@
       "sessionNotOpenYet": "This session can only be opened within the hour before it starts.",
       "slotTaken": "This slot overlaps another session in this room.",
       "emailConsentRequired": "An email can only be kept with the player's explicit consent.",
+      "marketingConsentRequiresEmail": "Offers can only be sent to an email address: enter an email or untick the offers box.",
       "conflict": "Conflict with the current data. Reload the page.",
       "serverError": "Server error. Try again in a moment."
     }

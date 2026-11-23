@@ -1,16 +1,18 @@
 <template>
   <section class="hw-panel" data-test="assistant">
     <header class="hw-panel__head">
-      <h2 class="hw-panel__title">{{ $t('hardware.assistant.title') }}</h2>
-      <p class="hw-panel__status">
-        {{
-          $t('hardware.assistant.progress', {
-            n: view.steps.indexOf(view.step) + 1,
-            total: view.steps.length,
-          })
-        }}
-        — {{ $t(`hardware.assistant.steps.${view.step}.title`) }}
-      </p>
+      <div class="hw-panel__heading">
+        <h2 class="hw-panel__title">{{ $t('hardware.assistant.title') }}</h2>
+        <p class="hw-panel__status">
+          {{
+            $t('hardware.assistant.progress', {
+              n: view.steps.indexOf(view.step) + 1,
+              total: view.steps.length,
+            })
+          }}
+          — {{ $t(`hardware.assistant.steps.${view.step}.title`) }}
+        </p>
+      </div>
     </header>
 
     <ol class="steps" aria-hidden="true">
@@ -34,7 +36,7 @@
 
     <!-- 2. Buzzers -->
     <div v-else-if="view.step === 'buzzers'" class="stack" data-test="step-buzzers">
-      <div class="hw-actions">
+      <div class="hw-fields">
         <label class="hw-field">
           {{ $t('hardware.assistant.buzzers.desks') }}
           <select :value="view.desks.length" data-test="desk-count" @change="onDeskCount">
@@ -62,7 +64,7 @@
       <p v-if="sourceKind === 'gamepad'" class="hw-alert" role="status">
         {{ $t('hardware.assistant.buzzers.gamepadWake') }}
       </p>
-      <BuzzerSetup />
+      <BuzzerSetup embedded />
     </div>
 
     <!-- 3. Interface -->
@@ -206,14 +208,14 @@
         <UiButton data-test="import-six" @click="onImportSixDesk">
           {{ $t('hardware.assistant.fixtures.importSix') }}
         </UiButton>
-        <label class="ui-btn ui-btn--default file-btn">
+        <label class="file-btn">
           {{ $t('hardware.assistant.fixtures.importCalibration') }}
           <input type="file" accept=".txt,.cfg,.ini,text/plain" @change="onCalibrationFile" />
         </label>
       </div>
       <p v-if="calibrationNote" class="hw-ok" role="status">{{ calibrationNote }}</p>
 
-      <div class="hw-actions add">
+      <div class="hw-fields">
         <label class="hw-field">
           {{ $t('hardware.assistant.fixtures.profile') }}
           <select v-model="draft.profileId" data-test="fixture-profile">
@@ -252,7 +254,7 @@
             data-test="fixture-address"
           />
         </label>
-        <UiButton variant="primary" data-test="fixture-add" @click="onAddFixture">
+        <UiButton data-test="fixture-add" @click="onAddFixture">
           {{ $t('hardware.assistant.fixtures.add') }}
         </UiButton>
       </div>
@@ -308,7 +310,14 @@
       <ul class="list">
         <li v-for="fixture in testableFixtures" :key="fixture.id">
           <span>
-            <strong>{{ fixture.name }}</strong>
+            <strong>
+              <span
+                v-if="view.fixtureTests[fixture.id] === 'ok'"
+                class="status-dot"
+                aria-hidden="true"
+              />
+              {{ fixture.name }}
+            </strong>
             <small>{{ $t('hardware.diagnostic.address', { n: fixture.address }) }}</small>
           </span>
           <span class="hw-actions">
@@ -319,7 +328,7 @@
               {{ $t('hardware.assistant.test.off') }}
             </UiButton>
             <UiButton
-              :variant="view.fixtureTests[fixture.id] === 'ok' ? 'primary' : 'default'"
+              :aria-pressed="view.fixtureTests[fixture.id] === 'ok'"
               :data-test="`ok-${fixture.id}`"
               @click="mark(fixture.id, 'ok')"
             >
@@ -390,7 +399,7 @@
           <UiButton :disabled="!hasPrevious" data-test="calibration-copy" @click="copyFromPrevious">
             {{ $t('hardware.assistant.positions.calibration.buttons.copy') }}
           </UiButton>
-          <UiButton variant="primary" data-test="calibration-validate" @click="validateCurrent">
+          <UiButton data-test="calibration-validate" @click="validateCurrent">
             {{ $t('hardware.assistant.positions.calibration.buttons.validate') }}
           </UiButton>
         </div>
@@ -479,7 +488,7 @@
           <span>{{ $t('hardware.assistant.smoke.cutsOnSignalLoss') }}</span>
         </label>
       </div>
-      <div class="hw-actions">
+      <div class="hw-fields">
         <label class="hw-field">
           {{ $t('hardware.assistant.smoke.maxDuration') }}
           <input
@@ -567,7 +576,7 @@
           )
         }}
         <div class="hw-actions">
-          <UiButton variant="primary" data-test="freeze-ok" @click="onFreezeAnswer(true)">
+          <UiButton data-test="freeze-ok" @click="onFreezeAnswer(true)">
             {{ $t('hardware.assistant.smoke.freezeYes') }}
           </UiButton>
           <UiButton variant="danger" data-test="freeze-ko" @click="onFreezeAnswer(false)">
@@ -605,12 +614,6 @@
       <p v-if="summary.problems.length === 0" class="hw-ok">
         {{ $t('hardware.assistant.summary.ready') }}
       </p>
-      <div class="hw-actions">
-        <UiButton variant="primary" :disabled="saving" data-test="assistant-save" @click="onSave">
-          {{ $t('hardware.assistant.summary.save') }}
-        </UiButton>
-        <span v-if="saved" class="hw-ok" role="status">{{ $t('hardware.advanced.saved') }}</span>
-      </div>
     </div>
 
     <p v-if="syncStatus === 'conflict'" class="hw-alert" role="status" data-test="sync-conflict">
@@ -624,20 +627,35 @@
       </ul>
     </div>
 
+    <!-- Navigation : « Précédent » à gauche, l'unique primaire à droite (« Suivant », puis « Enregistrer »). -->
     <div class="hw-actions nav">
       <UiButton :disabled="view.steps[0] === view.step" data-test="assistant-back" @click="onBack">
         {{ $t('hardware.assistant.back') }}
       </UiButton>
-      <UiButton
-        v-if="view.step !== 'summary'"
-        ref="nextButton"
-        variant="primary"
-        :disabled="blockers.length > 0"
-        data-test="assistant-next"
-        @click="onNext"
-      >
-        {{ $t('hardware.assistant.next') }}
-      </UiButton>
+      <div class="hw-actions">
+        <span v-if="saved && view.step === 'summary'" class="hw-ok" role="status">
+          {{ $t('hardware.advanced.saved') }}
+        </span>
+        <UiButton
+          v-if="view.step !== 'summary'"
+          ref="nextButton"
+          variant="primary"
+          :disabled="blockers.length > 0"
+          data-test="assistant-next"
+          @click="onNext"
+        >
+          {{ $t('hardware.assistant.next') }}
+        </UiButton>
+        <UiButton
+          v-else
+          variant="primary"
+          :disabled="saving"
+          data-test="assistant-save"
+          @click="onSave"
+        >
+          {{ $t('hardware.assistant.summary.save') }}
+        </UiButton>
+      </div>
     </div>
   </section>
 </template>
@@ -1373,7 +1391,7 @@ onBeforeUnmount(() => {
   align-items: flex-start;
   gap: 10px;
   padding: 10px 14px;
-  border-radius: 14px;
+  border-radius: var(--radius-ctl);
   border: 1px solid var(--border-ui);
   background: var(--surface-0);
   cursor: pointer;
@@ -1388,9 +1406,51 @@ onBeforeUnmount(() => {
   color: var(--text-2);
 }
 
+/* Bouton de fichier : même apparence qu'un bouton par défaut (UiButton est à portée limitée). */
 .file-btn {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap-min);
+  padding: 0 18px;
+  border: 1px solid var(--border-ui);
+  border-radius: var(--radius-ctl);
+  background: var(--surface-1);
+  color: var(--text-1);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
   cursor: pointer;
+  transition: var(--tr);
+}
+
+.file-btn:hover {
+  background: var(--surface-2);
+  border-color: var(--border-hover);
+  color: var(--text-0);
+}
+
+.file-btn:has(input:focus-visible) {
+  outline: 2px solid var(--accent-purple);
+  outline-offset: 2px;
+}
+
+/* Test d'appareil validé : bouton mat enfoncé, la couleur de statut reste sur la pastille. */
+.list [aria-pressed='true'] {
+  background: var(--surface-3);
+  border-color: var(--border-hover);
+  color: var(--text-0);
+}
+
+.status-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--ok);
 }
 
 .file-btn input {
@@ -1415,7 +1475,7 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 10px;
   padding: 10px 14px;
-  border-radius: 14px;
+  border-radius: var(--radius-ctl);
   border: 1px solid var(--border-ui);
   background: var(--surface-0);
 }
@@ -1432,7 +1492,7 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 8px;
   padding: 12px 14px;
-  border-radius: 14px;
+  border-radius: var(--radius-ctl);
   border: 1px solid var(--border-ui);
   background: var(--surface-0);
 }
@@ -1441,7 +1501,7 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 8px;
   padding: 12px 14px;
-  border-radius: 14px;
+  border-radius: var(--radius-ctl);
   border: 1px solid var(--accent-purple);
   background: var(--surface-0);
 }
@@ -1488,7 +1548,7 @@ onBeforeUnmount(() => {
   margin-right: 4px;
   padding: 1px 6px;
   border: 1px solid var(--border-ui);
-  border-radius: 6px;
+  border-radius: var(--radius-ctl);
   background: var(--surface-1);
   color: var(--text-0);
   font: inherit;
@@ -1514,5 +1574,7 @@ onBeforeUnmount(() => {
 
 .nav {
   justify-content: space-between;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-ui);
 }
 </style>

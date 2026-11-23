@@ -59,11 +59,12 @@ www, app, salle, api, console  ->  adresse du serveur
 
 Les noms sont libres : ce sont les cinq variables `HOST_*`. Si un relais (tunnel, proxy frontal)
 reçoit le trafic à la place du serveur, le DNS pointe sur le relais, et ses adresses vont dans
-`TRUSTED_PROXIES` (sinon la console éditeur ne voit que l'adresse du relais). Caddy lit alors `X-Forwarded-For` de droite à
+`TRUSTED_PROXIES` (sinon la console éditeur ne voit que l'adresse du relais) **et** dans `TRUST_PROXY`,
+à la suite du sous-réseau de Caddy, pour que l'API lise la même adresse que Caddy. Caddy lit alors `X-Forwarded-For` de droite à
 gauche et ne croit que les relais déclarés (`trusted_proxies_strict`) : un relais qui ajoute
 l'adresse à l'en-tête, au lieu de la remplacer, est géré. Le certificat de la console éditeur est
-émis comme les autres : le nom d'hôte reste visible dans les journaux publics des certificats, et
-le filtrage par `EDITOR_ALLOWED_RANGES` ne protège pas la console (voir « Limites connues »).
+émis comme les autres : le nom d'hôte reste visible dans les journaux publics des certificats. La
+protection de la console est dans l'API (`CONSOLE_ALLOWED_CIDRS`, voir « Limites connues »).
 
 ## Première installation
 
@@ -77,7 +78,8 @@ chmod +x ./*.sh
 
 1. **Remplir `.env`** : `QUIZZUP_VERSION` (le même tag), les cinq `HOST_*`, `ACME_EMAIL`,
    `POSTGRES_PASSWORD` et `JWT_SECRET` (`openssl rand -hex 32` pour chacun), le dépôt de sauvegarde
-   (`RESTIC_*`, `AWS_*`), `EDITOR_ALLOWED_RANGES` (vide = console inaccessible), les alertes.
+   (`RESTIC_*`, `AWS_*`), `CONSOLE_ALLOWED_CIDRS` (**à renseigner avant le premier démarrage** : vide = console fermée, le
+   superadmin créé à l'étape 3 ne pourrait pas se connecter), `TRUST_PROXY`, les alertes.
    Compose refuse de démarrer tant qu'une variable obligatoire est vide, avec son nom dans le message.
 2. **Démarrer** : `docker compose up -d --build`. Premier démarrage : 5 à 10 minutes (construction,
    puis migrations, puis API, puis certificats). Suivre avec `docker compose ps` et
@@ -196,6 +198,17 @@ public `https://<HOST_API>/health`. Au moindre échec, il **annule les migration
 revient au code et à l'ancienne version, et alerte. Lire les notes de version avant : une variable
 obligatoire nouvelle apparaît dans `.env.example`, et il faut la renseigner **avant** de lancer
 `update.sh`.
+
+**Passage à la garde réseau de la console** (une seule fois, sur une installation antérieure) :
+
+- dans `.env`, renommer `EDITOR_ALLOWED_RANGES` en `CONSOLE_ALLOWED_CIDRS` (plages séparées par des
+  espaces). Variable vide ou absente = console fermée, le superadmin est refusé ;
+- mettre `TRUST_PROXY=172.29.251.0/24`, le sous-réseau désormais fixé dans le compose ;
+- le réseau Docker existant a un autre sous-réseau : le recréer hors partie en cours, par
+  `docker compose down` (**sans `-v`**, les volumes gardent les données) puis `docker compose up -d`,
+  et vérifier avec `docker network inspect <réseau>` que le sous-réseau est bien
+  `172.29.251.0/24`. Sinon l'API voit l'adresse de Caddy pour tous les clients : la console reste
+  fermée et les limites de débit deviennent communes à tout le monde.
 
 `--force` passe outre une partie en cours. Il ne coupe pas la partie (voir ci-dessous) mais, après
 une partie « bloquée » (écran fermé en cours de route, jamais terminée), c'est le seul moyen de
@@ -342,10 +355,14 @@ avec un délai de 1 s ; `200 {"status":"ok","db":"ok"}`, sinon `503 {"status":"d
       cet essai extérieur, pas au pare-feu de la machine. `docker compose ps` ne montre un port
       publié que pour `caddy`.
 - [ ] HTTPS valide sur les cinq noms d'hôte ; `http://` redirige vers `https://`.
-- [ ] **Filtrage par adresse** : depuis une adresse hors de `EDITOR_ALLOWED_RANGES`,
+- [ ] **Filtrage par adresse** : depuis une adresse hors de `CONSOLE_ALLOWED_CIDRS`,
       `https://<HOST_CONSOLE>/` et `https://<HOST_API>/docs/` répondent **403** ; depuis une adresse
-      autorisée, la console s'ouvre. Vide `EDITOR_ALLOWED_RANGES` = 403 partout. (Cela ne prouve que
-      le filtre, qui ne protège pas la console : voir « Limites connues ».)
+      autorisée, la console s'ouvre. Vide `CONSOLE_ALLOWED_CIDRS` = 403 partout.
+- [ ] **Garde du superadmin dans l'API** : depuis une adresse hors de `CONSOLE_ALLOWED_CIDRS`, la
+      connexion du superadmin sur `https://<HOST_APP>/` échoue comme un mauvais mot de passe, et un
+      jeton déjà émis reçoit **403** sur `GET https://<HOST_API>/companies`. Le journal de l'API
+      (`docker compose logs api`) montre l'adresse refusée : c'est celle du poste, pas celle de
+      Caddy ni du relais (sinon corriger `TRUST_PROXY`).
 - [ ] **En-têtes** : `curl -sI https://<HOST_APP>/` montre HSTS, `X-Content-Type-Options`,
       `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, et `Cache-Control: no-cache` ; un fichier
       de `/assets/` a `immutable`.
@@ -372,12 +389,12 @@ avec un délai de 1 s ; `200 {"status":"ok","db":"ok"}`, sinon `503 {"status":"d
 
 ## Limites connues
 
-- **Console éditeur** : le filtrage par nom d'hôte et par plage réseau **masque l'adresse de la
-  console, il ne la protège pas**. `HOST_APP` sert la même application sans filtre : un superadmin
-  qui s'y connecte, depuis n'importe quelle adresse, obtient toute la console. L'API reste
-  joignable sur `HOST_API` avec les routes superadmin. Seul Swagger (`/docs`) est réellement
-  protégé par `EDITOR_ALLOWED_RANGES`. La vraie protection (contrôle côté API, double facteur)
-  arrive avec le lot « console éditeur » (lot 12).
+- **Console éditeur** : le filtrage par nom d'hôte et par plage réseau de Caddy **masque l'adresse
+  de la console** ; la protection est la garde de l'API, qui lit `CONSOLE_ALLOWED_CIDRS` : un
+  superadmin hors de ces adresses ne peut ni se connecter ni utiliser un jeton, sur aucun nom
+  d'hôte. Tout repose sur l'adresse que voit l'API (`TRUST_PROXY`) : elle est fausse si un relais
+  n'est pas déclaré à la fois dans `TRUSTED_PROXIES` et `TRUST_PROXY`. Le double facteur et la
+  séparation des deux applications arrivent avec la suite du lot « console éditeur » (lot 12).
 - **Un seul serveur** : une panne de la machine coupe l'API (les parties en cours continuent, mais
   aucune nouvelle ne démarre) ; le rétablissement est la restauration. Pas de haute disponibilité.
 - **Polices** : le backoffice et l'écran de salle importent encore leurs polices depuis un service

@@ -99,9 +99,11 @@ describe('purgeExpiredPlayerEmails (enchaînement SQL)', () => {
     const [, first, second] = calls
     const bindings = { cutoff: new Date('2023-11-04T12:00:00.000Z'), now: NOW }
 
-    expect(first.sql).toMatch(/UPDATE game_participants[\s\S]*SET email = NULL, consent_at = NULL/)
+    expect(first.sql).toMatch(
+      /UPDATE game_participants[\s\S]*SET email = NULL, consent_at = NULL, marketing_consent_at = NULL/
+    )
     expect(second.sql).toMatch(
-      /UPDATE game_participants[\s\S]*SET second_email = NULL, second_consent_at = NULL/
+      /UPDATE game_participants[\s\S]*SET second_email = NULL, second_consent_at = NULL, second_marketing_consent_at = NULL/
     )
     expect(first.bindings).toEqual(bindings)
     expect(second.bindings).toEqual(bindings)

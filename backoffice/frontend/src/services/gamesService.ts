@@ -5,6 +5,7 @@ import type {
   GameApiResult,
   GameResponse,
   GameRoomsResponse,
+  GamesQuery,
   GamesResponse,
 } from '@/types/game'
 import { apiFetch } from '@/utils/api'
@@ -79,9 +80,22 @@ async function requestGameJson<T>(options: ApiRequestOptions): Promise<GameApiRe
   }
 }
 
-export async function listGamesService(companyId: number): Promise<GamesResult> {
+export async function listGamesService(
+  companyId: number,
+  query: GamesQuery = {}
+): Promise<GamesResult> {
+  const params = new URLSearchParams()
+
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined) {
+      params.set(key, String(value))
+    }
+  }
+
+  const queryString = params.toString()
+
   return requestGameJson<GamesResponse>({
-    path: `/companies/${companyId}/games`,
+    path: `/companies/${companyId}/games${queryString ? `?${queryString}` : ''}`,
   })
 }
 

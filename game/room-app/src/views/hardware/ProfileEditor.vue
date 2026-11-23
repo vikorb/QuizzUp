@@ -153,11 +153,11 @@
       <h4>{{ $t('hardware.profiles.fixtures') }}</h4>
       <div v-for="fixture in movable" :key="fixture.id" class="row" data-test="fixture-invert">
         <strong>{{ fixture.name }}</strong>
-        <label>
+        <label class="check">
           <input v-model="fixture.invertPan" type="checkbox" data-test="invert-pan" />
           {{ $t('hardware.profiles.invertPan') }}
         </label>
-        <label>
+        <label class="check">
           <input v-model="fixture.invertTilt" type="checkbox" data-test="invert-tilt" />
           {{ $t('hardware.profiles.invertTilt') }}
         </label>
@@ -165,7 +165,7 @@
     </template>
 
     <div class="hw-actions">
-      <UiButton variant="primary" :disabled="saving" data-test="profiles-save" @click="save">
+      <UiButton :disabled="saving" data-test="profiles-save" @click="save">
         {{ $t('hardware.advanced.save') }}
       </UiButton>
       <span v-if="saved" class="hw-ok" role="status">{{ $t('hardware.advanced.saved') }}</span>
@@ -348,7 +348,7 @@ async function save(): Promise<void> {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 8px 12px;
 }
 
 .profile {
@@ -356,7 +356,7 @@ async function save(): Promise<void> {
   gap: 8px;
   padding: 12px;
   border: 1px solid var(--border-ui);
-  border-radius: 14px;
+  border-radius: var(--radius-card);
 }
 
 .channels {
@@ -370,8 +370,8 @@ async function save(): Promise<void> {
 .channel {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 8px;
+  align-items: center;
+  gap: 8px 12px;
 }
 
 .channel__n {
@@ -386,18 +386,38 @@ async function save(): Promise<void> {
 
 input,
 select {
-  padding: 6px 8px;
-  border-radius: 8px;
+  min-height: var(--tap-min);
+  padding: 0 12px;
+  border-radius: var(--radius-ctl);
   border: 1px solid var(--border-ui);
   background: var(--bg-field);
   color: var(--text-0);
+  font: inherit;
 }
 
 input[type='number'] {
-  width: 5em;
+  width: 6em;
+}
+
+input[type='color'] {
+  width: var(--tap-min);
+  padding: 4px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--tap-min);
+  cursor: pointer;
 }
 
 input[type='checkbox'] {
-  width: auto;
+  flex: none;
+  width: 24px;
+  min-height: 24px;
+  height: 24px;
+  padding: 0;
+  accent-color: var(--accent-purple);
 }
 </style>

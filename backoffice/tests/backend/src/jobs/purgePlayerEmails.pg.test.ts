@@ -94,7 +94,13 @@ describe.skipIf(!PG_INTEGRATION_URL)('purgeExpiredPlayerEmails sur PostgreSQL', 
     return id
   }
 
-  type Players = { email?: string; second?: string }
+  type Players = {
+    email?: string
+    second?: string
+    // Consentement aux offres du centre (suppose l'email du joueur concerné).
+    marketing?: boolean
+    secondMarketing?: boolean
+  }
 
   async function addParticipant(
     gameId: number,
@@ -112,9 +118,11 @@ describe.skipIf(!PG_INTEGRATION_URL)('purgeExpiredPlayerEmails sur PostgreSQL', 
       display_name: name,
       email: players.email ?? null,
       consent_at: players.email ? OLD : null,
+      marketing_consent_at: players.marketing ? OLD : null,
       second_display_name: players.second ? 'Alex' : null,
       second_email: players.second ?? null,
       second_consent_at: players.second ? OLD : null,
+      second_marketing_consent_at: players.secondMarketing ? OLD : null,
       score: 250,
     })
 
@@ -139,6 +147,45 @@ describe.skipIf(!PG_INTEGRATION_URL)('purgeExpiredPlayerEmails sur PostgreSQL', 
     await expect(purge(db, NOW)).resolves.toBe(1)
 
     expect(await row(participant)).toMatchObject({ email: null, consent_at: null })
+  })
+
+  it('efface avec l’email le consentement aux offres, des deux joueurs', async () => {
+    const participant = await addParticipant(await addGame(1, { finished: OLD }), {
+      email: 'old@x.test',
+      marketing: true,
+      second: 'alex@x.test',
+      secondMarketing: true,
+    })
+
+    await expect(purge(db, NOW)).resolves.toBe(2)
+
+    expect(await row(participant)).toMatchObject({
+      email: null,
+      consent_at: null,
+      marketing_consent_at: null,
+      second_email: null,
+      second_consent_at: null,
+      second_marketing_consent_at: null,
+    })
+  })
+
+  it('garde le consentement aux offres d’un joueur récent, même si l’autre est purgé', async () => {
+    const participant = await addParticipant(await addGame(1, { finished: OLD }), {
+      email: 'first@x.test',
+      marketing: true,
+      second: 'old2@x.test',
+      secondMarketing: true,
+    })
+    await addParticipant(await addGame(1, { finished: RECENT }), { email: 'first@x.test' })
+
+    await expect(purge(db, NOW)).resolves.toBe(1)
+
+    expect(await row(participant)).toMatchObject({
+      email: 'first@x.test',
+      marketing_consent_at: new Date(OLD),
+      second_email: null,
+      second_marketing_consent_at: null,
+    })
   })
 
   it('conserve noms, scores, podium et date de mise à jour hors purge', async () => {

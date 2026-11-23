@@ -7,6 +7,8 @@ export type GameSecondPlayerRow = {
   email: string | null
   hasEmail: boolean
   consentAt: string | null
+  /** Accepte de recevoir les offres du centre (jamais vrai sans email). */
+  marketingConsent: boolean
 }
 
 export type GameParticipantRow = {
@@ -17,6 +19,8 @@ export type GameParticipantRow = {
   email: string | null
   hasEmail: boolean
   consentAt: string | null
+  /** Accepte de recevoir les offres du centre (jamais vrai sans email). */
+  marketingConsent: boolean
   secondPlayer: GameSecondPlayerRow | null
   /** Score du pupitre, partagé par ses joueurs. */
   score: number
@@ -39,6 +43,11 @@ export type GameRow = {
   status: GameStatus
   createdAt: string
   updatedAt: string | null
+  /** Joueurs nommés (1er et 2e joueurs de chaque pupitre) ; liste des parties seulement. */
   participantsCount?: number
+  /** `finished_at − started_at` d'une partie terminée, sinon `null` ; liste des parties seulement. */
+  durationSeconds?: number | null
+  /** Meilleur score d'une partie terminée, sinon `null` ; liste des parties seulement. */
+  topScore?: number | null
   participants?: GameParticipantRow[]
 }
