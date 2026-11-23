@@ -173,11 +173,18 @@ describe('routes/games.ts (US-GAME-08)', () => {
             email: 'noe@exemple.fr',
             hasEmail: true,
             consentAt: MOCK_NOW,
+            marketingConsent: false,
           },
         }),
         expect.objectContaining({
           podium: 2,
-          secondPlayer: { displayName: 'Inès', email: null, hasEmail: false, consentAt: null },
+          secondPlayer: {
+            displayName: 'Inès',
+            email: null,
+            hasEmail: false,
+            consentAt: null,
+            marketingConsent: false,
+          },
         }),
       ])
       expect(dbState.game_participants[0]).toMatchObject({
@@ -252,6 +259,216 @@ describe('routes/games.ts (US-GAME-08)', () => {
       expect(dbState.games).toHaveLength(0)
 
       await app.close()
+    })
+
+    describe('consentement aux offres du centre', () => {
+      const otherCompanyAdmin = { ...companyAdminUser, company_id: 2, companyId: 2 } as TestUser
+
+      function launch(participants: unknown, user: TestUser = companyAdminUser) {
+        return createRouteApp(gamesRoutes).then(async (app) => {
+          const response = await app.inject({
+            method: 'POST',
+            url: '/companies/1/games',
+            headers: authHeaders(user),
+            payload: { roomId: 1, participants },
+          })
+
+          await app.close()
+          return response
+        })
+      }
+
+      it('stores the offers consent apart from the email retention, for each player', async () => {
+        seedRoom()
+
+        const response = await launch([
+          {
+            podium: 1,
+            displayName: 'Léa',
+            email: 'lea@exemple.fr',
+            emailConsent: true,
+            marketingConsent: true,
+            secondPlayer: {
+              displayName: 'Noé',
+              email: 'noe@exemple.fr',
+              emailConsent: true,
+            },
+          },
+          {
+            podium: 2,
+            displayName: 'Hugo',
+            email: 'hugo@exemple.fr',
+            emailConsent: true,
+            secondPlayer: {
+              displayName: 'Inès',
+              email: 'ines@exemple.fr',
+              emailConsent: true,
+              marketingConsent: true,
+            },
+          },
+        ])
+
+        expect(response.statusCode).toBe(201)
+        expect(dbState.game_participants[0]).toMatchObject({
+          consent_at: MOCK_NOW,
+          marketing_consent_at: MOCK_NOW,
+          second_consent_at: MOCK_NOW,
+          second_marketing_consent_at: null,
+        })
+        expect(dbState.game_participants[1]).toMatchObject({
+          consent_at: MOCK_NOW,
+          marketing_consent_at: null,
+          second_consent_at: MOCK_NOW,
+          second_marketing_consent_at: MOCK_NOW,
+        })
+        expect(parseJson<GameBody>(response).game.participants).toEqual([
+          expect.objectContaining({
+            marketingConsent: true,
+            secondPlayer: expect.objectContaining({ marketingConsent: false }),
+          }),
+          expect.objectContaining({
+            marketingConsent: false,
+            secondPlayer: expect.objectContaining({ marketingConsent: true }),
+          }),
+        ])
+      })
+
+      it('does not record an offers consent that is explicitly false', async () => {
+        seedRoom()
+
+        const response = await launch([
+          {
+            podium: 1,
+            displayName: 'Léa',
+            email: 'lea@exemple.fr',
+            emailConsent: true,
+            marketingConsent: false,
+          },
+          { podium: 2, displayName: 'Hugo', marketingConsent: false },
+        ])
+
+        expect(response.statusCode).toBe(201)
+        expect(dbState.game_participants[0]).toMatchObject({ marketing_consent_at: null })
+        expect(dbState.game_participants[1]).toMatchObject({ marketing_consent_at: null })
+      })
+
+      it('stamps the offers consent with the server clock, ignoring client dates', async () => {
+        seedRoom()
+
+        const response = await launch([
+          {
+            podium: 1,
+            displayName: 'Léa',
+            email: 'lea@exemple.fr',
+            emailConsent: true,
+            marketingConsent: true,
+            marketingConsentAt: '2020-01-01T00:00:00Z',
+            marketing_consent_at: '2020-01-01T00:00:00Z',
+          },
+        ])
+
+        expect(response.statusCode).toBe(201)
+        expect(dbState.game_participants[0].marketing_consent_at).toBe(MOCK_NOW)
+      })
+
+      it.each<[string, unknown]>([
+        ['the first player', { podium: 1, displayName: 'Léa', marketingConsent: true }],
+        [
+          'the first player with a null email',
+          { podium: 1, displayName: 'Léa', email: null, marketingConsent: true },
+        ],
+        [
+          'the second player',
+          {
+            podium: 1,
+            displayName: 'Léa',
+            secondPlayer: { displayName: 'Noé', marketingConsent: true },
+          },
+        ],
+      ])('refuses an offers consent without email (%s)', async (_label, participant) => {
+        seedRoom()
+
+        const response = await launch([participant])
+
+        expect(response.statusCode).toBe(400)
+        expect(parseJson(response)).toMatchObject({ error: 'invalid_body' })
+        expect(JSON.stringify(parseJson(response))).toContain('marketing_consent_requires_email')
+        expect(dbState.games).toHaveLength(0)
+        expect(dbState.game_participants).toHaveLength(0)
+      })
+
+      it('shows the offers consent to the staff, who never see the email', async () => {
+        seedRoom()
+
+        const created = await launch(
+          [
+            {
+              podium: 1,
+              displayName: 'Léa',
+              email: 'lea@exemple.fr',
+              emailConsent: true,
+              marketingConsent: true,
+            },
+          ],
+          operator
+        )
+        const app = await createRouteApp(gamesRoutes)
+        const read = await app.inject({
+          method: 'GET',
+          url: '/companies/1/games/1',
+          headers: authHeaders(operator),
+        })
+        await app.close()
+
+        for (const response of [created, read]) {
+          expect(parseJson<GameBody>(response).game.participants[0]).toMatchObject({
+            email: null,
+            hasEmail: true,
+            marketingConsent: true,
+          })
+          expect(response.body).not.toContain('@exemple.fr')
+        }
+      })
+
+      it('lets another company admin neither create nor read anything', async () => {
+        seedRoom()
+        seedGame()
+        dbState.game_participants.push({
+          id: 1,
+          game_id: 1,
+          podium: 1,
+          display_name: 'Léa',
+          email: 'lea@exemple.fr',
+          consent_at: MOCK_NOW,
+          marketing_consent_at: MOCK_NOW,
+          score: 0,
+        })
+        const app = await createRouteApp(gamesRoutes)
+
+        const created = await launch(
+          [
+            {
+              podium: 1,
+              displayName: 'Hugo',
+              email: 'hugo@exemple.fr',
+              emailConsent: true,
+              marketingConsent: true,
+            },
+          ],
+          otherCompanyAdmin
+        )
+        const read = await app.inject({
+          method: 'GET',
+          url: '/companies/1/games/1',
+          headers: authHeaders(otherCompanyAdmin),
+        })
+        await app.close()
+
+        expect(created.statusCode).toBe(403)
+        expect(read.statusCode).toBe(403)
+        expect(read.body).not.toContain('lea@exemple.fr')
+        expect(dbState.game_participants).toHaveLength(1)
+      })
     })
 
     it.each<[Record<string, unknown>, string]>([

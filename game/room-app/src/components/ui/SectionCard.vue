@@ -39,8 +39,7 @@ const styleVars = computed(() => {
   border-radius: 18px;
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.05) inset,
-    0 20px 44px -28px rgba(0, 0, 0, 0.85),
-    0 0 28px -10px var(--glow-pink);
+    0 20px 44px -28px rgba(0, 0, 0, 0.85);
   overflow: hidden;
 }
 
