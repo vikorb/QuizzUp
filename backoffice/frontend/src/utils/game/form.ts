@@ -94,6 +94,7 @@ export function createGameParticipantFormValues(podium: number): GameParticipant
     email: '',
     // RGPD : le consentement n'est jamais pré-coché.
     emailConsent: false,
+    marketingConsent: false,
     hasSecondPlayer: false,
     ...createEmptySecondPlayerValues(),
   }
@@ -101,7 +102,7 @@ export function createGameParticipantFormValues(podium: number): GameParticipant
 
 type SecondPlayerValues = Pick<
   GameParticipantFormValues,
-  'secondDisplayName' | 'secondEmail' | 'secondEmailConsent'
+  'secondDisplayName' | 'secondEmail' | 'secondEmailConsent' | 'secondMarketingConsent'
 >
 
 function createEmptySecondPlayerValues(): SecondPlayerValues {
@@ -110,6 +111,7 @@ function createEmptySecondPlayerValues(): SecondPlayerValues {
     secondEmail: '',
     // RGPD : le consentement du 2e joueur n'est jamais pré-coché non plus.
     secondEmailConsent: false,
+    secondMarketingConsent: false,
   }
 }
 
@@ -333,15 +335,17 @@ export function hasGameFormErrors(errors: GameFieldErrors): boolean {
 function buildPlayerPayload(
   rawName: string,
   rawEmail: string,
-  emailConsent: boolean
+  emailConsent: boolean,
+  marketingConsent: boolean
 ): CreateGameSecondPlayerPayload {
   const payload: CreateGameSecondPlayerPayload = { displayName: rawName.trim() }
   const email = rawEmail.trim()
 
-  // Sans email, rien à consentir : on n'envoie ni l'email ni la case.
+  // Sans email, rien à consentir : on n'envoie ni l'email ni les cases.
   if (email) {
     payload.email = email
     payload.emailConsent = emailConsent === true
+    payload.marketingConsent = marketingConsent === true
   }
 
   return payload
@@ -352,7 +356,12 @@ function buildParticipantPayload(
 ): CreateGameParticipantPayload {
   const payload: CreateGameParticipantPayload = {
     podium: Number(participant.podium),
-    ...buildPlayerPayload(participant.displayName, participant.email, participant.emailConsent),
+    ...buildPlayerPayload(
+      participant.displayName,
+      participant.email,
+      participant.emailConsent,
+      participant.marketingConsent
+    ),
   }
 
   // Le 2e joueur n'est envoyé que si son bloc est ouvert ; le score reste celui du pupitre.
@@ -360,7 +369,8 @@ function buildParticipantPayload(
     payload.secondPlayer = buildPlayerPayload(
       participant.secondDisplayName,
       participant.secondEmail,
-      participant.secondEmailConsent
+      participant.secondEmailConsent,
+      participant.secondMarketingConsent
     )
   }
 

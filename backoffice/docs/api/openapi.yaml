@@ -50,10 +50,12 @@ tags:
     description: Salles de jeu d'une compagnie et leur configuration matérielle
   - name: Games
     description: Parties lancées par l'opérateur dans une salle
+  - name: DemoRequests
+    description: Demandes de démonstration reçues de la vitrine, consultées dans la console de l'éditeur
   - name: Public
     description: |
       API publique sous `/public/v1` (vitrine, réservation) : sans compte, sans jeton, sans cookie.
-      Aucune route n'y est livrée pour l'instant ; les routes à venir suivent ces conventions.
+      Les routes suivent ces conventions.
 
       - Erreurs au format `PublicError` : statut HTTP et `{ "error": "<code_snake_case>" }`, avec
         `details.fieldErrors` pour `invalid_body` seulement. Codes communs : `invalid_json` (400),
@@ -1836,7 +1838,7 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Crée une partie en attente dans une salle active et libre, avec 1 à 4 participants (un par pupitre). Un email n'est accepté qu'avec `emailConsent: true` (consentement RGPD horodaté dans `consentAt`). Format par défaut : 10 manches × 10 questions. La graine de tirage (0 à 2³² − 1) est tirée par le serveur.
+        Crée une partie en attente dans une salle active et libre, avec 1 à 4 participants (un par pupitre). Un email n'est accepté qu'avec `emailConsent: true` (consentement RGPD horodaté dans `consentAt`). Le consentement à recevoir les offres du centre (`marketingConsent`) est distinct : il n'est accepté qu'avec un email, et horodaté par le serveur (`marketingConsent` vaut alors `true` dans la réponse). Format par défaut : 10 manches × 10 questions. La graine de tirage (0 à 2³² − 1) est tirée par le serveur.
 
         **À venir (lot 13)** : le corps gagnera les champs de `CreateGameSchedulingFields` (`scheduledAt`, `durationMinutes`, `playersCount`, `externalRef`, `locale`). Avec `scheduledAt`, la partie est créée à l'état `scheduled` (participants de 0 à 6, pas de contrôle `room_busy`) ; nouvelles erreurs : 400 `session_in_past` (fin ≤ maintenant), 400 `session_too_far` (au-delà de 365 jours), 409 `slot_taken` (chevauchement d'une autre session de la salle). Sans `scheduledAt`, rien ne change.
 
@@ -1864,7 +1866,7 @@ paths:
                     allOf:
                       - $ref: '#/components/schemas/GameDetail'
         '400':
-          description: Corps invalide (dont `email_consent_required`, `participants_podium_duplicated`), ou pupitre au-delà du nombre de pupitres de la salle (`podium_not_in_room`, avec `desksCount`)
+          description: Corps invalide (dont `email_consent_required`, `marketing_consent_requires_email`, `participants_podium_duplicated`), ou pupitre au-delà du nombre de pupitres de la salle (`podium_not_in_room`, avec `desksCount`)
           content:
             application/json:
               schema:
@@ -2758,6 +2760,208 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+
+  /demo-requests:
+    get:
+      tags:
+        - DemoRequests
+      summary: '[DISPONIBLE] Lister les demandes de démonstration'
+      description: |
+        Statut : **Disponible**
+
+        Demandes reçues de la vitrine (`POST /public/v1/demo-requests`), les plus récentes d'abord,
+        sans pagination. `pendingCount` est le nombre de demandes non traitées.
+
+        Accès : réservé au rôle `superadmin`. Une demande est une ressource de l'éditeur : elle
+        n'appartient à aucune compagnie.
+      operationId: listDemoRequests
+      x-availability: disponible
+      responses:
+        '200':
+          description: Demandes de démonstration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DemoRequestsResponse'
+        '401':
+          description: Non authentifié
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /demo-requests/{demoRequestId}:
+    patch:
+      tags:
+        - DemoRequests
+      summary: '[DISPONIBLE] Marquer une demande traitée ou la rouvrir'
+      description: |
+        Statut : **Disponible**
+
+        `processed: true` renseigne `processedAt` et `processedBy` (compte appelant) ;
+        `processed: false` les efface. Une demande déjà traitée est renvoyée telle quelle
+        (auteur et date du premier traitement conservés).
+
+        Accès : réservé au rôle `superadmin`.
+      operationId: updateDemoRequest
+      x-availability: disponible
+      parameters:
+        - $ref: '#/components/parameters/DemoRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDemoRequestRequest'
+      responses:
+        '200':
+          description: Demande mise à jour
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  demoRequest:
+                    $ref: '#/components/schemas/DemoRequest'
+        '400':
+          description: Paramètres ou corps invalides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non authentifié
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Demande introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags:
+        - DemoRequests
+      summary: '[DISPONIBLE] Supprimer définitivement une demande'
+      description: |
+        Statut : **Disponible**
+
+        Suppression définitive de la ligne (droit à l'effacement), sans suppression logique.
+        Les demandes sont de toute façon supprimées 12 mois après leur création.
+
+        Accès : réservé au rôle `superadmin`.
+      operationId: deleteDemoRequest
+      x-availability: disponible
+      parameters:
+        - $ref: '#/components/parameters/DemoRequestId'
+      responses:
+        '204':
+          description: Demande supprimée
+        '400':
+          description: Paramètres invalides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non authentifié
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Demande introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /public/v1/demo-requests:
+    post:
+      tags:
+        - Public
+      summary: '[DISPONIBLE] Envoyer une demande de démonstration'
+      description: |
+        Statut : **Disponible**
+
+        Route publique du formulaire de la vitrine : aucune authentification. La demande est
+        enregistrée sans envoi d'e-mail ; l'éditeur la consulte dans sa console. On ne stocke ni
+        l'adresse IP ni le navigateur, et la demande est supprimée 12 mois après sa création.
+
+        Champ piège `website` : s'il est rempli, la réponse est la même `202` mais rien n'est
+        enregistré. Le corps est limité à 16 Ko. Limite : 5 envois par heure et par adresse
+        (`429` `too_many_requests`, en-tête `Retry-After`).
+      operationId: createDemoRequest
+      x-availability: disponible
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDemoRequestRequest'
+      responses:
+        '202':
+          description: Demande reçue (ou ignorée si le champ piège est rempli)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          description: Corps invalide (`invalid_json`, `invalid_body` avec `details.fieldErrors`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '413':
+          description: Corps de plus de 16 Ko (`payload_too_large`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '415':
+          description: Corps qui n'est pas du JSON (`unsupported_media_type`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '429':
+          description: Trop d'envois depuis cette adresse (`too_many_requests`)
+          headers:
+            Retry-After:
+              description: Secondes avant de pouvoir réessayer
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '500':
+          description: Erreur serveur (`server_error`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
 
   /players:
     get:
@@ -4319,6 +4523,15 @@ components:
         type: integer
         example: 1
 
+    DemoRequestId:
+      name: demoRequestId
+      in: path
+      required: true
+      description: Identifiant de la demande de démonstration
+      schema:
+        type: integer
+        example: 1
+
     CompanyIdParam:
       name: companyId
       in: path
@@ -4409,6 +4622,119 @@ components:
                 type: array
                 items:
                   type: string
+
+    CreateDemoRequestRequest:
+      type: object
+      required:
+        - name
+        - centerName
+        - email
+        - roomsCount
+        - consent
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: Espaces de début et de fin retirés ; le caractère NUL (`\u0000`) est refusé
+          example: Camille Martin
+        centerName:
+          type: string
+          minLength: 1
+          maxLength: 160
+          description: Espaces de début et de fin retirés ; le caractère NUL (`\u0000`) est refusé
+          example: Escape Test
+        email:
+          type: string
+          format: email
+          maxLength: 254
+          example: camille@example.com
+        phone:
+          type: string
+          pattern: '^[+0-9 ().-]{6,32}$'
+          example: '+33 1 23 45 67 89'
+        roomsCount:
+          type: integer
+          minimum: 1
+          maximum: 50
+          example: 3
+        message:
+          type: string
+          maxLength: 2000
+          description: >-
+            Espaces de début et de fin retirés (un message vide est stocké comme absent) ;
+            le caractère NUL (`\u0000`) est refusé
+        consent:
+          type: boolean
+          enum: [true]
+          description: Doit valoir `true` (consentement au traitement de la demande)
+        website:
+          type: string
+          maxLength: 0
+          description: Champ piège, laissé vide (invisible dans le formulaire)
+        locale:
+          type: string
+          enum: [fr, en]
+
+    DemoRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+        centerName:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          nullable: true
+        roomsCount:
+          type: integer
+        message:
+          type: string
+          nullable: true
+        locale:
+          type: string
+          enum: [fr, en]
+          nullable: true
+        consentAt:
+          type: string
+          format: date-time
+        processedAt:
+          type: string
+          format: date-time
+          nullable: true
+        processedBy:
+          type: integer
+          nullable: true
+          description: Compte superadmin qui a traité la demande (vide s'il a été supprimé)
+        createdAt:
+          type: string
+          format: date-time
+
+    DemoRequestsResponse:
+      type: object
+      properties:
+        demoRequests:
+          type: array
+          items:
+            $ref: '#/components/schemas/DemoRequest'
+        pendingCount:
+          type: integer
+          description: Nombre de demandes non traitées
+          example: 2
+
+    UpdateDemoRequestRequest:
+      type: object
+      required:
+        - processed
+      properties:
+        processed:
+          type: boolean
 
     QuestionMediaFile:
       type: object
@@ -5220,6 +5546,9 @@ components:
           format: date-time
           nullable: true
           description: Horodatage du consentement RGPD (obligatoire si un email est renseigné)
+        marketingConsent:
+          type: boolean
+          description: Le joueur accepte de recevoir les offres du centre (jamais vrai sans email). Visible de tous les rôles, l'horodatage n'est pas exposé.
         hasEmail:
           type: boolean
           description: Un email est enregistré (même s'il est masqué pour le rôle `user`)
@@ -5247,6 +5576,9 @@ components:
           type: string
           format: date-time
           nullable: true
+        marketingConsent:
+          type: boolean
+          description: Le 2e joueur accepte de recevoir les offres du centre (jamais vrai sans email)
 
     GameDetail:
       allOf:
@@ -5333,6 +5665,12 @@ components:
               emailConsent:
                 type: boolean
                 description: Case RGPD cochée explicitement ; requise si `email` est renseigné
+              marketingConsent:
+                type: boolean
+                description: >-
+                  Case « recevoir les offres du centre », distincte de `emailConsent` et facultative.
+                  `true` sans `email` donne `400 marketing_consent_requires_email`. Le serveur
+                  horodate lui-même.
               secondPlayer:
                 type: object
                 nullable: true
@@ -5349,6 +5687,9 @@ components:
                   emailConsent:
                     type: boolean
                     description: Requise si `email` est renseigné
+                  marketingConsent:
+                    type: boolean
+                    description: Offres du centre ; `true` sans `email` donne `400 marketing_consent_requires_email`
 
     Account:
       type: object

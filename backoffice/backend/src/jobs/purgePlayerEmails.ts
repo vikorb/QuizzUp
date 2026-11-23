@@ -69,11 +69,12 @@ const EXPIRED_EMAILS_CTE = `
   )
 `
 
-// Seuls l'email et son consentement sont effacés ; noms et scores sont conservés.
+// Seuls l'email et ses consentements (conservation, offres) sont effacés ; noms et scores sont
+// conservés.
 const CLEAR_FIRST_PLAYER_SQL = `
   ${EXPIRED_EMAILS_CTE}
   UPDATE game_participants gp
-  SET email = NULL, consent_at = NULL, updated_at = :now
+  SET email = NULL, consent_at = NULL, marketing_consent_at = NULL, updated_at = :now
   FROM games g, expired e
   WHERE g.id = gp.game_id
     AND gp.email IS NOT NULL
@@ -84,7 +85,8 @@ const CLEAR_FIRST_PLAYER_SQL = `
 const CLEAR_SECOND_PLAYER_SQL = `
   ${EXPIRED_EMAILS_CTE}
   UPDATE game_participants gp
-  SET second_email = NULL, second_consent_at = NULL, updated_at = :now
+  SET second_email = NULL, second_consent_at = NULL, second_marketing_consent_at = NULL,
+    updated_at = :now
   FROM games g, expired e
   WHERE g.id = gp.game_id
     AND gp.second_email IS NOT NULL
