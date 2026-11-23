@@ -52,7 +52,7 @@ renvoyés par `reduceGame` et lit `state.phase` pour l'affichage.
 | `blind_test_stage_resumed`                    | `stage`, `elapsedMs`, `remainingMs`                              | reprendre la fenêtre de buzz (audio déjà terminé si `elapsedMs ≥ extractMs`) |
 | `answer_correct` / `answer_wrong`             | `participantId`, `answerId`, `timedOut`                          | effet bonne / mauvaise réponse                                               |
 | `points_awarded`                              | `participantId`, `points`, `total`                               | animation de score                                                           |
-| `question_ended`                              | `questionId`, `winnerIds`                                        | phase `reveal` : afficher la bonne réponse                                   |
+| `question_ended`                              | `questionId`, `winnerIds`, `skipped?`                            | phase `reveal` : afficher la bonne réponse                                   |
 | `round_ended` / `game_ended` / `game_aborted` | classement, raison                                               | récap, podium final, effets de fin (fumée…)                                  |
 
 Règles d'intégration :
@@ -69,6 +69,14 @@ Règles d'intégration :
   `state.rounds[].questions[].answers` dans l'ordre de l'état.
 - **Buzzers** : l'hôte traduit une touche clavier en `{ podium: 1-6, button: 0-3 }` (0 = A) et
   envoie `press`. Le moteur décide seul si l'appui compte (buzz, réponse, choix de thème).
+- **Passer une question** : `{ type: 'skip', at, questionId }`, acceptée seulement en phase
+  `question` et si `questionId` est la question en cours (sinon sans effet : l'hôte relève
+  l'identifiant au clic, la question a pu finir d'elle-même avant la validation). La question se
+  termine sans point ni pénalité et la partie enchaîne comme après une question sans bonne
+  réponse ; `question_ended` porte `skipped: true`. Elle est notée dans `rounds[].skippedQuestionIds`
+  et ignorée par l'historique de la manche (série, mort subite). Exception : si c'est la dernière
+  question d'une mort subite, les survivants touchent quand même le bonus de fin de manche (200,
+  une seule fois, `points_awarded` sans les 50 points de la question).
 - **Persistance** : `game_events` ne suffit pas à rejouer une partie ; pour `replayGame`, l'hôte
   doit aussi journaliser la `seed` et les commandes reçues (ticks compris).
 - Les payloads exacts sont dans `src/engine.ts` et `src/miniGames/flashBlindTest.ts`.
