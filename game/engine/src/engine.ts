@@ -241,9 +241,11 @@ function beginRound(context: Context, at: number): void {
   const position = state.rounds.length + 1
   const previousMiniGame = getCurrentRound(state)?.miniGame
   const playableMiniGames = getPlayableMiniGames(state.setup)
-  // Tirage sans remise : le sac est relu à chaque manche pour écarter un mini-jeu devenu
-  // injouable, et rempli quand il est vide. Au remplissage, on évite de rejouer tout de suite
-  // le mini-jeu qui vient de l'être (hors sac, donc seulement possible à cet endroit).
+  // Tirage sans remise : le sac est rempli quand il est vide. Au remplissage, on évite de
+  // rejouer tout de suite le mini-jeu qui vient de l'être (hors sac, donc seulement possible à
+  // cet endroit). Le filtre sur les mini-jeux jouables est un garde-fou : par l'API le setup est
+  // figé et le cas n'arrive pas, mais un état modifié à la main ne doit pas tirer un mini-jeu
+  // injouable.
   let bag = state.miniGameBag.filter((miniGame) => playableMiniGames.includes(miniGame))
 
   if (bag.length === 0) {

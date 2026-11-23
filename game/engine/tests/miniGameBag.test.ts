@@ -74,6 +74,10 @@ function playToEnd(setup: GameSetup): { state: GameState; commands: GameCommand[
   return { state, commands }
 }
 
+/** Vrai quand la manche `round` en est à une question en cours. */
+const inQuestion = (round: number) => (state: GameState) =>
+  state.phase.name === 'question' && state.rounds.length === round
+
 function miniGamesOf(state: GameState): MiniGame[] {
   return state.rounds.map((round) => round.miniGame)
 }
@@ -81,10 +85,7 @@ function miniGamesOf(state: GameState): MiniGame[] {
 /** Chaque tranche de `size` manches alignée sur le sac contient chaque mini-jeu une fois. */
 function expectBagWindows(miniGames: MiniGame[], size: number) {
   for (let from = 0; from + size <= miniGames.length; from += size) {
-    const window = miniGames.slice(from, from + size)
-
-    expect([...window].sort()).toEqual([...new Set(window)].sort())
-    expect(new Set(window).size).toBe(size)
+    expect(new Set(miniGames.slice(from, from + size)).size).toBe(size)
   }
 }
 
@@ -127,7 +128,6 @@ describe('mini game bag (draw without replacement)', () => {
       playToEnd(setupOf({ miniGames: [MINI_GAME_QUICK_ANSWER, MINI_GAME_TRUE_FALSE] })).state
     )
 
-    expect(drawn.slice(0, 2)).not.toEqual([drawn[0], drawn[0]])
     for (const [index, miniGame] of drawn.entries()) {
       expect(miniGame).not.toBe(drawn[index - 1])
     }
@@ -155,8 +155,10 @@ describe('mini game bag (draw without replacement)', () => {
   it('drops a mini-game that becomes inadmissible mid-game, without repeating the others', () => {
     const size = 4
     const miniGames = MINI_GAMES.slice(0, size)
-    const commands: GameCommand[] = [{ type: 'start', at: 0 }]
-    const started = reduceGame(createGame(setupOf({ miniGames, roundsCount: 20 })), commands[0]!)
+    const started = reduceGame(createGame(setupOf({ miniGames, roundsCount: 20 })), {
+      type: 'start',
+      at: 0,
+    })
     const [removed] = started.state.miniGameBag as [MiniGame]
 
     // Le sac vient de perdre le premier mini-jeu ; on en retire un autre du sac, comme si
@@ -167,7 +169,7 @@ describe('mini game bag (draw without replacement)', () => {
     const mutated: GameState = structuredClone(started.state)
     mutated.setup.miniGames = mutated.setup.miniGames!.filter((miniGame) => miniGame !== removed)
 
-    const rest = advance(mutated, commands, (state) => state.phase.name === 'finished', 0).state
+    const rest = advance(mutated, [], (state) => state.phase.name === 'finished', 0).state
     const drawn = miniGamesOf(rest)
 
     expect(drawn).toHaveLength(20)
@@ -193,9 +195,8 @@ describe('mini game bag (draw without replacement)', () => {
   })
 
   it('keeps the bag in the serializable state: a JSON copy continues identically', () => {
-    const commands: GameCommand[] = [{ type: 'start', at: 0 }]
-    const started = reduceGame(createGame(setupOf()), commands[0]!).state
-    const midway = advance(started, commands, (state) => state.rounds.length === 4, 0)
+    const started = reduceGame(createGame(setupOf()), { type: 'start', at: 0 }).state
+    const midway = advance(started, [], (state) => state.rounds.length === 4, 0)
     const copy = JSON.parse(JSON.stringify(midway.state)) as GameState
 
     expect(copy.miniGameBag).toEqual(midway.state.miniGameBag)
@@ -205,5 +206,39 @@ describe('mini game bag (draw without replacement)', () => {
       advance(state, [], (current) => current.phase.name === 'finished', midway.at).state
 
     expect(miniGamesOf(finish(copy))).toEqual(miniGamesOf(finish(midway.state)))
+  })
+
+  it('resumes like the room screen (start/press/skip + one final tick) with the same bag', () => {
+    const size = 4
+    const setup = setupOf({ miniGames: MINI_GAMES.slice(0, size), roundsCount: size + 2 })
+    const podium = PARTICIPANTS[0]!.podium
+    const played: GameCommand[] = [{ type: 'start', at: 0 }]
+
+    // Partie jouée tick par tick, avec un appui en manche 1 et une question passée en manche 2.
+    let state = reduceGame(createGame(setup), played[0]!).state
+    let step = advance(state, played, inQuestion(1), 0)
+    const press: GameCommand = { type: 'press', at: step.at + 1, podium, button: 0 }
+    played.push(press)
+    state = reduceGame(step.state, press).state
+    step = advance(state, played, inQuestion(2), press.at)
+
+    const { phase } = step.state
+    const questionId =
+      phase.name === 'question' ? step.state.rounds[1]!.questions[phase.questionIndex]!.id : 0
+    const skip: GameCommand = { type: 'skip', at: step.at + 1, questionId }
+    played.push(skip)
+    state = reduceGame(step.state, skip).state
+    const end = advance(state, played, (current) => current.phase.name === 'finished', skip.at)
+
+    // Rejeu de `GameSession.resume` : les ticks ne sont pas journalisés, un seul tick final.
+    const journal = played.filter((command) => command.type !== 'tick')
+    const resumed = replayGame(setup, [...journal, { type: 'tick', at: end.state.lastAt! }]).state
+
+    expect(journal.map((command) => command.type)).toEqual(['start', 'press', 'skip'])
+    expect(played.length).toBeGreaterThan(journal.length * 10)
+    expect(end.state.rounds.length).toBeGreaterThanOrEqual(size + 2)
+    expect(miniGamesOf(end.state).slice(0, size).sort()).toEqual(MINI_GAMES.slice(0, size).sort())
+    expect(miniGamesOf(resumed)).toEqual(miniGamesOf(end.state))
+    expect(resumed).toEqual(end.state)
   })
 })
