@@ -1,6 +1,6 @@
 # Reprise du projet QuizzUP
 
-> Point d'étape du 2026-11-04 : on arrête le mode « projet multi-threads » et on reprend dans une
+> Point d'étape du 2026-11-04, complété le 2026-11-24 (§2.0) : on arrête le mode « projet multi-threads » et on reprend dans une
 > seule session Claude Code ouverte sur ce dépôt, avec des sous-agents si besoin. Ce fichier dit où
 > en est le projet et comment continuer. Lire aussi `CLAUDE.md` (conventions, commandes).
 
@@ -23,6 +23,84 @@ Tout le travail mergé est sur `main`. Les grandes briques :
 Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `docs/recette/guide-de-test.md`).
 
 ## 2. Travail en cours au moment de l'arrêt
+
+### 2.0 Point de reprise du 2026-11-24 : V1 menée en parallèle
+
+Consigne d'Enzo : mener de front tous les lots indépendants (coordinateur Fable 5.2, sous-agents
+selon `CLAUDE.md` §4.1). **Pour reprendre** : `gh pr list -R vikorb/QuizzUp` donne les PR
+ouvertes ; chaque PR ouverte a sa copie de travail sous `.claude/worktrees/<nom>` ; traiter les PR
+ouvertes ci-dessous avant de lancer un nouveau lot.
+
+**Références** : conceptions par lot dans `docs/cadrage/conception-*.md` ;
+`docs/cadrage/conceptions-arbitrages.md` prévaut (ordre des lots, horodatages de migration
+réservés, identifiants `US-…`).
+
+**Mergé sur `main` depuis le 23 novembre** :
+
+| Domaine               | PR                                                                                                                                       |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Pilotage en direct    | #130 flux SSE, #136 et #140 présence (backoffice, salle), #131 passer et pause                                                           |
+| Sécurité de salle     | #153 fumée non activable par le backoffice, #155 plafond de 3 éclairs par seconde, #159 fumée coupée à la pause                          |
+| Sessions programmées  | #154 socle (statut `scheduled`, contrainte d'exclusion), #171 réglages de créneaux d'une salle (serveur)                                 |
+| Exploitation, contenu | #160 feuille de résultats, #163 import CSV (serveur), #164 historique filtré et paginé, #169 consentement aux offres séparé              |
+| Console de l'éditeur  | #165 garde réseau du superadmin, #168 demandes de démonstration (serveur)                                                                |
+| Public                | #139 site vitrine (`vitrine/`), #150 socle `/public/v1` et limiteur de débit                                                             |
+| Jeu                   | #148 mini-jeux tirés sans remise, #151 effets sur les extraits et voix d'annonces, #162 boutons et mises en page de l'écran de salle     |
+| Production, outillage | #137 pile de production (`deploy/prod/`), #138 guides, #147 conceptions, #149 dépendances, #172 tests PostgreSQL de la CI pris par motif |
+
+**PR ouvertes au moment de l'écriture** (relecture indépendante faite et corrections poussées,
+sauf mention) :
+
+| PR   | Lot                                           | Copie de travail   | Reste à faire                                                                                               |
+| ---- | --------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------- |
+| #170 | 6a logo du centre                             | `logo-centre`      | merger dès que la CI est verte                                                                              |
+| #174 | 8b écran d'import CSV                         | `import-ecran`     | merger dès que la CI est verte                                                                              |
+| #167 | 7e journaux d'erreurs des salles              | `journaux-salle`   | merger dès que la CI est verte                                                                              |
+| #176 | S4 fumée armée après un test de coupure local | `fumee-test-local` | merger dès que la CI est verte (même fichier `roomHardware.ts` que #167 : conflit possible)                 |
+| #173 | 13.7 écran de réglage des créneaux            | `reglages-ecran`   | merger dès que la CI est verte                                                                              |
+| #177 | 13.3 programmer, modifier, ouvrir, annuler    | `sessions-backend` | **relecture en cours**, puis corrections, puis merge                                                        |
+| #175 | 13.5 écran Agenda                             | `agenda`           | merger **après #177** ; « Programmer » attend 13.6                                                          |
+| #178 | 12d TOTP du superadmin (serveur)              | `totp-serveur`     | **relecture en cours** ; à merger avec l'écran en deux temps (12f), sinon le superadmin ne se connecte plus |
+| #179 | S5 stroboscope autonome                       | `strobe-autonome`  | **relecture en cours**, puis corrections, puis merge                                                        |
+
+Après chaque merge, les autres PR sont en conflit sur `backoffice/CHANGELOG.md` côté GitHub
+(l'attribut `merge=union` ne vaut qu'en local) : fusionner `origin/main` dans la branche, pousser,
+attendre la CI, merger. Une PR à la fois.
+
+**Ordre des lots suivants** (chacun : issue, branche, PR, une relecture, merge) :
+
+1. Sessions (#142) : 13.4 routes de salle et 14.0 socle de réservation (après #177) ; 13.6
+   formulaire de programmation (après #175 ; `CreateGameView.vue` lit `?roomId=` et
+   `?scheduledAt=`) ; 13.8 écran de salle ; 13.9 événement `schedule_changed`.
+2. Console (#161) : 12f écran de connexion en deux temps (contrat de #178) ; 12e deux builds du
+   frontend (après #174 et #175, même routeur et même barre latérale) ; 12g écran des demandes de
+   démonstration ; formulaire de la vitrine branché sur `POST /public/v1/demo-requests`.
+3. Accueil par QR code (#166) : 2a après #177 (mêmes fichiers `routes/games*`), puis 2b à 2f.
+4. Exploitation (#157) : 7d statistiques, 7f écran des journaux (après #167), 7b, 7c, 7g.
+5. Après-partie (#156) : 6b à 6g (bons, e-mail de résultats). Contenu (#158) : 8c à 8e.
+6. Pilotage (#129) : fin du polling, suivi en direct, commandes à distance. Formats (#143),
+   spectacle (#145), audio (#144), API de réservation (lot 14, issue à créer).
+7. Ordre des modifications de `routes/room.ts` : 2a, 6a, 8c-1, 8d, 8e.
+
+**Jamais vérifié** : aucun écran neuf n'a été regardé dans un navigateur (agenda, créneaux, import,
+historique, feuille de résultats, logo, cases de consentement, alerte fumée) ; rien sur du vrai
+matériel ; pile de production jamais montée sur une machine ; SSE derrière Caddy ; SonarQube et
+Lighthouse du backoffice non lus (CI GitLab hors de portée de ce poste).
+
+**Choix par défaut pris sans Enzo, à confirmer** : plafond des éclairs (3 par seconde, 400 ms) ;
+fumée coupée à la pause ; chaque poste refait le test de coupure une fois (#176) ; le backoffice ne
+modifie plus `lighting` ; fuseaux en noms IANA seulement ; journaux de salle gardés 30 jours et
+5 000 lignes ; demandes de démonstration gardées 12 mois, 5 par heure et par adresse, sans envoi
+d'e-mail ; logo de 512 Ko au plus, sans SVG ; TOTP sans QR code ; mini-jeux du lot 4 hors V1.
+
+**Suivis mineurs relevés en relecture** (à regrouper dans une PR) : clés i18n `invalid_query`,
+`payload_too_large`, `bad_request` et codes `schedule_*` ; cibles de 48 px de `SwitchField` et
+`BaseToolBar` ; colonnes du modèle CSV à déplacer dans `@quizzup/shared` ; grille de créneaux
+vide à refuser ou signaler ; `diagnostics.setChannel` non plafonné ; §1.8 du guide de sécurité
+à mettre à jour (le plafond des éclairs existe) ; cas F9 du banc : test relancé puis page
+rechargée ; `openapi.yaml` référence des schémas absents de `components` ; `knip` à relancer.
+
+### 2.1 Sessions précédentes
 
 - **Session du 2026-11-23 : lot 1 du cadrage V1, « Pilotage en direct »** (issue #129,
   US-LIVE-01). Canal retenu : SSE du serveur vers les clients, lu par `fetch` (en-tête
@@ -183,7 +261,12 @@ vrai QCM).
   corriger, puis merger soi-même (merge commit) une fois la CI GitHub verte. Lister les points
   mineurs en « Suivis » dans la PR.
 - Mettre à jour OpenAPI, DBML, CHANGELOG (lignes `US:`), i18n fr/en selon le changement.
-- Rester économe en tokens : peu de sous-agents, pas de relecture en double.
+- Pas de relecture en double. Depuis le 23 novembre, Enzo demande de lancer de front tous les
+  lots réellement indépendants ; deux lots qui touchent les mêmes fichiers restent en série.
+- Les sous-agents ne lancent aucune commande git d'écriture ; le coordinateur écarte les
+  `package.json` et `package-lock.json` modifiés par `npm install` avant chaque commit.
+- Les tests `*.pg.test.ts` partagent une base : chaque fichier prépare ses données et laisse la
+  base migrée au dernier état.
 - **Organisation des agents (impératif, voir `CLAUDE.md` §4.1)** : la session principale
   (Opus 5.5) coordonne et ne code pas ; développement = Sonnet 5.5 effort élevé ; recherche ou
   lecture d'information = Haiku 5.5 (agent `lecteur`) ; réflexion, conception et relecture de PR =
@@ -226,8 +309,8 @@ vrai QCM).
 Tu reprends le projet QuizzUP (dépôt vikorb/QuizzUp). Parle-moi toujours en français ; les rapports
 sont de vrais fichiers exportables (.md ou .docx), pas des artefacts. Commence par lire CLAUDE.md
 puis docs/REPRISE.md, qui donnent les conventions, l'état de main, mes décisions, les lots restants
-par priorité et les pièges connus. Reprends le lot en cours (docs/REPRISE.md §2), puis enchaîne
-les lots dans l'ordre de docs/cadrage/cadrage-v1.md.
+par priorité et les pièges connus. Reprends au point de reprise (docs/REPRISE.md §2.0) : d'abord
+les PR ouvertes, puis les lots dans l'ordre indiqué, en parallèle quand ils sont indépendants.
 Pour chaque lot : branche dédiée, lint + type-check + tests verts, PR, relecture par un seul
 sous-agent indépendant, corrections, merge toi-même quand la CI GitHub est verte. Mets à jour
 docs/REPRISE.md à la fin de chaque lot. Sois économe en tokens et ne me dérange que pour une
