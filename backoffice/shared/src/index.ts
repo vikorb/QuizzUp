@@ -308,27 +308,68 @@ export const GAME_STATUSES = [
 
 export type GameStatus = (typeof GAME_STATUS)[keyof typeof GAME_STATUS]
 
-/** Avancement d'une game, indépendant du statut de suppression logique. */
+/**
+ * Avancement d'une game, indépendant du statut de suppression logique. Une session programmée
+ * naît `scheduled` ; « l'ouvrir » la passe `pending`. `cancelled` : session programmée annulée
+ * avant d'avoir été ouverte (distinct de `aborted`, qui arrête une partie ouverte).
+ */
+export const GAME_STATE_SCHEDULED = 'scheduled' as const
 export const GAME_STATE_PENDING = 'pending' as const
 export const GAME_STATE_RUNNING = 'running' as const
 export const GAME_STATE_FINISHED = 'finished' as const
 export const GAME_STATE_ABORTED = 'aborted' as const
+export const GAME_STATE_CANCELLED = 'cancelled' as const
 
 export const GAME_STATE = {
+  SCHEDULED: GAME_STATE_SCHEDULED,
   PENDING: GAME_STATE_PENDING,
   RUNNING: GAME_STATE_RUNNING,
   FINISHED: GAME_STATE_FINISHED,
   ABORTED: GAME_STATE_ABORTED,
+  CANCELLED: GAME_STATE_CANCELLED,
 } as const
 
+/** Même ordre que le CHECK `games_state_check` (un test les compare). */
 export const GAME_STATES = [
+  GAME_STATE_SCHEDULED,
   GAME_STATE_PENDING,
   GAME_STATE_RUNNING,
   GAME_STATE_FINISHED,
   GAME_STATE_ABORTED,
+  GAME_STATE_CANCELLED,
 ] as const
 
 export type GameState = (typeof GAME_STATE)[keyof typeof GAME_STATE]
+
+/**
+ * États qui occupent un créneau de salle : la contrainte d'exclusion
+ * `games_room_schedule_no_overlap` ne joue que pour eux (terminée, arrêtée ou annulée libère).
+ */
+export const GAME_SLOT_STATES = [
+  GAME_STATE_SCHEDULED,
+  GAME_STATE_PENDING,
+  GAME_STATE_RUNNING,
+] as const
+
+/**
+ * Sessions programmées (lot 13). Durées en minutes. Une session s'ouvre au plus
+ * `SESSION_OPEN_EARLY_MINUTES` avant son début et ne se réserve pas au-delà de
+ * `SESSION_HORIZON_DAYS` jours (constante définie dans `schedule.ts`, ré-exportée en bas de ce
+ * fichier).
+ */
+export const SESSION_DEFAULT_MINUTES = 60 as const
+export const SESSION_MIN_MINUTES = 10 as const
+export const SESSION_MAX_MINUTES = 240 as const
+export const SESSION_MAX_BREAK_MINUTES = 120 as const
+export const SESSION_OPEN_EARLY_MINUTES = 60 as const
+
+/** Langue d'une réservation (CHECK `games.locale`). */
+export const GAME_LOCALES = ['fr', 'en'] as const
+
+export type GameLocale = (typeof GAME_LOCALES)[number]
+
+/** Longueur maximale de `games.external_ref` (référence du système de réservation du client). */
+export const GAME_EXTERNAL_REF_MAX_LENGTH = 100 as const
 
 /**
  * Mini-jeux disponibles (catalogue du cadrage §5.2). Chaque code est implémenté
@@ -433,6 +474,8 @@ export const GAME_THEMES_OFFERED_PER_ROUND = 4 as const
 /** Plafond de pupitres d'une salle (décision d'Enzo, 2026-11-04 : 6 au maximum). */
 export const GAME_PODIUMS = 6 as const
 export const GAME_BUZZERS_PER_PODIUM = 4 as const
+/** Joueurs d'une partie : deux par pupitre (CHECK `games.players_count`, 1 à ce plafond). */
+export const GAME_MAX_PLAYERS = GAME_PODIUMS * 2
 
 /** Pupitres d'une salle neuve (4 par défaut, réglable de 1 à `GAME_PODIUMS`). */
 export const ROOM_DEFAULT_DESKS = 4 as const
@@ -454,6 +497,37 @@ export function getRoomDesksCount(config: unknown): number {
   }
 
   return Math.min(GAME_PODIUMS, Math.max(ROOM_MIN_DESKS, Math.trunc(raw)))
+}
+
+/** Fuseau d'une salle sans réglage explicite (le fuseau est porté par la salle, pas la compagnie). */
+export const ROOM_DEFAULT_TIMEZONE = 'Europe/Paris' as const
+
+/** Jours ISO d'un horaire de créneaux : `'1'` lundi à `'7'` dimanche. */
+export const ROOM_SCHEDULE_DAYS = ['1', '2', '3', '4', '5', '6', '7'] as const
+
+export type RoomScheduleDayKey = (typeof ROOM_SCHEDULE_DAYS)[number]
+
+/**
+ * Horaires d'un jour, `HH:MM` sur 24 h, heure locale de la salle. `closesAt` ≤ `opensAt` veut
+ * dire « ferme le lendemain » ; `firstSessionAt` vaut `opensAt` s'il est absent.
+ */
+export type RoomScheduleDay = {
+  opensAt: string
+  firstSessionAt?: string
+  closesAt: string
+}
+
+/**
+ * Réglages de créneaux d'une salle (`rooms.schedule`, jsonb, nul = pas de créneaux, salle non
+ * réservable). Une clé absente de `days` veut dire jour fermé.
+ */
+export type RoomSchedule = {
+  timezone: string
+  slotMinutes: number
+  breakMinutes: number
+  bookableDesks: number
+  publicBooking: boolean
+  days: Partial<Record<RoomScheduleDayKey, RoomScheduleDay>>
 }
 
 /** Graine de tirage d'une partie : entier 32 bits (générateur du moteur de jeu). */
@@ -518,6 +592,8 @@ export const LIVE_EVENT = {
   SNAPSHOT: 'snapshot',
   /** Changement d'état d'une salle : `RoomLive`. */
   ROOM_STATUS: 'room_status',
+  /** Une session programmée a été créée, modifiée, annulée ou ouverte : `{ roomId }`. */
+  SCHEDULE_CHANGED: 'schedule_changed',
 } as const
 
 export type LiveEvent = (typeof LIVE_EVENT)[keyof typeof LIVE_EVENT]
@@ -639,3 +715,4 @@ export function createSseParser(onEvent: (message: SseMessage) => void): (chunk:
 }
 
 export * from './demoRequests.js'
+export * from './schedule.js'

@@ -263,11 +263,68 @@ est fourni, sinon de `payload.participantId` via `resolveDesk`.
 | `question_ended` sans gagnant                          | `question-lost`                   |
 | `round_ended`                                          | `round-end`                       |
 | `game_ended` (un seul gagnant → spot sur son pupitre)  | `victory` (+ fumée si armée)      |
+| `game_ended` à égalité (clé `game_ended_tie`)          | `victory-tie` (+ fumée si armée)  |
 | `game_aborted`                                         | `idle`                            |
 
-Chaque salle peut surcharger une liaison (`lighting.bindings`, `null` pour la couper). Une scène
+Chaque salle peut surcharger une liaison (`lighting.bindings`, `null` pour la couper). Une salle qui
+a réglé `game_ended` sans régler `game_ended_tie` garde son choix à égalité. Une scène
 moins prioritaire n'interrompt pas la scène en cours (un extrait qui reprend ne coupe pas
-l'effet « bonne réponse »). Couleurs : DA néon du backoffice, une couleur par pupitre.
+l'effet « bonne réponse »). Priorités : `idle` 0 ; `question`, `clip-playing` 10 ; `game-start`,
+`round-start`, `chooser`, `round-end` 20 ; `buzz`, `answer-correct`, `answer-wrong`,
+`question-lost` 40 (un buzz juste après une mauvaise réponse n'est donc pas refusé) ; `victory`,
+`victory-tie` 50 ; `identify` 90. Couleurs : DA néon du backoffice, une couleur par pupitre.
+
+**Plafond d'éclairs (photosensibilité)** : la salle ne fait pas plus de **3 éclairs par seconde**,
+quelle que soit la scène jouée par le lecteur de scènes. Le seuil de référence est
+`MAX_FLASHES_PER_SECOND` (3) ; l'écart réellement tenu est `MIN_FLASH_INTERVAL_MS` = **400 ms**
+(3 éclairs par seconde donneraient 334 ms ; la marge couvre la latence d'émission USB et Art-Net,
+à mesurer sur le banc). Les deux sont dans `src/lighting/scenes.ts`.
+
+Un **éclair** est la remontée du niveau réel d'un appareil (intensité × plus forte composante de
+couleur, de 0 à 1) d'au moins `FLASH_RISE_LEVEL` (0,1) au-dessus du minimum atteint depuis le
+dernier éclair compté. Un fondu ou un palier prolongé compte pour un seul éclair ; un passage du
+noir au blanc à intensité 1 en est un, comme un saut de 0,55 à 1. Le plafond vaut pour **toute la
+salle** : un allumage sur n'importe quel appareil attend 400 ms après le dernier éclair de la salle,
+sauf s'il tombe dans le même instant (plusieurs appareils qui s'allument ensemble comptent pour un).
+
+- Les scènes par défaut le respectent dans leur définition (un test le vérifie pour chaque flash).
+- Une étape `flash` plus rapide que le plafond est ramenée à 400 ms de période
+  (`flashPeriodMs`, utilisée par `stepDuration` et par le lecteur ; l'éteint est allongé).
+- Le lecteur (`createScenePlayer`) tient le plafond pour **toute** scène jouée (scène réglée par une
+  salle, étapes de couleur qui alternent, enchaînement de deux scènes) : tout état écrit sur un
+  appareil passe par une seule fonction qui retient un éclair trop proche du précédent, puis
+  l'applique dès que le plafond le permet. Un état final retenu est appliqué même si la scène est
+  finie, et n'est pas effacé par la scène suivante qui ne vise pas cet appareil ; un flash retenu
+  dont la fenêtre est passée est perdu, pas rejoué. Un buzz juste après un éclair peut donc
+  s'allumer jusqu'à 400 ms plus tard. L'arrêt d'urgence et `blackout()` restent immédiats et
+  oublient tout état retenu.
+
+**Hors du plafond (non couvert par ce code, lot S5)** : un appareil qui clignote tout seul ne passe
+pas par le niveau mesuré. Cela concerne un canal `shutter` ou `fixed` d'un profil sur mesure dont la
+valeur tombe dans la plage stroboscope de l'appareil (ou une valeur `amber` / `uv` dans ce cas), le
+diagnostic (`diagnostics.setChannel`, `setFixture({ strobe })`) qui n'est pas plafonné, et un
+stroboscope piloté par une liste d'identifiants. Vérifier sur la notice de chaque appareil les
+valeurs `shutter` et `fixed` choisies (banc D8) ; aucun avertissement automatique pour l'instant.
+
+Cadences par défaut (nombre d'éclairs × durée allumé / éteint ; période de 400 ms = 2,5 éclairs/s) :
+
+| Scène                  | Avant                              | Après                                                      |
+| ---------------------- | ---------------------------------- | ---------------------------------------------------------- |
+| `game-start`           | 3 × 150/100 (4,0 éclairs/s)        | 2 × 150/250 (2,5 éclairs/s)                                |
+| `round-start`          | 2 × 150/100 (4,0 éclairs/s)        | 2 × 150/250 (2,5 éclairs/s)                                |
+| `buzz`                 | 3 × 80/60 (7,1 éclairs/s)          | 1 × 120/280, pupitre fixe 500 ms après le buzz (fondu 100) |
+| `answer-correct`       | 3 × 120/80 (5,0 éclairs/s)         | 2 × 140/260 (2,5 éclairs/s)                                |
+| `answer-wrong`         | 2 × 200/120 (3,1 éclairs/s)        | 2 × 200/200 (2,5 éclairs/s)                                |
+| `round-end`            | 2 × 200/120 (3,1 éclairs/s)        | 2 × 200/200 (2,5 éclairs/s)                                |
+| `victory`              | 6 × 100/80 (5,6 éclairs/s)         | 3 × 120/280 (2,5 éclairs/s)                                |
+| `victory-tie`          | nouvelle scène (absente de `main`) | 3 × 150/290 (2,3 éclairs/s)                                |
+| `identify` (inchangée) | 4 × 250/200 (2,2 éclairs/s)        | 4 × 250/200 (2,2 éclairs/s)                                |
+
+Cibles des scènes : un **stroboscope** (type `strobe`) n'est jamais piloté par `all`, `desk` ou
+`others` : seule une liste d'identifiants qui le nomme l'allume (hors scène qui le demande, son
+gradateur et son canal strobe restent à 0). Un pupitre **sans aucun appareil** (ni PAR dédié, ni
+position de lyre), ou **inconnu** (participant sans pupitre résolu, `desk: null`), fait que `desk`
+vise toute la salle et `others` ne vise personne ; la couleur « pupitre » est alors le blanc.
 
 ## Sécurité fumée
 
@@ -285,6 +342,13 @@ Le contrôleur de fumée applique, quoi que dise la configuration :
   perdue derrière une écriture lente ; en changeant d'interface ou à l'arrêt, plus aucune trame
   de jeu ne part et une trame noire est envoyée **en dernier** ;
 - pas de célébration ni de fumée sur une partie terminée faute de contenu ;
+- **partie en pause** (`lights.setGamePaused(true)`, appelé par l'écran de salle) : le jet en cours
+  est coupé et sa trame à 0 part aussitôt (comme pour `smoke.stop()`), puis toute demande de jet est
+  refusée avec le motif `paused`, quel que soit l'appelant : étape `smoke` d'une scène déjà lancée,
+  `smoke.fire`, test de gel. Les lumières continuent ; une étape refusée n'est pas rejouée à la
+  reprise (`setGamePaused(false)`), et le temps de repos du jet coupé reste dû. L'arrêt d'urgence
+  garde la priorité ;
+- `game_aborted` arrête la scène en cours, même plus prioritaire, avant de jouer `idle` ;
 - **arrêt d'urgence logiciel** (`lights.emergencyStop()`) : noir complet, fumée coupée et
   verrouillée ; `resetEmergency()` rallume l'ambiance ; la fumée reste désarmée et doit toujours être
   réarmée à la main, même si la salle n'exige pas de confirmation. L'application de salle retient
