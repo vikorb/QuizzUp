@@ -4,6 +4,7 @@ import {
   resetGamesServiceMock,
   roomsFixture,
 } from '@frontend-tests/_helpers/gamesServiceMock'
+import { createRoomLive } from '@frontend-tests/_helpers/liveMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import {
@@ -12,6 +13,7 @@ import {
   MINI_GAME_FLASH_BLIND_TEST,
   MINI_GAME_QUICK_ANSWER,
   MINI_GAMES,
+  ROOM_PRESENCE,
   ROOM_STATUS_ACTIVE,
   ROOM_STATUS_INACTIVE,
 } from '@quizzup/shared'
@@ -41,6 +43,12 @@ function mountForm(rooms: GameRoom[] = roomsFixture, roomsLoading = false): VueW
       roomsLoading,
     },
   })
+}
+
+function optionLabels(wrapper: VueWrapper): string[] {
+  return roomSelect(wrapper)
+    .findAll('option')
+    .map((option) => option.text())
 }
 
 function participants(wrapper: VueWrapper) {
@@ -584,6 +592,81 @@ describe('views/games/creation/CreateGameForm.vue', () => {
     expect(wrapper.get('[data-test="form-result-error"]').text()).toBe(
       'games.errors.emailConsentRequired'
     )
+  })
+
+  describe('live presence', () => {
+    const liveRooms = {
+      10: createRoomLive({ roomId: 10, presence: ROOM_PRESENCE.ONLINE }),
+      11: createRoomLive({ roomId: 11, presence: ROOM_PRESENCE.IN_GAME }),
+    }
+
+    function mountLiveForm(liveUncertain = false): VueWrapper {
+      return mountWithFrontendMocks(CreateGameForm, {
+        props: { companyId: 1, rooms: roomsFixture, liveRooms, liveUncertain, now: 0 },
+      })
+    }
+
+    it('shows no presence when no live information is given', () => {
+      const wrapper = mountForm()
+
+      expect(wrapper.find('[data-test="room-presence"]').exists()).toBe(false)
+      expect(optionLabels(wrapper)).toContain('Salle Néon')
+    })
+
+    it('writes the presence of each room in the list', () => {
+      const wrapper = mountLiveForm()
+
+      expect(optionLabels(wrapper)).toEqual(
+        expect.arrayContaining([
+          'Salle Néon · live.presence.online',
+          'Salle Laser · live.presence.in_game',
+        ])
+      )
+    })
+
+    it('shows the presence of the chosen room, and nothing before a choice', async () => {
+      const wrapper = mountLiveForm()
+
+      expect(wrapper.find('[data-test="room-presence"]').exists()).toBe(false)
+
+      await roomSelect(wrapper).get('select').setValue('11')
+
+      expect(wrapper.get('[data-test="room-presence"]').attributes('data-presence')).toBe('in_game')
+    })
+
+    it('claims nothing while the live stream is cut', async () => {
+      const wrapper = mountLiveForm(true)
+
+      await roomSelect(wrapper).get('select').setValue('10')
+
+      expect(wrapper.get('[data-test="room-presence"]').attributes('data-presence')).toBe('unknown')
+      expect(wrapper.text()).not.toContain('live.presence.online')
+    })
+
+    it('keeps the plain room name in the list while the live state is uncertain', () => {
+      const wrapper = mountLiveForm(true)
+
+      expect(optionLabels(wrapper)).toEqual(expect.arrayContaining(['Salle Néon', 'Salle Laser']))
+      expect(optionLabels(wrapper).some((label) => label.includes('live.presence'))).toBe(false)
+    })
+
+    it('still lets the operator launch a game in an offline room', async () => {
+      const wrapper = mountWithFrontendMocks(CreateGameForm, {
+        props: {
+          companyId: 1,
+          rooms: roomsFixture,
+          liveRooms: { 10: createRoomLive({ roomId: 10, presence: ROOM_PRESENCE.OFFLINE }) },
+          liveUncertain: false,
+          now: 0,
+        },
+      })
+
+      await roomSelect(wrapper).get('select').setValue('10')
+      await fillParticipant(wrapper, 0, { displayName: 'Team A' })
+      await submit(wrapper)
+
+      expect(createGameServiceMock).toHaveBeenCalledTimes(1)
+    })
   })
 
   it('cancels without calling the API', async () => {

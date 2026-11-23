@@ -5,6 +5,7 @@ export type ApiRequestOptions = {
   headers?: HeadersInit
   authenticated?: boolean
   credentials?: RequestCredentials
+  signal?: AbortSignal
 }
 
 export type ApiErrorCode =
