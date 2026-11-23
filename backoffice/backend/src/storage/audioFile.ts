@@ -5,6 +5,8 @@ import {
   type QuestionAudioMimeType,
 } from '@quizzup/shared'
 
+import { startsWithBytes } from './signature'
+
 /** `audio/MPEG; charset=…` → `audio/mpeg`, ou `null` si le format n'est pas accepté. */
 export function normalizeAudioMimeType(contentType: unknown): QuestionAudioMimeType | null {
   if (typeof contentType !== 'string') {
@@ -14,10 +16,6 @@ export function normalizeAudioMimeType(contentType: unknown): QuestionAudioMimeT
   const baseType = contentType.split(';')[0]?.trim().toLowerCase() ?? ''
 
   return QUESTION_AUDIO_MIME_TYPE_ALIASES[baseType] ?? null
-}
-
-function startsWithBytes(content: Buffer, bytes: number[], offset = 0): boolean {
-  return bytes.every((byte, index) => content[offset + index] === byte)
 }
 
 function isMpegAudio(content: Buffer): boolean {
