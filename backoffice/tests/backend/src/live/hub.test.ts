@@ -223,39 +223,47 @@ describe('live hub broadcast', () => {
   })
 })
 
-describe('live hub memory', () => {
-  it('forgets a room that went offline without a stream, once the staff was told', () => {
+describe('live hub memory of offline rooms', () => {
+  it('keeps the last report and the last seen date of a room that went offline', () => {
     const { hub, clock } = newHub()
     const staff = makeSink()
+    const reportedAt = new Date(clock.now).toISOString()
 
-    hub.report(1, 10, idleReport)
+    hub.report(1, 10, playingReport)
     hub.subscribeStaff(10, 1, staff)
     clock.now += LIVE_OFFLINE_AFTER_MS
     hub.sweep()
 
     expect(staff.events).toHaveLength(1)
-    expect(hub.roomLive(1)).toMatchObject({ presence: ROOM_PRESENCE.OFFLINE, lastSeenAt: null })
+    expect(hub.roomLive(1)).toEqual({
+      roomId: 1,
+      presence: ROOM_PRESENCE.OFFLINE,
+      controllable: false,
+      lastSeenAt: reportedAt,
+      status: playingReport,
+    })
   })
 
-  it('keeps an offline room while its stream is open, forgets it when the stream closes', () => {
+  it('keeps an offline room after its stream closed too', () => {
     const { hub, clock } = newHub()
-    const staff = makeSink()
+    const reportedAt = new Date(clock.now).toISOString()
     const streamId = hub.openRoomStream(1, 10, makeSink())
 
     hub.report(1, 10, idleReport)
-    hub.subscribeStaff(10, 1, staff)
     clock.now += LIVE_OFFLINE_AFTER_MS
     hub.sweep()
-
-    expect(hub.roomLive(1).lastSeenAt).not.toBeNull()
-
     hub.closeRoomStream(1, streamId)
 
-    expect(hub.roomLive(1).lastSeenAt).toBeNull()
+    expect(hub.roomLive(1)).toMatchObject({
+      presence: ROOM_PRESENCE.OFFLINE,
+      lastSeenAt: reportedAt,
+      status: idleReport,
+    })
   })
 
-  it('keeps an online room whose stream closed until its silence is announced', () => {
+  it('keeps an online room whose stream closed, and its last seen date once offline', () => {
     const { hub, clock } = newHub()
+    const reportedAt = new Date(clock.now).toISOString()
     const streamId = hub.openRoomStream(1, 10, makeSink())
 
     hub.report(1, 10, idleReport)
@@ -266,10 +274,13 @@ describe('live hub memory', () => {
     clock.now += LIVE_OFFLINE_AFTER_MS
     hub.sweep()
 
-    expect(hub.roomLive(1)).toMatchObject({ presence: ROOM_PRESENCE.OFFLINE, lastSeenAt: null })
+    expect(hub.roomLive(1)).toMatchObject({
+      presence: ROOM_PRESENCE.OFFLINE,
+      lastSeenAt: reportedAt,
+    })
   })
 
-  it('remembers a room again when it reports after being forgotten', () => {
+  it('comes back online when an offline room reports again', () => {
     const { hub, clock } = newHub()
 
     hub.report(1, 10, idleReport)

@@ -21,7 +21,10 @@ import { authHeaders, getApiBase, getRoomToken, isDemoMode } from '@/utils/auth'
  * touche à la partie en cours que pour lire son état. Il ne tourne pas en mode démo.
  */
 
-/** Attentes avant chaque nouvelle ouverture du flux ; la dernière se répète. Remise à zéro au `hello`. */
+/**
+ * Attentes avant chaque nouvelle ouverture du flux ; la dernière se répète. Remise à zéro quand le
+ * flux a tenu un battement après son `hello` (un proxy qui coupe aussitôt ne la remet pas à zéro).
+ */
 export const RECONNECT_DELAYS_MS = [1000, 2000, 5000, 10_000, 30_000] as const
 /** Écart minimal entre deux rapports : les changements rapprochés sont regroupés. */
 export const MIN_PUBLISH_GAP_MS = 1000
@@ -44,6 +47,8 @@ let streamId: string | undefined
 let heartbeatMs: number = LIVE_HEARTBEAT_MS
 let statusEveryMs: number = LIVE_STATUS_EVERY_MS
 let attempt = 0
+/** Instant du `hello` du flux courant, `null` tant qu'il n'est pas arrivé. */
+let helloAt: number | null = null
 let lastSentAt = Number.NEGATIVE_INFINITY
 let lastKey = ''
 let inFlight = false
@@ -74,12 +79,13 @@ function isAudioReady(): boolean {
   )
 }
 
-function currentReport() {
+function currentReport(backofficeGame: ReturnType<typeof readSavedBackofficeGame>) {
   return buildRoomStatusReport({
     routeName: routeName(),
     state: state.value,
-    backofficeGame: readSavedBackofficeGame(),
+    backofficeGame,
     paused: paused.value,
+    // Pas réactif : « son prêt » n'est publié qu'au prochain rapport (15 s au plus).
     audioReady: isAudioReady(),
   })
 }
@@ -124,6 +130,7 @@ function endSession(): void {
     return
   }
 
+  // `sync` : une partie fermée puis une autre ouverte dans le même tour doit quand même être vue.
   stopWatchingExpiry = watch(
     () => session.value === null,
     (closed) => {
@@ -132,7 +139,8 @@ function endSession(): void {
         stopWatchingExpiry = null
         void expireRoomSession()
       }
-    }
+    },
+    { flush: 'sync' }
   )
 }
 
@@ -178,6 +186,7 @@ async function publish(): Promise<void> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), STATUS_TIMEOUT_MS)
   const headers = authHeaders(token)
+  const sentStreamId = streamId
 
   headers.set('Content-Type', 'application/json')
   postAborts.set(controller, timeout)
@@ -186,7 +195,8 @@ async function publish(): Promise<void> {
     const res = await fetch(`${getApiBase()}/room/status`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ ...currentReport(), streamId }),
+      // La mémoire locale n'est lue qu'ici, à l'envoi, jamais dans le calcul surveillé.
+      body: JSON.stringify({ ...currentReport(readSavedBackofficeGame()), streamId: sentStreamId }),
       signal: controller.signal,
     })
 
@@ -195,7 +205,8 @@ async function publish(): Promise<void> {
     } else if (gen === myGen && res.status === 409) {
       const body = (await res.json().catch(() => null)) as { error?: string } | null
 
-      if (gen === myGen && body?.error === REPLACED_ERROR) {
+      // Un 409 pour un ancien flux (perdu depuis) ne dit rien du flux courant.
+      if (gen === myGen && streamId === sentStreamId && body?.error === REPLACED_ERROR) {
         markReplaced()
       }
     }
@@ -251,7 +262,7 @@ function onMessage(message: SseMessage): void {
     heartbeatMs = Number(hello.heartbeatMs) > 0 ? Number(hello.heartbeatMs) : LIVE_HEARTBEAT_MS
     statusEveryMs =
       Number(hello.statusEveryMs) > 0 ? Number(hello.statusEveryMs) : LIVE_STATUS_EVERY_MS
-    attempt = 0
+    helloAt = Date.now()
     // Un nouveau flux : l'état est renvoyé tout de suite, sans attendre le prochain changement.
     lastSentAt = Number.NEGATIVE_INFINITY
     schedulePublish()
@@ -285,6 +296,7 @@ async function connect(): Promise<void> {
   headers.set('Accept', 'text/event-stream')
   streamAbort = controller
   heartbeatMs = LIVE_HEARTBEAT_MS
+  helloAt = null
   armWatchdog()
 
   try {
@@ -333,6 +345,11 @@ async function connect(): Promise<void> {
   // la seule à publier (un autre poste a pu prendre la place sans qu'on le sache).
   controller.abort()
   streamId = undefined
+
+  if (helloAt !== null && Date.now() - helloAt >= heartbeatMs) {
+    attempt = 0
+  }
+
   watchdogTimer = clearTimer(watchdogTimer)
   publishTimer = clearTimer(publishTimer)
   keepaliveTimer = clearTimer(keepaliveTimer)
@@ -360,9 +377,11 @@ export function startRoomLive(getRouteName?: () => string | symbol | null | unde
   attempt = 0
   lastKey = ''
 
-  // Chaque changement utile de l'état déclenche un rapport (regroupé par `schedulePublish`).
+  // Chaque changement utile de l'état déclenche un rapport (regroupé par `schedulePublish`). Le
+  // calcul surveillé tourne à chaque tick du moteur : aucune lecture de la mémoire locale ici. La
+  // graine fait changer la clé quand une autre partie remplace la précédente.
   stopWatchingState = watch(
-    () => JSON.stringify(currentReport()),
+    () => JSON.stringify([currentReport(null), state.value?.setup.seed]),
     (key) => {
       if (key !== lastKey) {
         lastKey = key

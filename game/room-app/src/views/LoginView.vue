@@ -49,7 +49,7 @@
         </FormField>
 
         <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
-        <p v-else-if="sessionEnded" class="form-error" role="status">
+        <p v-else-if="sessionEnded" class="hw-hint" role="status">
           {{ $t('room.live.errors.session_ended') }}
         </p>
 

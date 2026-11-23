@@ -241,6 +241,31 @@ describe('roomLive : publication', () => {
     expect(JSON.stringify(server.statuses.at(-1)?.body)).not.toMatch(/Léa|Hugo|Inès|@/)
   })
 
+  it('ne relit pas la mémoire locale à chaque tick du moteur', async () => {
+    const clock = createManualClock()
+
+    configureRoomGame({
+      storage: createMemorySessionStorage(),
+      player: createSilentExtractPlayer(),
+      now: clock.now,
+    })
+    await connect()
+    startNewGame({ registrations: REGISTRATIONS, themes: getPlayableThemes(), seed: 7 })
+    rememberBackofficeGameId(12, 7)
+    await settle(MIN_PUBLISH_GAP_MS)
+    expect(server.statuses.at(-1)?.body.gameId).toBe(12)
+
+    const reads = vi.spyOn(Storage.prototype, 'getItem')
+
+    for (let tick = 0; tick < 10; tick += 1) {
+      clock.advance(50)
+      await settle(50)
+    }
+
+    expect(reads.mock.calls.filter(([key]) => key === 'quizzup_room_backoffice_game')).toEqual([])
+    reads.mockRestore()
+  })
+
   it('dit que le son est prêt quand le navigateur a vu un geste de l’utilisateur', async () => {
     await connect()
     expect(server.statuses[0]?.body.audioReady).toBe(false)
@@ -321,7 +346,7 @@ describe('roomLive : reconnexion du flux', () => {
     expect(streamCalls()).toBe(2)
   })
 
-  it('repart de 1 s après un hello, et ne publie plus tant que le flux est perdu', async () => {
+  it('repart de 1 s après un flux qui a tenu un battement, et ne publie plus tant que le flux est perdu', async () => {
     server.setStreamReply('network-error')
     startRoomLive(() => routeName.value)
     await settle(1000 + 2000)
@@ -330,8 +355,8 @@ describe('roomLive : reconnexion du flux', () => {
     server.setStreamReply({ status: 200 })
     await settle(5000)
     expect(streamCalls()).toBe(4)
-    server.streams[0]?.push(helloMessage())
-    await settle()
+    server.streams[0]?.push(helloMessage('stream-1', 5000, 60_000))
+    await settle(5000)
     expect(server.statuses).toHaveLength(1)
 
     server.streams[0]?.end()
@@ -348,6 +373,43 @@ describe('roomLive : reconnexion du flux', () => {
     server.streams[1]?.push(helloMessage('stream-2'))
     await settle()
     expect(server.statuses.at(-1)?.body).toMatchObject({ streamId: 'stream-2', screen: 'lobby' })
+  })
+
+  it('un flux coupé juste après le hello garde l’attente croissante (pas un rapport par seconde)', async () => {
+    startRoomLive(() => routeName.value)
+    await settle()
+
+    let expected = 1
+
+    for (const delay of RECONNECT_DELAYS_MS.slice(0, 3)) {
+      server.streams.at(-1)?.push(helloMessage())
+      await settle()
+      server.streams.at(-1)?.end()
+      await settle(delay - 1)
+      expect(streamCalls()).toBe(expected)
+      await settle(1)
+      expected += 1
+      expect(streamCalls()).toBe(expected)
+    }
+  })
+
+  it('un flux qui a tenu un battement remet l’attente à zéro', async () => {
+    startRoomLive(() => routeName.value)
+    await settle()
+    server.streams[0]?.push(helloMessage())
+    await settle()
+    server.streams[0]?.end()
+    await settle(RECONNECT_DELAYS_MS[0])
+    expect(streamCalls()).toBe(2)
+
+    server.streams[1]?.push(helloMessage('stream-2'))
+    await settle(LIVE_HEARTBEAT_MS)
+    server.streams[1]?.end()
+    await settle(RECONNECT_DELAYS_MS[0] - 1)
+    expect(streamCalls()).toBe(2)
+
+    await settle(1)
+    expect(streamCalls()).toBe(3)
   })
 
   it('un flux muet plus de trois battements est abandonné puis rouvert', async () => {
@@ -416,6 +478,29 @@ describe('roomLive : salle ouverte sur un autre poste', () => {
     await settle(LIVE_STATUS_EVERY_MS * 4 + 30_000)
     expect(streamCalls()).toBe(1)
     expect(server.statuses).toHaveLength(2)
+  })
+
+  it('un 409 reçu pour un rapport parti avec un ancien flux ne coupe pas le poste', async () => {
+    await connect()
+    server.setStatusReply('hang')
+    routeName.value = 'lobby'
+    await settle(MIN_PUBLISH_GAP_MS)
+    expect(server.statuses).toHaveLength(2)
+
+    // Le flux tombe puis se rouvre : le rapport du flux 1 est toujours en attente de réponse.
+    server.streams[0]?.end()
+    await settle(RECONNECT_DELAYS_MS[0])
+    server.setStatusReply({ status: 204 })
+    server.streams[1]?.push(helloMessage('stream-2'))
+    await settle()
+
+    // Le serveur répond 409 à ce rapport : le flux 2 est le flux courant, ce n'est pas un remplacement.
+    server.statuses[1]?.respond(409, { error: 'room_instance_replaced' })
+    await settle()
+
+    expect(useRoomLive().replaced.value).toBe(false)
+    expect(server.streams[1]?.aborted).toBe(false)
+    expect(server.statuses.at(-1)?.body.streamId).toBe('stream-2')
   })
 
   it('un autre 409 n’est pas un remplacement', async () => {
@@ -525,6 +610,28 @@ describe('roomLive : session de salle terminée', () => {
     await settle()
 
     expect(getRoomToken()).toBeNull()
+  })
+
+  it('une partie fermée puis une autre ouverte dans le même tour : la salle est quand même déconnectée', async () => {
+    const clock = createManualClock()
+
+    configureRoomGame({
+      storage: createMemorySessionStorage(),
+      player: createSilentExtractPlayer(),
+      now: clock.now,
+    })
+    await connect()
+    startNewGame({ registrations: REGISTRATIONS, themes: getPlayableThemes(), seed: 3 })
+    server.streams[0]?.push(SESSION_ENDED)
+    await settle()
+    expect(getRoomToken()).toBe('jeton-salle')
+
+    closeGame()
+    startNewGame({ registrations: REGISTRATIONS, themes: getPlayableThemes(), seed: 4 })
+    await settle()
+
+    expect(getRoomToken()).toBeNull()
+    expect(useRoomGame().session.value).not.toBeNull()
   })
 
   it('un nouveau démarrage après la connexion efface l’avis et l’attente de déconnexion', async () => {

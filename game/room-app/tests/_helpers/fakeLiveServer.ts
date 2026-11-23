@@ -20,6 +20,8 @@ export type FakeStatusCall = {
   body: Record<string, unknown>
   /** Le client a abandonné la requête. */
   readonly aborted: boolean
+  /** Répond à une requête laissée en attente (réponse `hang`). */
+  respond: (status: number, body?: unknown) => void
 }
 
 type StreamReply = { status: number } | 'network-error'
@@ -81,6 +83,10 @@ export function createFakeLiveServer() {
     if (url.endsWith('/room/status')) {
       const reply = state.statusReply
 
+      let respond: FakeStatusCall['respond'] = () => {
+        throw new Error('Cette requête n’est pas en attente (réponse `hang` attendue).')
+      }
+
       statuses.push({
         headers,
         signal,
@@ -88,6 +94,7 @@ export function createFakeLiveServer() {
         get aborted() {
           return signal.aborted
         },
+        respond: (status, body) => respond(status, body),
       })
 
       if (reply === 'network-error') {
@@ -95,9 +102,10 @@ export function createFakeLiveServer() {
       }
 
       if (reply === 'hang') {
-        return new Promise<Response>((_resolve, reject) =>
+        return new Promise<Response>((resolve, reject) => {
+          respond = (status, body) => resolve(new Response(JSON.stringify(body ?? {}), { status }))
           signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
-        )
+        })
       }
 
       return new Response(reply.status === 204 ? null : JSON.stringify(reply.body ?? {}), {

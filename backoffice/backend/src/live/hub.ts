@@ -98,19 +98,13 @@ export function createLiveHub({ now = Date.now }: { now?: () => number } = {}) {
     return entry
   }
 
-  /** Salle hors ligne dont le départ est diffusé et sans flux : plus rien à retenir. */
-  function forgetIfGone(roomId: number, entry: RoomEntry): void {
-    if (entry.stream === null && entry.announced === ROOM_PRESENCE.OFFLINE) {
-      rooms.delete(roomId)
-    }
-  }
-
+  // Une entrée par salle (créée par un compte de salle authentifié), jamais retirée : elle garde le
+  // dernier rapport et `lastSeenAt` d'une salle hors ligne pour l'afficher au personnel.
   function sweep(): void {
     rooms.forEach((entry, roomId) => {
       if (presenceOf(entry) !== entry.announced) {
         broadcast(roomId, entry)
       }
-      forgetIfGone(roomId, entry)
     })
   }
 
@@ -142,7 +136,6 @@ export function createLiveHub({ now = Date.now }: { now?: () => number } = {}) {
       if (entry?.stream?.id === streamId) {
         entry.stream = null
         broadcast(roomId, entry)
-        forgetIfGone(roomId, entry)
       }
     },
 

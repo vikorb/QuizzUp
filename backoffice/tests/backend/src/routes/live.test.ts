@@ -242,7 +242,7 @@ describe('live routes without an open stream', () => {
         ],
       },
     ],
-    ['a phase the engine does not have', { phase: 'warm_up' }],
+    ['a phase that is not a string', { phase: 12 }],
     [
       'more than 6 scores',
       { scores: Array.from({ length: 7 }, (_, index) => ({ podium: (index % 6) + 1, score: 0 })) },
@@ -257,6 +257,26 @@ describe('live routes without an open stream', () => {
 
     expect(response.statusCode).toBe(400)
     expect(response.json()).toMatchObject({ error: 'invalid_body' })
+  })
+
+  it('POST /room/status accepts a phase this server does not know and reads it as null (204)', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/room/status',
+      headers: authHeaders(roomUser),
+      payload: { ...report, phase: 'warm_up' },
+    })
+
+    expect(response.statusCode).toBe(204)
+
+    const staff = await connect('/companies/1/live', companyAdminUser)
+    const snapshot = JSON.parse((await staff.next()).data) as { rooms: RoomLive[] }
+
+    expect(snapshot.rooms[0]).toMatchObject({
+      roomId: 1,
+      presence: 'in_game',
+      status: { ...report, phase: null },
+    })
   })
 
   it('POST /room/status accepts a stream id when the room has no open stream (204)', async () => {
