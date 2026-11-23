@@ -77,6 +77,43 @@ part vraiment pendant le test.
 La configuration n'est gardée qu'au clic sur « Enregistrer la configuration », dernière étape
 (« Récapitulatif ») de l'assistant Matériel. Sans cela, la fumée reste enregistrée comme désactivée.
 
+**Le test de coupure se refait sur chaque poste.** Un poste ne libère de la fumée que s'il garde la
+trace d'un test de coupure réussi, fait **sur ce poste**, pour **cette salle** et avec **ces réglages
+de fumée**. Cette trace reste dans le navigateur du poste : elle ne part pas vers le serveur et le
+serveur ne peut pas la poser. Une configuration qui active la fumée, reçue du compte de la salle, ne
+suffit donc pas. Sur un nouveau poste, un navigateur réinitialisé, un autre profil ou après un
+changement de réglage de fumée, l'écran de salle affiche, dans Matériel, onglet « Lumières et fumée » :
+« Fumée activée dans la configuration, mais test de coupure à refaire sur ce poste ». Aucune fumée ne
+part (ni scène, ni test) jusqu'à ce que le test de l'assistant (étape « Sécuriser la fumée », réponse
+« Elle s’est arrêtée ») ait réussi. Le test de coupure du Diagnostic ne la pose pas et est refusé tant
+qu'elle manque.
+
+La trace est **effacée** dès qu'un test de l'assistant démarre : une page rechargée ou fermée avant la
+réponse, ou la réponse « Elle continue », laissent le poste sans trace. Si tu réponds « Elle s’est
+arrêtée » mais que la trace ne peut pas être enregistrée (réglages modifiés pendant le test, ou
+stockage du navigateur indisponible), l'assistant le dit et le test n'est pas validé : refais-le.
+
+**Ce qui invalide la trace** (la fumée est alors refusée jusqu'à un nouveau test) :
+
+- un changement de **salle** (compte de la salle différent, ou poste qui ne sait plus de quelle salle
+  il s'agit) ;
+- un changement d'**interface DMX** (USB ou pont Art-Net), du **nœud Art-Net** ciblé ou de l'adresse du
+  **pont** ;
+- un changement de **durée maximale**, de **pause**, de **niveau maximal** ou de confirmation de la
+  fumée ;
+- pour chaque appareil qui émet de la fumée (profil de type fumée, ou tout profil, même d'un autre
+  type, qui a un canal de rôle fumée) : un changement d'**adresse**, d'**univers** ou de **canaux**,
+  ou l'ajout ou le retrait d'un tel appareil.
+
+**Ce que la trace ne voit pas.** Elle ne reconnaît pas le matériel lui-même :
+
+- remplacer une machine par une autre **aux mêmes réglages et à la même adresse** n'invalide pas la
+  trace : refais le test à la main ;
+- changer d'**interface USB du même modèle** n'invalide pas la trace non plus : refais le test à la
+  main.
+
+> À vérifier sur le banc : F9 du banc matériel.
+
 Une machine **sans relais temporisé** : la fumée reste désactivée, sauf si tu coches « Je confirme que
 la machine coupe toute seule sur perte de signal DMX (vérifié dans la notice et par le test de
 plantage simulé). » **et** que tu as réussi le test guidé de vraie perte de signal (« Lancer le test de
@@ -150,6 +187,34 @@ Ce que tu dois faire en attendant :
 > À vérifier sur le banc : l'effet réel sur chaque appareil (un canal qui ferme le faisceau à zéro, ou
 > un appareil lent, change ce que le public voit). Contrôle visuel obligatoire. On ne sait pas encore si
 > « Passer en simulation » reste actif après un nouveau « Lancer la salle ».
+
+### 1.9 Un appareil qui clignote tout seul
+
+Certains projecteurs clignotent d'eux-mêmes quand un de leurs canaux est tenu dans la plage
+« stroboscope » de l'appareil (typiquement un canal `shutter`, ou un canal `fixed` à valeur fixe). Ce
+clignotement ne passe pas par le plafond d'éclairs : le logiciel ne le voit pas. Dans Matériel,
+« Configuration avancée », la liste « Points à corriger » nomme l'appareil et le canal concernés, en
+français puis en anglais. L'avertissement ne bloque rien : la configuration reste enregistrable, c'est
+à toi de corriger la valeur.
+
+Le logiciel ne connaît aucune plage stroboscope tout seul : aucun profil livré n'en renseigne. Pour un
+profil sur mesure, recopie la plage de la notice dans `strobeRange` (`[min, max]`, 0 à 255) sur le canal
+`shutter` ou `fixed` ; une `strobeRange` posée sur un autre rôle est écartée et signalée. Saisis-la dans
+le JSON de « Configuration avancée » : l'éditeur de profil n'a pas de champ pour elle. Sans
+`strobeRange`, seul un `shutter` réglé sur autre chose que 255 (ouvert) ou 0 (fermé) est signalé, en
+demandant de vérifier la notice.
+
+Au Diagnostic, la vitesse d'un canal `strobe` est plafonnée et coupée au bout de 3 secondes. Le
+plafond vaut pour le réglage par appareil et pour le curseur de canal. Un gel de sortie remet le
+strobe à 0 avant de figer la trame. Deux limites restent :
+
+- une demande répétée après la coupure rouvre une fenêtre de 3 secondes (il n'y a pas de repos
+  imposé entre deux fenêtres) ;
+- le plafond s'applique appareil par appareil : deux stroboscopes lancés en même temps et non
+  synchronisés s'additionnent.
+
+> À vérifier sur le banc : la plage de chaque appareil et la fréquence réelle à la vitesse plafonnée
+> (test D10 du banc).
 
 ## 2. Ce que le logiciel ne garantit pas
 

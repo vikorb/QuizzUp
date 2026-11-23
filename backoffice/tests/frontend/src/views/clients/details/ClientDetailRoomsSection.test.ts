@@ -4,6 +4,7 @@ import {
   createCompanyRoomServiceMock,
   createRoomAccountServiceMock,
   deleteRoomAccountServiceMock,
+  loadCompanyRoomServiceMock,
   loadCompanyRoomsServiceMock,
   loadRoomAccountServiceMock,
   mockDeleteRoomFailure,
@@ -11,6 +12,7 @@ import {
   mockLoadRoomAccountSuccess,
   roomAccountFixture,
   updateCompanyRoomServiceMock,
+  updateRoomScheduleServiceMock,
 } from '@frontend-tests/_helpers/roomsServiceMock'
 import { ROOM_STATUS_DELETED } from '@quizzup/shared'
 import { flushPromises } from '@vue/test-utils'
@@ -51,13 +53,17 @@ function rowKeys(wrapper: ReturnType<typeof mountWithFrontendMocks>): string[] {
 function rowAction(
   wrapper: ReturnType<typeof mountWithFrontendMocks>,
   roomId: number,
-  action: 'account' | 'edit' | 'delete'
+  action: 'account' | 'schedule' | 'edit' | 'delete'
 ) {
   return wrapper.find(`[data-row-key="${roomId}"] [data-test="ui-button"].icon-${action}`)
 }
 
 function accountPanel(wrapper: ReturnType<typeof mountWithFrontendMocks>) {
   return wrapper.find('#room-account')
+}
+
+function schedulePanel(wrapper: ReturnType<typeof mountWithFrontendMocks>) {
+  return wrapper.find('#room-schedule')
 }
 
 async function selectStatus(wrapper: ReturnType<typeof mountWithFrontendMocks>, value: string) {
@@ -272,6 +278,81 @@ describe('views/clients/details/room/ClientDetailRoomsSection.vue', () => {
     expect(wrapper.find('.icon-account').exists()).toBe(false)
     expect(accountPanel(wrapper).exists()).toBe(false)
     expect(loadRoomAccountServiceMock).not.toHaveBeenCalled()
+  })
+
+  it('opens the schedule panel from the row and keeps a single inline panel at a time', async () => {
+    mockLoadRoomAccountSuccess(roomAccountFixture)
+
+    const wrapper = await mountSection('admin')
+
+    await rowAction(wrapper, 1, 'account').trigger('click')
+    await flushPromises()
+    expect(accountPanel(wrapper).exists()).toBe(true)
+
+    await rowAction(wrapper, 1, 'schedule').trigger('click')
+    await flushPromises()
+
+    expect(schedulePanel(wrapper).exists()).toBe(true)
+    expect(loadCompanyRoomServiceMock).toHaveBeenCalledWith(1, 1)
+    expect(accountPanel(wrapper).exists()).toBe(false)
+
+    await rowAction(wrapper, 1, 'account').trigger('click')
+    await flushPromises()
+
+    expect(schedulePanel(wrapper).exists()).toBe(false)
+    expect(accountPanel(wrapper).exists()).toBe(true)
+  })
+
+  it('closes the schedule panel from its close button', async () => {
+    const wrapper = await mountSection('admin')
+
+    await rowAction(wrapper, 1, 'schedule').trigger('click')
+    await flushPromises()
+    await schedulePanel(wrapper).find('.room-schedule__close').trigger('click')
+
+    expect(schedulePanel(wrapper).exists()).toBe(false)
+  })
+
+  it('saves the schedule of the room and confirms it in the panel', async () => {
+    const wrapper = await mountSection('admin')
+
+    await rowAction(wrapper, 1, 'schedule').trigger('click')
+    await flushPromises()
+    await schedulePanel(wrapper).find('[data-day="1"] [data-test="switch-field"]').trigger('click')
+    await schedulePanel(wrapper).find('form').trigger('submit')
+    await flushPromises()
+
+    expect(updateRoomScheduleServiceMock).toHaveBeenCalledWith(
+      1,
+      1,
+      expect.objectContaining({
+        schedule: expect.objectContaining({
+          days: { '1': { opensAt: '10:00', closesAt: '22:00' } },
+        }),
+      })
+    )
+    expect(schedulePanel(wrapper).text()).toContain('rooms.schedule.success.saved')
+  })
+
+  it('closes the schedule panel when the room is deleted', async () => {
+    const wrapper = await mountSection('admin')
+
+    await rowAction(wrapper, 1, 'schedule').trigger('click')
+    await flushPromises()
+    expect(schedulePanel(wrapper).exists()).toBe(true)
+
+    await rowAction(wrapper, 1, 'delete').trigger('click')
+    await flushPromises()
+
+    expect(schedulePanel(wrapper).exists()).toBe(false)
+  })
+
+  it('never offers the schedule settings to the user role', async () => {
+    const wrapper = await mountSection('user')
+
+    expect(wrapper.find('.icon-schedule').exists()).toBe(false)
+    expect(schedulePanel(wrapper).exists()).toBe(false)
+    expect(loadCompanyRoomServiceMock).not.toHaveBeenCalled()
   })
 
   it('shows action errors in the banner', async () => {

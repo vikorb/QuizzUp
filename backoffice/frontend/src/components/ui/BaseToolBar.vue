@@ -46,6 +46,8 @@
             </span>
           </UiButton>
 
+          <slot name="actions" />
+
           <UiButton v-if="showPrimary" variant="primary" type="button" @click="$emit('primary')">
             <span class="toolbar__button-content">
               <MdIcon v-if="primaryIcon" :path="primaryIcon" :size="18" />

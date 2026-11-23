@@ -55,7 +55,8 @@ tags:
   - name: Public
     description: |
       API publique sous `/public/v1` (vitrine, réservation) : sans compte, sans jeton, sans cookie.
-      Les routes suivent ces conventions.
+      Routes livrées : `POST /public/v1/demo-requests` (demande de démonstration) et
+      `GET /public/v1/logos/{file}` (logo d'un centre). Toutes suivent ces conventions.
 
       - Erreurs au format `PublicError` : statut HTTP et `{ "error": "<code_snake_case>" }`, avec
         `details.fieldErrors` pour `invalid_body` seulement. Codes communs : `invalid_json` (400),
@@ -64,7 +65,8 @@ tags:
         requête (4xx) détectée par le serveur garde son statut avec le code `bad_request`.
       - Limite de débit par adresse du client (120 requêtes par minute par défaut) : refus en `429`
         avec l'en-tête `Retry-After` (secondes).
-      - Réponses jamais mises en cache (`Cache-Control: no-store`).
+      - Réponses jamais mises en cache (`Cache-Control: no-store`), sauf le contenu immuable d'un
+        fichier (logo : `public, max-age=31536000, immutable`).
       - CORS réservé aux sites listés dans la variable `VITRINE_ORIGINS` (aucun si elle est vide).
 
 security:
@@ -761,6 +763,143 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Compagnie introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/logo:
+    put:
+      tags:
+        - Companies
+      summary: "[DISPONIBLE] Envoyer ou remplacer le logo d'une compagnie"
+      description: |
+        Statut : **Disponible** (lot 6a)
+
+        Le corps de la requête est le fichier lui-même (pas de multipart). Formats acceptés : PNG,
+        JPEG et WebP, 512 Ko au plus. Le type est vérifié sur les premiers octets du fichier : ni
+        l'en-tête `Content-Type` ni l'extension ne comptent, et le SVG est refusé (il peut porter
+        un script).
+
+        Effets : l'ancien fichier est supprimé du stockage. La réponse donne l'URL publique du
+        logo ; la clé de stockage n'est jamais exposée.
+
+        Droits : permission `company:update` ; un admin n'agit que sur sa compagnie, le superadmin
+        sur toutes.
+      operationId: uploadCompanyLogo
+      x-availability: disponible
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          description: Identifiant de la compagnie
+          schema:
+            type: integer
+            example: 1
+      requestBody:
+        required: true
+        content:
+          image/png:
+            schema:
+              type: string
+              format: binary
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+          image/webp:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: Logo enregistré
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [logoUrl]
+                properties:
+                  logoUrl:
+                    type: string
+                    example: /public/v1/logos/6f1c2a9e-3b7d-4c55-9a10-0d2f5b8e7a41.png
+        '400':
+          description: |
+            Identifiant invalide (`invalid_params`) ou fichier qui n'est ni un PNG, ni un JPEG, ni
+            un WebP (`logo_type_invalid`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non connecté
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Rôle sans droit, ou autre compagnie (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Compagnie introuvable ou supprimée (`not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Fichier de plus de 512 Ko (`logo_too_large`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Companies
+      summary: "[DISPONIBLE] Retirer le logo d'une compagnie"
+      description: |
+        Statut : **Disponible** (lot 6a)
+
+        Efface le logo et supprime son fichier du stockage. Répond `204` même si la compagnie n'avait
+        pas de logo.
+
+        Droits : permission `company:update` ; un admin n'agit que sur sa compagnie.
+      operationId: deleteCompanyLogo
+      x-availability: disponible
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          description: Identifiant de la compagnie
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '204':
+          description: Logo retiré
+        '400':
+          description: Identifiant invalide (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non connecté
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Rôle sans droit, ou autre compagnie (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Compagnie introuvable ou supprimée (`not_found`)
           content:
             application/json:
               schema:
@@ -1494,6 +1633,86 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /companies/{companyId}/rooms/{roomId}/logs:
+    get:
+      tags:
+        - Rooms
+      summary: "[DISPONIBLE] Lister les journaux d'erreurs d'une salle"
+      description: |
+        Statut : **Disponible**
+
+        Erreurs que l'écran de salle a envoyées par `POST /room/logs`, de la plus récente à la plus ancienne. Pagination par `before` : l'`id` de la dernière ligne lue (les `id` décroissent). Aucun e-mail ni donnée de joueur : les adresses sont masquées (`[email]`) et le contexte se limite à `route`, `phase`, `miniGame`, `desk`, `driver` et `httpStatus`.
+
+        Conservation : 30 jours (`ROOM_LOG_RETENTION_DAYS`) et 5000 lignes par salle au plus ; le nettoyage a lieu à chaque envoi de la salle. Les journaux disparaissent avec la salle. Une salle supprimée n'est lisible que du superadmin.
+
+        Accès : superadmin (toutes les compagnies) et `admin` de la compagnie. Le rôle `user` et le compte de salle reçoivent `403`.
+      operationId: listCompanyRoomLogs
+      x-availability: disponible
+      x-us: 'US-LOG-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/RoomIdParam'
+        - name: level
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [error, warn]
+          description: Ne garder que ce niveau
+        - name: before
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+          description: '`id` de la dernière ligne déjà lue ; ne renvoie que les lignes plus anciennes'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 100
+          description: Nombre de lignes renvoyées. Une valeur au-dessus de 200 est ramenée à 200.
+      responses:
+        '200':
+          description: Journaux de la salle (liste vide s'il n'y en a pas)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [logs]
+                properties:
+                  logs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RoomLog'
+        '400':
+          description: Paramètres d'URL invalides (`invalid_params`) ou paramètres de requête invalides (`invalid_query`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non connecté ou session invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (rôle sans droit de lecture des journaux, ou autre compagnie)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Salle introuvable dans cette compagnie (`not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /companies/{companyId}/rooms/{roomId}/account:
     get:
       tags:
@@ -1643,17 +1862,17 @@ paths:
     put:
       tags:
         - Rooms
-      summary: "[NON DISPONIBLE] Régler les créneaux d'une salle"
+      summary: "[DISPONIBLE] Régler les créneaux d'une salle"
       description: |
-        Statut : **Non disponible** (à venir, lot 13)
+        Statut : **Disponible**
 
         Remplace les réglages de créneaux de la salle (`rooms.schedule`) ; `schedule: null` les désactive (la salle n'est plus réservable). `rooms.config` n'est pas touché : il appartient au PC de salle.
 
-        Une fois la route livrée, `schedule` est aussi renvoyé par `GET /companies/{companyId}/rooms*` et par `/room/me`.
+        `schedule` est aussi renvoyé par `GET /companies/{companyId}/rooms*` et par `/room/me`. Un jour absent de `days` est fermé ; `breakMinutes` vaut `0` s'il est omis ; un champ inconnu est ignoré.
 
         Accès : superadmin (toutes les compagnies) et `admin` de la compagnie ; refusé au rôle `user`.
       operationId: updateRoomSchedule
-      x-availability: non_disponible
+      x-availability: disponible
       x-us: 'Lot 13 / sessions programmées'
       parameters:
         - $ref: '#/components/parameters/CompanyIdParam'
@@ -1675,7 +1894,12 @@ paths:
                   room:
                     $ref: '#/components/schemas/Room'
         '400':
-          description: Corps invalide (`invalid_body`, avec détails) ; fuseau inconnu, durée ou pause hors bornes, `firstSessionAt` hors plage d'ouverture, jours consécutifs qui se chevauchent
+          description: >-
+            Corps invalide (`invalid_body`, avec détails) ou identifiants invalides (`invalid_params`). Fuseau inconnu
+            (`schedule_timezone_invalid`), heure qui n'est pas `HH:MM` (`schedule_time_invalid`), durée ou pause hors bornes,
+            `firstSessionAt` hors plage d'ouverture (`schedule_first_session_out_of_range`), jours consécutifs qui se
+            chevauchent, le dimanche précédant le lundi (`schedule_days_overlap`) : ces trois codes sont des messages de
+            détail du corps, pas des codes d'erreur de premier niveau
           content:
             application/json:
               schema:
@@ -1707,7 +1931,7 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Renvoie la salle (avec sa configuration matérielle) et la compagnie du compte de salle connecté. À venir (lot 13) : la salle gagnera `schedule`, qui donne le fuseau d'affichage des sessions programmées.
+        Renvoie la salle (avec sa configuration matérielle) et la compagnie du compte de salle connecté. La salle porte aussi `schedule` (`null` sans créneaux), qui donne le fuseau d'affichage des sessions programmées.
 
         Accès : réservé au rôle `room`.
       operationId: getCurrentRoom
@@ -1730,6 +1954,10 @@ paths:
                         type: integer
                       name:
                         type: string
+                      logoUrl:
+                        type: string
+                        nullable: true
+                        description: URL publique du logo de la compagnie (`GET /public/v1/logos/{file}`), ou `null`
         '403':
           description: Compte qui n'est pas un compte de salle
           content:
@@ -1753,9 +1981,9 @@ paths:
 
         Parties de la compagnie, de la plus récente à la plus ancienne (date de la partie, puis identifiant décroissant pour départager les égalités), avec le nom de la salle, le nombre de joueurs nommés, la durée et le meilleur score. Les parties supprimées sont exclues.
 
-        Tous les filtres sont facultatifs et se cumulent. `from` et `to` filtrent la date de la partie, c'est-à-dire la date de démarrage, ou la date de création tant qu'elle n'a pas démarré ; l'intervalle est semi-ouvert : borne basse incluse, borne haute exclue. L'année 0000 est refusée. Il n'y a pas de plafond de période : la pagination borne la réponse. `total` est le nombre de parties qui passent les filtres, quelle que soit la page.
+        Tous les filtres sont facultatifs et se cumulent. `from` et `to` filtrent la date de la partie, c'est-à-dire le début prévu d'une session programmée (`scheduledAt`), sinon la date de démarrage, sinon la date de création ; l'intervalle est semi-ouvert : borne basse incluse, borne haute exclue. L'année 0000 est refusée. Il n'y a pas de plafond de période : la pagination borne la réponse. `total` est le nombre de parties qui passent les filtres, quelle que soit la page.
 
-        **À venir (lot 13)** : le filtre de dates portera sur `COALESCE(scheduled_at, started_at, created_at)` ; chaque ligne gagnera les champs de `GameSchedulingFields` (puis `source`, `backoffice` ou `api`, avec le lot 14).
+        Chaque ligne porte les champs de session programmée (`scheduledAt`, `scheduledEndAt`, `cancelledAt`, `playersCount`, `externalRef`, `locale`). Le champ `source` (`backoffice` ou `api`) arrive avec le lot 14.
 
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
       operationId: listCompanyGames
@@ -1842,7 +2070,7 @@ paths:
 
         Crée une partie en attente dans une salle active et libre, avec 1 à 4 participants (un par pupitre). Un email n'est accepté qu'avec `emailConsent: true` (consentement RGPD horodaté dans `consentAt`). Le consentement à recevoir les offres du centre (`marketingConsent`) est distinct : il n'est accepté qu'avec un email, et horodaté par le serveur (`marketingConsent` vaut alors `true` dans la réponse). Format par défaut : 10 manches × 10 questions. La graine de tirage (0 à 2³² − 1) est tirée par le serveur.
 
-        **À venir (lot 13)** : le corps gagnera les champs de `CreateGameSchedulingFields` (`scheduledAt`, `durationMinutes`, `playersCount`, `externalRef`, `locale`). Avec `scheduledAt`, la partie est créée à l'état `scheduled` (participants de 0 à 6, pas de contrôle `room_busy`) ; nouvelles erreurs : 400 `session_in_past` (fin ≤ maintenant), 400 `session_too_far` (au-delà de 365 jours), 409 `slot_taken` (chevauchement d'une autre session de la salle). Sans `scheduledAt`, rien ne change.
+        Le corps accepte aussi `scheduledAt`, `durationMinutes`, `playersCount`, `externalRef` et `locale` (voir `CreateGameRequest`). Avec `scheduledAt`, la partie est créée à l'état `scheduled` (participants de 0 à 6, pas de contrôle `room_busy`) ; erreurs propres : 400 `session_in_past` (fin ≤ maintenant), 400 `session_too_far` (début au-delà de 365 jours), 409 `slot_taken` (chevauchement d'une autre session de la salle). Sans `scheduledAt`, rien ne change.
 
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
       operationId: createCompanyGame
@@ -1936,15 +2164,15 @@ paths:
     patch:
       tags:
         - Games
-      summary: '[NON DISPONIBLE] Modifier une session programmée'
+      summary: '[DISPONIBLE] Modifier une session programmée'
       description: |
-        Statut : **Non disponible** (à venir, lot 13)
+        Statut : **Disponible**
 
-        Modifie une session à l'état `scheduled` : `roomId`, `scheduledAt`, `durationMinutes`, `roundsCount`, `questionsPerRound`, `miniGames`, `playersCount`, `externalRef`, `locale`, et `participants` (remplacement complet, dans une transaction). Seul le chevauchement d'une autre session de la salle est interdit.
+        Modifie une session à l'état `scheduled` : `roomId`, `scheduledAt`, `durationMinutes`, `roundsCount`, `questionsPerRound`, `miniGames`, `playersCount`, `externalRef`, `locale`, et `participants` (remplacement complet, dans une transaction). Seul le chevauchement d'une autre session de la salle est interdit. Les contrôles `session_in_past` et `session_too_far` ne s'appliquent que si le début ou la durée change.
 
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
       operationId: updateCompanyGame
-      x-availability: non_disponible
+      x-availability: disponible
       x-us: 'Lot 13 / sessions programmées'
       parameters:
         - $ref: '#/components/parameters/CompanyIdParam'
@@ -1985,7 +2213,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: La partie n'est plus à l'état `scheduled` (`game_not_scheduled`) ou le créneau chevauche une autre session de la salle (`slot_taken`)
+          description: La partie n'est plus à l'état `scheduled` (`game_not_scheduled`), la salle est inactive (`room_inactive`) ou le créneau chevauche une autre session de la salle (`slot_taken`)
           content:
             application/json:
               schema:
@@ -1995,15 +2223,15 @@ paths:
     post:
       tags:
         - Games
-      summary: '[NON DISPONIBLE] Annuler une session programmée'
+      summary: '[DISPONIBLE] Annuler une session programmée'
       description: |
-        Statut : **Non disponible** (à venir, lot 13)
+        Statut : **Disponible**
 
-        Passe une session `scheduled` à l'état `cancelled` (`cancelledAt` renseigné) et libère son créneau. Annuler n'est pas supprimer : `status` reste à `1`. Idempotent : refaire l'appel sur une session déjà annulée renvoie `200`.
+        Passe une session `scheduled` à l'état `cancelled` (`cancelledAt` renseigné) et libère son créneau. Annuler n'est pas supprimer : `status` reste à `1`. Les emails et les consentements des joueurs de la session sont effacés tout de suite (les noms sont gardés). Idempotent : refaire l'appel sur une session déjà annulée renvoie `200`.
 
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
       operationId: cancelCompanyGame
-      x-availability: non_disponible
+      x-availability: disponible
       x-us: 'Lot 13 / sessions programmées'
       parameters:
         - $ref: '#/components/parameters/CompanyIdParam'
@@ -2019,6 +2247,12 @@ paths:
                   game:
                     allOf:
                       - $ref: '#/components/schemas/GameDetail'
+        '400':
+          description: Identifiants invalides (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
           description: Accès interdit
           content:
@@ -2042,15 +2276,15 @@ paths:
     post:
       tags:
         - Games
-      summary: '[NON DISPONIBLE] Ouvrir une session programmée'
+      summary: '[DISPONIBLE] Ouvrir une session programmée'
       description: |
-        Statut : **Non disponible** (à venir, lot 13)
+        Statut : **Disponible**
 
         Passe une session `scheduled` à l'état `pending`, comme si l'opérateur l'avait lancée. Possible dès 60 minutes avant le début ; il n'y a pas de borne de fin : une session non lancée, même après son créneau, peut toujours être ouverte. Rien ne démarre seul : l'ouverture est toujours faite par une personne.
 
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
       operationId: openCompanyGame
-      x-availability: non_disponible
+      x-availability: disponible
       x-us: 'Lot 13 / sessions programmées'
       parameters:
         - $ref: '#/components/parameters/CompanyIdParam'
@@ -2066,6 +2300,12 @@ paths:
                   game:
                     allOf:
                       - $ref: '#/components/schemas/GameDetail'
+        '400':
+          description: Identifiants invalides (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
           description: Accès interdit
           content:
@@ -2705,6 +2945,92 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+
+  /room/logs:
+    post:
+      tags:
+        - Rooms
+      summary: "[DISPONIBLE] Envoyer les journaux d'erreurs de la salle"
+      description: |
+        Statut : **Disponible**
+
+        Envoyé par l'écran de salle : erreurs regroupées (`occurrences`), 50 entrées au plus par envoi, toutes les 30 s environ. La salle et la compagnie viennent du jeton, jamais du corps. Une date `occurredAt` dans le futur est ramenée à l'heure du serveur.
+
+        Aucun e-mail ni donnée de joueur : le serveur masque toute adresse (`[email]`) avant de couper le texte à 300 caractères, et ne garde du `context` que les clés `route`, `phase`, `miniGame`, `desk`, `driver` et `httpStatus` (texte de 64 caractères au plus ou nombre). Les autres clés sont écartées.
+
+        Conservation : 30 jours (`ROOM_LOG_RETENTION_DAYS`) et 5000 lignes par salle au plus ; le nettoyage a lieu à chaque envoi. Limite : 6 envois par minute et par salle, les corps invalides compris. Corps de 128 Ko au plus.
+
+        Accès : réservé au rôle `room`.
+      operationId: postRoomLogs
+      x-availability: disponible
+      x-us: 'US-LOG-01'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [appVersion, entries]
+              properties:
+                appVersion:
+                  type: string
+                  minLength: 1
+                  maxLength: 32
+                  description: Version de l'écran de salle
+                  example: 0.1.0
+                entries:
+                  type: array
+                  minItems: 1
+                  maxItems: 50
+                  items:
+                    $ref: '#/components/schemas/RoomLogEntry'
+      responses:
+        '204':
+          description: Journaux enregistrés
+        '400':
+          description: Corps invalide (`invalid_body`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non connecté ou session invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Compte qui n'est pas un compte de salle (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Salle du compte introuvable ou supprimée (`not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Corps de plus de 128 Ko (`payload_too_large`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Plus de 6 envois par minute pour cette salle (`too_many_requests`)
+          headers:
+            Retry-After:
+              description: Secondes à attendre avant de réessayer
+              schema:
+                type: integer
+                example: 30
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: too_many_requests
 
   /companies/{companyId}/live:
     get:
@@ -4490,6 +4816,64 @@ paths:
               schema:
                 $ref: '#/components/schemas/NotImplementedResponse'
 
+  /public/v1/logos/{file}:
+    get:
+      tags:
+        - Public
+      summary: "[DISPONIBLE] Logo d'un centre"
+      description: |
+        Statut : **Disponible** (lot 6a)
+
+        Route publique : aucune authentification. Sert le fichier (PNG, JPEG ou WebP) d'une
+        compagnie non supprimée. Le nom du fichier change à chaque envoi : le contenu d'une URL ne
+        change jamais, d'où le cache `immutable`. `Content-Type` vient de la base, avec
+        `X-Content-Type-Options: nosniff`.
+
+        Tout refus répond le même `404 logo_not_found` : fichier inconnu, nom mal formé, compagnie
+        supprimée ou fichier absent du stockage ne se distinguent pas.
+      operationId: getPublicCompanyLogo
+      x-availability: disponible
+      security: []
+      parameters:
+        - name: file
+          in: path
+          required: true
+          description: Nom du fichier, `<uuid>.png`, `<uuid>.jpg` ou `<uuid>.webp` (voir `logoUrl`)
+          schema:
+            type: string
+            example: 6f1c2a9e-3b7d-4c55-9a10-0d2f5b8e7a41.png
+      responses:
+        '200':
+          description: Le logo
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: public, max-age=31536000, immutable
+            X-Content-Type-Options:
+              schema:
+                type: string
+                example: nosniff
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Aucun logo pour ce fichier (`logo_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -5075,6 +5459,11 @@ components:
         accountsCount:
           type: integer
           example: 3
+        logoUrl:
+          type: string
+          nullable: true
+          description: URL publique du logo (`GET /public/v1/logos/{file}`), ou `null` sans logo
+          example: /public/v1/logos/6f1c2a9e-3b7d-4c55-9a10-0d2f5b8e7a41.png
 
     CreateCompanyRequest:
       type: object
@@ -5168,8 +5557,8 @@ components:
             - $ref: '#/components/schemas/RoomSchedule'
           nullable: true
           description: >-
-            **À venir (lot 13).** Réglages de créneaux de la salle ; `null` : pas de créneaux, salle
-            non réservable. La colonne `rooms.schedule` existe, mais aucune route ne la renvoie encore.
+            Réglages de créneaux de la salle, écrits par `PUT /companies/{companyId}/rooms/{roomId}/schedule` ;
+            `null` : pas de créneaux, salle non réservable.
         status:
           type: integer
           enum: [0, 1, 2]
@@ -5189,7 +5578,7 @@ components:
     RoomScheduleDay:
       type: object
       description: >-
-        **À venir (lot 13).** Horaires d'un jour, au format `HH:MM` sur 24 h, en heure locale de la
+        Horaires d'un jour, au format `HH:MM` sur 24 h, en heure locale de la
         salle. `closesAt` ≤ `opensAt` veut dire « ferme le lendemain » (24 h d'ouverture au plus).
         `firstSessionAt` doit tomber dans la plage d'ouverture ; il vaut `opensAt` s'il est absent.
       required: [opensAt, closesAt]
@@ -5210,14 +5599,17 @@ components:
     RoomSchedule:
       type: object
       description: >-
-        **À venir (lot 13).** Réglages de créneaux d'une salle (`rooms.schedule`). Tout est stocké en
+        Réglages de créneaux d'une salle (`rooms.schedule`). Tout est stocké en
         UTC ; le fuseau de la salle sert à lire les horaires. Deux jours consécutifs ne doivent pas se
         chevaucher (une fermeture après minuit au-delà de l'ouverture du lendemain est refusée).
       required: [timezone, slotMinutes, breakMinutes, bookableDesks, publicBooking, days]
       properties:
         timezone:
           type: string
-          description: Fuseau IANA valide. Défaut proposé `Europe/Paris`.
+          description: >-
+            Fuseau IANA (`Europe/Paris`, `UTC`). Les décalages fixes (`+01:00`) et les abréviations sans `/` (`EST`,
+            `CET`) sont refusés (`schedule_timezone_invalid`). Le nom est stocké normalisé (`europe/paris` devient
+            `Europe/Paris`). Défaut proposé `Europe/Paris`.
           example: Europe/Paris
         slotMinutes:
           type: integer
@@ -5255,7 +5647,7 @@ components:
 
     UpdateRoomScheduleRequest:
       type: object
-      description: '**À venir (lot 13).** `schedule: null` désactive les créneaux de la salle.'
+      description: '`schedule: null` désactive les créneaux de la salle.'
       required: [schedule]
       properties:
         schedule:
@@ -5263,86 +5655,22 @@ components:
             - $ref: '#/components/schemas/RoomSchedule'
           nullable: true
 
-    GameSchedulingFields:
-      type: object
-      description: >-
-        **À venir (lot 13).** Champs de session programmée que les lignes de partie
-        (`GameSummary`, `GameDetail`, `RoomGame`) gagneront. Les colonnes existent déjà en base
-        (`games.scheduled_at`, `scheduled_end_at`, `cancelled_at`, `players_count`, `external_ref`,
-        `locale`) ; aucune route ne les renvoie encore.
-      properties:
-        scheduledAt:
-          type: string
-          format: date-time
-          nullable: true
-          description: Début prévu (UTC), `null` pour une partie immédiate.
-        scheduledEndAt:
-          type: string
-          format: date-time
-          nullable: true
-          description: Fin prévue (UTC), strictement après `scheduledAt`.
-        cancelledAt:
-          type: string
-          format: date-time
-          nullable: true
-          description: Renseigné si et seulement si `state` vaut `cancelled`.
-        playersCount:
-          type: integer
-          minimum: 1
-          maximum: 12
-          nullable: true
-          description: Nombre de joueurs annoncé (6 pupitres × 2 joueurs au plus).
-        externalRef:
-          type: string
-          maxLength: 100
-          nullable: true
-          description: Référence du système de réservation du client.
-        locale:
-          type: string
-          enum: [fr, en]
-          nullable: true
-
-    CreateGameSchedulingFields:
-      type: object
-      description: >-
-        **À venir (lot 13).** Champs facultatifs ajoutés au corps de `POST /companies/{companyId}/games`.
-        Avec `scheduledAt`, la partie est créée à l'état `scheduled`, `participants` peut être vide
-        (0 à 6) et le contrôle `room_busy` ne s'applique pas. Sans `scheduledAt`, rien ne change.
-        Seul le chevauchement d'une autre session de la salle est interdit (`slot_taken`) : une
-        création manuelle peut sortir de la grille des créneaux.
-      properties:
-        scheduledAt:
-          type: string
-          format: date-time
-          description: Date ISO 8601 avec décalage, à la minute près (secondes à 0).
-          example: '2027-03-10T14:00:00+01:00'
-        durationMinutes:
-          type: integer
-          minimum: 10
-          maximum: 240
-          description: Par défaut le `slotMinutes` de la salle, sinon 60.
-        playersCount:
-          type: integer
-          minimum: 1
-          maximum: 12
-        externalRef:
-          type: string
-          maxLength: 100
-        locale:
-          type: string
-          enum: [fr, en]
-
     UpdateGameRequest:
       type: object
       description: >-
-        **À venir (lot 13).** Au moins un champ. Seule une session `scheduled` se modifie.
-        `participants` remplace la liste complète (même forme que `CreateGameRequest`).
+        Au moins un champ (`400 invalid_body` sinon) ; les champs absents sont gardés. Seule une
+        session `scheduled` se modifie. `participants` remplace la liste complète (même forme que
+        `CreateGameRequest`, de 0 à 6 participants). `playersCount`, `externalRef` et `locale`
+        acceptent `null` pour être effacés. `miniGames` : la liste complète est enregistrée comme
+        `null` (tous les mini-jeux). `scheduledAt` sans `durationMinutes` garde la durée de la
+        session, `durationMinutes` sans `scheduledAt` garde son début.
       properties:
         roomId:
           type: integer
         scheduledAt:
           type: string
           format: date-time
+          description: Date ISO 8601 avec décalage, à la minute près (secondes à 0).
         durationMinutes:
           type: integer
           minimum: 10
@@ -5363,12 +5691,15 @@ components:
           type: integer
           minimum: 1
           maximum: 12
+          nullable: true
         externalRef:
           type: string
           maxLength: 100
+          nullable: true
         locale:
           type: string
           enum: [fr, en]
+          nullable: true
         participants:
           type: array
           maxItems: 6
@@ -5443,6 +5774,79 @@ components:
           minLength: 8
           maxLength: 100
 
+    RoomLogEntry:
+      type: object
+      description: Une erreur envoyée par l'écran de salle (`POST /room/logs`)
+      required: [level, code, message, occurredAt]
+      properties:
+        level:
+          type: string
+          enum: [error, warn]
+        code:
+          type: string
+          maxLength: 64
+          pattern: '^[a-z][a-z0-9_]*$'
+          description: Code stable en `snake_case`
+          example: dmx_output_error
+        message:
+          type: string
+          minLength: 1
+          maxLength: 300
+          description: Adresses e-mail masquées (`[email]`) avant la coupe à 300 caractères
+        context:
+          type: object
+          additionalProperties: true
+          description: >-
+            Forme libre à l'envoi ; seules les clés `route`, `phase`, `miniGame`, `desk`, `driver`
+            et `httpStatus` sont gardées (texte de 64 caractères au plus ou nombre).
+          example:
+            driver: usbpro
+            desk: 2
+        occurrences:
+          type: integer
+          minimum: 1
+          maximum: 10000
+          default: 1
+          description: Répétitions regroupées par l'écran de salle
+        occurredAt:
+          type: string
+          format: date-time
+          description: Première occurrence, heure du poste de la salle
+
+    RoomLog:
+      type: object
+      description: Une erreur de salle enregistrée, telle que le personnel la lit
+      required: [id, level, code, message, context, appVersion, occurrences, occurredAt, createdAt]
+      properties:
+        id:
+          type: integer
+        level:
+          type: string
+          enum: [error, warn]
+        code:
+          type: string
+          example: dmx_output_error
+        message:
+          type: string
+        context:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Clés `route`, `phase`, `miniGame`, `desk`, `driver`, `httpStatus` ; `null` s'il n'en reste aucune
+        appVersion:
+          type: string
+        occurrences:
+          type: integer
+          minimum: 1
+        occurredAt:
+          type: string
+          format: date-time
+          description: Première occurrence, heure du poste de la salle (jamais dans le futur)
+        createdAt:
+          type: string
+          format: date-time
+          description: Réception par le serveur
+
     MiniGame:
       type: string
       description: Code d'un mini-jeu du moteur de jeu (voir `MINI_GAMES` dans `@quizzup/shared`)
@@ -5505,6 +5909,36 @@ components:
         finishedAt:
           type: string
           format: date-time
+          nullable: true
+        scheduledAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Début prévu (UTC), `null` pour une partie immédiate.
+        scheduledEndAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Fin prévue (UTC), strictement après `scheduledAt`.
+        cancelledAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Renseigné si et seulement si `state` vaut `cancelled`.
+        playersCount:
+          type: integer
+          minimum: 1
+          maximum: 12
+          nullable: true
+          description: Nombre de joueurs annoncé à la réservation (6 pupitres × 2 joueurs au plus).
+        externalRef:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: Référence du système de réservation du client.
+        locale:
+          type: string
+          enum: [fr, en]
           nullable: true
         status:
           type: integer
@@ -5617,8 +6051,35 @@ components:
 
     CreateGameRequest:
       type: object
-      required: [roomId, participants]
+      required: [roomId]
+      description: >-
+        Sans `scheduledAt`, `participants` est requis (1 à 6). Avec `scheduledAt`, la partie est
+        créée à l'état `scheduled`, `participants` peut être vide (0 à 6) et le contrôle
+        `room_busy` ne s'applique pas. Seul le chevauchement d'une autre session de la salle est
+        interdit (`slot_taken`) : une création manuelle peut sortir de la grille des créneaux.
       properties:
+        scheduledAt:
+          type: string
+          format: date-time
+          description: Date ISO 8601 avec décalage, à la minute près (secondes à 0).
+          example: '2027-03-10T14:00:00+01:00'
+        durationMinutes:
+          type: integer
+          minimum: 10
+          maximum: 240
+          description: >-
+            Par défaut le `slotMinutes` de la salle, sinon 60. Refusé (`400 invalid_body`) sans
+            `scheduledAt`.
+        playersCount:
+          type: integer
+          minimum: 1
+          maximum: 12
+        externalRef:
+          type: string
+          maxLength: 100
+        locale:
+          type: string
+          enum: [fr, en]
         roomId:
           type: integer
         roundsCount:
@@ -5644,10 +6105,9 @@ components:
             vide donnent `400 invalid_body`.
         participants:
           type: array
-          minItems: 1
           maxItems: 6
           description: >-
-            Au plus autant de participants que la salle a de pupitres (`desksCount`, 4 par défaut,
+            Au moins un participant sans `scheduledAt`. Au plus autant de participants que la salle a de pupitres (`desksCount`, 4 par défaut,
             6 au maximum) ; un pupitre au-delà donne `400 podium_not_in_room`.
           items:
             type: object

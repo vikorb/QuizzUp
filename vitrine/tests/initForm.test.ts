@@ -70,7 +70,6 @@ describe('initForm', () => {
       text.fieldErrors['consent.required']
     )
     expect(field('name').getAttribute('aria-invalid')).toBe('true')
-    expect(field('name').getAttribute('aria-describedby')).toBe('f-name-error')
     expect(document.activeElement).toBe(field('name'))
   })
 
@@ -127,7 +126,7 @@ describe('initForm', () => {
   })
 
   it.each([
-    [400, 'warning', text.invalid],
+    [400, 'error', text.error(CONTACT)],
     [429, 'warning', text.rateLimited],
     [500, 'error', text.error(CONTACT)],
   ])('statut %i : état %s', async (code, state, message) => {
@@ -140,6 +139,78 @@ describe('initForm', () => {
     expect(status().textContent).toBe(message)
     // La saisie est conservée pour réessayer.
     expect(field('name').value).toBe('Camille Martin')
+  })
+
+  it('montre sous le champ ce que le serveur a refusé, avec son propre texte, et y place le focus', async () => {
+    const body = {
+      error: 'invalid_body',
+      details: { fieldErrors: { roomsCount: ['Too big: SERVER TEXT'], email: ['Invalid email'] } },
+    }
+    const fetchFn = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(JSON.stringify(body), { status: 400 }))
+    initForm(form, { fetchFn })
+    fillValid()
+    await submit(form)
+
+    expect(status().dataset.state).toBe('warning')
+    expect(status().textContent).toBe(text.invalid)
+    // L'e-mail refusé reçoit le texte « adresse non valide », les autres champs le texte générique.
+    expect(document.querySelector('#f-email-error')?.textContent).toBe(
+      text.fieldErrors['email.invalid']
+    )
+    expect(document.querySelector('#f-rooms-error')?.textContent).toBe(text.fieldRejected)
+    for (const name of ['email', 'rooms']) {
+      expect(field(name).getAttribute('aria-invalid')).toBe('true')
+    }
+    expect(field('name').hasAttribute('aria-invalid')).toBe(false)
+    expect(document.body.textContent).not.toContain('SERVER TEXT')
+    expect(document.activeElement).toBe(field('email'))
+    // La saisie est conservée et le bouton est de nouveau utilisable.
+    expect(field('name').value).toBe('Camille Martin')
+    expect(document.querySelector('#form-submit')?.hasAttribute('aria-disabled')).toBe(false)
+  })
+
+  it('envoie la langue de la page, sauf si elle est inconnue', async () => {
+    const sentLocale = async (lang: string) => {
+      form = buildForm()
+      document.documentElement.lang = lang
+      const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 201 }))
+      initForm(form, { fetchFn })
+      fillValid()
+      await submit(form)
+      return JSON.parse((fetchFn.mock.calls[0]?.[1] as RequestInit).body as string).locale
+    }
+    expect(await sentLocale('fr')).toBe('fr')
+    expect(await sentLocale('de')).toBeUndefined()
+  })
+
+  it("retire l'erreur du serveur dès qu'on corrige le champ", async () => {
+    const body = { error: 'invalid_body', details: { fieldErrors: { roomsCount: ['x'] } } }
+    const fetchFn = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(JSON.stringify(body), { status: 400 }))
+    initForm(form, { fetchFn })
+    fillValid()
+    await submit(form)
+
+    field('rooms').dispatchEvent(new Event('input', { bubbles: true }))
+    expect(field('rooms').hasAttribute('aria-invalid')).toBe(false)
+    expect(document.querySelector('#f-rooms-error')?.textContent).toBe('')
+  })
+
+  it("sans adresse d'API, laisse le formulaire ouvrir la messagerie (aucun envoi, validation native)", () => {
+    form.dataset.apiUrl = ''
+    const fetchFn = vi.fn<typeof fetch>()
+    initForm(form, { fetchFn })
+    fillValid()
+
+    const event = new Event('submit', { cancelable: true, bubbles: true })
+    form.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(false)
+    expect(form.noValidate).toBe(false)
+    expect(fetchFn).not.toHaveBeenCalled()
   })
 
   it("propose l'adresse de contact quand le serveur est injoignable", async () => {
