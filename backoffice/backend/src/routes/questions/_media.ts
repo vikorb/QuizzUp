@@ -1,4 +1,3 @@
-import type { FastifyRequest } from 'fastify'
 import type { Knex } from 'knex'
 
 import {
@@ -8,7 +7,6 @@ import {
   type QuestionMediaType,
 } from '@quizzup/shared'
 
-import { getMediaStorage, isValidMediaKey } from '../../storage/mediaStorage'
 import { DEFAULT_QUESTION_MEDIA_TYPE, validateMediaStartMs } from './_shared'
 
 export type QuestionMediaRow = {
@@ -62,22 +60,6 @@ export async function lockQuestionMediaRow(
     .first()
 
   return row ? (row as QuestionMediaRow) : null
-}
-
-/** Suppression au mieux, après le commit : un fichier orphelin est journalisé, pas bloquant. */
-export async function removeStoredMediaFile(
-  req: FastifyRequest,
-  key: string | null | undefined
-): Promise<void> {
-  if (!isValidMediaKey(key)) {
-    return
-  }
-
-  try {
-    await getMediaStorage().remove(key)
-  } catch (error) {
-    req.log.warn({ err: error, key }, 'question media removal failed')
-  }
 }
 
 /** Règle de la question refusée sous verrou : 400 par défaut, annule la transaction. */

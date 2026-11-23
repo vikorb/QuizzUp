@@ -1,5 +1,5 @@
 import type { EngineTheme } from '@quizzup/game-engine'
-import type { MiniGame } from '@quizzup/shared'
+import type { MiniGame, RoomLogEntryInput } from '@quizzup/shared'
 
 import { authHeaders, getApiBase } from '@/utils/auth'
 
@@ -148,6 +148,31 @@ export async function finishRoomGame(
     timeoutMs: FINISH_REQUEST_TIMEOUT_MS,
   })
   return data.game
+}
+
+/** Délai maximal de l'envoi des journaux d'erreurs : au-delà, ils repartent au prochain passage. */
+export const LOGS_REQUEST_TIMEOUT_MS = 10_000
+
+/** Envoie des journaux d'erreurs (`POST /room/logs`, 204 sans corps : pas de passage par `request`). */
+export async function postRoomLogs(
+  token: string,
+  appVersion: string,
+  entries: RoomLogEntryInput[]
+): Promise<void> {
+  const headers = authHeaders(token)
+  headers.set('Content-Type', 'application/json')
+
+  const res = await fetch(`${getApiBase()}/room/logs`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ appVersion, entries }),
+    signal: AbortSignal.timeout(LOGS_REQUEST_TIMEOUT_MS),
+  })
+
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null
+    throw new RoomApiError(res.status, data?.error ?? 'server_error', data)
+  }
 }
 
 /**

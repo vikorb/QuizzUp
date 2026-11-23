@@ -51,6 +51,7 @@ vi.mock('@/utils/auth', async () => {
     loginApi: authApi.loginApiMock,
     loginReasonToI18nKey: authApi.loginReasonToI18nKeyMock,
     setToken: authApi.setTokenMock,
+    getApiBase: () => 'http://api.test',
   }
 })
 
@@ -110,6 +111,15 @@ vi.mock('@/services/companiesService', async () => {
   }
 })
 
+vi.mock('@/services/companyLogoService', async () => {
+  const companyLogoService = await import('./companyLogoServiceMock')
+
+  return {
+    uploadCompanyLogoService: companyLogoService.uploadCompanyLogoServiceMock,
+    deleteCompanyLogoService: companyLogoService.deleteCompanyLogoServiceMock,
+  }
+})
+
 vi.mock('@/services/themesService', async () => {
   const themesService = await import('./themesServiceMock')
 
@@ -141,6 +151,14 @@ vi.mock('@/services/questionsService', async () => {
     updateQuestionStatusService: questionsService.updateQuestionStatusServiceMock,
     attachQuestionToThemeService: questionsService.attachQuestionToThemeServiceMock,
     detachQuestionFromThemeService: questionsService.detachQuestionFromThemeServiceMock,
+  }
+})
+
+vi.mock('@/services/questionImportService', async () => {
+  const questionImportService = await import('./questionImportServiceMock')
+
+  return {
+    importQuestionsService: questionImportService.importQuestionsServiceMock,
   }
 })
 

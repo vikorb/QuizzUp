@@ -18,10 +18,11 @@ import {
   startNewGame,
   useRoomGame,
 } from '@/game/useRoomGame'
-import { saveRoomHardwareConfig, startLighting, stopLighting } from '@/hardware/roomHardware'
+import { startLighting, stopLighting } from '@/hardware/roomHardware'
 import { setDemoMode } from '@/utils/auth'
 
 import { createManualClock, getPlayableThemes, REGISTRATIONS } from '../_helpers/fixtures'
+import { saveWithSmokeProof } from '../_helpers/smokeProof'
 
 const noop = () => undefined
 
@@ -251,7 +252,7 @@ describe('useRoomGame : pause et passage de question', () => {
     })
 
     async function startLights() {
-      await saveRoomHardwareConfig(SMOKE_CONFIG)
+      await saveWithSmokeProof(SMOKE_CONFIG)
       return startLighting()
     }
 

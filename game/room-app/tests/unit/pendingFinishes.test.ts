@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { flushRoomErrors } from '@/diagnostics/errorReporter'
 import {
   enqueuePendingFinish,
   findPendingFinishBySeed,
@@ -364,6 +365,29 @@ describe('file des résultats de partie à envoyer', () => {
       expect(readPendingFinishes()).toEqual([])
       expect(warn).toHaveBeenCalledOnce()
       expect(await timersLeft()).toBe(0)
+    })
+
+    it('note le refus pour le personnel, avec le code HTTP', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+      const fetchMock = vi
+        .spyOn(globalThis, 'fetch')
+        .mockResolvedValue(new Response(null, { status: 204 }))
+      finish.mockRejectedValueOnce(new RoomApiError(409, 'game_already_over'))
+
+      await enqueuePendingFinish(report(1))
+      await flushRoomErrors()
+
+      const sent = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
+        entries: unknown[]
+      }
+      expect(sent.entries).toMatchObject([
+        {
+          level: 'error',
+          code: 'finish_refused',
+          message: 'game_already_over',
+          context: { httpStatus: 409 },
+        },
+      ])
     })
 
     it('ne dit jamais « enregistré » pour une partie refusée', async () => {

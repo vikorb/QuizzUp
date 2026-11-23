@@ -25,6 +25,15 @@
       />
     </div>
 
+    <ClientDetailLogo
+      :company-id="company.id"
+      :company-name="company.name"
+      :logo-url="company.logoUrl ?? null"
+      :can-manage="permissions.canManageCompany"
+      :disabled="companySaving"
+      @changed="handleLogoChanged"
+    />
+
     <ClientDetailSwitch
       v-if="permissions.canShowStatusSwitch"
       :status="form.status"
@@ -70,6 +79,7 @@ import {
 } from '@/utils/company/details/form'
 import { clearTimer, scheduleTimer } from '@/utils/timer'
 
+import ClientDetailLogo from './ClientDetailLogo.vue'
 import ClientDetailSwitch from './ClientDetailSwitch.vue'
 
 const props = defineProps<{
@@ -134,6 +144,12 @@ function toggleCompanyStatus(): void {
   clearSuccessMessageTimer()
   formSuccess.value = null
   form.status = getClientDetailNextStatus(form.status)
+}
+
+// Le logo s'enregistre à part (route dédiée) : le formulaire garde les saisies en cours.
+function handleLogoChanged(logoUrl: string | null): void {
+  ignoreNextCompanySync.value = true
+  emit('updated', { ...props.company, logoUrl })
 }
 
 async function handleSubmit(): Promise<void> {

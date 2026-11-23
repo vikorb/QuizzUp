@@ -3,6 +3,8 @@ import { ADMIN_ROLE_ROOM, ADMIN_STATUS_DELETED } from '@quizzup/shared'
 import db from '../../db'
 import type { AdminAccessRow } from '../../security/companiesPolicy'
 import type { AdminRow } from '../../types/admin'
+import type { CompanyDbRow, CompanyRow } from '../../types/company'
+import { PUBLIC_API_PREFIX } from '../public/_shared'
 
 export function normalizeNullableString(value: string | null | undefined): string | null {
   const normalized = value?.trim()
@@ -15,11 +17,24 @@ export const companySelect = [
   'companies.name',
   'companies.email',
   'companies.status',
+  'companies.logo_key as logoKey',
   'companies.created_at as createdAt',
   'companies.updated_at as updatedAt',
   'companies.deleted_at as deletedAt',
   db.raw('COUNT(admins.id)::int as "accountsCount"'),
 ]
+
+/** URL publique du logo (`GET /public/v1/logos/:file`) ; la clé de stockage ne sort jamais. */
+export function companyLogoUrl(logoKey: string | null | undefined): string | null {
+  return logoKey ? `${PUBLIC_API_PREFIX}/logos/${logoKey.replace(/^logos\//, '')}` : null
+}
+
+/** Ligne lue en base (avec `logoKey`) → compagnie renvoyée par l'API (avec `logoUrl`). */
+export function toCompanyRow(row: CompanyDbRow): CompanyRow {
+  const { logoKey, ...company } = row
+
+  return { ...company, logoUrl: companyLogoUrl(logoKey) }
+}
 
 export const adminSelect = [
   'id',
