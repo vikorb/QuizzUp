@@ -18,11 +18,16 @@
       @dismiss="clearActionBanner"
     />
 
+    <LiveConnectionNote :state="liveState" :error-key="liveErrorKey" />
+
     <GamesTable
       :company-id="companyId ?? 0"
       :games="filteredGames"
       :loading="loading"
       :error="error"
+      :live-rooms="liveRooms"
+      :live-uncertain="liveUncertain"
+      :now="liveNow"
       @retry="loadPage"
       @open="goToDetail"
       @aborted="handleGameAborted"
@@ -39,7 +44,9 @@ import { useRoute, useRouter } from 'vue-router'
 
 import SectionLayout from '@/components/SectionLayout.vue'
 import BaseBanner from '@/components/ui/BaseBanner.vue'
+import LiveConnectionNote from '@/components/ui/LiveConnectionNote.vue'
 import StatBar, { type Stat } from '@/components/ui/StatBar.vue'
+import { useLiveCompany } from '@/composables/useLiveCompany'
 import { getCreateGameRoute, getGameDetailRoute, getGamesRoute } from '@/router/games'
 import { loadCompaniesService } from '@/services/companiesService'
 import { listGamesService } from '@/services/gamesService'
@@ -81,6 +88,14 @@ const isSuperAdmin = computed(() => isSuperadminRole(authState.me.value?.role))
 const companyId = computed(
   () => selectedCompanyId.value ?? resolveGameCompanyId(authState.me.value, route.query.companyId)
 )
+
+const {
+  rooms: liveRooms,
+  state: liveState,
+  errorKey: liveErrorKey,
+  uncertain: liveUncertain,
+  now: liveNow,
+} = useLiveCompany(companyId)
 
 const stateFilter = computed<string>({
   get: () => stateFilterValue.value,

@@ -12,6 +12,34 @@ Format inspiré de Keep a Changelog.
   US: US-PUBLIC-00 (#141)
 - Préfixe `/public/v1` sans authentification : erreurs au format public, CORS piloté par `VITRINE_ORIGINS`, limite de débit par adresse, réponses `no-store`. Aucune route métier pour l'instant.
   US: US-PUBLIC-00 (#141)
+- Déploiement de production (`deploy/prod/`) : Caddy en HTTPS, API compilée, PostgreSQL, fichiers
+  statiques, emplacement du site vitrine, console éditeur filtrée par plages réseau, secrets
+  obligatoires hors du dépôt, sauvegardes chiffrées (restic) avec restauration, mise à jour avec
+  retour arrière automatique, supervision par webhook ou e-mail. La pile n'a pas encore tourné sur
+  une vraie machine : la liste des essais à rejouer est dans `deploy/prod/README.md`.
+  Sécurité : l'API refuse de démarrer en production (`NODE_ENV=production`) si `JWT_SECRET` est
+  absent, fait moins de 32 caractères ou vaut la valeur de développement.
+  US: US-PROD-01
+- Présence en direct de l'écran de salle. L'écran ouvre le flux `GET /room/stream` et publie son
+  état par `POST /room/status` (écran, partie, phase, manche, question, mini-jeu, pause, scores par
+  pupitre, son prêt) à chaque changement, au plus une fois par seconde, et au rythme annoncé par le
+  serveur. Reconnexion après 1, 2, 5, 10 puis 30 s. Rien n'est publié sans flux ouvert. Quand un
+  autre poste ouvre la même salle, l'écran affiche « Reprendre la main ici » ; une session terminée
+  renvoie à la connexion, après la partie en cours s'il y en a une. `@quizzup/shared` : phases du
+  moteur (`GAME_PHASES`, `GAME_IDLE_PHASES`) avec un test de contrat côté moteur. Serveur : le
+  rapport refuse une phase inconnue et deux scores pour un même pupitre ; une salle hors ligne sans
+  flux est oubliée une fois son départ diffusé.
+- Présence des salles en direct, côté backoffice. La liste des parties affiche, sous le nom de la
+  salle de chaque partie en attente ou en cours, une pastille « En ligne », « Hors ligne » (avec
+  « vu il y a … ») ou « En partie » ; le formulaire de lancement écrit la présence après le nom de
+  chaque salle et affiche la pastille de la salle choisie. Le flux `GET /companies/:companyId/live`
+  est lu avec `fetch` et l'en-tête `Authorization` (composable `useLiveCompany`) : reconnexion après
+  1, 2, 5, 10 puis 30 s, flux muet plus de 45 s rouvert, arrêt sans boucle sur `403` et
+  `429 too_many_streams`, vérification de la session sur `401` et `session_ended`, fermeture au
+  départ de l'écran. Pendant une coupure, les dernières présences connues sont affichées « État
+  inconnu ». Clés i18n `fr` et `en` (`live.*`, codes d'erreur `too_many_streams`,
+  `room_instance_replaced`, `session_ended`). `apiFetch` accepte un `signal`.
+  US: US-LIVE-01
 
 - Présence des salles en direct, côté serveur (aucun client modifié dans ce lot). Le backend sait
   quelle salle est en ligne et le diffuse. `GET /room/stream` (compte de salle) ouvre un flux SSE
@@ -227,6 +255,9 @@ Format inspiré de Keep a Changelog.
   US: US-MEDIA-01 (#59)
 
 ### Changed
+
+- Moteur de jeu : les mini-jeux d'une partie sont tirés sans remise (aucun mini-jeu ne revient tant que tous les mini-jeux jouables n'ont pas été joués, et jamais deux fois de suite quand il y a le choix).
+  US: US-FORMAT-01 (#143)
 
 - `backend/.env` n'est plus versionné (seul `backend/.env.example` l'est) ; les tests backend
   chargent `backend/.env` s'il existe, sinon `backend/.env.example`.
