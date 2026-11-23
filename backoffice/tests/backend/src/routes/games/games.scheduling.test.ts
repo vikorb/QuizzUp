@@ -218,6 +218,18 @@ describe('POST /companies/:companyId/games avec scheduledAt', () => {
     expect(parseJson<GameBody>(response).game.scheduledEndAt).toBe('2027-03-10T13:45:00.000Z')
   })
 
+  it.each([0, 1000])(
+    'falls back to the default duration for a room slot of %s minutes',
+    async (slotMinutes) => {
+      seedRoom({ schedule: { slotMinutes } })
+
+      const response = await create()
+
+      expect(response.statusCode).toBe(201)
+      expect(parseJson<GameBody>(response).game.scheduledEndAt).toBe(ENDS_AT_UTC)
+    }
+  )
+
   it('keeps the immediate launch unchanged without scheduledAt', async () => {
     seedRoom()
 
@@ -691,16 +703,17 @@ describe('POST /companies/:companyId/games/:gameId/open', () => {
     }
   )
 
-  it('answers room_busy while another game waits in the room, not while one is running', async () => {
+  it('answers room_busy while another game waits or runs in the room', async () => {
     vi.setSystemTime(new Date('2027-03-10T13:00:00.000Z'))
     seedGame({ id: 2, state: GAME_STATE_RUNNING, scheduled_at: null, scheduled_end_at: null })
 
+    // Passera à 200 quand la file d'attente du lot 2 lèvera l'index.
     const whileRunning = await open()
-    dbState.games[0]!.state = GAME_STATE_SCHEDULED
     dbState.games[1]!.state = GAME_STATE_PENDING
     const whilePending = await open()
 
-    expect(whileRunning.statusCode).toBe(200)
+    expect(whileRunning.statusCode).toBe(409)
+    expect(parseJson(whileRunning)).toEqual({ error: 'room_busy' })
     expect(whilePending.statusCode).toBe(409)
     expect(parseJson(whilePending)).toEqual({ error: 'room_busy' })
     expect(dbState.games[0]!.state).toBe(GAME_STATE_SCHEDULED)
@@ -852,6 +865,16 @@ describe('POST /companies/:companyId/games/:gameId/cancel', () => {
     expect(response.statusCode).toBe(409)
     expect(parseJson(response)).toEqual({ error: 'game_not_scheduled' })
     expect(dbState.game_participants[0]!.email).toBe('lea@exemple.fr')
+  })
+
+  it('answers 200 when a simultaneous call cancels the session between read and write', async () => {
+    changeStateBeforeWrite(GAME_STATE_CANCELLED)
+
+    const response = await cancel(operator)
+
+    expect(response.statusCode).toBe(200)
+    expect(parseJson<GameBody>(response).game.state).toBe(GAME_STATE_CANCELLED)
+    expect(response.body).not.toContain('@exemple.fr')
   })
 
   it('answers 404 for an unknown or deleted game and 400 for a bad id', async () => {

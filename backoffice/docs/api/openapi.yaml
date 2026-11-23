@@ -1669,7 +1669,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: La partie n'est plus à l'état `scheduled` (`game_not_scheduled`) ou le créneau chevauche une autre session de la salle (`slot_taken`)
+          description: La partie n'est plus à l'état `scheduled` (`game_not_scheduled`), la salle est inactive (`room_inactive`) ou le créneau chevauche une autre session de la salle (`slot_taken`)
           content:
             application/json:
               schema:
@@ -1703,6 +1703,12 @@ paths:
                   game:
                     allOf:
                       - $ref: '#/components/schemas/GameDetail'
+        '400':
+          description: Identifiants invalides (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
           description: Accès interdit
           content:
@@ -1750,6 +1756,12 @@ paths:
                   game:
                     allOf:
                       - $ref: '#/components/schemas/GameDetail'
+        '400':
+          description: Identifiants invalides (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
           description: Accès interdit
           content:

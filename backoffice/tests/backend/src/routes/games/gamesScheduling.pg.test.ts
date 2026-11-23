@@ -9,6 +9,7 @@ import {
   companyAdminUser,
   createRouteApp,
   parseJson,
+  superadminUser,
   type TestUser,
 } from '../_helpers/testApp'
 
@@ -233,5 +234,32 @@ describe.skipIf(!PG_INTEGRATION_URL)('sessions programmées sur PostgreSQL', () 
       { state: 'scheduled' },
       { state: 'scheduled' },
     ])
+  })
+
+  it('answers room_busy when a game is running in the room, the unique index refuses', async () => {
+    const soon = new Date(Math.ceil(Date.now() / MINUTE_MS) * MINUTE_MS + 20 * MINUTE_MS)
+    const { id } = parseJson<GameBody>(await schedule(soon, { durationMinutes: 20 })).game
+    await db('games').insert({ company_id: 1, room_id: 1, admin_id: 2, seed: 1, state: 'running' })
+
+    const busy = await request('POST', `/companies/1/games/${id}/open`)
+
+    expect(busy.statusCode).toBe(409)
+    expect(parseJson(busy)).toEqual({ error: 'room_busy' })
+    expect(await db('games').where('id', id).first()).toMatchObject({ state: 'scheduled' })
+  })
+
+  it('answers 404 to a superadmin opening a game through another company', async () => {
+    const soon = new Date(Math.ceil(Date.now() / MINUTE_MS) * MINUTE_MS + 20 * MINUTE_MS)
+    const { id } = parseJson<GameBody>(await schedule(soon, { durationMinutes: 20 })).game
+
+    const response = await request(
+      'POST',
+      `/companies/2/games/${id}/open`,
+      undefined,
+      superadminUser
+    )
+
+    expect(response.statusCode).toBe(404)
+    expect(await db('games').where('id', id).first()).toMatchObject({ state: 'scheduled' })
   })
 })

@@ -50,9 +50,14 @@ const gamesIdCancelRoutes: FastifyPluginAsync = async (app) => {
       // L'annulation et l'effacement des emails passent ensemble ou pas du tout.
       const cancelled = await db.transaction((trx) => cancelScheduledGames(trx, { id: gameId }))
 
-      // Ouverte entre la lecture et l'écriture : elle n'est plus programmée.
+      // Changée entre la lecture et l'écriture : annulée par un appel simultané (idempotent), sinon
+      // ouverte, donc plus programmée.
       if (cancelled === 0) {
-        return reply.code(409).send({ error: 'game_not_scheduled' })
+        const current = await findGameInCompany(companyId, gameId)
+
+        if (current?.state !== GAME_STATE_CANCELLED) {
+          return reply.code(409).send({ error: 'game_not_scheduled' })
+        }
       }
 
       return { game: await findStaffGame(req, companyId, gameId) }

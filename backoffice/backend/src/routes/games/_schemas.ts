@@ -113,7 +113,11 @@ export type GameParticipantInput = z.infer<typeof participantSchema>
 
 const roundsCountSchema = z.number().int().min(1).max(GAME_MAX_ROUNDS)
 const questionsPerRoundSchema = z.number().int().min(1).max(GAME_MAX_QUESTIONS_PER_ROUND)
-const durationMinutesSchema = z.number().int().min(SESSION_MIN_MINUTES).max(SESSION_MAX_MINUTES)
+export const durationMinutesSchema = z
+  .number()
+  .int()
+  .min(SESSION_MIN_MINUTES)
+  .max(SESSION_MAX_MINUTES)
 const playersCountSchema = z.number().int().min(1).max(GAME_MAX_PLAYERS)
 const externalRefSchema = z.string().trim().min(1).max(GAME_EXTERNAL_REF_MAX_LENGTH)
 const participantsSchema = z.array(participantSchema).max(GAME_PODIUMS)

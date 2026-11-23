@@ -725,8 +725,32 @@ class QueryBuilder {
     return getTableRows(this.table).some(matches) || pending.some(matches)
   }
 
+  // Index unique partiel `games_room_id_active_unique` : une seule partie pending/running par salle.
+  private assertRoomActiveIndex(rows: Row[]): void {
+    const isActive = (row: Row): boolean =>
+      ['pending', 'running'].includes(row.state as string) && row.status !== 2
+    const nextState = this.updatePayload?.state
+
+    if (this.table !== 'games' || (nextState !== 'pending' && nextState !== 'running')) {
+      return
+    }
+
+    const taken = rows.some((row) =>
+      dbState.games.some(
+        (other) => other !== row && other.room_id === row.room_id && isActive(other)
+      )
+    )
+
+    if (taken) {
+      throw Object.assign(new Error('duplicate key value violates unique constraint'), {
+        code: '23505',
+      })
+    }
+  }
+
   private executeUpdate(): number {
     const rows = this.filteredRows()
+    this.assertRoomActiveIndex(rows)
     rows.forEach((row) => applyUpdate(row, this.updatePayload ?? {}))
 
     return rows.length

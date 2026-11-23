@@ -29,7 +29,7 @@ import db from '../../db'
 import type { GameParticipantRow, GameRow } from '../../types/game'
 import { isUniqueViolation } from '../_shared/dbErrors'
 import { findCompanyById } from '../companies/_shared'
-import type { GameParticipantInput } from './_schemas'
+import { durationMinutesSchema, type GameParticipantInput } from './_schemas'
 
 export const MINUTE_MS = 60_000
 const DAY_MS = 24 * 60 * MINUTE_MS
@@ -363,7 +363,9 @@ export async function getRoomSlotMinutes(roomId: number): Promise<number> {
   const room = await db('rooms').where('id', roomId).first('schedule')
   const slotMinutes = (room?.schedule as { slotMinutes?: unknown } | null | undefined)?.slotMinutes
 
-  return typeof slotMinutes === 'number' ? slotMinutes : SESSION_DEFAULT_MINUTES
+  const parsed = durationMinutesSchema.safeParse(slotMinutes)
+
+  return parsed.success ? parsed.data : SESSION_DEFAULT_MINUTES
 }
 
 export function addMinutes(date: Date, minutes: number): Date {
