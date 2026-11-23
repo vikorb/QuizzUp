@@ -11,6 +11,14 @@ Format inspiré de Keep a Changelog.
 - Statistiques d'exploitation d'une compagnie : route `GET /companies/:companyId/stats` et écran « Statistiques » (séances terminées et arrêtées, taux d'abandon, durée médiane, répartition par salle, joueurs, créneaux les plus chargés), réservés aux administrateurs. Aucune donnée individuelle ne sort.
   US: US-STATS-01 (#157)
 
+- Sessions programmées, côté serveur : une partie se crée à l'avance avec `scheduledAt` (statut `scheduled`, joueurs facultatifs), se modifie (`PATCH`), s'ouvre (`POST …/open`) et s'annule (`POST …/cancel`). Deux sessions ne peuvent pas se chevaucher dans une salle (`slot_taken`). L'annulation efface les e-mails des joueurs. La suppression d'une salle annule ses sessions à venir. La liste des parties filtre sur la date prévue et rend les champs de session.
+  US: US-SESSION-02 (#142)
+
+- Écran de réglage des créneaux d'une salle, ouvert depuis la liste des salles (admin et superadmin) : fuseau, jours et heures d'ouverture, durée de créneau, pause, pupitres réservables, réservation publique, avec aperçu des créneaux de chaque jour de la semaine type, enregistrement et désactivation après confirmation.
+  US: US-SESSION-01 (#142)
+
+- Journaux des salles : l'écran de salle envoie ses erreurs au backoffice (`POST /room/logs`, table `room_logs`, erreurs regroupées, e-mails masqués, contexte limité à une liste blanche, 6 envois par minute et par salle). Lecture par le superadmin et l'admin : `GET /companies/:companyId/rooms/:roomId/logs`. Conservation : `ROOM_LOG_RETENTION_DAYS` jours (30 par défaut) et 5000 lignes par salle. L'écran du backoffice viendra dans un lot suivant.
+  US: US-LOG-01 (#157)
 - Écran d'import de questions par fichier CSV, accessible depuis la liste des questions (admin et superadmin) : modèle téléchargeable, vérification à blanc avec rapport par ligne, import confirmé seulement si la vérification ne trouve aucune erreur.
   US: US-IMPORT-01 (#158)
 
@@ -339,6 +347,8 @@ Format inspiré de Keep a Changelog.
 
 ### Fixed
 
+- Sécurité : l'écran de salle n'arme la fumée activée par la configuration du serveur que si un test de coupure réussi est mémorisé sur ce poste, pour cette salle et ces réglages de fumée ; sinon aucun jet ne part et un message demande de refaire le test. Un test relancé efface la preuve jusqu'à sa réussite. Non validé sur du vrai matériel (banc, cas F9).
+  US: US-SEC-04 (#152)
 - Import CSV : le message d'erreur sur la colonne des bonnes réponses était tronqué, le caractère `|` étant lu comme un séparateur de pluriel par la traduction.
   US: US-IMPORT-01 (#158)
 

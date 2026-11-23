@@ -6,6 +6,8 @@ import {
   getLighting,
   HARDWARE_STORAGE_KEY,
   saveBuzzerKeymap,
+  saveRoomHardwareConfig,
+  SMOKE_PROOF_STORAGE_KEY,
   useRoomHardware,
 } from '@/hardware/roomHardware'
 import { enterDemo, syncRoomAuth } from '@/state/roomAuth'
@@ -57,7 +59,6 @@ describe('onglet Diagnostic', () => {
   })
 
   it('pilote un canal, protège la fumée et un appareil, puis rend la main aux scènes', async () => {
-    const { saveRoomHardwareConfig } = await import('@/hardware/roomHardware')
     await saveRoomHardwareConfig({
       lighting: {
         fixtures: [
@@ -210,7 +211,10 @@ describe('onglet Assistant', () => {
     vi.useRealTimers()
     await flushPromises()
     expect(sel(wrapper, 'freeze-question').exists()).toBe(true)
+    // La preuve n'existe pas tant que l'installateur n'a pas répondu : le test seul ne suffit pas.
+    expect(localStorage.getItem(SMOKE_PROOF_STORAGE_KEY)).toBeNull()
     await click(wrapper, 'freeze-ok')
+    expect(localStorage.getItem(SMOKE_PROOF_STORAGE_KEY)).not.toBeNull()
     expect(sel(wrapper, 'blockers').exists()).toBe(false)
     expect(sel(wrapper, 'smoke-disabled').exists()).toBe(false)
 
@@ -222,6 +226,9 @@ describe('onglet Assistant', () => {
 
     const { config } = useRoomHardware().hardware.value
     expect(config.lighting.smoke.enabled).toBe(true)
+    // Test réussi sur ce poste : la fumée enregistrée n'est pas refusée par la garde locale.
+    expect(useRoomHardware().smokeNeedsTest.value).toBe(false)
+    expect(getLighting()?.getState().smoke.status).not.toBe('disabled')
     expect(config.plan.screen.x).toBeCloseTo(0.5)
     expect(config.plan.screen.y).toBeCloseTo(0.1)
     expect(config.buzzers.source).toEqual({ kind: 'gamepad', match: 'BU0836' })
@@ -293,6 +300,8 @@ describe('onglet Assistant', () => {
     )
     expect(localStorage.getItem(HARDWARE_STORAGE_KEY) ?? '').not.toContain('"enabled":true')
     expect(getLighting()?.getState().emergency).toBe(true)
+    // Test échoué : aucune preuve de coupure sur ce poste.
+    expect(localStorage.getItem(SMOKE_PROOF_STORAGE_KEY)).toBeNull()
 
     await openTab(wrapper, 'buzzers')
     await vi.waitFor(() =>
@@ -301,5 +310,31 @@ describe('onglet Assistant', () => {
     await click(wrapper, 'tab-assistant')
     await click(wrapper, 'assistant-back')
     expect(sel(wrapper, 'step-browser').exists()).toBe(true)
+  })
+
+  it('refuse le test de coupure du diagnostic tant que ce poste n’a pas de preuve', async () => {
+    installFakeSerial(createFakeUsbPort())
+    await saveRoomHardwareConfig({
+      lighting: {
+        driver: 'usbpro',
+        fixtures: [{ id: 'fumee', name: 'Fumée', profileId: 'smoke-relay', address: 10 }],
+        smoke: { enabled: true },
+      },
+    })
+    const { wrapper } = await mountWithApp(HardwareView, { route: '/hardware' })
+    await openTab(wrapper, 'lights')
+    await vi.waitFor(() => expect(getLighting()).not.toBeNull())
+    await click(wrapper, 'dmx-connect')
+    await vi.waitFor(() => expect(getLighting()?.getState().simulation).toBe(false))
+
+    await openTab(wrapper, 'diagnostic')
+    await click(wrapper, 'diag-begin')
+    await click(wrapper, 'diag-freeze')
+
+    // Ni confirmation ni gel : aucune fumée ne part hors de l'assistant.
+    expect(useConfirm().state.open).toBe(false)
+    expect(wrapper.text()).toContain('test de coupure à refaire sur ce poste')
+    expect(getLighting()?.diagnostics.getState().frozenUntil).toBeNull()
+    expect(getLighting()?.getState().smoke.level).toBe(0)
   })
 })

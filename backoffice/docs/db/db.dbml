@@ -177,6 +177,29 @@ Table rooms {
   }
 }
 
+Table room_logs {
+  id bigint [pk, increment]
+  company_id bigint [not null]
+  room_id bigint [not null]
+
+  level varchar(10) [not null, note: 'error ou warn (ROOM_LOG_LEVELS)']
+  code varchar(64) [not null, note: 'Code snake_case de l erreur (dmx_output_error)']
+  message varchar(300) [not null, note: 'Adresses e-mail masquées ([email]) avant coupe à 300 caractères']
+  context jsonb [note: 'Liste blanche : route, phase, miniGame, desk, driver, httpStatus ; 1 Ko au plus ; jamais de donnée de joueur']
+  app_version varchar(32) [not null, note: 'Version de l écran de salle']
+  occurrences integer [not null, default: 1, note: 'Répétitions regroupées par l écran de salle (au moins 1)']
+
+  occurred_at timestamptz [not null, note: 'Première occurrence, heure de la salle (jamais dans le futur)']
+  created_at timestamptz [not null, default: `now()`, note: 'Réception par le serveur']
+
+  indexes {
+    (company_id) [name: 'room_logs_company_id_index']
+    (room_id, created_at) [name: 'room_logs_room_id_created_at_index', note: 'created_at décroissant']
+  }
+
+  Note: 'Journal sans status ni suppression logique. Purgé à chaque insertion : au-delà de ROOM_LOG_RETENTION_DAYS jours (30 par défaut) et au-delà de 5000 lignes par salle. Supprimé avec la salle.'
+}
+
 Table games {
   id bigint [pk, increment]
   company_id bigint [not null]
@@ -363,6 +386,8 @@ Ref: question_kind_retypings.question_id > questions.id [delete: cascade]
 
 // Relations salles / parties
 Ref: rooms.company_id > companies.id [delete: restrict]
+Ref: room_logs.company_id > companies.id [delete: cascade]
+Ref: room_logs.room_id > rooms.id [delete: cascade]
 Ref: games.company_id > companies.id [delete: restrict]
 Ref: games.room_id > rooms.id [delete: restrict]
 Ref: games.admin_id > admins.id [delete: restrict]

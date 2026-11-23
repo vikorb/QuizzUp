@@ -4,6 +4,7 @@ import {
   fetchRoomInfo,
   FINISH_REQUEST_TIMEOUT_MS,
   finishRoomGame,
+  postRoomLogs,
   resolveMediaUrl,
   RoomApiError,
   saveRoomConfig,
@@ -102,6 +103,40 @@ describe('API de la salle', () => {
 
     await expect(sending).rejects.toMatchObject({ name: 'TimeoutError' })
     await expect(sending).rejects.not.toBeInstanceOf(RoomApiError)
+  })
+
+  it('envoie les journaux d’erreurs (204 sans corps) et traduit un refus', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 204 }))
+    const entries = [
+      {
+        level: 'error' as const,
+        code: 'vue_error',
+        message: 'boom',
+        occurredAt: '2026-11-23T10:00:00.000Z',
+      },
+    ]
+
+    await expect(postRoomLogs('tok', '1.2.3', entries)).resolves.toBeUndefined()
+
+    const [url, init] = fetchMock.mock.calls[0] ?? []
+    expect(url).toBe(`${API}/room/logs`)
+    expect(init?.method).toBe('POST')
+    expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer tok')
+    expect(init?.body).toBe(JSON.stringify({ appVersion: '1.2.3', entries }))
+
+    respond(429, { error: 'too_many_requests' })
+    await expect(postRoomLogs('tok', '1.2.3', entries)).rejects.toMatchObject({
+      status: 429,
+      code: 'too_many_requests',
+    })
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('oops', { status: 500 }))
+    await expect(postRoomLogs('tok', '1.2.3', entries)).rejects.toMatchObject({
+      status: 500,
+      code: 'server_error',
+    })
   })
 
   it('traduit les erreurs du backoffice', async () => {
