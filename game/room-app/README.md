@@ -38,6 +38,7 @@ sécurisée), l'application démarre normalement sans cette protection.
 src/
 ├─ game/        session de jeu (moteur + sauvegarde/reprise), sélecteurs d'affichage, lobby RGPD
 ├─ hardware/    matériel de la page (roomHardware.ts : config, buzzers, lumières), plein écran / wake lock
+├─ live/        présence en direct : flux `/room/stream`, rapports `/room/status`
 ├─ audio/       lecteur silencieux (tests), ponts événements moteur → extraits et sons d'interface
 ├─ views/       écrans (login, lancement, lobby, partie) et sous-écrans de phase (views/game)
 └─ components/  composants de jeu (tableau des scores, réponses A-D, minuteur…) et UI du backoffice
@@ -54,6 +55,19 @@ src/
   à rouvrir), la partie est rejouée, l'horloge recalée et l'extrait en cours relancé. La
   sauvegarde, qui contient les emails consentis, est effacée dès la fin de la partie et à la
   déconnexion de la salle.
+- **Présence en direct** (`live/roomLive.ts`, US-LIVE-01) : avec un compte de salle connecté (jamais
+  en mode démo), la page ouvre le flux `GET /room/stream` (`fetch` avec l'en-tête `Authorization`,
+  lecture continue, jamais de jeton dans l'URL) et publie son état par `POST /room/status` : écran,
+  partie du backoffice, phase du moteur, manche, question, mini-jeu, pause, scores par pupitre (sans
+  nom ni e-mail) et son prêt. Un rapport part à chaque changement, au plus un par seconde, et au
+  moins toutes les `statusEveryMs` annoncées par le `hello` ; il n'est publié que tant qu'un flux est
+  ouvert. Flux coupé : nouvelle ouverture après 1, 2, 5, 10 puis 30 s (remise à zéro au `hello`) ; un
+  flux muet plus de trois battements est rouvert. `replaced` ou `409 room_instance_replaced` (un autre
+  poste a ouvert la salle) : le suivi s'arrête sans reconnexion et l'écran de lancement propose
+  « Reprendre la main ici ». `session_ended` ou `401` : même traitement qu'un jeton refusé au démarrage
+  (retour à la connexion), mais une partie ouverte n'est jamais coupée : la salle est déconnectée à sa
+  fermeture. La partie ne dépend jamais de ce module : aucune attente, toute erreur réseau est absorbée.
+  Le « son prêt » est l'activation utilisateur du navigateur (`navigator.userActivation`).
 - **Fin de partie** (`game/pendingFinishes.ts`) : au podium, les scores sont mis dans une file
   `localStorage` (`quizzup_room_pending_finishes`, un rapport par partie du backoffice) puis envoyés
   à `POST /room/games/:id/finish`, un à la fois. Réseau coupé, 5xx ou 429 : nouvel essai après 2 s,
