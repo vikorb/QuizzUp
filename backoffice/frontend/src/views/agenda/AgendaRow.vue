@@ -48,6 +48,7 @@
           class="agenda-row__button"
           type="button"
           data-test="agenda-view"
+          :aria-label="$t('agenda.actions.viewAt', { time: startLabel })"
           @click="$emit('view', entry.game)"
         >
           {{ $t('agenda.actions.view') }}
@@ -58,6 +59,7 @@
           class="agenda-row__button"
           type="button"
           data-test="agenda-open"
+          :aria-label="$t('agenda.actions.openAt', { time: startLabel })"
           :disabled="busy"
           @click="$emit('open', entry.game)"
         >
@@ -70,6 +72,7 @@
           variant="danger"
           type="button"
           data-test="agenda-cancel"
+          :aria-label="$t('agenda.actions.cancelAt', { time: startLabel })"
           :disabled="busy"
           @click="$emit('cancel', entry.game)"
         >
@@ -115,12 +118,17 @@ defineEmits<{
 
 const { t, locale } = useI18n()
 
+const startLabel = computed(() =>
+  formatAgendaTime(props.entry.startMs, props.timeZone, locale.value)
+)
+
 const timeLabel = computed(() => {
   const { entry, timeZone } = props
-  const start = formatAgendaTime(entry.startMs, timeZone, locale.value)
   const endsAt = entry.kind === 'slot' ? entry.slot.endsAt : entry.game.scheduledEndAt
 
-  return endsAt ? `${start} – ${formatAgendaTime(endsAt, timeZone, locale.value)}` : start
+  return endsAt
+    ? `${startLabel.value} – ${formatAgendaTime(endsAt, timeZone, locale.value)}`
+    : startLabel.value
 })
 
 const game = computed(() => (props.entry.kind === 'game' ? props.entry.game : null))

@@ -17,6 +17,8 @@
     },
     "loading": "Loading the agenda...",
     "retry": "Retry",
+    "truncatedTitle": "Incomplete list",
+    "truncated": "Only {shown} of {total} sessions are shown: some are missing from this agenda.",
     "empty": "No slot on this day: the room is closed or its slots are not set up.",
     "noRoom": "No active room in this company: activate a room to schedule sessions.",
     "settingsLink": "Set up the slots",
@@ -35,7 +37,11 @@
       "view": "View details",
       "open": "Open",
       "cancel": "Cancel",
+      "viewAt": "View details of the {time} session",
+      "openAt": "Open the {time} session",
+      "cancelAt": "Cancel the {time} session",
       "cancelTitle": "Cancel the session",
+      "keep": "Keep the session",
       "cancelConfirm": "Cancel the {time} session in room \"{room}\"? The slot will be freed and the players' email addresses will be erased."
     },
     "banners": {

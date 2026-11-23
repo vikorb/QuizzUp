@@ -25,40 +25,35 @@
       />
 
       <div class="agenda-date">
-        <LabelField :label="$t('agenda.filters.date')" for-id="agenda-date" />
+        <UiButton
+          class="agenda-date__step"
+          type="button"
+          data-test="agenda-previous-day"
+          :title="$t('agenda.filters.previousDay')"
+          :aria-label="$t('agenda.filters.previousDay')"
+          @click="$emit('shift', -1)"
+        >
+          <MdIcon :path="mdiChevronLeft" :size="20" />
+        </UiButton>
 
-        <div class="agenda-date__control">
-          <UiButton
-            class="agenda-date__step"
-            type="button"
-            data-test="agenda-previous-day"
-            :title="$t('agenda.filters.previousDay')"
-            :aria-label="$t('agenda.filters.previousDay')"
-            @click="$emit('shift', -1)"
-          >
-            <MdIcon :path="mdiChevronLeft" :size="20" />
-          </UiButton>
+        <FormField
+          id="agenda-date"
+          type="date"
+          :model-value="date"
+          :label="$t('agenda.filters.date')"
+          @update:model-value="$emit('update:date', $event)"
+        />
 
-          <input
-            id="agenda-date"
-            class="agenda-date__input"
-            type="date"
-            data-test="agenda-date"
-            :value="date"
-            @change="$emit('update:date', ($event.target as HTMLInputElement).value)"
-          />
-
-          <UiButton
-            class="agenda-date__step"
-            type="button"
-            data-test="agenda-next-day"
-            :title="$t('agenda.filters.nextDay')"
-            :aria-label="$t('agenda.filters.nextDay')"
-            @click="$emit('shift', 1)"
-          >
-            <MdIcon :path="mdiChevronRight" :size="20" />
-          </UiButton>
-        </div>
+        <UiButton
+          class="agenda-date__step"
+          type="button"
+          data-test="agenda-next-day"
+          :title="$t('agenda.filters.nextDay')"
+          :aria-label="$t('agenda.filters.nextDay')"
+          @click="$emit('shift', 1)"
+        >
+          <MdIcon :path="mdiChevronRight" :size="20" />
+        </UiButton>
       </div>
 
       <RoomPresenceBadge
@@ -77,7 +72,7 @@ import { mdiChevronLeft, mdiChevronRight } from '@mdi/js'
 import type { RoomLive } from '@quizzup/shared'
 
 import BaseToolBar from '@/components/ui/BaseToolBar.vue'
-import LabelField from '@/components/ui/form/LabelField.vue'
+import FormField from '@/components/ui/form/FormField.vue'
 import SelectField from '@/components/ui/form/SelectField.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import RoomPresenceBadge from '@/components/ui/RoomPresenceBadge.vue'
@@ -121,13 +116,8 @@ defineEmits<{
 }
 
 .agenda-date {
-  display: grid;
-  gap: 8px;
-}
-
-.agenda-date__control {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 8px;
 }
 
@@ -137,23 +127,10 @@ defineEmits<{
   padding: 0;
 }
 
-.agenda-date__input {
-  box-sizing: border-box;
+.agenda-date :deep(.ff__control) {
   min-height: 48px;
-  padding: 0 14px;
-  border-radius: 14px;
-  border: 1px solid var(--border-ui);
-  background: var(--bg-field);
-  color: var(--text-0);
-  font: inherit;
   font-variant-numeric: tabular-nums;
   color-scheme: dark;
-}
-
-.agenda-date__input:focus-visible {
-  outline: none;
-  border-color: var(--border-hover);
-  box-shadow: 0 0 0 3px var(--glow-soft);
 }
 
 .agenda-toolbar__presence {

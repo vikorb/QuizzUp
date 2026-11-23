@@ -22,6 +22,15 @@
       @dismiss="clearActionBanner"
     />
 
+    <BaseBanner
+      variant="error"
+      :title="$t('agenda.truncatedTitle')"
+      :message="truncatedMessage"
+      :dismissible="false"
+      :auto-dismiss="false"
+      data-test="agenda-truncated"
+    />
+
     <LiveConnectionNote :state="liveState" :error-key="liveErrorKey" />
 
     <p v-if="selectedRoom" class="agenda-timezone" data-test="agenda-timezone">
@@ -31,7 +40,7 @@
     <AgendaList
       :entries="entries"
       :time-zone="timeZone"
-      :now-ms="nowMs"
+      :now-ms="liveNow"
       :loading="loading"
       :error="error"
       :no-room="activeRooms.length === 0"
@@ -89,7 +98,7 @@ import { getGameRoomName } from '@/utils/game/format'
 import AgendaList from './agenda/AgendaList.vue'
 import AgendaToolbar from './agenda/AgendaToolbar.vue'
 
-/** Une salle ne programme pas plus de sessions par jour : la pagination n'est jamais atteinte. */
+/** Une salle ne programme pas plus de sessions par jour ; au-delà, un avertissement le signale. */
 const AGENDA_PAGE_LIMIT = 200
 
 const { t, locale } = useI18n()
@@ -108,8 +117,10 @@ const error = ref<string | null>(null)
 const actionBanner = ref<ActionBanner | null>(null)
 const busyGameId = ref<number | null>(null)
 const selectedCompanyId = ref<number | null>(null)
-/** Heure de la dernière lecture : sert à « non lancée » et au créneau ouvrable, sans minuterie. */
-const nowMs = ref(Date.now())
+/** Nombre de sessions de la fenêtre lue, pour signaler une liste tronquée par la limite. */
+const gamesTotal = ref(0)
+/** Compagnie dont les salles ont été lues avec succès ; `null` tant qu'aucune lecture n'a abouti. */
+const roomsCompanyId = ref<number | null>(null)
 
 const role = computed(() => authState.me.value?.role)
 const isSuperAdmin = computed(() => isSuperadminRole(role.value))
@@ -147,7 +158,7 @@ const entries = computed(() =>
     ? buildAgendaTimeline({
         schedule: selectedRoom.value.schedule ?? null,
         date: date.value,
-        now: new Date(nowMs.value),
+        now: new Date(liveNow.value),
         games: games.value,
       })
     : []
@@ -161,6 +172,12 @@ const companyOptions = computed<SelectFieldOption[]>(() =>
 )
 
 const showCompanySelector = computed(() => isSuperAdmin.value && companyOptions.value.length > 0)
+
+const truncatedMessage = computed(() =>
+  gamesTotal.value > games.value.length
+    ? t('agenda.truncated', { shown: games.value.length, total: gamesTotal.value })
+    : null
+)
 
 const actionBannerVariant = computed(() => getBannerVariant(actionBanner.value))
 const actionBannerMessage = computed(() => {
@@ -205,6 +222,7 @@ function ensureSelection(): void {
 async function load(reloadRooms: boolean, silent = false): Promise<void> {
   if (companyId.value === null) {
     games.value = []
+    gamesTotal.value = 0
     error.value = 'invalid_params'
     loading.value = false
     return
@@ -219,7 +237,8 @@ async function load(reloadRooms: boolean, silent = false): Promise<void> {
   error.value = null
 
   try {
-    if (reloadRooms) {
+    // Les salles se relisent aussi tant qu'aucune lecture n'a abouti pour la compagnie courante.
+    if (reloadRooms || roomsCompanyId.value !== companyId.value) {
       const roomsResult = await listGameRoomsService(companyId.value)
 
       if (sequence !== loadSequence) {
@@ -229,20 +248,22 @@ async function load(reloadRooms: boolean, silent = false): Promise<void> {
       if (!roomsResult.ok) {
         rooms.value = []
         games.value = []
+        gamesTotal.value = 0
+        roomsCompanyId.value = null
         error.value = roomsResult.error
         return
       }
 
       rooms.value = roomsResult.data.rooms
+      roomsCompanyId.value = companyId.value
       ensureSelection()
     }
 
     if (!selectedRoom.value || !date.value) {
       games.value = []
+      gamesTotal.value = 0
       return
     }
-
-    nowMs.value = Date.now()
 
     const gamesResult = await listGamesService(companyId.value, {
       roomId: selectedRoom.value.id,
@@ -256,14 +277,17 @@ async function load(reloadRooms: boolean, silent = false): Promise<void> {
 
     if (!gamesResult.ok) {
       games.value = []
+      gamesTotal.value = 0
       error.value = gamesResult.error
       return
     }
 
     games.value = gamesResult.data.games
+    gamesTotal.value = gamesResult.data.total
   } catch {
     if (sequence === loadSequence) {
       games.value = []
+      gamesTotal.value = 0
       error.value = 'server_error'
     }
   } finally {
@@ -292,6 +316,11 @@ function handleCompanyChange(value: string): void {
 
   clearActionBanner()
   selectedCompanyId.value = nextCompanyId
+  // Les salles et sessions de l'ancienne compagnie ne doivent plus s'afficher ni être choisies.
+  rooms.value = []
+  games.value = []
+  gamesTotal.value = 0
+  roomsCompanyId.value = null
   roomId.value = ''
   date.value = ''
   void router.replace(getAgendaRoute({ companyId: nextCompanyId }))
@@ -379,8 +408,8 @@ async function handleCancel(game: Game): Promise<void> {
       room: getGameRoomName(game),
       time: formatAgendaTime(game.scheduledAt ?? game.createdAt, timeZone.value, locale.value),
     }),
-    confirmLabel: t('agenda.actions.cancel'),
-    cancelLabel: t('confirm.cancel'),
+    confirmLabel: t('agenda.actions.cancelTitle'),
+    cancelLabel: t('agenda.actions.keep'),
     variant: 'danger',
   })
 

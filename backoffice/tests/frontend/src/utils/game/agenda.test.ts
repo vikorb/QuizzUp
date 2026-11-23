@@ -223,7 +223,40 @@ describe('utils/game/agenda', () => {
         games: [game],
       })
 
-      expect(summarize(entries)).toEqual(['slot 22:00', 'slot 23:00', 'slot 01:00'])
+      // La session de minuit reste sur le jour d'ouverture, à son heure.
+      expect(summarize(entries)).toEqual(['slot 22:00', 'slot 23:00', 'game 7', 'slot 01:00'])
+    })
+
+    it('shows a session after midnight on the opening day only, not on the next day', () => {
+      const night = createScheduleFixture({ opensAt: '22:00', closesAt: '02:00' })
+      const game = createScheduledGameFixture('2026-12-01T23:00:00.000Z', { id: 7 })
+      const buildOn = (date: string) =>
+        summarize(buildAgendaTimeline({ schedule: night, date, now: WINTER_NOW, games: [game] }))
+
+      expect(buildOn('2026-12-01')).toContain('game 7')
+      expect(buildOn('2026-12-02')).toEqual([
+        'slot 22:00',
+        'slot 23:00',
+        'slot 00:00',
+        'slot 01:00',
+      ])
+    })
+
+    it('ends the opening day with its grid: 01:30 belongs to the day before, 02:00 does not', () => {
+      const night = createScheduleFixture({ opensAt: '22:00', closesAt: '02:00' })
+      const games = [
+        // 01:30 locale du 2 décembre : encore dans la grille du 1er (qui finit à 02:00).
+        createScheduledGameFixture('2026-12-02T00:30:00.000Z', { id: 8 }),
+        // 02:00 locale : la grille du 1er est finie, la session appartient au 2.
+        createScheduledGameFixture('2026-12-02T01:00:00.000Z', { id: 9 }),
+      ]
+      const buildOn = (date: string) =>
+        summarize(buildAgendaTimeline({ schedule: night, date, now: WINTER_NOW, games }))
+
+      expect(buildOn('2026-12-01')).toContain('game 8')
+      expect(buildOn('2026-12-01')).not.toContain('game 9')
+      expect(buildOn('2026-12-02')).not.toContain('game 8')
+      expect(buildOn('2026-12-02')).toContain('game 9')
     })
 
     it('breaks a tie in favour of the session', () => {

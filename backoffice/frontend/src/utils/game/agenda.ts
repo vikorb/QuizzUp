@@ -76,6 +76,19 @@ export function getAgendaWindow(date: string, timeZone: string): { from: string;
   }
 }
 
+/**
+ * Fin de la grille d'un jour d'ouverture : fin du dernier créneau, après minuit comprise. Calculée
+ * sans `now` ni occupation (la grille « valide »), donc stable d'une lecture à l'autre ; 0 si le
+ * jour est fermé.
+ */
+function getGridEndMs(schedule: RoomSchedule, date: string): number {
+  const dayStartMs = getLocalDayStart(date, schedule.timezone).getTime()
+  const slots = computeRoomSlots({ schedule, date, now: new Date(dayStartMs - MINUTE_MS) })
+  const last = slots[slots.length - 1]
+
+  return last ? Date.parse(last.endsAt) : 0
+}
+
 function getGameStartMs(game: Game): number {
   return Date.parse(game.scheduledAt ?? game.startedAt ?? game.createdAt)
 }
@@ -104,6 +117,10 @@ export function buildAgendaTimeline(input: {
   const timeZone = getRoomTimezone(schedule)
   const dayStartMs = getLocalDayStart(date, timeZone).getTime()
   const nextDayStartMs = getLocalDayStart(shiftDate(date, 1), timeZone).getTime()
+  // Une session après minuit appartient au jour d'ouverture : elle reste sur le jour D (jusqu'à la
+  // fin de sa grille) et n'apparaît plus sur D+1.
+  const from = Math.max(dayStartMs, schedule ? getGridEndMs(schedule, shiftDate(date, -1)) : 0)
+  const to = Math.max(nextDayStartMs, schedule ? getGridEndMs(schedule, date) : 0)
 
   const slots = schedule
     ? computeRoomSlots({
@@ -132,7 +149,7 @@ export function buildAgendaTimeline(input: {
         startMs: getGameStartMs(game),
         game,
       }))
-      .filter((entry) => entry.startMs >= dayStartMs && entry.startMs < nextDayStartMs),
+      .filter((entry) => entry.startMs >= from && entry.startMs < to),
   ]
 
   // À heure égale, la session passe avant un créneau libre (qui ne peut pas la chevaucher).

@@ -17,6 +17,8 @@
     },
     "loading": "Chargement de l'agenda...",
     "retry": "Réessayer",
+    "truncatedTitle": "Liste incomplète",
+    "truncated": "Seules {shown} sessions sur {total} sont affichées : certaines manquent à cet agenda.",
     "empty": "Aucun créneau ce jour : salle fermée ou créneaux non réglés.",
     "noRoom": "Aucune salle active dans cette compagnie : activez une salle pour programmer des sessions.",
     "settingsLink": "Régler les créneaux",
@@ -35,7 +37,11 @@
       "view": "Voir le détail",
       "open": "Ouvrir",
       "cancel": "Annuler",
+      "viewAt": "Voir le détail de la session de {time}",
+      "openAt": "Ouvrir la session de {time}",
+      "cancelAt": "Annuler la session de {time}",
       "cancelTitle": "Annuler la session",
+      "keep": "Garder la session",
       "cancelConfirm": "Annuler la session de {time} dans la salle « {room} » ? Le créneau sera libéré et les adresses email des joueurs seront effacées."
     },
     "banners": {

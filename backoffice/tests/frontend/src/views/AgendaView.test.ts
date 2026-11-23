@@ -16,6 +16,7 @@ import {
   openGameServiceMock,
   resetGamesServiceMock,
 } from '@frontend-tests/_helpers/gamesServiceMock'
+import { liveNowMock } from '@frontend-tests/_helpers/liveCompanyMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { pushMock, replaceMock } from '@frontend-tests/_helpers/routerMock'
@@ -24,6 +25,7 @@ import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Game, GameRoom } from '@/types/game'
+import AgendaToolbar from '@/views/agenda/AgendaToolbar.vue'
 import AgendaView from '@/views/AgendaView.vue'
 
 vi.mock('@/services/gamesService', async () => {
@@ -94,10 +96,13 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-async function mountAgenda(): Promise<VueWrapper> {
+async function mountAgenda(mocks: Record<string, unknown> = {}): Promise<VueWrapper> {
+  // L'écran lit l'heure de `useLiveCompany` : on l'aligne sur l'horloge simulée du test.
+  liveNowMock.value = Date.now()
+
   const wrapper = mountWithFrontendMocks(AgendaView, {
     // Le vrai bouton garde les `data-test` de l'écran, que la doublure écraserait.
-    global: { stubs: { uiButton: false } },
+    global: { stubs: { uiButton: false, formField: false }, mocks },
   })
 
   mounted.add(wrapper)
@@ -132,14 +137,14 @@ function findSelect(wrapper: VueWrapper, label: string) {
 }
 
 function dateInput(wrapper: VueWrapper) {
-  return wrapper.get<HTMLInputElement>('[data-test="agenda-date"]')
+  return wrapper.get<HTMLInputElement>('#agenda-date')
 }
 
 async function pickDate(wrapper: VueWrapper, value: string): Promise<void> {
   const input = dateInput(wrapper)
 
   input.element.value = value
-  await input.trigger('change')
+  await input.trigger('input')
   await flushPromises()
 }
 
@@ -568,12 +573,67 @@ describe('views/AgendaView.vue', () => {
         expect.objectContaining({
           variant: 'danger',
           title: 'agenda.actions.cancelTitle',
-          confirmLabel: 'agenda.actions.cancel',
+          confirmLabel: 'agenda.actions.cancelTitle',
+          cancelLabel: 'agenda.actions.keep',
         })
       )
       expect(cancelGameServiceMock).toHaveBeenCalledWith(1, 5)
       expect(bannerText(wrapper)).toContain('agenda.banners.cancelled')
       expect(listGamesServiceMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('gives the two buttons of the confirmation different labels, both from the agenda', async () => {
+      const wrapper = await mountAgenda()
+
+      await gameRow(wrapper, 5).get('[data-test="agenda-cancel"]').trigger('click')
+      await flushPromises()
+
+      const { confirmLabel, cancelLabel } = confirmMock.mock.calls[0][0]
+
+      expect(confirmLabel).not.toBe(cancelLabel)
+      expect(confirmLabel).toMatch(/^agenda\./)
+      expect(cancelLabel).toMatch(/^agenda\./)
+    })
+
+    it('names the hour of the session in the label of its buttons', async () => {
+      const wrapper = await mountAgenda({
+        $t: (key: string, params?: { time?: string }) =>
+          params?.time ? `${key}|${params.time}` : key,
+      })
+      const row = gameRow(wrapper, 5)
+
+      // 10:00 UTC, soit 11:00 à Paris.
+      expect(row.get('[data-test="agenda-view"]').attributes('aria-label')).toBe(
+        'agenda.actions.viewAt|11:00'
+      )
+      expect(row.get('[data-test="agenda-open"]').attributes('aria-label')).toBe(
+        'agenda.actions.openAt|11:00'
+      )
+      expect(row.get('[data-test="agenda-cancel"]').attributes('aria-label')).toBe(
+        'agenda.actions.cancelAt|11:00'
+      )
+    })
+
+    it('follows the clock of the screen: a session becomes openable, then not launched', async () => {
+      const wrapper = await mountAgenda()
+
+      expect(hasButton(wrapper, 8, 'open')).toBe(false)
+      expect(gameRow(wrapper, 5).get('[data-test="agenda-state"]').attributes('data-state')).toBe(
+        'scheduled'
+      )
+      expect(wrapper.find('[data-key="slot-2026-11-24T11:00:00.000Z"]').exists()).toBe(true)
+
+      // 11:30 UTC : la session de 12:00 UTC s'ouvre dans 30 minutes, celle de 10:00 UTC est finie.
+      liveNowMock.value = Date.parse('2026-11-24T11:30:00.000Z')
+      await flushPromises()
+
+      expect(listGamesServiceMock).toHaveBeenCalledTimes(1)
+      expect(hasButton(wrapper, 8, 'open')).toBe(true)
+      expect(gameRow(wrapper, 5).get('[data-test="agenda-state"]').attributes('data-state')).toBe(
+        'not_launched'
+      )
+      // Le créneau de 11:00 UTC est commencé : il ne se propose plus.
+      expect(wrapper.find('[data-key="slot-2026-11-24T11:00:00.000Z"]').exists()).toBe(false)
     })
 
     it('does not cancel when the confirmation is declined', async () => {
@@ -714,6 +774,65 @@ describe('views/AgendaView.vue', () => {
         name: 'games-create',
         query: expect.objectContaining({ companyId: '2', roomId: '10' }),
       })
+    })
+  })
+
+  describe('company switch (superadmin)', () => {
+    it('empties the rooms of the previous company and reads them again after a stale answer', async () => {
+      setAuthenticatedSuperadmin({ companyId: 1 })
+
+      const wrapper = await mountAgenda()
+      const first = deferred<Awaited<ReturnType<typeof listGameRoomsServiceMock>>>()
+      const nextRooms = [{ id: 20, name: 'Salle Autre', status: ROOM_STATUS_ACTIVE }]
+
+      listGameRoomsServiceMock
+        .mockReturnValueOnce(first.promise)
+        .mockResolvedValueOnce({ ok: true, status: 200, data: { rooms: nextRooms } })
+
+      await findSelect(wrapper, 'agenda.filters.company').setValue('2')
+      await flushPromises()
+
+      // Rien de l'ancienne compagnie ne reste proposé pendant la lecture.
+      expect(findSelect(wrapper, 'agenda.filters.room').findAll('option')).toHaveLength(0)
+
+      // Une lecture sans relecture des salles passe devant la première réponse.
+      wrapper.getComponent(AgendaToolbar).vm.$emit('update:roomId', '10')
+      await flushPromises()
+
+      first.resolve({ ok: true, status: 200, data: { rooms: createRooms() } })
+      await flushPromises()
+
+      expect(listGameRoomsServiceMock).toHaveBeenCalledTimes(3)
+      expect(listGameRoomsServiceMock).toHaveBeenLastCalledWith(2)
+
+      const options = findSelect(wrapper, 'agenda.filters.room').findAll('option')
+
+      expect(options).toHaveLength(1)
+      expect(options[0]?.text()).toBe('Salle Autre')
+    })
+  })
+
+  describe('truncated list', () => {
+    it('warns when the server holds more sessions than were read', async () => {
+      const game = createScheduledGameFixture('2026-11-24T10:00:00.000Z', { id: 5 })
+
+      listGamesServiceMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: { games: [game], total: 250 },
+      })
+
+      const wrapper = await mountAgenda()
+
+      expect(wrapper.get('[data-test="agenda-truncated"]').text()).toContain('agenda.truncated')
+    })
+
+    it('does not warn when every session was read', async () => {
+      serveGames({ games: [createScheduledGameFixture('2026-11-24T10:00:00.000Z', { id: 5 })] })
+
+      const wrapper = await mountAgenda()
+
+      expect(wrapper.get('[data-test="agenda-truncated"]').text()).toBe('')
     })
   })
 
