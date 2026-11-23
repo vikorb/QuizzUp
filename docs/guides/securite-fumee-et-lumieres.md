@@ -77,6 +77,20 @@ part vraiment pendant le test.
 La configuration n'est gardée qu'au clic sur « Enregistrer la configuration », dernière étape
 (« Récapitulatif ») de l'assistant Matériel. Sans cela, la fumée reste enregistrée comme désactivée.
 
+**Le test de coupure se refait sur chaque poste.** Un poste ne libère de la fumée que s'il garde la
+trace d'un test de coupure réussi, fait **sur ce poste**, pour **cette salle** et avec **ces réglages
+de fumée** (interface DMX, machine, adresse, univers, durée, pause, niveau). Cette trace reste dans le
+navigateur du poste : elle ne part pas vers le serveur et le serveur ne peut pas la poser. Une
+configuration qui active la fumée, reçue du compte de la salle, ne suffit donc pas. Sur un nouveau
+poste, un navigateur réinitialisé, un autre profil ou après un changement de réglage de fumée, l'écran
+de salle affiche, dans Matériel, onglet « Lumières et fumée » : « Fumée activée dans la configuration,
+mais test de coupure à refaire sur ce poste ». Aucune fumée ne part (ni scène, ni test) jusqu'à ce que
+le test de l'assistant (étape « Sécuriser la fumée », réponse « Elle s’est arrêtée ») ait réussi. Un
+test échoué efface la trace. Le test de coupure du Diagnostic ne la pose pas et est refusé tant
+qu'elle manque.
+
+> À vérifier sur le banc : F9 du banc matériel.
+
 Une machine **sans relais temporisé** : la fumée reste désactivée, sauf si tu coches « Je confirme que
 la machine coupe toute seule sur perte de signal DMX (vérifié dans la notice et par le test de
 plantage simulé). » **et** que tu as réussi le test guidé de vraie perte de signal (« Lancer le test de

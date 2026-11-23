@@ -3,6 +3,7 @@ import {
   HARDWARE_STORAGE_KEY,
   HARDWARE_SYNC_STORAGE_KEY,
   resetRoomHardware,
+  SMOKE_PROOF_STORAGE_KEY,
 } from '@/hardware/roomHardware'
 
 // Le matériel et la file d'envoi des résultats sont des singletons de page : chaque test
@@ -14,5 +15,6 @@ afterEach(async () => {
   localStorage.removeItem(HARDWARE_STORAGE_KEY)
   localStorage.removeItem(HARDWARE_SYNC_STORAGE_KEY)
   localStorage.removeItem(EMERGENCY_STORAGE_KEY)
+  localStorage.removeItem(SMOKE_PROOF_STORAGE_KEY)
   await resetRoomHardware()
 })

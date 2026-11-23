@@ -24,6 +24,7 @@ import {
 
 import { REGISTRATIONS } from '../_helpers/fixtures'
 import { pressKey } from '../_helpers/keyboard'
+import { saveWithSmokeProof } from '../_helpers/smokeProof'
 
 const LEARNED_KEYMAP = Object.fromEntries([['KeyP', { desk: 1, button: 'D' } as const]])
 const noop = () => undefined
@@ -296,7 +297,7 @@ describe('sécurité des lumières à l’enregistrement', () => {
   })
 
   it('garde l’arrêt d’urgence et désarme la fumée quand la config est relancée', async () => {
-    await saveRoomHardwareConfig(SMOKE_CONFIG)
+    await saveWithSmokeProof(SMOKE_CONFIG)
     const first = await startLighting()
     first.emergencyStop('operator')
 
@@ -313,7 +314,7 @@ describe('sécurité des lumières à l’enregistrement', () => {
   })
 
   it('garde la fumée coupée et désarmée après un rechargement en arrêt d’urgence', async () => {
-    await saveRoomHardwareConfig(SMOKE_CONFIG)
+    await saveWithSmokeProof(SMOKE_CONFIG)
     await startLighting()
     triggerEmergencyStop('operator')
 

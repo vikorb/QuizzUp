@@ -324,6 +324,9 @@ Format inspiré de Keep a Changelog.
 
 ### Fixed
 
+- Sécurité : l'écran de salle n'arme la fumée activée par la configuration du serveur que si un test de coupure réussi est mémorisé sur ce poste, pour cette salle et ces réglages de fumée ; sinon aucun jet ne part et un message demande de refaire le test.
+  US: US-SEC-04 (#152)
+
 - Sécurité : la mise en pause d'une partie coupe aussitôt tout jet de fumée en cours (trame à 0 envoyée tout de suite) et refuse tout nouveau jet pendant la pause, y compris l'étape fumée d'une scène déjà lancée, le test manuel et le test de gel. Les lumières continuent ; l'étape fumée manquée n'est pas rejouée à la reprise. L'arrêt d'une partie ramène toujours les lumières au repos. Non validé sur du vrai matériel (banc, cas F8).
 - Sécurité (photosensibilité) : dans toute la salle, deux éclairs des scènes lumière sont séparés d'au moins 0,4 s, mesuré sur le niveau réellement émis. Les cadences par défaut sont ralenties (buzz, bonne et mauvaise réponses, victoires, début de partie, nouvelle manche, fin de manche) et un éclair trop rapproché est retardé, y compris à la jonction de deux scènes. Non couverts, traités dans un lot à part : appareils à stroboscope intégré (`shutter`, canaux `fixed`), diagnostics, stroboscopes pilotés par une liste. Non validé sur du vrai matériel.
   US: US-SEC-02 (#152)

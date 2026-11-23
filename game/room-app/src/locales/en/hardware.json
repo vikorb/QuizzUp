@@ -150,6 +150,7 @@
     "smoke": {
       "title": "Smoke",
       "disabled": "Smoke is disabled in the room settings.",
+      "testRequired": "Smoke is enabled in the settings, but the cut-off test must be redone on this computer. Run it in the assistant, “Secure the smoke” step: until it succeeds, no smoke is released.",
       "arm": "Smoke allowed for this session",
       "armHint": "To be ticked by the operator once the room is checked. Smoke is disarmed by every emergency stop.",
       "test": "Test 2 s",

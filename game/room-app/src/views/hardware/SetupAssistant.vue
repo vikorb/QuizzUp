@@ -710,6 +710,7 @@ import {
   connectDmxInterface,
   getLighting,
   pollArtnetNodes,
+  recordSmokeCutoffResult,
   saveArtnetTarget,
   saveBuzzerSource,
   saveRoomHardwareConfig,
@@ -908,6 +909,7 @@ async function apply(options: { forFreezeTest?: boolean } = {}): Promise<void> {
   // enregistrée : un rechargement de page repart de la dernière config sûre.
   await saveRoomHardwareConfig(wizard.summary(options).config, {
     persist: !savedForFreezeTest,
+    smokeTest: savedForFreezeTest,
   })
   await startLighting()
 }
@@ -1267,6 +1269,8 @@ function onFreezeAnswer(ok: boolean): void {
   }
   freezeStage.value = 'idle'
   freezeFailed.value = !ok
+  // Preuve locale : écrite par une réponse « elle s'est arrêtée » seulement, effacée par l'autre.
+  recordSmokeCutoffResult(ok)
   if (!ok) {
     // La fumée continue : on coupe tout, sans attendre la fin du gel.
     triggerEmergencyStop('freeze_test_failed')

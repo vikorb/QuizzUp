@@ -150,6 +150,7 @@
     "smoke": {
       "title": "Fumée",
       "disabled": "Fumée désactivée dans la configuration de la salle.",
+      "testRequired": "Fumée activée dans la configuration, mais test de coupure à refaire sur ce poste. Lance-le dans l’assistant, étape « Sécuriser la fumée » : tant qu’il n’a pas réussi, aucune fumée ne part.",
       "arm": "Fumée autorisée pour cette session",
       "armHint": "À cocher par l’opérateur, salle vérifiée. La fumée se désarme à chaque arrêt d’urgence.",
       "test": "Tester 2 s",
