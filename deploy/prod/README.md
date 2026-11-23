@@ -199,6 +199,17 @@ revient au code et à l'ancienne version, et alerte. Lire les notes de version a
 obligatoire nouvelle apparaît dans `.env.example`, et il faut la renseigner **avant** de lancer
 `update.sh`.
 
+**Passage à la garde réseau de la console** (une seule fois, sur une installation antérieure) :
+
+- dans `.env`, renommer `EDITOR_ALLOWED_RANGES` en `CONSOLE_ALLOWED_CIDRS` (plages séparées par des
+  espaces). Variable vide ou absente = console fermée, le superadmin est refusé ;
+- mettre `TRUST_PROXY=172.29.251.0/24`, le sous-réseau désormais fixé dans le compose ;
+- le réseau Docker existant a un autre sous-réseau : le recréer hors partie en cours, par
+  `docker compose down` (**sans `-v`**, les volumes gardent les données) puis `docker compose up -d`,
+  et vérifier avec `docker network inspect <réseau>` que le sous-réseau est bien
+  `172.29.251.0/24`. Sinon l'API voit l'adresse de Caddy pour tous les clients : la console reste
+  fermée et les limites de débit deviennent communes à tout le monde.
+
 `--force` passe outre une partie en cours. Il ne coupe pas la partie (voir ci-dessous) mais, après
 une partie « bloquée » (écran fermé en cours de route, jamais terminée), c'est le seul moyen de
 mettre à jour sans attendre.

@@ -20,7 +20,10 @@ export type ConsoleNetwork = {
  */
 export function createConsoleNetwork(value: string | undefined): ConsoleNetwork {
   const ranges = (value ?? '').split(/[\s,]+/).filter(Boolean)
-  const list = new BlockList()
+  // Deux listes : une plage IPv6 n'autorise jamais une adresse IPv4 (`net.BlockList` laisserait
+  // `::/0` couvrir les IPv4 mappées, alors que Caddy, qui lit la même variable, ne le fait pas).
+  const ipv4List = new BlockList()
+  const ipv6List = new BlockList()
 
   for (const range of ranges) {
     const [address, prefix, ...rest] = range.split('/')
@@ -39,22 +42,79 @@ export function createConsoleNetwork(value: string | undefined): ConsoleNetwork 
       )
     }
 
-    list.addSubnet(
-      address,
-      prefix === undefined ? maxPrefix : Number(prefix),
-      version === 4 ? 'ipv4' : 'ipv6'
-    )
+    const length = prefix === undefined ? maxPrefix : Number(prefix)
+
+    if (version === 4) ipv4List.addSubnet(address, length, 'ipv4')
+    else ipv6List.addSubnet(address, length, 'ipv6')
   }
 
   return {
     ranges,
     allows: (ip) => {
+      // Une adresse IPv4 mappée redevient IPv4 : elle n'est comparée qu'aux plages IPv4.
       const address = unmapIpv4(ip.split('%')[0])
       const version = isIP(address)
 
-      return version !== 0 && list.check(address, version === 4 ? 'ipv4' : 'ipv6')
+      if (version === 4) return ipv4List.check(address, 'ipv4')
+
+      return version === 6 && ipv6List.check(address, 'ipv6')
     },
   }
+}
+
+type ParsedRange = { version: 4 | 6; bits: bigint; prefix: number }
+
+function parseRange(entry: string): ParsedRange {
+  const [address, prefix] = entry.split('/')
+  const version = isIP(address) === 4 ? 4 : 6
+  const bits =
+    version === 4
+      ? address.split('.').reduce((acc, octet) => (acc << 8n) | BigInt(octet), 0n)
+      : ipv6Groups(address).reduce((acc, group) => (acc << 16n) | BigInt(group), 0n)
+
+  return {
+    version,
+    bits,
+    prefix: prefix === undefined ? (version === 4 ? 32 : 128) : Number(prefix),
+  }
+}
+
+/** Deux plages de même famille se recoupent quand elles ont le même début sur le plus court des préfixes. */
+function overlaps(a: ParsedRange, b: ParsedRange): boolean {
+  if (a.version !== b.version) return false
+
+  const shift = BigInt((a.version === 4 ? 32 : 128) - Math.min(a.prefix, b.prefix))
+
+  return a.bits >> shift === b.bits >> shift
+}
+
+/**
+ * Réglages qui ouvrent la console à tout internet, à signaler au démarrage (la valeur reste
+ * acceptée : le compose de démo utilise `0.0.0.0/0 ::/0`, ports liés à localhost) : une plage `/0`,
+ * ou une plage qui recoupe une plage de `TRUST_PROXY` (un client pourrait alors passer pour un proxy
+ * de confiance). Entrées déjà validées par `createConsoleNetwork` et `parseTrustProxy`.
+ */
+export function consoleNetworkWarnings(ranges: string[], trustProxy: string[] | false): string[] {
+  const warnings: string[] = []
+
+  for (const range of ranges) {
+    const parsed = parseRange(range)
+
+    if (parsed.prefix === 0) {
+      warnings.push(`CONSOLE_ALLOWED_CIDRS : « ${range} » ouvre la console à tout internet`)
+    }
+
+    for (const proxy of trustProxy || []) {
+      if (overlaps(parsed, parseRange(proxy))) {
+        warnings.push(
+          `CONSOLE_ALLOWED_CIDRS : « ${range} » recoupe la plage de TRUST_PROXY « ${proxy} », ` +
+            'la console risque d’être ouverte à tout internet'
+        )
+      }
+    }
+  }
+
+  return warnings
 }
 
 /** `::ffff:192.0.2.1` (socket double pile) redevient `192.0.2.1` ; toute autre valeur reste telle quelle. */

@@ -17,7 +17,8 @@ info:
     - `POST /login` répond `401 invalid_credentials`, comme pour un mauvais mot de passe, sans créer
       de session ;
     - toute route protégée, y compris les flux en direct, répond `403 forbidden` à son jeton, même
-      valide. Cela vaut pour toutes les routes, pas seulement celles réservées au superadmin.
+      valide. Cela vaut pour toutes les routes, pas seulement celles réservées au superadmin, sauf
+      `POST /logout`, qui révoque la session où que soit l'appelant.
 
     Les autres rôles ne sont pas concernés.
 
@@ -157,7 +158,9 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Révoque la session courante de l'administrateur connecté.
+        Révoque la session courante de l'administrateur connecté. Un superadmin hors des adresses de
+        la console (`CONSOLE_ALLOWED_CIDRS`) peut aussi fermer sa session : la route ne répond pas
+        `403 forbidden` et ne donne accès à rien d'autre.
       operationId: logout
       x-availability: disponible
       responses:

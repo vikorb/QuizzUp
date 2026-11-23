@@ -122,6 +122,54 @@ describe('app.ts — garde réseau de la console éditeur', () => {
     await app.close()
   })
 
+  it('revokes the session of a superadmin who logs out from outside the console, and opens no other route', async () => {
+    const app = await start()
+    const headers = bearer(app, 1, ADMIN_ROLE_SUPERADMIN)
+
+    const logout = await app.inject({
+      method: 'POST',
+      url: '/logout',
+      remoteAddress: OUTSIDE,
+      headers,
+    })
+
+    expect(logout.statusCode).toBe(200)
+    expect(logout.json()).toEqual({ ok: true })
+    expect(
+      dbState.admin_sessions.find((session) => session.id === 'sid-1')?.revoked_at
+    ).not.toBeNull()
+
+    // Le jeton est mort, même depuis la console.
+    const fromConsole = await app.inject({
+      method: 'GET',
+      url: '/me',
+      remoteAddress: OPERATOR,
+      headers,
+    })
+    expect(fromConsole.statusCode).toBe(401)
+    expect(fromConsole.json()).toEqual({ error: 'session_invalid' })
+
+    await app.close()
+  })
+
+  it('still answers 403 to every other route of a superadmin outside the console, logout excepted', async () => {
+    const app = await start()
+    const headers = bearer(app, 1, ADMIN_ROLE_SUPERADMIN)
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/companies',
+      remoteAddress: OUTSIDE,
+      headers,
+      payload: {},
+    })
+
+    expect(response.statusCode).toBe(403)
+    expect(response.json()).toEqual({ error: 'forbidden' })
+
+    await app.close()
+  })
+
   it('refuses a superadmin from an IPv6 address outside the console, and accepts an allowed one', async () => {
     const app = await start()
     const headers = bearer(app, 1, ADMIN_ROLE_SUPERADMIN)

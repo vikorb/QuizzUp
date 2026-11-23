@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { createConsoleNetwork } from '../../../../backend/src/security/consoleNetwork'
+import {
+  consoleNetworkWarnings,
+  createConsoleNetwork,
+} from '../../../../backend/src/security/consoleNetwork'
 
 // Plages de documentation (RFC 5737 et 3849) : aucune adresse réelle.
 describe('security/consoleNetwork createConsoleNetwork', () => {
@@ -43,6 +46,34 @@ describe('security/consoleNetwork createConsoleNetwork', () => {
   it('does not let an IPv4 range open the matching IPv6 addresses, nor the other way round', () => {
     expect(createConsoleNetwork('192.0.2.0/24').allows('2001:db8::1')).toBe(false)
     expect(createConsoleNetwork('2001:db8::/32').allows('192.0.2.1')).toBe(false)
+  })
+
+  it.each(['::/0', '::/1', '::ffff:0:0/96', '::ffff:c000:200/120', '::/96'])(
+    'never lets the IPv6 range %s open an IPv4 or IPv4-mapped address',
+    (range) => {
+      const { allows } = createConsoleNetwork(range)
+
+      expect(allows('192.0.2.1')).toBe(false)
+      expect(allows('::ffff:192.0.2.1')).toBe(false)
+      expect(allows('::ffff:c000:201')).toBe(false)
+      expect(allows('0:0:0:0:0:ffff:c000:201')).toBe(false)
+    }
+  )
+
+  it('keeps ::/0 open to every native IPv6 address', () => {
+    const { allows } = createConsoleNetwork('::/0')
+
+    expect(allows('2001:db8::1')).toBe(true)
+    expect(allows('::1')).toBe(true)
+  })
+
+  it('never lets 0.0.0.0/0 open an IPv6 address', () => {
+    const { allows } = createConsoleNetwork('0.0.0.0/0')
+
+    expect(allows('2001:db8::1')).toBe(false)
+    expect(allows('::1')).toBe(false)
+    expect(allows('192.0.2.1')).toBe(true)
+    expect(allows('::ffff:192.0.2.1')).toBe(true)
   })
 
   it('ignores the zone of an address', () => {
@@ -116,5 +147,57 @@ describe('security/consoleNetwork createConsoleNetwork', () => {
       /CONSOLE_ALLOWED_CIDRS invalide/
     )
     expect(() => createConsoleNetwork(`192.0.2.0/24 ${entry}`)).toThrow(entry)
+  })
+})
+
+describe('security/consoleNetwork consoleNetworkWarnings', () => {
+  it('stays silent for narrow ranges that do not touch the trusted proxies', () => {
+    expect(
+      consoleNetworkWarnings(['192.0.2.0/24', '2001:db8::/32', '127.0.0.1/32', '::1/128'], false)
+    ).toEqual([])
+    expect(
+      consoleNetworkWarnings(['192.0.2.0/24', '2001:db8::/32'], ['172.18.0.0/16', 'fd00::/8'])
+    ).toEqual([])
+    expect(consoleNetworkWarnings([], ['172.18.0.0/16'])).toEqual([])
+  })
+
+  it.each(['0.0.0.0/0', '::/0'])(
+    'warns about the range %s, which opens the console to the internet',
+    (range) => {
+      const warnings = consoleNetworkWarnings([range], false)
+
+      expect(warnings).toHaveLength(1)
+      expect(warnings[0]).toContain(range)
+    }
+  )
+
+  it('warns once per range for 0.0.0.0/0 ::/0 (demo compose)', () => {
+    expect(consoleNetworkWarnings(['0.0.0.0/0', '::/0'], false)).toHaveLength(2)
+  })
+
+  it.each([
+    ['198.51.100.0/24', '198.51.100.0/24'],
+    ['198.51.100.7', '198.51.100.0/24'],
+    ['198.51.100.0/24', '198.51.100.7'],
+    ['198.51.0.0/16', '198.51.100.0/24'],
+    ['2001:db8::/32', '2001:db8:1::/48'],
+    ['2001:db8:1::5', '2001:db8::/32'],
+  ])('warns when the console range %s overlaps the TRUST_PROXY range %s', (range, proxy) => {
+    const warnings = consoleNetworkWarnings([range], [proxy])
+
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain(range)
+    expect(warnings[0]).toContain('TRUST_PROXY')
+    expect(warnings[0]).toContain(proxy)
+  })
+
+  it('does not mix the IPv4 and IPv6 families when looking for an overlap', () => {
+    expect(consoleNetworkWarnings(['192.0.2.0/24'], ['2001:db8::/32'])).toEqual([])
+    expect(consoleNetworkWarnings(['2001:db8::/32'], ['192.0.2.0/24'])).toEqual([])
+  })
+
+  it('does not warn for neighbouring ranges that share no address', () => {
+    expect(consoleNetworkWarnings(['198.51.101.0/24'], ['198.51.100.0/24'])).toEqual([])
+    expect(consoleNetworkWarnings(['2001:db9::/32'], ['2001:db8::/32'])).toEqual([])
   })
 })

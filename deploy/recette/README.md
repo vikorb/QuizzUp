@@ -49,11 +49,23 @@ docker compose -f deploy/recette/docker-compose.yml --env-file deploy/recette/.e
 
 Un `.env` créé avant l'ajout de `CONSOLE_ALLOWED_CIDRS` doit recevoir cette variable (voir plus
 haut), sinon le superadmin est refusé. Le réseau Docker est fixé à `172.29.250.0/24` dans le
-compose : `TRUST_PROXY` doit valoir ce sous-réseau (le compose n'a plus de valeur par défaut, un
-ancien `.env` avec `172.16.0.0/12` fonctionne encore). Pour un autre sous-réseau, le changer dans
-le compose et dans `.env` ; sans bonne
-valeur, l'API voit l'adresse de Caddy pour tous les clients et les limites de débit deviennent
-communes à tout le monde.
+compose : `TRUST_PROXY` doit valoir ce sous-réseau, le compose n'a plus de valeur par défaut. Un
+ancien `.env` avec `TRUST_PROXY=172.16.0.0/12` est à corriger en `172.29.250.0/24` : la plage de
+confiance doit être celle du réseau de Caddy, pas plus large. Pour un autre sous-réseau, le changer
+dans le compose et dans `.env` ; sans bonne valeur, l'API voit l'adresse de Caddy pour tous les
+clients, les limites de débit deviennent communes à tout le monde et la console reste fermée.
+
+Sur une recette déjà installée, le réseau Docker existe avec un autre sous-réseau : il faut le
+recréer une fois (les volumes, donc les données, sont conservés), puis vérifier le résultat :
+
+```bash
+docker compose -f deploy/recette/docker-compose.yml --env-file deploy/recette/.env down
+docker compose -f deploy/recette/docker-compose.yml --env-file deploy/recette/.env up -d --build
+docker network ls                      # repérer le réseau de la recette
+docker network inspect <réseau> --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}'
+```
+
+Ne jamais ajouter `-v` à `down` : cela supprimerait la base et les extraits audio.
 
 Les données (base, extraits audio, certificats) sont dans des volumes Docker : une mise à jour
 ne les efface pas. Tous les seeds tournent au premier démarrage (base vide) ; ensuite seul le seed de démo
