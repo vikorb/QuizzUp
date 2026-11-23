@@ -5,6 +5,7 @@ import {
   ROOM_STATUS_DELETED,
   ROOM_STATUS_INACTIVE,
   type RoomLog,
+  type RoomSchedule,
   type RoomStatus,
 } from '@quizzup/shared'
 import { vi } from 'vitest'
@@ -16,6 +17,7 @@ export type RoomMock = {
   companyId: number
   name: string
   config: Record<string, unknown>
+  schedule?: RoomSchedule | null
   status: RoomStatus
   createdAt: string
   updatedAt: string | null
@@ -159,6 +161,29 @@ async function defaultUpdateRoomStatus(
 
 async function defaultDeleteRoom(companyId: number, roomId: number): Promise<RoomResult> {
   return defaultUpdateRoomStatus(companyId, roomId, ROOM_STATUS_DELETED)
+}
+
+/** Réglages de créneaux de démonstration : lundi 10:00-12:00, créneaux d'une heure, sans pause. */
+export const roomScheduleFixture: RoomSchedule = {
+  timezone: 'Europe/Paris',
+  slotMinutes: 60,
+  breakMinutes: 0,
+  bookableDesks: 4,
+  publicBooking: true,
+  days: { '1': { opensAt: '10:00', closesAt: '12:00' } },
+}
+
+async function defaultUpdateRoomSchedule(
+  companyId: number,
+  roomId: number,
+  payload: { schedule: RoomSchedule | null }
+): Promise<RoomResult> {
+  return {
+    ok: true,
+    data: {
+      room: createRoomFixture({ id: roomId, companyId, schedule: payload.schedule }),
+    },
+  }
 }
 
 export type RoomAccountMock = {
@@ -339,6 +364,21 @@ export const createCompanyRoomServiceMock = vi.fn(defaultCreateCompanyRoom)
 export const updateCompanyRoomServiceMock = vi.fn(defaultUpdateCompanyRoom)
 export const updateRoomStatusServiceMock = vi.fn(defaultUpdateRoomStatus)
 export const deleteRoomServiceMock = vi.fn(defaultDeleteRoom)
+export const updateRoomScheduleServiceMock = vi.fn(defaultUpdateRoomSchedule)
+
+export function mockLoadCompanyRoomSchedule(schedule: RoomSchedule | null): void {
+  loadCompanyRoomServiceMock.mockImplementation(async (companyId, roomId) => ({
+    ok: true,
+    data: { room: createRoomFixture({ id: roomId, companyId, schedule }) },
+  }))
+}
+
+export function mockUpdateRoomScheduleFailure(error = 'server_error'): void {
+  updateRoomScheduleServiceMock.mockResolvedValue({
+    ok: false,
+    error,
+  })
+}
 
 export function mockLoadCompanyRoomsSuccess(rooms: RoomMock[] = roomsFixture): void {
   loadCompanyRoomsServiceMock.mockResolvedValue({
@@ -391,6 +431,7 @@ export function resetRoomsServiceMock(): void {
   updateCompanyRoomServiceMock.mockReset()
   updateRoomStatusServiceMock.mockReset()
   deleteRoomServiceMock.mockReset()
+  updateRoomScheduleServiceMock.mockReset()
   loadRoomAccountServiceMock.mockReset()
   createRoomAccountServiceMock.mockReset()
   deleteRoomAccountServiceMock.mockReset()
@@ -406,4 +447,5 @@ export function resetRoomsServiceMock(): void {
   updateCompanyRoomServiceMock.mockImplementation(defaultUpdateCompanyRoom)
   updateRoomStatusServiceMock.mockImplementation(defaultUpdateRoomStatus)
   deleteRoomServiceMock.mockImplementation(defaultDeleteRoom)
+  updateRoomScheduleServiceMock.mockImplementation(defaultUpdateRoomSchedule)
 }

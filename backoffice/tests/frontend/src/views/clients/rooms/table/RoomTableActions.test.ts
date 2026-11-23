@@ -35,7 +35,7 @@ function mountActions(item = toRoomTableRow(roomsFixture[0]), stubs: Record<stri
   })
 }
 
-type RowAction = 'account' | 'logs' | 'edit' | 'delete'
+type RowAction = 'account' | 'logs' | 'schedule' | 'edit' | 'delete'
 
 function actionButton(wrapper: ReturnType<typeof mountWithFrontendMocks>, action: RowAction) {
   return wrapper.find(`[data-test="ui-button"].icon-${action}`)
@@ -61,6 +61,29 @@ describe('views/clients/rooms/table/RoomTableActions.vue', () => {
 
     expect(wrapper.emitted('account')).toEqual([[1]])
     expect(wrapper.emitted('edit')).toBeUndefined()
+  })
+
+  it('emits schedule with the room id to open the schedule panel', async () => {
+    const wrapper = mountActions()
+
+    expect(actionButton(wrapper, 'schedule').attributes('aria-label')).toBe(
+      'rooms.table.actions.schedule'
+    )
+
+    await actionButton(wrapper, 'schedule').trigger('click')
+
+    expect(wrapper.emitted('schedule')).toEqual([[1]])
+    expect(wrapper.emitted('edit')).toBeUndefined()
+  })
+
+  it('disables the schedule action for deleted rooms', async () => {
+    const wrapper = mountActions(toRoomTableRow(roomsFixture[2]))
+
+    expect(actionButton(wrapper, 'schedule').attributes('disabled')).toBeDefined()
+
+    await actionButton(wrapper, 'schedule').trigger('click')
+
+    expect(wrapper.emitted('schedule')).toBeUndefined()
   })
 
   it('disables the room account action for deleted rooms', async () => {

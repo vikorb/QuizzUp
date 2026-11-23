@@ -44,6 +44,7 @@
           @edit="emit('edit', $event)"
           @account="emit('account', $event)"
           @logs="emit('logs', $event)"
+          @schedule="emit('schedule', $event)"
           @updated="emit('updated', $event)"
           @deleted="emit('deleted', $event)"
           @error="emit('error', $event)"
@@ -89,6 +90,7 @@ const emit = defineEmits<{
   (event: 'edit', roomId: number): void
   (event: 'account', roomId: number): void
   (event: 'logs', roomId: number): void
+  (event: 'schedule', roomId: number): void
   (event: 'updated', room: Room): void
   (event: 'deleted', roomId: number): void
   (event: 'error', errorCode: string): void

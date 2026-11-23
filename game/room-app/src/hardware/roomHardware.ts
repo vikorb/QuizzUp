@@ -30,11 +30,13 @@ import {
   isDesk,
   isWebSerialSupported,
   type KeyboardBuzzerInput,
+  type LightingConfig,
   type LightingController,
   type LightingState,
   type MeteredOutput,
   type OutputStats,
   type ParsedRoomHardwareConfig,
+  parseRig,
   parseRoomHardwareConfig,
   type PlanPoint,
   type PlanTarget,
@@ -72,6 +74,11 @@ export const HARDWARE_SYNC_STORAGE_KEY = 'quizzup_room_hardware_sync'
  * réarmement humain : après un plantage ou un rechargement, les lumières repartent éteintes.
  */
 export const EMERGENCY_STORAGE_KEY = 'quizzup_room_emergency'
+/**
+ * Preuve d'un test de coupure de la fumée réussi sur ce PC : salle, et empreinte des réglages de
+ * fumée testés. Jamais envoyée au compte de la salle, jamais lue dans `rooms.config`.
+ */
+export const SMOKE_PROOF_STORAGE_KEY = 'quizzup_room_smoke_cutoff'
 
 type HardwareStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 
@@ -467,8 +474,10 @@ function watchReconnection(controller: LightingController): void {
 async function createLighting(
   options: { emergencyReason?: string | null; disarmSmoke?: boolean } = {}
 ) {
+  const lightingConfig = guardedLightingConfig(parsed.value.config)
+  appliedLighting = stableStringify(lightingConfig)
   const controller = createLightingController({
-    config: activeLightingConfig(parsed.value.config),
+    config: lightingConfig,
     output: createSimulationOutput(),
     resolveDesk,
   })
@@ -765,6 +774,8 @@ export function setHardwareRemoteSaver(
       configRevision = meta.accountId === null ? null : meta.revision
     }
   }
+  // La preuve du test de coupure vaut pour une salle : un changement de compte la remet en cause.
+  void refreshSmokeGuard().catch(() => undefined)
 }
 
 /** La copie locale appartient à un autre compte de salle que celui connecté. */
@@ -772,12 +783,133 @@ export function isHardwareCopyForeign(): boolean {
   return foreignCopy
 }
 
+// ── Garde de la fumée : test de coupure réussi sur ce PC ───────────────────
+
+/**
+ * La fumée n'est armée sur ce PC que si un test de coupure réussi y a été fait pour cette salle,
+ * avec les réglages de fumée actuels. La config reçue du compte de la salle ne prouve rien : elle
+ * peut venir d'un autre poste ou d'une écriture directe en base. Un seul point d'entrée : toute
+ * config de lumières du contrôleur passe par `guardedLightingConfig`.
+ */
+
+/** Test de coupure en cours (config appliquée avec `smokeTest`) : la fumée peut y être active. */
+let smokeTestActive = false
+/** Config de lumières (JSON stable) avec laquelle tourne le contrôleur actuel. */
+let appliedLighting = ''
+
+type SmokeProof = { accountId: number | null; fingerprint: string }
+
+function readSmokeProof(): SmokeProof | null {
+  try {
+    const raw = getStorage()?.getItem(SMOKE_PROOF_STORAGE_KEY)
+    const value = raw ? (JSON.parse(raw) as Partial<SmokeProof>) : null
+    return value &&
+      typeof value.fingerprint === 'string' &&
+      (value.accountId === null || typeof value.accountId === 'number')
+      ? { accountId: value.accountId, fingerprint: value.fingerprint }
+      : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Empreinte des réglages de fumée testés : interface DMX et sa cible (nœud Art-Net, adresse du
+ * pont), durées, niveau, confirmation, et pour chaque sortie fumée son adresse, son univers et ses
+ * canaux. Une sortie fumée se reconnaît comme dans le contrôleur de lumières : type `smoke` ou
+ * tout canal de rôle `smoke`, quel que soit le type de l'appareil. `enabled` n'en fait pas
+ * partie : c'est justement ce que la garde contrôle.
+ */
+function smokeFingerprint(rig: LightingConfig): string {
+  const devices = parseRig(rig.fixtures, rig.customProfiles)
+    .fixtures.filter(
+      (fixture) =>
+        fixture.profile.kind === 'smoke' ||
+        fixture.profile.channels.some((channel) => channel.role === 'smoke')
+    )
+    .map(({ id, address, universe, profile }) => ({
+      id,
+      address,
+      universe: universe ?? 0,
+      channels: profile.channels,
+    }))
+  return stableStringify({
+    driver: rig.driver,
+    artnet: rig.artnet,
+    bridgeUrl: rig.bridgeUrl,
+    smoke: { ...rig.smoke, enabled: undefined },
+    devices,
+  })
+}
+
+/** La fumée est activée par la config, mais aucune preuve locale ne la couvre : elle est refusée. */
+function smokeGuardBlocks(rig: LightingConfig): boolean {
+  if (!rig.smoke.enabled || smokeTestActive) {
+    return false
+  }
+  const proof = readSmokeProof()
+  return !(
+    proof !== null &&
+    proof.accountId === (binding?.accountId ?? null) &&
+    proof.fingerprint === smokeFingerprint(rig)
+  )
+}
+
+/** Config de lumières du contrôleur : la fumée y est désactivée tant que la preuve manque. */
+function guardedLightingConfig(config: RoomHardwareConfig): LightingConfig {
+  const rig = activeLightingConfig(config)
+  return smokeGuardBlocks(rig) ? { ...rig, smoke: { ...rig.smoke, enabled: false } } : rig
+}
+
+const smokeNeedsTest = shallowRef(smokeGuardBlocks(activeLightingConfig(parsed.value.config)))
+
+function syncSmokeNeedsTest(): void {
+  smokeNeedsTest.value = smokeGuardBlocks(activeLightingConfig(parsed.value.config))
+}
+
+/** La salle ou la preuve a changé : le contrôleur repart si la garde ne donne plus le même résultat. */
+async function refreshSmokeGuard(): Promise<void> {
+  syncSmokeNeedsTest()
+  if (lighting && stableStringify(guardedLightingConfig(parsed.value.config)) !== appliedLighting) {
+    await restartLighting()
+  }
+}
+
+/**
+ * Résultat d'un test de coupure de la fumée fait sur ce PC (réponse de l'installateur). Réussi :
+ * la preuve est écrite pour cette salle et ces réglages ; elle ne s'écrit que pendant un test
+ * (config appliquée avec `smokeTest`). Échoué : la preuve existante est effacée (l'assistant
+ * appelle aussi `false` dès qu'un test part, voir `onFreezeTest`). Un test abandonné n'appelle
+ * rien. Rend `true` seulement si la preuve est posée ; `false` si la réponse était négative, si la
+ * config a changé pendant le test, ou si le stockage a refusé l'écriture.
+ */
+export function recordSmokeCutoffResult(ok: boolean): boolean {
+  let written = false
+  try {
+    if (!ok) {
+      getStorage()?.removeItem(SMOKE_PROOF_STORAGE_KEY)
+    } else if (smokeTestActive) {
+      const proof: SmokeProof = {
+        accountId: binding?.accountId ?? null,
+        fingerprint: smokeFingerprint(activeLightingConfig(parsed.value.config)),
+      }
+      const store = getStorage()
+      store?.setItem(SMOKE_PROOF_STORAGE_KEY, JSON.stringify(proof))
+      written = store !== null
+    }
+  } catch {
+    // Stockage indisponible : pas de preuve, la fumée reste refusée.
+  }
+  syncSmokeNeedsTest()
+  return written
+}
+
 async function applyConfig(
   input: unknown,
-  options: { persist?: boolean } = {}
+  options: { persist?: boolean; smokeTest?: boolean } = {}
 ): Promise<ParsedRoomHardwareConfig> {
-  const previousLighting = stableStringify(activeLightingConfig(parsed.value.config))
   const next = parseRoomHardwareConfig(input)
+  smokeTestActive = options.smokeTest === true
   parsed.value = next
 
   // Copie locale de secours (backoffice injoignable au prochain démarrage).
@@ -790,8 +922,9 @@ async function applyConfig(
   }
 
   applyBuzzerConfig(next.config)
+  syncSmokeNeedsTest()
 
-  if (stableStringify(activeLightingConfig(next.config)) !== previousLighting) {
+  if (stableStringify(guardedLightingConfig(next.config)) !== appliedLighting) {
     await restartLighting()
   }
   return next
@@ -910,12 +1043,13 @@ export async function resolveHardwareConflict(config: unknown, revision: number)
  */
 export async function saveRoomHardwareConfig(
   input: unknown,
-  options: { persist?: boolean } = {}
+  options: { persist?: boolean; smokeTest?: boolean } = {}
 ): Promise<ParsedRoomHardwareConfig> {
-  // `persist: false` : config appliquée à la page seulement (test de coupure de la fumée),
-  // jamais gardée sur ce PC ni envoyée au compte de la salle.
+  // `persist: false` : config appliquée à la page seulement, jamais gardée sur ce PC ni envoyée
+  // au compte de la salle. Avec `smokeTest` (test de coupure de la fumée, assistant seulement),
+  // la fumée y reste active malgré l'absence de preuve locale, jusqu'à la config suivante.
   if (options.persist === false) {
-    return applyConfig(input, { persist: false })
+    return applyConfig(input, { persist: false, smokeTest: options.smokeTest })
   }
   saveGeneration += 1
   const generation = saveGeneration
@@ -1046,8 +1180,11 @@ export async function resetRoomHardware(options: { storage?: HardwareStorage | n
   syncStatus.value = 'local'
   saveGeneration = 0
   saveQueue = Promise.resolve()
+  smokeTestActive = false
+  appliedLighting = ''
   storage = options.storage ?? null
   parsed.value = parseRoomHardwareConfig(loadStoredConfig())
+  syncSmokeNeedsTest()
 }
 
 export function useRoomHardware() {
@@ -1072,6 +1209,11 @@ export function useRoomHardware() {
     buzzerState: computed(() => buzzerState.value),
     lightingState: computed(() => lightingState.value),
     lighting: computed(() => lightingRef.value),
+    /**
+     * Fumée activée dans la config, mais refusée sur ce PC : pas de test de coupure réussi ici pour
+     * cette salle et ces réglages (voir `recordSmokeCutoffResult`).
+     */
+    smokeNeedsTest: computed(() => smokeNeedsTest.value),
     syncStatus: computed(() => syncStatus.value),
     /** Incrémenté à chaque conflit résolu par la config du compte (voir `resolveHardwareConflict`). */
     conflictCount: computed(() => conflictCount.value),

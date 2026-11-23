@@ -103,6 +103,38 @@ describe('services/roomsService.ts', () => {
     })
   })
 
+  it('replaces the schedule of a room with a PUT and a JSON body', async () => {
+    const { updateRoomScheduleService } = await loadService()
+    const schedule = {
+      timezone: 'Europe/Paris',
+      slotMinutes: 60,
+      breakMinutes: 0,
+      bookableDesks: 4,
+      publicBooking: false,
+      days: { '1': { opensAt: '10:00', closesAt: '22:00' } },
+    }
+
+    await updateRoomScheduleService(7, 3, { schedule })
+
+    expect(apiRequestJsonMock).toHaveBeenCalledWith({
+      path: '/companies/7/rooms/3/schedule',
+      method: 'PUT',
+      authenticated: true,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ schedule }),
+    })
+  })
+
+  it('disables the schedule of a room by sending null', async () => {
+    const { updateRoomScheduleService } = await loadService()
+
+    await updateRoomScheduleService(7, 3, { schedule: null })
+
+    const options = apiRequestJsonMock.mock.calls[0]?.[0]
+
+    expect(JSON.parse(String(options?.body))).toEqual({ schedule: null })
+  })
+
   it('loads the room account', async () => {
     const { loadRoomAccountService } = await loadService()
 

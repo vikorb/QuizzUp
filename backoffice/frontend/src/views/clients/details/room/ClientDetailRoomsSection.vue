@@ -43,6 +43,15 @@
       @close="closeLogsPanel"
     />
 
+    <RoomSchedulePanel
+      v-if="canManageRooms && scheduleRoom"
+      :key="`schedule-${scheduleRoom.id}`"
+      :company-id="companyId"
+      :room="scheduleRoom"
+      @saved="handleRoomScheduleSaved"
+      @close="closeSchedulePanel"
+    />
+
     <RoomsTable
       :company-id="companyId"
       :rooms="filteredRooms"
@@ -54,6 +63,7 @@
       @edit="handleEditRoom"
       @account="handleManageRoomAccount"
       @logs="handleShowRoomLogs"
+      @schedule="handleManageRoomSchedule"
       @error="handleTableError"
       @retry="loadRooms"
     />
@@ -95,6 +105,7 @@ import { clearTimer, scheduleTimer } from '@/utils/timer'
 import RoomAccountPanel from '../../rooms/RoomAccountPanel.vue'
 import RoomForm from '../../rooms/RoomForm.vue'
 import RoomLogsPanel from '../../rooms/RoomLogsPanel.vue'
+import RoomSchedulePanel from '../../rooms/RoomSchedulePanel.vue'
 import RoomsTable from '../../rooms/RoomsTable.vue'
 import RoomsToolBar from '../../rooms/RoomsToolBar.vue'
 
@@ -121,6 +132,7 @@ const formMode = ref<RoomFormMode | null>(null)
 const editedRoomId = ref<number | null>(null)
 const accountRoomId = ref<number | null>(null)
 const logsRoomId = ref<number | null>(null)
+const scheduleRoomId = ref<number | null>(null)
 const actionBanner = ref<ActionBanner | null>(null)
 const actionBannerTimer = ref<TimerHandle | null>(null)
 const actionBannerVariant = computed(() => getBannerVariant(actionBanner.value))
@@ -148,6 +160,17 @@ const logsRoom = computed(() => {
   }
 
   const room = findRoomById(rooms.value, logsRoomId.value)
+
+  return room && !isRoomDeleted(room.status) ? room : null
+})
+
+// Les créneaux se règlent aussi pour une salle non supprimée seulement.
+const scheduleRoom = computed(() => {
+  if (scheduleRoomId.value === null) {
+    return null
+  }
+
+  const room = findRoomById(rooms.value, scheduleRoomId.value)
 
   return room && !isRoomDeleted(room.status) ? room : null
 })
@@ -196,12 +219,17 @@ function closeLogsPanel(): void {
   logsRoomId.value = null
 }
 
+function closeSchedulePanel(): void {
+  scheduleRoomId.value = null
+}
+
 function resetSection(): void {
   rooms.value = []
   roomsErrorCode.value = null
   closeForm()
   closeAccountPanel()
   closeLogsPanel()
+  closeSchedulePanel()
   clearActionBanner()
 }
 
@@ -250,6 +278,7 @@ function handleCreateRoom(): void {
 
   closeAccountPanel()
   closeLogsPanel()
+  closeSchedulePanel()
   editedRoomId.value = null
   formMode.value = 'create'
 }
@@ -265,6 +294,7 @@ function handleEditRoom(roomId: number): void {
 
   closeAccountPanel()
   closeLogsPanel()
+  closeSchedulePanel()
   editedRoomId.value = roomId
   formMode.value = 'edit'
 }
@@ -283,6 +313,7 @@ function handleManageRoomAccount(roomId: number): void {
 
   closeForm()
   closeLogsPanel()
+  closeSchedulePanel()
   accountRoomId.value = roomId
 }
 
@@ -300,7 +331,34 @@ function handleShowRoomLogs(roomId: number): void {
 
   closeForm()
   closeAccountPanel()
+  closeSchedulePanel()
   logsRoomId.value = roomId
+}
+
+function handleManageRoomSchedule(roomId: number): void {
+  if (!props.canShowRoomsSection || !props.canManageRooms) {
+    return
+  }
+
+  const room = findRoomById(rooms.value, roomId)
+
+  if (!room || isRoomDeleted(room.status)) {
+    return
+  }
+
+  closeForm()
+  closeAccountPanel()
+  closeLogsPanel()
+  scheduleRoomId.value = roomId
+}
+
+// Le panneau affiche lui-même le succès : on aligne seulement la liste locale.
+function handleRoomScheduleSaved(savedRoom: Room): void {
+  if (!props.canShowRoomsSection) {
+    return
+  }
+
+  rooms.value = updateRoomInList(rooms.value, savedRoom)
 }
 
 function handleRoomAccountCreated(account: RoomAccount): void {
@@ -359,6 +417,10 @@ function handleRoomDeleted(roomId: number): void {
     closeLogsPanel()
   }
 
+  if (scheduleRoomId.value === roomId) {
+    closeSchedulePanel()
+  }
+
   // Hors superadmin, l'API ne renvoie plus les salles supprimées : on aligne la liste locale.
   if (!props.canSeeDeletedRooms) {
     rooms.value = removeRoomFromList(rooms.value, roomId)
@@ -394,6 +456,7 @@ watch(
       closeForm()
       closeAccountPanel()
       closeLogsPanel()
+      closeSchedulePanel()
     }
   }
 )

@@ -10,6 +10,8 @@ Format inspiré de Keep a Changelog.
 
 - Journaux d'erreurs d'une salle consultables depuis le tableau des salles d'un client : panneau en ligne avec filtre par niveau, actualisation et « charger plus », réservé aux administrateurs.
   US: US-LOG-01 (#157)
+- Écran de réglage des créneaux d'une salle, ouvert depuis la liste des salles (admin et superadmin) : fuseau, jours et heures d'ouverture, durée de créneau, pause, pupitres réservables, réservation publique, avec aperçu des créneaux de chaque jour de la semaine type, enregistrement et désactivation après confirmation.
+  US: US-SESSION-01 (#142)
 
 - Journaux des salles : l'écran de salle envoie ses erreurs au backoffice (`POST /room/logs`, table `room_logs`, erreurs regroupées, e-mails masqués, contexte limité à une liste blanche, 6 envois par minute et par salle). Lecture par le superadmin et l'admin : `GET /companies/:companyId/rooms/:roomId/logs`. Conservation : `ROOM_LOG_RETENTION_DAYS` jours (30 par défaut) et 5000 lignes par salle. L'écran du backoffice viendra dans un lot suivant.
   US: US-LOG-01 (#157)
@@ -341,6 +343,8 @@ Format inspiré de Keep a Changelog.
 
 ### Fixed
 
+- Sécurité : l'écran de salle n'arme la fumée activée par la configuration du serveur que si un test de coupure réussi est mémorisé sur ce poste, pour cette salle et ces réglages de fumée ; sinon aucun jet ne part et un message demande de refaire le test. Un test relancé efface la preuve jusqu'à sa réussite. Non validé sur du vrai matériel (banc, cas F9).
+  US: US-SEC-04 (#152)
 - Import CSV : le message d'erreur sur la colonne des bonnes réponses était tronqué, le caractère `|` étant lu comme un séparateur de pluriel par la traduction.
   US: US-IMPORT-01 (#158)
 

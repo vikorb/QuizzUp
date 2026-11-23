@@ -14,8 +14,16 @@ import HardwareView from '@/views/hardware/HardwareView.vue'
 
 import { pressKey } from '../_helpers/keyboard'
 import { mountWithApp, PRELOAD_TIMEOUT_MS, preloadRoutes } from '../_helpers/mount'
+import { saveWithSmokeProof } from '../_helpers/smokeProof'
 
 beforeAll(preloadRoutes, PRELOAD_TIMEOUT_MS)
+
+const SMOKE_ROOM = {
+  lighting: {
+    fixtures: [{ id: 'fumee', name: 'Fumée', profileId: 'smoke-relay', address: 40 }],
+    smoke: { enabled: true, requireConfirmation: true },
+  },
+}
 
 /** 16 touches libres, une par buzzer (pupitre 1 A → pupitre 4 D). */
 const LEARN_CODES = 'BCGHIJKLMNOPTUYZ'.split('').map((letter) => `Key${letter}`)
@@ -142,21 +150,14 @@ describe('HardwareView', () => {
   })
 
   it('arme la fumée quand la salle l’autorise', async () => {
-    localStorage.setItem(
-      HARDWARE_STORAGE_KEY,
-      JSON.stringify({
-        lighting: {
-          fixtures: [{ id: 'fumee', name: 'Fumée', profileId: 'smoke-relay', address: 40 }],
-          smoke: { enabled: true, requireConfirmation: true },
-        },
-      })
-    )
+    await saveWithSmokeProof(SMOKE_ROOM)
     await resetRoomHardware()
 
     const { wrapper } = await mountWithApp(HardwareView, { route: '/hardware' })
     await openTab(wrapper, 'lights')
     await vi.waitFor(() => expect(useRoomHardware().lighting.value).not.toBeNull())
     await flushPromises()
+    expect(wrapper.find('[data-test="smoke-test-required"]').exists()).toBe(false)
 
     await wrapper.find('[data-test="smoke-test"]').trigger('click')
     expect(wrapper.find('[data-test="smoke-test"]').attributes('disabled')).toBeDefined()
@@ -173,6 +174,22 @@ describe('HardwareView', () => {
     await wrapper.find('[data-test="smoke-arm"]').setValue(false)
     await flushPromises()
     expect(useRoomHardware().lightingState.value?.smoke.armed).toBe(false)
+  })
+
+  it('explique pourquoi la fumée est inactive quand le test de coupure manque sur ce poste', async () => {
+    await saveRoomHardwareConfig(SMOKE_ROOM)
+    await resetRoomHardware()
+
+    const { wrapper } = await mountWithApp(HardwareView, { route: '/hardware' })
+    await openTab(wrapper, 'lights')
+    await vi.waitFor(() => expect(useRoomHardware().lighting.value).not.toBeNull())
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="smoke-test-required"]').text()).toContain(
+      'test de coupure à refaire sur ce poste'
+    )
+    expect(wrapper.find('[data-test="smoke-arm"]').exists()).toBe(false)
+    expect(useRoomHardware().lightingState.value?.smoke.status).toBe('disabled')
   })
 
   it('valide et enregistre la configuration avancée', async () => {
