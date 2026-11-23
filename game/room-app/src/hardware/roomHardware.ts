@@ -49,9 +49,9 @@ import {
   withLearnedKeymap,
   withPlanPoint,
 } from '@quizzup/hardware'
-import { computed, shallowRef } from 'vue'
+import { computed, shallowRef, watch } from 'vue'
 
-import { onGameEvents } from '@/game/useRoomGame'
+import { onGameEvents, useRoomGame } from '@/game/useRoomGame'
 import { createSimulationKeymap } from '@/hardware/buzzers'
 import { RoomApiError } from '@/utils/roomApi'
 
@@ -478,11 +478,30 @@ async function createLighting(
     }
     wasEmergency = state.emergency
   })
-  stopLightingEvents = onGameEvents((events: GameEvent[]) => {
+  // Pause : aucun événement de jeu ne pilote les lumières (donc aucun jet), sauf l'arrêt de la
+  // partie, qui les remet au repos. Le jet en cours est coupé aussitôt (`flush: 'sync'`) ; la
+  // reprise ne le relance pas, la fumée ne revient que sur un nouvel événement de jeu.
+  const { paused } = useRoomGame()
+  const stopEvents = onGameEvents((events: GameEvent[]) => {
     for (const event of events) {
-      controller.handleGameEvent(event)
+      if (!paused.value || event.type === 'game_aborted') {
+        controller.handleGameEvent(event)
+      }
     }
   })
+  const stopPauseWatch = watch(
+    paused,
+    (isPaused) => {
+      if (isPaused) {
+        controller.smoke.stop()
+      }
+    },
+    { flush: 'sync' }
+  )
+  stopLightingEvents = () => {
+    stopEvents()
+    stopPauseWatch()
+  }
   await controller.start()
   lightingState.value = controller.getState()
   // Interface déjà autorisée lors d'une visite précédente : reconnexion sans clic.

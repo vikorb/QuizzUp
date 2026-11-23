@@ -286,6 +286,9 @@ Format inspiré de Keep a Changelog.
 
 ### Fixed
 
+- Sécurité : la mise en pause d'une partie coupe aussitôt tout jet de fumée en cours sur l'écran de salle. Aucun jet ne démarre pendant la pause et la reprise ne relance rien. Non validé sur du vrai matériel (banc, cas F8).
+  US: US-SEC-03 (#152)
+
 - Droits d'un admin de compagnie : il n'obtient plus de 403 (`forbidden`, `question_theme_forbidden`) sur
   ses propres thèmes et peut de nouveau créer des questions. Cause : `pg` renvoyait les `bigint`
   (ids, `company_id`) en chaîne, donc `"10" === 10` (JWT / session) était faux dans les contrôles de
