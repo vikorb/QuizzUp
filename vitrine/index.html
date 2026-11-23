@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="%SITE_LANG%">
+  <head>
+    <!-- @include head -->
+    <title>%SITE_NAME% : des quiz en équipe pour les salles de jeu</title>
+    <meta
+      name="description"
+      content="Quiz en équipe avec buzzers, blind test et mini-jeux, lumières et fumée pilotées, dans un simple navigateur. Pour escape games, laser games et centres de loisirs."
+    />
+    <meta property="og:title" content="%SITE_NAME% : des quiz en équipe pour les salles de jeu" />
+    <meta
+      property="og:description"
+      content="Quiz en équipe avec buzzers, blind test et mini-jeux, lumières et fumée pilotées, dans un simple navigateur."
+    />
+    <meta property="og:url" content="%SITE_URL%/" />
+    <meta property="og:image" content="%SITE_URL%/captures/question-1280.jpg" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="720" />
+    <meta
+      property="og:image:alt"
+      content="Écran de salle pendant un blind test : un joueur a buzzé et choisit sa réponse parmi quatre."
+    />
+  </head>
+  <body>
+    <!-- @include header -->
+
+    <main id="contenu">
+      <section class="wrap hero" aria-labelledby="titre-accueil">
+        <div>
+          <h1 id="titre-accueil">Des quiz en équipe pour vos salles de jeu</h1>
+          <p class="hero__lead">
+            Une salle équipée de pupitres, de buzzers, de lumières et d’un écran fait tourner des
+            parties de quiz. Vous préparez les thèmes et les questions dans un backoffice ; la salle
+            joue dans un navigateur.
+          </p>
+          <div class="hero__actions">
+            <a class="btn btn--primary" href="/demonstration.html">Demander une démonstration</a>
+            <a class="link-quiet" href="#salle">Voir ce que voit la salle</a>
+          </div>
+        </div>
+
+        <figure class="screen">
+          <picture>
+            <source
+              type="image/webp"
+              srcset="
+                /captures/question-640.webp   640w,
+                /captures/question-1280.webp 1280w,
+                /captures/question-1920.webp 1920w
+              "
+              sizes="(min-width: 62rem) 58vw, 100vw"
+            />
+            <img
+              src="/captures/question-1280.jpg"
+              width="1920"
+              height="1080"
+              alt="Écran de salle pendant un blind test éclair : trois paliers de 1, 5 et 20 secondes, le message « Alice répond ! » et quatre réponses de A à D (Train, Camion, Tramway, Bateau). Les scores des quatre joueurs sont affichés en bas."
+              fetchpriority="high"
+              decoding="async"
+            />
+          </picture>
+          <figcaption>
+            Blind test éclair : Alice a buzzé au premier palier et choisit sa réponse avec A, B, C
+            ou D.
+          </figcaption>
+        </figure>
+      </section>
+
+      <section class="section" id="salle" aria-labelledby="titre-salle">
+        <div class="wrap">
+          <h2 id="titre-salle">Ce que voit une salle</h2>
+          <p class="section__intro">
+            Toutes les images de cette page sont des captures de l’écran de salle en mode démo.
+          </p>
+
+          <div class="row row--media-first">
+            <div class="row__text">
+              <h3>Les joueurs s’installent aux pupitres</h3>
+              <p>
+                Un joueur par pupitre : quatre par défaut, six au maximum selon le réglage de la
+                salle. Chacun choisit un pseudo. Un appui sur un buzzer fait briller son pupitre, ce
+                qui permet de vérifier que tout répond avant de démarrer.
+              </p>
+              <p>
+                L’e-mail d’un joueur est facultatif, demande un consentement explicite et n’est
+                jamais affiché à l’écran.
+              </p>
+            </div>
+            <figure class="screen row__media">
+              <picture>
+                <source
+                  type="image/webp"
+                  srcset="
+                    /captures/lobby-640.webp   640w,
+                    /captures/lobby-1280.webp 1280w,
+                    /captures/lobby-1920.webp 1920w
+                  "
+                  sizes="(min-width: 56rem) 58vw, 100vw"
+                />
+                <img
+                  src="/captures/lobby-1280.jpg"
+                  width="1920"
+                  height="1080"
+                  alt="Écran d’inscription des joueurs : quatre pupitres numérotés avec un pseudo (Alice, Bob, Chloé, David) et un e-mail facultatif. Le pupitre 2 affiche « Buzzer OK » après un appui. Choix entre partie complète et partie courte."
+                  loading="lazy"
+                  decoding="async"
+                />
+              </picture>
+            </figure>
+          </div>
+
+          <div class="row">
+            <div class="row__text">
+              <h3>Dix mini-jeux, tirés au sort à chaque manche</h3>
+              <p>
+                Chaque manche annonce son mini-jeu, puis le joueur désigné choisit le thème avec ses
+                buzzers. Ici, Quitte ou double : chacun mise avant de découvrir la question.
+              </p>
+              <p>
+                Une partie courte compte 3 manches de 3 questions, une partie complète 10 manches de
+                10 questions.
+              </p>
+            </div>
+            <figure class="screen row__media">
+              <picture>
+                <source
+                  type="image/webp"
+                  srcset="
+                    /captures/mini-jeu-640.webp   640w,
+                    /captures/mini-jeu-1280.webp 1280w,
+                    /captures/mini-jeu-1920.webp 1920w
+                  "
+                  sizes="(min-width: 56rem) 58vw, 100vw"
+                />
+                <img
+                  src="/captures/mini-jeu-1280.jpg"
+                  width="1920"
+                  height="1080"
+                  alt="Écran du mini-jeu Quitte ou double : quatre mises possibles, A je passe, B mise simple 100 points, C mise double 200 points, D tapis, et un compteur « 0 / 4 ont misé »."
+                  loading="lazy"
+                  decoding="async"
+                />
+              </picture>
+            </figure>
+          </div>
+
+          <dl class="games" id="mini-jeux" aria-label="Les dix mini-jeux">
+            <div data-mini-game="flash_blind_test">
+              <dt>Blind test éclair</dt>
+              <dd>
+                L’extrait joue 1 seconde, puis 5, puis 20. Plus on trouve tôt, plus on marque : 100,
+                50 ou 20 points.
+              </dd>
+            </div>
+            <div data-mini-game="quick_answer">
+              <dt>Rapidité</dt>
+              <dd>
+                Tout le monde répond en même temps ; une bonne réponse rapporte de 100 à 20 points
+                selon la vitesse.
+              </dd>
+            </div>
+            <div data-mini-game="first_buzz">
+              <dt>Premier buzz</dt>
+              <dd>
+                Le premier qui buzze répond seul. Une erreur coûte 25 points et la main passe.
+              </dd>
+            </div>
+            <div data-mini-game="true_false">
+              <dt>Vrai ou faux éclair</dt>
+              <dd>
+                Une série d’affirmations : A pour vrai, B pour faux, 50 points par bonne réponse.
+              </dd>
+            </div>
+            <div data-mini-game="double_or_nothing">
+              <dt>Quitte ou double</dt>
+              <dd>On mise avant de voir la question, jusqu’au tapis qui engage tout son score.</dd>
+            </div>
+            <div data-mini-game="sudden_death">
+              <dt>Mort subite</dt>
+              <dd>
+                Une erreur élimine jusqu’à la fin de la manche. Le dernier joueur debout gagne 200
+                points de bonus.
+              </dd>
+            </div>
+            <div data-mini-game="point_steal">
+              <dt>Vol de points</dt>
+              <dd>
+                Le plus rapide des bons répondants choisit un adversaire et lui prend jusqu’à 100
+                points.
+              </dd>
+            </div>
+            <div data-mini-game="streak">
+              <dt>Série</dt>
+              <dd>
+                Chaque bonne réponse d’affilée fait monter le multiplicateur, jusqu’à ×5. Une erreur
+                le ramène à ×1.
+              </dd>
+            </div>
+            <div data-mini-game="estimate">
+              <dt>Estimation</dt>
+              <dd>
+                Il faut trouver la bonne fourchette parmi des valeurs rangées de la plus petite à la
+                plus grande.
+              </dd>
+            </div>
+            <div data-mini-game="progressive_reveal">
+              <dt>Révélation progressive</dt>
+              <dd>
+                Une image floue se précise pendant 20 secondes ; le premier qui buzze la fige et
+                répond.
+              </dd>
+            </div>
+          </dl>
+
+          <div class="row row--media-first">
+            <div class="row__text">
+              <h3>Un classement du début à la fin</h3>
+              <p>
+                Le tableau des scores reste affiché sous la question. En fin de partie, le podium
+                donne le classement final et les scores sont renvoyés au backoffice.
+              </p>
+            </div>
+            <figure class="screen row__media">
+              <picture>
+                <source
+                  type="image/webp"
+                  srcset="
+                    /captures/podium-640.webp   640w,
+                    /captures/podium-1280.webp 1280w,
+                    /captures/podium-1920.webp 1920w
+                  "
+                  sizes="(min-width: 56rem) 58vw, 100vw"
+                />
+                <img
+                  src="/captures/podium-1280.jpg"
+                  width="1920"
+                  height="1080"
+                  alt="Écran de fin de partie : Alice remporte la partie avec 350 points, devant Bob (200), Chloé (150) et David (100)."
+                  loading="lazy"
+                  decoding="async"
+                />
+              </picture>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="lumieres" aria-labelledby="titre-lumieres">
+        <div class="wrap">
+          <h2 id="titre-lumieres">La salle réagit à la partie</h2>
+
+          <div class="row">
+            <div class="row__text">
+              <p>
+                Le projecteur d’un pupitre prend la couleur du joueur qui buzze, puis la salle
+                réagit à une bonne réponse, à une mauvaise réponse et à une victoire. Les appareils
+                se déclarent dans l’écran Matériel et se placent sur un plan de salle : ici, un
+                projecteur par pupitre et une machine à fumée.
+              </p>
+              <p>
+                La fumée est sécurisée : elle ne se déclenche que si l’opérateur l’a autorisée. Un
+                arrêt d’urgence éteint tout et coupe la fumée ; il reste actif après un rechargement
+                de la page, jusqu’à un réarmement confirmé.
+              </p>
+            </div>
+            <figure class="screen row__media">
+              <picture>
+                <source
+                  type="image/webp"
+                  srcset="
+                    /captures/plan-de-salle-640.webp   640w,
+                    /captures/plan-de-salle-1280.webp 1280w,
+                    /captures/plan-de-salle-1920.webp 1920w
+                  "
+                  sizes="(min-width: 56rem) 58vw, 100vw"
+                />
+                <img
+                  src="/captures/plan-de-salle-1280.jpg"
+                  width="1920"
+                  height="1080"
+                  alt="Écran Matériel, onglet Plan de salle, vue de dessus : l’écran en haut, une machine à fumée, quatre projecteurs PAR et quatre pupitres avec leurs boutons A à D."
+                  loading="lazy"
+                  decoding="async"
+                />
+              </picture>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="titre-navigateur">
+        <div class="wrap">
+          <h2 id="titre-navigateur">Tout se passe dans un navigateur</h2>
+          <div class="facts">
+            <div class="fact">
+              <h3>Aucune installation</h3>
+              <p>
+                L’écran de salle s’ouvre dans Chrome ou Edge, sur le PC de la salle. Le seul élément
+                à installer est un petit pont local, pour les salles dont les lumières passent par
+                un nœud Art-Net.
+              </p>
+            </div>
+            <div class="fact">
+              <h3>Si internet tombe</h3>
+              <p>
+                La partie est arbitrée dans le navigateur de la salle : les buzzers sont jugés sur
+                place et une partie en cours continue sans connexion. Les scores sont renvoyés au
+                backoffice dès que la connexion revient. Lancer une nouvelle partie préparée au
+                backoffice demande en revanche d’être connecté.
+              </p>
+            </div>
+            <div class="fact">
+              <h3>Un backoffice pour le centre</h3>
+              <p>
+                On y gère les thèmes, les questions et leurs réponses, les salles et les comptes, et
+                on y prépare les parties : joueurs, pupitres, format. Chaque centre a ses comptes,
+                avec un administrateur et des membres du personnel aux droits restreints.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="compatibilite" aria-labelledby="titre-compatibilite">
+        <div class="wrap">
+          <h2 id="titre-compatibilite">Compatible avec une salle existante</h2>
+          <p class="section__intro">
+            Un centre a déjà son matériel. QuizzUp sait piloter ce qui est courant en salle, sans
+            tout recâbler. Chaque salle est différente : indiquez votre matériel dans la demande de
+            démonstration.
+          </p>
+          <div class="split">
+            <div>
+              <h3>Lumières et fumée</h3>
+              <p>
+                Une interface USB-DMX (protocole DMX USB Pro) branchée au PC de la salle : rien à
+                installer. Un nœud Art-Net sur le réseau : un petit pont local, à installer sur le
+                PC, relaie les trames.
+              </p>
+              <p>
+                Projecteurs PAR, lyres, stroboscopes, gradateurs et machines à fumée se décrivent
+                par profils. Sans lumière pilotée, un mode simulation permet de tout essayer à
+                l’écran.
+              </p>
+            </div>
+            <div>
+              <h3>Buzzers</h3>
+              <p>
+                Des buzzers USB vus comme un clavier, ou comme une manette quand ils passent par une
+                carte d’entrées USB. Ils s’associent par apprentissage : on appuie sur chaque
+                buzzer, l’écran retient sa place.
+              </p>
+              <p>Sans buzzer, le clavier du PC les simule.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section closing" aria-labelledby="titre-fin">
+        <div class="wrap">
+          <h2 id="titre-fin">Voir le produit tourner</h2>
+          <p class="section__intro">
+            Dites-nous combien de salles vous gérez et quel matériel vous utilisez.
+          </p>
+          <a href="/demonstration.html">Demander une démonstration</a>
+        </div>
+      </section>
+    </main>
+
+    <!-- @include footer -->
+  </body>
+</html>

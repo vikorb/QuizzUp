@@ -6,6 +6,7 @@
   "description": "Tests de bout en bout QuizzUp (Playwright, Chromium) : une partie complète de blind test éclair sur l'écran de salle, lecture audio réelle et simulation DMX.",
   "scripts": {
     "test": "playwright test",
+    "captures": "playwright test -c playwright.captures.config.ts",
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
     "report": "playwright show-report",
