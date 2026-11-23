@@ -9,6 +9,7 @@ export const roomSelect = [
   'name',
   'config',
   'config_revision as configRevision',
+  'schedule',
   'status',
   'created_at as createdAt',
   'updated_at as updatedAt',

@@ -94,8 +94,8 @@ function parseCalendarDate(date: string): number {
   return midnight
 }
 
-/** `HH:MM` → minutes depuis minuit. */
-function toMinutes(time: string): number {
+/** `HH:MM` → minutes depuis minuit. `RangeError` si le format est invalide. */
+export function timeToMinutes(time: string): number {
   const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time)
 
   if (!match) {
@@ -123,7 +123,7 @@ export function zonedLocalToUtc(localDateTime: string, timeZone: string): Date |
     throw new RangeError(`Date locale invalide : ${localDateTime}`)
   }
 
-  const guess = parseCalendarDate(match[1] ?? '') + toMinutes(match[2] ?? '') * MINUTE_MS
+  const guess = parseCalendarDate(match[1] ?? '') + timeToMinutes(match[2] ?? '') * MINUTE_MS
   const candidates = new Set<number>()
 
   for (const shift of [-DAY_MINUTES, DAY_MINUTES]) {
@@ -181,9 +181,9 @@ export function computeRoomSlots(input: {
     return []
   }
 
-  const opens = toMinutes(day.opensAt)
-  let closes = toMinutes(day.closesAt)
-  let first = toMinutes(day.firstSessionAt ?? day.opensAt)
+  const opens = timeToMinutes(day.opensAt)
+  let closes = timeToMinutes(day.closesAt)
+  let first = timeToMinutes(day.firstSessionAt ?? day.opensAt)
 
   if (closes <= opens) {
     closes += DAY_MINUTES

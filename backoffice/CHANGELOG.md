@@ -10,6 +10,8 @@ Format inspiré de Keep a Changelog.
 
 - Logo du centre : envoi, remplacement et retrait depuis la fiche de la compagnie (`PUT` et `DELETE /companies/:companyId/logo`, PNG, JPEG ou WebP, 512 Ko au plus, type vérifié sur les premiers octets, SVG refusé). Le logo est servi par `GET /public/v1/logos/:file` et exposé par `logoUrl` dans `/room/me` et les routes des compagnies.
   US: US-RESULTS-01 (#156)
+- Réglages de créneaux d'une salle : `PUT /companies/:companyId/rooms/:roomId/schedule` (admin et superadmin) écrit `rooms.schedule` (fuseau, durée de créneau, pause, pupitres réservables, heures d'ouverture par jour). `null` remet la salle sans créneaux. Le champ `schedule` est renvoyé par les routes des salles et par `/room/me`.
+  US: US-SESSION-01 (#142)
 - Demandes de démonstration côté serveur : route publique `POST /public/v1/demo-requests` (5 envois par heure et par adresse, champ piège contre les robots), consultation, traitement et suppression par le superadmin (`/demo-requests`), purge automatique 12 mois après la création. Aucun e-mail n'est envoyé.
   US: US-CONSOLE-02 (#161)
 - Consentement aux offres du centre séparé de la conservation de l'e-mail : deux cases distinctes à la création d'une partie, jamais pré-cochées, la seconde inactive sans e-mail. Nouvelles colonnes `marketing_consent_at` et `second_marketing_consent_at` sur `game_participants`, horodatées par le serveur et effacées par la purge à 3 ans. L'API renvoie `marketingConsent` et refuse un consentement sans e-mail (400 `marketing_consent_requires_email`).
