@@ -219,6 +219,38 @@ describe('views/games/GameDetailView.vue', () => {
     expect(abortButton(await mountView()).exists()).toBe(false)
   })
 
+  it('links to the results sheet of a finished game only', async () => {
+    loadGameServiceMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: { game: createGameFixture({ id: 4, state: GAME_STATE_FINISHED, participants: [] }) },
+    })
+
+    const finished = await mountView()
+    const link = finished.get('[data-test="game-detail-results"]')
+
+    expect(link.text()).toBe('games.detail.results')
+
+    await link.trigger('click')
+
+    expect(pushMock).toHaveBeenCalledWith({
+      name: 'games-results',
+      params: { gameId: '4' },
+      query: {},
+    })
+
+    // Une partie en attente (par défaut du mock), en cours ou arrêtée n'a pas de feuille.
+    expect((await mountView()).find('[data-test="game-detail-results"]').exists()).toBe(false)
+
+    loadGameServiceMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: { game: createGameFixture({ id: 4, state: GAME_STATE_RUNNING, participants: [] }) },
+    })
+
+    expect((await mountView()).find('[data-test="game-detail-results"]').exists()).toBe(false)
+  })
+
   it('shows a not found game as an empty state', async () => {
     mockServiceFailure(loadGameServiceMock, 'not_found', 404)
 

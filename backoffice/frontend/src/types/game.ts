@@ -166,6 +166,11 @@ export type GameApiErrorCode =
   | 'email_consent_required'
   | 'marketing_consent_requires_email'
   | 'conflict'
+  | 'session_in_past'
+  | 'session_too_far'
+  | 'slot_taken'
+  | 'game_not_scheduled'
+  | 'session_not_open_yet'
   | 'server_error'
 
 export type GameApiSuccess<T> = {

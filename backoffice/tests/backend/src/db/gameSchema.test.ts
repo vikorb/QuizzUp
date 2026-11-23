@@ -8,9 +8,13 @@ import {
   ADMIN_ROLE_ROOM,
   GAME_DEFAULT_QUESTIONS_PER_ROUND,
   GAME_DEFAULT_ROUNDS,
+  GAME_EXTERNAL_REF_MAX_LENGTH,
+  GAME_LOCALES,
+  GAME_MAX_PLAYERS,
   GAME_MAX_QUESTIONS_PER_ROUND,
   GAME_MAX_ROUNDS,
   GAME_PODIUMS,
+  GAME_SLOT_STATES,
   GAME_STATE_PENDING,
   GAME_STATES,
   GAME_STATUSES,
@@ -47,6 +51,9 @@ const roomRoleMigration = readMigration('20261103220100_add_room_role_to_admins.
 const gamesMigration = readMigration('20261103220200_create_games_tables.js')
 const miniGamesMigration = readMigration('20261104010000_add_mini_games_to_game_rounds.js')
 const podiumsMigration = readMigration('20261104040000_raise_game_podiums_to_six.js')
+const schedulingMigration = readMigration('20261124000000_add_game_scheduling.js')
+const schedulingUp = schedulingMigration.slice(0, schedulingMigration.indexOf('exports.down'))
+const schedulingDown = schedulingMigration.slice(schedulingMigration.indexOf('exports.down'))
 
 describe('game schema migrations', () => {
   it('aligns room statuses with shared constants', () => {
@@ -66,8 +73,45 @@ describe('game schema migrations', () => {
 
   it('aligns game statuses and states with shared constants', () => {
     expect(getCheckValues(gamesMigration, 'status').map(Number)).toEqual([...GAME_STATUSES])
-    expect(getCheckValues(gamesMigration, 'state')).toEqual([...GAME_STATES])
+    // Le CHECK d'origine ne connaît que les 4 états historiques ; la migration des sessions
+    // programmées l'élargit (même ordre que GAME_STATES) et son retour arrière le restaure.
+    expect(getCheckValues(gamesMigration, 'state')).toEqual(
+      GAME_STATES.filter((state) => state !== 'scheduled' && state !== 'cancelled')
+    )
+    expect(getCheckValues(schedulingUp, 'state')).toEqual([...GAME_STATES])
+    expect(getCheckValues(schedulingDown, 'state')).toEqual(getCheckValues(gamesMigration, 'state'))
     expect(gamesMigration).toContain(`defaultTo('${GAME_STATE_PENDING}')`)
+  })
+
+  it('aligns the scheduling migration with the shared constants', () => {
+    const exclusion = schedulingUp.slice(
+      schedulingUp.indexOf('ADD CONSTRAINT games_room_schedule_no_overlap')
+    )
+
+    // Les états qui occupent un créneau : la contrainte d'exclusion ne joue que pour eux.
+    expect(getCheckValues(exclusion, 'state')).toEqual([...GAME_SLOT_STATES])
+    expect(getCheckValues(schedulingUp, 'locale')).toEqual([...GAME_LOCALES])
+    expect(schedulingUp).toContain(`players_count BETWEEN 1 AND ${GAME_MAX_PLAYERS}`)
+    expect(schedulingUp).toContain(`table.string('external_ref', ${GAME_EXTERNAL_REF_MAX_LENGTH})`)
+    // Intervalle semi-ouvert (bout à bout accepté) et filtre sur scheduled_at (sinon infini).
+    expect(exclusion).toContain("tstzrange(scheduled_at, scheduled_end_at, '[)') WITH &&")
+    expect(exclusion).toContain('scheduled_at IS NOT NULL')
+    expect(exclusion).toContain('status <> 2')
+  })
+
+  it('fails fast instead of queueing behind a lock when the scheduling migration runs', () => {
+    // Premier ordre de `up` : il vaut pour toute la transaction de la migration.
+    expect(schedulingUp.indexOf("SET LOCAL lock_timeout = '5s'")).toBeGreaterThan(-1)
+    expect(schedulingUp.indexOf("SET LOCAL lock_timeout = '5s'")).toBeLessThan(
+      schedulingUp.indexOf('CREATE EXTENSION')
+    )
+  })
+
+  it('keeps a safe rollback for the scheduling migration', () => {
+    expect(schedulingDown).toContain('Rollback impossible')
+    expect(schedulingDown).toContain("whereIn('state', ['scheduled', 'cancelled'])")
+    expect(schedulingDown).toContain("whereNotNull('schedule')")
+    expect(schedulingDown).toContain('DROP CONSTRAINT games_room_schedule_no_overlap')
   })
 
   it('aligns mini games and chooser reasons with shared constants', () => {
