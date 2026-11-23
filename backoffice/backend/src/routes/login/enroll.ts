@@ -56,8 +56,21 @@ const loginEnrollRoutes: FastifyPluginAsync = async (app) => {
       if (step === null) return reply.code(401).send({ error: 'totp_invalid' })
 
       const recoveryCodes = generateRecoveryCodes()
-      const confirmed = await confirmEnrollment(admin.id, step, recoveryCodes, now)
-      if (!confirmed) return reply.code(409).send({ error: 'totp_already_enrolled' })
+      const confirmed = await confirmEnrollment(
+        admin.id,
+        record.secretEnc,
+        step,
+        recoveryCodes,
+        now
+      )
+      if (!confirmed) {
+        // Refus : soit confirmé entre-temps, soit secret régénéré (le code vérifié ne vaut plus).
+        const current = await getAdminTotp(admin.id)
+
+        return reply.code(409).send({
+          error: current?.confirmedAt ? 'totp_already_enrolled' : 'totp_enrollment_changed',
+        })
+      }
 
       return { ...(await issueSession(app, admin)), recoveryCodes }
     }

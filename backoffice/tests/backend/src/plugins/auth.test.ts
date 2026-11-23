@@ -19,6 +19,7 @@ import {
 } from '@quizzup/shared'
 
 import authPlugin, { checkSession } from '../../../../backend/src/plugins/auth'
+import { DEV_TOTP_ENCRYPTION_KEY } from '../../../../backend/src/security/secretBox'
 import { dbState, MOCK_NOW, resetDb } from '../routes/_helpers/mockDb'
 
 process.env.JWT_SECRET ??= 'test-jwt-secret'
@@ -171,6 +172,19 @@ describe('plugins/auth.ts (authenticate)', () => {
     vi.stubEnv('TOTP_ENCRYPTION_KEY', Buffer.alloc(16).toString('base64'))
     expect(await keyOf()).toBeNull()
 
+    vi.unstubAllEnvs()
+  })
+
+  it('refuses the public demo TOTP key in production: key null, API still boots', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('JWT_SECRET', 'x'.repeat(40))
+    vi.stubEnv('TOTP_ENCRYPTION_KEY', DEV_TOTP_ENCRYPTION_KEY)
+
+    const app = await buildApp()
+
+    expect((app as unknown as { totpKey: Buffer | null }).totpKey).toBeNull()
+
+    await app.close()
     vi.unstubAllEnvs()
   })
 

@@ -1,8 +1,13 @@
 import { randomBytes } from 'node:crypto'
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
-import { openSecret, parseTotpKey, sealSecret } from '../../../../backend/src/security/secretBox'
+import {
+  DEV_TOTP_ENCRYPTION_KEY,
+  openSecret,
+  parseTotpKey,
+  sealSecret,
+} from '../../../../backend/src/security/secretBox'
 
 const KEY = randomBytes(32)
 const SECRET = 'JBSWY3DPEHPK3PXP'
@@ -68,5 +73,40 @@ describe('security/secretBox.ts — clé de chiffrement', () => {
     expect(parseTotpKey('')).toBeNull()
     expect(parseTotpKey(randomBytes(16).toString('base64'))).toBeNull()
     expect(parseTotpKey(randomBytes(33).toString('base64'))).toBeNull()
+  })
+
+  it('refuse un base64 permissif : caractère invalide, sans remplissage, base64url, espace intérieur', () => {
+    const valid = KEY.toString('base64')
+
+    expect(parseTotpKey(valid)).not.toBeNull()
+    expect(parseTotpKey(`${valid.slice(0, 10)}!${valid.slice(11)}`)).toBeNull()
+    expect(parseTotpKey(`${valid.slice(0, 10)} ${valid.slice(11)}`)).toBeNull()
+    expect(parseTotpKey(valid.slice(0, -1))).toBeNull()
+    expect(parseTotpKey(`${valid}=`)).toBeNull()
+    // Clé fixe dont le base64 contient `+` et `/` (0xfb 0xfb 0xfb = « +/v7 ») : sa forme base64url est refusée.
+    const withSigns = Buffer.alloc(32, 0xfb).toString('base64')
+    expect(parseTotpKey(withSigns)).not.toBeNull()
+    expect(parseTotpKey(withSigns.replace(/\+/g, '-').replace(/\//g, '_'))).toBeNull()
+    // Une clé valide suivie de déchets : Buffer.from l'aurait lue, la regex non.
+    expect(parseTotpKey(`${valid}!!!!`)).toBeNull()
+  })
+
+  it('refuse en production la clé publique de démonstration, l’accepte ailleurs', () => {
+    expect(DEV_TOTP_ENCRYPTION_KEY).toMatch(/^[A-Za-z0-9+/]{43}=$/)
+    expect(parseTotpKey(DEV_TOTP_ENCRYPTION_KEY, 'production')).toBeNull()
+    expect(parseTotpKey(` ${DEV_TOTP_ENCRYPTION_KEY}\n`, 'production')).toBeNull()
+
+    for (const nodeEnv of ['development', 'test', undefined]) {
+      expect(parseTotpKey(DEV_TOTP_ENCRYPTION_KEY, nodeEnv)?.length).toBe(32)
+    }
+    // Une autre clé reste acceptée en production.
+    expect(parseTotpKey(KEY.toString('base64'), 'production')?.equals(KEY)).toBe(true)
+  })
+
+  it('lit NODE_ENV par défaut', () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    expect(parseTotpKey(DEV_TOTP_ENCRYPTION_KEY)).toBeNull()
+    vi.unstubAllEnvs()
+    expect(parseTotpKey(DEV_TOTP_ENCRYPTION_KEY)).not.toBeNull()
   })
 })

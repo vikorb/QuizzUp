@@ -77,7 +77,8 @@ chmod +x ./*.sh
 ```
 
 1. **Remplir `.env`** : `QUIZZUP_VERSION` (le même tag), les cinq `HOST_*`, `ACME_EMAIL`,
-   `POSTGRES_PASSWORD` et `JWT_SECRET` (`openssl rand -hex 32` pour chacun), le dépôt de sauvegarde
+   `POSTGRES_PASSWORD` et `JWT_SECRET` (`openssl rand -hex 32` pour chacun), `TOTP_ENCRYPTION_KEY`
+   (`openssl rand -base64 32`), le dépôt de sauvegarde
    (`RESTIC_*`, `AWS_*`), `CONSOLE_ALLOWED_CIDRS` (**à renseigner avant le premier démarrage** : vide = console fermée, le
    superadmin créé à l'étape 3 ne pourrait pas se connecter), `TRUST_PROXY`, les alertes.
    Compose refuse de démarrer tant qu'une variable obligatoire est vide, avec son nom dans le message.
@@ -112,6 +113,7 @@ Tous les secrets sont dans `.env` (non versionné, `chmod 600`). L'API refuse de
 | Secret                | Rotation                                                                                      |
 | --------------------- | --------------------------------------------------------------------------------------------- |
 | `JWT_SECRET`          | modifier `.env`, `docker compose up -d api`. **Tout le monde est déconnecté**, écrans de salle compris : à faire hors session. Une partie en cours continue ; ses résultats partent à la reconnexion. |
+| `TOTP_ENCRYPTION_KEY` | ne se change pas à la légère : les secrets TOTP en base sont chiffrés avec elle. Une autre clé les rend illisibles ; le superadmin doit alors être réenrôlé (`npm run totp:reset`, qui révoque ses sessions). Conserver la clé **hors du serveur**. |
 | `POSTGRES_PASSWORD`   | le mot de passe est aussi dans la base : `docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "ALTER USER quizzup PASSWORD '"'"'nouveau'"'"'"'`, puis modifier `.env`, puis `docker compose up -d`. |
 | `RESTIC_PASSWORD`     | `docker compose run --rm restic key passwd`, puis modifier `.env`. Conserver l'ancien jusqu'à la fin ; le nouveau aussi **hors du serveur**. |
 | Accès au stockage     | modifier `.env` (`AWS_*` ou l'URL `rest:`) ; pris en compte au prochain lancement.             |
@@ -345,6 +347,9 @@ avec un délai de 1 s ; `200 {"status":"ok","db":"ok"}`, sinon `503 {"status":"d
 
 - [ ] `JWT_SECRET` fort : `openssl rand -hex 32`, jamais la valeur de développement. L'API l'impose
       (`docker compose logs api` ne contient pas « JWT_SECRET refusé »).
+- [ ] `TOTP_ENCRYPTION_KEY` propre à la production : `openssl rand -base64 32`, jamais la clé de
+      démonstration du dépôt (l'API la refuse), copiée hors du serveur
+      (`docker compose logs api` ne contient pas « TOTP_ENCRYPTION_KEY absente ou invalide »).
 - [ ] `.env` : `chmod 600`, hors dépôt (`git status` ne le montre pas), copie du contenu dans un
       gestionnaire de mots de passe ; `ADMIN_SEED_PASSWORD` supprimé après le bootstrap.
 - [ ] **Aucun compte de démonstration** : `docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d

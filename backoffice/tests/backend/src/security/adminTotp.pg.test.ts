@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process'
+import { randomBytes } from 'node:crypto'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
@@ -9,6 +10,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { TOTP_RECOVERY_CODES_COUNT } from '@quizzup/shared'
 
 import { assertTestDatabase } from '../../setup/assertTestDatabase'
+import { sealSecret } from '../../../../backend/src/security/secretBox'
 
 /**
  * Test d'intégration sur un vrai PostgreSQL : ignoré sans `PG_INTEGRATION_URL`.
@@ -241,14 +243,10 @@ describe.skipIf(!PG_INTEGRATION_URL)('double authentification TOTP sur PostgreSQ
       expect((await row()).last_used_step).toBeNull()
     })
 
-    it('n’accepte rien pendant le blocage, même avec un pas neuf, puis accepte et remet les échecs à zéro', async () => {
-      const lockedUntil = new Date(now.getTime() + 60_000)
-      await confirmedRow({ failed_attempts: 5, locked_until: lockedUntil })
+    it('un pas accepté remet les échecs et le verrou à zéro', async () => {
+      await confirmedRow({ failed_attempts: 5, locked_until: new Date(now.getTime() + 60_000) })
 
-      expect(await store.acceptStep(1, 100, now)).toBe(false)
-      expect((await row()).last_used_step).toBeNull()
-
-      expect(await store.acceptStep(1, 100, new Date(lockedUntil.getTime() + 1))).toBe(true)
+      expect(await store.acceptStep(1, 100, now)).toBe(true)
       expect(await row()).toMatchObject({ failed_attempts: 0, locked_until: null })
     })
 
@@ -266,7 +264,7 @@ describe.skipIf(!PG_INTEGRATION_URL)('double authentification TOTP sur PostgreSQ
       expect((await db('admin_totp_recovery_codes').first()).used_at).toBeInstanceOf(Date)
     })
 
-    it('code de secours : refuse celui d’un autre admin ou inconnu, et pendant le blocage', async () => {
+    it('code de secours : refuse celui d’un autre admin ou un code inconnu', async () => {
       await confirmedRow()
       const hash = totp.hashRecoveryCode('abcde-fghij')
       await db('admin_totp_recovery_codes').insert([
@@ -280,14 +278,6 @@ describe.skipIf(!PG_INTEGRATION_URL)('double authentification TOTP sur PostgreSQ
       expect(await store.consumeRecoveryCode(1, totp.hashRecoveryCode('nnnnn-nnnnn'), now)).toBe(
         false
       )
-
-      await db('admin_totp')
-        .where({ admin_id: 1 })
-        .update({
-          failed_attempts: 5,
-          locked_until: new Date(now.getTime() + 60_000),
-        })
-      expect(await store.consumeRecoveryCode(1, hash, now)).toBe(false)
       expect(
         (await db('admin_totp_recovery_codes').where({ admin_id: 1 }).first()).used_at
       ).toBeNull()
@@ -310,8 +300,8 @@ describe.skipIf(!PG_INTEGRATION_URL)('double authentification TOTP sur PostgreSQ
       const codes = totp.generateRecoveryCodes()
 
       const results = await Promise.all([
-        store.confirmEnrollment(1, 7, codes, now),
-        store.confirmEnrollment(1, 7, totp.generateRecoveryCodes(), now),
+        store.confirmEnrollment(1, 'v1.x.y.z', 7, codes, now),
+        store.confirmEnrollment(1, 'v1.x.y.z', 7, totp.generateRecoveryCodes(), now),
       ])
 
       expect(results.filter(Boolean)).toHaveLength(1)
@@ -325,7 +315,7 @@ describe.skipIf(!PG_INTEGRATION_URL)('double authentification TOTP sur PostgreSQ
     it('enrôlement : les codes sont rangés hachés, jamais en clair', async () => {
       await store.startEnrollment(1, 'v1.x.y.z')
       const codes = totp.generateRecoveryCodes()
-      await store.confirmEnrollment(1, 7, codes, now)
+      await store.confirmEnrollment(1, 'v1.x.y.z', 7, codes, now)
 
       const hashes = (await db('admin_totp_recovery_codes').where({ admin_id: 1 })).map((code) =>
         code.code_hash.trim()
@@ -340,40 +330,163 @@ describe.skipIf(!PG_INTEGRATION_URL)('double authentification TOTP sur PostgreSQ
       expect(await store.startEnrollment(1, 'second')).toBe(true)
       expect((await row()).secret_enc).toBe('second')
 
-      await store.confirmEnrollment(1, 7, totp.generateRecoveryCodes(), now)
+      await store.confirmEnrollment(1, 'second', 7, totp.generateRecoveryCodes(), now)
 
       expect(await store.startEnrollment(1, 'troisieme')).toBe(false)
       expect((await row()).secret_enc).toBe('second')
-      expect(await store.confirmEnrollment(1, 8, totp.generateRecoveryCodes(), now)).toBe(false)
+      expect(await store.confirmEnrollment(1, 'second', 8, totp.generateRecoveryCodes(), now)).toBe(
+        false
+      )
+    })
+
+    it('enrôlement : un secret régénéré entre la lecture et la confirmation est refusé, rien n’est confirmé', async () => {
+      await store.startEnrollment(1, 'premier')
+      // La route lit S1 et vérifie le code contre S1 ; un autre enrôlement écrit S2 avant l'UPDATE.
+      const read = (await store.getAdminTotp(1))?.secretEnc as string
+      await store.startEnrollment(1, 'second')
+
+      expect(await store.confirmEnrollment(1, read, 7, totp.generateRecoveryCodes(), now)).toBe(
+        false
+      )
+
+      expect(await row()).toMatchObject({
+        secret_enc: 'second',
+        confirmed_at: null,
+        last_used_step: null,
+      })
+      expect(await db('admin_totp_recovery_codes').where({ admin_id: 1 })).toHaveLength(0)
+
+      // Le secret courant, lui, se confirme.
+      expect(await store.confirmEnrollment(1, 'second', 7, totp.generateRecoveryCodes(), now)).toBe(
+        true
+      )
     })
 
     it('verrou : le 5e échec bloque 15 minutes, le compteur reste à 5, un succès le remet à zéro', async () => {
       await confirmedRow()
 
       for (let i = 1; i <= 4; i += 1) {
-        await store.recordFailure(1, now)
-        expect(await row(), `échec ${i}`).toMatchObject({ failed_attempts: i, locked_until: null })
+        expect(await store.reserveAttempt(1, now), `essai ${i}`).toBe(true)
+        expect(await row(), `essai ${i}`).toMatchObject({ failed_attempts: i, locked_until: null })
       }
 
-      await store.recordFailure(1, now)
+      expect(await store.reserveAttempt(1, now)).toBe(true)
       const locked = await row()
       expect(locked.failed_attempts).toBe(5)
       expect(locked.locked_until.getTime()).toBe(now.getTime() + 15 * 60_000)
 
-      await store.recordFailure(1, now)
-      expect((await row()).failed_attempts).toBe(5)
+      // Verrouillé : plus aucun essai réservé, rien ne bouge.
+      expect(await store.reserveAttempt(1, now)).toBe(false)
+      expect(await row()).toMatchObject({ failed_attempts: 5, locked_until: locked.locked_until })
 
       await store.acceptStep(1, 100, new Date(now.getTime() + 15 * 60_000 + 1))
       expect(await row()).toMatchObject({ failed_attempts: 0, locked_until: null })
     })
 
-    it('reverrouille aussitôt un échec fait juste après la fin du blocage', async () => {
+    it('reverrouille aussitôt un essai fait juste après la fin du blocage', async () => {
       await confirmedRow({ failed_attempts: 5, locked_until: new Date(now.getTime() - 1) })
       const later = new Date(now.getTime() + 1000)
 
-      await store.recordFailure(1, later)
+      expect(await store.reserveAttempt(1, later)).toBe(true)
 
       expect((await row()).locked_until.getTime()).toBe(later.getTime() + 15 * 60_000)
+    })
+
+    it('ne réserve aucun essai pour un enrôlement non confirmé ou absent', async () => {
+      expect(await store.reserveAttempt(1, now)).toBe(false)
+
+      await confirmedRow({ confirmed_at: null })
+
+      expect(await store.reserveAttempt(1, now)).toBe(false)
+      expect((await row()).failed_attempts).toBe(0)
+    })
+
+    describe('verifySecondFactor', () => {
+      const key = randomBytes(32)
+      const goodCode = () => totp.totpCode(totp.base32Decode(SECRET), totp.stepAt(now.getTime()))
+      const wrongCode = () => (goodCode() === '000000' ? '000001' : '000000')
+      const sealedRow = (overrides: Record<string, unknown> = {}) =>
+        confirmedRow({ secret_enc: sealSecret(key, 1, SECRET), ...overrides })
+
+      it('10 vérifications parallèles avec des codes faux : 5 comparaisons au plus, les autres reçoivent le blocage', async () => {
+        await sealedRow()
+
+        const results = await Promise.all(
+          Array.from({ length: 10 }, () => store.verifySecondFactor(1, wrongCode(), key, now))
+        )
+
+        expect(results.filter((r) => !r.ok && r.reason === 'invalid')).toHaveLength(5)
+        const locked = results.filter((r) => !r.ok && r.reason === 'locked')
+        expect(locked).toHaveLength(5)
+        for (const result of locked) {
+          expect(result).toEqual({ ok: false, reason: 'locked', retryAfterSeconds: 15 * 60 })
+        }
+        expect(await row()).toMatchObject({ failed_attempts: 5 })
+        expect((await row()).locked_until.getTime()).toBe(now.getTime() + 15 * 60_000)
+      })
+
+      it('un code de secours faux en rafale est borné de la même façon', async () => {
+        await sealedRow()
+
+        const results = await Promise.all(
+          Array.from({ length: 10 }, () => store.verifySecondFactor(1, 'nnnnn-nnnnn', key, now))
+        )
+
+        expect(results.filter((r) => !r.ok && r.reason === 'invalid')).toHaveLength(5)
+        expect(results.filter((r) => !r.ok && r.reason === 'locked')).toHaveLength(5)
+      })
+
+      it('un compte verrouillé refuse le bon code, sans le consommer', async () => {
+        await sealedRow({ failed_attempts: 5, locked_until: new Date(now.getTime() + 60_000) })
+        const hash = totp.hashRecoveryCode('abcde-fghij')
+        await db('admin_totp_recovery_codes').insert({ admin_id: 1, code_hash: hash })
+
+        for (const code of [goodCode(), 'abcde-fghij']) {
+          expect(await store.verifySecondFactor(1, code, key, now)).toEqual({
+            ok: false,
+            reason: 'locked',
+            retryAfterSeconds: 60,
+          })
+        }
+
+        expect((await row()).last_used_step).toBeNull()
+        expect((await db('admin_totp_recovery_codes').first()).used_at).toBeNull()
+      })
+
+      it('le bon code au 5e essai passe, et remet le compteur à zéro', async () => {
+        await sealedRow({ failed_attempts: 4 })
+
+        expect(await store.verifySecondFactor(1, goodCode(), key, now)).toEqual({
+          ok: true,
+          recoveryCode: false,
+        })
+        expect(await row()).toMatchObject({ failed_attempts: 0, locked_until: null })
+      })
+
+      it('un code rejoué compte comme un essai et rend « invalid »', async () => {
+        await sealedRow({ last_used_step: totp.stepAt(now.getTime()) })
+
+        expect(await store.verifySecondFactor(1, goodCode(), key, now)).toEqual({
+          ok: false,
+          reason: 'invalid',
+        })
+        expect((await row()).failed_attempts).toBe(1)
+      })
+
+      it('un enrôlement absent ou non confirmé rend « not_enrolled », sans compter d’essai', async () => {
+        expect(await store.verifySecondFactor(1, goodCode(), key, now)).toEqual({
+          ok: false,
+          reason: 'not_enrolled',
+        })
+
+        await sealedRow({ confirmed_at: null })
+
+        expect(await store.verifySecondFactor(1, goodCode(), key, now)).toEqual({
+          ok: false,
+          reason: 'not_enrolled',
+        })
+        expect((await row()).failed_attempts).toBe(0)
+      })
     })
 
     it('réinitialisation : efface secret et codes et révoque toutes les sessions de cet admin seulement', async () => {
