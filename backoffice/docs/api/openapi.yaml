@@ -10,6 +10,18 @@ info:
     - `disponible` : route implémentée côté API
     - `non_disponible` : route prévue mais pas encore implémentée
 
+    **Compte superadmin (console éditeur).** Il ne peut se connecter et appeler l'API que depuis les
+    adresses listées dans la variable `CONSOLE_ALLOWED_CIDRS` (adresse vue par l'API : `req.ip`,
+    réglée par `TRUST_PROXY`). Variable vide ou absente : aucune adresse, le superadmin est refusé
+    partout. Hors de ces adresses :
+    - `POST /login` répond `401 invalid_credentials`, comme pour un mauvais mot de passe, sans créer
+      de session ;
+    - toute route protégée, y compris les flux en direct, répond `403 forbidden` à son jeton, même
+      valide. Cela vaut pour toutes les routes, pas seulement celles réservées au superadmin, sauf
+      `POST /logout`, qui révoque la session où que soit l'appelant.
+
+    Les autres rôles ne sont pas concernés.
+
 servers:
   - url: http://localhost:3001
     description: API locale
@@ -111,7 +123,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/ValidationError'
         '401':
-          description: Identifiants invalides
+          description: |
+            Identifiants invalides. Aussi renvoyé, avec le même corps `invalid_credentials`, à un
+            superadmin dont le mot de passe est juste mais dont l'adresse n'est pas dans
+            `CONSOLE_ALLOWED_CIDRS` : aucune session n'est créée.
           content:
             application/json:
               schema:
@@ -143,7 +158,9 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Révoque la session courante de l'administrateur connecté.
+        Révoque la session courante de l'administrateur connecté. Un superadmin hors des adresses de
+        la console (`CONSOLE_ALLOWED_CIDRS`) peut aussi fermer sa session : la route ne répond pas
+        `403 forbidden` et ne donne accès à rien d'autre.
       operationId: logout
       x-availability: disponible
       responses:
@@ -1421,9 +1438,11 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Parties de la compagnie, de la plus récente à la plus ancienne, avec le nom de la salle et le nombre de participants.
+        Parties de la compagnie, de la plus récente à la plus ancienne (date de la partie, puis identifiant décroissant pour départager les égalités), avec le nom de la salle, le nombre de joueurs nommés, la durée et le meilleur score. Les parties supprimées sont exclues.
 
-        **À venir (lot 13)** : paramètres `state`, `roomId`, `from`, `to` (filtre de dates sur `COALESCE(scheduled_at, started_at, created_at)`), `limit` (200 au plus) et `offset` ; la réponse devient `{ games, total }` (`total` : nombre de parties qui correspondent aux filtres, avant pagination) ; chaque ligne gagnera les champs de `GameSchedulingFields` (puis `source`, `backoffice` ou `api`, avec le lot 14). Il n'y a pas de plafond sur la durée entre `from` et `to` : la pagination borne la réponse. Tant que la route n'est pas livrée, ces paramètres sont ignorés.
+        Tous les filtres sont facultatifs et se cumulent. `from` et `to` filtrent la date de la partie, c'est-à-dire la date de démarrage, ou la date de création tant qu'elle n'a pas démarré ; l'intervalle est semi-ouvert : borne basse incluse, borne haute exclue. L'année 0000 est refusée. Il n'y a pas de plafond de période : la pagination borne la réponse. `total` est le nombre de parties qui passent les filtres, quelle que soit la page.
+
+        **À venir (lot 13)** : le filtre de dates portera sur `COALESCE(scheduled_at, started_at, created_at)` ; chaque ligne gagnera les champs de `GameSchedulingFields` (puis `source`, `backoffice` ou `api`, avec le lot 14).
 
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
       operationId: listCompanyGames
@@ -1434,52 +1453,52 @@ paths:
         - name: state
           in: query
           required: false
-          description: '**À venir (lot 13).** Ne garder que les parties dans cet état.'
           schema:
             type: string
             enum: [scheduled, pending, running, finished, aborted, cancelled]
         - name: roomId
           in: query
           required: false
-          description: '**À venir (lot 13).** Ne garder que les parties de cette salle.'
           schema:
             type: integer
+            minimum: 1
         - name: from
           in: query
           required: false
-          description: '**À venir (lot 13).** Borne basse incluse (date ISO 8601).'
+          description: Début de période inclus, instant ISO 8601 avec fuseau (ex. `2026-11-05T00:00:00+01:00` ou `...Z`). L'année 0000 est refusée.
           schema:
             type: string
             format: date-time
         - name: to
           in: query
           required: false
-          description: '**À venir (lot 13).** Borne haute exclue (date ISO 8601).'
+          description: Fin de période exclue (intervalle semi-ouvert), instant ISO 8601 avec fuseau. Pour inclure un jour entier, passer le début du jour suivant. L'année 0000 est refusée.
           schema:
             type: string
             format: date-time
         - name: limit
           in: query
           required: false
-          description: '**À venir (lot 13).** Nombre de parties renvoyées, 200 au plus.'
+          description: Taille de la page. Une valeur au-dessus de 200 est ramenée à 200.
           schema:
             type: integer
             minimum: 1
-            maximum: 200
+            default: 50
         - name: offset
           in: query
           required: false
-          description: '**À venir (lot 13).** Nombre de parties à sauter (pagination).'
           schema:
             type: integer
             minimum: 0
+            default: 0
       responses:
         '200':
-          description: Parties
+          description: Page de parties et nombre total de parties filtrées
           content:
             application/json:
               schema:
                 type: object
+                required: [games, total]
                 properties:
                   games:
                     type: array
@@ -1487,7 +1506,13 @@ paths:
                       $ref: '#/components/schemas/GameSummary'
                   total:
                     type: integer
-                    description: '**À venir (lot 13).** Nombre de parties qui correspondent aux filtres, avant pagination.'
+                    minimum: 0
+        '400':
+          description: Paramètre ou filtre invalide (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
           description: Accès interdit
           content:
@@ -4779,6 +4804,15 @@ components:
           nullable: true
         participantsCount:
           type: integer
+          description: Joueurs nommés (premier et second joueur de chaque pupitre). Liste des parties seulement.
+        durationSeconds:
+          type: integer
+          nullable: true
+          description: "`finishedAt − startedAt` en secondes ; `null` tant que la partie n'est pas terminée (arrêtée comprise). Liste des parties seulement."
+        topScore:
+          type: integer
+          nullable: true
+          description: Meilleur score des pupitres ; `null` tant que la partie n'est pas terminée ou sans participant. Liste des parties seulement.
 
     GameParticipant:
       type: object

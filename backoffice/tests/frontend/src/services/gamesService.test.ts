@@ -40,6 +40,31 @@ describe('services/gamesService', () => {
     expect(result).toEqual({ ok: true, status: 200, data: { games: [{ id: 1 }] } })
   })
 
+  it('sends the filters and the page in the query string, and skips the empty ones', async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse(200, { games: [], total: 0 }))
+
+    await listGamesService(7, {
+      state: 'finished',
+      roomId: 3,
+      from: '2026-11-05T00:00:00.000Z',
+      to: undefined,
+      limit: 50,
+      offset: 100,
+    })
+
+    const { path } = apiFetchMock.mock.calls[0]![0] as { path: string }
+    const [pathname, queryString] = path.split('?')
+
+    expect(pathname).toBe('/companies/7/games')
+    expect(Object.fromEntries(new URLSearchParams(queryString))).toEqual({
+      state: 'finished',
+      roomId: '3',
+      from: '2026-11-05T00:00:00.000Z',
+      limit: '50',
+      offset: '100',
+    })
+  })
+
   it('loads one game', async () => {
     apiFetchMock.mockResolvedValue(jsonResponse(200, { game: { id: 3 } }))
 
