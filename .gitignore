@@ -13,3 +13,6 @@ deploy/recette/.env
 
 # Notes privées (stratégie, prix, concurrence, hébergement) : jamais dans ce dépôt public
 docs/prive/
+
+# Copies de travail isolées des sous-agents Claude
+.claude/worktrees/

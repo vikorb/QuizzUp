@@ -16,7 +16,9 @@ import {
  * trompent sur la même question, personne n'est éliminé. Le dernier debout
  * rafle le bonus et la manche s'arrête ; s'il en reste plusieurs à la dernière
  * question, chaque survivant qui a bien répondu touche le bonus. Seul en jeu :
- * on va le plus loin possible, la première erreur termine la manche.
+ * on va le plus loin possible, la première erreur termine la manche. Si la dernière
+ * question de la manche est passée par l'animateur, les survivants touchent le bonus
+ * quand même (une seule fois, sans les 50 points de la question).
  */
 export const SUDDEN_DEATH_DURATION_MS = 15_000
 export const SUDDEN_DEATH_POINTS = 50
@@ -106,6 +108,19 @@ export const suddenDeath = createSimultaneousMiniGame({
     }
   },
   score: scoreSuddenDeath,
+  // Dernière question passée : personne n'a joué, les survivants touchent quand même le bonus.
+  skipRecords: ({ answering, extra }) =>
+    extra.isLastQuestion
+      ? answering.playerIds.map((participantId) => ({
+          participantId,
+          questionId: answering.question.id,
+          answerId: null,
+          isCorrect: false,
+          points: SUDDEN_DEATH_SURVIVOR_BONUS,
+          responseTimeMs: null,
+          stage: null,
+        }))
+      : [],
   endEvents: (answering, _extra, records, at) => {
     const correctIds = records
       .filter((record) => record.isCorrect)

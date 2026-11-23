@@ -8,6 +8,7 @@ import {
   reduceGame,
   replayGame,
 } from '@quizzup/game-engine'
+import { GAME_COMMAND_REFUSAL, type GameCommandRefusal } from '@quizzup/shared'
 
 import type { Registration } from '@/game/registrations'
 
@@ -19,7 +20,7 @@ import type { Registration } from '@/game/registrations'
 export type SessionSnapshot = {
   version: 1
   setup: GameSetup
-  /** Commandes significatives (start, press, abort) ; les ticks ne sont pas rejoués. */
+  /** Commandes significatives (start, press, skip, abort) ; les ticks ne sont pas rejoués. */
   commands: GameCommand[]
   /** Dernier instant connu de la partie, pour reprendre l'horloge où elle s'était arrêtée. */
   lastAt: number
@@ -30,6 +31,11 @@ export type SessionSnapshot = {
    * reprises que si leur graine est celle de la partie retenue du backoffice.
    */
   demo?: boolean
+  /**
+   * Partie en pause au moment de la sauvegarde : une page rechargée reprend en pause.
+   * Absent des sauvegardes d'avant ce champ : elles reprennent non pausées.
+   */
+  paused?: boolean
 }
 
 export type SessionStorage = {
@@ -39,6 +45,15 @@ export type SessionStorage = {
 }
 
 export type SessionListener = (state: GameState, events: GameEvent[]) => void
+
+/** Résultat d'une commande de pilotage (pause, reprise, passer la question) : appliquée ou refusée. */
+export type GameCommandResult = { ok: true } | { ok: false; code: GameCommandRefusal }
+
+export const COMMAND_APPLIED: GameCommandResult = { ok: true }
+
+export function refuse(code: GameCommandRefusal): GameCommandResult {
+  return { ok: false, code }
+}
 
 const STORAGE_KEY = 'quizzup_room_game'
 /** Fréquence de sauvegarde de l'horloge pendant les ticks. */
@@ -107,7 +122,9 @@ export class GameSession {
   private readonly storage: SessionStorage
   private readonly baseNow: () => number
   private readonly demo: boolean
-  private readonly offset: number
+  private offset: number
+  /** Instant de jeu auquel la pause a commencé ; `null` hors pause. */
+  private pausedAt: number | null = null
   private lastAt: number
   private lastSavedAt: number
 
@@ -115,7 +132,7 @@ export class GameSession {
     private readonly setup: GameSetup,
     private readonly registrations: Registration[],
     options: SessionOptions,
-    restored?: { state: GameState; commands: GameCommand[]; lastAt: number }
+    restored?: { state: GameState; commands: GameCommand[]; lastAt: number; paused: boolean }
   ) {
     this.storage = options.storage
     this.baseNow = options.now ?? (() => performance.now())
@@ -125,6 +142,7 @@ export class GameSession {
     // Après un rechargement, `performance.now()` repart de zéro : on décale
     // l'horloge pour que la partie reprenne à l'instant où elle s'était arrêtée.
     this.offset = restored ? restored.lastAt - this.baseNow() : 0
+    this.pausedAt = restored?.paused ? restored.lastAt : null
     this.lastAt = restored?.lastAt ?? this.now()
     this.lastSavedAt = this.lastAt
   }
@@ -156,6 +174,7 @@ export class GameSession {
           state: replayed.state,
           commands: snapshot.commands,
           lastAt: snapshot.lastAt,
+          paused: snapshot.paused === true,
         }
       )
     } catch {
@@ -181,8 +200,13 @@ export class GameSession {
     return name === 'finished' || name === 'aborted'
   }
 
+  get paused(): boolean {
+    return this.pausedAt !== null
+  }
+
+  /** Horloge de la partie : gelée à l'instant de la pause tant qu'elle dure. */
   now(): number {
-    return this.baseNow() + this.offset
+    return this.pausedAt ?? this.baseNow() + this.offset
   }
 
   onChange(listener: SessionListener): () => void {
@@ -200,12 +224,78 @@ export class GameSession {
 
   /** `at` = horodatage de l'appui (pris au keydown), ramené sur l'horloge de la partie. */
   press(podium: number, button: ButtonIndex, at?: number): GameEvent[] {
+    // Pause : les buzzers sont sourds.
+    if (this.pausedAt !== null) {
+      return []
+    }
     const pressAt = at === undefined ? this.now() : at + this.offset
     return this.dispatch({ type: 'press', at: pressAt, podium, button })
   }
 
   abort(reason: string): GameEvent[] {
     return this.dispatch({ type: 'abort', at: this.now(), reason })
+  }
+
+  /** Gèle l'horloge : aucune échéance du moteur ne tombe tant que la pause dure. */
+  pause(): GameCommandResult {
+    if (this.isOver || this.currentState.phase.name === 'lobby') {
+      return refuse(GAME_COMMAND_REFUSAL.GAME_OVER)
+    }
+    if (this.pausedAt !== null) {
+      return refuse(GAME_COMMAND_REFUSAL.ALREADY_PAUSED)
+    }
+
+    // Les échéances déjà tombées s'appliquent avant de figer l'horloge : le moteur n'a pas encore
+    // vu passer le temps depuis le dernier tick, et rien ne doit s'émettre (sons, lumières) pendant
+    // la pause.
+    const at = this.now()
+    this.dispatch({ type: 'tick', at })
+    if (this.isOver) {
+      return refuse(GAME_COMMAND_REFUSAL.GAME_OVER)
+    }
+
+    this.pausedAt = at
+    // Sauvegardée tout de suite : un rechargement reprend en pause, à cet instant.
+    this.persist()
+    return COMMAND_APPLIED
+  }
+
+  /** Relance l'horloge à l'instant de la pause : le temps passé en pause n'existe pas pour le moteur. */
+  resume(): GameCommandResult {
+    if (this.isOver) {
+      return refuse(GAME_COMMAND_REFUSAL.GAME_OVER)
+    }
+    if (this.pausedAt === null) {
+      return refuse(GAME_COMMAND_REFUSAL.NOT_PAUSED)
+    }
+
+    this.offset = this.pausedAt - this.baseNow()
+    this.pausedAt = null
+    return COMMAND_APPLIED
+  }
+
+  /**
+   * Passe la question `questionId` (celle que l'opérateur visait) : 0 point, aucune pénalité
+   * (commande `skip` du moteur). Refusé si une autre question est en cours depuis.
+   */
+  skip(questionId: number): GameCommandResult {
+    if (this.isOver) {
+      return refuse(GAME_COMMAND_REFUSAL.GAME_OVER)
+    }
+    if (this.pausedAt !== null) {
+      return refuse(GAME_COMMAND_REFUSAL.PAUSED)
+    }
+    if (this.currentState.phase.name !== 'question') {
+      return refuse(GAME_COMMAND_REFUSAL.NOT_IN_QUESTION)
+    }
+
+    // La question visée a pu se terminer d'elle-même depuis le dernier tick (ou la suivante a
+    // démarré) : le moteur applique les échéances, la laisse finir et la commande ne passe rien.
+    const events = this.dispatch({ type: 'skip', at: this.now(), questionId })
+    const skipped = events.some(
+      (event) => event.type === 'question_ended' && event.payload.skipped === true
+    )
+    return skipped ? COMMAND_APPLIED : refuse(GAME_COMMAND_REFUSAL.NOT_IN_QUESTION)
   }
 
   /** Oublie la sauvegarde (fin de partie confirmée). */
@@ -253,6 +343,7 @@ export class GameSession {
       lastAt: this.lastAt,
       registrations: this.registrations,
       demo: this.demo,
+      paused: this.pausedAt !== null,
     })
   }
 }
