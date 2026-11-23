@@ -143,7 +143,23 @@
         "score": "Score",
         "email": "Email"
       },
-      "emailMasked": "Email saved (hidden)"
+      "emailMasked": "Email saved (hidden)",
+      "results": "Results sheet"
+    },
+    "results": {
+      "title": "Results sheet",
+      "back": "Back to the game",
+      "print": "Print",
+      "loading": "Loading the sheet...",
+      "notFinished": "The results sheet is only available once the game is finished.",
+      "empty": "No participant.",
+      "room": "Room",
+      "date": "Date",
+      "columns": {
+        "rank": "Rank",
+        "players": "Players",
+        "score": "Score"
+      }
     },
     "errors": {
       "missingToken": "You must be signed in.",

@@ -143,7 +143,23 @@
         "score": "Score",
         "email": "Email"
       },
-      "emailMasked": "Email enregistré (masqué)"
+      "emailMasked": "Email enregistré (masqué)",
+      "results": "Feuille de résultats"
+    },
+    "results": {
+      "title": "Feuille de résultats",
+      "back": "Retour à la partie",
+      "print": "Imprimer",
+      "loading": "Chargement de la feuille...",
+      "notFinished": "La feuille de résultats n'est disponible qu'une fois la partie terminée.",
+      "empty": "Aucun participant.",
+      "room": "Salle",
+      "date": "Date",
+      "columns": {
+        "rank": "Rang",
+        "players": "Joueurs",
+        "score": "Score"
+      }
     },
     "errors": {
       "missingToken": "Vous devez être connecté.",

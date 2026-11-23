@@ -17,7 +17,7 @@ import { describe, expect, it } from 'vitest'
 
 import { createErrorBanner, createSuccessBanner } from '@/utils/banner'
 import { GAME_BANNER_CREATED, getGameBannerMessage } from '@/utils/game/banner'
-import { parseGameId, resolveGameCompanyId } from '@/utils/game/company'
+import { getGameRouteCompanyId, parseGameId, resolveGameCompanyId } from '@/utils/game/company'
 import { getGameErrorKey, isGameApiErrorCode, readGameApiError } from '@/utils/game/errors'
 import {
   formatGameDate,
@@ -33,6 +33,7 @@ import {
 } from '@/utils/game/format'
 import {
   canAbortGame,
+  canShowGameResults,
   getGameStateLabelKey,
   getGameStateTone,
   isGamePendingOrRunning,
@@ -104,6 +105,14 @@ describe('utils/game/state', () => {
     expect(isGameApiErrorCode(code)).toBe(true)
     expect(readGameApiError({ error: code })).toBe(code)
     expect(getGameErrorKey(code)).toBe(`games.errors.${key}`)
+  })
+
+  it('offers the results sheet for a finished game only', () => {
+    expect(canShowGameResults({ state: GAME_STATE_FINISHED })).toBe(true)
+    expect(canShowGameResults({ state: GAME_STATE_PENDING })).toBe(false)
+    expect(canShowGameResults({ state: GAME_STATE_RUNNING })).toBe(false)
+    expect(canShowGameResults({ state: GAME_STATE_ABORTED })).toBe(false)
+    expect(canShowGameResults(null)).toBe(false)
   })
 
   it('tells a game that still occupies its room (pending or running) from the others', () => {
@@ -188,6 +197,12 @@ describe('utils/game/company', () => {
   it('returns null without a usable company', () => {
     expect(resolveGameCompanyId(null)).toBeNull()
     expect(resolveGameCompanyId({ role: ADMIN_ROLE_USER, companyId: null })).toBeNull()
+  })
+
+  it('puts the company in the page address for the superadmin only', () => {
+    expect(getGameRouteCompanyId({ role: ADMIN_ROLE_SUPERADMIN, companyId: 1 }, 9)).toBe(9)
+    expect(getGameRouteCompanyId({ role: ADMIN_ROLE_ADMIN, companyId: 3 }, 3)).toBeNull()
+    expect(getGameRouteCompanyId(null, 3)).toBeNull()
   })
 
   it('parses positive integer ids only', () => {
