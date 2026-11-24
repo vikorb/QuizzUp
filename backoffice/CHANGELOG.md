@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Fumée par la carte USB, lien série (`game/hardware`, rien n'est encore branché à l'écran de salle) : lecture et écriture du protocole de la carte (bannière `QZF READY`, lignes d'état, ordres `F`, `0`, `H`) et lien Web Serial qui n'envoie jamais `F` sans bannière valide, ne renouvelle jamais `F` de lui-même, borne les `F` à un toutes les 100 ms, n'en envoie qu'en phase prête ou en jet (jamais pendant la pause de la carte, dont les 5 s qui suivent sa remise à zéro ; la phase lue est exposée), et signale une carte absente, muette, débranchée ou qui contredit nos ordres. Une carte plus permissive que les limites du projet est refusée. Fausse carte pour les tests.
+  US: US-DMX-01 (#215)
+
 - Effet audio joué en salle : le blind test lit l'extrait avec l'effet de la question (court, inversé, ralenti), avec des paliers raccourcis pour `short` et une reprise fidèle après rechargement.
   US: US-AUDIO-02 (#144)
 

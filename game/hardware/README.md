@@ -489,6 +489,46 @@ Le contrôleur de fumée applique, quoi que dise la configuration :
 > erreur** : `parseRoomHardwareConfig` désactive la fumée (`smokeDisabledReason: 'relay_required'`,
 > un problème « Fumée désactivée… ») et garde tous les autres réglages (durée, pause, niveau).
 
+## Lien vers la carte de fumée (`createSmokeBoardLink`)
+
+> Sécurité : fumée. Conception : `docs/cadrage/conception-fumee-carte-usb.md` (§3 protocole et
+> sécurités de la carte). **Rien n'a été essayé sur une vraie carte** : à valider sur le banc.
+
+Pour les salles dont la machine à fumée est commandée par une carte Arduino Uno en USB. Le lien
+parle à la carte par Web Serial (`smoke/boardLink.ts`, protocole pur dans `smoke/boardProtocol.ts`).
+Pas encore branché au `LightingController` (lot suivant).
+
+- **Ce qu'il fait** : ouvre le port à 9600 bauds et attend la bannière `QZF READY` (3 s au plus).
+  Sans bannière valide, il passe `no_firmware` et n'envoie **jamais** `F`. Une bannière d'un autre
+  protocole, illisible ou **plus permissive** que le projet est refusée : plafond de jet au-dessus
+  de 10 s (`SMOKE_HARD_LIMITS`), pause sous 5 s, bail au-dessus de 500 ms (`WATCHDOG_STALL_MS`) ;
+  une carte plus stricte est acceptée.
+- **`drive(true)` à chaque trame** : le lien n'envoie `F` qu'au plus toutes les 100 ms et ne le
+  renouvelle **jamais** de lui-même. Si l'appelant s'arrête (page gelée, test de gel), la carte
+  coupe à la fin du bail de 500 ms. `drive(false)` envoie `0` une fois, tout de suite, quand un `F`
+  est parti.
+- **Phase de la carte** (`getState().phase`) : dès la bannière, le lien envoie un `H` pour la lire.
+  La carte démarre en pause (`COOL`) pendant 5 s après chaque remise à zéro, et une pause suit
+  chaque jet. `drive(true)` n'envoie `F` que si la dernière ligne d'état dit `ready` (début de jet)
+  ou `fire` (renouvellement du bail) ; en `cool`, ou avant la première ligne, rien ne part : l'appelant
+  doit refuser le jet plutôt que d'afficher une fumée qui ne sort pas. Un `F` reçu en `COOL`
+  (course entre la page et la carte) est refusé par la carte, qui ignore ensuite les `F` jusqu'à un
+  `0` ou 500 ms de silence : le lien répond par un seul `0` et n'envoie plus de `F` avant d'avoir
+  relu `ready`.
+- **Surveillance** : un `H` de présence quand rien n'est parti depuis 250 ms ; carte `silent` après
+  1 s sans ligne d'état alors qu'on lui parle ; `fault` si la carte annonce la sortie allumée plus
+  d'un bail (plus 100 ms de latence) après le dernier ordre, ou si elle renvoie une bannière en
+  cours de partie (elle a redémarré : plafond et pause remis à zéro) ; `disconnected` sur toute
+  erreur d'ouverture, de lecture ou d'écriture et à la fin du flux. Tout état d'échec est
+  **définitif** : un nouveau lien (rechargement, rebranchement) repart d'une nouvelle bannière.
+  `onChange` prévient l'appelant, qui doit couper la fumée et désarmer.
+- **Ce qu'il ne fait pas** : il n'arbitre rien. Le bail, le plafond et la pause sont dans la carte ;
+  il ne peut que les observer. Il ne choisit pas le port, ne téléverse pas de programme et ne
+  décide pas de l'arrêt d'urgence.
+- **Fausse carte** pour les tests : `tests/_helpers/fakeSmokeBoard.ts` (mêmes règles que la carte,
+  sur l'horloge simulée, y compris la pause de 5 s au démarrage et le verrou après un `F` refusé ;
+  options : sans bannière, autre protocole, muette, parasites, débranchement, état forgé).
+
 ## Fiabilité des interfaces USB DMX (Web Serial)
 
 - **DMX USB Pro** : l'interface fabrique elle-même le signal DMX, le PC lui envoie un paquet
