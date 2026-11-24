@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Fumée par la carte USB, écran de salle : section « Fumée » de l'écran Matériel pour brancher la carte (Web Serial, à la demande), voir son état, installer son programme depuis la page (signature vérifiée, sauvegarde du programme d'origine téléchargée avant d'écrire) et restaurer un `.hex`. La carte déjà autorisée se reconnecte seule au lancement, toujours désarmée ; pendant une installation aucun ordre de fumée ne part. Le programme `fumee.hex` est versionné, la CI échoue s'il manque ou s'il diffère de la compilation, et les images de recette et de production l'embarquent. À valider sur le banc.
+  US: US-DMX-01 (#215)
+
 - Identité des périphériques : l'interface DMX USB et la carte de buzzers sont retenues par leur identité (modèle USB, identifiant de manette). Après un redémarrage, seul l'appareil appris est repris ; deux appareils identiques ne sont jamais départagés au hasard, l'ambiguïté est signalée. La carte de fumée est exclue du choix du port DMX. À valider sur le banc.
   US: US-SHOW-01 (#145)
 

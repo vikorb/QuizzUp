@@ -28,6 +28,8 @@ COPY game/room-app/package*.json game/room-app/.npmrc game/room-app/
 RUN npm --prefix game/room-app ci
 COPY game/engine/src game/engine/src
 COPY game/hardware/src game/hardware/src
+# Programme de la carte de la fumée, importé comme texte par l'écran Matériel.
+COPY game/hardware/firmware/fumee/fumee.hex game/hardware/firmware/fumee/fumee.hex
 COPY game/audio/src game/audio/src
 COPY game/room-app game/room-app
 RUN npm --prefix game/room-app run build
