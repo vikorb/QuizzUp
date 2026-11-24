@@ -1,0 +1,109 @@
+{
+  "apiKeys": {
+    "title": "API keys",
+    "loading": "Loading keys…",
+    "empty": "No keys.",
+    "retry": "Retry",
+    "neverUsed": "Never",
+    "columns": {
+      "name": "Name",
+      "keyPrefix": "Prefix",
+      "createdAt": "Created",
+      "lastUsedAt": "Last call",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "status": {
+      "active": "Active",
+      "revoked": "Revoked"
+    },
+    "create": {
+      "action": "Create a key",
+      "nameLabel": "Key name",
+      "namePlaceholder": "Booking website",
+      "nameRequired": "Give the key a name.",
+      "nameTooLong": "The name cannot be longer than {max} characters.",
+      "submit": "Create key",
+      "submitting": "Creating…",
+      "cancel": "Cancel",
+      "done": "The key \"{name}\" is created."
+    },
+    "secret": {
+      "title": "Copy the key now",
+      "warning": "This key will not be shown again once this panel is closed. If you lose it, revoke it and create another one.",
+      "copy": "Copy",
+      "copied": "Copied",
+      "copyFailed": "Copy failed. Select the key and copy it by hand.",
+      "close": "Close"
+    },
+    "revoke": {
+      "action": "Revoke",
+      "ariaLabel": "Revoke the key {name}",
+      "title": "Revoke this key?",
+      "confirm": "The key \"{name}\" ({prefix}…) will stop working right away. Sites that use it will be refused. This cannot be undone.",
+      "done": "The key \"{name}\" is revoked."
+    },
+    "logs": {
+      "title": "Call log",
+      "loading": "Loading the log…",
+      "empty": "No calls.",
+      "refresh": "Refresh the log",
+      "older": "Older",
+      "loadingOlder": "Loading…",
+      "game": "Session {id}",
+      "columns": {
+        "createdAt": "Date",
+        "keyPrefix": "Key",
+        "method": "Method",
+        "route": "Route",
+        "statusCode": "Status",
+        "errorCode": "Error",
+        "gameId": "Session"
+      },
+      "filters": {
+        "key": "Key",
+        "allKeys": "All keys",
+        "statusClass": "Status",
+        "allStatuses": "All statuses",
+        "statusClasses": {
+          "2xx": "Succeeded (2xx)",
+          "4xx": "Refused (4xx)",
+          "5xx": "Server errors (5xx)"
+        }
+      },
+      "errorCodes": {
+        "api_key_missing": "Key missing",
+        "api_key_invalid": "Unknown or revoked key",
+        "company_inactive": "Company inactive",
+        "too_many_requests": "Too many calls",
+        "payload_too_large": "Body too large",
+        "invalid_query": "Invalid parameters",
+        "invalid_body": "Invalid body",
+        "room_not_found": "Room not found",
+        "date_out_of_range": "Date outside the bookable period",
+        "idempotency_key_required": "Idempotency key missing",
+        "idempotency_key_reused": "Idempotency key reused with another body",
+        "slot_unavailable": "Slot unavailable",
+        "slot_taken": "Slot already taken",
+        "too_many_players": "Too many players",
+        "booking_not_found": "Booking not found",
+        "booking_not_modifiable": "Booking cannot be modified",
+        "booking_not_cancellable": "Booking cannot be cancelled"
+      }
+    },
+    "errors": {
+      "unauthorized": "Your session has expired. Sign in again.",
+      "forbidden": "You are not allowed to manage the API keys of this company.",
+      "notFound": "Key or company not found.",
+      "apiUnreachable": "The server is not responding. Try again in a moment.",
+      "invalidJson": "The server reply could not be read.",
+      "invalidParams": "Invalid company or key.",
+      "invalidBody": "The key name is invalid.",
+      "invalidQuery": "Invalid log filters.",
+      "apiKeyLimitReached": "The maximum number of active keys is reached. Revoke a key before creating another.",
+      "companyInactive": "The company is inactive: activate it before creating a key.",
+      "companyDeleted": "The company is deleted: a key cannot be created.",
+      "serverError": "Server error. Try again later."
+    }
+  }
+}

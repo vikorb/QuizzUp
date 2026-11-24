@@ -1,0 +1,109 @@
+{
+  "apiKeys": {
+    "title": "Clés d'API",
+    "loading": "Chargement des clés…",
+    "empty": "Aucune clé.",
+    "retry": "Réessayer",
+    "neverUsed": "Jamais",
+    "columns": {
+      "name": "Nom",
+      "keyPrefix": "Préfixe",
+      "createdAt": "Créée le",
+      "lastUsedAt": "Dernier appel",
+      "status": "Statut",
+      "actions": "Actions"
+    },
+    "status": {
+      "active": "Active",
+      "revoked": "Révoquée"
+    },
+    "create": {
+      "action": "Créer une clé",
+      "nameLabel": "Nom de la clé",
+      "namePlaceholder": "Site de réservation",
+      "nameRequired": "Donnez un nom à la clé.",
+      "nameTooLong": "Le nom ne peut pas dépasser {max} caractères.",
+      "submit": "Créer la clé",
+      "submitting": "Création…",
+      "cancel": "Annuler",
+      "done": "La clé « {name} » est créée."
+    },
+    "secret": {
+      "title": "Copiez la clé maintenant",
+      "warning": "Cette clé ne sera plus affichée une fois ce panneau fermé. Si vous la perdez, révoquez-la et créez-en une autre.",
+      "copy": "Copier",
+      "copied": "Copiée",
+      "copyFailed": "La copie a échoué. Sélectionnez la clé et copiez-la à la main.",
+      "close": "Fermer"
+    },
+    "revoke": {
+      "action": "Révoquer",
+      "ariaLabel": "Révoquer la clé {name}",
+      "title": "Révoquer cette clé ?",
+      "confirm": "La clé « {name} » ({prefix}…) cessera de fonctionner tout de suite. Les sites qui l'utilisent seront refusés. Cette action est définitive.",
+      "done": "La clé « {name} » est révoquée."
+    },
+    "logs": {
+      "title": "Journal des appels",
+      "loading": "Chargement du journal…",
+      "empty": "Aucun appel.",
+      "refresh": "Actualiser le journal",
+      "older": "Plus ancien",
+      "loadingOlder": "Chargement…",
+      "game": "Session {id}",
+      "columns": {
+        "createdAt": "Date",
+        "keyPrefix": "Clé",
+        "method": "Méthode",
+        "route": "Route",
+        "statusCode": "Statut",
+        "errorCode": "Erreur",
+        "gameId": "Session"
+      },
+      "filters": {
+        "key": "Clé",
+        "allKeys": "Toutes les clés",
+        "statusClass": "Statut",
+        "allStatuses": "Tous les statuts",
+        "statusClasses": {
+          "2xx": "Réussis (2xx)",
+          "4xx": "Refusés (4xx)",
+          "5xx": "Erreurs serveur (5xx)"
+        }
+      },
+      "errorCodes": {
+        "api_key_missing": "Clé absente",
+        "api_key_invalid": "Clé inconnue ou révoquée",
+        "company_inactive": "Compagnie inactive",
+        "too_many_requests": "Trop d'appels",
+        "payload_too_large": "Corps trop volumineux",
+        "invalid_query": "Paramètres invalides",
+        "invalid_body": "Corps invalide",
+        "room_not_found": "Salle introuvable",
+        "date_out_of_range": "Date hors de la période réservable",
+        "idempotency_key_required": "Clé d'idempotence manquante",
+        "idempotency_key_reused": "Clé d'idempotence réutilisée avec un autre corps",
+        "slot_unavailable": "Créneau indisponible",
+        "slot_taken": "Créneau déjà pris",
+        "too_many_players": "Trop de joueurs",
+        "booking_not_found": "Réservation introuvable",
+        "booking_not_modifiable": "Réservation non modifiable",
+        "booking_not_cancellable": "Réservation non annulable"
+      }
+    },
+    "errors": {
+      "unauthorized": "Votre session a expiré. Reconnectez-vous.",
+      "forbidden": "Vous n'avez pas le droit de gérer les clés d'API de cette compagnie.",
+      "notFound": "Clé ou compagnie introuvable.",
+      "apiUnreachable": "Le serveur ne répond pas. Réessayez dans un instant.",
+      "invalidJson": "Réponse du serveur illisible.",
+      "invalidParams": "Compagnie ou clé invalide.",
+      "invalidBody": "Le nom de la clé est invalide.",
+      "invalidQuery": "Filtres du journal invalides.",
+      "apiKeyLimitReached": "Le nombre maximal de clés actives est atteint. Révoquez une clé avant d'en créer une autre.",
+      "companyInactive": "La compagnie est inactive : activez-la avant de créer une clé.",
+      "companyDeleted": "La compagnie est supprimée : impossible de créer une clé.",
+      "serverError": "Erreur du serveur. Réessayez plus tard."
+    }
+  }
+}

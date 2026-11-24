@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Clés d'API au backoffice : la fiche client liste les clés de la compagnie, en crée une, en révoque une (avec confirmation) et affiche le journal des appels. Le secret ne s'affiche qu'une fois, à la création, et n'est jamais enregistré dans le navigateur. Réservé aux rôles admin et superadmin.
+  US: US-BOOKING-01 (#188)
+
 - Écran de salle, accueil des joueurs : le lobby d'une partie en attente affiche le QR code d'inscription fourni par le serveur (dans un `<img>`, jamais en `v-html`), l'adresse en clair et le nombre d'inscriptions en attente de validation. Sans QR code, l'adresse seule ; un lien expiré est signalé ; rien en partie en cours.
   US: US-JOIN-01 (#166)
 
