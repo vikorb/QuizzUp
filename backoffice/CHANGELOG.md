@@ -8,7 +8,7 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
-- Tests de bout en bout du test de coupure de la fumée par la carte (assistant Matériel), avec une carte et une interface DMX simulées : la carte coupe seule à la fin de son bail et la réponse « Elle s'est arrêtée » lève le refus ; une carte débranchée ou muette pendant le test le fait échouer et la fumée reste refusée ; sans interface de lumières connectée, le test ne se lance pas. Rien n'est validé sur une vraie carte.
+- Tests de bout en bout du test de coupure de la fumée par la carte (assistant Matériel), avec une carte et une interface DMX simulées : la carte coupe seule à la fin de son bail et la réponse « Elle s'est arrêtée » lève le refus ; une carte débranchée, muette, dont le bail ne coupe pas, ou perdue puis revenue seule pendant le test le fait échouer et la fumée reste refusée ; sans interface de lumières connectée, le test ne se lance pas. Rien n'est validé sur une vraie carte.
   US: US-DMX-01 (#215)
 
 - Fumée par la carte USB : le test de coupure de l'assistant parle de la carte (elle doit couper seule en moins d'une seconde), une carte muette, en défaut ou débranchée est reprise seule (cinq essais, fumée désarmée au retour), et un guide de l'opérateur pas à pas est ajouté (`docs/guides/fumee-carte-usb.md`). À valider sur le banc.

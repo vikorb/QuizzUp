@@ -6,13 +6,27 @@ import { advance, enterDemo, freezeClock, HARDWARE_KEY, TICK_MARGIN_MS } from '.
  * Test de coupure de la fumée par la carte USB (assistant Matériel, étape « Sécuriser la fumée »),
  * avec deux ports série simulés (`navigator.serial` remplacé) : l'interface DMX, et la carte avec le
  * programme QuizzUp déjà installé (même règles que `fumee_logic.c` : bail de 500 ms, plafond de 10 s,
- * pause de 5 s au démarrage). L'horloge de la page est figée : le temps ne passe que par `advance`.
+ * pause de 5 s au démarrage). Défauts que la fausse carte sait simuler : câble débranché puis
+ * rebranché, silence, bail qui ne coupe pas. L'horloge de la page est figée : le temps ne passe que
+ * par `advance` (une assertion qui attend, en temps réel, un événement qui demande du temps de page
+ * ne se termine jamais : toujours avancer l'horloge d'abord).
  * Rien n'est essayé sur une vraie carte : le comportement physique reste à valider sur le banc.
  */
 
 /** Ce que la page simulée laisse voir de la carte (la sortie A0 est lue à l'heure de la page). */
 type FakeSerial = {
-  board: { lines: string[]; output: 0 | 1; cause: string; mute: boolean; unplug: () => void }
+  board: {
+    lines: string[]
+    /** Ouvertures du port par la page (la première est le choix de la carte), et lignes reçues à la dernière. */
+    opens: number
+    linesAtLastOpen: number
+    output: 0 | 1
+    cause: string
+    mute: boolean
+    noLease: boolean
+    unplug: () => void
+    replug: () => void
+  }
 }
 
 function installFakeSerial(page: Page) {
@@ -37,12 +51,14 @@ function installFakeSerial(page: Page) {
         fumee.cause = cause
       }
     }
+    // Défaut simulé : le bail ne coupe jamais (programme défaillant, relais collé...).
+    let noLease = false
     const tick = () => {
       const now = Date.now()
       if (fumee.state === 'FIRE') {
         if (now - fumee.fireStart >= 10_000) {
           cut(now, 'MAX')
-        } else if (now - fumee.leaseAt >= 500) {
+        } else if (!noLease && now - fumee.leaseAt >= 500) {
           cut(now, 'LEASE')
         }
       } else if (fumee.state === 'COOL' && now - fumee.coolStart >= 5000) {
@@ -57,6 +73,8 @@ function installFakeSerial(page: Page) {
     const lines: string[] = []
     let mute = false
     let lost = false
+    let opens = 0
+    let linesAtLastOpen = 0
     let isOpen = false
     let controller: ReadableStreamDefaultController<Uint8Array> | null = null
     let readableStream: ReadableStream<Uint8Array> | null = null
@@ -94,6 +112,8 @@ function installFakeSerial(page: Page) {
           throw domError('NetworkError')
         }
         isOpen = true
+        opens += 1
+        linesAtLastOpen = lines.length
         // Ouvrir le port redémarre la carte : sortie coupée, pause de 5 s, bannière.
         Object.assign(fumee, { state: 'COOL', cause: 'CMD', held: false, coolStart: Date.now() })
         pending = ''
@@ -160,6 +180,18 @@ function installFakeSerial(page: Page) {
           tick()
           return fumee.cause
         },
+        get opens() {
+          return opens
+        },
+        get linesAtLastOpen() {
+          return linesAtLastOpen
+        },
+        get noLease() {
+          return noLease
+        },
+        set noLease(value: boolean) {
+          noLease = value
+        },
         get mute() {
           return mute
         },
@@ -170,6 +202,10 @@ function installFakeSerial(page: Page) {
         unplug() {
           lost = true
           controller?.error(domError('NetworkError'))
+        },
+        /** Câble rebranché : le port peut de nouveau s'ouvrir (la carte redémarre à l'ouverture). */
+        replug() {
+          lost = false
         },
       },
     }
@@ -197,6 +233,8 @@ const board = (page: Page) =>
     const { board: fake } = (window as unknown as { fakeSerial: FakeSerial }).fakeSerial
     return {
       fireLines: fake.lines.filter((line) => line === 'F').length,
+      opens: fake.opens,
+      linesSinceOpen: fake.lines.length - fake.linesAtLastOpen,
       output: fake.output,
       cause: fake.cause,
     }
@@ -217,6 +255,17 @@ function learnBuzzers(page: Page) {
     { key: HARDWARE_KEY, value: JSON.stringify({ buzzers: { keymap } }) }
   )
 }
+
+/** Agit sur la fausse carte dans la page. */
+const act = (page: Page, action: 'unplug' | 'replug' | 'mute' | 'noLease') =>
+  page.evaluate((name) => {
+    const { board: fake } = (window as unknown as { fakeSerial: FakeSerial }).fakeSerial
+    if (name === 'unplug' || name === 'replug') {
+      fake[name]()
+    } else {
+      fake[name] = true
+    }
+  }, action)
 
 const status = (page: Page, name: string) => page.locator(`[data-test="${name}"]`)
 
@@ -264,6 +313,20 @@ async function launchCutTest(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Lancer le test', exact: true }).click()
 }
 
+/** Après un test échoué : fumée non autorisable, même une fois l'arrêt d'urgence réarmé. */
+async function expectSmokeStillRefused(page: Page, fireLines: number): Promise<void> {
+  // Arrêt d'urgence déclenché par l'échec : rien à autoriser, rien à tester.
+  await page.locator('[data-test="tab-lights"]').click()
+  await expect(status(page, 'smoke-arm')).toBeDisabled()
+  await expect(status(page, 'smoke-test')).toBeDisabled()
+  // Réarmé : fumée toujours désactivée dans la configuration de la salle.
+  await status(page, 'emergency-reset').click()
+  await page.getByRole('button', { name: 'Confirmer', exact: true }).click()
+  await expect(page.getByText('Fumée désactivée dans la configuration de la salle.')).toBeVisible()
+  await expect(status(page, 'smoke-arm')).toHaveCount(0)
+  expect((await board(page)).fireLines).toBe(fireLines)
+}
+
 const failedText = 'la carte n’a pas coupé à temps'
 
 test.describe('Écran de salle — test de coupure de la fumée par la carte', () => {
@@ -306,61 +369,68 @@ test.describe('Écran de salle — test de coupure de la fumée par la carte', (
     await expect(status(page, 'smoke-arm')).toBeEnabled()
     await status(page, 'smoke-arm').check()
     await expect(status(page, 'smoke-arm')).toBeChecked()
-    // Armer ne fait rien partir.
+    // Armer ne fait rien partir (quelques ticks des lumières et de la carte passent avant de regarder).
+    await advance(page, 1000)
     expect((await board(page)).fireLines).toBe(started.fireLines)
   })
 
-  // Échoue si : une carte perdue pendant le test laisse valider « Elle s'est arrêtée », ou si l'échec
-  // laisse la fumée autorisée.
+  // Échoue si : une carte perdue, muette ou dont le bail ne coupe pas pendant le test laisse valider
+  // « Elle s'est arrêtée » (preuve posée), ou si l'échec laisse la fumée autorisable.
   const breakages: [string, (page: Page) => Promise<void>][] = [
-    [
-      'débranchée',
-      (page) =>
-        page.evaluate(() =>
-          (window as unknown as { fakeSerial: FakeSerial }).fakeSerial.board.unplug()
-        ),
-    ],
-    [
-      'muette',
-      (page) =>
-        page.evaluate(() => {
-          ;(window as unknown as { fakeSerial: FakeSerial }).fakeSerial.board.mute = true
-        }),
-    ],
+    ['carte débranchée', (page) => act(page, 'unplug')],
+    ['carte muette', (page) => act(page, 'mute')],
+    // Le jet reste allumé au-delà du bail : la carte le dit à la présence suivante, le lien passe en
+    // défaut et la page coupe elle-même (`0`) : ce n'est pas la carte qui a coupé, le test échoue.
+    ['carte dont le bail ne coupe pas', (page) => act(page, 'noLease')],
   ]
   for (const [name, breakBoard] of breakages) {
-    test(`carte ${name} pendant le test : le test échoue et la fumée reste refusée`, async ({
-      page,
-    }) => {
+    test(`${name} pendant le test : le test échoue et la fumée reste refusée`, async ({ page }) => {
       await openSmokeStep(page, true)
       await launchCutTest(page)
       await expect(status(page, 'freeze-running')).toBeVisible()
       const started = await board(page)
 
       await breakBoard(page)
-      // Une carte muette n'est déclarée perdue qu'après 1 s sans réponse.
-      await advance(page, 2000)
-      await advance(page, 13_000 + TICK_MARGIN_MS)
+      // Une carte muette n'est déclarée perdue qu'après 1 s sans réponse : tout le test passe d'un trait.
+      await advance(page, 15_000 + TICK_MARGIN_MS)
       await expect(status(page, 'freeze-question')).toBeVisible()
       // L'opérateur répond que la fumée s'est arrêtée : sans la carte, ce n'est pas une preuve.
       await status(page, 'freeze-ok').click()
 
       await expect(page.getByText(failedText)).toBeVisible()
       await expect(status(page, 'check-freezeTest')).not.toBeChecked()
-      // La fumée ne peut pas être autorisée : arrêt d'urgence déclenché par l'échec.
-      await page.locator('[data-test="tab-lights"]').click()
-      await expect(status(page, 'smoke-arm')).toBeDisabled()
-      await expect(status(page, 'smoke-test')).toBeDisabled()
-      // Et même une fois l'arrêt d'urgence réarmé : fumée toujours désactivée, rien à autoriser.
-      await status(page, 'emergency-reset').click()
-      await page.getByRole('button', { name: 'Confirmer', exact: true }).click()
-      await expect(
-        page.getByText('Fumée désactivée dans la configuration de la salle.')
-      ).toBeVisible()
-      await expect(status(page, 'smoke-arm')).toHaveCount(0)
-      expect((await board(page)).fireLines).toBe(started.fireLines)
+      await expectSmokeStillRefused(page, started.fireLines)
     })
   }
+
+  // Échoue si : le drapeau « carte perdue pendant le test » n'est plus collant (une carte reprise seule
+  // et de nouveau prête ferait valider « Elle s'est arrêtée » alors qu'elle a été perdue en plein test).
+  test('carte perdue puis revenue pendant le test : le test échoue quand même', async ({
+    page,
+  }) => {
+    await openSmokeStep(page, true)
+    await launchCutTest(page)
+    await expect(status(page, 'freeze-running')).toBeVisible()
+    const started = await board(page)
+
+    await act(page, 'unplug')
+    await advance(page, 1000)
+    await act(page, 'replug')
+    // La page rouvre la carte seule (reprise à 3 s) : le pas est avancé jusqu'à ce que ce soit fait,
+    // sans quoi la page ne reprend la main qu'au temps de la page.
+    await advance(page, 3000)
+    await expect.poll(async () => (await board(page)).opens).toBe(2)
+    await advance(page, 12_000 + TICK_MARGIN_MS)
+    await expect(status(page, 'freeze-question')).toBeVisible()
+    // La carte est revenue : la page lui parle de nouveau (lignes reçues depuis la réouverture).
+    expect((await board(page)).linesSinceOpen).toBeGreaterThan(0)
+
+    await status(page, 'freeze-ok').click()
+
+    await expect(page.getByText(failedText)).toBeVisible()
+    await expect(status(page, 'check-freezeTest')).not.toBeChecked()
+    await expectSmokeStillRefused(page, started.fireLines)
+  })
 
   // Échoue si : le test se lance sans interface de lumières réelle (la simulation ne prouverait rien).
   test('sans interface de lumières connectée : test refusé, aucune confirmation, aucun ordre à la carte', async ({
@@ -370,6 +440,8 @@ test.describe('Écran de salle — test de coupure de la fumée par la carte', (
     await page.locator('[data-test="assistant-freeze"]').click()
 
     await expect(page.getByText('Connecte d’abord la vraie interface DMX')).toBeVisible()
+    // Aucune des deux confirmations n'est demandée.
+    await expect(page.getByRole('button', { name: 'Confirmer', exact: true })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Lancer le test', exact: true })).toHaveCount(0)
     await expect(status(page, 'freeze-running')).toHaveCount(0)
     expect((await board(page)).fireLines).toBe(0)
