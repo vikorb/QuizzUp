@@ -55,6 +55,14 @@ frontend, `fakeApi.ts` pour la salle), avec les réponses du contrat `openapi.ya
 - `backoffice/results-print.spec.ts` : feuille de résultats d'une partie terminée. À l'écran, le
   bouton « Imprimer » appelle `window.print` ; en `emulateMedia({ media: 'print' })`, boutons
   masqués, classement et bon valable (QR, code) visibles, bon utilisé absent.
+- `backoffice/remote-commands.spec.ts` : fiche d'une partie en cours (`/games/42`), suivi en direct.
+  Pause : le corps envoyé (`POST …/rooms/1/commands`, `{ commandId, command: 'pause' }`), l'accusé
+  `command_result` (« Commande appliquée »), puis la pastille « En pause » seulement après le
+  `room_status`. Reprise, et refus `409 room_not_controllable` (message traduit, état inchangé).
+  Le flux `GET /companies/3/live` n'est pas rendu par `page.route` (réponse d'un bloc, puis fermée :
+  les boutons se bloqueraient) : `fetch` est remplacé dans la page par un flux resté ouvert, alimenté
+  par `api.push`. Ne prouve pas : la salle réelle (cf. `room-app/remote-commands.spec.ts`), le
+  serveur, `expired`, ni le passage de question.
 
 ### Pont Art-Net réel (`tests/support/artnetBridge.ts`)
 

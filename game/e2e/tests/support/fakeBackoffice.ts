@@ -87,6 +87,7 @@ export async function mockJoinApi(
 }
 
 const COMPANY = { id: 3, name: 'Centre Démo' }
+const STAFF_ACCOUNT = { id: 1, companyId: COMPANY.id, role: 'admin', username: 'admin-demo' }
 
 /**
  * Routes de la feuille de résultats d'une partie : compte connecté (jeton posé avant le chargement),
@@ -108,9 +109,7 @@ export async function mockResultsApi(
       return reply(route, 401, { error: 'unauthorized' })
     }
     if (pathname === '/me') {
-      return reply(route, 200, {
-        admin: { id: 1, companyId: COMPANY.id, role: 'admin', username: 'admin-demo' },
-      })
+      return reply(route, 200, { admin: STAFF_ACCOUNT })
     }
     if (pathname === `/companies/${COMPANY.id}`) {
       return reply(route, 200, { company: COMPANY })
@@ -123,4 +122,113 @@ export async function mockResultsApi(
     }
     return reply(route, 404, { error: 'not_found' })
   })
+}
+
+/** Salle suivie par le panneau « Suivi en direct » (`RoomLive` de `@quizzup/shared`). */
+export type FakeLiveRoom = { roomId: number; [field: string]: unknown }
+
+export type FakeLiveApi = {
+  /** Commandes reçues (`POST /companies/:id/rooms/:roomId/commands`), dans l'ordre. */
+  commands: {
+    path: string
+    body: { commandId: string; command: string; [field: string]: unknown }
+  }[]
+  /** Pousse un événement sur le flux du personnel, resté ouvert (`GET /companies/:id/live`). */
+  push: (event: string, data: unknown) => Promise<void>
+}
+
+type LiveStreamWindow = { __liveStream: { push: (text: string) => void } }
+
+const sse = (event: string, data: unknown) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`
+
+/**
+ * Fiche d'une partie en cours et son suivi en direct, vus par le personnel connecté. Le flux
+ * `GET /companies/:id/live` ne passe pas par `page.route` (qui rend la réponse d'un bloc puis la
+ * ferme, ce qui couperait le suivi et bloquerait les boutons) : `fetch` est remplacé dans la page
+ * par un flux qui reste ouvert, alimenté par `push`. Il s'ouvre sur l'instantané de `room`.
+ * `commandReply` : réponse de la route d'envoi (`202` par défaut).
+ */
+export async function mockLiveGameApi(
+  page: Page,
+  options: {
+    game: Record<string, unknown> & { id: number }
+    room: FakeLiveRoom
+    commandReply?: { status: number; body: unknown }
+  }
+): Promise<FakeLiveApi> {
+  const api: FakeLiveApi = {
+    commands: [],
+    push: (event, data) =>
+      page.evaluate(
+        (text) => (window as unknown as LiveStreamWindow).__liveStream.push(text),
+        sse(event, data)
+      ),
+  }
+  const commandsPath = `/companies/${COMPANY.id}/rooms/${options.room.roomId}/commands`
+
+  await page.addInitScript(
+    ({ liveUrl, snapshot }) => {
+      localStorage.setItem('quizzup_token', 'jeton-du-staff')
+      const encoder = new TextEncoder()
+      let stream: ReadableStreamDefaultController<Uint8Array> | null = null
+      const realFetch = window.fetch.bind(window)
+      window.fetch = (input, init) => {
+        const url = input instanceof Request ? input.url : String(input)
+        if (url !== liveUrl) {
+          return realFetch(input, init)
+        }
+        const body = new ReadableStream<Uint8Array>({
+          start(controller) {
+            stream = controller
+            controller.enqueue(encoder.encode(snapshot))
+          },
+        })
+        return Promise.resolve(
+          new Response(body, { status: 200, headers: { 'content-type': 'text/event-stream' } })
+        )
+      }
+      Object.defineProperty(window, '__liveStream', {
+        value: { push: (text: string) => stream?.enqueue(encoder.encode(text)) },
+      })
+    },
+    {
+      liveUrl: `${API_URL}/companies/${COMPANY.id}/live`,
+      snapshot: sse('snapshot', { rooms: [options.room] }),
+    }
+  )
+
+  await page.route(`${API_URL}/**`, async (route) => {
+    const request = route.request()
+    const { pathname } = new URL(request.url())
+    if (request.method() === 'OPTIONS') {
+      return reply(route, 204)
+    }
+    if (request.headers().authorization !== 'Bearer jeton-du-staff') {
+      return reply(route, 401, { error: 'unauthorized' })
+    }
+    if (pathname === '/me') {
+      return reply(route, 200, { admin: STAFF_ACCOUNT })
+    }
+    if (pathname === `/companies/${COMPANY.id}`) {
+      return reply(route, 200, { company: COMPANY })
+    }
+    if (pathname === `/companies/${COMPANY.id}/games/${options.game.id}`) {
+      return reply(route, 200, { game: options.game })
+    }
+    if (pathname === `/companies/${COMPANY.id}/games/${options.game.id}/vouchers`) {
+      return reply(route, 200, { vouchers: [] })
+    }
+    if (pathname === commandsPath && request.method() === 'POST') {
+      const body = request.postDataJSON() as FakeLiveApi['commands'][number]['body']
+      api.commands.push({ path: pathname, body })
+      const { status, body: payload } = options.commandReply ?? {
+        status: 202,
+        body: { commandId: body.commandId },
+      }
+      return reply(route, status, payload)
+    }
+    return reply(route, 404, { error: 'not_found' })
+  })
+
+  return api
 }
