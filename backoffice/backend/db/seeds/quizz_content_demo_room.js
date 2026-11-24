@@ -22,6 +22,12 @@ const bcrypt = require('bcryptjs')
  * a aucune ligne de ce nom, même supprimée. Ce qui a été modifié, désactivé ou supprimé au
  * backoffice n'est jamais touché ni recréé.
  * `DEMO_SEED=false` désactive ce seed.
+ *
+ * La salle est créée avec des créneaux réservables (`DEMO_ROOM_SCHEDULE`), pour essayer l'API
+ * publique de réservation (`docs/api/essayer-l-api-publique.md`). Comme le reste, ils ne sont
+ * posés qu'à la création de la salle : une salle déjà là, ou dont les créneaux ont été
+ * désactivés au backoffice, n'est pas modifiée. Aucune clé d'API n'est créée : on la crée au
+ * backoffice.
  */
 
 const ADMIN_ROLE_ADMIN = 'admin'
@@ -33,6 +39,19 @@ const AUDIO_MIME_TYPE = 'audio/mpeg'
 const EXTRACT_DURATION_MS = 26000
 
 const MEDIA_SOURCE_DIR = path.join(__dirname, 'demo-media')
+
+// Réglages de créneaux de « Salle 1 » (forme de `rooms.schedule`, cf. `roomScheduleSchema`) :
+// tous les jours de 10 h à 20 h, créneaux d'une heure bout à bout, 4 pupitres réservables.
+const DEMO_ROOM_SCHEDULE = {
+  timezone: 'Europe/Paris',
+  slotMinutes: 60,
+  breakMinutes: 0,
+  bookableDesks: 4,
+  publicBooking: true,
+  days: Object.fromEntries(
+    ['1', '2', '3', '4', '5', '6', '7'].map((day) => [day, { opensAt: '10:00', closesAt: '20:00' }])
+  ),
+}
 
 // Fichier (sans extension) → titre affiché comme réponse.
 const DEMO_THEMES = [
@@ -209,7 +228,13 @@ async function findOrCreateRoom(trx, companyId, name) {
   }
 
   const [inserted] = await trx('rooms')
-    .insert({ company_id: companyId, name, config: {}, status: STATUS_ACTIVE })
+    .insert({
+      company_id: companyId,
+      name,
+      config: {},
+      schedule: DEMO_ROOM_SCHEDULE,
+      status: STATUS_ACTIVE,
+    })
     .returning('id')
   return inserted.id ?? inserted
 }
@@ -290,3 +315,5 @@ exports.seed = async function (knex) {
       throw error
     })
 }
+
+exports.DEMO_ROOM_SCHEDULE = DEMO_ROOM_SCHEDULE

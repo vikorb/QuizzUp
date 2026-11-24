@@ -1437,37 +1437,6 @@ onBeforeUnmount(() => {
   color: var(--text-2);
 }
 
-/* Bouton de fichier : même apparence qu'un bouton par défaut (UiButton est à portée limitée). */
-.file-btn {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: var(--tap-min);
-  padding: 0 18px;
-  border: 1px solid var(--border-ui);
-  border-radius: var(--radius-ctl);
-  background: var(--surface-1);
-  color: var(--text-1);
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.2;
-  text-align: center;
-  cursor: pointer;
-  transition: var(--tr);
-}
-
-.file-btn:hover {
-  background: var(--surface-2);
-  border-color: var(--border-hover);
-  color: var(--text-0);
-}
-
-.file-btn:has(input:focus-visible) {
-  outline: 2px solid var(--accent-purple);
-  outline-offset: 2px;
-}
-
 /* Test d'appareil validé : bouton mat enfoncé, la couleur de statut reste sur la pastille. */
 .list [aria-pressed='true'] {
   background: var(--surface-3);
@@ -1482,13 +1451,6 @@ onBeforeUnmount(() => {
   margin-right: 8px;
   border-radius: 50%;
   background: var(--ok);
-}
-
-.file-btn input {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
 }
 
 .list {

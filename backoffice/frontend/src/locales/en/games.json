@@ -87,6 +87,16 @@
         "participant": "Participant {n}"
       },
       "noActiveRoom": "No active room in this company: activate a room before launching a game.",
+      "format": "Format",
+      "formats": {
+        "discovery": "Discovery",
+        "short": "Short",
+        "standard": "Standard",
+        "custom": "Custom"
+      },
+      "formatOption": "{name} · {rounds} × {questions} · {min} to {max} min",
+      "formatEditHint": "Changing the rounds or the questions turns the game into Custom.",
+      "formatEstimate": "Estimated duration: {min} to {max} min, with the ticked mini-games.",
       "roundsCount": "Rounds",
       "roundsHint": "Between 1 and {max}",
       "questionsPerRound": "Questions per round",
@@ -206,6 +216,8 @@
       "invalidBody": "The request is invalid. Check the information and try again.",
       "invalidParams": "Invalid parameters.",
       "invalidEmail": "The email address is invalid.",
+      "formatFixesCounts": "A fixed format already sets the rounds and questions: choose Custom to enter them.",
+      "formatNotUpdatable": "The format cannot be changed after creation.",
       "emailAlreadyExists": "This email address is already used.",
       "nameAlreadyExists": "This name is already used.",
       "notFound": "This game cannot be found.",

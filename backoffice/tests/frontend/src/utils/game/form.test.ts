@@ -1,7 +1,14 @@
 import { roomsFixture } from '@frontend-tests/_helpers/gamesServiceMock'
 import {
+  GAME_DEFAULT_FORMAT,
   GAME_DEFAULT_QUESTIONS_PER_ROUND,
   GAME_DEFAULT_ROUNDS,
+  GAME_FORMAT_CUSTOM,
+  GAME_FORMAT_DISCOVERY,
+  GAME_FORMAT_SETTINGS,
+  GAME_FORMAT_SHORT,
+  GAME_FORMAT_STANDARD,
+  GAME_FORMATS,
   GAME_MAX_QUESTIONS_PER_ROUND,
   GAME_MAX_ROUNDS,
   GAME_PARTICIPANT_DISPLAY_NAME_MAX_LENGTH,
@@ -9,6 +16,8 @@ import {
   MINI_GAME_ESTIMATE,
   MINI_GAME_FIRST_BUZZ,
   MINI_GAME_FLASH_BLIND_TEST,
+  MINI_GAME_QUICK_ANSWER,
+  MINI_GAME_TRUE_FALSE,
   MINI_GAMES,
 } from '@quizzup/shared'
 import { describe, expect, it } from 'vitest'
@@ -23,6 +32,7 @@ import {
   createGameParticipantFormValues,
   fitGameParticipantsToDesks,
   getActiveGameRooms,
+  getGameFormPlan,
   getGamePodiums,
   getGameRoomDesksCount,
   getNextFreePodium,
@@ -69,6 +79,7 @@ describe('utils/game/form', () => {
       const form = createDefaultGameFormValues()
 
       expect(form.roomId).toBe('')
+      expect(form.format).toBe(GAME_DEFAULT_FORMAT)
       expect(form.roundsCount).toBe(String(GAME_DEFAULT_ROUNDS))
       expect(form.questionsPerRound).toBe(String(GAME_DEFAULT_QUESTIONS_PER_ROUND))
       expect(form.participants).toHaveLength(1)
@@ -226,15 +237,28 @@ describe('utils/game/form', () => {
     it.each(['0', '-1', '1.5', 'abc', '', String(GAME_MAX_ROUNDS + 1)])(
       'rejects %s rounds',
       (roundsCount) => {
-        expect(validateGameForm(validForm({ roundsCount })).roundsCount).toBe(
-          'games.form.errors.roundsInvalid'
+        expect(
+          validateGameForm(validForm({ format: GAME_FORMAT_CUSTOM, roundsCount })).roundsCount
+        ).toBe('games.form.errors.roundsInvalid')
+      }
+    )
+
+    it.each(GAME_FORMATS.filter((format) => format !== GAME_FORMAT_CUSTOM))(
+      'ignores the typed counts of the fixed format %s',
+      (format) => {
+        const errors = validateGameForm(
+          validForm({ format, roundsCount: 'abc', questionsPerRound: '0' })
         )
+
+        expect(errors.roundsCount).toBe('')
+        expect(errors.questionsPerRound).toBe('')
       }
     )
 
     it('accepts the bounds of the format', () => {
       const errors = validateGameForm(
         validForm({
+          format: GAME_FORMAT_CUSTOM,
           roundsCount: String(GAME_MAX_ROUNDS),
           questionsPerRound: String(GAME_MAX_QUESTIONS_PER_ROUND),
         })
@@ -246,8 +270,12 @@ describe('utils/game/form', () => {
 
     it('rejects too many questions per round', () => {
       expect(
-        validateGameForm(validForm({ questionsPerRound: String(GAME_MAX_QUESTIONS_PER_ROUND + 1) }))
-          .questionsPerRound
+        validateGameForm(
+          validForm({
+            format: GAME_FORMAT_CUSTOM,
+            questionsPerRound: String(GAME_MAX_QUESTIONS_PER_ROUND + 1),
+          })
+        ).questionsPerRound
       ).toBe('games.form.errors.questionsInvalid')
     })
 
@@ -347,6 +375,7 @@ describe('utils/game/form', () => {
     it('trims values, converts numbers and sorts participants by podium', () => {
       const payload = buildCreateGamePayload(
         validForm({
+          format: GAME_FORMAT_CUSTOM,
           roundsCount: ' 5 ',
           questionsPerRound: '8',
           participants: [
@@ -363,6 +392,7 @@ describe('utils/game/form', () => {
 
       expect(payload).toEqual({
         roomId: 10,
+        format: GAME_FORMAT_CUSTOM,
         roundsCount: 5,
         questionsPerRound: 8,
         participants: [
@@ -376,6 +406,23 @@ describe('utils/game/form', () => {
           { podium: 3, displayName: 'Team C' },
         ],
       })
+    })
+
+    it.each(GAME_FORMATS.filter((format) => format !== GAME_FORMAT_CUSTOM))(
+      'sends the fixed format %s alone, without the counts the server would refuse',
+      (format) => {
+        const payload = buildCreateGamePayload(
+          validForm({ format, roundsCount: '5', questionsPerRound: '8' })
+        )
+
+        expect(payload.format).toBe(format)
+        expect(payload).not.toHaveProperty('roundsCount')
+        expect(payload).not.toHaveProperty('questionsPerRound')
+      }
+    )
+
+    it('sends the default format of a form left untouched', () => {
+      expect(buildCreateGamePayload(validForm()).format).toBe(GAME_FORMAT_STANDARD)
     })
 
     it('sends the offers consent apart from the email consent, only with an email', () => {
@@ -573,6 +620,58 @@ describe('utils/game/form', () => {
 
       expect(payload.participants[0].secondPlayer).toEqual({ displayName: 'Alex' })
     })
+  })
+})
+
+describe('getGameFormPlan', () => {
+  it.each([
+    [GAME_FORMAT_DISCOVERY, 3, 6],
+    [GAME_FORMAT_SHORT, 12, 21],
+    [GAME_FORMAT_STANDARD, 28, 47],
+  ] as const)(
+    'gives the counts and the duration of %s with every mini-game',
+    (format, min, max) => {
+      expect(getGameFormPlan(validForm({ format }))).toEqual({
+        ...GAME_FORMAT_SETTINGS[format],
+        minMinutes: min,
+        maxMinutes: max,
+      })
+    }
+  )
+
+  it('rounds the typical minutes to the nearest and the high ones up', () => {
+    // 10 × 10 en réponse rapide seule : 26,5 min typiques, 37,8 min hautes.
+    const form = validForm({ miniGames: [MINI_GAME_QUICK_ANSWER] })
+
+    expect(getGameFormPlan(form)).toMatchObject({ minMinutes: 27, maxMinutes: 38 })
+  })
+
+  it('reads the typed counts of the custom format and follows the ticked mini-games', () => {
+    const typed = { format: GAME_FORMAT_CUSTOM, roundsCount: ' 4 ', questionsPerRound: '5' }
+    const all = getGameFormPlan(validForm(typed))
+    const fast = getGameFormPlan(validForm({ ...typed, miniGames: [MINI_GAME_TRUE_FALSE] }))
+
+    expect(all).toMatchObject({ roundsCount: 4, questionsPerRound: 5 })
+    expect(fast).toMatchObject({ roundsCount: 4, questionsPerRound: 5 })
+    expect(fast?.maxMinutes).toBeLessThan(all?.maxMinutes ?? 0)
+  })
+
+  it('ignores the typed counts of a fixed format, unless asked for the custom one', () => {
+    const form = validForm({ roundsCount: '2', questionsPerRound: '2' })
+
+    expect(getGameFormPlan(form)).toMatchObject(GAME_FORMAT_SETTINGS[GAME_FORMAT_STANDARD])
+    expect(getGameFormPlan(form, GAME_FORMAT_CUSTOM)).toMatchObject({
+      roundsCount: 2,
+      questionsPerRound: 2,
+    })
+  })
+
+  it.each([
+    ['rounds', { roundsCount: 'abc' }],
+    ['questions', { questionsPerRound: '' }],
+    ['too many rounds', { roundsCount: String(GAME_MAX_ROUNDS + 1) }],
+  ])('has no plan while the custom %s are invalid', (_name, typed) => {
+    expect(getGameFormPlan(validForm({ format: GAME_FORMAT_CUSTOM, ...typed }))).toBeNull()
   })
 })
 
