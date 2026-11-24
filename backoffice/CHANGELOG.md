@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Show lumière réglable par salle : `lighting.scenes` surcharge les scènes par défaut (bornées : 400 ms au moins entre deux éclairs, un seul jet de fumée par scène, jamais dans une boucle), une scène peut en enchaîner une autre (`next`), nouveaux signaux `game_paused`, `game_resumed`, `session_exit` et `round_started.<miniGame>`. Les clés de configuration inconnues sont conservées. Modèles de salle prêts à l'emploi (4 modèles, sans fumée) et proposition d'univers Art-Net.
+  US: US-SHOW-01 (#145)
+
 - Journaux d'erreurs d'une salle consultables depuis le tableau des salles d'un client : panneau en ligne avec filtre par niveau, actualisation et « charger plus », réservé aux administrateurs.
   US: US-LOG-01 (#157)
 - Statistiques d'exploitation d'une compagnie : route `GET /companies/:companyId/stats` et écran « Statistiques » (séances terminées et arrêtées, taux d'abandon, durée médiane, répartition par salle, joueurs, créneaux les plus chargés), réservés aux administrateurs. Aucune donnée individuelle ne sort.

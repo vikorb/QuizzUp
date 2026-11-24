@@ -10,7 +10,9 @@ import type { DmxDriver } from './dmx/output'
 import { DMX_DRIVERS } from './dmx/output'
 import type { FixtureProfile } from './dmx/profiles'
 import { hasProgressiveSmokeChannel } from './dmx/profiles'
+import type { SceneDefinition } from './lighting/scenes'
 import { DEFAULT_DESK_COLORS } from './lighting/scenes'
+import { parseScenes } from './lighting/showConfig'
 import type { SmokeSafetyConfig } from './lighting/smoke'
 import { DEFAULT_SMOKE_SAFETY, normalizeSmokeSafety } from './lighting/smoke'
 import type { PlanPoint, PlanTarget, RoomPlan } from './plan'
@@ -43,6 +45,11 @@ export type LightingConfig = {
   deskColors: Record<Desk, Rgb>
   /** Surcharges événement → scène (`null` = aucune scène pour cet événement). */
   bindings: Record<string, string | null>
+  /**
+   * Scènes de la salle, seulement celles qu'elle change ou ajoute (`id` identique à une scène par
+   * défaut = remplacement). Bornées par `parseScenes`. Absent = show par défaut.
+   */
+  scenes?: SceneDefinition[]
   smoke: SmokeSafetyConfig
 }
 
@@ -247,6 +254,47 @@ export function gamepadMatcher(
   return (id) => id.toLowerCase().includes(needle)
 }
 
+/**
+ * Clés de `input` que la relecture ne connaît pas, recopiées telles quelles : un poste resté sur une
+ * version plus ancienne ne doit pas effacer ce qu'une version plus récente a enregistré.
+ */
+function unknownKeys(input: Record<string, unknown>, known: readonly string[]) {
+  return Object.fromEntries(
+    Object.entries(input)
+      .filter(([key]) => !known.includes(key))
+      .map(([key, value]) => [key, structuredClone(value)])
+  )
+}
+
+const ROOT_KEYS = ['version', 'desksCount', 'buzzers', 'lighting', 'plan', 'setupDone'] as const
+const LIGHTING_KEYS = [
+  'driver',
+  'bridgeUrl',
+  'artnet',
+  'refreshHz',
+  'fixtures',
+  'customProfiles',
+  'deskColors',
+  'bindings',
+  'scenes',
+  'smoke',
+] as const
+
+function onlyKeys(source: object, keys: readonly string[]) {
+  return Object.fromEntries(Object.entries(source).filter(([key]) => keys.includes(key)))
+}
+
+/**
+ * La config sans les clés que la relecture ne connaît pas (racine et `lighting`) : sert à décider si
+ * une salle est « neuve », les clés étrangères conservées à l'enregistrement n'y comptent pas.
+ */
+export function withoutUnknownKeys(config: RoomHardwareConfig): RoomHardwareConfig {
+  return {
+    ...onlyKeys(config, ROOT_KEYS),
+    lighting: onlyKeys(config.lighting, LIGHTING_KEYS),
+  } as RoomHardwareConfig
+}
+
 function parseBindings(input: unknown): Record<string, string | null> {
   const bindings: Record<string, string | null> = {}
   for (const [event, scene] of Object.entries(asRecord(input))) {
@@ -358,7 +406,12 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
     )
   }
 
+  const { scenes, problems: sceneProblems } = parseScenes(lighting.scenes)
+  problems.push(...sceneProblems)
+
   const config: RoomHardwareConfig = {
+    // Clés inconnues d'abord : les clés connues ci-dessous les remplacent toujours.
+    ...unknownKeys(raw, ROOT_KEYS),
     version: ROOM_HARDWARE_CONFIG_VERSION,
     desksCount,
     buzzers: {
@@ -367,6 +420,7 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
       layout: parseBuzzerLayout(buzzers.layout, problems),
     },
     lighting: {
+      ...unknownKeys(lighting, LIGHTING_KEYS),
       driver,
       ...(bridgeUrl ? { bridgeUrl } : {}),
       ...(artnet ? { artnet } : {}),
@@ -375,6 +429,7 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
       customProfiles: rig.customProfiles,
       deskColors: parseDeskColors(lighting.deskColors),
       bindings: parseBindings(lighting.bindings),
+      ...(scenes.length > 0 ? { scenes } : {}),
       smoke,
     },
     plan: parseRoomPlan(

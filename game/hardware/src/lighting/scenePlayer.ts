@@ -16,6 +16,8 @@ export type ScenePlayerOptions = {
   deskColors: Record<Desk, Rgb>
   /** Appelé pour une étape `smoke` : le contrôleur décide (sécurité). */
   onSmoke: (durationMs: number) => void
+  /** Retrouve la scène désignée par `next` ; absente ou inconnue, la chaîne s'arrête. */
+  resolveScene?: (sceneId: string) => SceneDefinition | undefined
 }
 
 export type ScenePlayer = {
@@ -248,8 +250,17 @@ export function createScenePlayer(options: ScenePlayerOptions): ScenePlayer {
     for (let guard = 0; guard < maxSteps; guard += 1) {
       const step = entry.scene.steps[entry.stepIndex]
       if (!step) {
-        active = null
-        return
+        const next =
+          entry.scene.next === undefined ? undefined : options.resolveScene?.(entry.scene.next)
+        if (!next) {
+          active = null
+          return
+        }
+        // Enchaînement : la scène suivante part à l'instant exact où celle-ci s'est terminée. Après un
+        // gel de la page, ses étapes passées sont rattrapées sans fumée en retard (voir `enterStep`).
+        entry = enterStep({ ...entry, scene: next }, 0, entry.stepStartedAt, now)
+        active = entry
+        continue
       }
       const duration = stepDuration(step)
       const elapsed = now - entry.stepStartedAt

@@ -13,6 +13,7 @@ import {
   withBuzzerLayout,
   withDesksCount,
   withLearnedKeymap,
+  withoutUnknownKeys,
   withPlanPoint,
 } from '@hardware/config'
 import { DEFAULT_DESK_COLORS } from '@hardware/lighting/scenes'
@@ -631,5 +632,106 @@ describe('parcours de configuration (`setupDone`)', () => {
     expect(parseRoomHardwareConfig({}).config.setupDone).toBeUndefined()
     expect(parseRoomHardwareConfig({ setupDone: 'yes' }).config.setupDone).toBeUndefined()
     expect(parseRoomHardwareConfig({ setupDone: true }).config.setupDone).toBe(true)
+  })
+})
+
+describe('scènes de la salle (`lighting.scenes`)', () => {
+  const scene = (over: Record<string, unknown> = {}) => ({
+    id: 'buzz',
+    name: 'Buzz maison',
+    priority: 40,
+    steps: [{ type: 'color', color: { r: 1, g: 2, b: 3 } }],
+    ...over,
+  })
+
+  it('est absent par défaut et n’est écrit que s’il reste une scène valide', () => {
+    expect(parseRoomHardwareConfig({}).config.lighting.scenes).toBeUndefined()
+    const parsed = parseRoomHardwareConfig({ lighting: { scenes: [{ id: 'sans-etapes' }] } })
+    expect(parsed.config.lighting.scenes).toBeUndefined()
+    expect(parsed.problems).toHaveLength(1)
+  })
+
+  it('relit les scènes bornées et reporte les problèmes', () => {
+    const parsed = parseRoomHardwareConfig({
+      lighting: {
+        scenes: [
+          scene(),
+          scene({ id: 'identify' }),
+          scene({
+            id: 'flash',
+            priority: 99,
+            steps: [{ type: 'flash', color: 'desk', count: 1, onMs: 10, offMs: 10 }],
+          }),
+        ],
+      },
+    })
+    expect(parsed.config.lighting.scenes?.map((entry) => entry.id)).toEqual(['buzz', 'flash'])
+    expect(parsed.config.lighting.scenes?.[1]).toMatchObject({
+      priority: 60,
+      steps: [{ type: 'flash', onMs: 60, offMs: 340 }],
+    })
+    expect(parsed.problems.length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('est conservé tel quel par une seconde relecture et par `activeLightingConfig`', () => {
+    const first = parseRoomHardwareConfig({ lighting: { scenes: [scene()] } })
+    const second = parseRoomHardwareConfig(first.config)
+    expect(second.config).toEqual(first.config)
+    expect(second.problems).toEqual([])
+    expect(activeLightingConfig(first.config).scenes).toEqual(first.config.lighting.scenes)
+  })
+})
+
+describe('clés inconnues de `rooms.config`', () => {
+  it('`withoutUnknownKeys` retire les clés étrangères (racine et `lighting`), garde le reste', () => {
+    const parsed = parseRoomHardwareConfig({
+      futur: { a: 1 },
+      lighting: { reglageFutur: true, refreshHz: 20 },
+    }).config
+    expect(parsed).toHaveProperty('futur')
+    const stripped = withoutUnknownKeys(parsed)
+    expect(stripped).not.toHaveProperty('futur')
+    expect(stripped.lighting).not.toHaveProperty('reglageFutur')
+    expect(stripped).toEqual(parseRoomHardwareConfig({ lighting: { refreshHz: 20 } }).config)
+  })
+
+  it('sont conservées à la racine et dans `lighting`, sans effacer ni remplacer les clés connues', () => {
+    const raw = {
+      version: 1,
+      futur: { reglage: [1, 2, { a: true }] },
+      buzzers: { keymap: {} },
+      lighting: { driver: 'simulation', usb: { usbVendorId: 1, usbProductId: 2 }, version: 'x' },
+    }
+    const { config } = parseRoomHardwareConfig(raw)
+    expect(config).toMatchObject({
+      futur: { reglage: [1, 2, { a: true }] },
+      lighting: { usb: { usbVendorId: 1, usbProductId: 2 }, version: 'x', driver: 'simulation' },
+      version: 1,
+    })
+    // Une copie : modifier la config relue ne modifie pas l'entrée.
+    ;(config as unknown as { futur: { reglage: number[] } }).futur.reglage.push(3)
+    expect(raw.futur.reglage).toHaveLength(3)
+  })
+
+  it('ne peuvent pas masquer une valeur connue', () => {
+    const { config } = parseRoomHardwareConfig({ version: 99, lighting: { driver: 'nimporte' } })
+    expect(config.version).toBe(1)
+    expect(config.lighting.driver).toBe('simulation')
+  })
+
+  it('survivent à une relecture (écrite par une version récente, relue par une ancienne)', () => {
+    const first = parseRoomHardwareConfig({ ajout: 1, lighting: { ajoutLumiere: 'x' } })
+    const second = parseRoomHardwareConfig(first.config)
+    expect(second.config).toMatchObject({ ajout: 1, lighting: { ajoutLumiere: 'x' } })
+  })
+
+  it('ne changent rien à une config sans clé inconnue', () => {
+    const parsed = parseRoomHardwareConfig({})
+    expect(Object.keys(parsed.config).sort()).toEqual(
+      Object.keys(defaultRoomHardwareConfig()).sort()
+    )
+    expect(Object.keys(parsed.config.lighting).sort()).toEqual(
+      Object.keys(defaultRoomHardwareConfig().lighting).sort()
+    )
   })
 })

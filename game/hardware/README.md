@@ -132,6 +132,39 @@ Les profils de lyres (`SIX_DESK_PROFILES`) suivent la disposition courante en 9 
 vérifier sur la notice** de la lyre. Analyse complète (matériel, réseau, ce qu'il faut acheter ou
 débrancher) : [rapport de compatibilité](../../docs/compatibilite/compatibilite-salles-6-pupitres.md).
 
+### Modèles de salle et univers proposés
+
+`src/presets/roomTemplates.ts` propose quatre modèles pour équiper une salle vite (`ROOM_TEMPLATES`) :
+« 6 pupitres, 8 lyres » (le préréglage ci-dessus, mêmes appareils et profils), « 4 pupitres, 4 PAR
+RVBW », « 4 pupitres, 4 PAR + 2 lyres » et « 6 pupitres, 6 PAR RVB + 2 lyres » (profils génériques ;
+la lyre est `moving-head-8`, **à vérifier sur la notice**). **Un modèle n'ajoute ni n'active jamais
+la fumée** : elle se déclare à part, avec ses vérifications ; `createRigFromTemplate` refuse tout
+appareil ou canal de fumée (`smoke_forbidden`).
+
+```ts
+const result = createRigFromTemplate(ROOM_TEMPLATES[1], { startAddress: 1 })
+if (result.ok) {
+  // result.fixtures : adresses consécutives sur l'univers 0, sans chevauchement
+  // result.customProfiles : profils propres au modèle (copie neuve à chaque appel)
+}
+```
+
+Refus : `invalid_start_address` (pas un entier de 1 à 512), `does_not_fit` (au-delà du canal 512),
+`unknown_profile`, `smoke_forbidden`. Les points du plan de salle ne sont pas écrits : le plan prend
+les places par défaut (`resolveRoomPlan`). L'opérateur confirme ensuite appareil par appareil.
+
+`proposeUniverses(node, fixtures)` (fonction pure, rien n'est appliqué sans confirmation) propose les
+univers à donner aux appareils d'après les sorties que le nœud annonce (`ArtnetNode.universes`).
+Sans `--map`, le pont envoie l'univers interne n vers `--universe` + n (0 par défaut) : une sortie
+`0.0.x` avec x de 0 à 15 reçoit donc l'univers interne x (piège de `banc-materiel.md` §3.4). Les
+appareils gardent leur regroupement : le plus petit univers qu'ils utilisent passe sur la plus petite
+sortie accessible, le suivant sur la suivante. Renvoie `null` (rien à proposer) si le nœud n'annonce
+aucune sortie accessible (autre net ou sub-net, hors 0..15, texte illisible), s'il y a moins de
+sorties que d'univers utilisés, ou si les appareils sont déjà placés ; sinon la liste
+`{ fixtureId, universe }` des seuls appareils qui changent. Le regroupement par sortie (lyres sur la
+sortie 1, décodeur LED sur la sortie 2) se règle ensuite à la main : il dépend du câblage. Valable si
+le pont tourne avec `--universe` à 0 (défaut) et sans `--map` ; sinon l'univers d'arrivée est décalé.
+
 ## Lumières, spots et fumée
 
 ```ts
@@ -251,20 +284,21 @@ enregistrée par pupitre** (`deskPositions`) : « spot sur le pupitre qui a buzz
 Les noms sont ceux du moteur `@quizzup/game-engine`. Le pupitre vient de `payload.desk` s'il
 est fourni, sinon de `payload.participantId` via `resolveDesk`.
 
-| Événement moteur                                       | Scène par défaut                  |
-| ------------------------------------------------------ | --------------------------------- |
-| `game_started`                                         | `game-start`                      |
-| `round_started`                                        | `round-start`                     |
-| `round_chooser_selected`                               | `chooser` (spot pupitre)          |
-| `question_started`                                     | `question`                        |
-| `blind_test_stage_started`, `blind_test_stage_resumed` | `clip-playing`                    |
-| `buzzer_pressed`                                       | `buzz` (spot pupitre)             |
-| `answer_correct` / `answer_wrong`                      | `answer-correct` / `answer-wrong` |
-| `question_ended` sans gagnant                          | `question-lost`                   |
-| `round_ended`                                          | `round-end`                       |
-| `game_ended` (un seul gagnant → spot sur son pupitre)  | `victory` (+ fumée si armée)      |
-| `game_ended` à égalité (clé `game_ended_tie`)          | `victory-tie` (+ fumée si armée)  |
-| `game_aborted`                                         | `idle`                            |
+| Événement moteur                                       | Scène par défaut                       |
+| ------------------------------------------------------ | -------------------------------------- |
+| `game_started`                                         | `game-start`                           |
+| `round_started`                                        | `round-start`                          |
+| `round_started.<miniGame>` (si la salle l'a réglé)     | celle de la salle, sinon `round-start` |
+| `round_chooser_selected`                               | `chooser` (spot pupitre)               |
+| `question_started`                                     | `question`                             |
+| `blind_test_stage_started`, `blind_test_stage_resumed` | `clip-playing`                         |
+| `buzzer_pressed`                                       | `buzz` (spot pupitre)                  |
+| `answer_correct` / `answer_wrong`                      | `answer-correct` / `answer-wrong`      |
+| `question_ended` sans gagnant                          | `question-lost`                        |
+| `round_ended`                                          | `round-end`                            |
+| `game_ended` (un seul gagnant → spot sur son pupitre)  | `victory` (+ fumée si armée)           |
+| `game_ended` à égalité (clé `game_ended_tie`)          | `victory-tie` (+ fumée si armée)       |
+| `game_aborted`                                         | `idle`                                 |
 
 Chaque salle peut surcharger une liaison (`lighting.bindings`, `null` pour la couper). Une salle qui
 a réglé `game_ended` sans régler `game_ended_tie` garde son choix à égalité. Une scène
@@ -331,6 +365,64 @@ Cibles des scènes : un **stroboscope** (type `strobe`) n'est jamais piloté par
 gradateur et son canal strobe restent à 0). Un pupitre **sans aucun appareil** (ni PAR dédié, ni
 position de lyre), ou **inconnu** (participant sans pupitre résolu, `desk: null`), fait que `desk`
 vise toute la salle et `others` ne vise personne ; la couleur « pupitre » est alors le blanc.
+
+### Show réglable par salle (`lighting.scenes`)
+
+Une salle ne stocke que les scènes qu'elle **change ou ajoute** (jamais le show complet : `rooms.config`
+est limitée à 20 000 caractères côté serveur). Même `id` qu'une scène par défaut = remplacement ;
+`lighting.bindings` reste la table événement → scène. La scène `identify` ne se surcharge pas.
+
+```jsonc
+"lighting": {
+  "bindings": { "round_started.sudden_death": "mort-subite", "game_resumed": "reprise" },
+  "scenes": [
+    { "id": "mort-subite", "name": "Mort subite", "priority": 20, "next": "reprise",
+      "steps": [{ "type": "flash", "color": { "r": 255, "g": 0, "b": 0 }, "count": 2, "onMs": 150, "offMs": 250 }] },
+    { "id": "reprise", "name": "Reprise", "priority": 10,
+      "steps": [{ "type": "color", "color": { "r": 116, "g": 88, "b": 230 }, "intensity": 0.3, "fadeMs": 500 }] }
+  ]
+}
+```
+
+- **Enchaînement** : `next` désigne la scène lancée à la fin de celle-ci (même pupitre, sa propre
+  priorité). Une scène qui se désigne elle-même, ou une chaîne qui revient sur elle, **boucle**.
+- **Clés d'événement** : `round_started.<miniGame>` (code du mini-jeu, ex. `sudden_death`) l'emporte
+  sur `round_started`, y compris à `null` (aucune scène pour ce mini-jeu). Les **signaux de l'écran
+  de salle** `SHOW_CUES` (`game_paused`, `game_resumed`, `session_exit`) passent par
+  `handleGameEvent` comme un événement, sans jamais entrer dans le moteur : ils n'ont **aucune
+  liaison par défaut** (les scènes `pause` / `question` de reprise et la scène de sortie arrivent
+  avec l'écran de salle).
+- **Bornes** (`parseScenes`, constantes `SCENE_LIMITS`). Une scène ou une étape illisible est
+  écartée, une valeur hors borne est ramenée, et chaque écart est dans les `problems` de
+  `parseRoomHardwareConfig` :
+
+| Élément                         | Borne                                                                                        |
+| ------------------------------- | -------------------------------------------------------------------------------------------- |
+| Scènes de la salle              | 24 au plus                                                                                   |
+| Pas par scène                   | 16 au plus                                                                                   |
+| Flash, `onMs` et `offMs`        | 60 ms au moins chacun                                                                        |
+| Flash, période                  | `MIN_FLASH_INTERVAL_MS` (400 ms) au moins : l'éteint est allongé (pas les 334 ms théoriques) |
+| Flash, durée d'un pas           | 5 s au plus (nombre d'éclairs ramené) ; période de plus de 5 s : pas écarté                  |
+| Boucle                          | 200 ms au moins (somme des pas du tour), sinon `next` écarté                                 |
+| Priorité                        | ramenée dans 0..60 (10 si absente)                                                           |
+| Priorité d'une scène qui boucle | 10 au plus                                                                                   |
+| Pas `smoke`                     | un seul par scène, aucun dans une boucle, durée ramenée dans `SMOKE_HARD_LIMITS`             |
+| `next`                          | vers une scène inconnue : écarté                                                             |
+
+**Sécurité fumée** : une scène de salle n'ouvre aucun passage nouveau. Son pas `smoke` passe par le
+même `fireSmoke` que celui des scènes par défaut (armement, durée maximale, repos, pause, onglet
+masqué, arrêt d'urgence) ; la fumée reste désactivée par défaut. Après un gel du navigateur, les pas
+passés sont rattrapés sans jet de fumée « en retard » (`LATE_SMOKE_TOLERANCE_MS`), y compris pour une
+scène enchaînée. Le contrôleur reborne lui-même `lighting.scenes` (`parseScenes`) : une config qui ne
+passe pas par `parseRoomHardwareConfig` ne contourne rien. Le plafond de 3 éclairs par seconde du
+lecteur vaut aussi pour ces scènes.
+
+Limite connue : les scènes par défaut n'ont pas de `next`, donc la détection de boucle ne regarde
+que les scènes de la salle (à étendre quand une scène par défaut en aura un).
+
+**Clés inconnues** : `parseRoomHardwareConfig` recopie telles quelles les clés qu'il ne connaît pas,
+à la racine et dans `lighting`, pour qu'un poste resté sur une version plus ancienne n'efface pas ce
+qu'une version plus récente a enregistré (les clés connues gardent toujours la priorité).
 
 ## Sécurité fumée
 
@@ -534,6 +626,8 @@ Avec la case et sans relais, le relais temporisé n'est pas exigé (`getState().
     "customProfiles": [],
     "deskColors": { "1": { "r": 87, "g": 224, "b": 176 } },
     "bindings": { "round_started": null },
+    // Facultatif : scènes de la salle, voir « Show réglable par salle ».
+    "scenes": [],
     "smoke": {
       "enabled": true,
       "maxDurationMs": 3000,
