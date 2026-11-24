@@ -1,5 +1,88 @@
 {
   "vouchers": {
+    "menu": "Vouchers",
+    "title": "Loyalty vouchers",
+    "subtitle": "Look a voucher up by its code, mark it as used and follow the vouchers issued.",
+    "state": {
+      "valid": "Valid",
+      "redeemed": "Used",
+      "expired": "Expired",
+      "cancelled": "Cancelled"
+    },
+    "filters": {
+      "title": "Filters",
+      "company": "Company",
+      "state": "State",
+      "allStates": "All states"
+    },
+    "search": {
+      "title": "Use a voucher",
+      "label": "Voucher code",
+      "placeholder": "XXXX-XXXX",
+      "submit": "Search",
+      "searching": "Searching…",
+      "malformed": "This is not the shape of a voucher code: 8 characters, for example 7K2M-9QXP.",
+      "redeem": "Mark as used",
+      "redeeming": "Saving…",
+      "redeemed": "Voucher {code} is marked as used.",
+      "cancel": "Cancel this voucher",
+      "noCompany": "No company selected."
+    },
+    "detail": {
+      "code": "Code",
+      "label": "Voucher",
+      "holder": "Team",
+      "state": "State",
+      "expiresAt": "Valid until",
+      "redeemedAt": "Used on"
+    },
+    "list": {
+      "title": "Vouchers issued",
+      "loading": "Loading vouchers…",
+      "empty": "No voucher matches these criteria.",
+      "retry": "Retry",
+      "columns": {
+        "code": "Code",
+        "label": "Voucher",
+        "holder": "Team",
+        "state": "State",
+        "expiresAt": "Valid until",
+        "actions": "Actions"
+      }
+    },
+    "cancel": {
+      "action": "Cancel",
+      "title": "Cancel the voucher",
+      "confirm": "Cancel voucher {code}? It will no longer be usable.",
+      "done": "Voucher {code} is cancelled."
+    },
+    "panel": {
+      "title": "Loyalty vouchers",
+      "loading": "Loading vouchers…",
+      "empty": "This game has no desk.",
+      "retry": "Retry",
+      "desk": "Desk {podium}",
+      "issue": "Issue a voucher",
+      "issuing": "Issuing…",
+      "issued": "Voucher {code} issued for desk {podium}.",
+      "validUntil": "Valid until {date}"
+    },
+    "sheet": {
+      "title": "Your vouchers",
+      "validUntil": "Valid until {date}",
+      "singleUse": "Single use, to be shown at the front desk.",
+      "qrAlt": "QR code of voucher {code}"
+    },
+    "settings": {
+      "title": "Loyalty vouchers",
+      "label": "Voucher label",
+      "labelPlaceholder": "A free game",
+      "labelHint": "Text printed on the voucher. Leave empty to turn vouchers off.",
+      "validityDays": "Validity (days)",
+      "validityHint": "From {min} to {max} days, counted from the issue date.",
+      "invalidValidity": "The validity must be a whole number of days, from {min} to {max}.",
+      "labelTooLong": "The label is {max} characters long at most."
+    },
     "errors": {
       "vouchersDisabled": "Loyalty vouchers are not enabled for this company: set the voucher label in its settings first.",
       "gameNotFinished": "This game is not over: vouchers can only be issued once the game has ended.",
@@ -8,7 +91,15 @@
       "voucherNotFound": "No voucher matches this code.",
       "voucherCancelled": "This voucher has been cancelled.",
       "voucherAlreadyRedeemed": "This voucher has already been used.",
-      "voucherExpired": "This voucher has expired."
+      "voucherExpired": "This voucher has expired.",
+      "unauthorized": "You must be signed in to do this.",
+      "forbidden": "You do not have the rights to do this.",
+      "notFound": "The requested item cannot be found.",
+      "apiUnreachable": "The API cannot be reached.",
+      "invalidJson": "The server answer cannot be read.",
+      "invalidParams": "Invalid parameters.",
+      "invalidBody": "The request sent is invalid. Check the information and try again.",
+      "serverError": "Server error."
     }
   }
 }

@@ -79,6 +79,38 @@
             </tr>
           </tbody>
         </table>
+
+        <section v-if="vouchers.length > 0" class="sheet-vouchers" data-test="results-vouchers">
+          <h2 class="sheet-vouchers__title">{{ $t('vouchers.sheet.title') }}</h2>
+
+          <article
+            v-for="voucher in vouchers"
+            :key="voucher.id"
+            class="sheet-voucher"
+            data-test="results-voucher"
+          >
+            <p class="sheet-voucher__label" data-test="results-voucher-label">
+              {{ voucher.label }}
+            </p>
+            <p class="sheet-voucher__names">{{ getVoucherHolderNames(voucher) }}</p>
+            <img
+              v-if="getVoucherQrSrc(voucher.qrSvg)"
+              class="sheet-voucher__qr"
+              :src="getVoucherQrSrc(voucher.qrSvg) ?? undefined"
+              :alt="$t('vouchers.sheet.qrAlt', { code: voucher.code })"
+              data-test="results-voucher-qr"
+            />
+            <p class="sheet-voucher__code" data-test="results-voucher-code">{{ voucher.code }}</p>
+            <p class="sheet-voucher__note">
+              {{
+                $t('vouchers.sheet.validUntil', {
+                  date: formatGameDate(voucher.expiresAt, locale, false),
+                })
+              }}
+              · {{ $t('vouchers.sheet.singleUse') }}
+            </p>
+          </article>
+        </section>
       </template>
     </article>
   </main>
@@ -86,6 +118,7 @@
 
 <script setup lang="ts">
 import { mdiPrinterOutline } from '@mdi/js'
+import { VOUCHER_STATE_VALID } from '@quizzup/shared'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -95,13 +128,17 @@ import UiButton from '@/components/ui/UiButton.vue'
 import { getGameDetailRoute } from '@/router/games'
 import { loadCompanyDetailsService } from '@/services/companiesService'
 import { loadGameService } from '@/services/gamesService'
+import { listGameVouchersService } from '@/services/vouchersService'
 import { authState } from '@/state/authState'
 import type { Game } from '@/types/game'
+import type { Voucher } from '@/types/voucher'
 import { getGameRouteCompanyId, parseGameId, resolveGameCompanyId } from '@/utils/game/company'
 import { getGameErrorKey } from '@/utils/game/errors'
 import { formatGameDate, getGameRoomName } from '@/utils/game/format'
 import { rankGameParticipants } from '@/utils/game/ranking'
 import { canShowGameResults } from '@/utils/game/state'
+import { getVoucherQrSrc } from '@/utils/voucher/qr'
+import { getVoucherHolderNames } from '@/utils/voucher/state'
 
 const route = useRoute()
 const router = useRouter()
@@ -109,6 +146,7 @@ const { locale } = useI18n()
 
 const game = ref<Game | null>(null)
 const companyName = ref('')
+const vouchers = ref<Voucher[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
 
@@ -128,10 +166,11 @@ async function loadPage(): Promise<void> {
 
   try {
     // Le détail d'une partie ne porte pas le nom du centre : on le lit sur la fiche de la
-    // compagnie. Sans lui, la feuille reste imprimable.
-    const [gameResult, companyResult] = await Promise.all([
+    // compagnie. Sans lui ni sans les bons, la feuille reste imprimable.
+    const [gameResult, companyResult, vouchersResult] = await Promise.all([
       loadGameService(companyId.value, gameId.value),
       loadCompanyDetailsService(companyId.value).catch(() => null),
+      listGameVouchersService(companyId.value, gameId.value).catch(() => null),
     ])
 
     if (!gameResult.ok) {
@@ -141,6 +180,10 @@ async function loadPage(): Promise<void> {
 
     game.value = gameResult.data.game
     companyName.value = companyResult?.ok ? companyResult.data.company.name : ''
+    // Seuls les bons encore valables s'impriment : un bon annulé, utilisé ou expiré n'a rien à faire sur le papier.
+    vouchers.value = vouchersResult?.ok
+      ? vouchersResult.data.vouchers.filter((voucher) => voucher.state === VOUCHER_STATE_VALID)
+      : []
   } catch {
     error.value = 'server_error'
   } finally {
@@ -296,6 +339,56 @@ onMounted(loadPage)
 .sheet-winner td {
   font-size: 22px;
   font-weight: 800;
+}
+
+.sheet-vouchers {
+  display: grid;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.sheet-vouchers__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+/* Un bon ne se coupe pas entre deux pages : il se découpe à la main. */
+.sheet-voucher {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px dashed var(--print-ink);
+  break-inside: avoid;
+}
+
+.sheet-voucher p {
+  margin: 0;
+}
+
+.sheet-voucher__label {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.sheet-voucher__names,
+.sheet-voucher__note {
+  font-size: 13px;
+  color: var(--print-ink-muted);
+}
+
+/* Fond blanc et marge blanche : le QR reste lisible même sur une feuille teintée ou une photocopie. */
+.sheet-voucher__qr {
+  width: 25mm;
+  height: 25mm;
+  background: var(--print-paper);
+}
+
+.sheet-voucher__code {
+  font-size: 26px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
 }
 
 @media print {
