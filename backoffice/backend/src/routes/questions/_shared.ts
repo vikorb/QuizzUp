@@ -133,6 +133,8 @@ export const questionSelect = [
   'questions.media_duration_ms as mediaDurationMs',
   'questions.media_start_ms as mediaStartMs',
   'questions.media_original_name as mediaOriginalName',
+  'questions.media_provider as mediaProvider',
+  'questions.media_provider_ref as mediaProviderRef',
   'questions.media_uploaded_at as mediaUploadedAt',
   'questions.status',
   'questions.created_at as createdAt',
@@ -161,6 +163,8 @@ type QuestionMediaColumns = {
   mediaStartMs?: number | string | null
   mediaOriginalName?: string | null
   mediaUploadedAt?: string | Date | null
+  mediaProvider?: string | null
+  mediaProviderRef?: string | null
 }
 
 export type QuestionMediaFile = {
@@ -199,6 +203,8 @@ export function serializeQuestionMedia<T extends QuestionMediaColumns>(question:
     mediaDurationMs,
     mediaOriginalName,
     mediaUploadedAt,
+    mediaProvider,
+    mediaProviderRef,
     ...rest
   } = question
 
@@ -219,6 +225,11 @@ export function serializeQuestionMedia<T extends QuestionMediaColumns>(question:
     ...rest,
     mediaStartMs: toNullableNumber(question.mediaStartMs) ?? 0,
     mediaFile,
+    // Extrait d'un fournisseur (au lieu d'un fichier importé) : seule la référence est exposée,
+    // avec le libellé « artiste — titre » enregistré au rattachement (nul hors titre).
+    mediaProvider: mediaProvider ?? null,
+    mediaProviderRef: mediaProviderRef ?? null,
+    mediaProviderLabel: mediaProvider ? (mediaOriginalName ?? null) : null,
   }
 }
 

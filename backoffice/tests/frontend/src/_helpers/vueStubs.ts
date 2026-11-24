@@ -301,6 +301,8 @@ export const frontendStubs = {
         default: false,
       },
       error: String,
+      invalid: Boolean,
+      describedBy: String,
       required: {
         type: Boolean,
         default: false,
@@ -325,7 +327,8 @@ export const frontendStubs = {
               placeholder: props.placeholder,
               disabled: props.disabled,
               required: props.required,
-              'aria-invalid': props.error ? 'true' : 'false',
+              'aria-invalid': props.error || props.invalid ? 'true' : 'false',
+              'aria-describedby': props.invalid ? props.describedBy : undefined,
               onInput: (event: Event) => {
                 emit('update:modelValue', (event.target as HTMLInputElement).value)
               },

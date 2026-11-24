@@ -1,13 +1,24 @@
+import type { FastifyRequest } from 'fastify'
 import type { Knex } from 'knex'
 
 import {
   DEFAULT_QUESTION_KIND,
   getQuestionKindMediaError,
+  QUESTION_STATUS_DELETED,
   type QuestionKind,
   type QuestionMediaType,
 } from '@quizzup/shared'
 
-import { DEFAULT_QUESTION_MEDIA_TYPE, validateMediaStartMs } from './_shared'
+import {
+  canEditQuestion,
+  canReadQuestion,
+  DEFAULT_QUESTION_MEDIA_TYPE,
+  getQuestionAccessRow,
+  parsePositiveId,
+  validateMediaStartMs,
+  type QuestionAccessRow,
+  type QuestionParams,
+} from './_shared'
 
 export type QuestionMediaRow = {
   status?: number | string | null
@@ -17,9 +28,40 @@ export type QuestionMediaRow = {
   media_mime_type: string | null
   media_start_ms: number | string | null
   media_duration_ms: number | string | null
+  media_provider?: string | null
 }
 
-/** Colonnes à remettre à zéro quand une question perd son fichier audio. */
+export type AccessResult =
+  | { ok: true; questionId: number; question: QuestionAccessRow }
+  | { ok: false; status: number; error: string }
+
+export async function resolveQuestionAccess(
+  req: FastifyRequest<{ Params: QuestionParams }>,
+  mode: 'read' | 'edit'
+): Promise<AccessResult> {
+  const questionId = parsePositiveId(req.params.questionId)
+
+  if (questionId === null) {
+    return { ok: false, status: 400, error: 'question_id_invalid' }
+  }
+
+  const question = await getQuestionAccessRow(questionId)
+
+  // Une question supprimée ne sert plus son fichier (US-MEDIA-01).
+  if (!question || question.status === QUESTION_STATUS_DELETED) {
+    return { ok: false, status: 404, error: 'question_not_found' }
+  }
+
+  const allowed = mode === 'read' ? canReadQuestion(question, req) : canEditQuestion(question, req)
+
+  if (!allowed) {
+    return { ok: false, status: 403, error: 'forbidden' }
+  }
+
+  return { ok: true, questionId, question }
+}
+
+/** Colonnes à remettre à zéro quand une question perd son fichier audio ou son extrait de fournisseur. */
 export function buildClearedMediaPatch(trx: Knex | Knex.Transaction) {
   return {
     media_key: null,
@@ -31,6 +73,8 @@ export function buildClearedMediaPatch(trx: Knex | Knex.Transaction) {
     media_uploaded_by: null,
     media_uploaded_at: null,
     media_rights_attested_at: null,
+    media_provider: null,
+    media_provider_ref: null,
     updated_at: trx.fn.now(),
   }
 }
@@ -53,7 +97,8 @@ export async function lockQuestionMediaRow(
       'media_key',
       'media_mime_type',
       'media_start_ms',
-      'media_duration_ms'
+      'media_duration_ms',
+      'media_provider'
     )
     .where({ id: questionId })
     .forUpdate()
@@ -128,13 +173,13 @@ export async function applyQuestionMediaPatch(
   }
 
   if (request.leavesAudio) {
-    if (!row?.media_key) {
+    if (!row?.media_key && !row?.media_provider) {
       return null
     }
 
     await trx('questions').where({ id: questionId }).update(buildClearedMediaPatch(trx))
 
-    return row.media_key
+    return row?.media_key ?? null
   }
 
   if (!row?.media_key) {

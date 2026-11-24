@@ -55,6 +55,18 @@
         </UiButton>
 
         <UiButton
+          v-if="canEdit"
+          class="agenda-row__button"
+          type="button"
+          data-test="agenda-edit"
+          :aria-label="$t('agenda.actions.editAt', { time: startLabel })"
+          :disabled="busy"
+          @click="$emit('edit', entry.game)"
+        >
+          {{ $t('agenda.actions.edit') }}
+        </UiButton>
+
+        <UiButton
           v-if="canOpen"
           class="agenda-row__button"
           type="button"
@@ -93,6 +105,7 @@ import type { Game } from '@/types/game'
 import {
   type AgendaEntry,
   canCancelScheduledGame,
+  canEditScheduledGame,
   canOpenScheduledGame,
   formatAgendaTime,
   getAgendaStateKind,
@@ -112,6 +125,7 @@ const props = defineProps<{
 defineEmits<{
   (event: 'schedule', startsAt: string): void
   (event: 'view', game: Game): void
+  (event: 'edit', game: Game): void
   (event: 'open', game: Game): void
   (event: 'cancel', game: Game): void
 }>()
@@ -138,6 +152,7 @@ const stateKind = computed(() =>
 )
 
 const canOpen = computed(() => (game.value ? canOpenScheduledGame(game.value, props.nowMs) : false))
+const canEdit = computed(() => (game.value ? canEditScheduledGame(game.value) : false))
 const canCancel = computed(() => (game.value ? canCancelScheduledGame(game.value) : false))
 
 const playersLabel = computed(() => {
