@@ -11,6 +11,8 @@ Format inspiré de Keep a Changelog.
 - Tests de bout en bout de l'accueil : Playwright démarre aussi le frontend du backoffice (port 4176, API interceptée). Nouveaux scénarios : inscription d'un joueur par le lien du QR depuis un téléphone jusqu'au lobby de la salle, refus de la page téléphone (code inconnu, inscription fermée), feuille de résultats en mode impression avec son bon.
   US: US-JOIN-01 (#166)
 
+- Questions déjà vues : une partie évite les questions que ses joueurs, reconnus par leur e-mail, ont déjà eues dans les parties terminées de la même compagnie (`avoidQuestionIds` dans `GET /room/games/current`, 2 000 au plus). Un thème ne se vide jamais : les questions déjà vues passent en dernier.
+  US: US-CONTENT-01 (#158)
 - Playlists à l'écran de salle : à la reprise d'une partie, les extraits des titres de playlist sont relus auprès du serveur (route `tracks`) à part des questions du catalogue ; une panne du fournisseur ne bloque pas la reprise. Le texte « Quel est ce titre ? » est traduit.
   US: US-PLAYLIST-01 (#204)
 - Mode enfants : option à la création et à la modification d'une partie dans le backoffice. Sur la page du téléphone, aucun e-mail n'est demandé ni enregistré pour une partie en mode enfants (`kidsMode` dans `POST /public/v1/join/lookup`).

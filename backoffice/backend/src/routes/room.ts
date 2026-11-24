@@ -28,7 +28,12 @@ import {
   loadPlaylistThemes,
   loadRoomContent,
 } from './room/_content'
-import { areRoundsAcceptable, roomRoundsSchema, saveGameRounds } from './room/_history'
+import {
+  areRoundsAcceptable,
+  findAvoidQuestionIds,
+  roomRoundsSchema,
+  saveGameRounds,
+} from './room/_history'
 import { findCurrentGameId } from './room/_join'
 import {
   findPlaylistTracks,
@@ -274,9 +279,15 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
 
     const game = await findCurrentRoomGame(req)
 
-    // Lien d'inscription et nombre de demandes, jamais le nom d'une demande non validée.
+    // Lien d'inscription et nombre de demandes, jamais le nom d'une demande non validée ; questions
+    // déjà vues par ces joueurs (le moteur les pose en dernier).
     return {
-      game: game ? await addGameJoin(game) : null,
+      game: game
+        ? {
+            ...(await addGameJoin(game)),
+            avoidQuestionIds: await findAvoidQuestionIds(req.user.company_id, Number(game.id)),
+          }
+        : null,
       next: await findNextRoomGame(req),
     }
   })
