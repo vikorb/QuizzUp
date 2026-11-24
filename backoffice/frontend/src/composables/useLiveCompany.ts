@@ -48,6 +48,16 @@ const COMMAND_ERROR_CODES = [
   'unauthorized',
   'room_not_found',
 ] as const
+/** Code HTTP → code d'erreur, quand le corps n'en porte pas un connu (ex. un 401 de session). */
+const COMMAND_STATUS_CODES: Record<number, string> = {
+  401: 'unauthorized',
+  403: 'forbidden',
+  404: 'room_not_found',
+  429: 'too_many_requests',
+}
+
+/** Commandes offertes par le panneau : l'arrêt passe par la route d'arrêt de la partie. */
+export type PanelRoomCommand = Exclude<RoomCommand, { command: 'abort' }>
 
 /**
  * Issue d'une commande : le résultat rendu par la salle (ou `expired`), ou `error` quand l'envoi
@@ -64,7 +74,7 @@ async function readCommandErrorCode(response: Response): Promise<string> {
     return known
   }
 
-  return response.status === 404 ? 'room_not_found' : 'server_error'
+  return COMMAND_STATUS_CODES[response.status] ?? 'server_error'
 }
 
 function parseJson(text: string): unknown {
@@ -341,14 +351,21 @@ export function useLiveCompany(companyId: MaybeRefOrGetter<number | null>) {
    * Envoie une commande à la salle (`POST …/rooms/:id/commands`, `202` dit seulement « partie ») puis
    * attend son résultat sur ce flux. Sans résultat à temps, la commande est donnée pour `expired`.
    */
-  function sendCommand(roomId: number, command: RoomCommand): Promise<RoomCommandOutcome> {
+  function sendCommand(roomId: number, command: PanelRoomCommand): Promise<RoomCommandOutcome> {
     const company = currentId
 
     if (company === null) {
       return Promise.resolve({ result: 'error', code: 'room_not_controllable' })
     }
 
-    const commandId = crypto.randomUUID()
+    // `randomUUID` n'existe que dans un contexte sécurisé (HTTPS, localhost).
+    let commandId: string
+
+    try {
+      commandId = crypto.randomUUID()
+    } catch {
+      return Promise.resolve({ result: 'error', code: 'server_error' })
+    }
 
     return new Promise((resolve) => {
       const settle = (outcome: RoomCommandOutcome): void => {
@@ -364,19 +381,42 @@ export function useLiveCompany(companyId: MaybeRefOrGetter<number | null>) {
       // Enregistrée avant l'envoi : le résultat peut arriver avant la réponse `202`.
       pendingCommands.set(commandId, settle)
 
-      void apiFetch({
-        path: `/companies/${company}/rooms/${roomId}/commands`,
-        method: 'POST',
-        authenticated: true,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ commandId, ...command }),
-      }).then(async (response) => {
+      const post = () =>
+        apiFetch({
+          path: `/companies/${company}/rooms/${roomId}/commands`,
+          method: 'POST',
+          authenticated: true,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ commandId, ...command }),
+        })
+
+      void (async () => {
+        let response = await post()
+
         if (!response) {
-          settle({ result: 'error', code: 'api_unreachable' })
-        } else if (!response.ok) {
+          if (!authState.token.value) {
+            settle({ result: 'error', code: 'unauthorized' })
+            return
+          }
+
+          // Réponse perdue : la requête a pu arriver. Le serveur répond à l'identique à un
+          // doublon (même `commandId`), donc on réessaie une fois. Si cela échoue encore, on
+          // garde l'attente : le résultat viendra du flux, ou `expired` au délai local.
+          if (!pendingCommands.has(commandId)) {
+            return
+          }
+
+          response = await post()
+        }
+
+        if (response && !response.ok) {
+          if (response.status === 401) {
+            void refreshMe()
+          }
+
           settle({ result: 'error', code: await readCommandErrorCode(response) })
         }
-      })
+      })()
     })
   }
 

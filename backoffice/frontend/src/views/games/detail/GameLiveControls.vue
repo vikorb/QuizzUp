@@ -9,7 +9,9 @@
         class="game-live-controls__btn"
         type="button"
         data-test="game-live-toggle-pause"
-        :disabled="busy || blockedReason !== null"
+        :disabled="blockedReason !== null"
+        :aria-disabled="busy"
+        :aria-describedby="shownReason && blockedReason ? reasonId : undefined"
         @click="run({ command: status.paused ? 'resume' : 'pause' })"
       >
         <MdIcon :path="status.paused ? mdiPlay : mdiPause" :size="18" />
@@ -20,78 +22,79 @@
         class="game-live-controls__btn"
         type="button"
         data-test="game-live-skip"
-        :disabled="busy || skipBlockedReason !== null"
+        :disabled="skipBlockedReason !== null"
+        :aria-disabled="busy"
+        :aria-describedby="shownReason ? reasonId : undefined"
         @click="skip"
       >
         <MdIcon :path="mdiSkipNext" :size="18" />
         <span>{{ $t('live.command.skip') }}</span>
       </UiButton>
-
-      <UiButton
-        class="game-live-controls__btn"
-        variant="danger"
-        type="button"
-        data-test="game-live-abort"
-        :disabled="busy || blockedReason !== null"
-        @click="abort"
-      >
-        <MdIcon :path="mdiStopCircleOutline" :size="18" />
-        <span>{{ $t('live.command.abort') }}</span>
-      </UiButton>
     </div>
 
+    <!-- Le flux coupé est déjà dit par LiveConnectionNote : pas de second message. -->
     <p
-      v-if="skipBlockedReason"
+      v-if="shownReason"
+      :id="reasonId"
       class="game-live-controls__note"
       data-test="game-live-controls-reason"
     >
-      {{ $t(skipBlockedReason) }}
+      {{ $t(shownReason) }}
     </p>
 
-    <p
-      v-if="feedback"
-      class="game-live-controls__feedback"
-      :data-tone="feedback.tone"
-      :role="feedback.tone === 'ok' ? 'status' : 'alert'"
-      data-test="game-live-command-feedback"
-    >
-      <span class="game-live-controls__dot" aria-hidden="true" />
-      <span>{{ $t(feedback.key) }}</span>
-    </p>
+    <!-- Toujours présent : seul son contenu change, pour que les lecteurs d'écran l'annoncent. -->
+    <div aria-live="polite" aria-atomic="true">
+      <p
+        v-if="message"
+        class="game-live-controls__feedback"
+        :data-tone="message.tone"
+        data-test="game-live-command-feedback"
+      >
+        <span class="game-live-controls__dot" aria-hidden="true" />
+        <span>{{ $t(message.key) }}</span>
+      </p>
+    </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { mdiPause, mdiPlay, mdiSkipNext, mdiStopCircleOutline } from '@mdi/js'
+import { mdiPause, mdiPlay, mdiSkipNext } from '@mdi/js'
 import {
   GAME_IDLE_PHASES,
   ROOM_COMMAND_RESULT,
-  type RoomCommand,
   type RoomLive,
   type RoomStatusReport,
 } from '@quizzup/shared'
-import { computed, ref } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { computed, ref, useId, watch } from 'vue'
 
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
-import { type ConfirmOptions, useConfirm } from '@/composables/useConfirm'
-import type { RoomCommandOutcome } from '@/composables/useLiveCompany'
+import type { PanelRoomCommand, RoomCommandOutcome } from '@/composables/useLiveCompany'
 
 const props = defineProps<{
   room: RoomLive
   status: RoomStatusReport
   /** Le flux du direct n'est pas ouvert : l'état de la salle n'est pas sûr. */
   uncertain: boolean
-  send: (roomId: number, command: RoomCommand) => Promise<RoomCommandOutcome>
+  send: (roomId: number, command: PanelRoomCommand) => Promise<RoomCommandOutcome>
 }>()
 
-const { t } = useI18n()
-const { confirm } = useConfirm()
+const reasonId = useId()
 
 /** Une seule commande à la fois : tous les boutons attendent le résultat de la précédente. */
 const busy = ref(false)
 const feedback = ref<{ tone: 'ok' | 'error'; key: string } | null>(null)
+const message = computed(() =>
+  busy.value ? { tone: 'pending', key: 'live.command.pending' } : feedback.value
+)
+
+// Le dernier retour parle de la phase d'avant : il ne doit pas survivre à son changement.
+watch(
+  () => props.status.phase,
+  () => {
+    feedback.value = null
+  }
+)
 
 /** Clé i18n de ce qui rend toute commande impossible, `null` si la salle est pilotable. */
 const blockedReason = computed(() => {
@@ -133,6 +136,9 @@ const skipBlockedReason = computed(() => {
   return skipTarget.value ? null : 'live.command.disabled.skipPhase'
 })
 
+// Flux coupé : LiveConnectionNote le dit déjà.
+const shownReason = computed(() => (props.uncertain ? null : skipBlockedReason.value))
+
 function toFeedback(outcome: RoomCommandOutcome): { tone: 'ok' | 'error'; key: string } {
   if (outcome.result === 'error') {
     return { tone: 'error', key: `live.command.error.${outcome.code}` }
@@ -149,7 +155,8 @@ function toFeedback(outcome: RoomCommandOutcome): { tone: 'ok' | 'error'; key: s
   return { tone: 'error', key: `live.command.result.${outcome.result}` }
 }
 
-async function run(command: RoomCommand, confirmation?: ConfirmOptions) {
+async function run(command: PanelRoomCommand) {
+  // `aria-disabled` ne bloque pas le clic : la garde est ici.
   if (busy.value) {
     return
   }
@@ -158,10 +165,6 @@ async function run(command: RoomCommand, confirmation?: ConfirmOptions) {
   feedback.value = null
 
   try {
-    if (confirmation && !(await confirm(confirmation))) {
-      return
-    }
-
     feedback.value = toFeedback(await props.send(props.room.roomId, command))
   } finally {
     busy.value = false
@@ -172,23 +175,6 @@ function skip(): Promise<void> {
   const target = skipTarget.value
 
   return target ? run({ command: 'skip', ...target }) : Promise.resolve()
-}
-
-function abort(): Promise<void> {
-  const { gameId } = props.status
-
-  return gameId === null
-    ? Promise.resolve()
-    : run(
-        { command: 'abort', gameId },
-        {
-          title: t('live.command.abortTitle'),
-          message: t('live.command.abortConfirm'),
-          confirmLabel: t('live.command.abort'),
-          cancelLabel: t('confirm.cancel'),
-          variant: 'danger',
-        }
-      )
 }
 </script>
 
@@ -232,6 +218,10 @@ function abort(): Promise<void> {
   width: 7px;
   height: 7px;
   border-radius: 50%;
+  background: var(--text-3);
+}
+
+.game-live-controls__feedback[data-tone='ok'] .game-live-controls__dot {
   background: var(--ok);
 }
 

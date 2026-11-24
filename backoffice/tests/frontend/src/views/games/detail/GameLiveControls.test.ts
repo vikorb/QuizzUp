@@ -1,4 +1,3 @@
-import { confirmMock, setConfirmResult } from '@frontend-tests/_helpers/confirmMock'
 import { createDeferred, createRoomLive } from '@frontend-tests/_helpers/liveMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
@@ -57,31 +56,42 @@ function mountControls(
   return { wrapper, send }
 }
 
-const button = (wrapper: VueWrapper, name: 'toggle-pause' | 'skip' | 'abort') =>
+type ButtonName = 'toggle-pause' | 'skip'
+
+const button = (wrapper: VueWrapper, name: ButtonName) =>
   wrapper.get(`[data-test="game-live-${name}"]`)
-const isDisabled = (wrapper: VueWrapper, name: 'toggle-pause' | 'skip' | 'abort') =>
+const isDisabled = (wrapper: VueWrapper, name: ButtonName) =>
   button(wrapper, name).attributes('disabled') !== undefined
+/** Attente d'une commande : le bouton garde le focus clavier mais refuse le clic. */
+const isWaiting = (wrapper: VueWrapper, name: ButtonName) =>
+  button(wrapper, name).attributes('aria-disabled') === 'true'
 const reason = (wrapper: VueWrapper) => wrapper.find('[data-test="game-live-controls-reason"]')
 const feedback = (wrapper: VueWrapper) => wrapper.find('[data-test="game-live-command-feedback"]')
+const liveRegion = (wrapper: VueWrapper) => wrapper.get('[aria-live="polite"]')
 
-/** Laisse les promesses du clic (confirmation, envoi) se résoudre. */
+/** Laisse les promesses du clic (envoi) se résoudre. */
 const flush = async (): Promise<void> => {
   await nextTick()
   await new Promise((resolve) => setTimeout(resolve, 0))
 }
 
 describe('views/games/detail/GameLiveControls.vue', () => {
-  it('offers the three commands, all enabled and without reason, on a question in progress', () => {
+  it('offers pause and skip, enabled and without reason, on a question in progress', () => {
     const { wrapper } = mountControls()
 
     expect(button(wrapper, 'toggle-pause').text()).toBe('live.command.pause')
     expect(button(wrapper, 'skip').text()).toBe('live.command.skip')
-    expect(button(wrapper, 'abort').text()).toBe('live.command.abort')
     expect(isDisabled(wrapper, 'toggle-pause')).toBe(false)
     expect(isDisabled(wrapper, 'skip')).toBe(false)
-    expect(isDisabled(wrapper, 'abort')).toBe(false)
     expect(reason(wrapper).exists()).toBe(false)
     expect(feedback(wrapper).exists()).toBe(false)
+  })
+
+  it('offers no way to stop the game: the header button of the sheet does it', () => {
+    const { wrapper } = mountControls()
+
+    expect(wrapper.findAll('button')).toHaveLength(2)
+    expect(wrapper.find('[data-test="game-live-abort"]').exists()).toBe(false)
   })
 
   it('sends « pause » to the room of the panel', async () => {
@@ -114,39 +124,7 @@ describe('views/games/detail/GameLiveControls.vue', () => {
     expect(send).toHaveBeenCalledWith(ROOM_ID, { command: 'skip', round: 3, questionIndex: 7 })
   })
 
-  it('asks for confirmation before « abort », then sends it with the game id', async () => {
-    const { wrapper, send } = mountControls()
-
-    await button(wrapper, 'abort').trigger('click')
-    await flush()
-
-    expect(confirmMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        variant: 'danger',
-        title: 'live.command.abortTitle',
-        message: 'live.command.abortConfirm',
-      })
-    )
-    expect(send).toHaveBeenCalledWith(ROOM_ID, { command: 'abort', gameId: GAME_ID })
-  })
-
-  it('sends nothing when the confirmation of « abort » is cancelled', async () => {
-    setConfirmResult(false)
-
-    const { wrapper, send } = mountControls()
-
-    await button(wrapper, 'abort').trigger('click')
-    await flush()
-
-    expect(confirmMock).toHaveBeenCalledTimes(1)
-    expect(send).not.toHaveBeenCalled()
-    expect(feedback(wrapper).exists()).toBe(false)
-    // La confirmation refusée libère les boutons.
-    expect(isDisabled(wrapper, 'toggle-pause')).toBe(false)
-  })
-
   it.each([
-    ['the live stream is not open', { uncertain: true }, 'live.command.disabled.stream'],
     ['the room is offline', { controllable: false }, 'live.command.disabled.offline'],
     [
       'the room screen is not the game',
@@ -162,29 +140,47 @@ describe('views/games/detail/GameLiveControls.vue', () => {
 
     expect(isDisabled(wrapper, 'toggle-pause')).toBe(true)
     expect(isDisabled(wrapper, 'skip')).toBe(true)
-    expect(isDisabled(wrapper, 'abort')).toBe(true)
     expect(reason(wrapper).text()).toBe(key)
 
-    await button(wrapper, 'abort').trigger('click')
+    const id = reason(wrapper).attributes('id')
+
+    expect(id).toBeTruthy()
+    expect(button(wrapper, 'toggle-pause').attributes('aria-describedby')).toBe(id)
+    expect(button(wrapper, 'skip').attributes('aria-describedby')).toBe(id)
+
+    await button(wrapper, 'toggle-pause').trigger('click')
     await flush()
 
     expect(send).not.toHaveBeenCalled()
-    expect(confirmMock).not.toHaveBeenCalled()
   })
 
-  it('keeps the stream reason first when the room is also offline', () => {
-    const { wrapper } = mountControls({ uncertain: true, controllable: false })
+  it.each([{}, { controllable: false }])(
+    'disables everything when the stream is cut, without repeating the connection note (%o)',
+    async (props) => {
+      const { wrapper, send } = mountControls({ uncertain: true, ...props })
 
-    expect(reason(wrapper).text()).toBe('live.command.disabled.stream')
-  })
+      expect(isDisabled(wrapper, 'toggle-pause')).toBe(true)
+      expect(isDisabled(wrapper, 'skip')).toBe(true)
+      expect(reason(wrapper).exists()).toBe(false)
+      expect(button(wrapper, 'toggle-pause').attributes('aria-describedby')).toBeUndefined()
+      expect(button(wrapper, 'skip').attributes('aria-describedby')).toBeUndefined()
+
+      await button(wrapper, 'skip').trigger('click')
+
+      expect(send).not.toHaveBeenCalled()
+    }
+  )
 
   it('disables only « skip » during the pause, and says why', () => {
     const { wrapper } = mountControls({ status: { paused: true } })
 
     expect(isDisabled(wrapper, 'skip')).toBe(true)
     expect(isDisabled(wrapper, 'toggle-pause')).toBe(false)
-    expect(isDisabled(wrapper, 'abort')).toBe(false)
     expect(reason(wrapper).text()).toBe('live.command.disabled.skipPaused')
+    expect(button(wrapper, 'skip').attributes('aria-describedby')).toBe(
+      reason(wrapper).attributes('id')
+    )
+    expect(button(wrapper, 'toggle-pause').attributes('aria-describedby')).toBeUndefined()
   })
 
   it.each(['reveal', 'round_intro', 'theme_choice', 'round_summary'] as const)(
@@ -194,7 +190,6 @@ describe('views/games/detail/GameLiveControls.vue', () => {
 
       expect(isDisabled(wrapper, 'skip')).toBe(true)
       expect(isDisabled(wrapper, 'toggle-pause')).toBe(false)
-      expect(isDisabled(wrapper, 'abort')).toBe(false)
       expect(reason(wrapper).text()).toBe('live.command.disabled.skipPhase')
     }
   )
@@ -205,7 +200,7 @@ describe('views/games/detail/GameLiveControls.vue', () => {
     expect(isDisabled(wrapper, 'skip')).toBe(true)
   })
 
-  it('sends one command at a time: a second click is ignored and all buttons wait', async () => {
+  it('sends one command at a time: a second click is ignored and the wait is told', async () => {
     const gate = createDeferred<RoomCommandOutcome>()
     const send = vi.fn((_roomId: number, _command: unknown) => gate.promise)
     const { wrapper } = mountControls({ send })
@@ -215,24 +210,61 @@ describe('views/games/detail/GameLiveControls.vue', () => {
     await button(wrapper, 'skip').trigger('click')
 
     expect(send).toHaveBeenCalledTimes(1)
-    expect(isDisabled(wrapper, 'toggle-pause')).toBe(true)
-    expect(isDisabled(wrapper, 'skip')).toBe(true)
-    expect(isDisabled(wrapper, 'abort')).toBe(true)
+    // `aria-disabled` et non `disabled` : le bouton cliqué ne perd pas le focus clavier.
+    expect(isWaiting(wrapper, 'toggle-pause')).toBe(true)
+    expect(isWaiting(wrapper, 'skip')).toBe(true)
+    expect(isDisabled(wrapper, 'toggle-pause')).toBe(false)
+    expect(feedback(wrapper).text()).toBe('live.command.pending')
 
     gate.resolve({ result: 'applied' })
     await flush()
 
-    expect(isDisabled(wrapper, 'toggle-pause')).toBe(false)
+    expect(isWaiting(wrapper, 'toggle-pause')).toBe(false)
     expect(feedback(wrapper).text()).toBe('live.command.result.applied')
   })
 
-  it('shows the success, politely announced', async () => {
+  it('keeps one polite live region in the page, whatever the content', async () => {
+    const { wrapper } = mountControls({ send: createSend({ result: 'refused' }) })
+    const region = liveRegion(wrapper).element
+
+    expect(feedback(wrapper).exists()).toBe(false)
+
+    await button(wrapper, 'toggle-pause').trigger('click')
+    await flush()
+
+    expect(liveRegion(wrapper).element).toBe(region)
+    expect(region.contains(feedback(wrapper).element)).toBe(true)
+  })
+
+  it('clears the last feedback when the phase of the game changes', async () => {
     const { wrapper } = mountControls()
 
     await button(wrapper, 'toggle-pause').trigger('click')
     await flush()
 
-    expect(feedback(wrapper).attributes('role')).toBe('status')
+    expect(feedback(wrapper).exists()).toBe(true)
+
+    await wrapper.setProps({ status: createStatus({ phase: 'reveal' }) })
+
+    expect(feedback(wrapper).exists()).toBe(false)
+  })
+
+  it('keeps the last feedback when the status changes but the phase does not', async () => {
+    const { wrapper } = mountControls()
+
+    await button(wrapper, 'toggle-pause').trigger('click')
+    await flush()
+    await wrapper.setProps({ status: createStatus({ paused: true }) })
+
+    expect(feedback(wrapper).exists()).toBe(true)
+  })
+
+  it('shows the success', async () => {
+    const { wrapper } = mountControls()
+
+    await button(wrapper, 'toggle-pause').trigger('click')
+    await flush()
+
     expect(feedback(wrapper).attributes('data-tone')).toBe('ok')
     expect(feedback(wrapper).text()).toBe('live.command.result.applied')
   })
@@ -247,7 +279,6 @@ describe('views/games/detail/GameLiveControls.vue', () => {
       await button(wrapper, 'toggle-pause').trigger('click')
       await flush()
 
-      expect(feedback(wrapper).attributes('role')).toBe('alert')
       expect(feedback(wrapper).attributes('data-tone')).toBe('error')
       expect(feedback(wrapper).text()).toBe(`live.command.refusal.${refusal}`)
     }
@@ -268,7 +299,7 @@ describe('views/games/detail/GameLiveControls.vue', () => {
     await button(wrapper, 'toggle-pause').trigger('click')
     await flush()
 
-    expect(feedback(wrapper).attributes('role')).toBe('alert')
+    expect(feedback(wrapper).attributes('data-tone')).toBe('error')
     expect(feedback(wrapper).text()).toBe('live.command.result.expired')
   })
 
@@ -280,11 +311,11 @@ describe('views/games/detail/GameLiveControls.vue', () => {
     await flush()
 
     expect(feedback(wrapper).text()).toBe('live.command.error.room_not_controllable')
-    expect(feedback(wrapper).attributes('role')).toBe('alert')
+    expect(feedback(wrapper).attributes('data-tone')).toBe('error')
 
     send.mockImplementationOnce(() => new Promise(() => undefined))
     await button(wrapper, 'toggle-pause').trigger('click')
 
-    expect(feedback(wrapper).exists()).toBe(false)
+    expect(feedback(wrapper).text()).toBe('live.command.pending')
   })
 })

@@ -43,18 +43,14 @@
       "pause": "Pause",
       "resume": "Reprendre",
       "skip": "Passer la question",
-      "abort": "Arrêter la partie",
-      "abortTitle": "Arrêter la partie ?",
-      "abortConfirm": "La partie s'arrête tout de suite sur l'écran de la salle. Cette action est définitive.",
+      "pending": "Commande envoyée, en attente de la salle…",
       "error": {
         "room_not_controllable": "La salle est hors ligne ou son écran n'est pas connecté : la commande n'a pas été envoyée.",
-        "too_many_requests": "Trop de commandes en cours pour cette salle. Réessaie dans quelques secondes.",
-        "command_unknown": "Cette commande n'existe plus ou a déjà reçu sa réponse.",
-        "command_id_conflict": "Cette commande a déjà été envoyée avec un autre contenu. Recommence.",
+        "too_many_requests": "Trop de commandes en cours pour cette salle. Réessayez dans quelques secondes.",
+        "command_id_conflict": "Cette commande a déjà été envoyée avec un autre contenu. Recommencez.",
         "forbidden": "Vous n'avez pas le droit de piloter cette salle.",
         "unauthorized": "Votre session a expiré : reconnectez-vous.",
         "room_not_found": "Cette salle n'existe plus.",
-        "api_unreachable": "Le serveur est injoignable : la commande n'a pas été envoyée.",
         "server_error": "Erreur serveur : la commande n'a pas été envoyée."
       },
       "result": {

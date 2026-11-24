@@ -18,12 +18,12 @@ import {
   LIVE_HEARTBEAT_MS,
   ROOM_COMMAND_TIMEOUT_MS,
   ROOM_PRESENCE,
-  type RoomCommand,
 } from '@quizzup/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { type EffectScope, effectScope, ref } from 'vue'
 
 import type * as UseLiveCompanyModule from '@/composables/useLiveCompany'
+import type { PanelRoomCommand } from '@/composables/useLiveCompany'
 
 // Contourne le mock global (registerFrontendMocks) pour tester le vrai composable.
 const { useLiveCompany } = await vi.importActual<typeof UseLiveCompanyModule>(
@@ -714,11 +714,10 @@ describe('composables/useLiveCompany', () => {
     const sentId = (index: number) =>
       (JSON.parse((fetchCall(index) as PostOptions).body) as { commandId: string }).commandId
 
-    it.each<RoomCommand>([
+    it.each<PanelRoomCommand>([
       { command: 'pause' },
       { command: 'resume' },
       { command: 'skip', round: 2, questionIndex: 3 },
-      { command: 'abort', gameId: 4 },
     ])('posts « $command » with a fresh uuid and only its own fields', async (command) => {
       const { stream, live } = await openStream()
 
@@ -864,6 +863,10 @@ describe('composables/useLiveCompany', () => {
       [429, 'too_many_requests', 'too_many_requests'],
       [403, 'forbidden', 'forbidden'],
       [401, 'unauthorized', 'unauthorized'],
+      [401, 'session_expired_inactive', 'unauthorized'],
+      [401, 'session_invalid', 'unauthorized'],
+      [403, 'account_inactive', 'forbidden'],
+      [429, 'rate_limited', 'too_many_requests'],
       [404, 'room_not_found', 'room_not_found'],
       [404, 'something_else', 'room_not_found'],
       [500, 'boom', 'server_error'],
@@ -893,15 +896,149 @@ describe('composables/useLiveCompany', () => {
       })
     })
 
-    it('answers api_unreachable when the server cannot be reached', async () => {
+    it('asks /me to confirm the session after a 401, like the rest of the application', async () => {
       const { live } = await openStream()
 
+      apiFetchMock.mockResolvedValueOnce(jsonErrorResponse(401, 'session_expired_inactive'))
+      refreshMeMock.mockClear()
+
+      await live.sendCommand(10, { command: 'pause' })
+
+      expect(refreshMeMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not ask /me after another error', async () => {
+      const { live } = await openStream()
+
+      apiFetchMock.mockResolvedValueOnce(jsonErrorResponse(403, 'forbidden'))
+      refreshMeMock.mockClear()
+
+      await live.sendCommand(10, { command: 'pause' })
+
+      expect(refreshMeMock).not.toHaveBeenCalled()
+    })
+
+    it('sends the same request again, same identifier, when the answer is lost', async () => {
+      const { stream, live } = await openStream()
+
+      apiFetchMock
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(new Response('{}', { status: 202 }))
+
+      const outcome = live.sendCommand(10, { command: 'pause' })
+
+      await settle()
+
+      expect(apiFetchMock).toHaveBeenCalledTimes(3)
+      expect(sentId(2)).toBe(sentId(1))
+      expect((fetchCall(2) as PostOptions).body).toBe((fetchCall(1) as PostOptions).body)
+
+      stream.push(resultEvent(sentId(1), { result: 'applied' }))
+
+      await expect(outcome).resolves.toEqual({ result: 'applied' })
+    })
+
+    it('does not send twice when the answer is lost after the room already answered', async () => {
+      const { stream, live } = await openStream()
+      const gate = createDeferred<Response | null>()
+
+      apiFetchMock.mockReturnValueOnce(gate.promise)
+
+      const outcome = live.sendCommand(10, { command: 'pause' })
+
+      await settle()
+      stream.push(resultEvent(sentId(1), { result: 'applied' }))
+      await expect(outcome).resolves.toEqual({ result: 'applied' })
+
+      gate.resolve(null)
+      await settle()
+
+      expect(apiFetchMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('gives the error of the second attempt when the server answers it with one', async () => {
+      const { live } = await openStream()
+
+      apiFetchMock
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(jsonErrorResponse(409, 'command_id_conflict'))
+
+      await expect(live.sendCommand(10, { command: 'pause' })).resolves.toEqual({
+        result: 'error',
+        code: 'command_id_conflict',
+      })
+    })
+
+    it('keeps waiting after two lost answers, and takes the result sent by the stream', async () => {
+      const { stream, live } = await openStream()
+      let done = false
+
+      apiFetchMock.mockResolvedValueOnce(null).mockResolvedValueOnce(null)
+
+      const outcome = live.sendCommand(10, { command: 'pause' }).then((value) => {
+        done = true
+
+        return value
+      })
+
+      await settle()
+
+      expect(apiFetchMock).toHaveBeenCalledTimes(3)
+      expect(done).toBe(false)
+
+      stream.push(resultEvent(sentId(1), { result: 'applied' }))
+
+      await expect(outcome).resolves.toEqual({ result: 'applied' })
+    })
+
+    it('concludes expired at the local delay after two lost answers', async () => {
+      const { live } = await openStream()
+      let done = false
+
+      apiFetchMock.mockResolvedValueOnce(null).mockResolvedValueOnce(null)
+
+      const outcome = live.sendCommand(10, { command: 'pause' }).then((value) => {
+        done = true
+
+        return value
+      })
+
+      await vi.advanceTimersByTimeAsync(ROOM_COMMAND_TIMEOUT_MS)
+      expect(done).toBe(false)
+
+      await vi.advanceTimersByTimeAsync(2_000)
+
+      await expect(outcome).resolves.toEqual({ result: 'expired' })
+    })
+
+    it('answers unauthorized, without a second attempt, when there is no token', async () => {
+      const { live } = await openStream()
+
+      tokenMock.value = null
       apiFetchMock.mockResolvedValueOnce(null)
 
       await expect(live.sendCommand(10, { command: 'pause' })).resolves.toEqual({
         result: 'error',
-        code: 'api_unreachable',
+        code: 'unauthorized',
       })
+      expect(apiFetchMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('answers server_error instead of rejecting when randomUUID is not available', async () => {
+      const { live } = await openStream()
+      const randomUUID = vi.spyOn(crypto, 'randomUUID').mockImplementation(() => {
+        throw new TypeError('crypto.randomUUID is not a function')
+      })
+
+      try {
+        await expect(live.sendCommand(10, { command: 'pause' })).resolves.toEqual({
+          result: 'error',
+          code: 'server_error',
+        })
+        expect(apiFetchMock).toHaveBeenCalledTimes(1)
+      } finally {
+        randomUUID.mockRestore()
+      }
     })
 
     it('sends nothing without a company', async () => {

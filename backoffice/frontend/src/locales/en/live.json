@@ -43,18 +43,14 @@
       "pause": "Pause",
       "resume": "Resume",
       "skip": "Skip question",
-      "abort": "Stop the game",
-      "abortTitle": "Stop the game?",
-      "abortConfirm": "The game stops right away on the room screen. This cannot be undone.",
+      "pending": "Command sent, waiting for the room…",
       "error": {
         "room_not_controllable": "The room is offline or its screen is not connected: the command was not sent.",
         "too_many_requests": "Too many commands in progress for this room. Try again in a few seconds.",
-        "command_unknown": "This command no longer exists or has already been answered.",
         "command_id_conflict": "This command was already sent with different content. Start again.",
         "forbidden": "You are not allowed to control this room.",
         "unauthorized": "Your session has expired: sign in again.",
         "room_not_found": "This room no longer exists.",
-        "api_unreachable": "The server is unreachable: the command was not sent.",
         "server_error": "Server error: the command was not sent."
       },
       "result": {
