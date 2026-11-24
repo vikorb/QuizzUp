@@ -15,6 +15,15 @@ Format inspiré de Keep a Changelog.
   US: US-SHOW-01 (#145)
 - Matériel, configuration de salle : export et import (`exportRoomConfig`, `parseRoomConfigImport`), avec un garde-fou fumée (`withoutSmokeEscalation`). Un import ou le JSON de la configuration avancée ne peut jamais rendre la fumée plus permissive que celle de la salle : ni l'activer, ni dispenser du relais, ni allonger un jet, ni rapprocher deux jets, ni retirer la confirmation. Un fichier invalide, trop gros ou d'une version plus récente est refusé avec une raison lisible. Les boutons Exporter et Importer viendront avec le lot suivant.
   US: US-SHOW-01 (#145)
+- Accueil des joueurs dans le backoffice : sur la fiche d'une partie en attente, un panneau « Accueil » ouvre ou ferme le lien d'inscription, l'affiche avec son QR code (plein écran possible), liste les demandes et permet de les valider sur un pupitre ou de les refuser. La création d'une partie peut ouvrir l'accueil d'emblée et mène alors à la fiche.
+  US: US-JOIN-01 (#166)
+
+- Accueil des joueurs, page du téléphone : `/rejoindre/` (lien ou QR code d'une partie en attente) où le joueur saisit son nom, un second joueur et, s'il le veut, son e-mail avec ses accords. Routes publiques `POST /public/v1/join/lookup` et `POST /public/v1/join/registrations` : le jeton voyage dans le corps, jamais dans l'adresse ; 404 `join_link_invalid`, 410 `join_link_closed`, 409 `join_full` au-delà de 12 demandes en attente, 30 inscriptions par minute et par adresse.
+  US: US-JOIN-01 (#166)
+
+- Joueurs d'une compagnie (API) : `GET /companies/:companyId/players` (liste paginée, recherche par nom, e-mail masqué pour le rôle `user`), `GET …/players/export.csv` (joueurs ayant accepté les offres, cellules protégées contre les formules), `POST …/players/unsubscribe` (retire le consentement aux offres, réponse identique que l'adresse soit connue ou non) et `POST …/players/erase` (efface l'e-mail, les consentements et le nom sur chaque pupitre, supprime les demandes d'inscription en attente ; scores conservés). Export, désinscription et effacement réservés aux admins.
+  US: US-PLAYERS-01 (#157)
+
 - Fumée par la carte USB, lien série (`game/hardware`, rien n'est encore branché à l'écran de salle) : lecture et écriture du protocole de la carte (bannière `QZF READY`, lignes d'état, ordres `F`, `0`, `H`) et lien Web Serial qui n'envoie jamais `F` sans bannière valide, ne renouvelle jamais `F` de lui-même, borne les `F` à un toutes les 100 ms, n'en envoie qu'en phase prête ou en jet (jamais pendant la pause de la carte, dont les 5 s qui suivent sa remise à zéro ; la phase lue est exposée), et signale une carte absente, muette, débranchée ou qui contredit nos ordres. Une carte plus permissive que les limites du projet est refusée. Fausse carte pour les tests.
 - Installation d'un programme sur une carte Arduino Uno depuis le navigateur (bibliothèque `game/hardware`, pas encore d'écran) : lecture et écriture de fichiers Intel HEX, client du chargeur Optiboot par Web Serial (protocole STK500v1, 115200 puis 57600 bauds), sauvegarde de la flash relue avant toute écriture, écriture par pages suivie d'une relecture complète, restauration d'un `.hex`, erreurs nommées (`no_sync`, `wrong_signature`, `too_large`, `verify_failed`, `port_lost`, `port_busy`, `backup_failed`, `timeout`, `cancelled`). Testé contre un émulateur d'Optiboot ; rien n'a été essayé sur une vraie carte.
 - Bons dans le backoffice : panneau « Bons » sur la fiche d'une partie terminée (émettre le bon d'un pupitre, l'annuler), page « Bons » (recherche d'un code, utilisation, liste filtrable et paginée, annulation réservée aux admins), réglages du centre (libellé du bon, durée de validité) et un bloc par bon valable sur la feuille de résultats imprimable, avec son QR code quand le serveur le fournit.
@@ -432,6 +441,9 @@ Format inspiré de Keep a Changelog.
   US: us-front-design-01
 
 ### Fixed
+
+- Relais PowerShell des lumières, tests : les attentes d'une trame ou d'un paquet attendu ne coupent plus à 2 s. Sur le runner Windows de la CI, une pause ponctuelle faisait échouer « lit les origines dans QUIZZUP_BRIDGE_ORIGINS et répond 426 hors WebSocket ». Le délai (20 s) ne sert plus qu'à détecter un blocage.
+  US: US-SHOW-01 (#203)
 
 - Vitrine : le formulaire de démonstration envoie ses champs sous les noms attendus par `POST /public/v1/demo-requests` (`centerName`, `roomsCount`), respecte les bornes du serveur (50 salles, centre sur 160 caractères, message facultatif) et signale sous chaque champ ceux que le serveur refuse.
   US: US-SITE-01 (#133)
