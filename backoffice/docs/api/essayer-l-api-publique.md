@@ -50,7 +50,7 @@ curl -s -X POST "$API/companies/1/api-keys" \
 ```
 
 La réponse porte `secret` : c'est la clé, au format `qzk_<8 caractères>_<secret>`. Copiez-la tout
-de suite, elle ne sera plus affichée. Dans la suite, `<votre-cle>` désigne cette valeur, par exemple :
+de suite, elle ne sera plus affichée. Dans la suite, la variable `KEY` porte cette valeur, par exemple :
 
 ```bash
 KEY=qzk_00000000_exemple-fictif-a-remplacer-par-votre-cle
@@ -99,7 +99,8 @@ Les clés de `days` vont de `"1"` (lundi) à `"7"` (dimanche). Sans clé valide 
 
 `room` est l'identifiant de la salle, `date` un jour local de la salle (`AAAA-MM-JJ`), à partir de
 la veille et dans l'année qui vient. Prenez une date future : les créneaux passés ne sont pas
-proposés.
+proposés. La date de l'exemple est à remplacer : hors de cette période, l'appel répond
+`422 date_out_of_range`.
 
 ```bash
 curl -s "$API/public/v1/availability?room=1&date=2027-03-10" \
@@ -188,6 +189,8 @@ Essayez ensuite :
 
 ## 6. Lire, modifier, annuler
 
+Remplacez `128` par l'`id` reçu à la création de la réservation.
+
 ```bash
 # Lire (404 booking_not_found si l'identifiant n'est pas une réservation de votre compagnie)
 curl -s "$API/public/v1/bookings/128" -H "Authorization: Bearer $KEY"
@@ -208,8 +211,7 @@ backoffice (compte `demo-admin`), à l'heure de la salle.
 
 ## Aller plus loin
 
-- Contrat complet : [`public-v1.yaml`](public-v1.yaml), servi aussi sans clé par
-  `GET /public/v1/openapi.yaml`.
+- Contrat complet : [`public-v1.yaml`](public-v1.yaml).
 - Limite de débit : 120 requêtes par minute et par clé ; au-delà, `429 too_many_requests` avec
   `Retry-After`.
 - Une clé se révoque par `DELETE $API/companies/<company_id>/api-keys/<id-de-la-clé>` (avec le
