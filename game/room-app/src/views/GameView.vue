@@ -65,7 +65,7 @@
 
     <div class="game__body">
       <div class="game__stage">
-        <Transition name="phase" mode="out-in" :css="!prefersReducedMotion()">
+        <Transition name="phase" :css="!reduced" @leave="leaveNow">
           <RoundIntroScreen
             v-if="phase.name === 'round_intro' && round"
             :position="round.position"
@@ -186,7 +186,7 @@ import {
 import { useRoomHardware } from '@/hardware/roomHardware'
 import { useBuzzers } from '@/hardware/useBuzzers'
 import { useEmergencyStop } from '@/hardware/useEmergencyStop'
-import { prefersReducedMotion } from '@/utils/reducedMotion'
+import { useReducedMotion } from '@/utils/reducedMotion'
 import AnswerAllScreen from '@/views/game/AnswerAllScreen.vue'
 import BetScreen from '@/views/game/BetScreen.vue'
 import BlindTestScreen from '@/views/game/BlindTestScreen.vue'
@@ -206,6 +206,12 @@ const { hardware, lighting } = useRoomHardware()
 const hasFixtures = computed(() => hardware.value.fixtures.length > 0)
 const emergency = useEmergencyStop()
 const emergencyActive = emergency.active
+const reduced = useReducedMotion()
+
+/** Sortie instantanée : l'écran suivant ne doit pas attendre, le moteur compte déjà le temps. */
+function leaveNow(_el: Element, done: () => void): void {
+  done()
+}
 
 const phase = computed(() => state.value?.phase ?? { name: 'lobby' as const })
 const round = computed(() => (state.value ? getCurrentRound(state.value) : undefined))
@@ -378,9 +384,8 @@ async function onHome(): Promise<void> {
   overflow-y: auto;
 }
 
-/* Changement de phase : fondu et glissé (opacity et transform seulement). */
-.phase-enter-active,
-.phase-leave-active {
+/* Changement de phase : l'écran entrant apparaît en fondu et glissé (opacity et transform). */
+.phase-enter-active {
   transition:
     opacity 0.2s ease,
     transform 0.2s ease;
@@ -389,18 +394,6 @@ async function onHome(): Promise<void> {
 .phase-enter-from {
   opacity: 0;
   transform: translateY(16px);
-}
-
-.phase-leave-to {
-  opacity: 0;
-  transform: translateY(-16px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .phase-enter-active,
-  .phase-leave-active {
-    transition: none;
-  }
 }
 
 .game__body {

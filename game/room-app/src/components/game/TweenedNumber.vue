@@ -7,9 +7,9 @@ import { useTweenedNumber } from '@/composables/useTweenedNumber'
 
 const props = defineProps<{
   value: number
-  /** Monte depuis 0 à l'apparition (podium) au lieu de s'afficher d'emblée à la valeur. */
-  fromZero?: boolean
+  /** Monte depuis cette valeur à l'apparition au lieu de s'afficher d'emblée à la valeur. */
+  from?: number
 }>()
 
-const shown = useTweenedNumber(() => props.value, props.fromZero ? { from: 0 } : {})
+const shown = useTweenedNumber(() => props.value, { from: props.from })
 </script>

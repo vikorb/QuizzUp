@@ -49,17 +49,23 @@ describe('useTweenedNumber', () => {
     expect(frames.pending).toBe(0)
   })
 
-  it('annule l’image en cours quand la cible change en route', async () => {
+  it('annule l’image en cours quand la cible change en route, puis affiche la valeur finale', async () => {
     const wrapper = mount(Harness, { props: { value: 0 } })
     await wrapper.setProps({ value: 100 })
     frames.tick(0)
     frames.tick(200)
     await wrapper.vm.$nextTick()
+    expect(Number(wrapper.text())).toBeGreaterThan(0)
 
     await wrapper.setProps({ value: 0 })
 
     expect(frames.cancel).toHaveBeenCalledTimes(1)
     expect(frames.pending).toBe(1)
+    frames.tick(1000)
+    frames.tick(1400)
+    await wrapper.vm.$nextTick()
+    expect(wrapper.text()).toBe('0')
+    expect(frames.pending).toBe(0)
   })
 
   it('annule la dernière image demandée au démontage', async () => {

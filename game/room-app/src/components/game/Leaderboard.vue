@@ -1,5 +1,5 @@
 <template>
-  <TransitionGroup tag="ol" name="board" class="board">
+  <ol class="board">
     <li
       v-for="line in lines"
       :key="line.participantId"
@@ -13,12 +13,12 @@
         +{{ line.roundPoints }}
       </span>
       <span class="board__score">
-        <TweenedNumber v-slot="{ n }" :value="line.score" from-zero>
+        <TweenedNumber v-slot="{ n }" :value="line.score" :from="startScore(line)">
           {{ $t('game.points', { n }) }}
         </TweenedNumber>
       </span>
     </li>
-  </TransitionGroup>
+  </ol>
 </template>
 
 <script setup lang="ts">
@@ -26,7 +26,12 @@ import DeskBadge from '@/components/game/DeskBadge.vue'
 import TweenedNumber from '@/components/game/TweenedNumber.vue'
 import type { LeaderboardLine } from '@/game/selectors'
 
-defineProps<{ lines: LeaderboardLine[]; showRoundPoints?: boolean }>()
+const props = defineProps<{ lines: LeaderboardLine[]; showRoundPoints?: boolean }>()
+
+/** Bilan de manche : la montée repart du score d'avant la manche. Podium : de zéro. */
+function startScore(line: LeaderboardLine): number {
+  return props.showRoundPoints ? line.score - line.roundPoints : 0
+}
 </script>
 
 <style scoped>
@@ -48,13 +53,8 @@ defineProps<{ lines: LeaderboardLine[]; showRoundPoints?: boolean }>()
   border-radius: 18px;
   border: 1px solid var(--border-ui);
   background: linear-gradient(180deg, var(--bg-card-hi), var(--bg-card));
-  /* `backwards` : une fois jouée, l'animation ne fige pas `transform` (le reclassement le déplace). */
+  /* `backwards` : la ligne reste cachée pendant son décalage de départ. */
   animation: slide-in 0.5s ease backwards;
-}
-
-/* Reclassement : les lignes glissent à leur nouvelle place (transform seulement). */
-.board-move {
-  transition: transform 0.4s ease;
 }
 
 .board__line:nth-child(2) {
@@ -106,12 +106,6 @@ defineProps<{ lines: LeaderboardLine[]; showRoundPoints?: boolean }>()
   font-size: var(--stage-text);
   font-weight: 900;
   font-variant-numeric: tabular-nums;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .board-move {
-    transition: none;
-  }
 }
 
 @keyframes slide-in {

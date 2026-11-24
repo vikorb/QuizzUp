@@ -7,21 +7,24 @@ import { createAppI18n } from '@/plugins/i18n'
 
 import { installFakeAnimationFrames, stubReducedMotion } from '../_helpers/animation'
 
-const line = (id: number, score: number, rank = id): LeaderboardLine => ({
+const line = (id: number, score: number, rank = id, roundPoints = 0): LeaderboardLine => ({
   participantId: id,
   podium: id,
   displayName: `Joueur ${id}`,
   score,
   rank,
-  roundPoints: 0,
+  roundPoints,
 })
 
 function mountScoreBoard(lines: LeaderboardLine[]) {
   return mount(ScoreBoard, { props: { lines }, global: { plugins: [createAppI18n()] } })
 }
 
-function mountLeaderboard(lines: LeaderboardLine[]) {
-  return mount(Leaderboard, { props: { lines }, global: { plugins: [createAppI18n()] } })
+function mountLeaderboard(lines: LeaderboardLine[], showRoundPoints = false) {
+  return mount(Leaderboard, {
+    props: { lines, showRoundPoints },
+    global: { plugins: [createAppI18n()] },
+  })
 }
 
 describe('scores animés', () => {
@@ -80,6 +83,29 @@ describe('scores animés', () => {
     frames.tick(400)
     await wrapper.vm.$nextTick()
 
+    expect(wrapper.findAll('.board__score').map((node) => node.text())).toEqual([
+      '300 pts',
+      '100 pts',
+    ])
+    expect(frames.pending).toBe(0)
+  })
+
+  it('bilan de manche : les points montent depuis le score d’avant la manche', async () => {
+    const wrapper = mountLeaderboard([line(1, 300, 1, 100), line(2, 100, 2, 0)], true)
+    expect(wrapper.findAll('.board__score').map((node) => node.text())).toEqual([
+      '200 pts',
+      '100 pts',
+    ])
+
+    frames.tick(0)
+    frames.tick(200)
+    await wrapper.vm.$nextTick()
+    const middle = Number(wrapper.find('.board__score').text().replace(/\D/g, ''))
+    expect(middle).toBeGreaterThan(200)
+    expect(middle).toBeLessThan(300)
+
+    frames.tick(400)
+    await wrapper.vm.$nextTick()
     expect(wrapper.findAll('.board__score').map((node) => node.text())).toEqual([
       '300 pts',
       '100 pts',

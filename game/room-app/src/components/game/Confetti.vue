@@ -10,9 +10,6 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { prefersReducedMotion } from '@/utils/reducedMotion'
 
 const PARTICLES_COUNT = 150
-const DURATION_MS = 4000
-/** Les confettis s'effacent sur cette fin de course. */
-const FADE_MS = 800
 const GRAVITY_PX_S2 = 900
 const DESK_COLOR_VARS = ['--desk-1', '--desk-2', '--desk-3', '--desk-4', '--desk-5', '--desk-6']
 
@@ -79,20 +76,12 @@ onMounted(() => {
     color: palette[index % palette.length] ?? '',
   }))
 
-  let startedAt: number | null = null
-  let lastTime = 0
+  let lastTime: number | null = null
   const step = (time: number): void => {
-    startedAt ??= time
-    const elapsed = time - startedAt
-    if (elapsed >= DURATION_MS) {
-      stop()
-      return
-    }
-    const seconds = lastTime === 0 ? 0 : (time - lastTime) / 1000
+    const seconds = lastTime === null ? 0 : (time - lastTime) / 1000
     lastTime = time
 
     context.clearRect(0, 0, width, height)
-    context.globalAlpha = Math.min(1, (DURATION_MS - elapsed) / FADE_MS)
     for (const particle of particles) {
       particle.vy += GRAVITY_PX_S2 * seconds
       particle.x += particle.vx * seconds
@@ -104,6 +93,11 @@ onMounted(() => {
       context.fillStyle = particle.color
       context.fillRect(-particle.size / 2, -particle.size / 4, particle.size, particle.size / 2)
       context.restore()
+    }
+    // Fin de l'animation : toutes les particules sont tombées sous le bas de l'écran.
+    if (particles.every((particle) => particle.y - particle.size > height)) {
+      stop()
+      return
     }
     frame = requestAnimationFrame(step)
   }

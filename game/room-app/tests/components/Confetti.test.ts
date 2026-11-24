@@ -54,20 +54,21 @@ describe('Confetti', () => {
     expect(context.fillRect).toHaveBeenCalledTimes(300)
   })
 
-  it('arrête la boucle et retire le canvas après 4 secondes', async () => {
+  it('arrête la boucle et retire le canvas dès que toutes les particules ont quitté l’écran', async () => {
     const wrapper = mount(Confetti, { attachTo: document.body })
     frames.tick(1000)
-    frames.tick(4999)
+    frames.tick(1100)
     expect(canvasInDocument()).not.toBeNull()
     expect(frames.pending).toBe(1)
 
-    frames.tick(5000)
+    // 2 s plus tard, même la particule la plus lente a dépassé le bas de l'écran.
+    frames.tick(3100)
     await wrapper.vm.$nextTick()
 
     expect(canvasInDocument()).toBeNull()
     expect(frames.pending).toBe(0)
     const requests = frames.request.mock.calls.length
-    frames.tick(5016)
+    frames.tick(3116)
     expect(frames.request).toHaveBeenCalledTimes(requests)
   })
 

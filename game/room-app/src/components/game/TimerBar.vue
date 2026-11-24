@@ -26,7 +26,10 @@ const props = withDefaults(
     tone?: 'default' | 'warn' | 'ok'
     /** Temps restant en ms : active l'état `warn` sous 3 s et le `tick` de chaque seconde. */
     remainingMs?: number
-    /** Garde l'état `warn` et la pulsation, mais pas le `tick` (musique en cours). */
+    /**
+     * Garde l'état `warn` et la pulsation, mais pas le `tick` : le blind test est muet de bout en
+     * bout, pour ne couvrir ni l'extrait ni la mesure du silence.
+     */
     silent?: boolean
   }>(),
   { tone: 'default', silent: false }

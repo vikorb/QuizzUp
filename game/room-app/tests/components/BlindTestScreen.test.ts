@@ -2,8 +2,12 @@ import { mount } from '@vue/test-utils'
 
 import TimerBar from '@/components/game/TimerBar.vue'
 import type { BlindTestView } from '@/game/selectors'
+import { createMemorySessionStorage } from '@/game/session'
+import { closeGame, configureRoomGame } from '@/game/useRoomGame'
 import { createAppI18n } from '@/plugins/i18n'
 import BlindTestScreen from '@/views/game/BlindTestScreen.vue'
+
+import { createManualClock } from '../_helpers/fixtures'
 
 function view(overrides: Partial<BlindTestView>): BlindTestView {
   return {
@@ -31,6 +35,9 @@ function view(overrides: Partial<BlindTestView>): BlindTestView {
   }
 }
 
+const answeringView = (answerRemainingMs: number) =>
+  view({ status: 'answering', answeringParticipantId: 1, answerRemainingMs })
+
 function mountScreen(overrides: Partial<BlindTestView>) {
   return mount(BlindTestScreen, {
     props: { view: view(overrides), answering: undefined },
@@ -39,20 +46,42 @@ function mountScreen(overrides: Partial<BlindTestView>) {
 }
 
 describe('BlindTestScreen : barres de temps', () => {
-  it('la barre du palier est silencieuse (la musique joue) mais passe en warn sous 3 s', () => {
-    const bar = mountScreen({ status: 'listening' }).findComponent(TimerBar)
+  const play = vi.fn()
 
-    expect(bar.props('silent')).toBe(true)
-    expect(bar.classes()).toContain('timer--warn')
+  beforeEach(() => {
+    play.mockClear()
+    configureRoomGame({
+      sounds: { play },
+      storage: createMemorySessionStorage(),
+      now: createManualClock().now,
+    })
   })
 
-  it('la barre de la réponse garde son tick', () => {
-    const bar = mountScreen({
+  afterEach(() => closeGame())
+
+  it('la barre du palier passe en warn sous 3 s et ne joue aucun tick (la musique joue)', async () => {
+    const wrapper = mountScreen({ status: 'listening', stageRemainingMs: 3600 })
+
+    for (let ms = 3550; ms >= 0; ms -= 50) {
+      await wrapper.setProps({ view: view({ status: 'listening', stageRemainingMs: ms }) })
+    }
+
+    expect(wrapper.findComponent(TimerBar).classes()).toContain('timer--warn')
+    expect(play).not.toHaveBeenCalled()
+  })
+
+  it('la barre de la réponse est muette aussi : pas de tick qui couvre la mesure du silence', async () => {
+    const wrapper = mountScreen({
       status: 'answering',
       answeringParticipantId: 1,
       answerRemainingMs: 4000,
-    }).findComponent(TimerBar)
+    })
 
-    expect(bar.props('silent')).toBe(false)
+    for (let ms = 3950; ms >= 0; ms -= 50) {
+      await wrapper.setProps({ view: answeringView(ms) })
+    }
+
+    expect(wrapper.findComponent(TimerBar).classes()).toContain('timer--warn')
+    expect(play).not.toHaveBeenCalled()
   })
 })

@@ -52,6 +52,7 @@
         :value="view.answerRemainingMs / FLASH_BLIND_TEST_ANSWER_TIMEOUT_MS"
         :remaining-ms="view.answerRemainingMs"
         tone="warn"
+        silent
       />
       <TimerBar
         v-else
