@@ -43,6 +43,7 @@
       />
 
       <FormField
+        v-if="!kidsMode"
         :id="`game-participant-${participant.key}-email`"
         :model-value="participant.email"
         :label="$t('games.form.email')"
@@ -59,6 +60,7 @@
     </div>
 
     <GameConsentCheckbox
+      v-if="!kidsMode"
       :id="consentId"
       :name="`participants.${index}.emailConsent`"
       :marketing-name="`participants.${index}.marketingConsent`"
@@ -109,6 +111,7 @@
         />
 
         <FormField
+          v-if="!kidsMode"
           :id="`game-participant-${participant.key}-second-email`"
           :model-value="participant.secondEmail"
           :label="$t('games.form.email')"
@@ -125,6 +128,7 @@
       </div>
 
       <GameConsentCheckbox
+        v-if="!kidsMode"
         :id="secondConsentId"
         :name="`participants.${index}.secondPlayer.emailConsent`"
         :marketing-name="`participants.${index}.secondPlayer.marketingConsent`"
@@ -183,10 +187,13 @@ const props = withDefaults(
     podiumOptions: SelectFieldOption[]
     canRemove?: boolean
     disabled?: boolean
+    /** Mode enfants : aucun e-mail n'est demandé ni gardé. */
+    kidsMode?: boolean
   }>(),
   {
     canRemove: true,
     disabled: false,
+    kidsMode: false,
   }
 )
 

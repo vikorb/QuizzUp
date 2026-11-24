@@ -20,6 +20,11 @@ export type FakeApi = {
    * ouvert, elle attend la prochaine ouverture : la salle ne la reçoit jamais avant son `hello`.
    */
   sendCommand: (command: Record<string, unknown>) => void
+  /**
+   * Pousse un événement sans donnée sur le flux (`game_updated` : la salle relit la partie). Même
+   * limite que `sendCommand` : la salle le reçoit à la prochaine ouverture du flux.
+   */
+  sendEvent: (event: string) => void
 }
 
 /**
@@ -68,18 +73,21 @@ export async function mockBackofficeApi(
     live?: FakeLive
   }
 ): Promise<FakeApi> {
-  const pendingCommands: string[] = []
+  // Événements SSE déjà formés, rendus au prochain flux.
+  const pendingEvents: string[] = []
   let wakeStream: (() => void) | null = null
   let streams = 0
+  const push = (chunk: string) => {
+    pendingEvents.push(chunk)
+    wakeStream?.()
+  }
   let opened = false
   const api: FakeApi = {
     calls: [],
     roomConfig: {},
     commandResults: [],
-    sendCommand: (command) => {
-      pendingCommands.push(JSON.stringify(command))
-      wakeStream?.()
-    },
+    sendCommand: (command) => push(sse('command', JSON.stringify(command))),
+    sendEvent: (event) => push(sse(event, '{}')),
   }
   const token = 'jeton-de-salle'
 
@@ -145,7 +153,7 @@ export async function mockBackofficeApi(
     if (options.live && pathname === '/room/stream') {
       // Un flux SSE ne se livre pas en morceaux : il est tenu jusqu'à une commande, puis rendu
       // d'un bloc (`hello` puis commandes) ; la salle le rouvre aussitôt.
-      if (pendingCommands.length === 0) {
+      if (pendingEvents.length === 0) {
         await new Promise<void>((resolve) => {
           wakeStream = resolve
           setTimeout(resolve, STREAM_HOLD_MS)
@@ -159,10 +167,7 @@ export async function mockBackofficeApi(
           status: 200,
           contentType: 'text/event-stream',
           headers: CORS_HEADERS,
-          body: [
-            sse('hello', JSON.stringify(hello)),
-            ...pendingCommands.splice(0).map((data) => sse('command', data)),
-          ].join(''),
+          body: [sse('hello', JSON.stringify(hello)), ...pendingEvents.splice(0)].join(''),
         })
         .catch(() => undefined)
     }

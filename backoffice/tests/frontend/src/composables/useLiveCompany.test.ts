@@ -204,6 +204,31 @@ describe('composables/useLiveCompany', () => {
     expect(onGameUpdated.mock.calls).toEqual([[42]])
   })
 
+  it('tells the caller which room changed on schedule_changed, and ignores a malformed one', async () => {
+    const onScheduleChanged = vi.fn()
+    const stream = nextStream()
+
+    mountLive(7, { onScheduleChanged })
+    stream.push(snapshotEvent([createRoomLive({ roomId: 10 })]))
+    stream.push(sseEvent(LIVE_EVENT.SCHEDULE_CHANGED, { roomId: 10 }))
+    stream.push(sseEvent(LIVE_EVENT.SCHEDULE_CHANGED, { roomId: 'x' }))
+    stream.push('event: schedule_changed\ndata: {oops\n\n')
+    await settle()
+
+    expect(onScheduleChanged.mock.calls).toEqual([[10]])
+  })
+
+  it('does not fail on schedule_changed when nobody listens', async () => {
+    const stream = nextStream()
+    const { live } = mountLive(7)
+
+    stream.push(snapshotEvent([]))
+    stream.push(sseEvent(LIVE_EVENT.SCHEDULE_CHANGED, { roomId: 10 }))
+    await settle()
+
+    expect(live.state.value).toBe('live')
+  })
+
   it('does not fail on game_updated when nobody listens', async () => {
     const stream = nextStream()
     const { live } = mountLive(7)

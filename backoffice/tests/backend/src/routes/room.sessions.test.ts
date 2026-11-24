@@ -12,6 +12,7 @@ import {
   GAME_STATE_SCHEDULED,
   GAME_STATUS_ACTIVE,
   GAME_STATUS_DELETED,
+  LIVE_EVENT,
   ROOM_STATUS_ACTIVE,
   ROOM_STATUS_INACTIVE,
 } from '@quizzup/shared'
@@ -290,6 +291,43 @@ describe('POST /room/games/:gameId/open', () => {
     vi.setSystemTime(new Date('2027-03-10T12:00:00.000Z'))
     expect((await open(app, 1)).statusCode).toBe(200)
     expectOnlyCompany1Notified(updates, 1)
+
+    await app.close()
+  })
+
+  it('schedule_changed: tells the staff of the company and the room only once the session is open', async () => {
+    const app = await createRouteApp(roomRoutes)
+    const updates = watchGameUpdates(app, LIVE_EVENT.SCHEDULE_CHANGED)
+
+    vi.setSystemTime(new Date('2027-03-10T11:59:00.000Z'))
+    expect((await open(app, 1)).statusCode).toBe(409)
+    expectNobodyNotified(updates)
+
+    vi.setSystemTime(new Date('2027-03-10T12:00:00.000Z'))
+    expect((await open(app, 1)).statusCode).toBe(200)
+    expect(updates.staff1).toEqual([{ roomId: 1 }])
+    expect(updates.room1).toEqual([{ roomId: 1 }])
+    expect(updates.staff2).toEqual([])
+    expect(updates.room2).toEqual([])
+    expect(updates.room3).toEqual([])
+
+    await app.close()
+  })
+
+  it('schedule_changed: tells nobody when a room of another company tries to open it', async () => {
+    vi.setSystemTime(new Date('2027-03-10T12:00:00.000Z'))
+    const app = await createRouteApp(roomRoutes)
+    const updates = watchGameUpdates(app, LIVE_EVENT.SCHEDULE_CHANGED)
+
+    const response = await open(app, 1, {
+      ...roomUser,
+      company_id: 2,
+      room_id: 3,
+      sid: 'sid-room-2',
+    } as TestUser)
+
+    expect(response.statusCode).toBe(404)
+    expectNobodyNotified(updates)
 
     await app.close()
   })

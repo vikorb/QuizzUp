@@ -1,11 +1,12 @@
 import { defineConfig, devices } from '@playwright/test'
 
-import { API_URL, HARNESS_URL, ROOM_APP_URL } from './tests/support/urls'
+import { API_URL, BACKOFFICE_URL, HARNESS_URL, ROOM_APP_URL } from './tests/support/urls'
 
 /**
- * Tests de bout en bout : l'écran de salle (`game/room-app`, port 4174) en mode démo et
- * le banc d'essai (`harness/`, port 4175) qui assemble moteur, audio et matériel.
- * Les deux serveurs Vite sont démarrés par Playwright.
+ * Tests de bout en bout : l'écran de salle (`game/room-app`, port 4174) en mode démo, le
+ * banc d'essai (`harness/`, port 4175) qui assemble moteur, audio et matériel, et le frontend
+ * du backoffice (`backoffice/frontend`, port 4176 : page téléphone d'inscription, feuille de
+ * résultats). Les trois serveurs Vite sont démarrés par Playwright.
  */
 const isCi = Boolean(process.env.CI)
 
@@ -40,6 +41,11 @@ export default defineConfig({
       },
     },
     {
+      name: 'backoffice',
+      testMatch: /backoffice\/.*\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], baseURL: BACKOFFICE_URL },
+    },
+    {
       name: 'harness',
       testMatch: /harness\/dmx-.*\.spec\.ts/,
       // Pas de vidéo : l'encodage prendrait du CPU aux mesures de son réel.
@@ -63,6 +69,14 @@ export default defineConfig({
       reuseExistingServer: !isCi,
       timeout: 120_000,
       // L'API du backoffice n'est pas démarrée : les tests de connexion la simulent.
+      env: { VITE_API_URL: API_URL },
+    },
+    {
+      command: 'npm --prefix ../../backoffice/frontend run dev -- --port 4176 --strictPort',
+      url: `${BACKOFFICE_URL}/rejoindre/`,
+      reuseExistingServer: !isCi,
+      timeout: 120_000,
+      // Pas d'API ni de base : les appels sont interceptés dans les tests (même adresse que la salle).
       env: { VITE_API_URL: API_URL },
     },
     {

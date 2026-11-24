@@ -334,13 +334,20 @@ jobs:
           cache-dependency-path: |
             game/e2e/package-lock.json
             game/room-app/package-lock.json
+            backoffice/frontend/package-lock.json
+            backoffice/shared/package-lock.json
 
       # L'écran de salle tourne en serveur Vite : ses dépendances sont nécessaires. Moteur,
       # audio, matériel et `@quizzup/shared` sont consommés en sources (alias), sans installation.
+      # Le frontend du backoffice (page téléphone, feuille de résultats) est aussi un serveur Vite :
+      # il lit `@quizzup/shared` construit (`dist`), d'où le build de `shared` avant lui.
       - name: Installer les dépendances
         run: |
           npm ci
           npm --prefix ../room-app ci
+          npm --prefix ../../backoffice/shared ci
+          npm --prefix ../../backoffice/shared run build
+          npm --prefix ../../backoffice/frontend ci
 
       - name: Installer Chromium
         run: npx playwright install --with-deps --only-shell chromium
