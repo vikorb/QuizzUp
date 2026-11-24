@@ -42,6 +42,8 @@ type DbState = {
   vouchers: Row[]
   room_logs: Row[]
   demo_requests: Row[]
+  api_keys: Row[]
+  api_request_logs: Row[]
 }
 
 type TableName = keyof DbState
@@ -68,6 +70,8 @@ export const dbState: DbState = {
   vouchers: [],
   room_logs: [],
   demo_requests: [],
+  api_keys: [],
+  api_request_logs: [],
 }
 
 const DEFAULT_COMPANIES: Row[] = [
@@ -157,6 +161,8 @@ export function resetDb(seed?: Partial<DbState>): void {
   dbState.vouchers = structuredClone(seed?.vouchers ?? [])
   dbState.room_logs = structuredClone(seed?.room_logs ?? [])
   dbState.demo_requests = structuredClone(seed?.demo_requests ?? [])
+  dbState.api_keys = structuredClone(seed?.api_keys ?? [])
+  dbState.api_request_logs = structuredClone(seed?.api_request_logs ?? [])
   db.fn.now.mockClear()
   db.raw.mockClear()
 }
@@ -553,6 +559,34 @@ class QueryBuilder {
       return this
     }
 
+    // Curseur du journal des appels : `(created_at, id) < (SELECT created_at, id FROM <table>
+    // WHERE id = ? AND company_id = ?)`. Sans ligne de référence, SQL compare à NULL : rien ne passe.
+    const cursor = sql.match(
+      /^\(created_at, id\) < \(SELECT created_at, id FROM (\w+) WHERE id = \? AND company_id = \?\)$/i
+    )
+
+    if (cursor?.[1]) {
+      const reference = getTableRows(cursor[1] as TableName).find(
+        (row) =>
+          Number(row.id) === Number(bindings[0]) && Number(row.company_id) === Number(bindings[1])
+      )
+
+      this.filters.push((row) => {
+        if (!reference) {
+          return false
+        }
+
+        const time = new Date(row.created_at as string).getTime()
+        const referenceTime = new Date(reference.created_at as string).getTime()
+
+        return (
+          time < referenceTime || (time === referenceTime && Number(row.id) < Number(reference.id))
+        )
+      })
+
+      return this
+    }
+
     const columnMatch = sql.match(/lower\(([\w.]+)\)/i)
     const column = columnMatch?.[1] ? normalizeColumn(columnMatch[1]) : null
     const expected = String(bindings[0] ?? '').toLowerCase()
@@ -739,6 +773,8 @@ class QueryBuilder {
           return
         }
 
+        this.assertUniqueColumns(payload)
+
         const row: Row = {
           ...payload,
           created_at: payload.created_at ?? MOCK_NOW,
@@ -756,6 +792,22 @@ class QueryBuilder {
       })
 
     return insertedRows
+  }
+
+  // Index uniques d'`api_keys` (`key_prefix`, `key_hash`) : la base réelle refuse un doublon.
+  private assertUniqueColumns(payload: Row): void {
+    const columns = this.table === 'api_keys' ? ['key_prefix', 'key_hash'] : []
+    const taken = columns.find((column) =>
+      getTableRows(this.table).some((row) => row[column] === payload[column])
+    )
+
+    if (taken) {
+      throw Object.assign(new Error('duplicate key value violates unique constraint'), {
+        code: '23505',
+        // Nom de l'index unique, comme le champ `constraint` de l'erreur `pg`.
+        constraint: `api_keys_${taken}_unique`,
+      })
+    }
   }
 
   private conflicts(payload: Row, pending: Row[]): boolean {

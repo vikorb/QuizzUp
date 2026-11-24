@@ -39,15 +39,24 @@
       "desk": "Pupitre {podium}"
     },
     "command": {
+      "title": "Commandes à distance",
+      "pause": "Pause",
+      "resume": "Reprendre",
+      "skip": "Passer la question",
+      "pending": "Commande envoyée, en attente de la salle…",
       "error": {
         "room_not_controllable": "La salle est hors ligne ou son écran n'est pas connecté : la commande n'a pas été envoyée.",
-        "too_many_requests": "Trop de commandes en cours pour cette salle. Réessaie dans quelques secondes.",
-        "command_unknown": "Cette commande n'existe plus ou a déjà reçu sa réponse.",
-        "command_id_conflict": "Cette commande a déjà été envoyée avec un autre contenu. Recommence."
+        "too_many_requests": "Trop de commandes en cours pour cette salle. Réessayez dans quelques secondes.",
+        "command_id_conflict": "Cette commande a déjà été envoyée avec un autre contenu. Recommencez.",
+        "forbidden": "Vous n'avez pas le droit de piloter cette salle.",
+        "unauthorized": "Votre session a expiré : reconnectez-vous.",
+        "room_not_found": "Cette salle n'existe plus.",
+        "server_error": "Erreur serveur : la commande n'a pas été envoyée."
       },
       "result": {
         "expired": "La salle n'a pas répondu à temps : la commande n'a peut-être pas été appliquée.",
-        "refused": "La salle a refusé la commande."
+        "refused": "La salle a refusé la commande.",
+        "applied": "Commande appliquée par la salle."
       },
       "refusal": {
         "already_paused": "La partie est déjà en pause.",
@@ -55,6 +64,14 @@
         "paused": "Impossible de passer la question pendant la pause.",
         "not_in_question": "La question avait déjà changé : rien n'a été passé.",
         "game_over": "La partie est terminée."
+      },
+      "disabled": {
+        "stream": "Suivi en direct interrompu : les commandes reviennent avec la connexion.",
+        "offline": "La salle est hors ligne : elle ne peut pas recevoir de commande.",
+        "screen": "L'écran de la salle n'est pas sur la partie.",
+        "noGame": "Aucune partie en cours sur l'écran de la salle.",
+        "skipPaused": "Reprenez la partie pour passer la question.",
+        "skipPhase": "Une question ne se passe que pendant son déroulement."
       }
     }
   }
