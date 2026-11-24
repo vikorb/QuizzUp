@@ -4,6 +4,7 @@ import publicApiPlugin from '../../plugins/publicApi'
 import { applyPublicDefaults } from './_shared'
 import publicAvailabilityRoutes from './availability'
 import publicBookingRoutes from './bookings'
+import publicJoinRoutes from './join'
 import publicLogoRoutes from './logos'
 import demoRequestsPublicRoutes from './demoRequests'
 import publicRoomRoutes from './rooms'
@@ -17,6 +18,7 @@ const publicRoutes: FastifyPluginAsync = async (app) => {
   await app.register(publicLogoRoutes)
   await app.register(demoRequestsPublicRoutes)
   await app.register(publicVoucherRoutes)
+  await app.register(publicJoinRoutes)
 
   // Routes de réservation : clé d'API obligatoire, hooks d'authentification et de journal limités à
   // ce contexte pour ne pas toucher aux routes sans compte ci-dessus.

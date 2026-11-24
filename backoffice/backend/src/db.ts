@@ -16,6 +16,10 @@ const db: Knex = knex({
   client: 'pg',
   connection: DATABASE_URL,
   pool: { min: 0, max: 10 },
+  // Par défaut knex recopie la requête AVEC ses valeurs dans le message d'une erreur SQL : un
+  // INSERT en échec écrirait prénoms et e-mails de joueurs dans les journaux. Sans les valeurs,
+  // le message ne garde que le SQL et ses `$1`.
+  compileSqlOnError: false,
 })
 
 export default db

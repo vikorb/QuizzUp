@@ -13,6 +13,20 @@ Format inspiré de Keep a Changelog.
 
 - API de réservation, lecture : `GET /public/v1/rooms` et `GET /public/v1/availability` derrière une clé d'API (401 `api_key_missing` / `api_key_invalid`, 403 `company_inactive`), débit par clé (`PUBLIC_API_RATE_LIMIT_PER_MINUTE`, en-têtes `RateLimit-*`, 429 avec `Retry-After`), limite des échecs d'authentification par adresse (`PUBLIC_API_AUTH_FAILURES_PER_MINUTE`) et journal des appels sans corps ni adresse.
   US: US-BOOKING-01 (#188)
+- Accueil des joueurs dans le backoffice : sur la fiche d'une partie en attente, un panneau « Accueil » ouvre ou ferme le lien d'inscription, l'affiche avec son QR code (plein écran possible), liste les demandes et permet de les valider sur un pupitre ou de les refuser. La création d'une partie peut ouvrir l'accueil d'emblée et mène alors à la fiche.
+  US: US-JOIN-01 (#166)
+
+- Accueil des joueurs, page du téléphone : `/rejoindre/` (lien ou QR code d'une partie en attente) où le joueur saisit son nom, un second joueur et, s'il le veut, son e-mail avec ses accords. Routes publiques `POST /public/v1/join/lookup` et `POST /public/v1/join/registrations` : le jeton voyage dans le corps, jamais dans l'adresse ; 404 `join_link_invalid`, 410 `join_link_closed`, 409 `join_full` au-delà de 12 demandes en attente, 30 inscriptions par minute et par adresse.
+  US: US-JOIN-01 (#166)
+
+- Joueurs d'une compagnie (API) : `GET /companies/:companyId/players` (liste paginée, recherche par nom, e-mail masqué pour le rôle `user`), `GET …/players/export.csv` (joueurs ayant accepté les offres, cellules protégées contre les formules), `POST …/players/unsubscribe` (retire le consentement aux offres, réponse identique que l'adresse soit connue ou non) et `POST …/players/erase` (efface l'e-mail, les consentements et le nom sur chaque pupitre, supprime les demandes d'inscription en attente ; scores conservés). Export, désinscription et effacement réservés aux admins.
+  US: US-PLAYERS-01 (#157)
+
+- Fumée par la carte USB, lien série (`game/hardware`, rien n'est encore branché à l'écran de salle) : lecture et écriture du protocole de la carte (bannière `QZF READY`, lignes d'état, ordres `F`, `0`, `H`) et lien Web Serial qui n'envoie jamais `F` sans bannière valide, ne renouvelle jamais `F` de lui-même, borne les `F` à un toutes les 100 ms, n'en envoie qu'en phase prête ou en jet (jamais pendant la pause de la carte, dont les 5 s qui suivent sa remise à zéro ; la phase lue est exposée), et signale une carte absente, muette, débranchée ou qui contredit nos ordres. Une carte plus permissive que les limites du projet est refusée. Fausse carte pour les tests.
+- Installation d'un programme sur une carte Arduino Uno depuis le navigateur (bibliothèque `game/hardware`, pas encore d'écran) : lecture et écriture de fichiers Intel HEX, client du chargeur Optiboot par Web Serial (protocole STK500v1, 115200 puis 57600 bauds), sauvegarde de la flash relue avant toute écriture, écriture par pages suivie d'une relecture complète, restauration d'un `.hex`, erreurs nommées (`no_sync`, `wrong_signature`, `too_large`, `verify_failed`, `port_lost`, `port_busy`, `backup_failed`, `timeout`, `cancelled`). Testé contre un émulateur d'Optiboot ; rien n'a été essayé sur une vraie carte.
+- Bons dans le backoffice : panneau « Bons » sur la fiche d'une partie terminée (émettre le bon d'un pupitre, l'annuler), page « Bons » (recherche d'un code, utilisation, liste filtrable et paginée, annulation réservée aux admins), réglages du centre (libellé du bon, durée de validité) et un bloc par bon valable sur la feuille de résultats imprimable, avec son QR code quand le serveur le fournit.
+  US: US-VOUCHER-01 (#156)
+
 - QR code généré par le serveur : `join` vaut `{ url, qrSvg, expiresAt }` (fiche de partie, `POST /games/:id/join`, création avec `openJoin`, `GET /room/games/current`) et un bon porte `qrSvg` à côté de `url` (émission et bons d'une partie). `qrSvg` est un SVG complet, `null` sans `PUBLIC_APP_URL`. Une seule dépendance, `qrcode-generator` (version exacte, sans dépendance).
   US: US-JOIN-01 (#166)
 

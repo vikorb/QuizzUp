@@ -25,6 +25,37 @@
       />
     </div>
 
+    <section class="company-form__section" data-test="company-voucher-settings">
+      <h3 class="company-form__section-title">{{ $t('vouchers.settings.title') }}</h3>
+
+      <div class="company-form__grid">
+        <FormField
+          v-model="form.voucherLabel"
+          :label="$t('vouchers.settings.label')"
+          name="voucherLabel"
+          :placeholder="$t('vouchers.settings.labelPlaceholder')"
+          :hint="$t('vouchers.settings.labelHint')"
+          :disabled="companySaving || permissions.isCompanyReadonly"
+          :error="fieldErrors.voucherLabel"
+        />
+
+        <FormField
+          v-model="form.voucherValidityDays"
+          :label="$t('vouchers.settings.validityDays')"
+          name="voucherValidityDays"
+          inputmode="numeric"
+          :hint="
+            $t('vouchers.settings.validityHint', {
+              min: VOUCHER_VALIDITY_MIN_DAYS,
+              max: VOUCHER_VALIDITY_MAX_DAYS,
+            })
+          "
+          :disabled="companySaving || permissions.isCompanyReadonly"
+          :error="fieldErrors.voucherValidityDays"
+        />
+      </div>
+    </section>
+
     <ClientDetailLogo
       :company-id="company.id"
       :company-name="company.name"
@@ -59,6 +90,7 @@
 </template>
 
 <script setup lang="ts">
+import { VOUCHER_VALIDITY_MAX_DAYS, VOUCHER_VALIDITY_MIN_DAYS } from '@quizzup/shared'
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -209,6 +241,18 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
+}
+
+.company-form__section {
+  display: grid;
+  gap: 12px;
+}
+
+.company-form__section-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
 }
 
 .company-form__actions {

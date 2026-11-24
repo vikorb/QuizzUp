@@ -22,6 +22,10 @@ export type Company = {
   status: CompanyStatus
   /** Chemin public du logo (`/public/v1/logos/…`), `null` sans logo. */
   logoUrl?: string | null
+  /** Libellé des bons de fidélisation, `null` : bons désactivés. */
+  voucherLabel?: string | null
+  /** Durée de validité d'un bon, en jours. */
+  voucherValidityDays?: number
 }
 
 export type CompaniesResponse = {
@@ -128,6 +132,9 @@ export type UpdateCompanyPayload = {
   name?: string
   email?: string
   status?: CompanyStatus
+  /** Libellé vide ou `null` : bons désactivés. */
+  voucherLabel?: string | null
+  voucherValidityDays?: number
 }
 
 export type UpdateCompanyResponse = {
@@ -142,11 +149,17 @@ export type EditCompanyFormValues = {
   name: string
   email: string
   status: CompanyStatus
+  /** Libellé du bon, vide : bons désactivés. */
+  voucherLabel: string
+  /** Saisie du champ, convertie en nombre à l'envoi. */
+  voucherValidityDays: string
 }
 
 export type EditCompanyFieldErrors = {
   name?: string
   email?: string
+  voucherLabel?: string
+  voucherValidityDays?: string
 }
 
 export type ClientDetailFormValues = ReturnType<typeof createCompanyDetailsForm>
