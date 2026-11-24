@@ -450,6 +450,9 @@ Format inspiré de Keep a Changelog.
 
 ### Fixed
 
+- Relais PowerShell des lumières : un envoi partiel est repris jusqu'au bout, et la lecture est bornée par tour : un client qui envoie sans fin ne bloque plus les autres connexions.
+  US: US-DMX-01 (#203)
+
 - Relais PowerShell des lumières, tests : les attentes d'une trame ou d'un paquet attendu ne coupent plus à 2 s. Sur le runner Windows de la CI, une pause ponctuelle faisait échouer « lit les origines dans QUIZZUP_BRIDGE_ORIGINS et répond 426 hors WebSocket ». Le délai (20 s) ne sert plus qu'à détecter un blocage.
   US: US-SHOW-01 (#203)
 

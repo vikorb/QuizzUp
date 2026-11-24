@@ -67,6 +67,10 @@ $InternalUniverses = 16
 $AnnouncedUniverses = 4
 $WsGuid = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 $HandshakeMaxBytes = 8192
+# Octets lus au plus par connexion et par tour de boucle (soit 8 lectures pleines du tampon).
+$ReadTurnMaxBytes = 65536
+# Un envoi vers l'écran de salle qui n'avance plus pendant ce délai coupe la connexion.
+$SendStallMs = 500
 $HelloTimeoutMs = 2000
 $CloseGraceMs = 1000
 $TickMs = 25
@@ -503,8 +507,26 @@ function New-Connection($socket) {
   }
 }
 
+# Envoi complet : sur une socket non bloquante, Send peut n'écrire qu'une partie du tampon ou refuser
+# (tampon plein). On reprend où l'envoi s'est arrêté ; sans progrès pendant $SendStallMs, ou si la
+# connexion est fermée, elle est coupée (1006).
 function Send-Bytes($c, [byte[]]$bytes) {
-  try { [void]$c.Socket.Send($bytes) } catch { Complete-Connection $c 1006 }
+  $sent = 0
+  $stallEnd = $null
+  while ($sent -lt $bytes.Length) {
+    $err = [System.Net.Sockets.SocketError]::Success
+    try { $n = $c.Socket.Send($bytes, $sent, $bytes.Length - $sent, [System.Net.Sockets.SocketFlags]::None, [ref]$err) }
+    catch { Complete-Connection $c 1006; return }
+    if ($err -eq [System.Net.Sockets.SocketError]::WouldBlock) {
+      if ($null -eq $stallEnd) { $stallEnd = (Get-Now) + $SendStallMs }
+      if ((Get-Now) -ge $stallEnd) { Complete-Connection $c 1006; return }
+      try { [void]$c.Socket.Poll(5000, [System.Net.Sockets.SelectMode]::SelectWrite) } catch { Complete-Connection $c 1006; return }
+      continue
+    }
+    if (($err -ne [System.Net.Sockets.SocketError]::Success) -or ($n -le 0)) { Complete-Connection $c 1006; return }
+    $sent += $n
+    $stallEnd = $null
+  }
 }
 
 # Trame serveur -> client (jamais masquée, messages de moins de 64 Kio).
@@ -835,10 +857,12 @@ function Step-Frames($c) {
 
 # Lit tout ce qui est arrivé (toutes les trames d'un coup), sans jamais attendre.
 function Read-Connection($c) {
+  $total = 0
   do {
     try { $n = $c.Socket.Receive($c.Buf, $c.Len, $c.Buf.Length - $c.Len, [System.Net.Sockets.SocketFlags]::None) }
     catch { Complete-Connection $c 1006; return }
-    if ($n -eq 0) { Complete-Connection $c $c.CloseCode; return }
+    if ($n -le 0) { Complete-Connection $c $c.CloseCode; return }
+    $total += $n
     if ($c.Discard) {
       $c.Len = 0
     } else {
@@ -846,7 +870,9 @@ function Read-Connection($c) {
       if (-not $c.Handshaken) { Step-Handshake $c }
       if ($c.Handshaken -and (-not $c.Finished)) { Step-Frames $c }
     }
-  } while ((-not $c.Finished) -and ($c.Socket.Available -gt 0))
+    # Borne par tour : un client qui envoie sans fin ne doit pas retenir la boucle (échéances, chien de
+    # garde, autres connexions). Le reste est relu au tour suivant, Select le signale aussitôt.
+  } while ((-not $c.Finished) -and ($total -lt $ReadTurnMaxBytes) -and ($c.Socket.Available -gt 0))
 }
 
 # Échéances d'une connexion : jamais d'attente bloquante, tout est suivi par dates.

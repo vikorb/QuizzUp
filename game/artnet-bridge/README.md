@@ -305,6 +305,10 @@ défaut). Réglages : `-Target`, `-Universe` (défaut `0`, ex. `0.0.5`), `-Port`
   sans jamais fermer la fenêtre pendant une partie**. `Ctrl+C` envoie aussi un noir. Les deux cas
   sont **à valider sur le banc** (A8) : le test automatique ne couvre que l'émission du noir, pas la
   fermeture d'une vraie fenêtre.
+- **Écran de salle qui lit trop lentement** : si le relais ne peut plus rien lui envoyer pendant 0,5 s
+  (onglet figé, connexion morte), la connexion est coupée et le noir part comme à toute déconnexion.
+  Une trame de plus de 515 octets ferme la connexion (code 1009), et un client qui envoie sans fin
+  ne retient pas le relais (64 Kio lus au plus par tour) : lumières et écran suivant ne sont pas gênés.
 - Les tests (`tests/powershellRelay.test.ts`) ne tournent que sous Windows.
 
 ## Sécurité

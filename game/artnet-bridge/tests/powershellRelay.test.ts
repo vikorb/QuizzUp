@@ -188,6 +188,22 @@ function runToEnd(
 
 const text = (frame: { payload: Buffer }) => frame.payload.toString('utf8')
 
+/** Attente d'un événement qui doit arriver : échoue avec `what` plutôt qu'avec le délai du test. */
+async function within<T>(promise: Promise<T>, what: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined
+  const expired = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`${what} (après ${EXPECTED_TIMEOUT_MS} ms)`)),
+      EXPECTED_TIMEOUT_MS
+    )
+  })
+  try {
+    return await Promise.race([promise, expired])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 async function connect(relay: Relay, hello: string | null, headers = {}): Promise<RawClient> {
   const client = await openRawClient(relay.port, headers)
   expect(client.status).toBe(101)
@@ -398,6 +414,125 @@ describe.skipIf(process.platform !== 'win32')(
       expect(text(await client.next())).toBe(errorMessage('hello', 'aucune présentation reçue'))
       expect(closeInfo(await client.next())).toMatchObject({ code: CLOSE_CODES.helloExpected })
       await finish(client, CLOSE_CODES.helloExpected)
+    })
+
+    it('trame de 600 octets (le pont n’en accepte que 515) : close 1009, puis l’écran suivant est accepté', async () => {
+      const relay = await startRelay()
+      const first = await connect(relay, helloV1)
+      await first.next()
+      first.send(OPCODE.binary, new Uint8Array(600))
+      expect(closeInfo(await first.next())).toMatchObject({ code: 1009 })
+      await finish(first, 1009)
+      const second = await connect(relay, helloV1)
+      expect(JSON.parse(text(await second.next())).type).toBe('ack')
+      second.socket.destroy()
+    })
+
+    it('un client qui envoie sans fin ne retient pas le relais : une autre connexion est servie', async () => {
+      const relay = await startRelay()
+      const flooder = await connect(relay, helloV1)
+      await flooder.next()
+      // Des ping vides (masque nul) à la chaîne : le relais est plus lent que l'envoi, donc il y a
+      // toujours de quoi lire. Sans borne par tour, la boucle ne revient jamais à Select.
+      const ping = Buffer.from([0x89, 0x80, 0, 0, 0, 0])
+      const chunk = Buffer.concat(Array.from({ length: 10_000 }, () => ping))
+      let flooding = true
+      const drained = () =>
+        new Promise<void>((resolve) => {
+          const done = () => {
+            flooder.socket.off('drain', done)
+            flooder.socket.off('close', done)
+            resolve()
+          }
+          flooder.socket.on('drain', done)
+          flooder.socket.on('close', done)
+        })
+      void (async () => {
+        while (flooding && !flooder.socket.destroyed) {
+          if (!flooder.socket.write(chunk)) {
+            await drained()
+          }
+        }
+      })()
+      try {
+        const second = await within(openRawClient(relay.port), 'seconde connexion non servie')
+        expect(second.status).toBe(101)
+        expect(text(await second.next())).toBe(errorMessage('busy', BUSY_MESSAGE))
+        second.socket.destroy()
+      } finally {
+        flooding = false
+        flooder.socket.destroy()
+      }
+    })
+
+    it('envoi partiel (tampon d’envoi plein) : Send-Bytes reprend où l’envoi s’est arrêté, tout arrive dans l’ordre', async () => {
+      // La socket du relais est non bloquante : tampon d'envoi minuscule et client qui ne lit pas, Send
+      // n'écrit qu'une partie ou refuse. On compile la vraie fonction du script, sur une vraie socket.
+      const source = /^function Send-Bytes[\s\S]*?^}/m.exec(readFileSync(SCRIPT, 'utf8'))![0]
+      const part = 65_536
+      const parts = 64
+      const dir = mkdtempSync(join(tmpdir(), 'quizzup-envoi-'))
+      const harness = join(dir, 'envoi.ps1')
+      writeFileSync(
+        harness,
+        [
+          'param([int]$Port, [int]$Size, [int]$Parts)',
+          '$SendStallMs = 30000',
+          '$clock = [System.Diagnostics.Stopwatch]::StartNew()',
+          'function Get-Now { $clock.ElapsedMilliseconds }',
+          'function Complete-Connection($c, [int]$code) { $c.Finished = $true }',
+          source,
+          '$listener = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Loopback, $Port)',
+          '$listener.Start()',
+          'Write-Host "pret"',
+          '$socket = $listener.AcceptSocket()',
+          '$socket.Blocking = $false',
+          '$socket.SendBufferSize = 1024',
+          '$bytes = New-Object byte[] $Size',
+          'for ($i = 0; $i -lt $Size; $i++) { $bytes[$i] = ($i * 7) -band 0xff }',
+          '$c = [pscustomobject]@{ Socket = $socket; Finished = $false }',
+          'for ($k = 0; $k -lt $Parts; $k++) { Send-Bytes $c $bytes }',
+          'Write-Host "fini finished=$($c.Finished)"',
+          '$socket.Shutdown([System.Net.Sockets.SocketShutdown]::Send)',
+          '$socket.Close()',
+          '$listener.Stop()',
+        ].join('\r\n'),
+        'utf8'
+      )
+      const port = await freePort()
+      const child = spawn(
+        'powershell.exe',
+        powershellArgs(['-Port', String(port), '-Size', String(part), '-Parts', String(parts)]).map(
+          (arg) => (arg === SCRIPT ? harness : arg)
+        ),
+        { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }
+      )
+      running.push({ pid: child.pid!, receiver: { close: () => Promise.resolve() } as UdpReceiver })
+      let output = ''
+      const listening = new Promise<void>((resolve) => {
+        child.stdout.on('data', (chunk: Buffer) => {
+          output += chunk.toString('utf8')
+          if (output.includes('pret')) {
+            resolve()
+          }
+        })
+      })
+      child.stderr.on('data', (chunk: Buffer) => (output += chunk.toString('utf8')))
+      const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()))
+      await within(listening, 'harnais d’envoi pas prêt')
+      const socket = tcpConnect(port, '127.0.0.1')
+      const received: Buffer[] = []
+      socket.on('data', (chunk) => received.push(chunk))
+      const ended = new Promise<void>((resolve) => socket.once('close', () => resolve()))
+      socket.pause()
+      await sleep(500) // le relais remplit le tampon d'envoi et doit attendre
+      socket.resume()
+      await within(ended, 'flux non terminé')
+      await within(exited, 'harnais d’envoi non terminé')
+      const one = Buffer.from(Array.from({ length: part }, (_unused, index) => (index * 7) & 0xff))
+      const expected = Buffer.concat(Array.from({ length: parts }, () => one))
+      expect(Buffer.concat(received).equals(expected), output).toBe(true)
+      expect(output).toContain('finished=False')
     })
   }
 )
