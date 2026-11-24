@@ -3534,7 +3534,7 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Partie en attente ou en cours de la salle du compte connecté, ou `null`. Les emails des participants ne sont pas renvoyés. Pour une partie en attente, `game.join` donne le lien d'inscription à afficher en QR code et `game.pendingRegistrationsCount` le nombre de demandes à valider ; les noms des demandes ne sont jamais envoyés à la salle.
+        Partie en attente ou en cours de la salle du compte connecté, ou `null`. Les emails des participants ne sont pas renvoyés. Pour une partie en attente, `game.join` donne le lien d'inscription à afficher en QR code et `game.pendingRegistrationsCount` le nombre de demandes à valider ; les noms des demandes ne sont jamais envoyés à la salle. `game.avoidQuestionIds` liste les questions que les joueurs de la partie, reconnus par leur e-mail, ont déjà vues dans une partie terminée de la compagnie (jamais celles d'une autre compagnie).
 
         `next` : la session `scheduled` la plus proche de la salle dont la fin prévue (`scheduledEndAt`) est dans le futur, au même format que `game` (noms seulement, aucun email), ou `null`. Une session en retard mais dont le créneau n'est pas fini reste renvoyée.
 
@@ -8797,6 +8797,18 @@ components:
             pendingRegistrationsCount:
               type: integer
               description: Demandes d'inscription à valider (0 si la partie n'est plus en attente)
+            avoidQuestionIds:
+              type: array
+              maxItems: 2000
+              items:
+                type: integer
+              description: >-
+                Renvoyé par `GET /room/games/current` seulement. Identifiants des questions déjà
+                vues par les joueurs de la partie (même e-mail, premier ou second joueur) dans une
+                partie terminée de la compagnie, les plus récentes d'abord, 2 000 au plus. Vide si
+                aucun joueur n'est connu par son e-mail. La salle les passe au moteur
+                (`GameSetup.avoidQuestionIds`), qui les pose en dernier : elles ne sont jamais
+                écartées.
             participants:
               type: array
               items:

@@ -174,7 +174,8 @@ export function createGame(setup: GameSetup): GameState {
     })),
     rounds: [],
     usedThemeIds: [],
-    usedQuestionIds: [],
+    // Les questions à éviter comptent comme déjà posées : le tirage les passe en dernier.
+    usedQuestionIds: [...new Set(setup.avoidQuestionIds ?? [])],
     miniGameBag: [],
   }
 }

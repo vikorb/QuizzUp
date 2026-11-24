@@ -1,7 +1,13 @@
 import type { Knex } from 'knex'
 import { z } from 'zod'
 
-import { GAME_MAX_QUESTIONS_PER_ROUND, GAME_MAX_ROUNDS, MINI_GAMES } from '@quizzup/shared'
+import {
+  GAME_MAX_QUESTIONS_PER_ROUND,
+  GAME_MAX_ROUNDS,
+  GAME_STATE_FINISHED,
+  GAME_STATUS_DELETED,
+  MINI_GAMES,
+} from '@quizzup/shared'
 
 import db from '../../db'
 import { isReadableByCompany } from './_content'
@@ -84,4 +90,58 @@ export async function saveGameRounds(trx: Knex.Transaction, gameId: number, roun
       questions: JSON.stringify(round.questionIds),
     }))
   )
+}
+
+/** Nombre de questions déjà vues renvoyées à la salle au plus (les plus récentes). */
+export const AVOID_QUESTIONS_MAX = 2000
+
+/**
+ * Questions que les joueurs de la partie ont déjà vues : celles des manches des parties terminées
+ * de la compagnie où figure l'un de leurs e-mails (premier ou second joueur, normalisé comme la
+ * purge : `lower(btrim(email))`). Les joueurs sans e-mail ne sont pas connus, un e-mail purgé non
+ * plus. Les plus récentes d'abord (date de la dernière partie, puis identifiant croissant), donc
+ * deux appels sur les mêmes données donnent la même liste ; `AVOID_QUESTIONS_MAX` au plus.
+ * La salle s'en sert pour poser ces questions en dernier : voir `avoidQuestionIds` du moteur.
+ */
+export async function findAvoidQuestionIds(companyId: number, gameId: number): Promise<number[]> {
+  const result = (await db.raw(
+    `WITH players AS (
+       SELECT lower(btrim(email)) AS email_key
+       FROM game_participants
+       WHERE game_id = :gameId AND email IS NOT NULL
+       UNION
+       SELECT lower(btrim(second_email))
+       FROM game_participants
+       WHERE game_id = :gameId AND second_email IS NOT NULL
+     ),
+     seen AS (
+       SELECT
+         CAST(q.id AS bigint) AS question_id,
+         max(COALESCE(g.finished_at, g.started_at, g.created_at)) AS seen_at
+       FROM games g
+       JOIN game_participants gp ON gp.game_id = g.id
+       JOIN game_rounds r ON r.game_id = g.id
+       CROSS JOIN LATERAL jsonb_array_elements_text(
+         CASE WHEN jsonb_typeof(r.questions) = 'array' THEN r.questions ELSE CAST('[]' AS jsonb) END
+       ) AS q(id)
+       WHERE g.company_id = :companyId
+         AND g.state = :finished
+         AND g.status <> :deleted
+         AND (
+           lower(btrim(gp.email)) IN (SELECT email_key FROM players)
+           OR lower(btrim(gp.second_email)) IN (SELECT email_key FROM players)
+         )
+       GROUP BY q.id
+     )
+     SELECT question_id FROM seen ORDER BY seen_at DESC, question_id ASC LIMIT :limit`,
+    {
+      companyId,
+      gameId,
+      finished: GAME_STATE_FINISHED,
+      deleted: GAME_STATUS_DELETED,
+      limit: AVOID_QUESTIONS_MAX,
+    }
+  )) as { rows: Array<{ question_id: number }> }
+
+  return result.rows.map((row) => row.question_id)
 }

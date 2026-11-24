@@ -63,6 +63,11 @@ export type GameSetup = {
   /** Mini-jeux activés (tous par défaut). */
   miniGames?: MiniGame[]
   timings?: Partial<GameTimings>
+  /**
+   * Questions déjà vues par ces joueurs dans une partie précédente : posées en dernier, après les
+   * questions neuves (jamais écartées, un thème ne se vide donc pas).
+   */
+  avoidQuestionIds?: number[]
 }
 
 export type ResolvedSetup = {

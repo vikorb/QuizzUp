@@ -349,6 +349,7 @@ async function onStart(): Promise<void> {
       seed: current.seed,
       roundsCount: current.roundsCount,
       questionsPerRound: current.questionsPerRound,
+      avoidQuestionIds: current.avoidQuestionIds,
       // Le choix du backoffice prime ; sans lui, le réglage local de la salle, sinon tous.
       miniGames: sanitizeMiniGames(current.miniGames),
     }

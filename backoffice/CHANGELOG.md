@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Questions déjà vues : une partie évite les questions que ses joueurs, reconnus par leur e-mail, ont déjà eues dans les parties terminées de la même compagnie (`avoidQuestionIds` dans `GET /room/games/current`, 2 000 au plus). Un thème ne se vide jamais : les questions déjà vues passent en dernier.
+  US: US-CONTENT-01 (#158)
+
 - Blind test par playlist, côté salle : `GET /room/games/current/content` tire les titres d'un thème de playlist chez le fournisseur d'extraits et en fait des questions « Quel est ce titre ? » (quatre réponses, identifiants négatifs, crédit du titre). Nouvelle route `GET /room/games/current/tracks` qui rend les liens d'extrait à jour pour reprendre une partie après rechargement. En mode enfants, seuls les thèmes adaptés sont lus.
   US: US-PLAYLIST-01 (#204)
 
