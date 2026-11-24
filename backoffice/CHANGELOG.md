@@ -9,7 +9,7 @@ Format inspiré de Keep a Changelog.
 ### Added
 
 - Fumée par la carte USB, contrôleur : le contrôleur de lumières accepte un lien vers la carte (`smokeLink`) et lui envoie l'ordre de fumée à chaque trame. L'arrêt part tout de suite à la pause, à l'onglet masqué, à la fermeture de la page, à l'arrêt d'urgence et au changement de sortie. Un lien perdu coupe le jet et désarme la fumée ; un tir est refusé (`board_unavailable`) tant que la carte n'est pas prête. Le réglage `lighting.smoke.board` n'est jamais exporté, et le port de la carte est exclu du choix du port DMX. À valider sur le banc.
-  US: US-SHOW-01 (#215)
+  US: US-DMX-01 (#215)
 
 - Lumières à la pause : quand la partie est mise en pause, la salle passe sur une ambiance basse (scène `pause`, sans éclair ni fumée) ; à la reprise elle retrouve la lumière de la phase en cours. Les liaisons `game_paused` et `game_resumed` restent réglables par salle.
   US: US-SHOW-01 (#145)
