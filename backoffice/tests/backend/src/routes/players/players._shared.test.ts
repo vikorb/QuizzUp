@@ -57,9 +57,9 @@ describe('buildPlayersCsv', () => {
   it('starts with a UTF-8 BOM and the header, then one CRLF line per player, `;` separated', () => {
     const csv = buildPlayersCsv([PLAYER])
 
-    expect(csv.startsWith('﻿')).toBe(true)
+    expect(csv.startsWith('\uFEFF')).toBe(true)
     expect(csv).toBe(
-      '﻿email;prenom;derniere_partie;parties;consentement_offres_le\r\n' +
+      '\uFEFFemail;prenom;derniere_partie;parties;consentement_offres_le\r\n' +
         'jean@exemple.test;Jean;2026-11-20T18:30:00.000Z;3;2026-10-01T10:00:00.000Z\r\n'
     )
     expect(PLAYERS_CSV_HEADER).toHaveLength(5)
@@ -67,7 +67,7 @@ describe('buildPlayersCsv', () => {
 
   it('writes only the header when nobody accepted the offers', () => {
     expect(buildPlayersCsv([])).toBe(
-      '﻿email;prenom;derniere_partie;parties;consentement_offres_le\r\n'
+      '\uFEFFemail;prenom;derniere_partie;parties;consentement_offres_le\r\n'
     )
   })
 

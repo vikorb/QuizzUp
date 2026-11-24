@@ -3239,7 +3239,7 @@ paths:
 
         Il n'y a pas de table de joueurs : un joueur est une adresse e-mail normalisée (minuscules, espaces retirés) dans une compagnie, lue sur les pupitres des parties (premier et second joueur). Toutes les parties de la compagnie comptent, supprimées logiquement comprises : une adresse stockée doit pouvoir être retrouvée, exportée et effacée. Les demandes d'inscription en attente ne sont pas des joueurs.
 
-        `displayName`, `lastPlayedAt` et `marketingConsent` sont ceux de la **dernière** partie du joueur : s'il n'accepte plus les offres à sa dernière partie, `marketingConsent` est faux. `sessions` est le nombre de parties où l'adresse figure ; `bestScore` le meilleur score de ses pupitres. Tri : dernière partie la plus récente d'abord, puis adresse.
+        `displayName` et `marketingConsent` sont ceux de la **dernière** apparition du joueur : s'il n'accepte plus les offres à sa dernière partie, `marketingConsent` est faux. `sessions`, `lastPlayedAt` et `bestScore` ne comptent que les parties **terminées et non supprimées** : un joueur qui n'a que d'autres parties (en cours, en attente, annulées, supprimées) reste listé, avec `sessions: 0`, `lastPlayedAt: null` et `bestScore: null`. Tri : dernière partie jouée la plus récente d'abord (les joueurs sans partie jouée en dernier), puis apparition la plus récente ; l'adresse n'entre pas dans le tri.
 
         `anonymousPlayers` compte les joueurs sans adresse (pupitres et seconds joueurs nommés) des parties terminées : on ne peut que les compter.
 
@@ -3301,7 +3301,7 @@ paths:
       description: |
         Statut : **Disponible** (lot 7b)
 
-        Fichier CSV UTF-8 avec BOM, séparateur `;`, fins de ligne CRLF. Seuls les joueurs dont le dernier consentement aux offres est donné y figurent. Colonnes : `email;prenom;derniere_partie;parties;consentement_offres_le` (dates ISO 8601 en UTC).
+        Fichier CSV UTF-8 avec BOM, séparateur `;`, fins de ligne CRLF. Seuls les joueurs dont le dernier consentement aux offres est donné y figurent. Colonnes : `email;prenom;derniere_partie;parties;consentement_offres_le` (dates ISO 8601 en UTC). `derniere_partie` et `parties` tiennent compte de **toutes** les parties où l'adresse figure, jouées ou non (contrairement à la liste).
 
         **Injection de formule** : une cellule qui commence par `=`, `+`, `-`, `@`, une tabulation ou un retour chariot est préfixée d'une apostrophe, pour que le tableur la lise comme du texte (un nom saisi sur un téléphone ne doit pas s'exécuter). Les cellules qui contiennent `;`, `"` ou un saut de ligne sont entre guillemets.
 
@@ -3390,9 +3390,9 @@ paths:
       description: |
         Statut : **Disponible** (lot 7b)
 
-        Dans toute la compagnie, sur chaque pupitre où l'adresse figure (premier ou second joueur) : l'adresse et ses consentements sont mis à null, et le nom du joueur est remplacé par `Joueur effacé`. Les **scores et les rangs sont conservés**, ainsi que l'autre joueur du pupitre. Les demandes d'inscription en attente qui portent l'adresse (premier ou second joueur) sont supprimées. Le tout dans une transaction. Les autres compagnies ne sont pas touchées.
+        Dans toute la compagnie, sur chaque pupitre où l'adresse figure (premier ou second joueur) : l'adresse et ses consentements sont mis à null, et le nom du joueur est remplacé par `Joueur effacé`. Les **scores et les rangs sont conservés**, ainsi que l'autre joueur du pupitre. Une demande d'inscription en attente dont l'adresse est celle du premier joueur est supprimée ; si l'adresse n'est que celle du second joueur, la demande (qui appartient à un tiers) reste et son second joueur est retiré. Le tout dans une transaction. Les autres compagnies ne sont pas touchées.
 
-        `erased` = pupitres effacés + demandes supprimées. Adresse inconnue de la compagnie : `404 player_not_found`, rien n'est écrit. L'adresse passe par le corps, jamais par l'URL.
+        `erased` = pupitres effacés + demandes supprimées ou modifiées. Adresse inconnue de la compagnie : `404 player_not_found`, rien n'est écrit. L'adresse passe par le corps, jamais par l'URL.
 
         Accès : superadmin et `admin` de la compagnie ; le rôle `user` est refusé.
       operationId: erasePlayer
@@ -8159,12 +8159,17 @@ components:
           description: Nom à la dernière partie du joueur.
         sessions:
           type: integer
-          minimum: 1
+          minimum: 0
+          description: Parties terminées et non supprimées où l'adresse figure ; 0 si le joueur n'en a pas.
         lastPlayedAt:
           type: string
           format: date-time
+          nullable: true
+          description: Date de sa dernière partie terminée et non supprimée ; `null` sans partie jouée.
         bestScore:
           type: integer
+          nullable: true
+          description: Meilleur score de ses pupitres sur les parties jouées ; `null` sans partie jouée.
         marketingConsent:
           type: boolean
           description: Offres du centre acceptées à la dernière partie du joueur.

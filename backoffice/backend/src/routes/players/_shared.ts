@@ -2,7 +2,7 @@ import type { ExportedPlayer } from './_queries'
 
 /** Séparateur de l'export : le point-virgule, que l'Excel français ouvre sans assistant. */
 const CSV_SEPARATOR = ';'
-const CSV_BOM = '﻿'
+const CSV_BOM = '\uFEFF'
 
 /** En-tête de l'export des joueurs qui acceptent les offres. */
 export const PLAYERS_CSV_HEADER = [
@@ -18,8 +18,9 @@ const FORMULA_START = /^[=+\-@\t\r]/
 
 /**
  * Injection de formule : un nom saisi par un inconnu sur son téléphone (`=HYPERLINK(...)`) ne doit
- * pas s'exécuter dans le tableur du centre. La cellule est préfixée d'une apostrophe, que le
- * tableur lit comme « texte » et n'affiche pas.
+ * pas s'exécuter dans le tableur du centre. La cellule est préfixée d'une apostrophe : la formule
+ * devient du texte. Limite connue de cette parade : à l'ouverture d'un CSV, Excel affiche
+ * l'apostrophe (elle n'est masquée que lorsqu'on la saisit dans une cellule).
  */
 export function neutralizeFormula(cell: string): string {
   return FORMULA_START.test(cell) ? `'${cell}` : cell

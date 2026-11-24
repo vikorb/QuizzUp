@@ -9,13 +9,20 @@ import db from '../../db'
  * de la purge RGPD. Il se lit sur les pupitres des parties, premier et second joueur ; la date
  * d'une apparition est celle de la purge (`COALESCE(finished_at, started_at, created_at)`).
  *
- * Toutes les parties de la compagnie comptent, supprimées logiquement comprises : un e-mail stocké
- * doit pouvoir se retrouver, s'exporter et s'effacer. Les demandes d'inscription en attente ne sont
- * pas des joueurs (elles n'ont rien joué) : seuls l'effacement et la désinscription les touchent.
+ * Toutes les parties de la compagnie désignent des joueurs, supprimées logiquement comprises : un
+ * e-mail stocké doit pouvoir se retrouver, s'exporter et s'effacer. Les demandes d'inscription en
+ * attente ne sont pas des joueurs (elles n'ont rien joué) : seuls l'effacement et la désinscription
+ * les touchent.
+ *
+ * Les statistiques de la liste (`sessions`, `last_played_at`, `best_score`) ne comptent que les
+ * parties jouées : terminées et non supprimées (`played`). Un joueur qui n'a que d'autres parties
+ * reste listé, à 0 session et sans date ni score. L'export garde toutes les parties
+ * (`all_sessions`, `all_last_played_at`).
  *
  * Le nom et le consentement aux offres sont ceux de la dernière apparition : un joueur qui, à sa
  * dernière partie, n'accepte plus les offres n'est pas relancé. `slot` ordonne les deux joueurs
- * d'un même pupitre.
+ * d'un même pupitre ; `last_occurrence` (unique par apparition) départage les égalités de la liste
+ * sans rien dire de l'adresse.
  */
 const PLAYERS_CTE = `
   WITH occurrences AS (
@@ -27,7 +34,8 @@ const PLAYERS_CTE = `
       gp.game_id,
       gp.id AS participant_id,
       1 AS slot,
-      COALESCE(g.finished_at, g.started_at, g.created_at) AS played_at
+      COALESCE(g.finished_at, g.started_at, g.created_at) AS played_at,
+      (g.state = :finished AND g.status <> :deleted) AS played
     FROM game_participants gp
     JOIN games g ON g.id = gp.game_id
     WHERE g.company_id = :companyId AND gp.email IS NOT NULL
@@ -40,7 +48,8 @@ const PLAYERS_CTE = `
       gp.game_id,
       gp.id,
       2,
-      COALESCE(g.finished_at, g.started_at, g.created_at)
+      COALESCE(g.finished_at, g.started_at, g.created_at),
+      (g.state = :finished AND g.status <> :deleted)
     FROM game_participants gp
     JOIN games g ON g.id = gp.game_id
     WHERE g.company_id = :companyId AND gp.second_email IS NOT NULL
@@ -49,9 +58,12 @@ const PLAYERS_CTE = `
     SELECT
       email_key,
       (array_agg(name ORDER BY played_at DESC, participant_id DESC, slot DESC))[1] AS display_name,
-      CAST(count(DISTINCT game_id) AS integer) AS sessions,
-      max(played_at) AS last_played_at,
-      max(score) AS best_score,
+      CAST(count(DISTINCT game_id) FILTER (WHERE played) AS integer) AS sessions,
+      max(played_at) FILTER (WHERE played) AS last_played_at,
+      max(score) FILTER (WHERE played) AS best_score,
+      CAST(count(DISTINCT game_id) AS integer) AS all_sessions,
+      max(played_at) AS all_last_played_at,
+      max(participant_id * 2 + slot) AS last_occurrence,
       (array_agg(marketing_at ORDER BY played_at DESC, participant_id DESC, slot DESC))[1]
         AS marketing_consent_at
     FROM occurrences
@@ -59,7 +71,7 @@ const PLAYERS_CTE = `
   )
 `
 
-const PLAYER_COLUMNS = `
+const LIST_COLUMNS = `
   email_key AS email,
   display_name AS "displayName",
   sessions,
@@ -68,21 +80,32 @@ const PLAYER_COLUMNS = `
   marketing_consent_at AS "marketingConsentAt"
 `
 
+const EXPORT_COLUMNS = `
+  email_key AS email,
+  display_name AS "displayName",
+  all_sessions AS sessions,
+  all_last_played_at AS "lastPlayedAt",
+  marketing_consent_at AS "marketingConsentAt"
+`
+
 type PlayerDbRow = {
   email: string
   displayName: string | null
   sessions: number
-  lastPlayedAt: Date
-  bestScore: number
+  lastPlayedAt: Date | null
+  bestScore: number | null
   marketingConsentAt: Date | null
 }
 
 export type ListedPlayer = {
   email: string
   displayName: string
+  /** Parties jouées (terminées, non supprimées) ; 0 si le joueur n'a que d'autres parties. */
   sessions: number
-  lastPlayedAt: string
-  bestScore: number
+  /** `null` sans partie jouée. */
+  lastPlayedAt: string | null
+  /** `null` sans partie jouée. */
+  bestScore: number | null
   marketingConsent: boolean
 }
 
@@ -99,7 +122,12 @@ function toLikePattern(search: string): string {
   return `%${search.replace(/[\\%_]/g, (char) => `\\${char}`)}%`
 }
 
-async function queryRows<T>(sql: string, bindings: Knex.RawBinding): Promise<T[]> {
+/** Les valeurs que `PLAYERS_CTE` attend, plus celles de la requête qui l'utilise. */
+function playersBindings(companyId: number, more: Knex.ValueDict = {}): Knex.ValueDict {
+  return { companyId, finished: GAME_STATE_FINISHED, deleted: GAME_STATUS_DELETED, ...more }
+}
+
+async function queryRows<T>(sql: string, bindings: Knex.ValueDict): Promise<T[]> {
   const result = (await db.raw(sql, bindings)) as { rows: T[] }
 
   return result.rows
@@ -114,13 +142,17 @@ export async function listPlayers(params: {
 }): Promise<{ players: ListedPlayer[]; total: number }> {
   const { companyId, search, limit, offset } = params
   const filter = search ? "WHERE display_name ILIKE :pattern ESCAPE '\\'" : ''
-  const bindings = { companyId, pattern: search ? toLikePattern(search) : '', limit, offset }
+  const bindings = playersBindings(companyId, {
+    pattern: search ? toLikePattern(search) : '',
+    limit,
+    offset,
+  })
 
   const [rows, totals] = await Promise.all([
     queryRows<PlayerDbRow>(
       `${PLAYERS_CTE}
-       SELECT ${PLAYER_COLUMNS} FROM players ${filter}
-       ORDER BY last_played_at DESC, email_key ASC
+       SELECT ${LIST_COLUMNS} FROM players ${filter}
+       ORDER BY last_played_at DESC NULLS LAST, last_occurrence DESC
        LIMIT :limit OFFSET :offset`,
       bindings
     ),
@@ -135,7 +167,7 @@ export async function listPlayers(params: {
       email: row.email,
       displayName: row.displayName ?? '',
       sessions: row.sessions,
-      lastPlayedAt: new Date(row.lastPlayedAt).toISOString(),
+      lastPlayedAt: row.lastPlayedAt ? new Date(row.lastPlayedAt).toISOString() : null,
       bestScore: row.bestScore,
       marketingConsent: row.marketingConsentAt !== null,
     })),
@@ -163,22 +195,22 @@ export async function countAnonymousPlayers(companyId: number): Promise<number> 
 export async function listMarketingPlayers(companyId: number): Promise<ExportedPlayer[]> {
   const rows = await queryRows<PlayerDbRow>(
     `${PLAYERS_CTE}
-     SELECT ${PLAYER_COLUMNS} FROM players
+     SELECT ${EXPORT_COLUMNS} FROM players
      WHERE marketing_consent_at IS NOT NULL
      ORDER BY email_key ASC`,
-    { companyId }
+    playersBindings(companyId)
   )
 
   return rows.map((row) => ({
     email: row.email,
     displayName: row.displayName ?? '',
-    lastPlayedAt: new Date(row.lastPlayedAt).toISOString(),
+    lastPlayedAt: new Date(row.lastPlayedAt as Date).toISOString(),
     sessions: row.sessions,
     marketingConsentAt: new Date(row.marketingConsentAt as Date).toISOString(),
   }))
 }
 
-async function rowCount(trx: Knex.Transaction, sql: string, bindings: Knex.RawBinding) {
+async function rowCount(trx: Knex.Transaction, sql: string, bindings: Knex.ValueDict) {
   const result = (await trx.raw(sql, bindings)) as { rowCount?: number | null }
 
   return result.rowCount ?? 0
@@ -234,16 +266,38 @@ export async function withdrawMarketingConsent(companyId: number, email: string)
 /**
  * Droit à l'effacement : dans toute la compagnie, l'adresse et ses consentements sont mis à null
  * et le nom du joueur est remplacé par un libellé fixe (Q13), sur chaque pupitre où l'adresse
- * figure. Scores, rangs et autre joueur du pupitre restent. Les demandes d'inscription en attente
- * qui la portent sont supprimées. Une seule transaction.
+ * figure. Scores, rangs et autre joueur du pupitre restent. Une demande d'inscription en attente
+ * dont l'adresse est celle du premier joueur est supprimée ; si l'adresse n'est que celle du second
+ * joueur, la demande reste (elle est à un tiers) et son second joueur est retiré. Une seule
+ * transaction.
  *
- * Renvoie le nombre de joueurs de pupitre effacés plus le nombre de demandes supprimées ; 0 si
+ * Renvoie le nombre de joueurs de pupitre effacés plus le nombre de demandes touchées ; 0 si
  * l'adresse est inconnue de la compagnie (rien n'a été écrit).
  */
 export async function erasePlayer(companyId: number, email: string): Promise<number> {
   const bindings = { companyId, email, now: new Date(), name: PLAYER_ERASED_NAME }
 
   return db.transaction(async (trx) => {
+    // Les demandes d'abord : l'acceptation d'une demande (routes/games/registrations) verrouille la
+    // demande avant d'écrire les pupitres ; verrouiller dans le même ordre évite l'interblocage.
+    const registrations = await rowCount(
+      trx,
+      `DELETE FROM game_registrations gr
+       USING games g
+       WHERE g.id = gr.game_id AND g.company_id = :companyId
+         AND lower(btrim(gr.email)) = lower(btrim(:email))`,
+      bindings
+    )
+    const registrationsSecond = await rowCount(
+      trx,
+      `UPDATE game_registrations gr
+       SET second_display_name = NULL, second_email = NULL, second_consent_at = NULL,
+         second_marketing_consent_at = NULL
+       FROM games g
+       WHERE g.id = gr.game_id AND g.company_id = :companyId
+         AND lower(btrim(gr.second_email)) = lower(btrim(:email))`,
+      bindings
+    )
     const first = await rowCount(
       trx,
       `UPDATE game_participants gp
@@ -264,18 +318,7 @@ export async function erasePlayer(companyId: number, email: string): Promise<num
          AND lower(btrim(gp.second_email)) = lower(btrim(:email))`,
       bindings
     )
-    // La demande entière part, second joueur compris : une demande en attente n'a rien joué, le
-    // second joueur peut se réinscrire.
-    const registrations = await rowCount(
-      trx,
-      `DELETE FROM game_registrations gr
-       USING games g
-       WHERE g.id = gr.game_id AND g.company_id = :companyId
-         AND (lower(btrim(gr.email)) = lower(btrim(:email))
-           OR lower(btrim(gr.second_email)) = lower(btrim(:email)))`,
-      bindings
-    )
 
-    return first + second + registrations
+    return registrations + registrationsSecond + first + second
   })
 }

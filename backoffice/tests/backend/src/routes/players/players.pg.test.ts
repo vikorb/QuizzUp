@@ -37,8 +37,8 @@ type PlayerBody = {
   email: string | null
   displayName: string
   sessions: number
-  lastPlayedAt: string
-  bestScore: number
+  lastPlayedAt: string | null
+  bestScore: number | null
   marketingConsent: boolean
 }
 type ListBody = { players: PlayerBody[]; total: number; anonymousPlayers: number }
@@ -235,12 +235,13 @@ describe.skipIf(!PG_INTEGRATION_URL)('routes des joueurs sur PostgreSQL', () => 
 
       expect(response.statusCode).toBe(200)
       expect(body.total).toBe(3)
+      // Même date pour a@ et c@ (même pupitre) : le plus récent des deux sur ce pupitre d'abord.
       expect(body.players.map((player) => player.email)).toEqual([
-        'a@x.test',
         'c@x.test',
+        'a@x.test',
         'b@x.test',
       ])
-      expect(body.players[0]).toEqual({
+      expect(body.players[1]).toEqual({
         email: 'a@x.test',
         // Nom de la dernière partie, meilleur score des deux, deux parties jouées.
         displayName: 'Alice N',
@@ -249,7 +250,7 @@ describe.skipIf(!PG_INTEGRATION_URL)('routes des joueurs sur PostgreSQL', () => 
         bestScore: 50,
         marketingConsent: true,
       })
-      expect(body.players[1]).toMatchObject({ displayName: '=1+1', sessions: 1, bestScore: 50 })
+      expect(body.players[0]).toMatchObject({ displayName: '=1+1', sessions: 1, bestScore: 50 })
       expect(body.players[2]).toMatchObject({
         displayName: 'Bob',
         sessions: 1,
@@ -270,7 +271,7 @@ describe.skipIf(!PG_INTEGRATION_URL)('routes des joueurs sur PostgreSQL', () => 
 
       expect(body.total).toBe(3)
       expect(body.players.map((player) => player.email)).toEqual([null, null, null])
-      expect(body.players[0]!.displayName).toBe('Alice N')
+      expect(body.players[1]!.displayName).toBe('Alice N')
       expect(JSON.stringify(body)).not.toContain('@x.test')
     })
 
@@ -290,7 +291,7 @@ describe.skipIf(!PG_INTEGRATION_URL)('routes des joueurs sur PostgreSQL', () => 
     it('pages the list and still reports the whole total', async () => {
       const body = parseJson<ListBody>(await get('/companies/1/players?limit=1&offset=1'))
 
-      expect(body.players.map((player) => player.email)).toEqual(['c@x.test'])
+      expect(body.players.map((player) => player.email)).toEqual(['a@x.test'])
       expect(body.total).toBe(3)
     })
 
@@ -312,6 +313,49 @@ describe.skipIf(!PG_INTEGRATION_URL)('routes des joueurs sur PostgreSQL', () => 
       expect((await get('/companies/2/players', superadminUser)).statusCode).toBe(200)
     })
 
+    it('counts only finished, non-deleted games in the stats, and still lists the others', async () => {
+      await addGame(5, 1, 1, 'running', '2026-11-15T18:00:00.000Z')
+      await addParticipant({
+        game: 5,
+        podium: 1,
+        name: 'Carl',
+        email: 'c@x.test',
+        marketing: true,
+        second: { name: 'Eve', email: 'e@x.test', marketing: true },
+        score: 90,
+      })
+      await addGame(6, 1, 1, 'finished', '2026-11-20T18:00:00.000Z')
+      await db('games').where('id', 6).update({ status: 2, deleted_at: now() })
+      await addParticipant({ game: 6, podium: 1, name: 'Fay', email: 'f@x.test', score: 80 })
+
+      const body = parseJson<ListBody>(await get('/companies/1/players'))
+      const byEmail = (email: string) => body.players.find((player) => player.email === email)
+
+      // Carl joue en cours de partie (90 points) : ni sa date ni son score ne comptent.
+      expect(byEmail('c@x.test')).toMatchObject({
+        displayName: 'Carl',
+        sessions: 1,
+        lastPlayedAt: NOV,
+        bestScore: 50,
+      })
+      // Joueurs sans partie jouée : listés, à zéro, sans date ni score.
+      expect(byEmail('e@x.test')).toMatchObject({
+        sessions: 0,
+        lastPlayedAt: null,
+        bestScore: null,
+      })
+      expect(byEmail('f@x.test')).toMatchObject({
+        sessions: 0,
+        lastPlayedAt: null,
+        bestScore: null,
+      })
+      expect(body.total).toBe(5)
+      // Les joueurs sans partie jouée passent après les autres.
+      expect(body.players.slice(-2).map((player) => player.email)).toEqual(
+        expect.arrayContaining(['e@x.test', 'f@x.test'])
+      )
+    })
+
     it('follows the last game for the consent: an address that stopped accepting is not an offer contact', async () => {
       await addGame(5, 1, 1, 'finished', '2026-11-10T18:00:00.000Z')
       await addParticipant({ game: 5, podium: 1, name: 'Carl', email: 'c@x.test' })
@@ -331,13 +375,34 @@ describe.skipIf(!PG_INTEGRATION_URL)('routes des joueurs sur PostgreSQL', () => 
       const lines = response.body.split('\r\n')
 
       expect(response.statusCode).toBe(200)
-      expect(response.body.startsWith('﻿email;prenom;derniere_partie;parties;')).toBe(true)
+      expect(response.body.startsWith('\uFEFFemail;prenom;derniere_partie;parties;')).toBe(true)
       expect(lines).toHaveLength(4)
       expect(lines[1]!.startsWith(`a@x.test;Alice N;${NOV};2;`)).toBe(true)
       expect(lines[2]!.startsWith(`c@x.test;'=1+1;${NOV};1;`)).toBe(true)
       expect(response.body).not.toContain('b@x.test')
       expect(response.body).not.toContain('d@x.test')
       expect(lines[3]).toBe('')
+    })
+
+    it('keeps every game in the export, played or not', async () => {
+      await addGame(5, 1, 1, 'running', '2026-11-15T18:00:00.000Z')
+      await addParticipant({
+        game: 5,
+        podium: 1,
+        name: 'Carl',
+        email: 'c@x.test',
+        marketing: true,
+        second: { name: 'Eve', email: 'e@x.test', marketing: true },
+      })
+
+      const lines = (await get('/companies/1/players/export.csv')).body.split('\r\n')
+
+      expect(
+        lines.some((line) => line.startsWith('c@x.test;Carl;2026-11-15T18:00:00.000Z;2;'))
+      ).toBe(true)
+      expect(
+        lines.some((line) => line.startsWith('e@x.test;Eve;2026-11-15T18:00:00.000Z;1;'))
+      ).toBe(true)
     })
 
     it('refuses the user role, even in his own company, and another company', async () => {
@@ -456,12 +521,47 @@ describe.skipIf(!PG_INTEGRATION_URL)('routes des joueurs sur PostgreSQL', () => 
       })
     })
 
-    it('deletes a pending request whose 2nd player is the address', async () => {
+    it('keeps the pending request of a third party and clears only its 2nd player', async () => {
       const response = await post('/companies/1/players/erase', 'd@x.test')
 
       expect(parseJson(response)).toEqual({ erased: 1 })
-      expect(await registrations(3)).toEqual([])
+      expect(await registrations(3)).toEqual([
+        expect.objectContaining({
+          display_name: 'Alice',
+          email: 'a@x.test',
+          marketing_consent_at: expect.any(Date),
+          second_display_name: null,
+          second_email: null,
+          second_consent_at: null,
+          second_marketing_consent_at: null,
+        }),
+      ])
       expect((await participants(1))[0]!.email).toBe('a@x.test')
+    })
+
+    it('rolls everything back when a write fails: requests, desks, nothing half erased', async () => {
+      await db.raw(
+        `CREATE FUNCTION players_test_fail() RETURNS trigger AS $$
+         BEGIN RAISE EXCEPTION 'echec simule'; END $$ LANGUAGE plpgsql`
+      )
+      await db.raw(
+        `CREATE TRIGGER players_test_fail BEFORE UPDATE ON game_participants
+         FOR EACH ROW EXECUTE FUNCTION players_test_fail()`
+      )
+
+      try {
+        const response = await post('/companies/1/players/erase', 'a@x.test')
+
+        expect(response.statusCode).toBe(500)
+      } finally {
+        await db.raw('DROP TRIGGER IF EXISTS players_test_fail ON game_participants')
+        await db.raw('DROP FUNCTION IF EXISTS players_test_fail()')
+      }
+
+      // La suppression de la demande, faite avant l'écriture qui échoue, est annulée.
+      expect(await registrations(3)).toHaveLength(1)
+      expect((await participants(1))[0]).toMatchObject({ email: 'a@x.test', display_name: 'Alice' })
+      expect((await participants(2))[0]).toMatchObject({ email: 'A@X.TEST' })
     })
 
     it('leaves nothing of the address in the company: no row, not in the list, not in the export', async () => {

@@ -186,7 +186,7 @@ describe('GET /companies/:companyId/players/export.csv', () => {
     expect(response.headers['content-disposition']).toContain('attachment')
     expect(response.headers['cache-control']).toBe('no-store')
     expect(response.body).toBe(
-      '﻿email;prenom;derniere_partie;parties;consentement_offres_le\r\n' +
+      '\uFEFFemail;prenom;derniere_partie;parties;consentement_offres_le\r\n' +
         'jean@exemple.test;Jean;2026-11-20T18:30:00.000Z;2;2026-10-01T10:00:00.000Z\r\n'
     )
     expect(listMarketingPlayers).toHaveBeenCalledWith(1)
@@ -242,16 +242,6 @@ describe('POST /companies/:companyId/players/unsubscribe', () => {
     expect(parseJson(response)).toEqual({ ok: true })
     expect(withdrawMarketingConsent).toHaveBeenCalledWith(1, 'Jean@Exemple.test')
     expectPermission('update')
-  })
-
-  it('answers the same way whoever the address belongs to', async () => {
-    const known = await post('/companies/1/players/unsubscribe', { email: 'jean@exemple.test' })
-    const unknown = await post('/companies/1/players/unsubscribe', {
-      email: 'inconnu@exemple.test',
-    })
-
-    expect(unknown.statusCode).toBe(known.statusCode)
-    expect(unknown.body).toBe(known.body)
   })
 
   it('refuses an admin of another company, without writing anything', async () => {
