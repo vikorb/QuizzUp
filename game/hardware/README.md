@@ -305,6 +305,8 @@ est fourni, sinon de `payload.participantId` via `resolveDesk`.
 | `game_ended` à égalité (clé `game_ended_tie`)           | `victory-tie` (+ fumée si armée)       |
 | `game_ended` faute de contenu (`game_ended_incomplete`) | `exit` (lumière de sortie)             |
 | `game_aborted`                                          | `idle`                                 |
+| `game_paused` (signal de l'écran de salle)              | `pause`                                |
+| `game_resumed` (signal de l'écran de salle)             | `question`                             |
 
 Chaque salle peut surcharger une liaison (`lighting.bindings`, `null` pour la couper). Une salle qui
 a réglé `game_ended` sans régler `game_ended_tie` garde son choix à égalité. Une scène
@@ -312,7 +314,7 @@ moins prioritaire n'interrompt pas la scène en cours (un extrait qui reprend ne
 l'effet « bonne réponse »). Priorités : `idle` 0 ; `question`, `clip-playing` 10 ; `game-start`,
 `round-start`, `chooser`, `round-end` 20 ; `buzz`, `answer-correct`, `answer-wrong`,
 `question-lost` 40 (un buzz juste après une mauvaise réponse n'est donc pas refusé) ; `victory`,
-`victory-tie` 50 ; `exit`, `exit-off` 15 ; `identify` 90. Couleurs : DA néon du backoffice, une couleur par pupitre.
+`victory-tie` 50 ; `exit`, `exit-off` 15 ; `pause` 60 ; `identify` 90. Couleurs : DA néon du backoffice, une couleur par pupitre.
 
 **Plafond d'éclairs (photosensibilité)** : la salle ne fait pas plus de **3 éclairs par seconde**,
 quelle que soit la scène jouée par le lecteur de scènes. Le seuil de référence est
@@ -399,9 +401,19 @@ est limitée à 20 000 caractères côté serveur). Même `id` qu'une scène par
 - **Clés d'événement** : `round_started.<miniGame>` (code du mini-jeu, ex. `sudden_death`) l'emporte
   sur `round_started`, y compris à `null` (aucune scène pour ce mini-jeu). Les **signaux de l'écran
   de salle** `SHOW_CUES` (`game_paused`, `game_resumed`, `session_exit`) passent par
-  `handleGameEvent` comme un événement, sans jamais entrer dans le moteur : ils n'ont **aucune
-  liaison par défaut** (les scènes `pause` / `question` de reprise et la scène de sortie arrivent
-  avec l'écran de salle).
+  `handleGameEvent` comme un événement, sans jamais entrer dans le moteur. `game_paused` joue
+  `pause` et `game_resumed` joue `question` ; `session_exit` n'a aucune liaison par défaut. La scène
+  `pause` (priorité 60) est un fondu de 400 ms vers une ambiance basse, sans flash ni fumée : la
+  coupure du jet reste celle de `setGamePaused`. `game_resumed` arrête toujours le lecteur avant sa
+  scène (`player.stop()`, comme `game_aborted` et `game_started`) : une reprise en moins de 400 ms
+  n'est pas refusée par la scène `pause` encore en cours, et tout ce qui tournait pendant la pause
+  est coupé aussi (`identify`, scène de test, victoire forcée, avec son enchaînement vers la
+  sortie). Une salle qui a retiré la liaison (`game_resumed: null`) retrouve quand même
+  l'ambiance `question`. **Rejeu de reprise** : la fumée étant de nouveau permise à la reprise,
+  `game_resumed` et les événements de phase rejoués par l'écran de salle passent par
+  `handleGameEvent(event, { restore: true })`. Le lecteur retire alors les pas `smoke` et `flash`
+  de la scène et de celles qu'elle enchaîne (`next`) : seul l'état lumineux (couleurs, attentes)
+  revient, jamais un jet ni un éclair. Le jeu normal n'est pas touché (`restore` absent).
 - **Bornes** (`parseScenes`, constantes `SCENE_LIMITS`). Une scène ou une étape illisible est
   écartée, une valeur hors borne est ramenée, et chaque écart est dans les `problems` de
   `parseRoomHardwareConfig` :
@@ -548,6 +560,63 @@ Le contrôleur de fumée applique, quoi que dise la configuration :
 > case et désactive la fumée). Cocher ou décocher la case oblige à le refaire. Une salle existante à fumée DMX sans relais ni case est relue **sans
 > erreur** : `parseRoomHardwareConfig` désactive la fumée (`smokeDisabledReason: 'relay_required'`,
 > un problème « Fumée désactivée… ») et garde tous les autres réglages (durée, pause, niveau).
+
+## Lien vers la carte de fumée (`createSmokeBoardLink`)
+
+> Sécurité : fumée. Conception : `docs/cadrage/conception-fumee-carte-usb.md` (§3 protocole et
+> sécurités de la carte). **Rien n'a été essayé sur une vraie carte** : à valider sur le banc.
+
+Pour les salles dont la machine à fumée est commandée par une carte Arduino Uno en USB. Le lien
+parle à la carte par Web Serial (`smoke/boardLink.ts`, protocole pur dans `smoke/boardProtocol.ts`).
+Pas encore branché au `LightingController` (lot suivant).
+
+- **Ce qu'il fait** : ouvre le port à 9600 bauds et attend la bannière `QZF READY` (3 s au plus).
+  Sans bannière valide, il passe `no_firmware` et n'envoie **jamais** `F`. Une bannière d'un autre
+  protocole, illisible ou **plus permissive** que le projet est refusée : plafond de jet au-dessus
+  de 10 s (`SMOKE_HARD_LIMITS`), pause sous 5 s, bail au-dessus de 500 ms (`BOARD_MAX_LEASE_MS`,
+  égal à `WATCHDOG_STALL_MS`, sans en dépendre) ; une carte plus stricte est acceptée, sauf un bail
+  de moins de 200 ms (deux envois de `F`), qui couperait entre deux ordres normaux.
+- **`drive(true)` à chaque trame** : le lien n'envoie `F` qu'au plus toutes les 100 ms et ne le
+  renouvelle **jamais** de lui-même. Si l'appelant s'arrête (page gelée, test de gel), la carte
+  coupe à la fin du bail de 500 ms. `drive(false)` envoie `0` une fois, tout de suite, quand un `F`
+  est parti.
+- **Phase de la carte** (`getState().phase`) : dès la bannière, le lien envoie un `H` pour la lire.
+  La carte démarre en pause (`COOL`) pendant 5 s après chaque remise à zéro, et une pause suit
+  chaque jet. `drive(true)` n'envoie `F` que si la dernière ligne d'état dit `ready` (début de jet)
+  ou `fire` (renouvellement du bail) ; en `cool`, ou avant la première ligne, rien ne part : l'appelant
+  doit refuser le jet plutôt que d'afficher une fumée qui ne sort pas. Un `F` reçu en `COOL`
+  (course entre la page et la carte) est refusé par la carte, qui ignore ensuite les `F` jusqu'à un
+  `0` ou 500 ms de silence : le lien répond par un seul `0` et n'envoie plus de `F` avant d'avoir
+  relu `ready`. Le lien n'envoie non plus aucun `F` tant que la ligne d'état qui répond à son dernier
+  `0` n'est pas revenue, ni tant qu'une écriture précédente n'est pas terminée (port qui n'avale
+  plus rien : pas de rafale au déblocage). Seul le `0` part toujours.
+- **Surveillance** : un `H` de présence quand rien n'est parti depuis 250 ms ; carte `silent` après
+  1 s sans réponse à la plus ancienne ligne envoyée (la carte répond une ligne d'état par ligne
+  reçue, dans l'ordre) ; `fault` si la réponse à une ligne annonce la sortie allumée alors que cette
+  ligne ne pouvait pas l'allumer (partie plus d'un bail, plus 100 ms de latence, après le dernier `F`
+  parti pour de bon, ou après un `0`) : c'est jugé **à l'envoi**, une page ralentie qui lit sa
+  réponse tard n'est pas une panne. Une ligne d'état incohérente (`S 1 COOL`, `S 0 FIRE`) est
+  ignorée. `fault` aussi si la carte renvoie une bannière en cours de partie (elle a redémarré :
+  plafond et pause remis à zéro). `disconnected` sur toute erreur d'ouverture ou d'écriture, fin de
+  flux, ou erreur de lecture : une erreur **passagère** (`FramingError`, `ParityError`,
+  `BufferOverrunError`, `BreakError`) fait reprendre la lecture sur le flux neuf de
+  `port.readable`, trois de suite sans une ligne lue la déclarent perdue. Avant d'abandonner un
+  port dont la lecture est perdue, un dernier `0` est tenté (l'écriture marche peut-être encore).
+  Dès qu'on quitte `ready`, `board` et `phase` repassent à `null` : ils ne décrivent plus une
+  carte qui répond. Tout état d'échec est **définitif** : un nouveau lien (rechargement,
+  rebranchement) repart d'une nouvelle bannière. `onChange` prévient l'appelant, qui doit couper la
+  fumée et désarmer.
+- **Ce qu'il ne fait pas** : il n'arbitre rien. Le bail, le plafond et la pause sont dans la carte ;
+  il ne peut que les observer. Il ne choisit pas le port, ne téléverse pas de programme et ne
+  décide pas de l'arrêt d'urgence.
+- **Fermeture** : chaque étape (dernier `0`, libération du writer, annulation de la lecture,
+  fermeture du port) est bornée à 1 s et indépendante : une carte figée ne garde ni verrou ni port.
+- **Fausse carte** pour les tests : `tests/_helpers/fakeSmokeBoard.ts`. La décision est le port
+  ligne à ligne du programme de la carte (`tests/_helpers/fumeeLogic.ts`) et le test
+  `fumeeVectors.test.ts` le rejoue, avec ce port, sur les vecteurs partagés
+  `firmware/fumee/vecteurs.txt` (31 scénarios, dont le débordement du compteur). La pause de 5 s
+  compte depuis la bannière ; `abort()` rejette les écritures bloquées comme Chrome. Options : sans
+  bannière, autre protocole, muette, parasites, débranchement, erreur de lecture passagère, état forgé.
 
 ## Fiabilité des interfaces USB DMX (Web Serial)
 

@@ -3,6 +3,7 @@
  * (fonds, accents bleu-violet, néons, police Exo 2) et on n'ajoute que ce qui est
  * propre à un écran de jeu vu de loin.
  */
+@import '@backoffice-assets/styles/fonts.css';
 @import '@backoffice-assets/styles/main.css';
 
 :root {
@@ -29,6 +30,9 @@
   --buzzer-white: #f4f6ff;
   --buzzer-orange: #ff8a3d;
   --buzzer-pink: #ff7ab8;
+
+  /* ---- Fond clair autour d'un QR code : les lecteurs exigent un fond clair autour des modules sombres ---- */
+  --qr-paper: #fff;
 
   /* ---- Typographie « plateau TV », lisible à 5 m ---- */
   --stage-title: clamp(34px, 5.2vw, 84px);

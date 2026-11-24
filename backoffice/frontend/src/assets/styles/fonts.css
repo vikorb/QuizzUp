@@ -1,0 +1,8 @@
+/*
+ * Police Exo 2, chargée depuis Google Fonts. Importée par l'entrée du backoffice et par l'écran de
+ * salle seulement : les pages publiques pour téléphone (`/rejoindre/`, `/bon/`) ne l'importent
+ * pas, car le navigateur du joueur enverrait son adresse IP à Google. Elles gardent la pile de
+ * polices de `main.css` avec repli système. Un test (`tests/frontend/src/public/fonts.test.ts`)
+ * casse si cet import revient dans `main.css`.
+ */
+@import url('https://fonts.googleapis.com/css2?family=Exo+2:ital,wght@0,100..900;1,100..900&display=swap');
