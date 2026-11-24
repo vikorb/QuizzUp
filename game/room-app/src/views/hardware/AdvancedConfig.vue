@@ -52,7 +52,13 @@
 </template>
 
 <script setup lang="ts">
-import { GENERIC_PROFILES } from '@quizzup/hardware'
+import type { RoomConfigImportResult, RoomHardwareConfig } from '@quizzup/hardware'
+import {
+  exportRoomConfig,
+  GENERIC_PROFILES,
+  parseRoomHardwareConfig,
+  withoutSmokeEscalation,
+} from '@quizzup/hardware'
 import { ref, watch } from 'vue'
 
 import UiButton from '@/components/ui/UiButton.vue'
@@ -65,6 +71,11 @@ const draft = ref('')
 const jsonError = ref<string | null>(null)
 const saved = ref(false)
 const saving = ref(false)
+
+const asRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
 
 function reload(): void {
   draft.value = JSON.stringify(hardware.value.config, null, 2)
@@ -85,7 +96,15 @@ async function onSave(): Promise<void> {
   jsonError.value = null
   saving.value = true
   try {
-    await saveRoomHardwareConfig(input)
+    // Ce qui assouplirait la fumée (activation, dispense de relais, jet plus long ou plus
+    // fréquent, confirmation retirée) passe par l'assistant, pas par ce JSON.
+    // Seule la fumée est remplacée dans le JSON : le reste se relit (et se signale) comme avant.
+    const { smoke } = withoutSmokeEscalation(
+      hardware.value.config,
+      parseRoomHardwareConfig(input).config
+    ).lighting
+    const root = asRecord(input)
+    await saveRoomHardwareConfig({ ...root, lighting: { ...asRecord(root.lighting), smoke } })
     // On réaffiche la version normalisée (valeurs bornées, entrées invalides écartées).
     reload()
     // Après un conflit, c'est la config d'un autre poste qui est affichée : rien n'est « enregistré ».
@@ -94,6 +113,24 @@ async function onSave(): Promise<void> {
     saving.value = false
   }
 }
+
+/** Fichier d'export de la config en place (le bouton « Exporter » le télécharge). */
+function exportConfig(roomName: string): { fileName: string; content: string } {
+  return exportRoomConfig(hardware.value.config, { roomName, now: new Date() })
+}
+
+/**
+ * Enregistre la config d'un fichier d'import déjà relu et confirmé par l'opérateur (le bouton
+ * « Importer » appelle `parseRoomConfigImport`, affiche le résumé puis demande confirmation). La
+ * fumée de la salle n'est jamais assouplie, comme pour le JSON.
+ */
+async function applyImport(result: Extract<RoomConfigImportResult, { ok: true }>): Promise<void> {
+  const config: RoomHardwareConfig = withoutSmokeEscalation(hardware.value.config, result.config)
+  await saveRoomHardwareConfig(config)
+  reload()
+}
+
+defineExpose({ exportConfig, applyImport })
 
 // Un autre poste a enregistré une autre config : le brouillon repart d'elle.
 watch(conflictCount, reload)
