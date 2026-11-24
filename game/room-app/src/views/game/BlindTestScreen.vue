@@ -50,9 +50,17 @@
         v-if="view.status === 'answering'"
         class="blind__timer"
         :value="view.answerRemainingMs / FLASH_BLIND_TEST_ANSWER_TIMEOUT_MS"
+        :remaining-ms="view.answerRemainingMs"
         tone="warn"
+        silent
       />
-      <TimerBar v-else class="blind__timer" :value="1 - view.stageProgress" />
+      <TimerBar
+        v-else
+        class="blind__timer"
+        :value="1 - view.stageProgress"
+        :remaining-ms="view.stageRemainingMs"
+        silent
+      />
       <p v-if="view.status === 'answering'" class="blind__hint">
         {{ $t('game.blindTest.answerHint') }}
       </p>

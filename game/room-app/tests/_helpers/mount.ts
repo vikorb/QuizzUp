@@ -11,7 +11,12 @@ enableAutoUnmount(afterEach)
 /** Monte un composant avec l'i18n (fr) et le vrai router (historique mémoire). */
 export async function mountWithApp(
   component: Component,
-  options: { route?: string; props?: Record<string, unknown> } = {}
+  options: {
+    route?: string
+    props?: Record<string, unknown>
+    /** `{ transition: false }` monte la vraie transition (stubée par défaut). */
+    stubs?: Record<string, boolean>
+  } = {}
 ) {
   setCurrentLocale('fr')
   const router = createRoomRouter(createMemoryHistory())
@@ -21,7 +26,7 @@ export async function mountWithApp(
   const wrapper = mount(component, {
     props: options.props,
     attachTo: document.body,
-    global: { plugins: [router, createAppI18n()] },
+    global: { plugins: [router, createAppI18n()], stubs: options.stubs },
   })
 
   return { wrapper, router }

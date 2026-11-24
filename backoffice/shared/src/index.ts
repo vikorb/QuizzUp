@@ -681,6 +681,25 @@ export const QUESTION_AUDIO_DEFAULT_MAX_BYTES = 10 * 1024 * 1024
 export const QUESTION_AUDIO_RECOMMENDED_EXCERPT_MS = 20_000
 
 /**
+ * Extrait audio fourni par un service d'extraits plutôt que par un fichier importé : la question
+ * garde seulement le fournisseur et la référence du titre. Un seul fournisseur aujourd'hui.
+ */
+export const QUESTION_MEDIA_PROVIDER_DEEZER = 'deezer' as const
+
+export const QUESTION_MEDIA_PROVIDERS = [QUESTION_MEDIA_PROVIDER_DEEZER] as const
+
+export type QuestionMediaProvider = (typeof QUESTION_MEDIA_PROVIDERS)[number]
+
+/** Durée de l'extrait fourni par le fournisseur. */
+export const QUESTION_MEDIA_PROVIDER_EXTRACT_MS = 30_000
+
+/** Longueur minimale d'une recherche de titre (vérifiée par l'API, aussi par l'écran). */
+export const QUESTION_MEDIA_PROVIDER_SEARCH_MIN_LENGTH = 2
+
+/** Questions demandées au plus par appel au contenu de la salle (`?ids=`). */
+export const ROOM_CONTENT_MAX_IDS = 200
+
+/**
  * RGPD : durée de conservation de l'email d'un joueur, en années après sa dernière partie.
  * Passé ce délai, l'email et son consentement sont effacés (purge côté backend).
  */
@@ -833,3 +852,4 @@ export * from './questionImport.js'
 export * from './stats.js'
 export * from './totp.js'
 export * from './vouchers.js'
+export * from './publicApi.js'

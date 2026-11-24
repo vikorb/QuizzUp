@@ -52,6 +52,10 @@ tags:
     description: Parties lancées par l'opérateur dans une salle
   - name: Vouchers
     description: Bons de fidélisation remis aux joueurs d'une partie terminée, émis et utilisés par le personnel
+  - name: ApiKeys
+    description: >-
+      Clés de l'API de réservation `/public/v1` d'une compagnie et journal de leurs appels (le contrat
+      de l'API elle-même est dans `public-v1.yaml`)
   - name: Stats
     description: Statistiques d'exploitation d'une compagnie (agrégats, aucun joueur)
   - name: DemoRequests
@@ -62,6 +66,9 @@ tags:
       Routes livrées : `POST /public/v1/demo-requests` (demande de démonstration),
       `GET /public/v1/logos/{file}` (logo d'un centre) et `POST /public/v1/vouchers/lookup`
       (consultation d'un bon). Toutes suivent ces conventions.
+
+      L'API de réservation (`/public/v1/rooms`, `/availability`, `/bookings`) fait exception : elle
+      exige une clé d'API (`Authorization: Bearer qzk_…`) et son contrat est dans `public-v1.yaml`.
 
       - Erreurs au format `PublicError` : statut HTTP et `{ "error": "<code_snake_case>" }`, avec
         `details.fieldErrors` pour `invalid_body` seulement. Codes communs : `invalid_json` (400),
@@ -2945,14 +2952,37 @@ paths:
         Thèmes actifs lisibles par la compagnie (global ou company), au format `EngineTheme` du
         moteur de jeu, avec leurs questions actives de tous types et leurs réponses actives. Une
         question **audio** n'est retenue que si son fichier est uploadé (`mediaUrl` = chemin relatif
-        à l'API, `/room/questions/{id}/media`) ; une image / vidéo que si elle a un lien
-        (`mediaUrl` = ce lien) ; sans média, `mediaUrl` vaut `null`. Le moteur trie ensuite les
-        questions par éligibilité de chaque mini-jeu. Les thèmes sans question jouable sont écartés.
+        à l'API, `/room/questions/{id}/media`) ou si son titre d'un fournisseur d'extraits répond
+        avec un extrait ; une image / vidéo que si elle a un lien (`mediaUrl` = ce lien) ; sans
+        média, `mediaUrl` vaut `null`. Le moteur trie ensuite les questions par éligibilité de
+        chaque mini-jeu. Les thèmes sans question jouable sont écartés.
+
+        Extrait de fournisseur : le serveur demande le titre au fournisseur à chaque appel (un
+        appel par titre, sans cache ; 5 appels simultanés au plus). `mediaUrl` est alors le lien
+        d'extrait à jour, une URL absolue `https://…` signée et à durée de vie courte : la salle
+        la télécharge elle-même, le serveur ne stocke ni ne relaie l'audio. `mediaCredit` décrit
+        le titre (`null` pour toutes les autres questions). Fournisseur indisponible, titre
+        introuvable ou sans extrait : la question est écartée du catalogue et la réponse reste 200
+        (un seul avertissement journalisé par appel). Dès la première indisponibilité du
+        fournisseur, les titres restants ne sont plus demandés : leurs questions sont écartées.
+
+        Paramètre `ids` : limite le catalogue à ces questions (reprise d'une partie enregistrée,
+        pour ne redemander au fournisseur que les extraits dont le lien a expiré). Elles restent
+        filtrées par la compagnie de la salle : un identifiant d'une autre compagnie, ou d'une
+        question non jouable, est simplement absent de la réponse.
 
         Accès : réservé au rôle `room`, uniquement pendant une partie en attente ou en cours.
       operationId: getCurrentRoomGameContent
       x-availability: disponible
       x-us: 'US-GAME-08'
+      parameters:
+        - name: ids
+          in: query
+          required: false
+          description: 'Identifiants de questions séparés par des virgules (entiers positifs, 200 au plus).'
+          schema:
+            type: string
+            example: '12,14,31'
       responses:
         '200':
           description: Catalogue de la salle
@@ -2978,8 +3008,23 @@ paths:
                               kind: { type: string, enum: [qcm, true_false, estimate] }
                               mediaType: { type: string, example: audio }
                               mediaUrl:
-                                { type: string, nullable: true, example: /room/questions/12/media }
+                                {
+                                  type: string,
+                                  nullable: true,
+                                  description: "Audio importé : chemin relatif à l'API. Audio d'un fournisseur d'extraits : URL absolue https à jour. Image / vidéo : lien.",
+                                  example: /room/questions/12/media,
+                                }
                               mediaStartMs: { type: integer }
+                              mediaCredit:
+                                type: object
+                                nullable: true
+                                description: Extrait fourni par un fournisseur d'extraits ; `null` sinon
+                                properties:
+                                  provider: { type: string, enum: [deezer] }
+                                  title: { type: string }
+                                  artist: { type: string }
+                                  coverUrl: { type: string, nullable: true }
+                                  link: { type: string, nullable: true }
                               answers:
                                 type: array
                                 items:
@@ -2990,6 +3035,12 @@ paths:
                                     isCorrect: { type: boolean }
         '403':
           description: Compte qui n'est pas un compte de salle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: Paramètre `ids` invalide (`invalid_query`)
           content:
             application/json:
               schema:
@@ -3518,6 +3569,246 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '429':
           description: Déjà 5 flux ouverts pour ce compte (`too_many_streams`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/api-keys:
+    get:
+      tags:
+        - ApiKeys
+      summary: "[NON DISPONIBLE] Lister les clés d'API de la compagnie"
+      description: |
+        Statut : **Non disponible** (à venir, lot 14.1)
+
+        Clés de l'API de réservation `/public/v1` (`public-v1.yaml`), actives et révoquées. Jamais le secret ni son empreinte : seul le préfixe sert à reconnaître une clé.
+
+        Accès : superadmin (toutes les compagnies) et `admin` de la compagnie ; refusé au rôle `user`.
+      operationId: listApiKeys
+      x-availability: non_disponible
+      x-us: 'Lot 14 / API de réservation'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+      responses:
+        '200':
+          description: Clés d'API
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  apiKeys:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApiKey'
+        '400':
+          description: Paramètres invalides (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Compagnie introuvable (`not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      tags:
+        - ApiKeys
+      summary: "[NON DISPONIBLE] Créer une clé d'API"
+      description: |
+        Statut : **Non disponible** (à venir, lot 14.1)
+
+        Crée une clé au format `qzk_<8 caractères>_<secret>`. **Le secret n'est renvoyé que par cette réponse** : il n'est ni stocké (seule son empreinte SHA-256 l'est) ni relisible ensuite. Au plus 10 clés actives par compagnie.
+
+        Accès : superadmin (toutes les compagnies) et `admin` de la compagnie ; refusé au rôle `user`.
+      operationId: createApiKey
+      x-availability: non_disponible
+      x-us: 'Lot 14 / API de réservation'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  description: Nom de l'intégration qui se servira de la clé
+                  example: Site web du centre
+      responses:
+        '201':
+          description: Clé créée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  apiKey:
+                    $ref: '#/components/schemas/ApiKey'
+                  secret:
+                    type: string
+                    description: Jeton complet, à copier tout de suite
+                    example: qzk_3f9a1c07_Xn0qWm8m3uU2m4m2KkqQZ6l1dL3jJ0s9bYc
+        '400':
+          description: Corps invalide (`invalid_body`, avec détails) ou paramètres invalides (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Compagnie introuvable (`not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Limite de clés actives atteinte (`api_key_limit_reached`), compagnie inactive (`company_inactive`) ou supprimée (`company_deleted`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/api-keys/{apiKeyId}:
+    delete:
+      tags:
+        - ApiKeys
+      summary: "[NON DISPONIBLE] Révoquer une clé d'API"
+      description: |
+        Statut : **Non disponible** (à venir, lot 14.1)
+
+        Révoque la clé : `status` passe à `2` et `deletedAt` est renseigné (suppression logique). Les appels qui la présentent sont refusés tout de suite (`401 api_key_invalid`). Idempotent : révoquer une clé déjà révoquée renvoie `200`. Les réservations déjà faites avec cette clé restent.
+
+        Accès : superadmin (toutes les compagnies) et `admin` de la compagnie ; refusé au rôle `user`.
+      operationId: revokeApiKey
+      x-availability: non_disponible
+      x-us: 'Lot 14 / API de réservation'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/ApiKeyIdParam'
+      responses:
+        '200':
+          description: Clé révoquée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  apiKey:
+                    $ref: '#/components/schemas/ApiKey'
+        '400':
+          description: Paramètres invalides (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Clé introuvable dans cette compagnie (`not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/api-logs:
+    get:
+      tags:
+        - ApiKeys
+      summary: "[NON DISPONIBLE] Lister le journal des appels de l'API de réservation"
+      description: |
+        Statut : **Non disponible** (à venir, lot 14.1)
+
+        Appels reçus par `/public/v1` avec une clé de la compagnie, du plus récent au plus ancien (conservés 90 jours). Pagination par curseur : `before` est l'`id` de la dernière ligne lue (les `id` décroissent) ; `nextBefore` vaut `null` à la fin. Le journal ne contient ni adresse IP, ni corps, ni paramètres de requête : la route est le motif (`/public/v1/bookings/:id`), jamais l'URL.
+
+        Accès : superadmin (toutes les compagnies) et `admin` de la compagnie ; refusé au rôle `user`.
+      operationId: listApiLogs
+      x-availability: non_disponible
+      x-us: 'Lot 14 / API de réservation'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - name: apiKeyId
+          in: query
+          required: false
+          description: Ne garder que les appels de cette clé
+          schema:
+            type: integer
+        - name: statusClass
+          in: query
+          required: false
+          description: Ne garder que les réponses de cette classe de statut
+          schema:
+            type: string
+            enum: ['2xx', '4xx', '5xx']
+        - name: before
+          in: query
+          required: false
+          description: '`id` de la dernière ligne lue'
+          schema:
+            type: integer
+            minimum: 1
+        - name: limit
+          in: query
+          required: false
+          description: Nombre de lignes, 100 au plus
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 100
+      responses:
+        '200':
+          description: Appels journalisés
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  logs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApiLog'
+                  nextBefore:
+                    type: integer
+                    nullable: true
+                    description: Valeur de `before` pour la page suivante, `null` s'il n'y en a plus
+        '400':
+          description: Paramètres ou filtres invalides (`invalid_params`, `invalid_query`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Compagnie introuvable (`not_found`)
           content:
             application/json:
               schema:
@@ -4443,6 +4734,160 @@ paths:
               schema:
                 $ref: '#/components/schemas/NotImplementedResponse'
 
+  /media-catalog/tracks:
+    get:
+      tags:
+        - Questions
+      summary: "[DISPONIBLE] Rechercher un titre chez le fournisseur d'extraits"
+      description: |
+        Statut : **Disponible** (US-AUDIO-03)
+
+        Interroge l'API publique du fournisseur d'extraits (Deezer, adresse réglée par
+        `DEEZER_API_BASE_URL`) et rend les titres trouvés, sans ceux qui n'ont pas d'extrait. Le
+        serveur ne télécharge ni ne stocke jamais l'audio. `previewUrl` est un lien d'extrait de
+        30 secondes, signé et à durée de vie courte : à n'utiliser que pour la pré-écoute, jamais
+        à enregistrer (la question garde seulement `provider` et `ref`).
+
+        Droits : permission `question:update`, comme le rattachement d'un extrait.
+      operationId: searchMediaCatalogTracks
+      x-availability: disponible
+      x-us: 'US-AUDIO-03'
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Recherche, 2 à 100 caractères (espaces de bord ignorés)
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 100
+        - name: limit
+          in: query
+          required: false
+          description: Nombre de titres demandés au fournisseur
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 25
+            default: 10
+      responses:
+        '200':
+          description: Titres trouvés (liste vide si aucun)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MediaProviderTrack'
+        '400':
+          description: Recherche ou limite invalide (`invalid_query`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Rôle sans droit de modifier les questions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Fournisseur indisponible (délai, réseau, erreur ou réponse invalide) (`media_provider_unavailable`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /questions/{questionId}/media/provider:
+    put:
+      tags:
+        - Questions
+      summary: "[DISPONIBLE] Rattacher une question audio à un titre du fournisseur d'extraits"
+      description: |
+        Statut : **Disponible** (US-AUDIO-03)
+
+        Remplace le fichier importé par un titre du fournisseur d'extraits (Deezer). Le serveur
+        vérifie le titre chez le fournisseur puis n'enregistre que sa référence
+        (`mediaProvider`, `mediaProviderRef`) : il ne télécharge ni ne stocke l'audio, et le lien
+        d'extrait, signé et à durée de vie courte, n'est jamais enregistré (il est redemandé à
+        chaque envoi du catalogue à la salle).
+
+        Effets : la question passe en type média `audio`, `mediaUrl` et les colonnes du fichier
+        importé sont vidés (le fichier est supprimé du stockage s'il y en avait un), la durée est
+        fixée à 30 000 ms, le point de départ à 0, `mediaFile` vaut `null`. Le nom d'origine
+        affiché est « artiste — titre ». Rien n'est modifié si le fournisseur répond une erreur.
+
+        Droits : mêmes que `PUT /questions/{questionId}/media` (permission `question:update` et
+        droit de modifier la question) ; l'audio reste réservé aux questions QCM.
+      operationId: attachQuestionMediaProvider
+      x-availability: disponible
+      x-us: 'US-AUDIO-03'
+      parameters:
+        - $ref: '#/components/parameters/QuestionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider, ref]
+              properties:
+                provider:
+                  type: string
+                  enum: [deezer]
+                ref:
+                  type: string
+                  pattern: '^[0-9]{1,20}$'
+                  example: '3135556'
+      responses:
+        '200':
+          description: Titre rattaché
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  question:
+                    $ref: '#/components/schemas/Question'
+        '400':
+          description: |
+            `question_media_provider_invalid` (fournisseur inconnu, référence absente ou non
+            numérique), `question_id_invalid`, `question_kind_media_invalid` (l'audio est réservé
+            aux questions QCM)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Question non modifiable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: |
+            `question_not_found` (introuvable ou supprimée) ou
+            `question_media_provider_track_not_found` (titre inconnu du fournisseur)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Le titre n'a pas d'extrait (`question_media_provider_no_preview`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Fournisseur indisponible (`media_provider_unavailable`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /questions/{questionId}/media:
     get:
       tags:
@@ -4514,8 +4959,9 @@ paths:
         fichier est vérifiée.
 
         Effets : la question passe en type média `audio`, `mediaUrl` est vidé, l'ancien
-        fichier est supprimé du stockage. Le point de départ est conservé s'il tombe encore
-        dans le nouveau fichier, sinon il revient à 0.
+        fichier est supprimé du stockage, un éventuel titre de fournisseur d'extraits
+        (`mediaProvider`, `mediaProviderRef`) est retiré. Le point de départ est conservé s'il
+        tombe encore dans le nouveau fichier, sinon il revient à 0.
 
         Droits : permission `question:update` et droit de modifier la question (superadmin,
         ou admin pour les questions de sa compagnie). L'uploadeur atteste détenir le droit de
@@ -4604,8 +5050,9 @@ paths:
       description: |
         Statut : **Disponible** (US-MEDIA-01)
 
-        Détache le fichier de la question, remet le point de départ à 0 et supprime le
-        fichier du stockage. Le type média de la question n'est pas modifié.
+        Détache le fichier de la question (ou son titre d'un fournisseur d'extraits, cf.
+        `PUT /questions/{questionId}/media/provider`), remet le point de départ à 0 et supprime
+        le fichier du stockage. Le type média de la question n'est pas modifié.
       operationId: deleteQuestionMedia
       x-availability: disponible
       x-us: 'US-MEDIA-01'
@@ -5368,6 +5815,15 @@ components:
         type: integer
         example: 1
 
+    ApiKeyIdParam:
+      name: apiKeyId
+      in: path
+      required: true
+      description: Identifiant de la clé d'API
+      schema:
+        type: integer
+        example: 1
+
     RoomIdParam:
       name: roomId
       in: path
@@ -5581,6 +6037,94 @@ components:
         state:
           $ref: '#/components/schemas/VoucherState'
 
+    ApiKey:
+      type: object
+      description: >-
+        Clé de l'API de réservation. Ni le secret ni son empreinte ne sont jamais renvoyés (le secret
+        l'est une seule fois, à la création).
+      required: [id, name, keyPrefix, status, createdAt, lastUsedAt, createdBy]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+          example: Site web du centre
+        keyPrefix:
+          type: string
+          description: '`qzk_` et 8 caractères : permet de reconnaître la clé'
+          example: qzk_3f9a1c07
+        status:
+          type: integer
+          enum: [1, 2]
+          description: '`1` active, `2` révoquée'
+        createdAt:
+          type: string
+          format: date-time
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Dernier appel (précis à la minute près) ; `null` si la clé n'a jamais servi
+        createdBy:
+          type: object
+          nullable: true
+          description: Compte qui a créé la clé
+          properties:
+            id:
+              type: integer
+            username:
+              type: string
+
+    ApiLog:
+      type: object
+      description: Un appel reçu par `/public/v1`, sans adresse IP, corps ni paramètres
+      required:
+        - id
+        - apiKeyId
+        - keyPrefix
+        - method
+        - route
+        - statusCode
+        - errorCode
+        - gameId
+        - durationMs
+        - idempotentReplay
+        - createdAt
+      properties:
+        id:
+          type: integer
+        apiKeyId:
+          type: integer
+        keyPrefix:
+          type: string
+          example: qzk_3f9a1c07
+        method:
+          type: string
+          example: POST
+        route:
+          type: string
+          description: Motif de la route, jamais l'URL brute
+          example: /public/v1/bookings/:id
+        statusCode:
+          type: integer
+          example: 201
+        errorCode:
+          type: string
+          nullable: true
+          description: Code d'erreur de la réponse (`slot_taken`), `null` si elle a réussi
+        gameId:
+          type: integer
+          nullable: true
+          description: Réservation concernée, s'il y en a une
+        durationMs:
+          type: integer
+        idempotentReplay:
+          type: boolean
+          description: Réponse rejouée par l'idempotence (`Idempotent-Replayed`)
+        createdAt:
+          type: string
+          format: date-time
+
     PublicError:
       type: object
       description: Erreur de l'API publique `/public/v1` (jamais de pile ni de message brut)
@@ -5715,6 +6259,36 @@ components:
         processed:
           type: boolean
 
+    MediaProviderTrack:
+      type: object
+      description: Titre d'un fournisseur d'extraits, normalisé
+      properties:
+        provider:
+          type: string
+          enum: [deezer]
+        ref:
+          type: string
+          pattern: '^[0-9]{1,20}$'
+          example: '3135556'
+        title:
+          type: string
+        artist:
+          type: string
+        album:
+          type: string
+        coverUrl:
+          type: string
+          nullable: true
+          description: Pochette (URL https), `null` si absente
+        previewUrl:
+          type: string
+          nullable: true
+          description: Extrait de 30 s (URL https signée, durée de vie courte, à ne pas enregistrer)
+        link:
+          type: string
+          nullable: true
+          description: Page du titre chez le fournisseur (URL https)
+
     QuestionMediaFile:
       type: object
       description: Fichier audio uploadé sur une question (la clé de stockage n'est jamais exposée)
@@ -5787,6 +6361,29 @@ components:
           allOf:
             - $ref: '#/components/schemas/QuestionMediaFile'
           nullable: true
+        mediaProvider:
+          type: string
+          enum: [deezer]
+          nullable: true
+          description: |
+            Fournisseur d'extraits de la question audio (au lieu d'un fichier importé), `null`
+            sinon. Exclusif avec `mediaFile`. Posé par `PUT /questions/{questionId}/media/provider`,
+            retiré par l'import d'un fichier, `DELETE /questions/{questionId}/media` ou un
+            `typeMedia` autre que `audio`.
+        mediaProviderRef:
+          type: string
+          nullable: true
+          pattern: '^[0-9]{1,20}$'
+          example: '3135556'
+          description: Identifiant du titre chez le fournisseur ; `null` si `mediaProvider` l'est.
+        mediaProviderLabel:
+          type: string
+          nullable: true
+          maxLength: 255
+          example: 'Queen — Bohemian Rhapsody'
+          description: |
+            Libellé « artiste — titre » enregistré au rattachement, pour afficher le titre sans
+            interroger le fournisseur ; `null` si `mediaProvider` l'est.
         status:
           type: integer
           enum: [0, 1, 2, 3]
@@ -6610,7 +7207,14 @@ components:
           type: string
         adminId:
           type: integer
-          description: Opérateur qui a lancé la partie
+          nullable: true
+          description: Opérateur qui a lancé la partie ; `null` pour une réservation faite par l'API de réservation
+        source:
+          type: string
+          enum: [backoffice, api]
+          description: >-
+            Origine de la partie : `api` si elle a été réservée avec une clé d'API (`/public/v1`),
+            sinon `backoffice`. [NON DISPONIBLE] Pas encore renvoyé par la liste ni le détail (à venir).
         roundsCount:
           type: integer
           example: 10
