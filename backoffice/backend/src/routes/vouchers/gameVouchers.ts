@@ -20,6 +20,7 @@ import {
   toVoucherRow,
   voucherQuery,
   voucherSelect,
+  withVoucherQr,
 } from './_shared'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -131,7 +132,9 @@ const gameVouchersRoutes: FastifyPluginAsync = async (app) => {
         throw new Error('voucher code collision')
       }
 
-      return reply.code(201).send({ voucher: await findVoucherById(companyId, voucherId) })
+      const voucher = await findVoucherById(companyId, voucherId)
+
+      return reply.code(201).send({ voucher: voucher && withVoucherQr(voucher) })
     }
   )
 
@@ -174,7 +177,7 @@ const gameVouchersRoutes: FastifyPluginAsync = async (app) => {
 
       const now = new Date()
 
-      return { vouchers: rows.map((row) => toVoucherRow(row, now)) }
+      return { vouchers: rows.map((row) => withVoucherQr(toVoucherRow(row, now))) }
     }
   )
 }

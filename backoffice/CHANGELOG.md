@@ -9,6 +9,12 @@ Format inspiré de Keep a Changelog.
 ### Added
 
 - Fumée par la carte USB, lien série (`game/hardware`, rien n'est encore branché à l'écran de salle) : lecture et écriture du protocole de la carte (bannière `QZF READY`, lignes d'état, ordres `F`, `0`, `H`) et lien Web Serial qui n'envoie jamais `F` sans bannière valide, ne renouvelle jamais `F` de lui-même, borne les `F` à un toutes les 100 ms, n'en envoie qu'en phase prête ou en jet (jamais pendant la pause de la carte, dont les 5 s qui suivent sa remise à zéro ; la phase lue est exposée), et signale une carte absente, muette, débranchée ou qui contredit nos ordres. Une carte plus permissive que les limites du projet est refusée. Fausse carte pour les tests.
+- Bons dans le backoffice : panneau « Bons » sur la fiche d'une partie terminée (émettre le bon d'un pupitre, l'annuler), page « Bons » (recherche d'un code, utilisation, liste filtrable et paginée, annulation réservée aux admins), réglages du centre (libellé du bon, durée de validité) et un bloc par bon valable sur la feuille de résultats imprimable, avec son QR code quand le serveur le fournit.
+  US: US-VOUCHER-01 (#156)
+
+- QR code généré par le serveur : `join` vaut `{ url, qrSvg, expiresAt }` (fiche de partie, `POST /games/:id/join`, création avec `openJoin`, `GET /room/games/current`) et un bon porte `qrSvg` à côté de `url` (émission et bons d'une partie). `qrSvg` est un SVG complet, `null` sans `PUBLIC_APP_URL`. Une seule dépendance, `qrcode-generator` (version exacte, sans dépendance).
+  US: US-JOIN-01 (#166)
+
 - Manches enregistrées : à la fin d'une partie, l'écran de salle envoie les manches jouées (mini-jeu, thème, questions posées) avec les scores ; `POST /room/games/:id/finish` les écrit dans `game_rounds` dans la même transaction (400 `game_rounds_invalid` si un thème ou une question n'est pas lisible par la compagnie). Sans manches, la partie se termine comme avant ; hors ligne, elles attendent avec les scores.
   US: US-CONTENT-01 (#158)
 
