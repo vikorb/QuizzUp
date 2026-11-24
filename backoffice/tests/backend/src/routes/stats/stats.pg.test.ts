@@ -178,7 +178,7 @@ describe.skipIf(!PG_INTEGRATION_URL)('GET /companies/:companyId/stats sur Postgr
    *  2  A  terminée  dim. 29/03 01:30Z (= dim. 03:30 été)     20 min  A@ en majuscules, seule
    *  3  B  terminée  dim. 05/07 22:30Z (= lun. 00:30 été)     60 min  c@, a@ en double (pupitre et 2e joueur)
    *  4  A  arrêtée   10/05 démarrée, avec un joueur
-   *  5  A  arrêtée   jamais démarrée (date de création 11/05)
+   *  5  A  arrêtée   jamais démarrée (création 11/05) → pas un abandon, exclue
    *  6  A  terminée  mais supprimée                  → exclue
    *  7  A  annulée                                    → exclue
    *  8  A  terminée  en 2025, hors période            → exclue
@@ -257,9 +257,9 @@ describe.skipIf(!PG_INTEGRATION_URL)('GET /companies/:companyId/stats sur Postgr
     const { sessions } = await statsBody(`${PERIOD}&tz=Europe/Paris`)
 
     expect(sessions.finished).toBe(3)
-    expect(sessions.aborted).toBe(2)
+    expect(sessions.aborted).toBe(1)
     expect(sessions.byRoom).toEqual([
-      { roomId: 1, roomName: 'Salle A', finished: 2, aborted: 2 },
+      { roomId: 1, roomName: 'Salle A', finished: 2, aborted: 1 },
       { roomId: 2, roomName: 'Salle B', finished: 1, aborted: 0 },
     ])
   })
@@ -267,7 +267,8 @@ describe.skipIf(!PG_INTEGRATION_URL)('GET /companies/:companyId/stats sur Postgr
   it('calcule le taux d’abandon : arrêtées sur terminées et arrêtées', async () => {
     await seedDataset()
 
-    expect((await statsBody()).sessions.abandonRate).toBe(0.4)
+    // Partie 4 seule : la partie 5, arrêtée sans avoir démarré, n'en est pas un.
+    expect((await statsBody()).sessions.abandonRate).toBe(0.25)
   })
 
   it('calcule la durée réelle médiane des sessions terminées', async () => {
@@ -371,14 +372,27 @@ describe.skipIf(!PG_INTEGRATION_URL)('GET /companies/:companyId/stats sur Postgr
     expect((await statsBody()).busiestSlots).toHaveLength(10)
   })
 
-  it('inclut la borne basse, exclut la borne haute et suit la date de création des parties jamais démarrées', async () => {
+  it('inclut la borne basse et exclut la borne haute', async () => {
     await seedDataset()
 
     const first = await statsBody('from=2026-03-28T23:30:00Z&to=2026-03-29T01:30:00Z')
-    const created = await statsBody('from=2026-05-11T00:00:00Z&to=2026-05-12T00:00:00Z')
 
     expect(first.sessions).toMatchObject({ finished: 1, aborted: 0 })
-    expect(created.sessions).toMatchObject({ finished: 0, aborted: 1 })
+  })
+
+  it('ne compte pas comme abandon une partie arrêtée avant d’avoir démarré', async () => {
+    await seedDataset()
+
+    // La fenêtre ne contient que la partie 5 (arrêtée le 11/05 sans avoir démarré).
+    const { sessions } = await statsBody('from=2026-05-11T00:00:00Z&to=2026-05-12T00:00:00Z')
+
+    expect(sessions).toEqual({
+      finished: 0,
+      aborted: 0,
+      abandonRate: null,
+      medianDurationSeconds: null,
+      byRoom: [],
+    })
   })
 
   it('filtre par salle, y compris les e-mails fidèles', async () => {
@@ -464,6 +478,25 @@ describe.skipIf(!PG_INTEGRATION_URL)('GET /companies/:companyId/stats sur Postgr
     const raw = (await stats(`${PERIOD}&tz=Europe/Paris`)).body
 
     expect(raw).not.toMatch(/x\.test|Joueur \d|Second \d|@/)
+  })
+
+  it('refuse en 400 un nom de fuseau que PostgreSQL ne connaît pas, même si Intl le connaît', async () => {
+    await seedDataset()
+
+    for (const tz of ['US/Pacific-New', 'Mars/Olympus', '%2B02:00']) {
+      const response = await stats(`${PERIOD}&tz=${tz}`)
+
+      expect(response.statusCode).toBe(400)
+      expect(parseJson(response)).toEqual({ error: 'stats_timezone_invalid' })
+    }
+  })
+
+  it('accepte les fuseaux que PostgreSQL connaît, sans tenir compte de la casse', async () => {
+    await seedDataset()
+
+    for (const tz of ['PST8PDT', 'EST5EDT', 'europe/paris', 'utc']) {
+      expect((await stats(`${PERIOD}&tz=${tz}`)).statusCode).toBe(200)
+    }
   })
 
   it('accepte un fuseau au décalage de demi-heure', async () => {

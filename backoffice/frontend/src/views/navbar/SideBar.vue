@@ -143,7 +143,8 @@ const navPlay = computed(() => [
           to: '/stats',
           icon: mdiChartTimelineVariant,
           iconType: 'mdi' as const,
-          labelKey: 'navbar.statistics',
+          // Dans `stats.json` (fr et en) : `navbar.json` n'a pas d'équivalent anglais.
+          labelKey: 'stats.menu',
         },
       ]
     : []),

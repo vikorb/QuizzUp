@@ -4,9 +4,9 @@ import { canAccessCompanyContext } from '../../security/companiesPolicy'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
 import { requireApiPermission } from '../../security/requireApiPermission'
 
-import { loadCompanyStats } from './_queries'
+import { loadCompanyStats, loadTimeZoneNames } from './_queries'
 import { statsParamsSchema, statsQuerySchema } from './_schemas'
-import { isSupportedTimeZone, resolveStatsPeriod, STATS_DEFAULT_TIME_ZONE } from './_shared'
+import { resolveStatsPeriod, STATS_DEFAULT_TIME_ZONE } from './_shared'
 
 /** Statistiques d'exploitation d'une compagnie (US-STATS-01) : agrégats seulement, aucun joueur. */
 const statsRoutes: FastifyPluginAsync = async (app) => {
@@ -36,7 +36,9 @@ const statsRoutes: FastifyPluginAsync = async (app) => {
     const { from, to, roomId, tz } = parsedQuery.data
     const timeZone = tz ?? STATS_DEFAULT_TIME_ZONE
 
-    if (!isSupportedTimeZone(timeZone)) {
+    // Liste de PostgreSQL, sans casse : un décalage brut (`+02:00`), que `at time zone` lirait en
+    // POSIX avec le signe inversé, n'y figure pas.
+    if (!(await loadTimeZoneNames()).has(timeZone.toLowerCase())) {
       return reply.code(400).send({ error: 'stats_timezone_invalid' })
     }
 

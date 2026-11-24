@@ -1,6 +1,7 @@
 <template>
   <BaseCard :title="$t('stats.slots.title')" :neon="true" :no-hover="true">
-    <ol class="stats-slots">
+    <p v-if="rows.length === 0" class="stats-slots__empty">{{ $t('stats.slots.empty') }}</p>
+    <ol v-else class="stats-slots">
       <li v-for="slot in rows" :key="`${slot.weekday}-${slot.hour}`" class="stats-slot">
         <span class="stats-slot__label">{{ slot.label }}</span>
         <span class="stats-slot__bar" aria-hidden="true">
@@ -48,6 +49,11 @@ const rows = computed(() => {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.stats-slots__empty {
+  margin: 0;
+  color: var(--text-2);
 }
 
 .stats-slot {

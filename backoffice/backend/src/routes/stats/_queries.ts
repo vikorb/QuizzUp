@@ -47,6 +47,7 @@ function rate(part: number, whole: number): number | null {
 /**
  * Parties terminées ou arrêtées de la période, en CTE `g` : tous les agrégats partent de cette
  * même sélection, donc d'une même définition de la période (date de la partie, comme l'historique).
+ * Une partie arrêtée avant d'avoir démarré (`started_at` vide) n'est pas un abandon : exclue.
  */
 function periodGames({ companyId, roomId, from, to }: StatsFilters) {
   const games = db('games')
@@ -54,7 +55,10 @@ function periodGames({ companyId, roomId, from, to }: StatsFilters) {
     .select(db.raw(`${GAME_DATE_SQL} as played_at`))
     .where('games.company_id', companyId)
     .whereNot('games.status', GAME_STATUS_DELETED)
-    .whereIn('games.state', [GAME_STATE_FINISHED, GAME_STATE_ABORTED])
+    .whereRaw('(games.state = ? or (games.state = ? and games.started_at is not null))', [
+      GAME_STATE_FINISHED,
+      GAME_STATE_ABORTED,
+    ])
     .whereRaw(`${GAME_DATE_SQL} >= ?`, [from.toISOString()])
     .whereRaw(`${GAME_DATE_SQL} < ?`, [to.toISOString()])
 
@@ -63,6 +67,25 @@ function periodGames({ companyId, roomId, from, to }: StatsFilters) {
   }
 
   return games
+}
+
+let timeZoneNames: Promise<Set<string>> | undefined
+
+/**
+ * Noms de fuseau que PostgreSQL sait lire (`pg_timezone_names`), en minuscules, chargés une seule
+ * fois : ce sont les seuls que `at time zone` accepte sans erreur, `Intl` en connaît d'autres.
+ */
+export function loadTimeZoneNames(): Promise<Set<string>> {
+  timeZoneNames ??= db('pg_timezone_names')
+    .select('name')
+    .then((rows) => new Set(rows.map((row) => String(row.name).toLowerCase())))
+    .catch((error: unknown) => {
+      timeZoneNames = undefined
+
+      throw error
+    })
+
+  return timeZoneNames
 }
 
 /** Agrégats d'exploitation d'une compagnie, calculés en SQL. Aucune donnée d'un joueur n'en sort. */

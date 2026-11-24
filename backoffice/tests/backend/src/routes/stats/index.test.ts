@@ -3,7 +3,7 @@ import '../_helpers/registerRouteMocks'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import statsRoutes from '@backend/routes/stats'
-import { loadCompanyStats } from '@backend/routes/stats/_queries'
+import { loadCompanyStats, loadTimeZoneNames } from '@backend/routes/stats/_queries'
 import { securityState } from '../_helpers/mockSecurity'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
 import {
@@ -18,6 +18,7 @@ import {
 // L'agrégation SQL se prouve sur PostgreSQL (`stats.pg.test.ts`) : ici, la route seule.
 vi.mock('@backend/routes/stats/_queries', () => ({
   loadCompanyStats: vi.fn(),
+  loadTimeZoneNames: vi.fn(),
 }))
 
 resetRouteMocksBeforeEach()
@@ -44,6 +45,10 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(NOW)
   vi.mocked(loadCompanyStats).mockReset().mockResolvedValue(STATS)
+  // Ce que PostgreSQL connaît : « PST8PDT » oui, « US/Pacific-New » non, jamais de décalage brut.
+  vi.mocked(loadTimeZoneNames)
+    .mockReset()
+    .mockResolvedValue(new Set(['utc', 'europe/paris', 'pst8pdt']))
 })
 
 afterEach(() => {
@@ -137,6 +142,10 @@ describe('GET /companies/:companyId/stats', () => {
     ['a malformed date', '/companies/1/stats?from=hier'],
     ['a date without a time zone offset', '/companies/1/stats?to=2026-03-01T00:00:00'],
     ['the year 0000', '/companies/1/stats?from=0000-01-01T00:00:00Z'],
+    [
+      'year 0 once the offset is applied',
+      '/companies/1/stats?from=0001-01-01T00:00:00%2B14:00&to=0001-06-01T00:00:00Z',
+    ],
     ['a room id of zero', '/companies/1/stats?roomId=0'],
     ['a room id that is not a number', '/companies/1/stats?roomId=salle'],
   ])('answers 400 invalid_params for %s', async (_label, url) => {
@@ -149,6 +158,7 @@ describe('GET /companies/:companyId/stats', () => {
 
   it.each([
     ['an unknown name', 'Mars/Olympus'],
+    ['a name Intl knows but PostgreSQL does not', 'US/Pacific-New'],
     ['an offset', '+02:00'],
     ['an empty value', ''],
     ['a value that is not a time zone', "Europe/Paris'; drop table games;--"],
@@ -172,6 +182,16 @@ describe('GET /companies/:companyId/stats', () => {
     expect(parseJson(response)).toEqual({ error: 'stats_period_invalid' })
     expect(loadCompanyStats).not.toHaveBeenCalled()
   })
+
+  it.each(['PST8PDT', 'europe/PARIS', 'Europe/Paris'])(
+    'accepts the PostgreSQL time zone %s, whatever its case',
+    async (tz) => {
+      const response = await get(`/companies/1/stats?tz=${encodeURIComponent(tz)}`)
+
+      expect(response.statusCode).toBe(200)
+      expect(loadCompanyStats).toHaveBeenCalledWith(expect.objectContaining({ timeZone: tz }))
+    }
+  )
 
   it('accepts exactly 366 days', async () => {
     const response = await get(

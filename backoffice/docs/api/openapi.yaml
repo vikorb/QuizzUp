@@ -1667,7 +1667,7 @@ paths:
 
         Parties de la compagnie, de la plus récente à la plus ancienne (date de la partie, puis identifiant décroissant pour départager les égalités), avec le nom de la salle, le nombre de joueurs nommés, la durée et le meilleur score. Les parties supprimées sont exclues.
 
-        Tous les filtres sont facultatifs et se cumulent. `from` et `to` filtrent la date de la partie, c'est-à-dire le début prévu d'une session programmée (`scheduledAt`), sinon la date de démarrage, sinon la date de création ; l'intervalle est semi-ouvert : borne basse incluse, borne haute exclue. L'année 0000 est refusée. Il n'y a pas de plafond de période : la pagination borne la réponse. `total` est le nombre de parties qui passent les filtres, quelle que soit la page.
+        Tous les filtres sont facultatifs et se cumulent. `from` et `to` filtrent la date de la partie, c'est-à-dire le début prévu d'une session programmée (`scheduledAt`), sinon la date de démarrage, sinon la date de création ; l'intervalle est semi-ouvert : borne basse incluse, borne haute exclue. L'année 0 est refusée, y compris ramenée en UTC par le décalage. Il n'y a pas de plafond de période : la pagination borne la réponse. `total` est le nombre de parties qui passent les filtres, quelle que soit la page.
 
         Chaque ligne porte les champs de session programmée (`scheduledAt`, `scheduledEndAt`, `cancelledAt`, `playersCount`, `externalRef`, `locale`). Le champ `source` (`backoffice` ou `api`) arrive avec le lot 14.
 
@@ -1692,14 +1692,14 @@ paths:
         - name: from
           in: query
           required: false
-          description: Début de période inclus, instant ISO 8601 avec fuseau (ex. `2026-11-05T00:00:00+01:00` ou `...Z`). L'année 0000 est refusée.
+          description: Début de période inclus, instant ISO 8601 avec fuseau (ex. `2026-11-05T00:00:00+01:00` ou `...Z`). L'année 0 est refusée, y compris ramenée en UTC par le décalage.
           schema:
             type: string
             format: date-time
         - name: to
           in: query
           required: false
-          description: Fin de période exclue (intervalle semi-ouvert), instant ISO 8601 avec fuseau. Pour inclure un jour entier, passer le début du jour suivant. L'année 0000 est refusée.
+          description: Fin de période exclue (intervalle semi-ouvert), instant ISO 8601 avec fuseau. Pour inclure un jour entier, passer le début du jour suivant. L'année 0 est refusée, y compris ramenée en UTC par le décalage.
           schema:
             type: string
             format: date-time
@@ -2066,11 +2066,11 @@ paths:
       description: |
         Statut : **Disponible** (lot 7d)
 
-        Agrégats calculés sur les parties **terminées** et **arrêtées** de la compagnie, hors parties supprimées. La date d'une partie est celle de l'historique : date de démarrage, ou de création tant qu'elle n'a pas démarré. L'intervalle `[from, to)` est semi-ouvert : borne basse incluse, borne haute exclue.
+        Agrégats calculés sur les parties **terminées** et **arrêtées** de la compagnie, hors parties supprimées. La date d'une partie est celle de l'historique : date programmée, sinon de démarrage, sinon de création. Une partie arrêtée avant d'avoir démarré n'est pas un abandon : elle n'est comptée nulle part. L'intervalle `[from, to)` est semi-ouvert : borne basse incluse, borne haute exclue.
 
         Période par défaut : les 30 jours avant `to` ; sans `to`, jusqu'à maintenant. Plafond : 366 jours (à une heure près, pour un changement d'heure). Une période vide, inversée ou trop longue répond `400 stats_period_invalid`.
 
-        `tz` est un nom de fuseau IANA (`Europe/Paris`, `UTC`), celui du navigateur ; il ne sert qu'à ranger les créneaux (jour de la semaine et heure locale, changements d'heure compris). Absent : `UTC`. Un nom inconnu, ou un décalage (`+02:00`), répond `400 stats_timezone_invalid`.
+        `tz` est un nom de fuseau IANA (`Europe/Paris`, `UTC`), celui du navigateur ; il ne sert qu'à ranger les créneaux (jour de la semaine et heure locale, changements d'heure compris). Absent : `UTC`. Seuls les noms que PostgreSQL connaît (`pg_timezone_names`) sont acceptés, sans tenir compte de la casse : un nom inconnu, ou un décalage (`+02:00`), répond `400 stats_timezone_invalid`.
 
         Indicateurs : sessions terminées et arrêtées (par salle), taux d'abandon, durée réelle médiane, joueurs accueillis (un pupitre plus son second joueur nommé, sessions terminées seulement) et moyenne par session, part des joueurs qui laissent un e-mail et part qui accepte les offres, e-mails fidèles (vus dans au moins deux sessions, après normalisation), dix créneaux les plus chargés. Les taux sont des fractions de 0 à 1, `null` quand le dénominateur est nul.
 
@@ -2085,14 +2085,14 @@ paths:
         - name: from
           in: query
           required: false
-          description: Début de période inclus, instant ISO 8601 avec fuseau. L'année 0000 est refusée.
+          description: Début de période inclus, instant ISO 8601 avec fuseau. L'année 0 est refusée, y compris ramenée en UTC par le décalage.
           schema:
             type: string
             format: date-time
         - name: to
           in: query
           required: false
-          description: Fin de période exclue, instant ISO 8601 avec fuseau. Pour inclure un jour entier, passer le début du jour suivant. L'année 0000 est refusée.
+          description: Fin de période exclue, instant ISO 8601 avec fuseau. Pour inclure un jour entier, passer le début du jour suivant. L'année 0 est refusée, y compris ramenée en UTC par le décalage.
           schema:
             type: string
             format: date-time
@@ -5551,7 +5551,7 @@ components:
               nullable: true
               minimum: 0
               maximum: 1
-              description: Arrêtées sur terminées et arrêtées ; `null` sans aucune session.
+              description: Arrêtées (démarrées) sur terminées et arrêtées ; `null` sans aucune session.
             medianDurationSeconds:
               type: integer
               nullable: true

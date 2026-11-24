@@ -27,10 +27,12 @@ export const gameParamsSchema = z.object({
   gameId: z.coerce.number().int().positive(),
 })
 
-// L'année 0000 est valide en ISO 8601 mais PostgreSQL la refuse (pas d'année 0) : 500 sinon.
-const isoInstantSchema = z.iso
+// L'année 0 est valide en ISO 8601 mais PostgreSQL la refuse (pas d'année 0) : 500 sinon. On
+// contrôle l'instant résolu, car un décalage peut y ramener une date écrite en l'an 1
+// (`0001-01-01T00:00:00+14:00`).
+export const isoInstantSchema = z.iso
   .datetime({ offset: true })
-  .refine((instant) => !instant.startsWith('0000'))
+  .refine((instant) => new Date(instant).getUTCFullYear() >= 1)
 const periodBoundSchema = isoInstantSchema.optional()
 
 /** Début d'une session programmée : à la minute près (secondes et millisecondes à 0). */

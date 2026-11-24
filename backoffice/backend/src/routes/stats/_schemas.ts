@@ -1,15 +1,12 @@
 import { z } from 'zod'
 
+import { isoInstantSchema } from '../games/_schemas'
+
 export const statsParamsSchema = z.object({
   companyId: z.coerce.number().int().positive(),
 })
 
-// Même règle que l'historique des parties : l'année 0000 est valide en ISO 8601 mais PostgreSQL
-// la refuse (pas d'année 0), d'où un 500 sans ce garde-fou.
-const periodBoundSchema = z.iso
-  .datetime({ offset: true })
-  .refine((instant) => !instant.startsWith('0000'))
-  .optional()
+const periodBoundSchema = isoInstantSchema.optional()
 
 /**
  * `from` et `to` sont des instants ISO 8601 avec fuseau, en intervalle semi-ouvert `[from, to)`

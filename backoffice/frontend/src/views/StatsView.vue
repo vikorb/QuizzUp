@@ -11,7 +11,7 @@
       @update:company-id="handleCompanyChange"
     />
 
-    <p v-if="!fromDay && !toDay" class="stats-note">
+    <p v-if="!fromDay" class="stats-note">
       {{ $t('stats.defaultPeriod', { days: STATS_DEFAULT_PERIOD_DAYS }) }}
     </p>
 

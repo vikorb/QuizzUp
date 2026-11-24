@@ -62,7 +62,7 @@ describe('views/navbar/SideBar.vue', () => {
         { to: '/themes', labelKey: 'navbar.themes' },
         { to: '/questions', labelKey: 'navbar.questionsAnswers' },
         { to: '/games', labelKey: 'navbar.games' },
-        { to: '/stats', labelKey: 'navbar.statistics' },
+        { to: '/stats', labelKey: 'stats.menu' },
       ])
     )
     expect(items).not.toEqual(
@@ -83,7 +83,7 @@ describe('views/navbar/SideBar.vue', () => {
     setAuthenticatedSuperadmin()
 
     expect(getNavItems(mountWithFrontendMocks(SideBar))).toEqual(
-      expect.arrayContaining([{ to: '/stats', labelKey: 'navbar.statistics' }])
+      expect.arrayContaining([{ to: '/stats', labelKey: 'stats.menu' }])
     )
   })
 

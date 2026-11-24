@@ -114,6 +114,7 @@ describe('views/StatsView.vue', () => {
     expect(text).toContain('Salle Néon')
     expect(text).toContain('Salle Laser')
     expect(text).toContain('stats.slots.title')
+    expect(text).not.toContain('stats.slots.empty')
   })
 
   it('shows the empty state when no session ended in the period', async () => {
@@ -208,6 +209,40 @@ describe('views/StatsView.vue', () => {
     const wrapper = await mountStatsView()
 
     expect(wrapper.text()).toContain('stats.defaultPeriod')
+  })
+
+  it('keeps telling the default period while only the end date is chosen', async () => {
+    setAuthenticatedAdmin({ companyId: 1 })
+
+    const wrapper = await mountStatsView()
+
+    await findDateInput(wrapper, 'stats.filters.to').setValue('2026-11-07')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('stats.defaultPeriod')
+
+    await findDateInput(wrapper, 'stats.filters.from').setValue('2026-11-05')
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('stats.defaultPeriod')
+  })
+
+  it('tells there is no time slot when sessions exist but none finished', async () => {
+    setAuthenticatedAdmin({ companyId: 1 })
+    loadStatsServiceMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        ...statsFixture,
+        sessions: { ...statsFixture.sessions, finished: 0, aborted: 2 },
+        busiestSlots: [],
+      },
+    })
+
+    const wrapper = await mountStatsView()
+
+    expect(wrapper.text()).toContain('stats.slots.title')
+    expect(wrapper.text()).toContain('stats.slots.empty')
   })
 
   it('does not offer the company selector to an admin', async () => {

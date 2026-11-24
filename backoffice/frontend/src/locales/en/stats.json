@@ -1,8 +1,9 @@
 {
   "stats": {
+    "menu": "Statistics",
     "title": "Statistics",
     "subtitle": "Room activity over a period",
-    "defaultPeriod": "With no dates chosen: the last {days} days.",
+    "defaultPeriod": "With no start date chosen: the {days} days before the end of the period (today by default).",
     "loading": "Loading statistics...",
     "empty": "No finished or stopped session in this period.",
     "retry": "Try again",
@@ -44,6 +45,7 @@
     },
     "slots": {
       "title": "Busiest time slots",
+      "empty": "No time slot in this period.",
       "label": "{day}, {from}:00 to {to}:00"
     },
     "errors": {

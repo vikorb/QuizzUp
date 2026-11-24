@@ -1,8 +1,9 @@
 {
   "stats": {
+    "menu": "Statistiques",
     "title": "Statistiques",
     "subtitle": "Activité des salles sur une période",
-    "defaultPeriod": "Sans dates choisies : les {days} derniers jours.",
+    "defaultPeriod": "Sans date de début choisie : les {days} jours qui précèdent la fin de période (aujourd'hui par défaut).",
     "loading": "Chargement des statistiques...",
     "empty": "Aucune session terminée ou arrêtée sur cette période.",
     "retry": "Réessayer",
@@ -44,6 +45,7 @@
     },
     "slots": {
       "title": "Créneaux les plus chargés",
+      "empty": "Aucun créneau sur cette période.",
       "label": "{day}, de {from} h à {to} h"
     },
     "errors": {
