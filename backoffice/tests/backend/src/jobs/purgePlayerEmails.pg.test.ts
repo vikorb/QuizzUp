@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import type { purgeExpiredPlayerEmails as PurgeFn } from '@backend/jobs/purgePlayerEmails'
 import { assertTestDatabase } from '../../setup/assertTestDatabase'
@@ -42,6 +42,13 @@ describe.skipIf(!PG_INTEGRATION_URL)('purgeExpiredPlayerEmails sur PostgreSQL', 
 
   afterAll(async () => {
     await db?.destroy()
+  })
+
+  // Un test arrêté par son délai laisse sa requête tourner côté serveur : elle bloquerait le TRUNCATE suivant.
+  afterEach(async () => {
+    await db.raw(
+      "SELECT pg_cancel_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid() AND state = 'active' AND backend_type = 'client backend' AND usename = current_user"
+    )
   })
 
   beforeEach(async () => {
@@ -434,6 +441,9 @@ describe.skipIf(!PG_INTEGRATION_URL)('purgeExpiredPlayerEmails sur PostgreSQL', 
        SELECT id, 1, 'Joueur', 'bulk' || id || '@x.test', ? FROM games`,
       [OLD]
     )
+
+    // Sans statistiques à jour (ANALYZE automatique pendant l'insertion), PostgreSQL choisit un plan quadratique.
+    await db.raw('ANALYZE games, game_participants')
 
     await expect(purge(db, NOW)).resolves.toBe(70000)
   }, 120_000)
