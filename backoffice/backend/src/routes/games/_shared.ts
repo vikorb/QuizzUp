@@ -16,6 +16,7 @@ import {
   GAME_STATUS_ACTIVE,
   GAME_STATUS_DELETED,
   getRoomDesksCount,
+  type GameFormat,
   type GameLocale,
   type GameState,
   JOIN_LINK_TTL_MINUTES,
@@ -45,6 +46,7 @@ export const gameSelect = [
   'games.room_id as roomId',
   'rooms.name as roomName',
   'games.admin_id as adminId',
+  'games.format',
   'games.rounds_count as roundsCount',
   'games.questions_per_round as questionsPerRound',
   'games.mini_games as miniGames',
@@ -58,6 +60,7 @@ export const gameSelect = [
   'games.players_count as playersCount',
   'games.external_ref as externalRef',
   'games.locale',
+  'games.kids_mode as kidsMode',
   'games.status',
   'games.created_at as createdAt',
   'games.updated_at as updatedAt',
@@ -171,6 +174,7 @@ export function toGameRow(row: Record<string, unknown>): GameRow {
     roomId: Number(row.roomId),
     adminId: toOptionalNumber(row.adminId) ?? null,
     seed: Number(row.seed),
+    format: game.format ?? null,
     miniGames: toMiniGames(row.miniGames),
     scheduledAt: game.scheduledAt ?? null,
     scheduledEndAt: game.scheduledEndAt ?? null,
@@ -178,6 +182,7 @@ export function toGameRow(row: Record<string, unknown>): GameRow {
     playersCount: toOptionalNumber(row.playersCount) ?? null,
     externalRef: game.externalRef ?? null,
     locale: game.locale ?? null,
+    kidsMode: Boolean(row.kidsMode),
     ...(participantsCount === undefined ? {} : { participantsCount }),
   }
 }
@@ -362,6 +367,7 @@ export type NewGame = {
   companyId: number
   roomId: number
   adminId: number | null
+  format: GameFormat
   roundsCount: number
   questionsPerRound: number
   /** `undefined` = tous les mini-jeux. */
@@ -372,6 +378,8 @@ export type NewGame = {
   playersCount?: number
   externalRef?: string
   locale?: GameLocale
+  /** Mode enfants : seuls les thèmes adaptés aux enfants sont joués. Absent : désactivé. */
+  kidsMode?: boolean
   /** Lien d'inscription ouvert dès la création (partie en attente seulement). */
   join?: { token: string; expiresAt: Date }
 }
@@ -387,6 +395,7 @@ export async function insertGameWithParticipants(
       company_id: game.companyId,
       room_id: game.roomId,
       admin_id: game.adminId,
+      format: game.format,
       rounds_count: game.roundsCount,
       questions_per_round: game.questionsPerRound,
       mini_games: game.miniGames ? JSON.stringify(game.miniGames) : null,
@@ -397,6 +406,7 @@ export async function insertGameWithParticipants(
       players_count: game.playersCount ?? null,
       external_ref: game.externalRef ?? null,
       locale: game.locale ?? null,
+      kids_mode: game.kidsMode ?? false,
       join_token: game.join?.token ?? null,
       join_expires_at: game.join?.expiresAt.toISOString() ?? null,
       status: GAME_STATUS_ACTIVE,
