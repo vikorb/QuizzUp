@@ -198,9 +198,11 @@ const gamesIdRoutes: FastifyPluginAsync = async (app) => {
 
       // Une session déplacée change la « prochaine partie » des deux salles.
       app.liveHub.gameUpdated(companyId, game.roomId, gameId)
+      app.liveHub.scheduleChanged(companyId, game.roomId)
 
       if (body.roomId !== undefined && isRoomChanged) {
         app.liveHub.gameUpdated(companyId, body.roomId, gameId)
+        app.liveHub.scheduleChanged(companyId, body.roomId)
       }
 
       return { game: await findStaffGame(req, companyId, gameId) }

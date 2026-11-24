@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Programme d'une salle en temps réel : l'événement `schedule_changed` part à chaque création, déplacement, annulation ou ouverture d'une session (backoffice, écran de salle, API publique de réservation). L'agenda du backoffice et le lobby de la salle se mettent à jour seuls, sans recharger la page.
+  US: US-SCHED-01 (#142)
+
 - Écran de salle : la prochaine session programmée s'affiche au lobby quand aucune partie n'attend, avec son heure dans le fuseau de la salle et l'action « Lancer ».
   US: US-SCHED-01 (#142)
 

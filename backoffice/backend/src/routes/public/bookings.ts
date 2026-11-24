@@ -287,7 +287,11 @@ const publicBookingRoutes: FastifyPluginAsync = async (app) => {
 
     if (!booking) return sendPublicError(reply, 404, 'booking_not_found')
 
-    if (outcome.isReplay) reply.header('Idempotent-Replayed', 'true')
+    if (outcome.isReplay) {
+      reply.header('Idempotent-Replayed', 'true')
+    } else {
+      app.liveHub.scheduleChanged(companyId, booking.roomId)
+    }
 
     return reply.code(201).send({ booking })
   })
@@ -316,6 +320,7 @@ const publicBookingRoutes: FastifyPluginAsync = async (app) => {
 
     const body = parsed.data
     const bookingId = params.data.id
+    let previousRoomId = 0
 
     try {
       // Tout se lit et s'écrit dans la même transaction, la ligne verrouillée : le centre qui ouvre
@@ -341,6 +346,9 @@ const publicBookingRoutes: FastifyPluginAsync = async (app) => {
         }
 
         const currentRoomId = Number(row.roomId)
+
+        previousRoomId = currentRoomId
+
         const currentStart = new Date(row.scheduledAt as string).toISOString()
         const isRoomChanged = body.roomId !== undefined && body.roomId !== currentRoomId
         const isStartChanged = body.startsAt !== undefined && body.startsAt !== currentStart
@@ -421,6 +429,11 @@ const publicBookingRoutes: FastifyPluginAsync = async (app) => {
       throw error
     }
 
+    // Une session déplacée change le programme des deux salles.
+    new Set([previousRoomId, body.roomId ?? previousRoomId]).forEach((roomId) =>
+      app.liveHub.scheduleChanged(companyId, roomId)
+    )
+
     return { booking: await findBooking(companyId, bookingId) }
   })
 
@@ -447,6 +460,8 @@ const publicBookingRoutes: FastifyPluginAsync = async (app) => {
         if (current?.state !== GAME_STATE_CANCELLED) {
           return sendPublicError(reply, 409, 'booking_not_cancellable')
         }
+      } else {
+        app.liveHub.scheduleChanged(companyId, booking.roomId)
       }
     }
 
