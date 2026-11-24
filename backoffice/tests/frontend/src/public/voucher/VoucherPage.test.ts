@@ -161,6 +161,63 @@ describe('public/voucher/VoucherPage — states', () => {
     expect(page.get('button').text()).toBe(fr.retry)
   })
 
+  it('shows the connection screen on a malformed 200 instead of staying on loading', async () => {
+    fetchMock.mockImplementation(async () => reply(200, { ...VOUCHER, state: 'weird' }))
+
+    const page = await openPage()
+
+    expect(page.get('h2').text()).toBe(fr.lookupFailedTitle)
+  })
+
+  it('keeps "Retry" disabled until the delay is over, then re-enables it', async () => {
+    vi.useFakeTimers()
+    fetchMock.mockImplementation(async () =>
+      reply(429, { error: 'too_many_requests' }, { 'Retry-After': '30' })
+    )
+
+    try {
+      const page = await openPage()
+      const button = () => page.get('button')
+
+      expect(button().attributes('disabled')).toBeDefined()
+
+      await vi.advanceTimersByTimeAsync(29_000)
+
+      expect(button().attributes('disabled')).toBeDefined()
+
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      expect(button().attributes('disabled')).toBeUndefined()
+
+      fetchMock.mockImplementation(async () => reply(200, VOUCHER))
+      await button().trigger('click')
+      await flushPromises()
+
+      expect(page.get('h2').text()).toBe(fr.validTitle)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('clears the retry timer when the page is removed', async () => {
+    vi.useFakeTimers()
+    fetchMock.mockImplementation(async () =>
+      reply(429, { error: 'too_many_requests' }, { 'Retry-After': '30' })
+    )
+
+    try {
+      const page = await openPage()
+      const running = vi.getTimerCount()
+
+      page.unmount()
+      wrapper = undefined
+
+      expect(vi.getTimerCount()).toBe(running - 1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('shows the connection screen on a server error', async () => {
     fetchMock.mockImplementation(async () => reply(500, { error: 'server_error' }))
 
@@ -188,6 +245,60 @@ describe('public/voucher/VoucherPage — states', () => {
 
     expect(page.get('img').attributes('src')).toBe('http://api.test/public/v1/logos/x.png')
     expect(page.get('img').attributes('alt')).toBe('')
+  })
+})
+
+describe('public/voucher/VoucherPage — hostile or odd input', () => {
+  it('shows a label that contains markup as text, never as markup', async () => {
+    const label = '<img src=x onerror=alert(1)>'
+
+    fetchMock.mockImplementation(async () => reply(200, { ...VOUCHER, label }))
+
+    const page = await openPage()
+
+    expect(page.text()).toContain(label)
+    expect(page.find('img').exists()).toBe(false)
+  })
+
+  it('makes no request for a very long fragment', async () => {
+    const page = await openPage(`#${'A'.repeat(5000)}`)
+
+    expect(page.get('h2').text()).toBe(fr.notFoundTitle)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('reads an encoded fragment (%20) like the plain code', async () => {
+    await openPage('#ABCD%201234')
+
+    expect(bodyOf(fetchMock.mock.calls[0]!)).toEqual({ code: CODE })
+  })
+
+  it('falls back on the raw fragment when it is badly encoded', async () => {
+    const page = await openPage('#ABCD%E0%A41234')
+
+    expect(page.get('h2').text()).toBe(fr.notFoundTitle)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('shows "not found" when the fragment becomes invalid during a request', async () => {
+    let resolve!: (response: Response) => void
+
+    fetchMock.mockImplementation(() => new Promise<Response>((done) => (resolve = done)))
+    setHash(CODE)
+    wrapper = mount(VoucherPage, { attachTo: document.body })
+    await flushPromises()
+
+    setHash('!!nope')
+    window.dispatchEvent(new HashChangeEvent('hashchange'))
+    await flushPromises()
+
+    expect(wrapper.get('h2').text()).toBe(fr.notFoundTitle)
+
+    resolve(reply(200, VOUCHER))
+    await flushPromises()
+
+    expect(wrapper.get('h2').text()).toBe(fr.notFoundTitle)
+    expect(wrapper.text()).not.toContain(VOUCHER.label)
   })
 })
 

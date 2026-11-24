@@ -1,4 +1,9 @@
-import type { VoucherState } from '@quizzup/shared'
+import {
+  VOUCHER_STATE_EXPIRED,
+  VOUCHER_STATE_VALID,
+  VOUCHER_STATES,
+  type VoucherState,
+} from '@quizzup/shared'
 
 import { getApiBase } from '@/utils/auth'
 
@@ -18,6 +23,19 @@ type VoucherResult = { ok: true; data: PublicVoucher } | VoucherFailure
 
 const DEFAULT_RETRY_AFTER_SECONDS = 60
 
+// Une réponse 200 mal formée ne doit pas laisser la page sur « Chargement » : elle vaut une erreur.
+function isPublicVoucher(data: Partial<PublicVoucher>): data is PublicVoucher {
+  const showsDate = data.state === VOUCHER_STATE_VALID || data.state === VOUCHER_STATE_EXPIRED
+
+  return (
+    VOUCHER_STATES.includes(data.state as VoucherState) &&
+    typeof data.label === 'string' &&
+    typeof data.companyName === 'string' &&
+    (!showsDate ||
+      (typeof data.expiresAt === 'string' && !Number.isNaN(Date.parse(data.expiresAt))))
+  )
+}
+
 // Le code est une valeur au porteur : il voyage dans le corps, jamais dans l'adresse.
 export async function lookupVoucher(code: string): Promise<VoucherResult> {
   let response: Response
@@ -36,7 +54,9 @@ export async function lookupVoucher(code: string): Promise<VoucherResult> {
     (Partial<PublicVoucher> & { error?: unknown }) | null
 
   if (response.ok && payload) {
-    const data = payload as PublicVoucher
+    if (!isPublicVoucher(payload)) return { ok: false, reason: 'server' }
+
+    const data = payload
 
     // L'API renvoie un chemin : le logo est servi par l'API, pas par l'origine de la page.
     return {

@@ -27,6 +27,7 @@
         v-if="screen === 'lookupFailed' || screen === 'tooMany'"
         class="voucher__btn"
         variant="primary"
+        :disabled="screen === 'tooMany' && waiting"
         @click="load"
       >
         {{ t('retry') }}
@@ -64,12 +65,29 @@ const SCREENS: Record<Exclude<Screen, 'loading'>, { title: MessageKey; text: Mes
 }
 
 // Le code est dans le fragment : il ne part jamais dans une requête de page ni dans un journal.
-const readCode = () => window.location.hash.slice(1)
+// Le fragment peut arriver encodé (`%20`) : repli sur la valeur brute s'il est mal encodé.
+function readCode() {
+  const raw = window.location.hash.slice(1)
+
+  try {
+    return decodeURIComponent(raw)
+  } catch {
+    return raw
+  }
+}
 const fragment = ref(readCode())
 
 const screen = ref<Screen>('loading')
 const voucher = ref<PublicVoucher | null>(null)
 const retryAfterSeconds = ref(0)
+// Vrai tant que le délai demandé par le serveur n'est pas écoulé : « Réessayer » reste inactif.
+const waiting = ref(false)
+let waitTimer: ReturnType<typeof setTimeout> | undefined
+
+function stopWaiting() {
+  clearTimeout(waitTimer)
+  waiting.value = false
+}
 
 const code = computed(() => formatVoucherCode(fragment.value) ?? '')
 const seconds = computed(() => retryAfterSeconds.value)
@@ -93,6 +111,8 @@ async function showState(state: Exclude<Screen, 'loading'>) {
 }
 
 async function load() {
+  stopWaiting()
+
   const requested = fragment.value
   const formatted = formatVoucherCode(requested)
 
@@ -116,6 +136,8 @@ async function load() {
     await showState('notFound')
   } else if (result.reason === 'too_many_requests') {
     retryAfterSeconds.value = result.retryAfterSeconds
+    waiting.value = true
+    waitTimer = setTimeout(stopWaiting, result.retryAfterSeconds * 1000)
     await showState('tooMany')
   } else {
     await showState('lookupFailed')
@@ -134,7 +156,10 @@ onMounted(() => {
   void load()
 })
 
-onBeforeUnmount(() => window.removeEventListener('hashchange', onHashChange))
+onBeforeUnmount(() => {
+  window.removeEventListener('hashchange', onHashChange)
+  clearTimeout(waitTimer)
+})
 </script>
 
 <style>

@@ -25,7 +25,7 @@ describe('public/voucher/voucherApi — lookupVoucher', () => {
         label: 'Café',
         companyName: 'Centre',
         logoUrl: null,
-        expiresAt: 'x',
+        expiresAt: '2027-03-10T10:00:00.000Z',
         state: 'valid',
       })
     )
@@ -49,7 +49,7 @@ describe('public/voucher/voucherApi — lookupVoucher', () => {
         label: 'Café',
         companyName: 'Centre',
         logoUrl: '/public/v1/logos/x.png',
-        expiresAt: 'x',
+        expiresAt: '2027-03-10T10:00:00.000Z',
         state: 'valid',
       })
     )
@@ -83,6 +83,36 @@ describe('public/voucher/voucherApi — lookupVoucher', () => {
       retryAfterSeconds: 12,
     })
     expect(await lookupVoucher(CODE)).toMatchObject({ retryAfterSeconds: 60 })
+  })
+
+  it.each([
+    ['an unknown state', { state: 'weird' }],
+    ['no state', { state: undefined }],
+    ['a label that is not text', { label: 42 }],
+    ['a valid voucher with an unreadable date', { expiresAt: 'not a date' }],
+    ['a valid voucher with no date', { expiresAt: undefined }],
+    ['an expired voucher with an unreadable date', { state: 'expired', expiresAt: 'x' }],
+  ])('treats a 200 with %s as a server error', async (_name, change) => {
+    fetchMock.mockResolvedValue(
+      reply(200, {
+        label: 'Café',
+        companyName: 'Centre',
+        logoUrl: null,
+        expiresAt: '2027-03-10T10:00:00.000Z',
+        state: 'valid',
+        ...change,
+      })
+    )
+
+    expect(await lookupVoucher(CODE)).toEqual({ ok: false, reason: 'server' })
+  })
+
+  it('accepts a used voucher whose date is not needed', async () => {
+    fetchMock.mockResolvedValue(
+      reply(200, { label: 'Café', companyName: 'Centre', logoUrl: null, state: 'redeemed' })
+    )
+
+    expect(await lookupVoucher(CODE)).toMatchObject({ ok: true, data: { state: 'redeemed' } })
   })
 
   it('reports a network failure', async () => {
