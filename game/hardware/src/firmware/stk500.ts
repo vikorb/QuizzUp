@@ -94,6 +94,14 @@ export type FirmwareErrorCode =
 export class FirmwareError extends Error {
   readonly code: FirmwareErrorCode
   readonly address?: number
+  /**
+   * Renseigné seulement quand l'écriture ou la relecture de la vraie page 0 a échoué : `true` si
+   * la page 0 inerte a pu être réécrite et relue (la carte boucle sur place), `false` si cette
+   * réécriture a échoué aussi (la page 0 peut contenir un programme faux : ne pas rebrancher la
+   * machine à fumée avant une nouvelle installation). Absent dans les autres cas, où la page 0
+   * est inerte par construction ou n'a pas encore été touchée.
+   */
+  inert?: boolean
 
   constructor(
     code: FirmwareErrorCode,
@@ -562,9 +570,25 @@ export async function connectBootloader(options: LinkOptions): Promise<Bootloade
       for (let index = 1; index < pages; index += 1) {
         await verify(index)
       }
-      // 3. La vraie page 0 en dernier, relue : elle seule rend la carte exécutable.
-      await program(0)
-      await verify(0)
+      // 3. La vraie page 0 en dernier, relue : elle seule rend la carte exécutable. Si elle échoue,
+      // la page 0 est peut-être fausse et la carte la lancerait (A0 pilote le relais de fumée) :
+      // on remet la page inerte, au mieux, et on rend l'erreur d'origine.
+      try {
+        await program(0)
+        await verify(0)
+      } catch (error) {
+        open.flush()
+        const inert = await programPage(0, INERT_PAGE)
+          .then(() => verifyPage(0, INERT_PAGE))
+          .then(
+            () => true,
+            () => false
+          )
+        if (error instanceof FirmwareError) {
+          error.inert = inert
+        }
+        throw error
+      }
     },
     async leave() {
       report('exit', 0, 1)

@@ -679,8 +679,13 @@ ne l'appelle encore.
   du nouveau programme, la **page 0 est écrite deux fois** : d'abord une page inerte (`FF CF` =
   `rjmp .-2`, une boucle sur place, puis 0xFF), relue ; puis les pages 1 à n, relues ; la vraie
   page 0 en dernier, relue. Après une erreur, la carte boucle donc sur place, broches en entrée
-  (relais retombé), jusqu'à un RESET et une nouvelle installation. Si la relecture de la dernière
-  page 0 échoue, la page 0 peut être fausse : à refaire avant de rebrancher la machine.
+  (relais retombé), jusqu'à un RESET et une nouvelle installation. Si l'écriture ou la relecture
+  de la vraie page 0 échoue (relecture fausse, délai, port perdu, annulation), la page 0 peut être
+  fausse : le client réécrit alors la page inerte, au mieux, la relit, puis rend l'erreur
+  d'origine. `FirmwareError.inert` dit le résultat : `true` si la page inerte est en place, `false`
+  si cette réécriture a échoué aussi (la carte peut lancer un programme faux, A0 comprise : ne pas
+  rebrancher la machine à fumée avant une nouvelle installation réussie). Absent pour les autres
+  erreurs.
 - `restoreFirmware({ port, hex })` réécrit un `.hex` (la sauvegarde téléchargée), dans le même
   ordre. `connectBootloader` (dans le module, pas exporté du paquet) donne le client (`readFlash`,
   `readBackup`, `keepAlive`, `writeFlash`, `leave`, `close`) pour les tests.

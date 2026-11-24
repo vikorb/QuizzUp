@@ -46,6 +46,8 @@ export type OptibootOptions = {
   silent?: boolean
   /** Altère un octet de la page d'indice donné quand elle est écrite. */
   corruptPage?: number
+  /** Limite `corruptPage` à ces écritures de la page (rangs depuis 0) ; toutes si absent. */
+  corruptWrites?: number[]
   /** Altère le premier octet de la page d'indice donné à sa première lecture seulement. */
   flakyReadPage?: number
   /** Se débranche à la réception de la N-ième commande de page (lecture ou écriture, depuis 0). */
@@ -107,6 +109,7 @@ export function createFakeOptiboot(options: OptibootOptions) {
   let address = 0
   let currentCommand = 0
   let flakyDone = false
+  const pageWrites = new Map<number, number>()
   let timer: TimerHandle | undefined
   const clearTimer = () => {
     if (timer !== undefined) {
@@ -187,7 +190,11 @@ export function createFakeOptiboot(options: OptibootOptions) {
         if (command[3] === MEMTYPE_FLASH && address + length <= FAKE_FLASH_SIZE) {
           flash.set(command.slice(4, 4 + length), address)
           if (options.corruptPage === address / PAGE) {
-            flash[address] = (flash[address] ?? 0) ^ 0xff
+            const rank = pageWrites.get(address) ?? 0
+            pageWrites.set(address, rank + 1)
+            if (options.corruptWrites === undefined || options.corruptWrites.includes(rank)) {
+              flash[address] = (flash[address] ?? 0) ^ 0xff
+            }
           }
           stats.pagesWritten += 1
         }

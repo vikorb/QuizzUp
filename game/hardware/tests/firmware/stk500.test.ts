@@ -867,3 +867,109 @@ describe('erreurs de lecture du port', () => {
     await runWithClock(clock, client.close())
   })
 })
+
+describe('installFirmware : échec sur la vraie page 0', () => {
+  const BACKUP_COMMANDS = 2 * (UNO_FLASH_SIZE / 128)
+  const run = (setupOptions: Partial<OptibootOptions>, cancelAt?: number) => {
+    const context = setup(setupOptions)
+    const { clock, board } = context
+    const controller = new AbortController()
+    const result = runWithClock(
+      clock,
+      installFirmware({
+        port: board.port,
+        clock,
+        hex: hexOfImage(pattern(600, 5)),
+        onBackup: () => undefined,
+        signal: controller.signal,
+        onProgress: ({ step, done }) => {
+          if (cancelAt !== undefined && step === 'write' && done === cancelAt) {
+            controller.abort()
+          }
+        },
+      })
+    )
+    return { ...context, result }
+  }
+
+  it('relecture fausse de la page 0 : la page inerte est remise, l’erreur d’origine est rendue', async () => {
+    // Écritures de la page 0 : inerte (0), vraie (1, altérée), inerte remise (2).
+    const { clock, board, result } = run({ corruptPage: 0, corruptWrites: [1] })
+    await expect(result).rejects.toMatchObject({
+      code: 'verify_failed',
+      address: 0,
+      inert: true,
+    })
+    expect(board.flash.subarray(0, 128)).toEqual(INERT_PAGE)
+    await expectBoardLoops(clock, board)
+  })
+
+  it('la réécriture inerte échoue aussi : l’erreur d’origine est rendue, la carte est marquée non inerte', async () => {
+    const { clock, board, result } = run({ corruptPage: 0, corruptWrites: [1, 2] })
+    await expect(result).rejects.toMatchObject({
+      code: 'verify_failed',
+      address: 0,
+      inert: false,
+    })
+    expect(board.flash.subarray(0, 128)).not.toEqual(INERT_PAGE)
+    await waitLoaderExit(clock)
+  })
+
+  it('port perdu pendant l’écriture de la vraie page 0 : erreur d’origine, carte marquée non inerte', async () => {
+    // Sauvegarde, inerte (écrite, relue), pages 1 à 4 écrites puis relues, vraie page 0 perdue.
+    const { result } = run({ disconnectAtPage: BACKUP_COMMANDS + 2 + 4 + 4 })
+    await expect(result).rejects.toMatchObject({ code: 'port_lost', inert: false })
+  })
+
+  it('annulé juste après l’écriture de la vraie page 0 : la page inerte est remise', async () => {
+    const { clock, board, result } = run({}, 600)
+    await expect(result).rejects.toMatchObject({ code: 'cancelled', inert: true })
+    expect(board.flash.subarray(0, 128)).toEqual(INERT_PAGE)
+    await expectBoardLoops(clock, board)
+  })
+
+  it('délai sur la relecture de la page 0, réponse incomplète restée dans l’entrée : la page inerte est remise', async () => {
+    let reads = 0
+    // Lectures : sauvegarde (2 x 252), page 0 inerte, pages 1 à 4, puis la vraie page 0 (n° 509).
+    const { clock, board, result } = run({
+      mangleReply: (command) => {
+        if (command !== 0x74) {
+          return undefined
+        }
+        reads += 1
+        return reads - 1 === BACKUP_COMMANDS + 5 ? [0x14] : undefined
+      },
+    })
+    await expect(result).rejects.toMatchObject({ code: 'timeout', inert: true })
+    expect(board.flash.subarray(0, 128)).toEqual(INERT_PAGE)
+    await expectBoardLoops(clock, board)
+  })
+
+  it('une erreur étrangère de onProgress sur la vraie page 0 est rendue telle quelle, page inerte remise', async () => {
+    const { clock, board } = setup()
+    const result = runWithClock(
+      clock,
+      installFirmware({
+        port: board.port,
+        clock,
+        hex: hexOfImage(pattern(600, 5)),
+        onBackup: () => undefined,
+        onProgress: ({ step, done }) => {
+          if (step === 'write' && done === 600) {
+            throw new Error('affichage planté')
+          }
+        },
+      })
+    )
+    await expect(result).rejects.toThrow('affichage planté')
+    expect(board.flash.subarray(0, 128)).toEqual(INERT_PAGE)
+    await expectBoardLoops(clock, board)
+  })
+
+  it('un échec avant la vraie page 0 ne porte pas de champ inert', async () => {
+    const { result } = run({ corruptPage: 2 })
+    await expect(result).rejects.toSatisfy(
+      (error: FirmwareError) => error.code === 'verify_failed' && error.inert === undefined
+    )
+  })
+})
