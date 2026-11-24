@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 
 import { describe, expect, it } from 'vitest'
 
-import { API_KEY_TOKEN_PREFIX } from '@quizzup/shared'
+import { API_KEY_TOKEN_PATTERN, API_KEY_TOKEN_PREFIX } from '@quizzup/shared'
 
 import { generateApiKey, hashApiKey } from '@backend/security/apiKeys'
 
@@ -10,7 +10,7 @@ describe('security/apiKeys', () => {
   it('builds a qzk_<8 hex>_<43 base64url> token whose prefix is its first 12 characters', () => {
     const { token, prefix } = generateApiKey()
 
-    expect(token).toMatch(/^qzk_[0-9a-f]{8}_[A-Za-z0-9_-]{43}$/)
+    expect(token).toMatch(API_KEY_TOKEN_PATTERN)
     expect(token.startsWith(API_KEY_TOKEN_PREFIX)).toBe(true)
     expect(prefix).toBe(token.slice(0, 12))
     expect(prefix).toHaveLength(12)

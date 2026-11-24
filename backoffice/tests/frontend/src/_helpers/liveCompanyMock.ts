@@ -2,7 +2,7 @@ import type { RoomLive } from '@quizzup/shared'
 import { vi } from 'vitest'
 import { computed, ref } from 'vue'
 
-import type { LiveConnectionState } from '@/composables/useLiveCompany'
+import type { LiveConnectionState, RoomCommandOutcome } from '@/composables/useLiveCompany'
 
 export const LIVE_NOW_MOCK = Date.parse('2026-11-23T10:05:00.000Z')
 
@@ -12,12 +12,20 @@ export const liveStateMock = ref<LiveConnectionState>('live')
 export const liveErrorKeyMock = ref<string | null>(null)
 export const liveNowMock = ref(LIVE_NOW_MOCK)
 
+// Issue de la prochaine commande envoyée ; un test la remplace pour simuler un refus ou une erreur.
+export const sendCommandMock = vi.fn(
+  async (_roomId: number, _command: unknown): Promise<RoomCommandOutcome> => ({
+    result: 'applied',
+  })
+)
+
 export const useLiveCompanyMock = vi.fn((_companyId: unknown) => ({
   rooms: liveRoomsMock,
   state: liveStateMock,
   errorKey: liveErrorKeyMock,
   uncertain: computed(() => liveStateMock.value !== 'live'),
   now: liveNowMock,
+  sendCommand: sendCommandMock,
   stop: vi.fn(),
 }))
 
@@ -31,4 +39,6 @@ export function resetLiveCompanyMock(): void {
   liveErrorKeyMock.value = null
   liveNowMock.value = LIVE_NOW_MOCK
   useLiveCompanyMock.mockClear()
+  sendCommandMock.mockReset()
+  sendCommandMock.mockResolvedValue({ result: 'applied' })
 }

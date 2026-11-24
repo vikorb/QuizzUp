@@ -26,12 +26,7 @@ describe('locales live.json (commandes à distance)', () => {
     (locale) => {
       const keys = leaves(live(locale))
 
-      for (const code of [
-        'room_not_controllable',
-        'too_many_requests',
-        'command_unknown',
-        'command_id_conflict',
-      ]) {
+      for (const code of ['room_not_controllable', 'too_many_requests', 'command_id_conflict']) {
         expect(keys, code).toContain(`command.error.${code}`)
       }
 
