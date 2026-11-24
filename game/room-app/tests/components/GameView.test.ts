@@ -1,30 +1,45 @@
 import { DEFAULT_GAME_TIMINGS, getMiniGameQuestion } from '@quizzup/game-engine'
+import { type ButtonIndex, BUZZER_BUTTONS, type Desk } from '@quizzup/hardware'
 import { MINI_GAME_FLASH_BLIND_TEST } from '@quizzup/shared'
 import { flushPromises } from '@vue/test-utils'
 
 import { getDemoThemes } from '@/game/demoContent'
 import { createMemorySessionStorage } from '@/game/session'
-import { closeGame, configureRoomGame, startNewGame, useRoomGame } from '@/game/useRoomGame'
+import {
+  closeGame,
+  configureRoomGame,
+  pressBuzzer,
+  startNewGame,
+  useRoomGame,
+} from '@/game/useRoomGame'
 import { saveRoomHardwareConfig, startLighting, useRoomHardware } from '@/hardware/roomHardware'
 import { enterDemo, syncRoomAuth } from '@/state/roomAuth'
 import GameView from '@/views/GameView.vue'
 
 import { createManualClock, REGISTRATIONS } from '../_helpers/fixtures'
-import { pressKey } from '../_helpers/keyboard'
 import { mountWithApp, PRELOAD_TIMEOUT_MS, preloadRoutes } from '../_helpers/mount'
 
 beforeAll(preloadRoutes, PRELOAD_TIMEOUT_MS)
 
 const BLIND_TEST_ONLY = [MINI_GAME_FLASH_BLIND_TEST]
 
-const KEY_BY_DESK = { 1: 'Digit1', 2: 'KeyQ', 3: 'KeyA', 4: 'KeyZ' } as const
-
-function press(code: string): void {
-  pressKey(code)
-}
-
 describe('GameView', () => {
   let clock: ReturnType<typeof createManualClock>
+
+  /**
+   * Appui de buzzer horodaté sur l'horloge simulée du moteur. Un appui clavier porterait le
+   * `timeStamp` réel de l'événement : sur une machine chargée, il avancerait le moteur de plusieurs
+   * secondes (paliers du blind test écoulés) pendant que le test attend.
+   */
+  function press(desk: Desk, buttonIndex: ButtonIndex): void {
+    pressBuzzer({
+      desk,
+      button: BUZZER_BUTTONS[buttonIndex],
+      buttonIndex,
+      at: clock.value,
+      code: 'test',
+    })
+  }
 
   beforeEach(() => {
     localStorage.clear()
@@ -94,14 +109,14 @@ describe('GameView', () => {
     )
 
     // 3. Le choisisseur appuie sur A : la question démarre, l'extrait du palier 1 « joue ».
-    press(KEY_BY_DESK[chooser])
+    press(chooser, 0)
     await flushPromises()
     expect(wrapper.text()).toContain('Écoute…')
     expect(wrapper.find('.blind__stage--current').text()).toContain('100 pts')
     expect(wrapper.findAll('.answer')).toHaveLength(4)
 
     // 4. Un joueur buzze : il répond seul.
-    press('Digit1')
+    press(1, 0)
     await flushPromises()
     expect(wrapper.text()).toContain('Léa répond !')
 
@@ -110,7 +125,7 @@ describe('GameView', () => {
     const answers =
       phase?.name === 'question' ? getMiniGameQuestion(phase.miniGameState).answers : []
     const correct = answers.findIndex((answer) => answer.isCorrect)
-    press(['Digit1', 'Digit2', 'Digit3', 'Digit4'][correct] ?? 'Digit1')
+    press(1, Math.max(correct, 0) as ButtonIndex)
     await flushPromises()
 
     expect(wrapper.text()).toContain('Léa trouve au palier 1')
@@ -150,15 +165,15 @@ describe('GameView', () => {
     const { wrapper } = await mountWithApp(GameView, { route: '/play' })
     clock.advance(DEFAULT_GAME_TIMINGS.roundIntroMs + 1)
     await vi.waitFor(() => expect(state.value?.phase.name).toBe('theme_choice'))
-    press(KEY_BY_DESK[state.value?.rounds[0]?.chooserParticipantId as 1 | 2 | 3])
+    press(state.value?.rounds[0]?.chooserParticipantId as 1 | 2 | 3, 0)
     await flushPromises()
 
-    press('KeyA') // Inès buzze
+    press(3, 0) // Inès buzze
     const phase = state.value?.phase
     const answers =
       phase?.name === 'question' ? getMiniGameQuestion(phase.miniGameState).answers : []
     const wrong = answers.findIndex((answer) => !answer.isCorrect)
-    press(['KeyA', 'KeyS', 'KeyD', 'KeyF'][wrong] ?? 'KeyS')
+    press(3, (wrong < 0 ? 1 : wrong) as ButtonIndex)
     await flushPromises()
 
     expect(wrapper.find('.score--locked').text()).toContain('Inès')
