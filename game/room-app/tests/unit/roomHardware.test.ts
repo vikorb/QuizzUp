@@ -403,6 +403,21 @@ describe('outils de comparaison de config', () => {
     expect(isDefaultHardwareConfig({ buzzers: { keymap: LEARNED_KEYMAP } })).toBe(false)
     expect(isDefaultHardwareConfig({ lighting: { fixtures: [FIXTURE] } })).toBe(false)
   })
+
+  it('ignore les clés inconnues conservées, mais pas une scène de salle', () => {
+    const scene = {
+      id: 'buzz',
+      name: 'Buzz maison',
+      steps: [{ type: 'color', color: { r: 1, g: 2, b: 3 } }],
+    }
+    expect(isDefaultHardwareConfig({ futur: { a: 1 }, lighting: { reglageFutur: true } })).toBe(
+      true
+    )
+    expect(isDefaultHardwareConfig({ lighting: { scenes: [scene] } })).toBe(false)
+    expect(
+      isDefaultHardwareConfig({ futur: 1, lighting: { reglageFutur: true, scenes: [scene] } })
+    ).toBe(false)
+  })
 })
 
 describe('buzzers sur une carte USB vue comme une manette', () => {

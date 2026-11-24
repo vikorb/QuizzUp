@@ -35,6 +35,13 @@
       @close="closeAccountPanel"
     />
 
+    <RoomDiagnosticPanel
+      v-if="canManageRooms && logsRoom"
+      :key="`diagnostic-${logsRoom.id}`"
+      :company-id="companyId"
+      :room="logsRoom"
+    />
+
     <RoomLogsPanel
       v-if="canManageRooms && logsRoom"
       :key="`logs-${logsRoom.id}`"
@@ -103,6 +110,7 @@ import { isRoomDeleted } from '@/utils/room/status'
 import { clearTimer, scheduleTimer } from '@/utils/timer'
 
 import RoomAccountPanel from '../../rooms/RoomAccountPanel.vue'
+import RoomDiagnosticPanel from '../../rooms/RoomDiagnosticPanel.vue'
 import RoomForm from '../../rooms/RoomForm.vue'
 import RoomLogsPanel from '../../rooms/RoomLogsPanel.vue'
 import RoomSchedulePanel from '../../rooms/RoomSchedulePanel.vue'
