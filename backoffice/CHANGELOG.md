@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- API publique, bac à sable : la salle de démonstration naît avec des créneaux réservables (tous les jours de 10 h à 20 h, créneaux d'une heure, 4 pupitres), et un guide pas à pas (`docs/api/essayer-l-api-publique.md`) montre comment créer une clé puis réserver. Aucune clé n'est créée par le seed.
+  US: US-BOOKING-01 (#188)
+
 - API publique : réservations (`POST`, `GET`, `PATCH`, `DELETE` sur `/public/v1/bookings`). Une réservation crée une partie programmée dans la compagnie de la clé d'API ; une clé ne voit et ne modifie que ses propres réservations. La clé d'idempotence rejoue la même réponse au lieu de créer un doublon, et un créneau déjà pris est refusé (`slot_taken`).
   US: US-BOOKING-01 (#188)
 
