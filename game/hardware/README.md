@@ -501,8 +501,9 @@ Pas encore branché au `LightingController` (lot suivant).
 - **Ce qu'il fait** : ouvre le port à 9600 bauds et attend la bannière `QZF READY` (3 s au plus).
   Sans bannière valide, il passe `no_firmware` et n'envoie **jamais** `F`. Une bannière d'un autre
   protocole, illisible ou **plus permissive** que le projet est refusée : plafond de jet au-dessus
-  de 10 s (`SMOKE_HARD_LIMITS`), pause sous 5 s, bail au-dessus de 500 ms (`WATCHDOG_STALL_MS`) ;
-  une carte plus stricte est acceptée.
+  de 10 s (`SMOKE_HARD_LIMITS`), pause sous 5 s, bail au-dessus de 500 ms (`BOARD_MAX_LEASE_MS`,
+  égal à `WATCHDOG_STALL_MS`, sans en dépendre) ; une carte plus stricte est acceptée, sauf un bail
+  de moins de 200 ms (deux envois de `F`), qui couperait entre deux ordres normaux.
 - **`drive(true)` à chaque trame** : le lien n'envoie `F` qu'au plus toutes les 100 ms et ne le
   renouvelle **jamais** de lui-même. Si l'appelant s'arrête (page gelée, test de gel), la carte
   coupe à la fin du bail de 500 ms. `drive(false)` envoie `0` une fois, tout de suite, quand un `F`
@@ -514,20 +515,36 @@ Pas encore branché au `LightingController` (lot suivant).
   doit refuser le jet plutôt que d'afficher une fumée qui ne sort pas. Un `F` reçu en `COOL`
   (course entre la page et la carte) est refusé par la carte, qui ignore ensuite les `F` jusqu'à un
   `0` ou 500 ms de silence : le lien répond par un seul `0` et n'envoie plus de `F` avant d'avoir
-  relu `ready`.
+  relu `ready`. Le lien n'envoie non plus aucun `F` tant que la ligne d'état qui répond à son dernier
+  `0` n'est pas revenue, ni tant qu'une écriture précédente n'est pas terminée (port qui n'avale
+  plus rien : pas de rafale au déblocage). Seul le `0` part toujours.
 - **Surveillance** : un `H` de présence quand rien n'est parti depuis 250 ms ; carte `silent` après
-  1 s sans ligne d'état alors qu'on lui parle ; `fault` si la carte annonce la sortie allumée plus
-  d'un bail (plus 100 ms de latence) après le dernier ordre, ou si elle renvoie une bannière en
-  cours de partie (elle a redémarré : plafond et pause remis à zéro) ; `disconnected` sur toute
-  erreur d'ouverture, de lecture ou d'écriture et à la fin du flux. Tout état d'échec est
-  **définitif** : un nouveau lien (rechargement, rebranchement) repart d'une nouvelle bannière.
-  `onChange` prévient l'appelant, qui doit couper la fumée et désarmer.
+  1 s sans réponse à la plus ancienne ligne envoyée (la carte répond une ligne d'état par ligne
+  reçue, dans l'ordre) ; `fault` si la réponse à une ligne annonce la sortie allumée alors que cette
+  ligne ne pouvait pas l'allumer (partie plus d'un bail, plus 100 ms de latence, après le dernier `F`
+  parti pour de bon, ou après un `0`) : c'est jugé **à l'envoi**, une page ralentie qui lit sa
+  réponse tard n'est pas une panne. Une ligne d'état incohérente (`S 1 COOL`, `S 0 FIRE`) est
+  ignorée. `fault` aussi si la carte renvoie une bannière en cours de partie (elle a redémarré :
+  plafond et pause remis à zéro). `disconnected` sur toute erreur d'ouverture ou d'écriture, fin de
+  flux, ou erreur de lecture : une erreur **passagère** (`FramingError`, `ParityError`,
+  `BufferOverrunError`, `BreakError`) fait reprendre la lecture sur le flux neuf de
+  `port.readable`, trois de suite sans une ligne lue la déclarent perdue. Avant d'abandonner un
+  port dont la lecture est perdue, un dernier `0` est tenté (l'écriture marche peut-être encore).
+  Dès qu'on quitte `ready`, `board` et `phase` repassent à `null` : ils ne décrivent plus une
+  carte qui répond. Tout état d'échec est **définitif** : un nouveau lien (rechargement,
+  rebranchement) repart d'une nouvelle bannière. `onChange` prévient l'appelant, qui doit couper la
+  fumée et désarmer.
 - **Ce qu'il ne fait pas** : il n'arbitre rien. Le bail, le plafond et la pause sont dans la carte ;
   il ne peut que les observer. Il ne choisit pas le port, ne téléverse pas de programme et ne
   décide pas de l'arrêt d'urgence.
-- **Fausse carte** pour les tests : `tests/_helpers/fakeSmokeBoard.ts` (mêmes règles que la carte,
-  sur l'horloge simulée, y compris la pause de 5 s au démarrage et le verrou après un `F` refusé ;
-  options : sans bannière, autre protocole, muette, parasites, débranchement, état forgé).
+- **Fermeture** : chaque étape (dernier `0`, libération du writer, annulation de la lecture,
+  fermeture du port) est bornée à 1 s et indépendante : une carte figée ne garde ni verrou ni port.
+- **Fausse carte** pour les tests : `tests/_helpers/fakeSmokeBoard.ts`. La décision est le port
+  ligne à ligne du programme de la carte (`tests/_helpers/fumeeLogic.ts`) et le test
+  `fumeeVectors.test.ts` le rejoue, avec ce port, sur les vecteurs partagés
+  `firmware/fumee/vecteurs.txt` (31 scénarios, dont le débordement du compteur). La pause de 5 s
+  compte depuis la bannière ; `abort()` rejette les écritures bloquées comme Chrome. Options : sans
+  bannière, autre protocole, muette, parasites, débranchement, erreur de lecture passagère, état forgé.
 
 ## Fiabilité des interfaces USB DMX (Web Serial)
 

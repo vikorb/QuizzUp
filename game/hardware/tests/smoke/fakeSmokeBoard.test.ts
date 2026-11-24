@@ -1,4 +1,4 @@
-import { createFakeSmokeBoard } from '../_helpers/fakeSmokeBoard'
+import { createFakeSmokeBoard, FAKE_BOARD_BANNER_DELAY_MS } from '../_helpers/fakeSmokeBoard'
 import { createManualClock } from '../_helpers/manualClock'
 
 /** Parle directement à la fausse carte, sans lien : on teste ici les règles de la carte elle-même. */
@@ -134,5 +134,33 @@ describe('fausse carte : les règles du programme', () => {
     board.mute(true)
     await say('H\n')
     expect(board.received).toHaveLength(3)
+  })
+
+  it('avec bannière : la pause de 5 s compte depuis la bannière, pas depuis l’ouverture du port', async () => {
+    const clock = createManualClock()
+    const board = createFakeSmokeBoard({ clock })
+    await board.port.open({ baudRate: 9600 })
+    const opened = clock.now()
+    clock.advance(FAKE_BOARD_BANNER_DELAY_MS + 4999)
+    expect(clock.now() - opened).toBe(5999)
+    expect(board.snapshot().state).toBe('COOL')
+    clock.advance(1)
+    expect(board.snapshot().state).toBe('READY')
+  })
+
+  it('abort() d’un writer rejette l’écriture bloquée, comme Chrome, sans livrer la ligne', async () => {
+    const board = createFakeSmokeBoard({ clock: createManualClock(), banner: null })
+    await board.port.open({ baudRate: 9600 })
+    board.stallWrites()
+    const writer = board.port.writable!.getWriter()
+    const pending = writer.write(Uint8Array.from('F\n', (char) => char.charCodeAt(0)))
+    const outcome = pending.then(
+      () => 'écrit',
+      (error: Error) => error.name
+    )
+    await writer.abort()
+    expect(await outcome).toBe('AbortError')
+    expect(board.received).toHaveLength(0)
+    expect(board.attempted).toEqual(['F'])
   })
 })

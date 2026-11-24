@@ -2,7 +2,13 @@ import { SERIAL_CLOSE_TIMEOUT_MS } from '@hardware/dmx/serialOutput'
 import { createSmokeBoardLink } from '@hardware/smoke/boardLink'
 
 import type { FakeSmokeBoardOptions } from '../_helpers/fakeSmokeBoard'
-import { advance, createFakeSmokeBoard, flush } from '../_helpers/fakeSmokeBoard'
+import {
+  advance,
+  createFakeSmokeBoard,
+  FAKE_BOARD_BANNER,
+  FAKE_BOARD_WARM_MS,
+  flush,
+} from '../_helpers/fakeSmokeBoard'
 import { createManualClock } from '../_helpers/manualClock'
 
 /** Carte prête à lancer un jet : pause de démarrage écoulée, phase `ready` lue. */
@@ -13,7 +19,7 @@ async function ready(options: Partial<FakeSmokeBoardOptions> = {}) {
   const opening = link.open()
   await advance(clock, 1000)
   expect(await opening).toBe('ready')
-  await advance(clock, 4500)
+  await advance(clock, FAKE_BOARD_WARM_MS)
   expect(link.getState().phase).toBe('ready')
   return { clock, board, link }
 }
@@ -57,6 +63,8 @@ describe('débranchement et erreurs du port', () => {
     board.endStream()
     await flush()
     expect(link.getState()).toMatchObject({ status: 'disconnected', problem: 'read_error' })
+    // La lecture est perdue mais pas l'écriture : un dernier 0 part avant d'abandonner le port.
+    expect(board.received.at(-1)?.line).toBe('0')
   })
 
   it('port impossible à ouvrir : état débranchée, aucun envoi', async () => {
@@ -103,6 +111,137 @@ describe('débranchement et erreurs du port', () => {
     await flush()
     const link = createSmokeBoardLink({ port: board.port, clock })
     expect(await link.open()).toBe('disconnected')
+  })
+})
+
+describe('erreurs de lecture', () => {
+  it('erreur passagère (FramingError) : la lecture reprend sur le flux neuf, le lien reste prêt', async () => {
+    const { clock, board, link } = await ready()
+    board.failRead('FramingError')
+    await flush()
+    expect(link.getState().status).toBe('ready')
+    // Si la lecture était morte, la carte semblerait muette : on laisse passer plus d'une seconde.
+    await advance(clock, 2000)
+    expect(link.getState().status).toBe('ready')
+    expect(board.locked()).toBe(true)
+    link.drive(true)
+    await advance(clock, 200)
+    expect(link.getState()).toMatchObject({ status: 'ready', phase: 'fire' })
+  })
+
+  it.each(['ParityError', 'BufferOverrunError', 'BreakError'])(
+    'erreur passagère %s : reprise elle aussi',
+    async (name) => {
+      const { clock, board, link } = await ready()
+      board.failRead(name)
+      await flush()
+      await advance(clock, 1500)
+      expect(link.getState().status).toBe('ready')
+    }
+  )
+
+  it('erreurs passagères en boucle sans une ligne lue : carte perdue après trois reprises', async () => {
+    const { board, link } = await ready()
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      board.failRead('FramingError')
+      await flush()
+      expect(link.getState().status).toBe('ready')
+    }
+    board.failRead('FramingError')
+    await flush()
+    expect(link.getState()).toMatchObject({ status: 'disconnected', problem: 'read_error' })
+  })
+
+  it('une ligne lue remet le compte des erreurs passagères à zéro', async () => {
+    const { clock, board, link } = await ready()
+    for (let round = 0; round < 3; round += 1) {
+      board.failRead('FramingError')
+      await flush()
+      board.failRead('FramingError')
+      await flush()
+      // Un H de présence part et sa réponse est lue.
+      await advance(clock, 400)
+    }
+    expect(link.getState().status).toBe('ready')
+  })
+
+  it('autre erreur de lecture : carte perdue, un dernier 0 part avant d’abandonner le port', async () => {
+    const { board, link } = await ready()
+    board.failRead('NetworkError')
+    await flush()
+    expect(link.getState()).toMatchObject({ status: 'disconnected', problem: 'read_error' })
+    expect(board.received.at(-1)?.line).toBe('0')
+  })
+
+  it('un flux perdu en cours de jet : le 0 de dernier recours coupe la carte', async () => {
+    const { clock, board, link } = await ready()
+    link.drive(true)
+    await advance(clock, 100)
+    expect(board.snapshot().output).toBe(true)
+    board.endStream()
+    await flush()
+    expect(board.snapshot()).toMatchObject({ output: false, cause: 'CMD' })
+  })
+})
+
+type Context = Awaited<ReturnType<typeof ready>>
+
+describe('état exposé après une sortie de `ready`', () => {
+  const stateAfter = async (leave: (context: Context) => Promise<void>) => {
+    const context = await ready()
+    // Une ligne d'état et une phase sont lues avant la sortie.
+    expect(context.link.getState()).toMatchObject({ phase: 'ready', board: { state: 'READY' } })
+    await leave(context)
+    return context.link.getState()
+  }
+
+  const leaves: [string, string, (context: Context) => void][] = [
+    ['câble débranché', 'disconnected', ({ board }) => board.unplug()],
+    ['carte muette', 'silent', ({ board }) => board.mute(true)],
+    [
+      'carte qui redémarre',
+      'fault',
+      ({ board }) =>
+        board.inject(`${FAKE_BOARD_BANNER}
+`),
+    ],
+  ]
+
+  it.each(leaves)('%s : plus de phase ni de ligne d’état périmée', async (_name, status, leave) => {
+    const state = await stateAfter(async (context) => {
+      leave(context)
+      await advance(context.clock, 1500)
+    })
+    expect(state.status).toBe(status)
+    expect(state).toMatchObject({ board: null, phase: null })
+  })
+
+  it('fermeture : plus de phase ni de ligne d’état périmée', async () => {
+    const state = await stateAfter(async ({ clock, link }) => {
+      const closing = link.close()
+      await advance(clock, 100)
+      await closing
+    })
+    expect(state).toMatchObject({ status: 'closed', board: null, phase: null })
+  })
+})
+
+describe('ouverture répétée', () => {
+  it('un second open() pendant la connexion rend la première ouverture, sans en lancer une autre', async () => {
+    const clock = createManualClock()
+    const board = createFakeSmokeBoard({ clock })
+    const openSpy = vi.spyOn(board.port, 'open')
+    const link = createSmokeBoardLink({ port: board.port, clock })
+    const first = link.open()
+    const second = link.open()
+    expect(second).toBe(first)
+    await advance(clock, 1000)
+    expect(await first).toBe('ready')
+    expect(await second).toBe('ready')
+    expect(openSpy).toHaveBeenCalledTimes(1)
+    // Une fois connecté, open() rend l'état courant.
+    expect(await link.open()).toBe('ready')
+    expect(openSpy).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -182,6 +321,9 @@ describe('fermeture', () => {
     await advance(clock, SERIAL_CLOSE_TIMEOUT_MS + 50)
     await closing
     expect(closed).toBe(true)
+    // Les écritures bloquées sont abandonnées : les flux sont rendus et le port fermé quand même.
+    expect(board.isOpen()).toBe(false)
+    expect(board.locked()).toBe(false)
   })
 
   it('carte muette ou en erreur : close envoie encore 0 si le port le permet', async () => {

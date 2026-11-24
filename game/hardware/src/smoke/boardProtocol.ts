@@ -1,4 +1,3 @@
-import { WATCHDOG_STALL_MS } from '../lighting/lightingController'
 import { SMOKE_HARD_LIMITS } from '../lighting/smoke'
 
 /**
@@ -10,6 +9,14 @@ import { SMOKE_HARD_LIMITS } from '../lighting/smoke'
 /** Numéro de protocole accepté. Une autre valeur est refusée, jamais « devinée ». */
 export const BOARD_PROTOCOL = 1
 export const BOARD_BAUD_RATE = 9600
+
+/**
+ * Bail maximal accepté dans la bannière : la valeur de `WATCHDOG_STALL_MS` (lumières), recopiée ici
+ * pour ne pas dépendre du contrôleur de lumières ; un test garde les deux égales.
+ */
+export const BOARD_MAX_LEASE_MS = 500
+/** Écart minimal entre deux ordres `F` envoyés à la carte. */
+export const BOARD_FIRE_INTERVAL_MS = 100
 
 /** Début d'une bannière. L'espace final évite de confondre avec un mot qui commencerait pareil. */
 const BANNER_MAGIC = 'QZF READY '
@@ -66,8 +73,8 @@ const VERSION = /^\d{1,3}\.\d{1,3}\.\d{1,3}$/
  * contrôlées champ par champ. Rien n'est toléré après.
  *
  * « Plus permissif » veut dire, pour chacune des trois limites de `SMOKE_HARD_LIMITS` /
- * `WATCHDOG_STALL_MS` : plafond d'un jet **au-dessus** de `maxDurationMs` (10 s), pause entre deux
- * jets **en dessous** de `minCooldownMs` (5 s), bail **au-dessus** de `WATCHDOG_STALL_MS` (500 ms).
+ * `BOARD_MAX_LEASE_MS` : plafond d'un jet **au-dessus** de `maxDurationMs` (10 s), pause entre deux
+ * jets **en dessous** de `minCooldownMs` (5 s), bail **au-dessus** de `BOARD_MAX_LEASE_MS` (500 ms).
  * Une carte plus stricte (plafond plus court, pause plus longue, bail plus court) est acceptée :
  * elle coupe seulement plus tôt. Les valeurs égales aux limites sont acceptées.
  */
@@ -112,23 +119,34 @@ export function parseBanner(line: string): BannerResult {
   if (
     banner.maxFireMs > SMOKE_HARD_LIMITS.maxDurationMs ||
     banner.cooldownMs < SMOKE_HARD_LIMITS.minCooldownMs ||
-    banner.leaseMs > WATCHDOG_STALL_MS
+    banner.leaseMs > BOARD_MAX_LEASE_MS
   ) {
     return { ok: false, reason: 'too_permissive' }
+  }
+  // Un bail plus court que deux envois de `F` couperait le jet entre deux ordres normaux.
+  if (banner.leaseMs < 2 * BOARD_FIRE_INTERVAL_MS) {
+    return { ok: false, reason: 'invalid_values' }
   }
   return { ok: true, banner }
 }
 
 const STATUS_LINE = /^S ([01]) (READY|FIRE|COOL) (LEASE|MAX|CMD|BAD)$/
 
-/** Lit `S <0|1> <READY|FIRE|COOL> <LEASE|MAX|CMD|BAD>` ; `null` pour toute autre ligne. */
+/**
+ * Lit `S <0|1> <READY|FIRE|COOL> <LEASE|MAX|CMD|BAD>` ; `null` pour toute autre ligne, et pour une
+ * ligne incohérente : la sortie n'est allumée que pendant un jet (`S 1` seulement avec `FIRE`).
+ */
 export function parseStatusLine(line: string): BoardStatusLine | null {
   const match = STATUS_LINE.exec(line)
   if (!match) {
     return null
   }
+  const output = match[1] === '1'
+  if (output !== (match[2] === 'FIRE')) {
+    return null
+  }
   return {
-    output: match[1] === '1',
+    output,
     state: match[2] as BoardOutputState,
     cause: match[3] as BoardCause,
   }

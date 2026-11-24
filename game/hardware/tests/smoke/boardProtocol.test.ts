@@ -2,6 +2,8 @@ import { WATCHDOG_STALL_MS } from '@hardware/lighting/lightingController'
 import { SMOKE_HARD_LIMITS } from '@hardware/lighting/smoke'
 import {
   BOARD_BAUD_RATE,
+  BOARD_FIRE_INTERVAL_MS,
+  BOARD_MAX_LEASE_MS,
   BOARD_MAX_LINE_BYTES,
   createLineSplitter,
   encodeBoardCommand,
@@ -83,6 +85,17 @@ describe('bannière', () => {
       reason: 'too_permissive',
     })
   })
+
+  it('le bail maximal accepté est celui du chien de garde des lumières', () => {
+    expect(BOARD_MAX_LEASE_MS).toBe(WATCHDOG_STALL_MS)
+  })
+
+  it('refuse un bail de moins de deux envois de F : il couperait entre deux ordres normaux', () => {
+    const banner = (lease: number) => parseBanner(`QZF READY 1 1.0.0 10000 5000 ${lease}`)
+    expect(banner(2 * BOARD_FIRE_INTERVAL_MS).ok).toBe(true)
+    expect(banner(2 * BOARD_FIRE_INTERVAL_MS - 1)).toEqual({ ok: false, reason: 'invalid_values' })
+    expect(banner(BOARD_FIRE_INTERVAL_MS)).toEqual({ ok: false, reason: 'invalid_values' })
+  })
 })
 
 describe('ligne d’état', () => {
@@ -107,6 +120,10 @@ describe('ligne d’état', () => {
     'S  1 FIRE LEASE',
     'S 1 FIRE LEASE extra',
     'QZF READY 1 1.0.0 10000 5000 500',
+    // Incohérentes : la sortie n'est allumée que pendant un jet.
+    'S 1 COOL LEASE',
+    'S 1 READY CMD',
+    'S 0 FIRE CMD',
   ])('refuse %j', (line) => {
     expect(parseStatusLine(line)).toBeNull()
   })

@@ -15,6 +15,7 @@ import {
   createFakeSmokeBoard,
   FAKE_BOARD_BANNER,
   FAKE_BOARD_VERSION,
+  FAKE_BOARD_WARM_MS,
   flush,
 } from '../_helpers/fakeSmokeBoard'
 import { createManualClock } from '../_helpers/manualClock'
@@ -41,7 +42,7 @@ async function cold(options: Partial<FakeSmokeBoardOptions> = {}) {
 async function ready(options: Partial<FakeSmokeBoardOptions> = {}, warm = true) {
   const context = await cold(options)
   if (warm) {
-    await advance(context.clock, 4500)
+    await advance(context.clock, FAKE_BOARD_WARM_MS)
     expect(context.link.getState().phase).toBe('ready')
   }
   return context
@@ -345,18 +346,21 @@ describe('présence et silence', () => {
 })
 
 describe('écarts entre la carte et nos ordres', () => {
-  it('sortie annoncée à 1 plus d’un bail après le dernier 0 : état d’erreur', async () => {
+  it('sortie annoncée à 1 en réponse à un 0 : état d’erreur, puis plus aucun F', async () => {
     const { clock, board, link, states } = await ready()
+    // Carte muette : c'est ce test qui joue ses réponses, dans l'ordre des lignes reçues.
+    board.mute(true)
     link.drive(true)
     await advance(clock, 100)
     link.drive(false)
-    await advance(clock, 300)
-    board.inject('S 1 FIRE LEASE\n')
+    await advance(clock, 50)
+    expect(board.received.slice(-2).map((entry) => entry.line)).toEqual(['F', '0'])
+    // Réponse au F : la sortie est allumée, c'est normal.
+    board.inject('S 1 FIRE CMD\n')
     await flush()
-    // Dans le bail : la carte peut encore être en train de répondre à un ordre précédent.
     expect(link.getState().status).toBe('ready')
-    await advance(clock, 400)
-    board.inject('S 1 FIRE LEASE\n')
+    // Réponse au 0 : la sortie ne peut plus être allumée.
+    board.inject('S 1 FIRE CMD\n')
     await flush()
     expect(link.getState()).toMatchObject({ status: 'fault', problem: 'output_mismatch' })
     expect(states.at(-1)!.status).toBe('fault')
@@ -366,18 +370,43 @@ describe('écarts entre la carte et nos ordres', () => {
     await advance(clock, 1000, 25, () => link.drive(true))
     expect(sent(board, 'F')).toHaveLength(1)
     expect(board.received.length).toBe(count)
-    expect(sent(board, '0').length).toBeGreaterThanOrEqual(2)
+    expect(board.received.at(-1)!.line).toBe('0')
+    expect(sent(board, '0')).toHaveLength(2)
   })
 
-  it('sortie annoncée à 1 bien après le dernier F sans nouvel ordre : état d’erreur', async () => {
+  it('sortie annoncée à 1 en réponse à une ligne partie bien après le dernier F : état d’erreur', async () => {
     const { clock, board, link } = await ready()
-    link.drive(true)
-    // Carte muette : pas de ligne `COOL` qui ferait partir un 0, le dernier ordre reste ce F.
     board.mute(true)
-    await advance(clock, 800)
-    board.inject('S 1 FIRE LEASE\n')
+    link.drive(true)
+    await advance(clock, 950)
+    const fireAt = sent(board, 'F')[0]!.at
+    const lines = board.received.filter((entry) => entry.at >= fireAt)
+    // Dernière ligne (un H) partie plus d'un bail et d'une marge après le F : le jet est coupé.
+    expect(lines.at(-1)!.at - fireAt).toBeGreaterThan(WATCHDOG_STALL_MS + BOARD_FIRE_INTERVAL_MS)
+    for (const _line of lines.slice(0, -1)) {
+      board.inject('S 1 FIRE CMD\n')
+    }
     await flush()
-    expect(link.getState().problem).toBe('output_mismatch')
+    expect(link.getState().status).toBe('ready')
+    board.inject('S 1 FIRE CMD\n')
+    await flush()
+    expect(link.getState()).toMatchObject({ status: 'fault', problem: 'output_mismatch' })
+  })
+
+  it('page bloquée entre l’envoi d’un H et la lecture de sa réponse : pas de faux écart', async () => {
+    const { clock, board, link } = await ready()
+    board.mute(true)
+    link.drive(true)
+    await advance(clock, 350)
+    const fireAt = sent(board, 'F')[0]!.at
+    const lines = board.received.filter((entry) => entry.at >= fireAt)
+    expect(lines.map((entry) => entry.line)).toEqual(['F', 'H'])
+    // La page est gelée 350 ms : le H est parti à ~300 ms du F, sa réponse est lue à ~650 ms.
+    // Elle est normale (le jet durait encore à son arrivée sur la carte) : ce n'était pas un écart.
+    clock.jump(350)
+    board.inject('S 1 FIRE CMD\nS 1 FIRE CMD\n')
+    await flush()
+    expect(link.getState()).toMatchObject({ status: 'ready', problem: null })
   })
 
   it('sortie annoncée à 1 pendant un jet en cours : aucun écart', async () => {

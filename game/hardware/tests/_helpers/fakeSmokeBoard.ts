@@ -3,6 +3,7 @@ import { SMOKE_HARD_LIMITS } from '@hardware/lighting/smoke'
 import type { SmokeBoardPort } from '@hardware/smoke/boardLink'
 import type { BoardCause, BoardOutputState } from '@hardware/smoke/boardProtocol'
 
+import { createFumee } from './fumeeLogic'
 import type { ManualClock } from './manualClock'
 
 export const FAKE_BOARD_VERSION = '1.0.0'
@@ -15,13 +16,23 @@ export const FAKE_BOARD_BANNER = [
   WATCHDOG_STALL_MS,
 ].join(' ')
 
+/** Délai entre l'ouverture du port et la bannière (le chargeur attend environ une seconde). */
+export const FAKE_BOARD_BANNER_DELAY_MS = 1000
+/**
+ * À attendre après la bannière pour que le lien lise `ready` : les 5 s de pause du démarrage, plus
+ * 300 ms (le `H` de présence part au plus 250 ms plus tard et la carte y répond).
+ */
+export const FAKE_BOARD_WARM_MS = SMOKE_HARD_LIMITS.minCooldownMs + 300
+/** Pas de la boucle simulée de la carte (en plus d'un tic à chaque ligne et à chaque `snapshot`). */
+const BOARD_LOOP_MS = 1
+
 export type FakeSmokeBoardOptions = {
   clock: ManualClock
   /** Bannière envoyée à chaque ouverture du port ; `null` : une carte sans notre programme. */
   banner?: string | null
   /** Texte glissé juste avant la bannière, sur la même ligne (parasites de remise à zéro). */
   noise?: string
-  /** Délai entre l'ouverture du port et la bannière (le chargeur attend environ une seconde). */
+  /** Délai entre l'ouverture du port et la bannière. */
   bannerDelayMs?: number
   /** Carte qui n'écrit jamais de ligne d'état. */
   mute?: boolean
@@ -35,21 +46,17 @@ export type FakeBoardSnapshot = {
   lastCutAt: number | null
 }
 
-const LEASE_MS = WATCHDOG_STALL_MS
-const MAX_FIRE_MS = SMOKE_HARD_LIMITS.maxDurationMs
-const COOLDOWN_MS = SMOKE_HARD_LIMITS.minCooldownMs
-
 const domError = (name: string, message: string) => Object.assign(new Error(message), { name })
 const bytes = (text: string) => Uint8Array.from(text, (char) => char.charCodeAt(0))
 
 /**
- * Fausse carte de fumée sur un faux port série, pilotée par l'horloge simulée. Applique les
- * règles du §3 de la conception : bail de 500 ms, plafond de 10 s, pause de 5 s, seule la ligne
- * exacte `F` allume, `H` est neutre, toute autre ligne coupe. Une ligne d'état part après chaque
- * ligne reçue. Après une remise à zéro la carte est en pause (`COOL`, cause `CMD`) pendant 5 s ;
- * un `F` reçu en pause est refusé et verrouille la carte : les `F` suivants sont ignorés
- * jusqu'à un `0` ou 500 ms sans `F`. La cause ne change que lorsqu'un jet est vraiment coupé. Ouvrir le port la remet à zéro (comme le signal DTR d'un Uno) et lui fait
- * envoyer la bannière.
+ * Fausse carte de fumée sur un faux port série, pilotée par l'horloge simulée. Toute la décision
+ * (bail de 500 ms, plafond de 10 s, pause de 5 s, verrou des `F` refusés, cause) est le port
+ * ligne à ligne du programme de la carte (`fumeeLogic.ts`, comparé aux vecteurs partagés). Ici
+ * seulement le port : une ligne d'état part après chaque ligne reçue, et la boucle de la carte
+ * tourne (un tic à chaque ligne, à chaque `snapshot`, et toutes les ms). La carte démarre en
+ * pause de 5 s comptée **depuis la bannière** (`fumee_init(millis())` dans `setup()`), puis
+ * ouvrir le port la remet à zéro (comme le signal DTR d'un Uno).
  */
 export function createFakeSmokeBoard(options: FakeSmokeBoardOptions) {
   const { clock } = options
@@ -58,6 +65,8 @@ export function createFakeSmokeBoard(options: FakeSmokeBoardOptions) {
 
   /** Lignes reçues par la carte, avec l'instant de réception. */
   const received: { line: string; at: number }[] = []
+  /** Lignes confiées au port par la page, qu'elles soient arrivées ou bloquées (carte figée). */
+  const attempted: string[] = []
   let unplugged = false
   let writesStalled = false
   let writesFailing = false
@@ -66,17 +75,13 @@ export function createFakeSmokeBoard(options: FakeSmokeBoardOptions) {
   let writerLocked = false
   let closeCount = 0
   let bannerTimer: ReturnType<typeof clock.setTimeout> | undefined
+  let loopTimer: ReturnType<typeof clock.setInterval> | undefined
+  /** Écritures bloquées (carte figée) : `abort()` les rejette, comme Chrome. */
+  const stalled: ((error: Error) => void)[] = []
 
   // Programme de la carte.
-  let jetStart: number | null = null
-  let lastFireAt = 0
+  let program = createFumee(0)
   let lastCutAt: number | null = null
-  /** Fin de la pause en cours (au démarrage comme après un jet). */
-  let coolUntil = 0
-  /** Un `F` refusé en pause pose ce verrou : les `F` suivants sont ignorés. */
-  let locked = false
-  let lastFReceivedAt = Number.NEGATIVE_INFINITY
-  let cause: BoardCause = 'CMD'
 
   // Flux vers la page.
   const queue: Uint8Array[] = []
@@ -98,71 +103,35 @@ export function createFakeSmokeBoard(options: FakeSmokeBoardOptions) {
     }
   }
 
-  /** Applique ce que le temps a changé (fin de bail, plafond) : coupe pile à l'échéance. */
-  const settle = (now: number) => {
-    if (jetStart === null) {
-      return
-    }
-    const leaseEnd = lastFireAt + LEASE_MS
-    const maxEnd = jetStart + MAX_FIRE_MS
-    const end = Math.min(leaseEnd, maxEnd)
-    if (now >= end) {
-      lastCutAt = end
-      coolUntil = end + COOLDOWN_MS
-      cause = maxEnd <= leaseEnd ? 'MAX' : 'LEASE'
-      jetStart = null
+  /** Applique `step` au programme et note l'instant où un jet s'arrête. */
+  const run = (at: number, step: () => void) => {
+    const firing = program.fumee.state === 'FIRE'
+    step()
+    if (firing && program.fumee.state !== 'FIRE') {
+      lastCutAt = at
     }
   }
+
+  /** Un tour de la boucle de la carte : le temps passe, une échéance éventuelle coupe. */
+  const tickTo = (now: number) => run(now, () => program.tick(now))
 
   const snapshot = (): FakeBoardSnapshot => {
-    const now = clock.now()
-    settle(now)
-    let state: BoardOutputState = 'READY'
-    if (jetStart !== null) {
-      state = 'FIRE'
-    } else if (now < coolUntil) {
-      state = 'COOL'
-    }
-    return { output: jetStart !== null, state, cause, lastCutAt }
-  }
-
-  const cut = (now: number, reason: BoardCause) => {
-    if (jetStart !== null) {
-      lastCutAt = now
-      coolUntil = now + COOLDOWN_MS
-      jetStart = null
-      cause = reason
+    tickTo(clock.now())
+    return {
+      output: program.fumee.out === 1,
+      state: program.fumee.state,
+      cause: program.fumee.cause,
+      lastCutAt,
     }
   }
 
   const handleLine = (line: string) => {
     const now = clock.now()
-    settle(now)
-    if (line === 'F') {
-      // Verrou levé par 500 ms sans `F` (ou par un `0`).
-      if (locked && now - lastFReceivedAt >= LEASE_MS) {
-        locked = false
-      }
-      lastFReceivedAt = now
-      if (locked) {
-        // Ignoré.
-      } else if (jetStart !== null) {
-        lastFireAt = now
-      } else if (now < coolUntil) {
-        locked = true
-      } else {
-        jetStart = now
-        lastFireAt = now
-      }
-    } else if (line === '0') {
-      locked = false
-      cut(now, 'CMD')
-    } else if (line !== 'H') {
-      cut(now, 'BAD')
-    }
+    tickTo(now)
+    run(now, () => program.line(now, line))
     if (!mute) {
-      const { output, state, cause: current } = snapshot()
-      emit(`S ${output ? 1 : 0} ${state} ${current}\n`)
+      const { output, state, cause } = snapshot()
+      emit(`S ${output ? 1 : 0} ${state} ${cause}\n`)
     }
   }
 
@@ -178,25 +147,33 @@ export function createFakeSmokeBoard(options: FakeSmokeBoardOptions) {
     }
   }
 
-  /** Remise à zéro (ouverture du port) : programme au repos, bannière après le délai du chargeur. */
-  const reset = () => {
-    jetStart = null
-    lastFireAt = 0
+  /** `setup()` de la carte : programme remis à zéro (pause de 5 s dès cet instant), bannière. */
+  const boot = () => {
+    program = createFumee(clock.now())
     lastCutAt = null
-    // Une carte qui démarre est en pause 5 s : pas de jet juste après une remise à zéro.
-    coolUntil = clock.now() + COOLDOWN_MS
-    locked = false
-    lastFReceivedAt = Number.NEGATIVE_INFINITY
-    cause = 'CMD'
+    if (banner !== null) {
+      emit(`${options.noise ?? ''}${banner}\n`)
+    }
+  }
+
+  /** Remise à zéro (ouverture du port) : la bannière arrive après le délai du chargeur. */
+  const reset = () => {
+    // Une carte sans notre programme (`banner: null`) n'envoie rien : sa pause part de l'ouverture.
+    program = createFumee(clock.now())
+    lastCutAt = null
     inbound = ''
     queue.length = 0
     cancelled = false
     waiting = null
+    loopTimer = clock.setInterval(() => tickTo(clock.now()), BOARD_LOOP_MS)
     if (banner !== null) {
-      bannerTimer = clock.setTimeout(
-        () => emit(`${options.noise ?? ''}${banner}\n`),
-        options.bannerDelayMs ?? 1000
-      )
+      bannerTimer = clock.setTimeout(boot, options.bannerDelayMs ?? FAKE_BOARD_BANNER_DELAY_MS)
+    }
+  }
+
+  const rejectStalled = () => {
+    for (const reject of stalled.splice(0)) {
+      reject(domError('AbortError', 'The stream was aborted.'))
     }
   }
 
@@ -243,18 +220,19 @@ export function createFakeSmokeBoard(options: FakeSmokeBoardOptions) {
           if (unplugged || writesFailing) {
             throw domError('NetworkError', 'The device has been lost.')
           }
+          attempted.push(String.fromCharCode(...chunk).trimEnd())
           if (writesStalled) {
-            await new Promise<never>(() => undefined)
+            await new Promise<never>((_resolve, reject) => stalled.push(reject))
           }
           receive(chunk)
         },
-        abort: async () => undefined,
+        abort: async () => rejectStalled(),
         releaseLock: () => {
           writerLocked = false
         },
       }
     },
-    abort: async () => undefined,
+    abort: async () => rejectStalled(),
   } as unknown as WritableStream<Uint8Array>
 
   const port = {
@@ -276,12 +254,16 @@ export function createFakeSmokeBoard(options: FakeSmokeBoardOptions) {
       if (bannerTimer !== undefined) {
         clock.clearTimeout(bannerTimer)
       }
+      if (loopTimer !== undefined) {
+        clock.clearInterval(loopTimer)
+      }
     },
+    // Comme Chrome : un câble débranché rend `readable` et `writable` nuls.
     get readable() {
-      return isOpen ? readable : null
+      return isOpen && !unplugged ? readable : null
     },
     get writable() {
-      return isOpen ? writable : null
+      return isOpen && !unplugged ? writable : null
     },
   }
 
@@ -291,15 +273,22 @@ export function createFakeSmokeBoard(options: FakeSmokeBoardOptions) {
     snapshot,
     /** Lignes reçues par la carte. */
     received,
+    /** Lignes que la page a tenté d'écrire (même celles qu'une écriture bloquée n'a pas livrées). */
+    attempted,
     /** Texte tel qu'envoyé par la carte (ligne parasite, état forgé, bannière en cours de partie). */
     inject: emit,
     mute: (value: boolean) => {
       mute = value
     },
-    /** Câble débranché : lectures et écritures échouent. */
+    /** Câble débranché : lectures et écritures échouent, `readable` devient nul. */
     unplug: () => {
       unplugged = true
       waiting?.reject(domError('NetworkError', 'The device has been lost.'))
+      waiting = null
+    },
+    /** Erreur de lecture passagère (`FramingError`...) : le port reste là, un flux neuf est rendu. */
+    failRead: (name: string) => {
+      waiting?.reject(domError(name, 'Read error.'))
       waiting = null
     },
     /** Le flux de lecture se termine sans erreur (le navigateur a fermé le port). */
@@ -312,7 +301,7 @@ export function createFakeSmokeBoard(options: FakeSmokeBoardOptions) {
     failWrites: () => {
       writesFailing = true
     },
-    /** Les écritures ne se terminent jamais. */
+    /** Les écritures ne se terminent jamais, tant que le writer n'est pas abandonné (`abort`). */
     stallWrites: () => {
       writesStalled = true
     },

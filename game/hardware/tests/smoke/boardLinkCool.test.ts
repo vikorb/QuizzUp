@@ -1,7 +1,12 @@
 import { createSmokeBoardLink } from '@hardware/smoke/boardLink'
 
 import type { FakeSmokeBoardOptions } from '../_helpers/fakeSmokeBoard'
-import { advance, createFakeSmokeBoard, flush } from '../_helpers/fakeSmokeBoard'
+import {
+  advance,
+  createFakeSmokeBoard,
+  FAKE_BOARD_WARM_MS,
+  flush,
+} from '../_helpers/fakeSmokeBoard'
 import { createManualClock } from '../_helpers/manualClock'
 
 /** Carte juste remise à zéro (pause de 5 s au démarrage), lien prêt, première phase lue. */
@@ -37,7 +42,7 @@ describe('pause de la carte (COOL)', () => {
 
   it('expose la phase au fil du jeu : cool, ready, fire, puis cool', async () => {
     const { clock, link, phases } = await cold()
-    await advance(clock, 4500)
+    await advance(clock, FAKE_BOARD_WARM_MS)
     link.drive(true)
     await advance(clock, 100)
     // Plus d'appel : le bail expire, la carte repasse en pause.
@@ -62,7 +67,7 @@ describe('pause de la carte (COOL)', () => {
 
   it('n’envoie pas de F tant que la phase lue n’est pas READY ou FIRE, quoi que dise la carte réelle', async () => {
     const { clock, board, link } = await cold()
-    await advance(clock, 4500)
+    await advance(clock, FAKE_BOARD_WARM_MS)
     expect(link.getState().phase).toBe('ready')
     board.inject('S 0 COOL MAX\n')
     await flush()
@@ -87,7 +92,7 @@ describe('pause de la carte (COOL)', () => {
 
   it('un F arrivé en COOL (fin de plafond) : 0 une fois, plus de F jusqu’à READY, puis reprise', async () => {
     const { clock, board, link } = await cold()
-    await advance(clock, 4500)
+    await advance(clock, FAKE_BOARD_WARM_MS)
     // Jet continu, 40 appels par seconde : la carte coupe au plafond de 10 s (MAX).
     await advance(clock, 10_300, 25, () => link.drive(true))
     const { lastCutAt, cause } = board.snapshot()
@@ -109,12 +114,58 @@ describe('pause de la carte (COOL)', () => {
 
   it('drive(false) envoie toujours 0 à la fin d’un jet', async () => {
     const { clock, board, link } = await cold()
-    await advance(clock, 4500)
+    await advance(clock, FAKE_BOARD_WARM_MS)
     await advance(clock, 1000, 25, () => link.drive(true))
     expect(board.snapshot().output).toBe(true)
     link.drive(false)
     await flush()
     expect(sent(board, '0')).toHaveLength(1)
     expect(board.snapshot()).toMatchObject({ output: false, cause: 'CMD' })
+  })
+
+  it('après un 0, aucun F avant la ligne d’état qui répond à ce 0', async () => {
+    const { clock, board, link } = await cold()
+    await advance(clock, FAKE_BOARD_WARM_MS)
+    // Carte muette : les réponses sont jouées à la main, dans l'ordre des lignes reçues.
+    board.mute(true)
+    link.drive(true)
+    await advance(clock, 150)
+    link.drive(false)
+    await advance(clock, 150)
+    expect(board.received.slice(-2).map((entry) => entry.line)).toEqual(['F', '0'])
+    board.inject('S 1 FIRE CMD\n')
+    await flush()
+    // La réponse au 0 n'est pas revenue : la phase lue (FIRE) est périmée, rien ne part.
+    await advance(clock, 300, 25, () => link.drive(true))
+    expect(sent(board, 'F')).toHaveLength(1)
+    // Réponse au 0 : la carte est prête, le F suivant part.
+    board.inject('S 0 READY CMD\n')
+    await flush()
+    link.drive(true)
+    await flush()
+    expect(sent(board, 'F')).toHaveLength(2)
+  })
+
+  it('aucun F ni H tant que l’écriture précédente n’est pas terminée (pas de rafale au déblocage)', async () => {
+    const { clock, board, link } = await cold()
+    await advance(clock, FAKE_BOARD_WARM_MS)
+    const before = board.attempted.length
+    board.stallWrites()
+    link.drive(true)
+    await advance(clock, 600, 25, () => link.drive(true))
+    // Un seul F a été confié au port, ni autre F ni H derrière lui.
+    expect(board.attempted.slice(before)).toEqual(['F'])
+  })
+
+  it('un 0 part même si une écriture est bloquée (il est le seul ordre sûr)', async () => {
+    const { clock, board, link } = await cold()
+    await advance(clock, FAKE_BOARD_WARM_MS)
+    const before = board.attempted.length
+    board.stallWrites()
+    link.drive(true)
+    await advance(clock, 100)
+    link.drive(false)
+    await flush()
+    expect(board.attempted.slice(before)).toEqual(['F', '0'])
   })
 })

@@ -12,6 +12,7 @@ import type {
 } from './boardProtocol'
 import {
   BOARD_BAUD_RATE,
+  BOARD_FIRE_INTERVAL_MS,
   createLineSplitter,
   encodeBoardCommand,
   isBannerLine,
@@ -21,14 +22,17 @@ import {
 
 /** Attente maximale de la bannière après l'ouverture (la carte redémarre à l'ouverture du port). */
 export const BOARD_BANNER_TIMEOUT_MS = 3000
-/** Écart minimal entre deux ordres `F`, même si l'appelant en redemande à chaque trame. */
-export const BOARD_FIRE_INTERVAL_MS = 100
+export { BOARD_FIRE_INTERVAL_MS }
 /** Un `H` part quand rien n'a été envoyé depuis ce délai : la carte répond, on sait qu'elle vit. */
 export const BOARD_PRESENCE_MS = 250
 /** Carte déclarée muette après ce délai sans ligne d'état alors qu'on lui parle. */
 export const BOARD_SILENCE_MS = 1000
 /** Pas de la surveillance (présence, silence). */
 const TICK_MS = 100
+/** Erreurs de lecture passagères : le port reste là, `port.readable` rend un flux neuf. */
+const TRANSIENT_READ_ERRORS = ['FramingError', 'ParityError', 'BufferOverrunError', 'BreakError']
+/** Erreurs passagères de suite, sans une ligne lue entre-temps, avant de déclarer la carte perdue. */
+const MAX_TRANSIENT_READ_ERRORS = 3
 
 /** Sous-ensemble de `SerialPort` utilisé : le port DMX, plus la lecture. */
 export type SmokeBoardPort = SerialPortLike & { readable: ReadableStream<Uint8Array> | null }
@@ -110,6 +114,14 @@ export type SmokeBoardLink = {
   close: () => Promise<void>
 }
 
+/** Ligne envoyée à la carte et pas encore répondue (elle répond une ligne d'état par ligne reçue). */
+type SentLine = {
+  command: BoardCommand
+  at: number
+  /** Une sortie allumée dans la réponse à cette ligne est normale (jet entretenu par un `F` récent). */
+  mayLight: boolean
+}
+
 const sameLine = (left: BoardStatusLine | null, right: BoardStatusLine) =>
   left !== null &&
   left.output === right.output &&
@@ -137,7 +149,7 @@ export function createSmokeBoardLink(options: SmokeBoardLinkOptions): SmokeBoard
   const { port } = options
   const clock = options.clock ?? browserClock
   const emitter = createEmitter<SmokeBoardState>()
-  const splitter = createLineSplitter()
+  let splitter = createLineSplitter()
 
   let state: SmokeBoardState = {
     status: 'idle',
@@ -158,10 +170,17 @@ export function createSmokeBoardLink(options: SmokeBoardLinkOptions): SmokeBoard
   let ordered: 'fire' | 'off' = 'off'
   let lastSentAt = Number.NEGATIVE_INFINITY
   let lastFireAt = Number.NEGATIVE_INFINITY
-  /** Instant du dernier ordre (`F` ou `0`), pour juger ce que la carte annonce. */
-  let lastOrderAt = 0
-  /** Premier envoi depuis la dernière ligne d'état reçue ; `null` si rien n'attend de réponse. */
-  let awaitingSince: number | null = null
+  /** Lignes envoyées dans l'ordre, en attente de leur ligne d'état. La plus ancienne dit si la carte se tait. */
+  const sentLines: SentLine[] = []
+  /** Écritures lancées et pas terminées (port qui n'avale plus rien) : ni `F` ni `H` ne s'y empilent. */
+  let writing = 0
+  /** Un `F` a été envoyé et aucun `0` depuis : la carte peut légitimement avoir la sortie allumée. */
+  let fireLive = false
+  /** Instant où le dernier `F` est parti pour de bon (écriture terminée) ; `null` : encore en route. */
+  let fireWrittenAt: number | null = null
+  /** `0` envoyés dont la ligne d'état n'est pas encore revenue : aucun `F` avant elle. */
+  let offsInFlight = 0
+  let opening: Promise<SmokeBoardStatus> | null = null
 
   const getState = (): SmokeBoardState => state
 
@@ -179,16 +198,26 @@ export function createSmokeBoardLink(options: SmokeBoardLinkOptions): SmokeBoard
     }
   }
 
+  /**
+   * Abandonne le writer : `abort()` jette les octets en file (une interface figée ne les enverra
+   * jamais), `releaseLock()` déverrouille le flux. Sans cela `port.close()` est refusé (flux
+   * verrouillé) et le port ne se rouvre plus. `abort()` n'est pas attendu : il peut ne jamais
+   * aboutir sur une interface figée. (Même geste que la sortie DMX série.)
+   */
+  const discardWriter = (target: WritableStreamDefaultWriter<Uint8Array>) => {
+    target.abort().catch(() => undefined)
+    try {
+      target.releaseLock()
+    } catch {
+      // Verrou déjà rendu.
+    }
+  }
+
   const dropWriter = () => {
     const current = writer
     writer = null
     if (current) {
-      current.abort().catch(() => undefined)
-      try {
-        current.releaseLock()
-      } catch {
-        // Verrou déjà rendu.
-      }
+      discardWriter(current)
     }
   }
 
@@ -198,13 +227,21 @@ export function createSmokeBoardLink(options: SmokeBoardLinkOptions): SmokeBoard
       return
     }
     stopTimers()
-    if (status === 'disconnected') {
-      dropWriter()
-    } else if (status === 'silent' || status === 'fault') {
+    // Silence, contradiction, lecture perdue : on ne sait plus ce que fait la carte, un `0` part
+    // encore (il passe si le sens d'écriture marche). Un port qui n'écrit plus n'en a pas besoin.
+    if (status === 'silent' || status === 'fault' || problem === 'read_error') {
       writer?.write(encodeBoardCommand('off')).catch(() => undefined)
     }
-    update({ status, problem })
+    if (status === 'disconnected') {
+      dropWriter()
+    }
+    // Plus de phase ni de dernière ligne : elles ne décrivent plus une carte qui répond.
+    update({ status, problem, board: null, phase: null })
   }
+
+  /** Une sortie allumée est-elle normale dans la réponse à une ligne envoyée à `at` ? */
+  const mayLightAt = (at: number) =>
+    fireLive && (fireWrittenAt === null || at - fireWrittenAt <= leaseMs + BOARD_FIRE_INTERVAL_MS)
 
   const send = (command: BoardCommand) => {
     if (!writer) {
@@ -212,38 +249,55 @@ export function createSmokeBoardLink(options: SmokeBoardLinkOptions): SmokeBoard
     }
     const at = clock.now()
     lastSentAt = at
-    awaitingSince ??= at
-    if (command !== 'hello') {
-      lastOrderAt = at
-    }
     if (command === 'fire') {
+      fireLive = true
+      fireWrittenAt = null
       lastFireAt = at
+    } else if (command === 'off') {
+      fireLive = false
+      offsInFlight += 1
     }
-    writer.write(encodeBoardCommand(command)).catch(() => {
-      if (!closing) {
-        fail('disconnected', 'write_error')
+    // Jugé à l'envoi : la lecture de la réponse peut venir bien plus tard (page ralentie) sans que
+    // la carte ait rien fait de faux.
+    sentLines.push({ command, at, mayLight: mayLightAt(at) })
+    writing += 1
+    writer.write(encodeBoardCommand(command)).then(
+      () => {
+        writing -= 1
+        if (command === 'fire') {
+          fireWrittenAt = clock.now()
+        }
+      },
+      () => {
+        writing -= 1
+        if (!closing) {
+          fail('disconnected', 'write_error')
+        }
       }
-    })
+    )
   }
 
   const tick = () => {
     const now = clock.now()
-    if (awaitingSince !== null && now - awaitingSince >= BOARD_SILENCE_MS) {
+    const oldest = sentLines[0]
+    if (oldest !== undefined && now - oldest.at >= BOARD_SILENCE_MS) {
       fail('silent', 'no_reply')
-    } else if (now - lastSentAt >= BOARD_PRESENCE_MS) {
+    } else if (writing === 0 && now - lastSentAt >= BOARD_PRESENCE_MS) {
       send('hello')
     }
   }
 
   const onStatusLine = (line: BoardStatusLine) => {
-    const now = clock.now()
-    awaitingSince = null
+    const answered = sentLines.shift()
+    if (answered?.command === 'off') {
+      offsInFlight = Math.max(0, offsInFlight - 1)
+    }
     if (!sameLine(state.board, line)) {
       update({ board: line, phase: line.state.toLowerCase() as SmokeBoardPhase })
     }
-    // Sortie allumée alors que le dernier ordre (`F` ou `0`) date de plus d'un bail : le bail
-    // d'un `F` se mesure de la carte à nous, d'où une période d'envoi de marge pour la latence USB.
-    if (line.output && now - lastOrderAt > leaseMs + BOARD_FIRE_INTERVAL_MS) {
+    // Sortie allumée alors que la ligne à laquelle la carte répond ne pouvait pas l'allumer (aucun
+    // `F` récent, ou un `0` entre-temps).
+    if (line.output && !(answered?.mayLight ?? mayLightAt(clock.now()))) {
       fail('fault', 'output_mismatch')
     } else if (line.state === 'COOL' && ordered === 'fire') {
       // Un `F` est arrivé en pause (course entre la page et la carte) : la carte l'a refusé et
@@ -266,9 +320,7 @@ export function createSmokeBoardLink(options: SmokeBoardLinkOptions): SmokeBoard
       stopTimers()
       identified = true
       leaseMs = result.banner.leaseMs
-      const now = clock.now()
-      lastSentAt = now
-      lastOrderAt = now
+      lastSentAt = clock.now()
       tickTimer = clock.setInterval(tick, TICK_MS)
       update({ status: 'ready', problem: null, version: result.banner.version })
       // Première question à la carte : dans quelle phase est-elle (pause de 5 s après sa remise à zéro) ?
@@ -286,19 +338,46 @@ export function createSmokeBoardLink(options: SmokeBoardLinkOptions): SmokeBoard
     }
   }
 
-  const readLoop = async (source: ReadableStreamDefaultReader<Uint8Array>) => {
-    try {
-      for (;;) {
+  /**
+   * Lit la carte. Une erreur passagère (`FramingError`...) rend un flux neuf dans `port.readable` :
+   * on le reprend. Toute autre erreur, un flux qui se termine ou un `readable` nul (câble
+   * débranché) : carte perdue.
+   */
+  const readLoop = async (first: ReadableStreamDefaultReader<Uint8Array>) => {
+    let source = first
+    let transient = 0
+    for (;;) {
+      try {
         const { done, value } = await source.read()
         if (done) {
           break
         }
+        transient = 0
         for (const line of splitter.push(value).lines) {
           onLine(line)
         }
+      } catch (error) {
+        const name = (error as { name?: string } | null)?.name ?? ''
+        const next = port.readable
+        if (
+          closing ||
+          !TRANSIENT_READ_ERRORS.includes(name) ||
+          transient >= MAX_TRANSIENT_READ_ERRORS ||
+          !next
+        ) {
+          break
+        }
+        transient += 1
+        // La ligne en cours est perdue avec le flux en erreur.
+        splitter = createLineSplitter()
+        try {
+          source.releaseLock()
+          source = next.getReader()
+          reader = source
+        } catch {
+          break
+        }
       }
-    } catch {
-      // Flux en erreur : même traitement qu'une fin de flux.
     }
     if (!closing) {
       fail('disconnected', 'read_error')
@@ -339,46 +418,61 @@ export function createSmokeBoardLink(options: SmokeBoardLinkOptions): SmokeBoard
     return finished
   }
 
-  return {
-    async open() {
-      if (state.status !== 'idle') {
-        return state.status
-      }
-      update({ status: 'connecting' })
-      try {
-        await openPort()
-        if (closing) {
-          await port.close().catch(() => undefined)
-          return state.status
-        }
-        if (!port.writable || !port.readable) {
-          throw new Error('Port ouvert sans flux')
-        }
-        writer = port.writable.getWriter()
-        reader = port.readable.getReader()
-      } catch {
-        dropWriter()
+  /** Même résultat qu'une promesse : n'échoue jamais, ne signale rien. */
+  const quiet = (work: Promise<unknown>) =>
+    work.then(
+      () => undefined,
+      () => undefined
+    )
+
+  const connect = async () => {
+    update({ status: 'connecting' })
+    try {
+      await openPort()
+      if (closing) {
         await port.close().catch(() => undefined)
-        fail('disconnected', 'open_error')
         return state.status
       }
-      bannerTimer = clock.setTimeout(
-        () => fail('no_firmware', 'no_banner'),
-        BOARD_BANNER_TIMEOUT_MS
-      )
-      void readLoop(reader)
-      // Relu via `getState` : TypeScript ne voit pas que `fail` a pu changer l'état entre-temps.
-      if (getState().status === 'connecting') {
-        await new Promise<void>((resolve) => {
-          const off = emitter.on((next) => {
-            if (next.status !== 'connecting') {
-              off()
-              resolve()
-            }
-          })
-        })
+      if (!port.writable || !port.readable) {
+        throw new Error('Port ouvert sans flux')
       }
+      writer = port.writable.getWriter()
+      reader = port.readable.getReader()
+    } catch {
+      dropWriter()
+      await port.close().catch(() => undefined)
+      fail('disconnected', 'open_error')
       return state.status
+    }
+    bannerTimer = clock.setTimeout(() => fail('no_firmware', 'no_banner'), BOARD_BANNER_TIMEOUT_MS)
+    void readLoop(reader)
+    // Relu via `getState` : TypeScript ne voit pas que `fail` a pu changer l'état entre-temps.
+    if (getState().status === 'connecting') {
+      await new Promise<void>((resolve) => {
+        const off = emitter.on((next) => {
+          if (next.status !== 'connecting') {
+            off()
+            resolve()
+          }
+        })
+      })
+    }
+    return state.status
+  }
+
+  return {
+    open() {
+      // Un second appel pendant la connexion attend la même ouverture, il n'en lance pas une autre.
+      if (opening) {
+        return opening
+      }
+      if (state.status !== 'idle') {
+        return Promise.resolve(state.status)
+      }
+      opening = connect().finally(() => {
+        opening = null
+      })
+      return opening
     },
 
     drive(firing) {
@@ -389,6 +483,10 @@ export function createSmokeBoardLink(options: SmokeBoardLinkOptions): SmokeBoard
         const { phase } = state
         if (
           (phase === 'ready' || phase === 'fire') &&
+          // Pas de `F` derrière un `0` dont la réponse n'est pas revenue, ni derrière une écriture
+          // qui n'est pas partie : au déblocage de l'USB ils arriveraient en rafale.
+          offsInFlight === 0 &&
+          writing === 0 &&
           clock.now() - lastFireAt >= BOARD_FIRE_INTERVAL_MS
         ) {
           ordered = 'fire'
@@ -411,30 +509,29 @@ export function createSmokeBoardLink(options: SmokeBoardLinkOptions): SmokeBoard
       stopTimers()
       const goodbye = writer !== null && identified
       if (!SETTLED.includes(state.status)) {
-        update({ status: 'closed' })
+        update({ status: 'closed', board: null, phase: null })
       }
       const current = writer
       const currentReader = reader
       writer = null
       reader = null
-      const release = async () => {
+      // Chaque étape est bornée et indépendante des autres : une carte figée qui n'avale plus le `0`
+      // ne doit empêcher ni de rendre les verrous ni de fermer le port.
+      if (goodbye && current) {
+        await bounded(quiet(current.write(encodeBoardCommand('off'))), SERIAL_CLOSE_TIMEOUT_MS)
+      }
+      if (current) {
+        discardWriter(current)
+      }
+      if (currentReader) {
+        await bounded(quiet(currentReader.cancel()), SERIAL_CLOSE_TIMEOUT_MS)
         try {
-          if (goodbye) {
-            await current?.write(encodeBoardCommand('off'))
-          }
-          current?.releaseLock()
-          await currentReader?.cancel()
-          currentReader?.releaseLock()
+          currentReader.releaseLock()
         } catch {
-          // Port débranché ou flux déjà rendu : rien de plus à faire.
+          // Verrou déjà rendu.
         }
-        await port.close().catch(() => undefined)
       }
-      if (!(await bounded(release(), SERIAL_CLOSE_TIMEOUT_MS))) {
-        // Carte figée : on abandonne les octets en file pour débloquer la fermeture.
-        current?.abort().catch(() => undefined)
-        port.writable?.abort?.().catch(() => undefined)
-      }
+      await bounded(quiet(port.close()), SERIAL_CLOSE_TIMEOUT_MS)
     },
   }
 }
