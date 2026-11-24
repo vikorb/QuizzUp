@@ -87,6 +87,21 @@ describe('views/navbar/SideBar.vue', () => {
     )
   })
 
+  it.each([
+    ['staff', () => setAuthenticatedUser({ companyId: 42 })],
+    ['admins', () => setAuthenticatedAdmin({ companyId: 42 })],
+    ['superadmins', () => setAuthenticatedSuperadmin()],
+  ])(
+    'shows the vouchers entry to %s, the matrix gives all of them the voucher rights',
+    (_role, signIn) => {
+      signIn()
+
+      expect(getNavItems(mountWithFrontendMocks(SideBar))).toEqual(
+        expect.arrayContaining([{ to: '/vouchers', labelKey: 'vouchers.menu' }])
+      )
+    }
+  )
+
   it('renders clients navigation for superadmins', () => {
     setAuthenticatedSuperadmin()
 

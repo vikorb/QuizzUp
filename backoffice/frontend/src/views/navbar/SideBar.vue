@@ -43,6 +43,7 @@ import {
   mdiHomeOutline,
   mdiPaletteOutline,
   mdiPlayCircleOutline,
+  mdiTicketConfirmationOutline,
 } from '@mdi/js'
 import { ADMIN_ROLE_ADMIN, ADMIN_ROLE_SUPERADMIN } from '@quizzup/shared'
 import { navItems as surfaceNavItems } from '@surface'
@@ -131,6 +132,14 @@ const navPlay = computed(() => [
     iconType: 'mdi' as const,
     // Dans `agenda.json` (fr et en) : `navbar.json` n'a pas d'équivalent anglais.
     labelKey: 'agenda.menu',
+  },
+  // Tout le personnel manipule les bons (matrice `voucher`) ; seule l'annulation est réservée à l'admin.
+  {
+    to: '/vouchers',
+    icon: mdiTicketConfirmationOutline,
+    iconType: 'mdi' as const,
+    // Dans `vouchers.json` (fr et en) : `navbar.json` n'a pas d'équivalent anglais.
+    labelKey: 'vouchers.menu',
   },
   ...(canSeeStats.value
     ? [

@@ -62,7 +62,15 @@ describe('GameView : fin de partie signalée au backoffice', () => {
     await flushPromises()
 
     expect(finish).toHaveBeenCalledOnce()
-    expect(finish).toHaveBeenCalledWith('tok', 7, expect.any(Array))
+    // Partie jouée avec le vrai moteur : une manche, une question posée.
+    expect(finish).toHaveBeenCalledWith('tok', 7, expect.any(Array), [
+      {
+        position: 1,
+        miniGame: expect.any(String),
+        themeId: expect.any(Number),
+        questionIds: [expect.any(Number)],
+      },
+    ])
     expect(wrapper.find('[data-test="finish-sync"]').text()).toBe('Envoi des résultats…')
 
     deliver()

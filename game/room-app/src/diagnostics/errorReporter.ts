@@ -34,6 +34,7 @@ export type RoomErrorCode =
   | 'unhandled_rejection'
   | 'vue_error'
   | 'finish_refused'
+  | 'finish_rounds_refused'
   | 'room_command_failed'
   | 'audio_play_failed'
   | 'dmx_output_error'

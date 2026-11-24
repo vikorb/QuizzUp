@@ -446,7 +446,7 @@ Table game_rounds {
   mini_game varchar(50) [not null, note: 'flash_blind_test, quick_answer, first_buzz, true_false, double_or_nothing, sudden_death, point_steal, streak, estimate, progressive_reveal']
   offered_theme_ids jsonb [not null, default: '[]']
   chooser_reason varchar(50) [note: 'first_round_random, random_excluding_leader, fallback_random']
-  questions jsonb [not null, default: '[]', note: 'Snapshot des questions et réponses jouées']
+  questions jsonb [not null, default: '[]', note: 'Identifiants des questions posées dans la manche (tableau de nombres), écrits à la fin de la partie par POST /room/games/:id/finish']
 
   started_at timestamptz
   finished_at timestamptz
