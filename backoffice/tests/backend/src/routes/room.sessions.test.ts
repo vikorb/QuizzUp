@@ -22,8 +22,11 @@ import {
   authHeaders,
   companyAdminUser,
   createRouteApp,
+  expectNobodyNotified,
+  expectOnlyCompany1Notified,
   parseJson,
   type TestUser,
+  watchGameUpdates,
 } from './_helpers/testApp'
 
 resetRouteMocksBeforeEach()
@@ -272,6 +275,39 @@ describe('POST /room/games/:gameId/open', () => {
 
     // La partie ouverte est maintenant la partie courante de la salle.
     expect(parseJson<RoomGameBody>(await getCurrent(app)).game).toMatchObject({ id: 1 })
+
+    await app.close()
+  })
+
+  it('game_updated: tells the staff of the company and the room only once the session is open', async () => {
+    const app = await createRouteApp(roomRoutes)
+    const updates = watchGameUpdates(app)
+
+    vi.setSystemTime(new Date('2027-03-10T11:59:00.000Z'))
+    expect((await open(app, 1)).statusCode).toBe(409)
+    expectNobodyNotified(updates)
+
+    vi.setSystemTime(new Date('2027-03-10T12:00:00.000Z'))
+    expect((await open(app, 1)).statusCode).toBe(200)
+    expectOnlyCompany1Notified(updates, 1)
+
+    await app.close()
+  })
+
+  it('game_updated: tells nobody when a room of another company tries to open it', async () => {
+    vi.setSystemTime(new Date('2027-03-10T12:00:00.000Z'))
+    const app = await createRouteApp(roomRoutes)
+    const updates = watchGameUpdates(app)
+
+    const response = await open(app, 1, {
+      ...roomUser,
+      company_id: 2,
+      room_id: 3,
+      sid: 'sid-room-2',
+    } as TestUser)
+
+    expect(response.statusCode).toBe(404)
+    expectNobodyNotified(updates)
 
     await app.close()
   })

@@ -8,6 +8,8 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Suivi en direct des inscriptions : le lobby de la salle et le panneau d'inscription du backoffice se mettent à jour dès qu'une partie change (événement `game_updated` sur les flux existants), au lieu d'interroger le serveur toutes les 3 à 5 secondes. Flux coupé : une interrogation lente (15 s) prend le relais.
+  US: US-LIVE-01 (#129)
 - Identité des périphériques : l'interface DMX USB et la carte de buzzers sont retenues par leur identité (modèle USB, identifiant de manette). Après un redémarrage, seul l'appareil appris est repris ; deux appareils identiques ne sont jamais départagés au hasard, l'ambiguïté est signalée. La carte de fumée est exclue du choix du port DMX. À valider sur le banc.
   US: US-SHOW-01 (#145)
 
