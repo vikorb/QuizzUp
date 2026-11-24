@@ -8,6 +8,7 @@ import {
 import { createSilentExtractPlayer, type ExtractPlayer } from '@/audio/player'
 import { rememberBackofficeGameId } from '@/game/backofficeGameMemory'
 import { getDemoThemes } from '@/game/demoContent'
+import { getMediaCredit } from '@/game/mediaCredits'
 import { MINI_GAMES_STORAGE_KEY } from '@/game/miniGamesSetting'
 import { createMemorySessionStorage, type SessionSnapshot } from '@/game/session'
 import {
@@ -28,7 +29,7 @@ import {
   useRoomGame,
   validateNewGame,
 } from '@/game/useRoomGame'
-import { setDemoMode, setRoomAccountId } from '@/utils/auth'
+import { setDemoMode, setRoomAccountId, setRoomToken } from '@/utils/auth'
 
 import { createManualClock, getPlayableThemes, REGISTRATIONS } from '../_helpers/fixtures'
 
@@ -402,6 +403,259 @@ describe('preloadExtracts', () => {
     configureRoomGame({ player })
 
     await expect(preloadExtracts(themes)).resolves.toEqual(['https://api/questions/1/media?v=2'])
+  })
+})
+
+const DEEZER_OLD = 'https://cdnt-preview.dzcdn.net/api/1/1/a/'
+const DEEZER_NEW = 'https://cdnt-preview.dzcdn.net/api/1/2/b/'
+/** Première question jouable des contenus de test. */
+const CREDITED_ID = getPlayableThemes()[0]?.questions.find((question) => question.mediaUrl)?.id ?? 0
+
+/** Contenu jouable dont chaque extrait est un lien Deezer (`base` + identifiant) et un crédit. */
+function deezerThemes(base: string, artist: string) {
+  return getPlayableThemes().map((theme) => ({
+    ...theme,
+    questions: theme.questions.map((question) => ({
+      ...question,
+      mediaUrl: question.mediaUrl ? `${base}${question.id}.mp3` : null,
+      mediaCredit: question.mediaUrl
+        ? { provider: 'deezer', title: 'Titre', artist, coverUrl: null, link: 'https://dz.test/1' }
+        : null,
+    })),
+  }))
+}
+
+/** Identifiants des questions de la sauvegarde qui ont un crédit de fournisseur. */
+function creditedIds(snapshot: SessionSnapshot | null): number[] {
+  return (snapshot?.setup.themes ?? []).flatMap((theme) =>
+    theme.questions
+      .filter((question) => 'mediaCredit' in question && question.mediaCredit)
+      .map((question) => question.id)
+  )
+}
+
+function respondWith(themes: unknown) {
+  return vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    new Response(JSON.stringify({ themes }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  )
+}
+
+describe('extraits fournis par un tiers', () => {
+  const SEED = 99
+  let storage: ReturnType<typeof createMemorySessionStorage>
+  let player: ExtractPlayer
+  let clock: ReturnType<typeof createManualClock>
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    localStorage.clear()
+    setDemoMode(false)
+    clock = createManualClock()
+    storage = createMemorySessionStorage()
+    player = fakePlayer()
+    configureRoomGame({ storage, player, now: clock.now })
+  })
+
+  afterEach(() => {
+    closeGame()
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+    localStorage.clear()
+  })
+
+  function startGame(
+    themes: Parameters<typeof startNewGame>[0]['themes'] = deezerThemes(DEEZER_OLD, 'Ancien')
+  ): void {
+    startNewGame({ registrations: REGISTRATIONS, themes, seed: SEED, miniGames: BLIND_TEST_ONLY })
+    rememberBackofficeGameId(5, SEED)
+  }
+
+  /** Simule la fermeture de la page : la sauvegarde reste, plus de partie en mémoire. */
+  function leaveSaveBehind(): void {
+    const saved = structuredClone(storage.current)
+    closeGame()
+    storage.save(saved as SessionSnapshot)
+  }
+
+  it('précharge et joue le même lien, sans le préfixer', async () => {
+    const themes = deezerThemes(DEEZER_OLD, 'Ancien')
+    const { state } = useRoomGame()
+
+    await preloadExtracts(themes)
+    startGame(themes)
+    clock.advance(DEFAULT_GAME_TIMINGS.roundIntroMs + 10)
+    vi.advanceTimersByTime(50)
+    const chooser = state.value?.rounds[0]?.chooserParticipantId as 1 | 2 | 3
+    pressBuzzer({ desk: chooser, button: 'A', buttonIndex: 0, at: clock.value, code: 'test' })
+
+    const [preloaded] = vi.mocked(player.preload).mock.calls[0] ?? []
+    const [played] = vi.mocked(player.play).mock.calls[0] ?? []
+    expect(played?.startsWith(DEEZER_OLD)).toBe(true)
+    expect(preloaded).toContain(played)
+    expect(player.isLoaded).toHaveBeenCalledWith(played)
+  })
+
+  it('range les crédits par question dès le lancement', () => {
+    startGame()
+
+    expect(getMediaCredit(CREDITED_ID)?.artist).toBe('Ancien')
+  })
+
+  describe('reprise après un rechargement', () => {
+    beforeEach(() => setRoomToken('tok'))
+
+    it('redemande le contenu : les liens neufs servent au préchargement et à la sauvegarde', async () => {
+      startGame()
+      leaveSaveBehind()
+      const fetchMock = respondWith(deezerThemes(DEEZER_NEW, 'Nouveau'))
+
+      expect(await resumeSavedGame()).toBe(true)
+
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(
+        `http://localhost:3001/room/games/current/content?ids=${creditedIds(storage.current).join(',')}`
+      )
+      const [preloaded] = vi.mocked(player.preload).mock.calls[0] ?? []
+      expect(preloaded?.length).toBeGreaterThan(0)
+      expect(preloaded?.every((url) => url.startsWith(DEEZER_NEW))).toBe(true)
+      expect(
+        storage.current?.setup.themes.every((theme) =>
+          theme.questions.every((question) => !question.mediaUrl?.startsWith(DEEZER_OLD))
+        )
+      ).toBe(true)
+      expect(getMediaCredit(CREDITED_ID)?.artist).toBe('Nouveau')
+    })
+
+    it('contenu injoignable : reprend avec la sauvegarde, crédits compris', async () => {
+      startGame()
+      leaveSaveBehind()
+      vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('offline'))
+
+      expect(await resumeSavedGame()).toBe(true)
+
+      const [preloaded] = vi.mocked(player.preload).mock.calls[0] ?? []
+      expect(preloaded?.every((url) => url.startsWith(DEEZER_OLD))).toBe(true)
+      expect(getMediaCredit(CREDITED_ID)?.artist).toBe('Ancien')
+    })
+
+    it('garde le lien d’une question que le serveur n’a plus en extrait (le tirage ne bouge pas)', async () => {
+      startGame()
+      leaveSaveBehind()
+      const withoutAudio = deezerThemes(DEEZER_NEW, 'Nouveau').map((theme) => ({
+        ...theme,
+        questions: theme.questions.map((question) => ({ ...question, mediaUrl: null })),
+      }))
+      respondWith(withoutAudio)
+
+      expect(await resumeSavedGame()).toBe(true)
+
+      const [preloaded] = vi.mocked(player.preload).mock.calls[0] ?? []
+      expect(preloaded?.every((url) => url.startsWith(DEEZER_OLD))).toBe(true)
+    })
+
+    it('ne demande que les questions qui ont un crédit de fournisseur', async () => {
+      const themes = deezerThemes(DEEZER_OLD, 'Ancien')
+      const first = themes[0]?.questions[0]
+      if (first) {
+        // Un extrait importé : un lien du backoffice, aucun crédit.
+        first.mediaUrl = '/room/questions/1/media'
+        first.mediaCredit = null
+      }
+      startGame(themes)
+      leaveSaveBehind()
+      const fetchMock = respondWith(deezerThemes(DEEZER_NEW, 'Nouveau'))
+
+      expect(await resumeSavedGame()).toBe(true)
+
+      const asked = String(fetchMock.mock.calls[0]?.[0]).split('?ids=')[1]?.split(',').map(Number)
+      expect(asked).toEqual(creditedIds(storage.current))
+      expect(asked?.length).toBeGreaterThan(0)
+      expect(asked).not.toContain(first?.id)
+    })
+
+    it('n’appelle pas le serveur quand aucune question n’a de crédit', async () => {
+      startGame(getPlayableThemes())
+      leaveSaveBehind()
+      const fetchMock = respondWith(deezerThemes(DEEZER_NEW, 'Nouveau'))
+
+      expect(await resumeSavedGame()).toBe(true)
+
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('ne réécrit pas une question dont la réponse n’a plus de crédit, ni une question sans crédit', async () => {
+      const themes = deezerThemes(DEEZER_OLD, 'Ancien')
+      const uncredited = themes[0]?.questions[0]
+      if (uncredited) {
+        uncredited.mediaCredit = null
+      }
+      startGame(themes)
+      leaveSaveBehind()
+      const before = structuredClone(storage.current?.setup.themes)
+      const answer = deezerThemes(DEEZER_NEW, 'Nouveau').map((theme) => ({
+        ...theme,
+        questions: theme.questions.map((question) =>
+          question.id === CREDITED_ID ? { ...question, mediaCredit: null } : question
+        ),
+      }))
+      respondWith(answer)
+
+      expect(await resumeSavedGame()).toBe(true)
+
+      const after = storage.current?.setup.themes.flatMap((theme) => theme.questions) ?? []
+      const old = before?.flatMap((theme) => theme.questions) ?? []
+      for (const id of [CREDITED_ID, uncredited?.id]) {
+        expect(after.find((question) => question.id === id)).toEqual(
+          old.find((question) => question.id === id)
+        )
+      }
+      const refreshed = after.find(
+        (question) =>
+          question.id !== CREDITED_ID && question.id !== uncredited?.id && question.mediaUrl
+      )
+      expect(refreshed?.mediaUrl?.startsWith(DEEZER_NEW)).toBe(true)
+    })
+
+    it('demande les questions par lots de 200 au plus', async () => {
+      const [base] = deezerThemes(DEEZER_OLD, 'Ancien')
+      const template = base?.questions.find((question) => question.mediaUrl)
+      const themes = deezerThemes(DEEZER_OLD, 'Ancien')
+      if (template && themes[0]) {
+        themes[0].questions = [
+          ...themes[0].questions,
+          ...Array.from({ length: 205 }, (_item, index) => ({
+            ...template,
+            id: 1000 + index,
+            mediaUrl: `${DEEZER_OLD}${1000 + index}.mp3`,
+          })),
+        ]
+      }
+      startGame(themes)
+      leaveSaveBehind()
+      const total = creditedIds(storage.current).length
+      const fetchMock = respondWith(deezerThemes(DEEZER_NEW, 'Nouveau'))
+
+      expect(await resumeSavedGame()).toBe(true)
+
+      const sizes = fetchMock.mock.calls.map(
+        ([url]) => String(url).split('?ids=')[1]?.split(',').length
+      )
+      expect(total).toBeGreaterThan(200)
+      expect(sizes).toEqual([200, total - 200])
+    })
+
+    it('ne redemande rien à une partie de démonstration', async () => {
+      setDemoMode(true)
+      startGame(getDemoThemes())
+      leaveSaveBehind()
+      const fetchMock = respondWith([])
+
+      expect(await resumeSavedGame()).toBe(true)
+
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
   })
 })
 

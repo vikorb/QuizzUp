@@ -1,13 +1,18 @@
-import { QUESTION_AUDIO_DEFAULT_MAX_BYTES } from '@quizzup/shared'
+import {
+  QUESTION_AUDIO_DEFAULT_MAX_BYTES,
+  QUESTION_MEDIA_PROVIDER_SEARCH_MIN_LENGTH,
+} from '@quizzup/shared'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   clampStartMs,
   formatAudioTime,
   formatFileSize,
+  formatTrackLabel,
   getAudioMimeType,
   isExcerptTooShort,
   measureAudioDurationMs,
+  normalizeTrackQuery,
   validateAudioFile,
 } from '@/utils/question/audio'
 
@@ -112,5 +117,29 @@ describe('utils/question/audio — measureAudioDurationMs', () => {
 
     await expect(promise).resolves.toBe(31_250)
     vi.unstubAllGlobals()
+  })
+})
+
+describe('utils/question/audio — track search', () => {
+  it('trims the query and keeps it when it is long enough', () => {
+    expect(normalizeTrackQuery('  queen  ')).toBe('queen')
+    expect(
+      normalizeTrackQuery('a'.repeat(QUESTION_MEDIA_PROVIDER_SEARCH_MIN_LENGTH))
+    ).not.toBeNull()
+  })
+
+  it('refuses an empty or too short query', () => {
+    expect(normalizeTrackQuery('')).toBeNull()
+    expect(normalizeTrackQuery('   ')).toBeNull()
+    expect(normalizeTrackQuery(' a ')).toBeNull()
+    expect(
+      normalizeTrackQuery('a'.repeat(QUESTION_MEDIA_PROVIDER_SEARCH_MIN_LENGTH - 1))
+    ).toBeNull()
+  })
+
+  it('labels a track as « artist — title »', () => {
+    expect(formatTrackLabel({ artist: 'Queen', title: 'Bohemian Rhapsody' })).toBe(
+      'Queen — Bohemian Rhapsody'
+    )
   })
 })

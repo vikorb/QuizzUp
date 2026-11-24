@@ -1,5 +1,9 @@
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
-import { fetchQuestionMediaBlobServiceMock } from '@frontend-tests/_helpers/questionMediaServiceMock'
+import {
+  fetchQuestionMediaBlobServiceMock,
+  mediaTrack,
+  searchMediaCatalogTracksServiceMock,
+} from '@frontend-tests/_helpers/questionMediaServiceMock'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -62,6 +66,7 @@ function emptyState(overrides: Partial<QuestionAudioState> = {}): QuestionAudioS
     startMs: 0,
     rightsAttested: false,
     removeExisting: false,
+    track: null,
     ...overrides,
   }
 }
@@ -235,5 +240,170 @@ describe('views/questions/creation/QuestionAudioField.vue', () => {
     const wrapper = mountField(emptyState(), { error: 'Cochez l’attestation' })
 
     expect(wrapper.find('[data-test="audio-error"]').text()).toBe('Cochez l’attestation')
+  })
+
+  describe('with a track from the catalog', () => {
+    const track = mediaTrack()
+
+    async function openSearchAndChoose(wrapper: VueWrapper): Promise<void> {
+      searchMediaCatalogTracksServiceMock.mockResolvedValue([track])
+
+      await wrapper.find('[data-test="audio-search-toggle"]').trigger('click')
+      await wrapper.find('input[name="audio-search"]').setValue('queen')
+      await wrapper.find('[data-test="track-search-submit"]').trigger('click')
+      await flushPromises()
+      await wrapper.find('[data-test="track-choose"]').trigger('click')
+    }
+
+    it('keeps the search closed until asked, next to the file import', async () => {
+      const wrapper = mountField()
+
+      expect(wrapper.find('input[name="audio-search"]').exists()).toBe(false)
+      expect(wrapper.find('[data-test="audio-search-toggle"]').attributes('aria-expanded')).toBe(
+        'false'
+      )
+
+      await wrapper.find('[data-test="audio-search-toggle"]').trigger('click')
+
+      expect(wrapper.find('input[name="audio-search"]').exists()).toBe(true)
+      expect(wrapper.find('[data-test="audio-search-toggle"]').attributes('aria-expanded')).toBe(
+        'true'
+      )
+      expect(wrapper.find('[data-test="audio-file-input"]').exists()).toBe(true)
+    })
+
+    it('attaches the chosen track and shows it with its credit and 30 seconds', async () => {
+      const wrapper = mountField()
+
+      await openSearchAndChoose(wrapper)
+
+      expect(lastState(wrapper)).toMatchObject({ track, file: null, removeExisting: false })
+      expect(wrapper.find('input[name="audio-search"]').exists()).toBe(false)
+      expect(wrapper.find('[data-test="audio-track-name"]').text()).toBe(
+        'Queen — Bohemian Rhapsody'
+      )
+      expect(wrapper.find('[data-test="audio-track-meta"]').text()).toContain(
+        'questions.form.audio.search.credit'
+      )
+      expect(wrapper.find('[data-test="audio-track-meta"]').text()).toContain(
+        'questions.form.audio.search.extract'
+      )
+    })
+
+    it('offers neither start point, preview nor rights statement for a track', async () => {
+      const wrapper = mountField()
+
+      await openSearchAndChoose(wrapper)
+
+      expect(wrapper.find('[data-test="audio-start-range"]').exists()).toBe(false)
+      expect(wrapper.find('[data-test="audio-preview-5000"]').exists()).toBe(false)
+      expect(wrapper.find('[data-test="audio-rights"]').exists()).toBe(false)
+      expect(wrapper.find('[data-test="audio-remove"]').exists()).toBe(true)
+    })
+
+    it('replaces an existing file by the chosen track, keeping the file until saving', async () => {
+      const wrapper = mountField(emptyState({ startMs: 4000 }), { existingFile, questionId: 5 })
+
+      await openSearchAndChoose(wrapper)
+
+      expect(lastState(wrapper)).toMatchObject({ track, removeExisting: false, startMs: 4000 })
+      expect(wrapper.find('[data-test="audio-file-name"]').exists()).toBe(false)
+      expect(wrapper.find('[data-test="audio-track-name"]').exists()).toBe(true)
+    })
+
+    it('replaces the chosen track by an imported file', async () => {
+      const wrapper = mountField()
+
+      await openSearchAndChoose(wrapper)
+      await chooseFile(wrapper, new File(['ID3'], 'perso.mp3', { type: 'audio/mpeg' }))
+
+      expect(lastState(wrapper)).toMatchObject({ track: null, removeExisting: false })
+      expect(lastState(wrapper).file?.name).toBe('perso.mp3')
+      expect(wrapper.find('[data-test="audio-track"]').exists()).toBe(false)
+      expect(wrapper.find('[data-test="audio-file-name"]').text()).toBe('perso.mp3')
+    })
+
+    it('closes the search when a file is imported', async () => {
+      const wrapper = mountField()
+
+      await wrapper.find('[data-test="audio-search-toggle"]').trigger('click')
+      await chooseFile(wrapper, new File(['ID3'], 'perso.mp3', { type: 'audio/mpeg' }))
+
+      expect(wrapper.find('input[name="audio-search"]').exists()).toBe(false)
+    })
+
+    it('cancels a chosen track and keeps the existing file', async () => {
+      const wrapper = mountField(emptyState({ startMs: 4000 }), { existingFile, questionId: 5 })
+
+      await openSearchAndChoose(wrapper)
+      await wrapper.find('[data-test="audio-remove"]').trigger('click')
+
+      expect(lastState(wrapper)).toMatchObject({ track: null, removeExisting: false })
+      expect(wrapper.find('[data-test="audio-file-name"]').text()).toBe('existant.mp3')
+    })
+
+    it('drops a chosen track on a question without media', async () => {
+      const wrapper = mountField()
+
+      await openSearchAndChoose(wrapper)
+      await wrapper.find('[data-test="audio-remove"]').trigger('click')
+
+      expect(lastState(wrapper)).toMatchObject({ track: null, removeExisting: false })
+      expect(wrapper.text()).toContain('questions.form.audio.empty')
+    })
+
+    it('shows the track already attached to the saved question, with its name when known', () => {
+      const wrapper = mountField(emptyState(), {
+        existingProvider: 'deezer',
+        existingProviderLabel: 'Queen — Bohemian Rhapsody',
+        questionId: 5,
+      })
+
+      expect(wrapper.find('[data-test="audio-track-name"]').text()).toBe(
+        'Queen — Bohemian Rhapsody'
+      )
+      expect(wrapper.find('[data-test="audio-track-meta"]').text()).not.toContain(
+        'questions.form.audio.pending'
+      )
+      expect(wrapper.find('[data-test="audio-start-range"]').exists()).toBe(false)
+    })
+
+    it('falls back on a generic name when the attached track name is unknown', () => {
+      const wrapper = mountField(emptyState(), { existingProvider: 'deezer', questionId: 5 })
+
+      expect(wrapper.find('[data-test="audio-track-name"]').text()).toBe(
+        'questions.form.audio.search.unnamed'
+      )
+    })
+
+    it('marks the attached track for removal', async () => {
+      const wrapper = mountField(emptyState(), { existingProvider: 'deezer', questionId: 5 })
+
+      await wrapper.find('[data-test="audio-remove"]').trigger('click')
+
+      expect(lastState(wrapper)).toMatchObject({ removeExisting: true, track: null, startMs: 0 })
+      expect(wrapper.find('[data-test="audio-track"]').exists()).toBe(false)
+      expect(wrapper.text()).toContain('questions.form.audio.empty')
+    })
+
+    it('replaces the attached track by an imported file, and cancelling restores the track', async () => {
+      const wrapper = mountField(emptyState(), { existingProvider: 'deezer', questionId: 5 })
+
+      await chooseFile(wrapper, new File(['ID3'], 'perso.mp3', { type: 'audio/mpeg' }))
+
+      expect(wrapper.find('[data-test="audio-track"]').exists()).toBe(false)
+      expect(wrapper.find('[data-test="audio-file-name"]').text()).toBe('perso.mp3')
+
+      await wrapper.find('[data-test="audio-remove"]').trigger('click')
+
+      expect(lastState(wrapper)).toMatchObject({ file: null, removeExisting: false })
+      expect(wrapper.find('[data-test="audio-track"]').exists()).toBe(true)
+    })
+
+    it('disables the search toggle when the field is disabled', () => {
+      const wrapper = mountField(emptyState(), { disabled: true })
+
+      expect(wrapper.find('[data-test="audio-search-toggle"]').attributes('disabled')).toBeDefined()
+    })
   })
 })

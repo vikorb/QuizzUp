@@ -48,6 +48,51 @@ describe('API de la salle', () => {
     await expect(fetchRoomInfo('tok')).resolves.toMatchObject({ name: 'Salle' })
   })
 
+  it('limite le contenu aux questions demandées, avec un délai facultatif', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout')
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(async () => new Response(JSON.stringify({ themes: [] })))
+
+    await fetchCurrentContent('tok')
+    await fetchCurrentContent('tok', { ids: [3, 14, 15], timeoutMs: 5000 })
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(`${API}/room/games/current/content`)
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(`${API}/room/games/current/content?ids=3,14,15`)
+    expect(timeout).toHaveBeenCalledOnce()
+    expect(timeout).toHaveBeenCalledWith(5000)
+  })
+
+  it('laisse une URL d’extrait absolue telle quelle et garde le crédit s’il existe', async () => {
+    const deezer = 'https://cdnt-preview.dzcdn.net/api/1/1/a/12.mp3?hdnea=exp=1~hmac=abc'
+    const mediaCredit = {
+      provider: 'deezer',
+      title: 'Titre',
+      artist: 'Artiste',
+      coverUrl: null,
+      link: 'https://www.deezer.com/track/12',
+    }
+    respond(200, {
+      themes: [
+        {
+          id: 1,
+          name: 'T',
+          questions: [
+            { id: 3, mediaUrl: deezer, mediaCredit },
+            { id: 4, mediaUrl: '/room/questions/4/media' },
+          ],
+        },
+      ],
+    })
+
+    const [credited, imported] = (await fetchCurrentContent('tok'))[0]?.questions ?? []
+
+    expect(credited?.mediaUrl).toBe(deezer)
+    expect(credited?.mediaCredit).toEqual(mediaCredit)
+    expect(imported?.mediaUrl).toBe(`${API}/room/questions/4/media`)
+    expect(imported?.mediaCredit).toBeUndefined()
+  })
+
   it('démarre la partie et enregistre la config', async () => {
     const fetchMock = respond(200, { game: { id: 4 } })
     await startRoomGame('tok', 4)
