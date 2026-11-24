@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils'
 
 import TimerBar from '@/components/game/TimerBar.vue'
-import type { BlindTestView } from '@/game/selectors'
+import { BLIND_TEST_STAGES, type BlindTestView, getBlindTestStages } from '@/game/selectors'
 import { createMemorySessionStorage } from '@/game/session'
 import { closeGame, configureRoomGame } from '@/game/useRoomGame'
 import { createAppI18n } from '@/plugins/i18n'
@@ -25,6 +25,7 @@ function view(overrides: Partial<BlindTestView>): BlindTestView {
     questionIndex: 0,
     questionsCount: 3,
     stage: 1,
+    stages: BLIND_TEST_STAGES,
     status: 'listening',
     stageProgress: 0.5,
     stageRemainingMs: 2500,
@@ -44,6 +45,21 @@ function mountScreen(overrides: Partial<BlindTestView>) {
     global: { plugins: [createAppI18n()] },
   })
 }
+
+const durations = (wrapper: ReturnType<typeof mountScreen>) =>
+  wrapper.findAll('.blind__stage-time').map((time) => time.text())
+
+describe('BlindTestScreen : durées des paliers', () => {
+  it('affiche les durées de la question courante (effet short)', () => {
+    const wrapper = mountScreen({ stages: getBlindTestStages({ audioEffect: 'short' }) })
+
+    expect(durations(wrapper)).toEqual(['0.5 s', '2 s', '10 s'])
+  })
+
+  it('sans effet : 1 s / 5 s / 20 s', () => {
+    expect(durations(mountScreen({}))).toEqual(['1 s', '5 s', '20 s'])
+  })
+})
 
 describe('BlindTestScreen : barres de temps', () => {
   const play = vi.fn()

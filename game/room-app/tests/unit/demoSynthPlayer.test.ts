@@ -170,6 +170,44 @@ describe('extraits de démo synthétisés', () => {
     expect(player.pause()).toBe(0)
   })
 
+  it('accepte les options : l’effet est ignoré, le temps déjà joué est honoré', async () => {
+    const { context, oscillators } = fakeContext()
+    const scheduler = manualScheduler()
+    const player = createDemoSynthPlayer(() => context, scheduler)
+
+    const plain = player.play('demo://9001/1', 0, 5000)
+    const plainNotes = oscillators.length
+    player.stop()
+    await plain
+
+    oscillators.length = 0
+    const outcome = player.play('demo://9001/1', 0, 5000, { effect: 'reverse', elapsedMs: 4000 })
+    expect(oscillators.length).toBeGreaterThan(0)
+    expect(oscillators.length).toBeLessThan(plainNotes)
+
+    scheduler.advance(1000)
+    await expect(outcome).resolves.toBe('ended')
+    await expect(player.play('demo://9001/1', 0, 1000, { elapsedMs: 1000 })).resolves.toBe('ended')
+  })
+
+  it('le routeur relaie les options au lecteur choisi, et rien sans options', () => {
+    const main = createSilentExtractPlayer()
+    const demo = createSilentExtractPlayer()
+    const mainPlay = vi.spyOn(main, 'play')
+    const demoPlay = vi.spyOn(demo, 'play')
+    const router = createRoutingExtractPlayer(main, demo)
+
+    void router.play('https://media/1', 3, 1000, { effect: 'slowed', elapsedMs: 200 })
+    void router.play('demo://1/1', 0, 1000)
+
+    expect(mainPlay).toHaveBeenCalledWith('https://media/1', 3, 1000, {
+      effect: 'slowed',
+      elapsedMs: 200,
+    })
+    expect(demoPlay).toHaveBeenCalledWith('demo://1/1', 0, 1000)
+    router.stop()
+  })
+
   it('aiguille les extraits de démo vers la synthèse et les autres vers Web Audio', async () => {
     const main: ExtractPlayer = { ...createSilentExtractPlayer(), isLoaded: () => false }
     const demo = createSilentExtractPlayer()

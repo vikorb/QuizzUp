@@ -10,6 +10,14 @@ Format inspiré de Keep a Changelog.
 
 - Pilotage en direct, commandes à distance (frontend) : boutons « Mettre en pause », « Reprendre », « Passer la question » et « Arrêter la partie » dans le panneau en direct d'une partie. Le résultat (`applied`, `refused` avec sa raison, `expired`) vient de l'événement `command_result` du flux ; sans résultat après 12 s, la commande est tenue pour expirée. Boutons inactifs si la salle n'est pas pilotable.
   US: US-LIVE-01 (#129)
+- Effet audio joué en salle : le blind test lit l'extrait avec l'effet de la question (court, inversé, ralenti), avec des paliers raccourcis pour `short` et une reprise fidèle après rechargement.
+  US: US-AUDIO-02 (#144)
+
+- Sessions programmées, routes de la salle : `GET /room/games/current` renvoie aussi la prochaine session de la salle (`next`), et `POST /room/games/:gameId/open` ouvre une session programmée depuis la salle (409 `game_not_scheduled`, `session_not_open_yet`, `room_busy`, `room_inactive`, `company_inactive`).
+  US: US-SCHED-01 (#142)
+
+- Effet audio d'une question (`audioEffect` : `none`, `short`, `reverse`, `slowed`) : stocké sur la question, validé (400 `question_audio_effect_invalid`, `audio_effect_requires_audio`) et distribué à la salle avec le contenu de la partie.
+  US: US-AUDIO-02 (#144)
 
 - Show lumière réglable par salle : `lighting.scenes` surcharge les scènes par défaut (bornées : 400 ms au moins entre deux éclairs, un seul jet de fumée par scène, jamais dans une boucle), une scène peut en enchaîner une autre (`next`), nouveaux signaux `game_paused`, `game_resumed`, `session_exit` et `round_started.<miniGame>`. Les clés de configuration inconnues sont conservées. Modèles de salle prêts à l'emploi (4 modèles, sans fumée) et proposition d'univers Art-Net.
   US: US-SHOW-01 (#145)

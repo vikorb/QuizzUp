@@ -1,5 +1,7 @@
 import { FLASH_BLIND_TEST_BUZZ_WINDOW_MS, type GameState } from '@quizzup/game-engine'
+import { MINI_GAME_FLASH_BLIND_TEST } from '@quizzup/shared'
 
+import { getDemoThemes } from '@/game/demoContent'
 import {
   BLIND_TEST_STAGES,
   getBlindTestView,
@@ -23,6 +25,31 @@ function startedSession() {
   })
   session.start()
   return { session, clock }
+}
+
+/** Question en cours, replacée au palier voulu (0-based) démarré à `stageStartedAt`. */
+function questionAtStage(audioEffect: 'short' | undefined, stageIndex: number) {
+  const clock = createManualClock()
+  const themes = getDemoThemes().map((theme) => ({
+    ...theme,
+    questions: theme.questions.map((question) => ({ ...question, audioEffect })),
+  }))
+  const session = GameSession.create(baseSetup({ themes }), REGISTRATIONS, {
+    storage: createMemorySessionStorage(),
+    now: clock.now,
+  })
+  session.start()
+  driveToQuestion(session, clock)
+  const { phase } = session.state
+  if (phase.name !== 'question' || phase.miniGameState.kind !== MINI_GAME_FLASH_BLIND_TEST) {
+    throw new Error('question de blind test attendue')
+  }
+  const stageStartedAt = clock.value
+  const state: GameState = {
+    ...session.state,
+    phase: { ...phase, miniGameState: { ...phase.miniGameState, stageIndex, stageStartedAt } },
+  }
+  return { state, stageStartedAt }
 }
 
 describe('selectors', () => {
@@ -91,6 +118,58 @@ describe('selectors', () => {
     expect(answering?.stageProgress).toBe(
       getBlindTestView(session.state, clock.value)?.stageProgress
     )
+  })
+
+  describe('durées des paliers selon l’effet audio de la question', () => {
+    const WINDOW = FLASH_BLIND_TEST_BUZZ_WINDOW_MS
+
+    it('effet short, palier 1 (0,5 s) : écoute puis fenêtre de buzz', () => {
+      const { state, stageStartedAt: startedAt } = questionAtStage('short', 0)
+
+      const listening = getBlindTestView(state, startedAt + 300)
+      expect(listening?.status).toBe('listening')
+      expect(listening?.stageRemainingMs).toBe(500 + WINDOW - 300)
+      expect(listening?.stageProgress).toBeCloseTo(300 / (500 + WINDOW))
+
+      const window = getBlindTestView(state, startedAt + 700)
+      expect(window?.status).toBe('buzz_window')
+      expect(window?.stageRemainingMs).toBe(500 + WINDOW - 700)
+      expect(window?.stageProgress).toBeCloseTo(700 / (500 + WINDOW))
+    })
+
+    it('effet short, palier 3 (10 s) : écoute puis fenêtre de buzz', () => {
+      const { state, stageStartedAt } = questionAtStage('short', 2)
+
+      const listening = getBlindTestView(state, stageStartedAt + 9000)
+      expect(listening?.status).toBe('listening')
+      expect(listening?.stageRemainingMs).toBe(10_000 + WINDOW - 9000)
+      expect(listening?.stageProgress).toBeCloseTo(9000 / (10_000 + WINDOW))
+
+      const window = getBlindTestView(state, stageStartedAt + 10_500)
+      expect(window?.status).toBe('buzz_window')
+      expect(window?.stageRemainingMs).toBe(10_000 + WINDOW - 10_500)
+    })
+
+    it('effet short : la vue expose les paliers raccourcis, les points ne changent pas', () => {
+      const { state } = questionAtStage('short', 0)
+
+      expect(getBlindTestView(state, 0)?.stages).toEqual([
+        { stage: 1, durationMs: 500, points: 100 },
+        { stage: 2, durationMs: 2000, points: 50 },
+        { stage: 3, durationMs: 10_000, points: 20 },
+      ])
+    })
+
+    it('sans effet : durées inchangées (1 s / 5 s / 20 s)', () => {
+      const first = questionAtStage(undefined, 0)
+      expect(getBlindTestView(first.state, first.stageStartedAt + 700)?.status).toBe('listening')
+      expect(getBlindTestView(first.state, first.stageStartedAt)?.stages).toEqual(BLIND_TEST_STAGES)
+
+      const third = questionAtStage(undefined, 2)
+      const view = getBlindTestView(third.state, third.stageStartedAt + 10_500)
+      expect(view?.status).toBe('listening')
+      expect(view?.stageRemainingMs).toBe(20_000 + WINDOW - 10_500)
+    })
   })
 
   it('décrit la révélation avec le gagnant et ses points', () => {
