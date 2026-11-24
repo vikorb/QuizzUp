@@ -590,6 +590,9 @@ export const QUESTION_MEDIA_PROVIDER_EXTRACT_MS = 30_000
 /** Longueur minimale d'une recherche de titre (vérifiée par l'API, aussi par l'écran). */
 export const QUESTION_MEDIA_PROVIDER_SEARCH_MIN_LENGTH = 2
 
+/** Questions demandées au plus par appel au contenu de la salle (`?ids=`). */
+export const ROOM_CONTENT_MAX_IDS = 200
+
 /**
  * RGPD : durée de conservation de l'email d'un joueur, en années après sa dernière partie.
  * Passé ce délai, l'email et son consentement sont effacés (purge côté backend).

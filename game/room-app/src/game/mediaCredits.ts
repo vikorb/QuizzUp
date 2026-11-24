@@ -1,15 +1,17 @@
+import { QUESTION_MEDIA_PROVIDER_DEEZER, type QuestionMediaProvider } from '@quizzup/shared'
+
 /**
  * Crédit d'un extrait fourni par un service tiers, montré à la révélation de la réponse (jamais
  * avant : il donnerait la réponse). Il vient du contenu de la partie ; le moteur ne le connaît pas :
  * la salle le garde ici, par identifiant de question.
  */
 export type MediaCredit = {
-  provider: 'deezer'
+  provider: QuestionMediaProvider
   title: string
   artist: string
   coverUrl: string | null
   /** Page du morceau : non affichée (l'écran de salle ne quitte pas le jeu). */
-  link: string
+  link: string | null
 }
 
 const credits = new Map<number, MediaCredit>()
@@ -17,7 +19,7 @@ const credits = new Map<number, MediaCredit>()
 function readCredit(raw: unknown): MediaCredit | null {
   const credit = raw as Partial<MediaCredit> | null | undefined
   if (
-    credit?.provider !== 'deezer' ||
+    credit?.provider !== QUESTION_MEDIA_PROVIDER_DEEZER ||
     typeof credit.title !== 'string' ||
     typeof credit.artist !== 'string'
   ) {
@@ -32,7 +34,7 @@ function readCredit(raw: unknown): MediaCredit | null {
       typeof credit.coverUrl === 'string' && credit.coverUrl.startsWith('https://')
         ? credit.coverUrl
         : null,
-    link: typeof credit.link === 'string' ? credit.link : '',
+    link: typeof credit.link === 'string' ? credit.link : null,
   }
 }
 

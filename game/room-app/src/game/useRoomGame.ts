@@ -5,7 +5,12 @@ import {
   getPlayableMiniGames,
   MAX_SEED,
 } from '@quizzup/game-engine'
-import { GAME_COMMAND_REFUSAL, MINI_GAME_FLASH_BLIND_TEST, type MiniGame } from '@quizzup/shared'
+import {
+  GAME_COMMAND_REFUSAL,
+  MINI_GAME_FLASH_BLIND_TEST,
+  type MiniGame,
+  ROOM_CONTENT_MAX_IDS,
+} from '@quizzup/shared'
 import { computed, ref, shallowRef } from 'vue'
 
 import { createAudioBridge } from '@/audio/audioBridge'
@@ -308,10 +313,12 @@ export function discardStaleSavedGame(): void {
 }
 
 /**
- * Redemande le contenu de la partie au backoffice et met à jour la sauvegarde : les liens signés
- * des extraits tiers qu'elle garde ont expiré. Seuls le lien et le crédit d'une question déjà
- * lisible changent (le tirage du moteur ne bouge pas). Hors ligne ou sans réponse à temps, la
- * sauvegarde reste telle quelle : l'extrait en échec sera muet, la partie continue.
+ * Redemande au backoffice les questions de la partie qui ont un extrait de fournisseur et met à
+ * jour la sauvegarde : les liens signés qu'elle garde ont expiré. Seuls le lien et le crédit d'une
+ * question de ce genre, que le serveur sert encore avec un crédit, changent (le tirage du moteur
+ * ne bouge pas). Sans question de ce genre, le serveur n'est pas appelé. Hors ligne ou sans
+ * réponse à temps, la sauvegarde reste telle quelle : l'extrait en échec sera muet, la partie
+ * continue.
  */
 async function refreshSavedMedia(): Promise<void> {
   const snapshot = storage.load()
@@ -319,11 +326,29 @@ async function refreshSavedMedia(): Promise<void> {
   if (!snapshot || snapshot.demo === true || !token) {
     return
   }
+  const ids = new Set<number>()
+  for (const theme of snapshot.setup.themes) {
+    for (const question of theme.questions as RoomQuestion[]) {
+      if (question.mediaCredit) {
+        ids.add(question.id)
+      }
+    }
+  }
+  if (ids.size === 0) {
+    return
+  }
   try {
     const fresh = new Map<number, RoomQuestion>()
-    for (const theme of await fetchCurrentContent(token, RESUME_CONTENT_TIMEOUT_MS)) {
-      for (const question of theme.questions) {
-        fresh.set(question.id, question)
+    const asked = [...ids]
+    for (let from = 0; from < asked.length; from += ROOM_CONTENT_MAX_IDS) {
+      const themes = await fetchCurrentContent(token, {
+        ids: asked.slice(from, from + ROOM_CONTENT_MAX_IDS),
+        timeoutMs: RESUME_CONTENT_TIMEOUT_MS,
+      })
+      for (const theme of themes) {
+        for (const question of theme.questions) {
+          fresh.set(question.id, question)
+        }
       }
     }
     storage.save({
@@ -334,7 +359,7 @@ async function refreshSavedMedia(): Promise<void> {
           ...theme,
           questions: theme.questions.map((question) => {
             const next = fresh.get(question.id)
-            if (!question.mediaUrl || !next?.mediaUrl) {
+            if (!ids.has(question.id) || !next?.mediaUrl || !next.mediaCredit) {
               return question
             }
             const updated: RoomQuestion = {

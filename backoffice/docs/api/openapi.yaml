@@ -2595,13 +2595,27 @@ paths:
         d'extrait à jour, une URL absolue `https://…` signée et à durée de vie courte : la salle
         la télécharge elle-même, le serveur ne stocke ni ne relaie l'audio. `mediaCredit` décrit
         le titre (`null` pour toutes les autres questions). Fournisseur indisponible, titre
-        introuvable ou sans extrait : la question est écartée du catalogue (avertissement
-        journalisé) et la réponse reste 200.
+        introuvable ou sans extrait : la question est écartée du catalogue et la réponse reste 200
+        (un seul avertissement journalisé par appel). Dès la première indisponibilité du
+        fournisseur, les titres restants ne sont plus demandés : leurs questions sont écartées.
+
+        Paramètre `ids` : limite le catalogue à ces questions (reprise d'une partie enregistrée,
+        pour ne redemander au fournisseur que les extraits dont le lien a expiré). Elles restent
+        filtrées par la compagnie de la salle : un identifiant d'une autre compagnie, ou d'une
+        question non jouable, est simplement absent de la réponse.
 
         Accès : réservé au rôle `room`, uniquement pendant une partie en attente ou en cours.
       operationId: getCurrentRoomGameContent
       x-availability: disponible
       x-us: 'US-GAME-08'
+      parameters:
+        - name: ids
+          in: query
+          required: false
+          description: 'Identifiants de questions séparés par des virgules (entiers positifs, 200 au plus).'
+          schema:
+            type: string
+            example: '12,14,31'
       responses:
         '200':
           description: Catalogue de la salle
@@ -2654,6 +2668,12 @@ paths:
                                     isCorrect: { type: boolean }
         '403':
           description: Compte qui n'est pas un compte de salle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: Paramètre `ids` invalide (`invalid_query`)
           content:
             application/json:
               schema:

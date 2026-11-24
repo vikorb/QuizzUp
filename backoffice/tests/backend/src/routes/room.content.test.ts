@@ -296,11 +296,11 @@ describe('routes/room.ts — content with provider extracts', () => {
     })
   }
 
-  async function readContent() {
+  async function readContent(query = '') {
     const app = await createRouteApp(roomRoutes)
     const response = await app.inject({
       method: 'GET',
-      url: '/room/games/current/content',
+      url: `/room/games/current/content${query}`,
       headers: authHeaders(roomUser),
     })
 
@@ -414,7 +414,7 @@ describe('routes/room.ts — content with provider extracts', () => {
     expect(maxInFlight).toBe(5)
   })
 
-  it('drops the question and logs a warning when the provider is unavailable, the answer stays 200', async () => {
+  it('drops the question and logs one warning when the provider is unavailable, the answer stays 200', async () => {
     seedRoomAndGame()
     theme(1)
     question(11, 1)
@@ -426,7 +426,7 @@ describe('routes/room.ts — content with provider extracts', () => {
 
     expect(themes[0].questions.map((item) => item.id)).toEqual([11])
     expect(warn).toHaveBeenCalledOnce()
-    expect(warn.mock.calls[0][0]).toMatchObject({ ref: '3135556' })
+    expect(warn.mock.calls[0][0]).toEqual({ company_id: 1, dropped: 1, refs: ['3135556'] })
 
     const response = await readContent()
 
@@ -434,6 +434,85 @@ describe('routes/room.ts — content with provider extracts', () => {
     expect(parseJson<ContentBody>(response).themes[0].questions.map((item) => item.id)).toEqual([
       11,
     ])
+  })
+
+  it('stops calling the provider after the first outage, calls already in flight may end', async () => {
+    seedRoomAndGame()
+    theme(1)
+    question(11, 1)
+
+    for (let ref = 100; ref < 112; ref += 1) {
+      providerQuestion(ref, String(ref))
+    }
+
+    const fetchMock = stubProviderFetch(() => jsonResponse({}, 503))
+    const warn = vi.fn()
+
+    const themes = await loadRoomContent(1, { warn })
+
+    expect(fetchMock).toHaveBeenCalledTimes(5)
+    expect(themes[0].questions.map((item) => item.id)).toEqual([11])
+    expect(warn).toHaveBeenCalledOnce()
+    expect(warn.mock.calls[0][0]).toMatchObject({ company_id: 1, dropped: 12 })
+    expect(warn.mock.calls[0][0].refs).toHaveLength(12)
+  })
+
+  it('bounds the references of the warning to 20', async () => {
+    seedRoomAndGame()
+    theme(1)
+
+    for (let ref = 100; ref < 125; ref += 1) {
+      providerQuestion(ref, String(ref))
+    }
+
+    stubProviderFetch(() => jsonResponse({}, 503))
+    const warn = vi.fn()
+
+    await loadRoomContent(1, { warn })
+
+    expect(warn).toHaveBeenCalledOnce()
+    expect(warn.mock.calls[0][0].dropped).toBe(25)
+    expect(warn.mock.calls[0][0].refs).toHaveLength(20)
+  })
+
+  it('does not take an unknown title for an outage: the other titles are still resolved', async () => {
+    seedRoomAndGame()
+    theme(1)
+
+    for (let ref = 1; ref <= 8; ref += 1) {
+      providerQuestion(ref, String(ref))
+    }
+
+    const fetchMock = stubProviderTracks({
+      1: PROVIDER_ERROR_NOT_FOUND,
+      2: providerTrack(2, { preview: '' }),
+      3: providerTrack(3),
+      4: providerTrack(4),
+      5: providerTrack(5),
+      6: providerTrack(6),
+      7: providerTrack(7),
+      8: providerTrack(8),
+    })
+    const warn = vi.fn()
+
+    const themes = await loadRoomContent(1, { warn })
+
+    expect(fetchMock).toHaveBeenCalledTimes(8)
+    expect(themes[0].questions.map((item) => item.id)).toEqual([3, 4, 5, 6, 7, 8])
+    expect(warn).toHaveBeenCalledOnce()
+    expect(warn.mock.calls[0][0]).toEqual({ company_id: 1, dropped: 2, refs: ['1', '2'] })
+  })
+
+  it('does not warn when every question is playable', async () => {
+    seedRoomAndGame()
+    theme(1)
+    providerQuestion(12, '3135556')
+    stubProviderTracks({ 3135556: providerTrack(3135556) })
+    const warn = vi.fn()
+
+    await loadRoomContent(1, { warn })
+
+    expect(warn).not.toHaveBeenCalled()
   })
 
   it('drops only the failing title: the other provider questions stay playable', async () => {
@@ -452,23 +531,101 @@ describe('routes/room.ts — content with provider extracts', () => {
     expect(body.themes[0].questions.map((item) => item.id)).toEqual([13])
   })
 
-  it('drops the question and logs a warning for an unknown title or one without a preview', async () => {
-    seedRoomAndGame()
-    theme(1)
-    providerQuestion(12, '1')
-    providerQuestion(13, '2')
-    providerQuestion(14, '3')
-    stubProviderTracks({
-      1: PROVIDER_ERROR_NOT_FOUND,
-      2: providerTrack(2, { preview: '' }),
-      3: providerTrack(3),
+  describe('with the ids filter', () => {
+    it('resolves and returns only the asked questions', async () => {
+      seedRoomAndGame()
+      theme(1)
+      question(11, 1)
+      providerQuestion(12, '12')
+      providerQuestion(13, '13')
+      theme(2)
+      question(14, 2, { media_key: null, media_provider: 'deezer', media_provider_ref: '14' })
+      const fetchMock = stubProviderTracks({
+        12: providerTrack(12),
+        13: providerTrack(13),
+        14: providerTrack(14),
+      })
+
+      const response = await readContent('?ids=12,14')
+
+      expect(response.statusCode).toBe(200)
+      const body = parseJson<ContentBody>(response)
+      expect(body.themes.map((item) => item.id)).toEqual([1, 2])
+      expect(body.themes[0].questions.map((item) => item.id)).toEqual([12])
+      expect(body.themes[1].questions.map((item) => item.id)).toEqual([14])
+      expect(fetchMock.mock.calls.map(([url]) => String(url)).sort()).toEqual([
+        'https://api.deezer.com/track/12',
+        'https://api.deezer.com/track/14',
+      ])
     })
-    const warn = vi.fn()
 
-    const themes = await loadRoomContent(1, { warn })
+    it('does not return nor resolve a question of another company', async () => {
+      seedRoomAndGame()
+      theme(1)
+      providerQuestion(12, '12')
+      providerQuestion(13, '13', { scope: THEME_SCOPE_COMPANY, company_id: 2 })
+      const fetchMock = stubProviderTracks({ 12: providerTrack(12), 13: providerTrack(13) })
 
-    expect(themes[0].questions.map((item) => item.id)).toEqual([14])
-    expect(warn.mock.calls.map(([context]) => context.ref).sort()).toEqual(['1', '2'])
+      const body = parseJson<ContentBody>(await readContent('?ids=12,13,999'))
+
+      expect(body.themes[0].questions.map((item) => item.id)).toEqual([12])
+      expect(fetchMock).toHaveBeenCalledOnce()
+    })
+
+    it('returns no theme when no asked question is playable', async () => {
+      seedRoomAndGame()
+      theme(1)
+      providerQuestion(12, '12')
+      const fetchMock = stubProviderTracks({ 12: providerTrack(12) })
+
+      const response = await readContent('?ids=999')
+
+      expect(parseJson<ContentBody>(response).themes).toEqual([])
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('keeps the whole catalogue without the parameter', async () => {
+      seedRoomAndGame()
+      theme(1)
+      question(11, 1)
+      providerQuestion(12, '12')
+      stubProviderTracks({ 12: providerTrack(12) })
+
+      const body = parseJson<ContentBody>(await readContent())
+
+      expect(body.themes[0].questions.map((item) => item.id)).toEqual([11, 12])
+    })
+
+    it.each([
+      ['an empty value', '?ids='],
+      ['a non numeric id', '?ids=1,abc'],
+      ['a decimal id', '?ids=1.5'],
+      ['a zero id', '?ids=0'],
+      ['a negative id', '?ids=-3'],
+      ['an empty item', '?ids=1,,2'],
+      ['an id beyond the safe integers', '?ids=99999999999999999999'],
+      ['a repeated parameter', '?ids=1&ids=2'],
+      ['more than 200 ids', `?ids=${Array.from({ length: 201 }, (_, i) => i + 1).join(',')}`],
+    ])('answers 400 for %s', async (_label, query) => {
+      seedRoomAndGame()
+      theme(1)
+
+      const response = await readContent(query)
+
+      expect(response.statusCode).toBe(400)
+      expect(parseJson<{ error: string }>(response).error).toBe('invalid_query')
+    })
+
+    it('accepts exactly 200 ids', async () => {
+      seedRoomAndGame()
+      theme(1)
+
+      const response = await readContent(
+        `?ids=${Array.from({ length: 200 }, (_, i) => i + 1).join(',')}`
+      )
+
+      expect(response.statusCode).toBe(200)
+    })
   })
 
   it('removes a theme whose provider questions are all unavailable', async () => {

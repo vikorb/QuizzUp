@@ -425,6 +425,15 @@ function deezerThemes(base: string, artist: string) {
   }))
 }
 
+/** Identifiants des questions de la sauvegarde qui ont un crédit de fournisseur. */
+function creditedIds(snapshot: SessionSnapshot | null): number[] {
+  return (snapshot?.setup.themes ?? []).flatMap((theme) =>
+    theme.questions
+      .filter((question) => 'mediaCredit' in question && question.mediaCredit)
+      .map((question) => question.id)
+  )
+}
+
 function respondWith(themes: unknown) {
   return vi.spyOn(globalThis, 'fetch').mockResolvedValue(
     new Response(JSON.stringify({ themes }), {
@@ -505,7 +514,9 @@ describe('extraits fournis par un tiers', () => {
 
       expect(await resumeSavedGame()).toBe(true)
 
-      expect(fetchMock.mock.calls[0]?.[0]).toBe('http://localhost:3001/room/games/current/content')
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(
+        `http://localhost:3001/room/games/current/content?ids=${creditedIds(storage.current).join(',')}`
+      )
       const [preloaded] = vi.mocked(player.preload).mock.calls[0] ?? []
       expect(preloaded?.length).toBeGreaterThan(0)
       expect(preloaded?.every((url) => url.startsWith(DEEZER_NEW))).toBe(true)
@@ -542,6 +553,97 @@ describe('extraits fournis par un tiers', () => {
 
       const [preloaded] = vi.mocked(player.preload).mock.calls[0] ?? []
       expect(preloaded?.every((url) => url.startsWith(DEEZER_OLD))).toBe(true)
+    })
+
+    it('ne demande que les questions qui ont un crédit de fournisseur', async () => {
+      const themes = deezerThemes(DEEZER_OLD, 'Ancien')
+      const first = themes[0]?.questions[0]
+      if (first) {
+        // Un extrait importé : un lien du backoffice, aucun crédit.
+        first.mediaUrl = '/room/questions/1/media'
+        first.mediaCredit = null
+      }
+      startGame(themes)
+      leaveSaveBehind()
+      const fetchMock = respondWith(deezerThemes(DEEZER_NEW, 'Nouveau'))
+
+      expect(await resumeSavedGame()).toBe(true)
+
+      const asked = String(fetchMock.mock.calls[0]?.[0]).split('?ids=')[1]?.split(',').map(Number)
+      expect(asked).toEqual(creditedIds(storage.current))
+      expect(asked?.length).toBeGreaterThan(0)
+      expect(asked).not.toContain(first?.id)
+    })
+
+    it('n’appelle pas le serveur quand aucune question n’a de crédit', async () => {
+      startGame(getPlayableThemes())
+      leaveSaveBehind()
+      const fetchMock = respondWith(deezerThemes(DEEZER_NEW, 'Nouveau'))
+
+      expect(await resumeSavedGame()).toBe(true)
+
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('ne réécrit pas une question dont la réponse n’a plus de crédit, ni une question sans crédit', async () => {
+      const themes = deezerThemes(DEEZER_OLD, 'Ancien')
+      const uncredited = themes[0]?.questions[0]
+      if (uncredited) {
+        uncredited.mediaCredit = null
+      }
+      startGame(themes)
+      leaveSaveBehind()
+      const before = structuredClone(storage.current?.setup.themes)
+      const answer = deezerThemes(DEEZER_NEW, 'Nouveau').map((theme) => ({
+        ...theme,
+        questions: theme.questions.map((question) =>
+          question.id === CREDITED_ID ? { ...question, mediaCredit: null } : question
+        ),
+      }))
+      respondWith(answer)
+
+      expect(await resumeSavedGame()).toBe(true)
+
+      const after = storage.current?.setup.themes.flatMap((theme) => theme.questions) ?? []
+      const old = before?.flatMap((theme) => theme.questions) ?? []
+      for (const id of [CREDITED_ID, uncredited?.id]) {
+        expect(after.find((question) => question.id === id)).toEqual(
+          old.find((question) => question.id === id)
+        )
+      }
+      const refreshed = after.find(
+        (question) =>
+          question.id !== CREDITED_ID && question.id !== uncredited?.id && question.mediaUrl
+      )
+      expect(refreshed?.mediaUrl?.startsWith(DEEZER_NEW)).toBe(true)
+    })
+
+    it('demande les questions par lots de 200 au plus', async () => {
+      const [base] = deezerThemes(DEEZER_OLD, 'Ancien')
+      const template = base?.questions.find((question) => question.mediaUrl)
+      const themes = deezerThemes(DEEZER_OLD, 'Ancien')
+      if (template && themes[0]) {
+        themes[0].questions = [
+          ...themes[0].questions,
+          ...Array.from({ length: 205 }, (_item, index) => ({
+            ...template,
+            id: 1000 + index,
+            mediaUrl: `${DEEZER_OLD}${1000 + index}.mp3`,
+          })),
+        ]
+      }
+      startGame(themes)
+      leaveSaveBehind()
+      const total = creditedIds(storage.current).length
+      const fetchMock = respondWith(deezerThemes(DEEZER_NEW, 'Nouveau'))
+
+      expect(await resumeSavedGame()).toBe(true)
+
+      const sizes = fetchMock.mock.calls.map(
+        ([url]) => String(url).split('?ids=')[1]?.split(',').length
+      )
+      expect(total).toBeGreaterThan(200)
+      expect(sizes).toEqual([200, total - 200])
     })
 
     it('ne redemande rien à une partie de démonstration', async () => {

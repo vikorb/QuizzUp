@@ -115,11 +115,20 @@ export async function fetchCurrentGame(token: string): Promise<RoomGame | null> 
   return data.game
 }
 
-/** Contenu de la partie, au format du moteur, avec des URL de médias complètes. */
-export async function fetchCurrentContent(token: string, timeoutMs?: number): Promise<RoomTheme[]> {
-  const data = await request<{ themes: RoomTheme[] }>(token, '/room/games/current/content', {
-    timeoutMs,
-  })
+/**
+ * Contenu de la partie, au format du moteur, avec des URL de médias complètes. `ids` limite la
+ * réponse à ces questions (le serveur n'en accepte qu'un nombre borné par appel).
+ */
+export async function fetchCurrentContent(
+  token: string,
+  options: { ids?: number[]; timeoutMs?: number } = {}
+): Promise<RoomTheme[]> {
+  const query = options.ids === undefined ? '' : `?ids=${options.ids.join(',')}`
+  const data = await request<{ themes: RoomTheme[] }>(
+    token,
+    `/room/games/current/content${query}`,
+    { timeoutMs: options.timeoutMs }
+  )
   return data.themes.map((theme) => ({
     ...theme,
     questions: theme.questions.map((question) => ({

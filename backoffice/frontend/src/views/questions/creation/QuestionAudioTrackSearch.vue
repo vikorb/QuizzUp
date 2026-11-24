@@ -314,7 +314,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
-  border-radius: 12px;
+  border-radius: var(--radius);
   background: var(--surface-inset);
 }
 

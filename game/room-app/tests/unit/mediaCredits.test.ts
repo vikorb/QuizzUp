@@ -48,6 +48,18 @@ describe('crédits des extraits', () => {
     expect(getMediaCredit(3)?.coverUrl).toBeNull()
   })
 
+  it('garde un crédit sans lien : le lien vaut null', () => {
+    setMediaCredits(
+      themesWith(
+        { id: 1, mediaCredit: { ...CREDIT, link: null } },
+        { id: 2, mediaCredit: { ...CREDIT, link: undefined } }
+      )
+    )
+
+    expect(getMediaCredit(1)?.link).toBeNull()
+    expect(getMediaCredit(2)?.link).toBeNull()
+  })
+
   it('ignore un crédit mal formé au lieu de casser la partie', () => {
     setMediaCredits(
       themesWith(

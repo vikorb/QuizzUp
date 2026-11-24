@@ -178,6 +178,32 @@ describe('services/mediaProvider — searchProviderTracks', () => {
     ])
   })
 
+  it('drops a malformed result and keeps the others', async () => {
+    stubProviderFetch(() =>
+      jsonResponse({
+        data: [
+          providerTrack(1),
+          { id: 'x', title: 'Sans identifiant numérique' },
+          providerTrack(3, { artist: null }),
+          null,
+          providerTrack(5),
+        ],
+      })
+    )
+
+    const tracks = await searchProviderTracks('abc', 10)
+
+    expect(tracks.map((track) => track.ref)).toEqual(['1', '5'])
+  })
+
+  it('reports the provider as unavailable when the envelope is unreadable', async () => {
+    stubProviderFetch(() => jsonResponse({ data: 'nope' }))
+
+    await expect(searchProviderTracks('abc', 10)).rejects.toBeInstanceOf(
+      MediaProviderUnavailableError
+    )
+  })
+
   it('returns an empty list when nothing matches', async () => {
     stubProviderFetch(() => jsonResponse({ data: [], total: 0 }))
 

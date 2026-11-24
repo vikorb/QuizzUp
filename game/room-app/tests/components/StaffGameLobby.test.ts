@@ -441,17 +441,28 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
 
   it('propose de reprendre une partie déjà en cours sur ce PC', async () => {
     rememberBackofficeGameId(GAME.id, GAME.seed)
+    const credit = { provider: 'deezer', title: 'Titre', artist: 'Artiste', coverUrl: null }
+    const themes = getPlayableThemes().map((theme) => ({
+      ...theme,
+      questions: theme.questions.map((question) => ({
+        ...question,
+        mediaCredit: question.mediaUrl ? { ...credit, link: null } : null,
+      })),
+    }))
+    const creditedIds = themes.flatMap((theme) =>
+      theme.questions.filter((question) => question.mediaCredit).map((question) => question.id)
+    )
     GameSession.create(
       {
         seed: GAME.seed,
         participants: [{ id: 1, podium: 1, displayName: 'Léa' }],
-        themes: getPlayableThemes(),
+        themes,
       },
       [],
       { storage }
     )
     vi.spyOn(roomApi, 'fetchCurrentGame').mockResolvedValue({ ...GAME, state: 'running' })
-    // Le contenu est redemandé à la reprise : les liens signés de la sauvegarde ont pu expirer.
+    // Les extraits de fournisseur sont redemandés à la reprise : leurs liens signés ont pu expirer.
     const content = vi.spyOn(roomApi, 'fetchCurrentContent').mockResolvedValue(getPlayableThemes())
     const { wrapper, router } = await mountWithApp(LobbyView, { route: '/lobby' })
     await flushPromises()
@@ -460,6 +471,7 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
     await wrapper.find('[data-test="resume-game"]').trigger('click')
     await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('play'))
     expect(content).toHaveBeenCalledTimes(1)
+    expect(content.mock.calls[0]?.[1]).toMatchObject({ ids: creditedIds })
   })
 
   it('demande confirmation avant de recommencer une partie en cours', async () => {

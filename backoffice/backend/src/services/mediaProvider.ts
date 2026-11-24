@@ -45,7 +45,7 @@ const trackSchema = z.object({
   album: z.object({ title: z.string(), cover_medium: z.string().optional() }),
 })
 
-const searchSchema = z.object({ data: z.array(trackSchema) })
+const searchSchema = z.object({ data: z.array(z.unknown()) })
 
 const errorSchema = z.object({
   error: z.object({ type: z.string().optional(), code: z.number().optional() }),
@@ -108,7 +108,10 @@ function getBaseUrl(): string {
   return (process.env.DEEZER_API_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, '')
 }
 
-/** Recherche de titres. Les titres sans extrait sont rendus tels quels (`previewUrl: null`). */
+/**
+ * Recherche de titres. Les titres sans extrait sont rendus tels quels (`previewUrl: null`) ; un
+ * résultat mal formé est écarté seul.
+ */
 export async function searchProviderTracks(query: string, limit: number): Promise<ProviderTrack[]> {
   const url = new URL(`${getBaseUrl()}/search/track`)
   url.searchParams.set('q', query)
@@ -121,7 +124,11 @@ export async function searchProviderTracks(query: string, limit: number): Promis
     throw new MediaProviderUnavailableError('media provider answered an unexpected search body')
   }
 
-  return parsed.data.data.map(toProviderTrack)
+  return parsed.data.data.flatMap((item) => {
+    const track = trackSchema.safeParse(item)
+
+    return track.success ? toProviderTrack(track.data) : []
+  })
 }
 
 /**
