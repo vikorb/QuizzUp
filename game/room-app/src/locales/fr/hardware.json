@@ -181,7 +181,30 @@
       "invalidJson": "JSON invalide : {message}",
       "saved": "Configuration enregistrée.",
       "problems": "Points à corriger",
-      "profiles": "Profils d’appareils disponibles"
+      "profiles": "Profils d’appareils disponibles",
+      "export": "Exporter",
+      "import": "Importer",
+      "transferHint": "Le fichier exporté ne contient jamais la fumée activée : elle se réarme dans l’assistant, test de coupure compris. À l’import, la fumée de la salle ne devient jamais plus permissive.",
+      "exported": "Fichier {name} téléchargé.",
+      "exportFailed": "Le téléchargement a échoué. Réessaie.",
+      "refusal": {
+        "type": "Ce fichier n’est pas un fichier JSON.",
+        "too_large": "Fichier trop gros (64 Ko au plus).",
+        "invalid_json": "Fichier illisible : ce n’est pas du JSON valide.",
+        "wrong_format": "Ce fichier n’est pas une configuration de salle QuizzUp.",
+        "invalid_schema": "La version du fichier est invalide.",
+        "newer_schema": "Fichier d’une version plus récente : mets l’écran à jour.",
+        "invalid_config": "Le fichier ne contient pas de configuration de salle exploitable.",
+        "unreadable": "Le fichier n’a pas pu être lu. Rien n’a été importé."
+      },
+      "importing": {
+        "title": "Remplacer la configuration de cette salle ?",
+        "message": "Le fichier contient {desks} pupitres, {fixtures} appareils, pilote {driver}, univers {universes} ; {problems} point(s) à corriger. {smoke} L’assistant de configuration sera à refaire.",
+        "smokeKept": "La fumée n’est jamais importée : ses réglages restent ceux de la salle, ou plus stricts.",
+        "smokeArmed": "Le fichier armait la fumée : elle est ignorée. Les réglages de fumée restent ceux de la salle, ou plus stricts.",
+        "done": "Configuration importée.",
+        "todo": "À refaire : l’assistant de configuration, le test de coupure de la fumée et son armement."
+      }
     },
     "diagnostic": {
       "title": "Diagnostic matériel",

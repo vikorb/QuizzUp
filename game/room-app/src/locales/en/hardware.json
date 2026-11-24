@@ -181,7 +181,30 @@
       "invalidJson": "Invalid JSON: {message}",
       "saved": "Configuration saved.",
       "problems": "To fix",
-      "profiles": "Available fixture profiles"
+      "profiles": "Available fixture profiles",
+      "export": "Export",
+      "import": "Import",
+      "transferHint": "The exported file never contains active smoke: it is re-armed in the assistant, cutoff test included. On import, the room’s smoke settings never become more permissive.",
+      "exported": "File {name} downloaded.",
+      "exportFailed": "The download failed. Try again.",
+      "refusal": {
+        "type": "This file is not a JSON file.",
+        "too_large": "File too large (64 KB at most).",
+        "invalid_json": "Unreadable file: this is not valid JSON.",
+        "wrong_format": "This file is not a QuizzUp room configuration.",
+        "invalid_schema": "The file version is invalid.",
+        "newer_schema": "File from a newer version: update this screen.",
+        "invalid_config": "The file does not contain a usable room configuration.",
+        "unreadable": "The file could not be read. Nothing was imported."
+      },
+      "importing": {
+        "title": "Replace this room’s configuration?",
+        "message": "The file contains {desks} desks, {fixtures} fixtures, driver {driver}, universes {universes}; {problems} issue(s) to fix. {smoke} The setup assistant will have to be run again.",
+        "smokeKept": "Smoke is never imported: its settings stay those of the room, or stricter.",
+        "smokeArmed": "The file armed the smoke: this is ignored. Smoke settings stay those of the room, or stricter.",
+        "done": "Configuration imported.",
+        "todo": "To do again: the setup assistant, the smoke cutoff test and arming the smoke."
+      }
     },
     "diagnostic": {
       "title": "Hardware diagnostics",

@@ -31,6 +31,36 @@
       <UiButton :disabled="saving" @click="reload">{{ $t('hardware.advanced.reset') }}</UiButton>
     </div>
 
+    <div class="hw-actions" data-test="config-transfer">
+      <UiButton :disabled="transferBusy" data-test="config-export" @click="onExport">
+        {{ $t('hardware.advanced.export') }}
+      </UiButton>
+      <label class="file-btn">
+        {{ $t('hardware.advanced.import') }}
+        <input
+          type="file"
+          accept=".json,application/json"
+          data-test="config-import"
+          @change="onImportFile"
+        />
+      </label>
+    </div>
+    <p class="hw-panel__status">{{ $t('hardware.advanced.transferHint') }}</p>
+    <p
+      v-if="transferError"
+      class="hw-alert hw-alert--danger"
+      role="alert"
+      data-test="transfer-error"
+    >
+      {{ transferError }}
+    </p>
+    <template v-else-if="transferDone">
+      <p class="hw-ok" role="status" data-test="transfer-done">{{ transferDone }}</p>
+      <p v-if="importedSafety" class="hw-alert" role="status" data-test="transfer-safety">
+        {{ $t('hardware.advanced.importing.todo') }}
+      </p>
+    </template>
+
     <div v-if="hardware.problems.length > 0" class="hw-alert" data-test="config-problems">
       <strong>{{ $t('hardware.advanced.problems') }}</strong>
       <ul>
@@ -56,21 +86,31 @@ import type { RoomConfigImportResult, RoomHardwareConfig } from '@quizzup/hardwa
 import {
   exportRoomConfig,
   GENERIC_PROFILES,
+  parseRoomConfigImport,
   parseRoomHardwareConfig,
+  ROOM_CONFIG_IMPORT_MAX_BYTES,
   withoutSmokeEscalation,
 } from '@quizzup/hardware'
 import { ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 import UiButton from '@/components/ui/UiButton.vue'
+import { useConfirm } from '@/composables/useConfirm'
 import { saveRoomHardwareConfig, useRoomHardware } from '@/hardware/roomHardware'
 import ProfileEditor from '@/views/hardware/ProfileEditor.vue'
 
+const { t } = useI18n()
+const { confirm } = useConfirm()
 const { hardware, syncStatus, conflictCount } = useRoomHardware()
 
 const draft = ref('')
 const jsonError = ref<string | null>(null)
 const saved = ref(false)
 const saving = ref(false)
+const transferBusy = ref(false)
+const transferError = ref<string | null>(null)
+const transferDone = ref<string | null>(null)
+const importedSafety = ref(false)
 
 const asRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' && !Array.isArray(value)
@@ -128,6 +168,89 @@ async function applyImport(result: Extract<RoomConfigImportResult, { ok: true }>
   const config: RoomHardwareConfig = withoutSmokeEscalation(hardware.value.config, result.config)
   await saveRoomHardwareConfig(config)
   reload()
+}
+
+/** Télécharge le fichier d'export : le nom ne porte ni compagnie ni compte (nom de salle vide). */
+function onExport(): void {
+  transferError.value = null
+  transferDone.value = null
+  try {
+    const { fileName, content } = exportConfig('')
+    const url = URL.createObjectURL(new Blob([content], { type: 'application/json' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = fileName
+    link.click()
+    URL.revokeObjectURL(url)
+    transferDone.value = t('hardware.advanced.exported', { name: fileName })
+    importedSafety.value = false
+  } catch {
+    transferError.value = t('hardware.advanced.exportFailed')
+  }
+}
+
+/** Raison du refus d'un fichier (traduite), ou `null` si le fichier peut être lu. */
+function refusalOf(file: File): string | null {
+  if (file.type !== 'application/json' && !file.name.toLowerCase().endsWith('.json')) {
+    return t('hardware.advanced.refusal.type')
+  }
+  // La taille se borne avant toute lecture.
+  return file.size > ROOM_CONFIG_IMPORT_MAX_BYTES ? t('hardware.advanced.refusal.too_large') : null
+}
+
+async function onImportFile(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  transferError.value = null
+  transferDone.value = null
+  importedSafety.value = false
+  if (!file || transferBusy.value) {
+    return
+  }
+  transferBusy.value = true
+  try {
+    const refused = refusalOf(file)
+    if (refused) {
+      transferError.value = refused
+      return
+    }
+    const result = parseRoomConfigImport(await file.text())
+    if (!result.ok) {
+      transferError.value = t(`hardware.advanced.refusal.${result.reason}`)
+      return
+    }
+    const { desks, fixtures, driver, universes } = result.summary
+    const ok = await confirm({
+      title: t('hardware.advanced.importing.title'),
+      message: t('hardware.advanced.importing.message', {
+        desks,
+        fixtures,
+        driver,
+        universes: universes.join(', ') || '–',
+        problems: result.problems.length,
+        smoke: t(
+          result.smokeDisabled
+            ? 'hardware.advanced.importing.smokeArmed'
+            : 'hardware.advanced.importing.smokeKept'
+        ),
+      }),
+      variant: 'danger',
+    })
+    if (!ok) {
+      return
+    }
+    await applyImport(result)
+    // Après un conflit, c'est la config d'un autre poste qui est affichée : rien n'est importé.
+    if (syncStatus.value !== 'conflict') {
+      transferDone.value = t('hardware.advanced.importing.done')
+      importedSafety.value = true
+    }
+  } catch {
+    transferError.value = t('hardware.advanced.refusal.unreadable')
+  } finally {
+    transferBusy.value = false
+  }
 }
 
 defineExpose({ exportConfig, applyImport })
