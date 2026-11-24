@@ -6817,6 +6817,12 @@ components:
           nullable: true
           description: Page publique du bon (`PUBLIC_APP_URL` + `/bon/#<code>`), nulle tant que `PUBLIC_APP_URL` n'est pas réglée
           example: https://bo.quizzup.fr/bon/#7K2M-9QXD
+        qrSvg:
+          type: string
+          nullable: true
+          description: >-
+            QR code de `url` en SVG complet. Présent seulement à l'émission d'un bon et dans la liste des bons
+            d'une partie (pour la feuille) ; absent des autres routes. `null` quand `url` est nulle.
 
     IssueVoucherRequest:
       type: object
@@ -8462,6 +8468,12 @@ components:
         url:
           type: string
           example: https://app.quizzup.example/rejoindre/#Zm9vYmFyYmF6cXV4
+        qrSvg:
+          type: string
+          nullable: true
+          description: >-
+            QR code de `url` en SVG complet (`<svg …>`, à afficher en `<img src="data:image/svg+xml,…">`
+            ou en ligne). `null` quand `url` est relative (`PUBLIC_APP_URL` vide).
         expiresAt:
           type: string
           format: date-time

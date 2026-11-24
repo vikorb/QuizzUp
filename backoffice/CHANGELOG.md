@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- QR code généré par le serveur : `join` vaut `{ url, qrSvg, expiresAt }` (fiche de partie, `POST /games/:id/join`, création avec `openJoin`, `GET /room/games/current`) et un bon porte `qrSvg` à côté de `url` (émission et bons d'une partie). `qrSvg` est un SVG complet, `null` sans `PUBLIC_APP_URL`. Une seule dépendance, `qrcode-generator` (version exacte, sans dépendance).
+  US: US-JOIN-01 (#166)
+
 - API de réservation, clés et journal (backend) : `GET` / `POST /companies/:companyId/api-keys` (10 clés actives au plus, 409 `api_key_limit_reached` ; le secret n'est renvoyé qu'à la création), `DELETE /companies/:companyId/api-keys/:apiKeyId` (révocation, idempotente) et `GET /companies/:companyId/api-logs` (journal paginé, filtré par clé et par classe de statut). Purge du journal après 90 jours et des clés d'idempotence après 24 h.
   US: US-BOOKING-01 (#188)
 - Playlists, thèmes : un thème audio peut porter une playlist du fournisseur de musique (`playlistRef` sur `POST` / `PATCH` / `GET /themes`), vérifiée à l'enregistrement (400 `theme_playlist_ref_invalid`, `theme_playlist_mode_invalid` ; 422 `theme_playlist_not_found`, `theme_playlist_too_small` ; 502 `media_provider_unavailable`). Un thème qui quitte le mode audio perd sa playlist.
