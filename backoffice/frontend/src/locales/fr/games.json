@@ -159,6 +159,7 @@
       "openJoinHint": "Un lien et un QR code sont ouverts dès la création ; les demandes se valident sur la fiche de la partie.",
       "kidsMode": "Mode enfants",
       "kidsModeHint": "Seuls les thèmes adaptés aux enfants sont joués, et aucun e-mail n'est demandé aux joueurs sur leur téléphone.",
+      "kidsNoEmail": "Mode enfants : aucun e-mail de joueur n'est demandé ni gardé sur cette partie.",
       "participantsLocked": "Les adresses email des joueurs sont masquées pour votre rôle : leur liste ne peut pas être modifiée ici.",
       "submitScheduled": "Programmer la session",
       "submittingScheduled": "Programmation...",

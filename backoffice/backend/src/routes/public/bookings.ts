@@ -337,6 +337,7 @@ const publicBookingRoutes: FastifyPluginAsync = async (app) => {
             'state',
             'scheduled_at as scheduledAt',
             'players_count as playersCount',
+            'kids_mode as kidsMode',
           ])
 
         if (!row) return { status: 404, error: 'booking_not_found' }
@@ -415,7 +416,7 @@ const publicBookingRoutes: FastifyPluginAsync = async (app) => {
 
         if (body.participants) {
           await trx('game_participants').where('game_id', bookingId).delete()
-          await insertParticipants(trx, bookingId, body.participants)
+          await insertParticipants(trx, bookingId, body.participants, Boolean(row.kidsMode))
         }
 
         return null

@@ -2508,6 +2508,8 @@ paths:
 
         Transforme la demande en participant (la demande est supprimée) et renvoie ce participant. Sans `podium`, le plus petit pupitre libre de la salle est pris. Deux validations simultanées ne prennent jamais le même pupitre.
 
+        Sur une partie en mode enfants (`kidsMode`), le participant est écrit sans e-mail ni consentement, même si la demande en portait un (partie passée en mode enfants après l'inscription).
+
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
       operationId: acceptCompanyGameRegistration
       x-availability: disponible
@@ -8716,7 +8718,8 @@ components:
           type: boolean
           description: >-
             Mode enfants : la salle ne reçoit que les thèmes adaptés aux enfants
-            (`Theme.kidsFriendly`).
+            (`Theme.kidsFriendly`), et aucun e-mail de joueur n'est écrit (création de la partie,
+            ajout ou remplacement de participants, validation d'une demande).
         status:
           type: integer
           enum: [0, 1, 2]
@@ -8951,6 +8954,10 @@ components:
           type: string
           format: email
           nullable: true
+          description: >-
+            Sur une partie en mode enfants (`kidsMode`), l'e-mail reçu n'est pas gardé : le
+            participant est écrit sans e-mail ni consentement, sans erreur. Valable aussi pour
+            `secondPlayer.email`.
         emailConsent:
           type: boolean
           description: Case RGPD cochée explicitement ; requise si `email` est renseigné

@@ -178,7 +178,7 @@ const gamesIdRoutes: FastifyPluginAsync = async (app) => {
 
           if (body.participants) {
             await trx('game_participants').where('game_id', gameId).delete()
-            await insertParticipants(trx, gameId, body.participants)
+            await insertParticipants(trx, gameId, body.participants, body.kidsMode ?? game.kidsMode)
           }
 
           return true
