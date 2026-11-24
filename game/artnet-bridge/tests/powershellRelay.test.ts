@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { request } from 'node:http'
 import { connect as tcpConnect, createServer } from 'node:net'
 import { networkInterfaces, tmpdir } from 'node:os'
@@ -17,7 +17,7 @@ import {
 } from '@bridge/protocol'
 
 import type { RawClient, UdpReceiver } from './_helpers/rawClient'
-import { OPCODE, openRawClient, openUdpReceiver } from './_helpers/rawClient'
+import { encodeClientFrame, OPCODE, openRawClient, openUdpReceiver } from './_helpers/rawClient'
 
 /**
  * Le vrai script `powershell/quizzup-lumieres.ps1`, lancé avec Windows PowerShell 5.1, face à un vrai
@@ -75,11 +75,23 @@ async function openReceiver(): Promise<UdpReceiver> {
 
 const running: { pid: number; receiver: UdpReceiver }[] = []
 
+const tempDirs: string[] = []
+
+/** Dossier temporaire d'un test, supprimé par `stopAll`. */
+function makeTempDir(prefix: string) {
+  const dir = mkdtempSync(join(tmpdir(), prefix))
+  tempDirs.push(dir)
+  return dir
+}
+
 async function stopAll() {
   for (const entry of running.splice(0)) {
     // Seulement le processus lancé ici, par son PID (jamais par nom).
     spawnSync('taskkill', ['/PID', String(entry.pid), '/T', '/F'], { stdio: 'ignore' })
     await entry.receiver.close()
+  }
+  for (const dir of tempDirs.splice(0)) {
+    rmSync(dir, { recursive: true, force: true })
   }
 }
 
@@ -187,6 +199,33 @@ function runToEnd(
 }
 
 const text = (frame: { payload: Buffer }) => frame.payload.toString('utf8')
+
+/** Attend qu'une condition devienne vraie ; échoue avec `what` après `EXPECTED_TIMEOUT_MS`. */
+async function until(condition: () => boolean, what: string) {
+  const end = performance.now() + EXPECTED_TIMEOUT_MS
+  while (!condition()) {
+    if (performance.now() > end) {
+      throw new Error(`${what} (après ${EXPECTED_TIMEOUT_MS} ms)`)
+    }
+    await sleep(50)
+  }
+}
+
+/** Attente d'un événement qui doit arriver : échoue avec `what` plutôt qu'avec le délai du test. */
+async function within<T>(promise: Promise<T>, what: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined
+  const expired = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`${what} (après ${EXPECTED_TIMEOUT_MS} ms)`)),
+      EXPECTED_TIMEOUT_MS
+    )
+  })
+  try {
+    return await Promise.race([promise, expired])
+  } finally {
+    clearTimeout(timer)
+  }
+}
 
 async function connect(relay: Relay, hello: string | null, headers = {}): Promise<RawClient> {
   const client = await openRawClient(relay.port, headers)
@@ -398,6 +437,162 @@ describe.skipIf(process.platform !== 'win32')(
       expect(text(await client.next())).toBe(errorMessage('hello', 'aucune présentation reçue'))
       expect(closeInfo(await client.next())).toMatchObject({ code: CLOSE_CODES.helloExpected })
       await finish(client, CLOSE_CODES.helloExpected)
+    })
+
+    it('trame de 600 octets (le pont n’en accepte que 515) : close 1009, puis l’écran suivant est accepté', async () => {
+      const relay = await startRelay()
+      const first = await connect(relay, helloV1)
+      await first.next()
+      first.send(OPCODE.binary, new Uint8Array(600))
+      expect(closeInfo(await first.next())).toMatchObject({ code: 1009 })
+      await finish(first, 1009)
+      const second = await connect(relay, helloV1)
+      expect(JSON.parse(text(await second.next())).type).toBe('ack')
+      second.socket.destroy()
+    })
+
+    it('un client qui envoie sans fin ne retient pas le relais : une autre connexion est servie', async () => {
+      const relay = await startRelay()
+      const flooder = await connect(relay, helloV1)
+      await flooder.next()
+      // Des ping vides (masque nul) à la chaîne : le relais est plus lent que l'envoi, donc il y a
+      // toujours de quoi lire. Sans borne par tour, la boucle ne revient jamais à Select.
+      const ping = Buffer.from([0x89, 0x80, 0, 0, 0, 0])
+      const chunk = Buffer.concat(Array.from({ length: 10_000 }, () => ping))
+      let flooding = true
+      const drained = () =>
+        new Promise<void>((resolve) => {
+          const done = () => {
+            flooder.socket.off('drain', done)
+            flooder.socket.off('close', done)
+            resolve()
+          }
+          flooder.socket.on('drain', done)
+          flooder.socket.on('close', done)
+        })
+      void (async () => {
+        while (flooding && !flooder.socket.destroyed) {
+          if (!flooder.socket.write(chunk)) {
+            await drained()
+          }
+        }
+      })()
+      try {
+        const start = performance.now()
+        const second = await within(openRawClient(relay.port), 'seconde connexion non servie')
+        expect(second.status).toBe(101)
+        expect(text(await second.next())).toBe(errorMessage('busy', BUSY_MESSAGE))
+        // Mesuré : environ 90 ms sur ce poste ; sans borne de lecture par tour, 2 à 7 s. 1 s laisse
+        // une marge d'un facteur 10 à un runner lent, et reste très en deçà du gel (et de KeepAliveMs
+        // x1,25) que ce test doit détecter : il ne se contente pas que la réponse finisse par arriver.
+        expect(performance.now() - start).toBeLessThan(1000)
+        second.socket.destroy()
+      } finally {
+        flooding = false
+        flooder.socket.destroy()
+      }
+    })
+
+    it('client qui ne lit jamais : la connexion est coupée (1006) quand l’envoi n’aboutit pas, et le noir part', async () => {
+      const relay = await startRelay({ args: ['-Timeout', '10000', '-Blackout', '500'] })
+      const client = await connect(relay, helloV2('127.0.0.1'))
+      await client.next()
+      client.send(OPCODE.binary, browserFrame())
+      await relay.receiver.waitFor(1)
+      // -Timeout au maximum : le noir de ce test vient de la coupure, pas du silence du navigateur.
+      // Le client ne relit plus rien et envoie des ping de 125 octets : les pong (127 octets) remplissent
+      // les tampons du relais, qui ne peut plus rien envoyer.
+      client.socket.pause()
+      const ping = encodeClientFrame(OPCODE.ping, Buffer.alloc(125, 0x50))
+      const chunk = Buffer.concat(Array.from({ length: 2000 }, () => ping))
+      const isZero = (packet: Buffer) => packet.subarray(18).every((byte) => byte === 0)
+      let cut = false
+      void (async () => {
+        while (!cut && !client.socket.destroyed) {
+          if (!client.socket.write(chunk)) {
+            await new Promise((resolve) => client.socket.once('drain', resolve))
+          }
+        }
+      })()
+      try {
+        await until(
+          () => /code 1006/.test(relay.output()) && relay.receiver.packets.some(isZero),
+          'envoi non coupé par le relais, ou noir non émis'
+        )
+      } finally {
+        cut = true
+        client.socket.destroy()
+      }
+    })
+
+    it('envoi partiel (tampon d’envoi plein) : Send-Bytes reprend où l’envoi s’est arrêté, tout arrive dans l’ordre', async () => {
+      // La socket du relais est non bloquante : tampon d'envoi minuscule et client qui ne lit pas, Send
+      // n'écrit qu'une partie ou refuse. On compile la vraie fonction du script, sur une vraie socket.
+      const source = /^function Send-Bytes[\s\S]*?^}/m.exec(readFileSync(SCRIPT, 'utf8'))![0]
+      const part = 65_536
+      const parts = 64
+      const dir = makeTempDir('quizzup-envoi-')
+      const harness = join(dir, 'envoi.ps1')
+      writeFileSync(
+        harness,
+        [
+          'param([int]$Port, [int]$Size, [int]$Parts)',
+          '$SendStallMs = 30000',
+          '$clock = [System.Diagnostics.Stopwatch]::StartNew()',
+          'function Get-Now { $clock.ElapsedMilliseconds }',
+          'function Complete-Connection($c, [int]$code) { $c.Finished = $true }',
+          source,
+          '$listener = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Loopback, $Port)',
+          '$listener.Start()',
+          'Write-Host "pret"',
+          '$socket = $listener.AcceptSocket()',
+          '$socket.Blocking = $false',
+          '$socket.SendBufferSize = 1024',
+          '$bytes = New-Object byte[] $Size',
+          'for ($i = 0; $i -lt $Size; $i++) { $bytes[$i] = ($i * 7) -band 0xff }',
+          '$c = [pscustomobject]@{ Socket = $socket; Finished = $false }',
+          'for ($k = 0; $k -lt $Parts; $k++) { Send-Bytes $c $bytes }',
+          'Write-Host "fini finished=$($c.Finished)"',
+          '$socket.Shutdown([System.Net.Sockets.SocketShutdown]::Send)',
+          '$socket.Close()',
+          '$listener.Stop()',
+        ].join('\r\n'),
+        'utf8'
+      )
+      const port = await freePort()
+      const child = spawn(
+        'powershell.exe',
+        powershellArgs(['-Port', String(port), '-Size', String(part), '-Parts', String(parts)]).map(
+          (arg) => (arg === SCRIPT ? harness : arg)
+        ),
+        { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }
+      )
+      running.push({ pid: child.pid!, receiver: { close: () => Promise.resolve() } as UdpReceiver })
+      let output = ''
+      const listening = new Promise<void>((resolve) => {
+        child.stdout.on('data', (chunk: Buffer) => {
+          output += chunk.toString('utf8')
+          if (output.includes('pret')) {
+            resolve()
+          }
+        })
+      })
+      child.stderr.on('data', (chunk: Buffer) => (output += chunk.toString('utf8')))
+      const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()))
+      await within(listening, 'harnais d’envoi pas prêt')
+      const socket = tcpConnect(port, '127.0.0.1')
+      const received: Buffer[] = []
+      socket.on('data', (chunk) => received.push(chunk))
+      const ended = new Promise<void>((resolve) => socket.once('close', () => resolve()))
+      socket.pause()
+      await sleep(500) // le relais remplit le tampon d'envoi et doit attendre
+      socket.resume()
+      await within(ended, 'flux non terminé')
+      await within(exited, 'harnais d’envoi non terminé')
+      const one = Buffer.from(Array.from({ length: part }, (_unused, index) => (index * 7) & 0xff))
+      const expected = Buffer.concat(Array.from({ length: parts }, () => one))
+      expect(Buffer.concat(received).equals(expected), output).toBe(true)
+      expect(output).toContain('finished=False')
     })
   }
 )
@@ -717,7 +912,7 @@ describe.skipIf(process.platform !== 'win32')(
       const source = /\$blackSource = @'\r?\n([\s\S]*?)\r?\n'@/.exec(
         readFileSync(SCRIPT, 'utf8')
       )![1]!
-      const dir = mkdtempSync(join(tmpdir(), 'quizzup-noir-'))
+      const dir = makeTempDir('quizzup-noir-')
       const sourceFile = join(dir, 'noir.cs')
       writeFileSync(sourceFile, '\ufeff' + source, 'utf8')
       const harness = join(dir, 'noir.ps1')

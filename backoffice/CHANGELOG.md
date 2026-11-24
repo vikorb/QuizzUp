@@ -479,6 +479,8 @@ Format inspiré de Keep a Changelog.
 
 ### Fixed
 
+- Relais PowerShell des lumières : un envoi partiel est repris jusqu'au bout, et la lecture est bornée par tour : un client qui envoie sans fin ne bloque plus les autres connexions.
+  US: US-DMX-01 (#203)
 - API publique : `GET /public/v1/openapi.yaml` sert le contrat `public-v1.yaml`, sans clé d'API, sous la limite de débit par adresse. Le contrat annonçait cette route sans qu'elle existe. L'image de production embarque le fichier.
   US: US-BOOKING-01 (#188)
 
