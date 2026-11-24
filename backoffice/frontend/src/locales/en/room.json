@@ -251,6 +251,14 @@
       "title": "Error logs — {name}",
       "loading": "Loading the logs...",
       "empty": "No error reported by this room.",
+      "firstOccurrence": "First occurrence on the room: {date}",
+      "errors": {
+        "serverError": "Server error while loading the logs.",
+        "forbidden": "You do not have the rights to view the logs.",
+        "apiUnreachable": "The server is currently unreachable.",
+        "notFound": "Room not found.",
+        "default": "An error occurred while loading the logs."
+      },
       "occurrences": "{count} occurrences",
       "levels": {
         "error": "Error",

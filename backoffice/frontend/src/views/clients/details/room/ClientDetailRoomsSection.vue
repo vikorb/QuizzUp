@@ -223,13 +223,17 @@ function closeSchedulePanel(): void {
   scheduleRoomId.value = null
 }
 
-function resetSection(): void {
-  rooms.value = []
-  roomsErrorCode.value = null
+function closeAllPanels(): void {
   closeForm()
   closeAccountPanel()
   closeLogsPanel()
   closeSchedulePanel()
+}
+
+function resetSection(): void {
+  rooms.value = []
+  roomsErrorCode.value = null
+  closeAllPanels()
   clearActionBanner()
 }
 
@@ -444,6 +448,8 @@ watch(
       return
     }
 
+    // Un panneau ouvert pour une salle de l'ancienne compagnie ne survit pas au changement.
+    closeAllPanels()
     loadRooms()
   },
   { immediate: true }
@@ -453,10 +459,7 @@ watch(
   () => props.canManageRooms,
   (canManage) => {
     if (!canManage) {
-      closeForm()
-      closeAccountPanel()
-      closeLogsPanel()
-      closeSchedulePanel()
+      closeAllPanels()
     }
   }
 )

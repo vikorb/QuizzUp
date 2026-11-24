@@ -251,6 +251,14 @@
       "title": "Journaux d’erreurs — {name}",
       "loading": "Chargement des journaux...",
       "empty": "Aucune erreur remontée par cette salle.",
+      "firstOccurrence": "Première occurrence côté salle : {date}",
+      "errors": {
+        "serverError": "Erreur serveur lors du chargement des journaux.",
+        "forbidden": "Vous n’avez pas les droits nécessaires pour consulter les journaux.",
+        "apiUnreachable": "Le serveur est actuellement inaccessible.",
+        "notFound": "Salle introuvable.",
+        "default": "Une erreur est survenue lors du chargement des journaux."
+      },
       "occurrences": "{count} occurrences",
       "levels": {
         "error": "Erreur",

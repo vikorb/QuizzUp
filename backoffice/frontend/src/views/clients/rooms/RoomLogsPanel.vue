@@ -5,11 +5,9 @@
     :neon="true"
     :no-hover="true"
     :loading="loading"
-    :error="loadError"
-    :empty="logs.length === 0"
+    :empty="logs.length === 0 && !loadError"
     :loading-label="$t('rooms.logs.loading')"
     :empty-label="$t('rooms.logs.empty')"
-    error-namespace="rooms.errors"
     class="room-logs-card"
   >
     <template #actions>
@@ -27,6 +25,7 @@
       </UiButton>
 
       <UiButton
+        v-else
         class="room-logs__refresh"
         variant="icon"
         type="button"
@@ -50,7 +49,11 @@
       </UiButton>
     </template>
 
-    <ul class="room-logs__list">
+    <p v-if="loadError" class="room-logs__error" role="alert">
+      {{ $t(getRoomLogsErrorKey(loadError)) }}
+    </p>
+
+    <ul v-else class="room-logs__list">
       <li v-for="log in logs" :key="log.id" class="room-logs__item" :data-level="log.level">
         <div class="room-logs__meta">
           <StatusPill
@@ -58,7 +61,11 @@
             :label="$t(`rooms.logs.levels.${log.level}`)"
           />
           <time class="room-logs__date" :datetime="log.occurredAt">
-            {{ formatGameDate(log.occurredAt, String(locale)) }}
+            {{
+              $t('rooms.logs.firstOccurrence', {
+                date: formatGameDate(log.occurredAt, String(locale)),
+              })
+            }}
           </time>
           <code class="room-logs__code">{{ log.code }}</code>
           <span v-if="log.occurrences > 1" class="room-logs__count">
@@ -91,7 +98,7 @@
     </ul>
 
     <p v-if="moreError" class="room-logs__more-error" role="alert">
-      {{ $t(getApiErrorKey(moreError, 'rooms.errors')) }}
+      {{ $t(getRoomLogsErrorKey(moreError)) }}
     </p>
 
     <div v-if="hasMore" class="room-logs__more">
@@ -121,13 +128,13 @@ import StatusPill from '@/components/ui/StatusPill.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { loadRoomLogsService } from '@/services/roomsService'
 import type { Room } from '@/types/room'
-import { getApiErrorKey } from '@/utils/api'
 import { formatGameDate } from '@/utils/game/format'
 import { getRoomDisplayName } from '@/utils/room/list'
 import {
   DEFAULT_ROOM_LOG_LEVEL_FILTER,
   getRoomLogContextEntries,
   getRoomLogLevelFilterOptions,
+  getRoomLogsErrorKey,
   getRoomLogTone,
   hasMoreRoomLogs,
   parseRoomLogLevelFilter,
@@ -266,6 +273,8 @@ watch(
 
 .room-logs__list {
   display: grid;
+  max-height: 60vh;
+  overflow-y: auto;
   gap: 8px;
   margin: 0;
   padding: 0;
@@ -350,6 +359,12 @@ watch(
 
 .room-logs__more-error {
   margin: 10px 0 0;
+  color: var(--danger);
+}
+
+.room-logs__error {
+  margin: 0;
+  padding: 14px 8px;
   color: var(--danger);
 }
 </style>

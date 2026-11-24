@@ -127,15 +127,32 @@ describe('views/clients/rooms/RoomLogsPanel.vue', () => {
 
     const wrapper = await mountPanel()
 
-    expect(card(wrapper).attributes('data-error')).toBe('forbidden')
+    expect(wrapper.find('.room-logs__error').text()).toBe('rooms.logs.errors.forbidden')
+    // En erreur, « Réessayer » remplace l'icône d'actualisation.
+    expect(wrapper.find('.room-logs__refresh').exists()).toBe(false)
 
     mockLoadRoomLogsSuccess()
     await wrapper.find('[data-test="base-card-actions"] [data-test="ui-button"]').trigger('click')
     await flushPromises()
 
     expect(loadRoomLogsServiceMock).toHaveBeenCalledTimes(2)
-    expect(card(wrapper).attributes('data-error')).toBe('')
+    expect(wrapper.find('.room-logs__error').exists()).toBe(false)
+    expect(wrapper.find('.room-logs__refresh').exists()).toBe(true)
     expect(wrapper.findAll('.room-logs__item')).toHaveLength(2)
+  })
+
+  it.each([
+    ['not_found', 'rooms.logs.errors.notFound'],
+    ['server_error', 'rooms.logs.errors.serverError'],
+    ['invalid_query', 'rooms.logs.errors.default'],
+    ['invalid_params', 'rooms.logs.errors.default'],
+  ])('shows the logs-specific message for the %s code at load', async (code, key) => {
+    mockLoadRoomLogsFailure(code)
+
+    const wrapper = await mountPanel()
+
+    expect(wrapper.find('.room-logs__error').text()).toBe(key)
+    expect(wrapper.find('.room-logs__item').exists()).toBe(false)
   })
 
   it('reloads from the first page with the chosen level', async () => {
@@ -202,9 +219,46 @@ describe('views/clients/rooms/RoomLogsPanel.vue', () => {
     await flushPromises()
 
     expect(wrapper.findAll('.room-logs__item')).toHaveLength(ROOM_LOG_LIST_DEFAULT_LIMIT)
-    expect(wrapper.find('.room-logs__more-error').text()).toBe('rooms.errors.apiUnreachable')
-    expect(card(wrapper).attributes('data-error')).toBe('')
+    expect(wrapper.find('.room-logs__more-error').text()).toBe('rooms.logs.errors.apiUnreachable')
+    expect(wrapper.find('.room-logs__error').exists()).toBe(false)
     expect(wrapper.find('.room-logs__more-btn').exists()).toBe(true)
+  })
+
+  it('shows the logs-specific message when the room is not found while loading more', async () => {
+    mockLoadRoomLogsSuccess(fullPage(300))
+
+    const wrapper = await mountPanel()
+
+    mockLoadRoomLogsFailure('not_found')
+    await wrapper.find('.room-logs__more-btn').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.room-logs__more-error').text()).toBe('rooms.logs.errors.notFound')
+    expect(wrapper.findAll('.room-logs__item')).toHaveLength(ROOM_LOG_LIST_DEFAULT_LIMIT)
+  })
+
+  it('ignores a slow "load more" answer once the filter has changed', async () => {
+    mockLoadRoomLogsSuccess(fullPage(300))
+
+    const wrapper = await mountPanel()
+    const slow = deferredLogs()
+
+    loadRoomLogsServiceMock.mockReturnValueOnce(slow.promise)
+    await wrapper.find('.room-logs__more-btn').trigger('click')
+
+    mockLoadRoomLogsSuccess([createRoomLogFixture({ id: 2, code: 'filtered_result' })])
+    await wrapper.find('select').setValue(ROOM_LOG_LEVEL_WARN)
+    await flushPromises()
+
+    slow.resolve({
+      ok: true,
+      data: { logs: [createRoomLogFixture({ id: 1, code: 'late_page_result' })] },
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('filtered_result')
+    expect(wrapper.text()).not.toContain('late_page_result')
+    expect(wrapper.findAll('.room-logs__item')).toHaveLength(1)
   })
 
   it('refreshes from the first page', async () => {

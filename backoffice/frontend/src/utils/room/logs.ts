@@ -62,3 +62,21 @@ export function getRoomLogContextEntries(
 export function hasMoreRoomLogs(page: RoomLog[]): boolean {
   return page.length >= ROOM_LOG_LIST_DEFAULT_LIMIT
 }
+
+/** Clé de traduction d'un code d'erreur du serveur ; tout autre code : message par défaut. */
+export function getRoomLogsErrorKey(code: string): string {
+  const namespace = 'rooms.logs.errors'
+
+  switch (code) {
+    case 'server_error':
+      return `${namespace}.serverError`
+    case 'forbidden':
+      return `${namespace}.forbidden`
+    case 'api_unreachable':
+      return `${namespace}.apiUnreachable`
+    case 'not_found':
+      return `${namespace}.notFound`
+    default:
+      return `${namespace}.default`
+  }
+}

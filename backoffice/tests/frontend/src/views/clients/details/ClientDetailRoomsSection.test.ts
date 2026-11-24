@@ -449,4 +449,38 @@ describe('views/clients/details/room/ClientDetailRoomsSection.vue', () => {
     expect(wrapper.find('[data-test="base-banner"]').text()).toContain('server_error')
     expect(rowKeys(wrapper)).toEqual(['1'])
   })
+
+  it('closes the room logs panel when the user loses the right to manage rooms', async () => {
+    const wrapper = await mountSection('admin')
+
+    await rowAction(wrapper, 1, 'logs').trigger('click')
+    await flushPromises()
+    expect(logsPanel(wrapper).exists()).toBe(true)
+
+    await wrapper.setProps({ canManageRooms: false })
+
+    expect(logsPanel(wrapper).exists()).toBe(false)
+  })
+
+  it('closes every inline panel when the company changes', async () => {
+    const wrapper = await mountSection('admin')
+    const panels = [
+      () => wrapper.find('[data-test="base-toolbar-primary"]').trigger('click'),
+      () => rowAction(wrapper, 1, 'account').trigger('click'),
+      () => rowAction(wrapper, 1, 'logs').trigger('click'),
+      () => rowAction(wrapper, 1, 'schedule').trigger('click'),
+    ]
+    const selectors = ['#room-form', '#room-account', '#room-logs', '#room-schedule']
+
+    for (const [index, open] of panels.entries()) {
+      await open()
+      await flushPromises()
+      expect(wrapper.find(selectors[index] ?? '').exists()).toBe(true)
+
+      await wrapper.setProps({ companyId: 10 + index })
+      await flushPromises()
+
+      expect(wrapper.find(selectors[index] ?? '').exists()).toBe(false)
+    }
+  })
 })
