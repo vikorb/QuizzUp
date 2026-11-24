@@ -50,6 +50,9 @@ export type {
   BuzzerSource,
   LightingConfig,
   ParsedRoomHardwareConfig,
+  RoomConfigImportRefusal,
+  RoomConfigImportResult,
+  RoomConfigImportSummary,
   RoomHardwareConfig,
 } from './config'
 export {
@@ -57,8 +60,12 @@ export {
   activeLightingConfig,
   defaultRoomHardwareConfig,
   DMX_REFRESH_LIMITS,
+  exportRoomConfig,
   gamepadMatcher,
+  parseRoomConfigImport,
   parseRoomHardwareConfig,
+  ROOM_CONFIG_EXPORT_FORMAT,
+  ROOM_CONFIG_IMPORT_MAX_BYTES,
   ROOM_HARDWARE_CONFIG_VERSION,
   smokeLacksRelay,
   smokeRelayRuleMet,
@@ -66,6 +73,7 @@ export {
   withBuzzerLayout,
   withDesksCount,
   withLearnedKeymap,
+  withoutSmokeEscalation,
   withoutUnknownKeys,
   withPlanPoint,
 } from './config'

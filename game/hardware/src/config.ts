@@ -5,7 +5,12 @@ import { cloneBuzzerLayout, defaultBuzzerLayout, parseBuzzerLayout } from './buz
 import type { ArtnetTargetConfig } from './dmx/bridgeOutput'
 import { isLocalArtnetTarget, parseBridgeUrl } from './dmx/bridgeOutput'
 import type { FixtureConfig, ResolvedFixture } from './dmx/fixtures'
-import { parseRig, strobeProblems, unsupportedUniverseProblems } from './dmx/fixtures'
+import {
+  parseRig,
+  strobeProblems,
+  unsupportedUniverseProblems,
+  usedUniverses,
+} from './dmx/fixtures'
 import type { DmxDriver } from './dmx/output'
 import { DMX_DRIVERS } from './dmx/output'
 import type { FixtureProfile } from './dmx/profiles'
@@ -450,4 +455,175 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
   }
 
   return { config, fixtures: rig.fixtures, problems, smokeDisabledReason }
+}
+
+/**
+ * Fumée de `next` ramenée à celle de `previous` quand elle serait plus permissive : jamais
+ * activée (ni dispensée du relais) si elle ne l'était pas, jamais plus longue, plus fréquente ni
+ * plus forte, confirmation humaine jamais retirée. Pour l'éditeur JSON avancé et l'import : ce qui
+ * assouplit la fumée passe par l'assistant, avec ses vérifications.
+ */
+export function withoutSmokeEscalation(
+  previous: RoomHardwareConfig,
+  next: RoomHardwareConfig
+): RoomHardwareConfig {
+  const before = previous.lighting.smoke
+  const after = next.lighting.smoke
+  const smoke = normalizeSmokeSafety({
+    enabled: before.enabled && after.enabled,
+    maxDurationMs: Math.min(before.maxDurationMs, after.maxDurationMs),
+    cooldownMs: Math.max(before.cooldownMs, after.cooldownMs),
+    maxLevel: Math.min(before.maxLevel, after.maxLevel),
+    requireConfirmation: before.requireConfirmation || after.requireConfirmation,
+    cutsOnSignalLoss: before.cutsOnSignalLoss === true && after.cutsOnSignalLoss === true,
+  })
+  return { ...next, lighting: { ...next.lighting, smoke } }
+}
+
+export const ROOM_CONFIG_EXPORT_FORMAT = 'quizzup-room-config'
+
+/** Taille maximale d'un fichier d'import, en octets. */
+export const ROOM_CONFIG_IMPORT_MAX_BYTES = 64 * 1024
+
+/**
+ * Config telle qu'on l'exporte et l'importe : clés étrangères écartées, fumée jamais activée ni
+ * dispensée du relais (elle se réarme dans l'assistant, avec ses vérifications), assistant à refaire.
+ */
+function portableConfig(config: RoomHardwareConfig): RoomHardwareConfig {
+  const { setupDone: _setupDone, ...rest } = withoutUnknownKeys(config)
+  const { cutsOnSignalLoss: _cuts, ...smoke } = rest.lighting.smoke
+  return { ...rest, lighting: { ...rest.lighting, smoke: { ...smoke, enabled: false } } }
+}
+
+/** `<nom>` du fichier d'export : minuscules, sans accent, lettres, chiffres et tirets. */
+function fileSafeName(name: string): string {
+  const slug = name
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40)
+    .replace(/-+$/, '')
+  return slug || 'salle'
+}
+
+/**
+ * Fichier d'export de la configuration d'une salle : `{ format, schema, exportedAt, config }`.
+ * Ni état local (arrêt d'urgence, révision, parties) ni clé étrangère ni identifiant de compte :
+ * seulement la config matérielle, fumée désactivée et `setupDone` retiré.
+ */
+export function exportRoomConfig(
+  config: RoomHardwareConfig,
+  options: { roomName: string; now: Date }
+): { fileName: string; content: string } {
+  const file = {
+    format: ROOM_CONFIG_EXPORT_FORMAT,
+    schema: ROOM_HARDWARE_CONFIG_VERSION,
+    exportedAt: options.now.toISOString(),
+    config: portableConfig(config),
+  }
+  return {
+    fileName: `quizzup-salle-${fileSafeName(options.roomName)}-${file.exportedAt.slice(0, 10)}.json`,
+    content: JSON.stringify(file, null, 2),
+  }
+}
+
+export type RoomConfigImportRefusal =
+  | 'too_large'
+  | 'invalid_json'
+  | 'wrong_format'
+  | 'invalid_schema'
+  | 'newer_schema'
+  | 'invalid_config'
+
+export type RoomConfigImportSummary = {
+  desks: number
+  fixtures: number
+  driver: DmxDriver
+  universes: number[]
+}
+
+export type RoomConfigImportResult =
+  | {
+      ok: true
+      /** À passer par `withoutSmokeEscalation(salle, config)` avant d'enregistrer. */
+      config: RoomHardwareConfig
+      problems: string[]
+      summary: RoomConfigImportSummary
+      /** Le fichier armait la fumée : elle est désactivée, à réarmer dans l'assistant. */
+      smokeDisabled: boolean
+    }
+  | { ok: false; reason: RoomConfigImportRefusal; message: string }
+
+const refuse = (reason: RoomConfigImportRefusal, message: string): RoomConfigImportResult => ({
+  ok: false,
+  reason,
+  message,
+})
+
+/**
+ * Relit un fichier d'export. Ne lève jamais : un fichier invalide, trop gros ou d'une autre
+ * version est refusé avec une raison lisible. La fumée du résultat est toujours désactivée (sans
+ * la dispense `cutsOnSignalLoss`) et `setupDone` retiré, quoi que dise le fichier.
+ */
+export function parseRoomConfigImport(text: string): RoomConfigImportResult {
+  try {
+    if (
+      typeof text !== 'string' ||
+      text.length > ROOM_CONFIG_IMPORT_MAX_BYTES ||
+      new TextEncoder().encode(text).length > ROOM_CONFIG_IMPORT_MAX_BYTES
+    ) {
+      return refuse(
+        'too_large',
+        `Fichier trop gros (${ROOM_CONFIG_IMPORT_MAX_BYTES / 1024} Ko au plus).`
+      )
+    }
+    let file: Record<string, unknown>
+    try {
+      file = asRecord(JSON.parse(text))
+    } catch {
+      return refuse('invalid_json', 'Fichier illisible : ce n’est pas du JSON valide.')
+    }
+    if (file.format !== ROOM_CONFIG_EXPORT_FORMAT) {
+      return refuse('wrong_format', 'Ce fichier n’est pas une configuration de salle QuizzUp.')
+    }
+    if (typeof file.schema !== 'number' || !Number.isInteger(file.schema) || file.schema < 1) {
+      return refuse('invalid_schema', 'Version du fichier invalide.')
+    }
+    if (file.schema > ROOM_HARDWARE_CONFIG_VERSION) {
+      return refuse('newer_schema', 'Fichier d’une version plus récente : mettre l’écran à jour.')
+    }
+    if (!file.config || typeof file.config !== 'object' || Array.isArray(file.config)) {
+      return refuse('invalid_config', 'Le fichier ne contient pas de configuration de salle.')
+    }
+
+    const input = asRecord(file.config)
+    const lighting = asRecord(input.lighting)
+    const smokeArmed = asRecord(lighting.smoke).enabled === true
+    // Fumée désactivée avant la relecture : pas de faux problème « relais requis » pour un
+    // réglage qu'on écarte de toute façon.
+    const parsed = parseRoomHardwareConfig({
+      ...input,
+      lighting: {
+        ...lighting,
+        smoke: { ...asRecord(lighting.smoke), enabled: false, cutsOnSignalLoss: false },
+      },
+    })
+    const config = portableConfig(parsed.config)
+    return {
+      ok: true,
+      config,
+      problems: parsed.problems,
+      summary: {
+        desks: config.desksCount,
+        fixtures: config.lighting.fixtures.length,
+        driver: config.lighting.driver,
+        universes: usedUniverses(config.lighting.fixtures),
+      },
+      smokeDisabled: smokeArmed,
+    }
+  } catch {
+    return refuse('invalid_config', 'Configuration illisible.')
+  }
 }
