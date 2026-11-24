@@ -20,6 +20,8 @@ const API_ERROR_CODES: ApiErrorCode[] = [
   'company_deleted',
   'smoke_config_forbidden',
   'room_config_conflict',
+  'question_audio_effect_invalid',
+  'audio_effect_requires_audio',
   'server_error',
 ]
 

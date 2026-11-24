@@ -1,0 +1,2 @@
+# Le lanceur Windows tourne sous cmd.exe : fins de ligne CRLF même après un checkout sous Linux ou macOS.
+*.cmd text eol=crlf

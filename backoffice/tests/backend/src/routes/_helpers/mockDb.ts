@@ -38,8 +38,12 @@ type DbState = {
   rooms: Row[]
   games: Row[]
   game_participants: Row[]
+  game_registrations: Row[]
+  vouchers: Row[]
   room_logs: Row[]
   demo_requests: Row[]
+  api_keys: Row[]
+  api_request_logs: Row[]
 }
 
 type TableName = keyof DbState
@@ -62,8 +66,12 @@ export const dbState: DbState = {
   rooms: [],
   games: [],
   game_participants: [],
+  game_registrations: [],
+  vouchers: [],
   room_logs: [],
   demo_requests: [],
+  api_keys: [],
+  api_request_logs: [],
 }
 
 const DEFAULT_COMPANIES: Row[] = [
@@ -149,8 +157,12 @@ export function resetDb(seed?: Partial<DbState>): void {
   dbState.rooms = structuredClone(seed?.rooms ?? [])
   dbState.games = structuredClone(seed?.games ?? [])
   dbState.game_participants = structuredClone(seed?.game_participants ?? [])
+  dbState.game_registrations = structuredClone(seed?.game_registrations ?? [])
+  dbState.vouchers = structuredClone(seed?.vouchers ?? [])
   dbState.room_logs = structuredClone(seed?.room_logs ?? [])
   dbState.demo_requests = structuredClone(seed?.demo_requests ?? [])
+  dbState.api_keys = structuredClone(seed?.api_keys ?? [])
+  dbState.api_request_logs = structuredClone(seed?.api_request_logs ?? [])
   db.fn.now.mockClear()
   db.raw.mockClear()
 }
@@ -547,6 +559,34 @@ class QueryBuilder {
       return this
     }
 
+    // Curseur du journal des appels : `(created_at, id) < (SELECT created_at, id FROM <table>
+    // WHERE id = ? AND company_id = ?)`. Sans ligne de référence, SQL compare à NULL : rien ne passe.
+    const cursor = sql.match(
+      /^\(created_at, id\) < \(SELECT created_at, id FROM (\w+) WHERE id = \? AND company_id = \?\)$/i
+    )
+
+    if (cursor?.[1]) {
+      const reference = getTableRows(cursor[1] as TableName).find(
+        (row) =>
+          Number(row.id) === Number(bindings[0]) && Number(row.company_id) === Number(bindings[1])
+      )
+
+      this.filters.push((row) => {
+        if (!reference) {
+          return false
+        }
+
+        const time = new Date(row.created_at as string).getTime()
+        const referenceTime = new Date(reference.created_at as string).getTime()
+
+        return (
+          time < referenceTime || (time === referenceTime && Number(row.id) < Number(reference.id))
+        )
+      })
+
+      return this
+    }
+
     const columnMatch = sql.match(/lower\(([\w.]+)\)/i)
     const column = columnMatch?.[1] ? normalizeColumn(columnMatch[1]) : null
     const expected = String(bindings[0] ?? '').toLowerCase()
@@ -733,6 +773,8 @@ class QueryBuilder {
           return
         }
 
+        this.assertUniqueColumns(payload)
+
         const row: Row = {
           ...payload,
           created_at: payload.created_at ?? MOCK_NOW,
@@ -743,11 +785,29 @@ class QueryBuilder {
           row.id = nextNumericId(this.table)
         }
 
+        this.assertVoucherIndexes(row)
+
         getTableRows(this.table).push(row)
         insertedRows.push(row)
       })
 
     return insertedRows
+  }
+
+  // Index uniques d'`api_keys` (`key_prefix`, `key_hash`) : la base réelle refuse un doublon.
+  private assertUniqueColumns(payload: Row): void {
+    const columns = this.table === 'api_keys' ? ['key_prefix', 'key_hash'] : []
+    const taken = columns.find((column) =>
+      getTableRows(this.table).some((row) => row[column] === payload[column])
+    )
+
+    if (taken) {
+      throw Object.assign(new Error('duplicate key value violates unique constraint'), {
+        code: '23505',
+        // Nom de l'index unique, comme le champ `constraint` de l'erreur `pg`.
+        constraint: `api_keys_${taken}_unique`,
+      })
+    }
   }
 
   private conflicts(payload: Row, pending: Row[]): boolean {
@@ -758,10 +818,9 @@ class QueryBuilder {
     return getTableRows(this.table).some(matches) || pending.some(matches)
   }
 
-  // Index unique partiel `games_room_id_active_unique` : une seule partie pending/running par salle.
+  // Index uniques partiels `games_room_id_pending_unique` et `games_room_id_running_unique` : au
+  // plus une partie pending et une partie running par salle (elles peuvent coexister).
   private assertRoomActiveIndex(rows: Row[]): void {
-    const isActive = (row: Row): boolean =>
-      ['pending', 'running'].includes(row.state as string) && row.status !== 2
     const nextState = this.updatePayload?.state
 
     if (this.table !== 'games' || (nextState !== 'pending' && nextState !== 'running')) {
@@ -770,7 +829,11 @@ class QueryBuilder {
 
     const taken = rows.some((row) =>
       dbState.games.some(
-        (other) => other !== row && other.room_id === row.room_id && isActive(other)
+        (other) =>
+          other !== row &&
+          other.room_id === row.room_id &&
+          other.state === nextState &&
+          other.status !== 2
       )
     )
 
@@ -778,6 +841,36 @@ class QueryBuilder {
       throw Object.assign(new Error('duplicate key value violates unique constraint'), {
         code: '23505',
       })
+    }
+  }
+
+  // Index uniques des bons : le code (`vouchers_code_unique`) et un bon non supprimé par pupitre et
+  // par partie (`vouchers_game_id_participant_id_active_unique`).
+  private assertVoucherIndexes(row: Row): void {
+    if (this.table !== 'vouchers') {
+      return
+    }
+
+    const violated = (constraint: string): never => {
+      throw Object.assign(new Error('duplicate key value violates unique constraint'), {
+        code: '23505',
+        constraint,
+      })
+    }
+
+    for (const other of dbState.vouchers) {
+      if (other.code === row.code) {
+        violated('vouchers_code_unique')
+      }
+
+      if (
+        other.game_id === row.game_id &&
+        other.participant_id === row.participant_id &&
+        other.status !== 2 &&
+        row.status !== 2
+      ) {
+        violated('vouchers_game_id_participant_id_active_unique')
+      }
     }
   }
 

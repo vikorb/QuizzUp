@@ -189,6 +189,8 @@ export function openRawClient(
 export type UdpReceiver = {
   port: number
   packets: Buffer[]
+  /** Instant d'arrivée de chaque paquet (`performance.now()`), dans le même ordre que `packets`. */
+  times: number[]
   /** Attend qu'au moins `count` paquets soient arrivés. */
   waitFor: (count: number, timeoutMs?: number) => Promise<Buffer[]>
   close: () => Promise<void>
@@ -215,9 +217,11 @@ export function openUdpReceiver(
   return new Promise((resolve) => {
     const socket: UdpSocket = createSocket({ type: 'udp4', reuseAddr: options.reuseAddr ?? false })
     const packets: Buffer[] = []
+    const times: number[] = []
     const listeners: (() => void)[] = []
     socket.on('message', (message, remote) => {
       packets.push(message)
+      times.push(performance.now())
       for (const answer of reply?.(message) ?? []) {
         const to = options.replyTo?.(remote) ?? remote
         socket.send(answer, to.port, to.address)
@@ -230,6 +234,7 @@ export function openUdpReceiver(
       resolve({
         port: socket.address().port,
         packets,
+        times,
         waitFor(count, timeoutMs = 2000) {
           if (packets.length >= count) {
             return Promise.resolve(packets)

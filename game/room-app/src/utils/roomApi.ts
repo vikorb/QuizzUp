@@ -140,10 +140,19 @@ export async function fetchCurrentContent(
   }))
 }
 
-/** Accuse réception de la partie : elle passe « en cours » côté backoffice (idempotent). */
-export async function startRoomGame(token: string, gameId: number): Promise<RoomGame> {
+/**
+ * Accuse réception de la partie : elle passe « en cours » côté backoffice (idempotent).
+ * `podiums` : les pupitres chargés par la salle ; si la liste du backoffice a changé depuis, il
+ * répond 409 `game_participants_changed` et ne lance rien (absent : aucune vérification).
+ */
+export async function startRoomGame(
+  token: string,
+  gameId: number,
+  podiums?: number[]
+): Promise<RoomGame> {
   const data = await request<{ game: RoomGame }>(token, `/room/games/${gameId}/start`, {
     method: 'POST',
+    body: podiums === undefined ? undefined : { podiums },
   })
   return data.game
 }

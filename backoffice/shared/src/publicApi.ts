@@ -18,6 +18,9 @@ export type ApiKeyStatus = (typeof API_KEY_STATUSES)[number]
 /** Début de tout secret d'API (`qzk_<préfixe>_<secret>`) : permet de le repérer dans du code. */
 export const API_KEY_TOKEN_PREFIX = 'qzk_' as const
 
+/** Format complet d'un secret d'API : `qzk_<8 hex>_<32 octets en base64url, soit 43 caractères>`. */
+export const API_KEY_TOKEN_PATTERN = /^qzk_[0-9a-f]{8}_[A-Za-z0-9_-]{43}$/
+
 /** Nombre maximal de clés actives par compagnie. */
 export const API_KEY_MAX_ACTIVE = 10 as const
 
@@ -26,3 +29,44 @@ export const API_LOG_RETENTION_DAYS = 90 as const
 
 /** Durée de conservation d'une clé d'idempotence (`api_idempotency_keys`), en heures. */
 export const API_IDEMPOTENCY_TTL_HOURS = 24 as const
+
+/** Longueur maximale du nom d'une clé d'API (colonne `api_keys.name`). */
+export const API_KEY_NAME_MAX_LENGTH = 100 as const
+
+/** Classes de statut HTTP proposées en filtre du journal des appels. */
+export const API_LOG_STATUS_CLASSES = ['2xx', '4xx', '5xx'] as const
+
+export type ApiLogStatusClass = (typeof API_LOG_STATUS_CLASSES)[number]
+
+/** Taille d'une page du journal des appels (par défaut et au plus). */
+export const API_LOG_LIST_DEFAULT_LIMIT = 100 as const
+export const API_LOG_LIST_MAX_LIMIT = 100 as const
+
+/** Clé d'API telle que la renvoie le backoffice : ni secret ni empreinte. */
+export type ApiKey = {
+  id: number
+  name: string
+  keyPrefix: string
+  status: ApiKeyStatus
+  createdAt: string
+  lastUsedAt: string | null
+  /** Date de révocation (ISO 8601) ; `null` tant que la clé est active. */
+  revokedAt: string | null
+  /** `null` si le créateur est un compte hors de la compagnie (superadmin de l'éditeur) ou supprimé. */
+  createdBy: { id: number; username: string } | null
+}
+
+/** Un appel journalisé de `/public/v1` : ni adresse IP, ni corps, ni paramètres. */
+export type ApiLog = {
+  id: number
+  apiKeyId: number
+  keyPrefix: string
+  method: string
+  route: string
+  statusCode: number
+  errorCode: string | null
+  gameId: number | null
+  durationMs: number
+  idempotentReplay: boolean
+  createdAt: string
+}

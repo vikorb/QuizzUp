@@ -18,14 +18,19 @@ import type { RoomRow } from '../types/room'
 import { ROOM_CONFIG_MAX_LENGTH, roomConfigSchema } from './companies/rooms/_schemas'
 import { companyLogoUrl } from './companies/_shared'
 import { roomSelect } from './companies/rooms/_shared'
-import { findGameInCompany, openScheduledGame } from './games/_shared'
+import { addGameJoin, findGameInCompany, openScheduledGame } from './games/_shared'
 import { getMediaVersion } from './questions/_shared'
 import { isInPlayableTheme, isReadableByCompany, loadRoomContent } from './room/_content'
-import { isRoomAccount, roomScoresSchema } from './room/_shared'
+import { findCurrentGameId } from './room/_join'
+import { isRoomAccount, roomPodiumsSchema, roomScoresSchema } from './room/_shared'
 
 const roomGameParamsSchema = z.object({
   gameId: z.coerce.number().int().positive(),
 })
+
+// Lancement : `podiums` = pupitres des participants chargés par la salle. Absent (ancien écran) :
+// aucune vérification.
+const roomGameStartBodySchema = z.object({ podiums: roomPodiumsSchema.optional() })
 
 // Scores finaux par pupitre.
 const roomGameFinishBodySchema = z.object({ scores: roomScoresSchema })
@@ -57,16 +62,9 @@ const roomQuestionParamsSchema = z.object({
 // Même politique que la route staff : cache privé, toujours revalidé par l'ETag.
 const MEDIA_CACHE_CONTROL = 'private, no-cache'
 
-/** Partie en attente ou en cours de la salle. Les emails restent côté backoffice. */
-async function findCurrentRoomGameId(req: FastifyRequest): Promise<number | null> {
-  const current = await db('games')
-    .where('room_id', req.user.room_id)
-    .where('company_id', req.user.company_id)
-    .whereIn('state', [GAME_STATE_PENDING, GAME_STATE_RUNNING])
-    .whereNot('status', GAME_STATUS_DELETED)
-    .first('id')
-
-  return current ? Number(current.id) : null
+/** Partie en cours, sinon en attente, de la salle. Les emails restent côté backoffice. */
+function findCurrentRoomGameId(req: FastifyRequest): Promise<number | null> {
+  return findCurrentGameId(req.user.company_id, Number(req.user.room_id))
 }
 
 /** Prochaine session programmée de la salle dont la fin prévue est dans le futur (en retard comprise). */
@@ -232,7 +230,13 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(403).send({ error: 'forbidden' })
     }
 
-    return { game: await findCurrentRoomGame(req), next: await findNextRoomGame(req) }
+    const game = await findCurrentRoomGame(req)
+
+    // Lien d'inscription et nombre de demandes, jamais le nom d'une demande non validée.
+    return {
+      game: game ? await addGameJoin(game) : null,
+      next: await findNextRoomGame(req),
+    }
   })
 
   // Catalogue de la partie en cours : une question audio n'est jouable qu'avec un fichier ou un
@@ -328,6 +332,12 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ error: 'invalid_params' })
     }
 
+    const parsedBody = roomGameStartBodySchema.safeParse(req.body ?? {})
+
+    if (!parsedBody.success) {
+      return reply.code(400).send({ error: 'invalid_body', details: parsedBody.error.flatten() })
+    }
+
     const current = await findCurrentRoomGame(req)
 
     if (!current || Number(current.id) !== parsedParams.data.gameId) {
@@ -335,10 +345,50 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
     }
 
     if (current.state === GAME_STATE_PENDING) {
-      await db('games')
-        .where('id', current.id)
-        .where('state', GAME_STATE_PENDING)
-        .update({ state: GAME_STATE_RUNNING, started_at: db.fn.now(), updated_at: db.fn.now() })
+      const { podiums } = parsedBody.data
+
+      // Même verrou que la validation d'une demande ou l'ajout d'un joueur : la liste comparée est
+      // celle qui reste figée une fois la partie lancée.
+      const outcome = await db.transaction(async (trx): Promise<'started' | 'changed' | 'gone'> => {
+        const locked = await trx('games')
+          .where('id', current.id)
+          .where('company_id', req.user.company_id)
+          .whereNot('status', GAME_STATUS_DELETED)
+          .forUpdate()
+          .first('state')
+
+        if (!locked) {
+          return 'gone'
+        }
+
+        // Lancée entre-temps par une autre requête : idempotent.
+        if (locked.state !== GAME_STATE_PENDING) {
+          return 'started'
+        }
+
+        if (podiums) {
+          const rows = await trx('game_participants').where('game_id', current.id).select('podium')
+          const stored = new Set(rows.map((row) => Number(row.podium)))
+
+          if (stored.size !== podiums.length || podiums.some((podium) => !stored.has(podium))) {
+            return 'changed'
+          }
+        }
+
+        await trx('games')
+          .where('id', current.id)
+          .update({ state: GAME_STATE_RUNNING, started_at: trx.fn.now(), updated_at: trx.fn.now() })
+
+        return 'started'
+      })
+
+      if (outcome === 'gone') {
+        return reply.code(404).send({ error: 'game_not_found' })
+      }
+
+      if (outcome === 'changed') {
+        return reply.code(409).send({ error: 'game_participants_changed' })
+      }
     }
 
     return { game: await findCurrentRoomGame(req) }

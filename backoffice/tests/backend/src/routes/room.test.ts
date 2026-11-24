@@ -1,6 +1,6 @@
 import './_helpers/registerRouteMocks'
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   ADMIN_ROLE_ROOM,
@@ -14,7 +14,7 @@ import {
   type RoomSchedule,
 } from '@quizzup/shared'
 import roomRoutes from '@backend/routes/room'
-import { db, dbState, MOCK_NOW } from './_helpers/mockDb'
+import { db, dbState, lockedTables, MOCK_NOW } from './_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from './_helpers/resetRouteMocks'
 import {
   authHeaders,
@@ -256,6 +256,84 @@ describe('routes/room.ts — current game (US-GAME-08)', () => {
     await app.close()
   })
 
+  describe('join link and pending registrations (lot 2)', () => {
+    const TOKEN = 'a'.repeat(43)
+    const inOneHour = () => new Date(Date.now() + 3_600_000).toISOString()
+    const read = async (app: Awaited<ReturnType<typeof createRouteApp>>) =>
+      parseJson<CurrentBody>(
+        await app.inject({
+          method: 'GET',
+          url: '/room/games/current',
+          headers: authHeaders(roomUser),
+        })
+      ).game
+
+    afterEach(() => {
+      vi.unstubAllEnvs()
+    })
+
+    it('puts the link and the number of pending registrations in game, never a name', async () => {
+      vi.stubEnv('PUBLIC_APP_URL', 'https://bo.quizzup.test/')
+      seedRoom()
+      seedGame({ join_token: TOKEN, join_expires_at: inOneHour() })
+      dbState.game_registrations.push(
+        { id: 1, game_id: 5, display_name: 'Insulte', created_at: MOCK_NOW },
+        { id: 2, game_id: 5, display_name: 'Autre', created_at: MOCK_NOW }
+      )
+      const app = await createRouteApp(roomRoutes)
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/room/games/current',
+        headers: authHeaders(roomUser),
+      })
+      const body = parseJson<CurrentBody>(response)
+
+      expect(body.game).toMatchObject({
+        join: { url: `https://bo.quizzup.test/rejoindre/#${TOKEN}` },
+        pendingRegistrationsCount: 2,
+      })
+      expect(body).not.toHaveProperty('join')
+      expect(response.body).not.toContain('Insulte')
+      expect(response.body).not.toContain('join_token')
+
+      await app.close()
+    })
+
+    it('has no link when none was opened, when it expired, or once the game runs', async () => {
+      seedRoom()
+      seedGame()
+      const app = await createRouteApp(roomRoutes)
+
+      expect(await read(app)).toMatchObject({ join: null, pendingRegistrationsCount: 0 })
+
+      Object.assign(dbState.games[0]!, {
+        join_token: TOKEN,
+        join_expires_at: new Date(Date.now() - 1000).toISOString(),
+      })
+      expect((await read(app))?.join).toBeNull()
+
+      Object.assign(dbState.games[0]!, { join_expires_at: inOneHour(), state: GAME_STATE_RUNNING })
+      expect(await read(app)).toMatchObject({ join: null, pendingRegistrationsCount: 0 })
+
+      await app.close()
+    })
+
+    it('returns the running game first when a pending one waits in the room', async () => {
+      seedRoom()
+      seedGame({ id: 5, state: GAME_STATE_RUNNING })
+      seedGame({ id: 6, state: GAME_STATE_PENDING })
+      const app = await createRouteApp(roomRoutes)
+
+      expect(await read(app)).toMatchObject({ id: 5, state: GAME_STATE_RUNNING })
+
+      dbState.games[0]!.state = GAME_STATE_FINISHED
+      expect(await read(app)).toMatchObject({ id: 6, state: GAME_STATE_PENDING })
+
+      await app.close()
+    })
+  })
+
   it('starts the pending game once and ignores finished games', async () => {
     seedRoom()
     seedGame()
@@ -290,6 +368,81 @@ describe('routes/room.ts — current game (US-GAME-08)', () => {
     expect(parseJson<CurrentBody>(finished).game).toBeNull()
 
     await app.close()
+  })
+
+  describe('start with the desks loaded by the room', () => {
+    async function start(podiums?: unknown) {
+      seedRoom()
+      seedGame()
+      dbState.game_participants.push({
+        id: 2,
+        game_id: 5,
+        podium: 2,
+        display_name: 'Tom',
+        score: 0,
+      })
+      const app = await createRouteApp(roomRoutes)
+      const response = await app.inject({
+        method: 'POST',
+        url: '/room/games/5/start',
+        headers: authHeaders(roomUser),
+        ...(podiums === undefined ? {} : { payload: { podiums } }),
+      })
+
+      await app.close()
+
+      return response
+    }
+
+    it('starts the game, under the game lock, when the desks are the stored ones', async () => {
+      const response = await start([2, 1])
+
+      expect(response.statusCode).toBe(200)
+      expect(parseJson<CurrentBody>(response).game).toMatchObject({ state: GAME_STATE_RUNNING })
+      expect(dbState.games[0]!.state).toBe(GAME_STATE_RUNNING)
+      expect(lockedTables).toContain('games')
+    })
+
+    it('answers game_participants_changed when a stored desk is missing from the list', async () => {
+      const response = await start([1])
+
+      expect(response.statusCode).toBe(409)
+      expect(parseJson(response)).toEqual({ error: 'game_participants_changed' })
+      expect(dbState.games[0]!.state).toBe(GAME_STATE_PENDING)
+    })
+
+    it('answers game_participants_changed when the list has a desk nobody holds', async () => {
+      const response = await start([1, 2, 3])
+
+      expect(response.statusCode).toBe(409)
+      expect(parseJson(response)).toEqual({ error: 'game_participants_changed' })
+      expect(dbState.games[0]!.state).toBe(GAME_STATE_PENDING)
+    })
+
+    it('answers game_participants_changed for an empty list while players are stored', async () => {
+      const response = await start([])
+
+      expect(response.statusCode).toBe(409)
+      expect(dbState.games[0]!.state).toBe(GAME_STATE_PENDING)
+    })
+
+    it('keeps the old behaviour without the field: no check, the game starts', async () => {
+      const response = await start()
+
+      expect(response.statusCode).toBe(200)
+      expect(dbState.games[0]!.state).toBe(GAME_STATE_RUNNING)
+    })
+
+    it.each([[[0, 1]], [[1, 7]], [[1, 1]], [[1.5, 2]], [['1', '2']], ['1,2'], [null]])(
+      'refuses the invalid desks %j and starts nothing',
+      async (podiums) => {
+        const response = await start(podiums)
+
+        expect(response.statusCode).toBe(400)
+        expect(parseJson<{ error: string }>(response).error).toBe('invalid_body')
+        expect(dbState.games[0]!.state).toBe(GAME_STATE_PENDING)
+      }
+    )
   })
 
   it('finishes the game with the desk scores, once', async () => {
