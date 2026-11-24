@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   ADMIN_ROLE_ROOM,
+  COMPANY_STATUS_ACTIVE,
   COMPANY_STATUS_INACTIVE,
   GAME_STATE_CANCELLED,
   GAME_STATE_PENDING,
@@ -207,6 +208,39 @@ describe('GET /room/games/current — next session', () => {
     await app.close()
   })
 
+  it('skips an earlier session of another company in the same room id and returns the own one', async () => {
+    seedSession(1, { company_id: 2, room_id: 1 })
+    seedSession(2, {
+      scheduled_at: '2027-03-10T15:00:00.000Z',
+      scheduled_end_at: '2027-03-10T16:00:00.000Z',
+    })
+    const app = await createRouteApp(roomRoutes)
+
+    const { next } = parseJson<RoomGameBody>(await getCurrent(app))
+
+    expect(next).toMatchObject({ id: 2 })
+
+    await app.close()
+  })
+
+  it.each([
+    ['pending', GAME_STATE_PENDING],
+    ['running', GAME_STATE_RUNNING],
+  ])('returns a %s game together with the next scheduled session', async (_label, state) => {
+    seedSession(1, { state, scheduled_at: null, scheduled_end_at: null })
+    seedSession(2)
+    const app = await createRouteApp(roomRoutes)
+
+    const response = await getCurrent(app)
+
+    const { game, next } = parseJson<RoomGameBody>(response)
+    expect(response.statusCode).toBe(200)
+    expect(game).toMatchObject({ id: 1, state })
+    expect(next).toMatchObject({ id: 2, state: GAME_STATE_SCHEDULED })
+
+    await app.close()
+  })
+
   it('refuses an account that is not a room account', async () => {
     const app = await createRouteApp(roomRoutes)
 
@@ -251,6 +285,46 @@ describe('POST /room/games/:gameId/open', () => {
     expect(response.statusCode).toBe(409)
     expect(parseJson(response)).toEqual({ error: 'session_not_open_yet' })
     expect(dbState.games[0]!.state).toBe(GAME_STATE_SCHEDULED)
+
+    await app.close()
+  })
+
+  // La compagnie n'est lue qu'une fois la partie lue, avant l'UPDATE : on y simule une autre requête.
+  function changeGameDuringOpen(change: Record<string, unknown>) {
+    Object.defineProperty(dbState.companies[0]!, 'status', {
+      configurable: true,
+      get() {
+        Object.assign(dbState.games[0]!, change)
+
+        return COMPANY_STATUS_ACTIVE
+      },
+    })
+  }
+
+  it('answers session_not_open_yet when the start is pushed back after the window check', async () => {
+    vi.setSystemTime(new Date('2027-03-10T12:30:00.000Z'))
+    changeGameDuringOpen({ scheduled_at: '2027-03-10T15:00:00.000Z' })
+    const app = await createRouteApp(roomRoutes)
+
+    const response = await open(app, 1)
+
+    expect(response.statusCode).toBe(409)
+    expect(parseJson(response)).toEqual({ error: 'session_not_open_yet' })
+    expect(dbState.games[0]!.state).toBe(GAME_STATE_SCHEDULED)
+
+    await app.close()
+  })
+
+  it('answers game_not_scheduled when the session is cancelled after the window check', async () => {
+    vi.setSystemTime(new Date('2027-03-10T12:30:00.000Z'))
+    changeGameDuringOpen({ state: GAME_STATE_CANCELLED })
+    const app = await createRouteApp(roomRoutes)
+
+    const response = await open(app, 1)
+
+    expect(response.statusCode).toBe(409)
+    expect(parseJson(response)).toEqual({ error: 'game_not_scheduled' })
+    expect(dbState.games[0]!.state).toBe(GAME_STATE_CANCELLED)
 
     await app.close()
   })

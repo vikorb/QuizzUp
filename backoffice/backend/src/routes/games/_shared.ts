@@ -462,10 +462,10 @@ export async function openScheduledGame(
     return 'room_inactive'
   }
 
-  const earliestOpening =
-    new Date(game.scheduledAt as string).getTime() - SESSION_OPEN_EARLY_MINUTES * MINUTE_MS
+  // Ouvrable si `scheduled_at - SESSION_OPEN_EARLY_MINUTES <= now`, soit `scheduled_at <= horizon`.
+  const openingHorizon = new Date(now.getTime() + SESSION_OPEN_EARLY_MINUTES * MINUTE_MS)
 
-  if (now.getTime() < earliestOpening) {
+  if (new Date(game.scheduledAt as string) > openingHorizon) {
     return 'session_not_open_yet'
   }
 
@@ -485,9 +485,19 @@ export async function openScheduledGame(
     const opened = await db('games')
       .where('id', gameId)
       .where('state', GAME_STATE_SCHEDULED)
+      // Même fenêtre que le contrôle ci-dessus, rejouée sur la ligne au moment de l'écriture :
+      // un changement d'heure entre la lecture et l'UPDATE ne contourne pas la fenêtre.
+      .where('scheduled_at', '<=', openingHorizon.toISOString())
       .update({ state: GAME_STATE_PENDING, updated_at: db.fn.now() })
 
-    return opened === 0 ? 'game_not_scheduled' : null
+    if (opened > 0) {
+      return null
+    }
+
+    // Aucune ligne touchée : l'état a changé (annulée, ouverte) ou l'heure a été repoussée.
+    const current = await db('games').where('id', gameId).first('state')
+
+    return current?.state === GAME_STATE_SCHEDULED ? 'session_not_open_yet' : 'game_not_scheduled'
   } catch (error) {
     // Deux ouvertures simultanées dans la même salle : l'index unique tranche.
     if (isUniqueViolation(error)) {

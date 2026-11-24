@@ -2751,7 +2751,7 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Passe une session `scheduled` de la salle à l'état `pending` (bouton « Lancer » de l'écran de salle). Mêmes règles et mêmes codes que `POST /companies/{companyId}/games/{gameId}/open`, avec le même traitement côté serveur.
+        Passe une session `scheduled` de la salle à l'état `pending` (bouton « Lancer » de l'écran de salle). Mêmes règles que `POST /companies/{companyId}/games/{gameId}/open`, avec le même traitement côté serveur ; les codes d'erreur sont listés ci-dessous (le `404` est `game_not_found`, là où le backoffice répond `not_found`).
 
         Accès : réservé au rôle `room`, limité à sa propre salle (une autre salle : `404`).
       operationId: openRoomGame
@@ -2769,14 +2769,26 @@ paths:
                 properties:
                   game:
                     $ref: '#/components/schemas/RoomGame'
+        '400':
+          description: Identifiant de partie invalide (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token manquant ou invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Compte qui n'est pas un compte de salle
+          description: Compte qui n'est pas un compte de salle (`forbidden`)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: Partie introuvable ou d'une autre salle
+          description: Partie introuvable, supprimée ou d'une autre salle ou compagnie (`game_not_found`)
           content:
             application/json:
               schema:
