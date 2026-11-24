@@ -1,3 +1,5 @@
+import type { FastifyBaseLogger } from 'fastify'
+
 import {
   ANSWER_STATUS_ACTIVE,
   DEFAULT_QUESTION_KIND,
@@ -12,9 +14,20 @@ import {
 } from '@quizzup/shared'
 
 import db from '../../db'
+import {
+  getProviderTrack,
+  MediaProviderUnavailableError,
+  type ProviderTrack,
+} from '../../services/mediaProvider'
 
 /** Forme attendue par le moteur de jeu (`EngineTheme` de `@quizzup/game-engine`). */
 export type RoomContentAnswer = { id: number; text: string; isCorrect: boolean }
+
+/** Extrait fourni par un fournisseur d'extraits : de quoi l'afficher à l'écran. */
+export type RoomContentMediaCredit = Pick<
+  ProviderTrack,
+  'provider' | 'title' | 'artist' | 'coverUrl' | 'link'
+>
 
 export type RoomContentQuestion = {
   id: number
@@ -22,9 +35,14 @@ export type RoomContentQuestion = {
   /** Type de question : `qcm`, `true_false` ou `estimate`. */
   kind: string
   mediaType: string
-  /** Audio : chemin relatif à l'API, à préfixer par son URL de base. Image / vidéo : lien. */
+  /**
+   * Audio importé : chemin relatif à l'API, à préfixer par son URL de base. Audio d'un
+   * fournisseur d'extraits : URL absolue `https://…` à jour. Image / vidéo : lien.
+   */
   mediaUrl: string | null
   mediaStartMs: number
+  /** Renseigné pour un extrait de fournisseur, `null` pour toutes les autres questions. */
+  mediaCredit: RoomContentMediaCredit | null
   answers: RoomContentAnswer[]
 }
 
@@ -44,11 +62,29 @@ export function roomMediaUrl(questionId: number): string {
   return `/room/questions/${questionId}/media`
 }
 
-type MediaRow = { id: number | string; type_media: string; media_key: unknown; media_url: unknown }
+type MediaRow = {
+  id: number | string
+  type_media: string
+  media_key: unknown
+  media_url: unknown
+  media_provider: unknown
+  media_provider_ref: unknown
+}
+
+/** Référence du titre si l'extrait de la question vient d'un fournisseur (et non d'un fichier). */
+function getProviderRef(row: MediaRow): string | null {
+  return row.type_media === QUESTION_MEDIA_TYPE_AUDIO &&
+    !row.media_key &&
+    row.media_provider &&
+    typeof row.media_provider_ref === 'string'
+    ? row.media_provider_ref
+    : null
+}
 
 /**
  * URL du média jouable, `null` sans média, ou `undefined` si la question n'est pas jouable :
- * un audio sans fichier uploadé, ou une image / vidéo sans lien.
+ * un audio sans fichier uploadé ni extrait de fournisseur, ou une image / vidéo sans lien. Le
+ * lien d'un extrait de fournisseur n'est pas stable : il est résolu à part.
  */
 function resolvePlayableMediaUrl(row: MediaRow): string | null | undefined {
   switch (row.type_media) {
@@ -68,6 +104,44 @@ function resolvePlayableMediaUrl(row: MediaRow): string | null | undefined {
       return undefined
     }
   }
+}
+
+/** Appels simultanés au plus vers le fournisseur d'extraits. */
+const PROVIDER_MAX_CONCURRENT_REQUESTS = 5
+
+/** Références au plus citées dans l'avertissement d'un chargement. */
+const LOG_MAX_REFS = 20
+
+/**
+ * Titres des extraits de fournisseur : un appel par référence (dédupliquées), sans cache, car le
+ * lien d'extrait est signé et expire vite. Un titre introuvable ou sans extrait est absent du
+ * résultat, seul. Dès la première indisponibilité du fournisseur, plus aucun appel n'est lancé
+ * (les appels en vol se terminent) : les titres restants sont absents eux aussi.
+ */
+async function resolveProviderTracks(refs: string[]): Promise<Map<string, ProviderTrack>> {
+  const tracks = new Map<string, ProviderTrack>()
+  const pending = [...new Set(refs)]
+  let unavailable = false
+
+  const work = async () => {
+    for (let ref = pending.shift(); ref !== undefined && !unavailable; ref = pending.shift()) {
+      try {
+        const track = await getProviderTrack(ref)
+
+        if (track?.previewUrl) {
+          tracks.set(ref, track)
+        }
+      } catch (error) {
+        unavailable ||= error instanceof MediaProviderUnavailableError
+      }
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(PROVIDER_MAX_CONCURRENT_REQUESTS, pending.length) }, work)
+  )
+
+  return tracks
 }
 
 /** Thèmes actifs lisibles par la compagnie (tous, ou parmi `themeIds`). */
@@ -106,28 +180,42 @@ export async function isInPlayableTheme(questionId: number, companyId: number): 
 /**
  * Catalogue de la salle : thèmes actifs lisibles par la compagnie et leurs questions
  * actives de tous types, avec leurs réponses actives. Une question audio n'est retenue
- * que si son fichier est uploadé (US-MEDIA-01), une image / vidéo que si elle a un lien.
- * Le moteur trie ensuite par éligibilité de chaque mini-jeu. Les thèmes vides sont écartés.
+ * que si son fichier est uploadé (US-MEDIA-01) ou si son titre de fournisseur d'extraits
+ * répond encore avec un extrait (le lien est redemandé à chaque appel) ; une image / vidéo
+ * que si elle a un lien. Le moteur trie ensuite par éligibilité de chaque mini-jeu. Les
+ * thèmes vides sont écartés. Avec `questionIds`, seules ces questions sont chargées et résolues
+ * (toujours filtrées par la compagnie). Les questions de fournisseur écartées font l'objet d'un
+ * seul avertissement par chargement.
  */
-export async function loadRoomContent(companyId: number): Promise<RoomContentTheme[]> {
+export async function loadRoomContent(
+  companyId: number,
+  log: Pick<FastifyBaseLogger, 'warn'>,
+  questionIds?: number[]
+): Promise<RoomContentTheme[]> {
   const themes = await loadReadableThemes(companyId)
 
   if (themes.length === 0) {
     return []
   }
 
-  const links = await db('question_themes')
+  const linksQuery = db('question_themes')
     .whereIn(
       'theme_id',
       themes.map((theme) => theme.id)
     )
     .select('question_id', 'theme_id')
 
+  if (questionIds) {
+    linksQuery.whereIn('question_id', questionIds)
+  }
+
+  const links = await linksQuery
+
   if (links.length === 0) {
     return []
   }
 
-  const questions = (
+  const candidates = (
     await db('questions')
       .whereIn('id', [...new Set(links.map((link) => link.question_id))])
       .where('status', QUESTION_STATUS_ACTIVE)
@@ -140,12 +228,50 @@ export async function loadRoomContent(companyId: number): Promise<RoomContentThe
         'kind',
         'media_key',
         'media_url',
-        'media_start_ms'
+        'media_start_ms',
+        'media_provider',
+        'media_provider_ref'
       )
       .orderBy('id', 'asc')
-  )
-    .filter((question) => isReadableByCompany(question as ScopedRow, companyId))
-    .map((question) => ({ ...question, mediaUrl: resolvePlayableMediaUrl(question as MediaRow) }))
+  ).filter((question) => isReadableByCompany(question as ScopedRow, companyId))
+
+  const providerRefs = candidates.flatMap((question) => getProviderRef(question as MediaRow) ?? [])
+  const providerTracks = await resolveProviderTracks(providerRefs)
+  const droppedRefs = providerRefs.filter((ref) => !providerTracks.has(ref))
+
+  if (droppedRefs.length > 0) {
+    log.warn(
+      {
+        company_id: companyId,
+        dropped: droppedRefs.length,
+        refs: [...new Set(droppedRefs)].slice(0, LOG_MAX_REFS),
+      },
+      'provider questions dropped from the room content'
+    )
+  }
+
+  const questions = candidates
+    .map((question) => {
+      const providerRef = getProviderRef(question as MediaRow)
+      const track = providerRef === null ? null : (providerTracks.get(providerRef) ?? null)
+
+      return {
+        ...question,
+        mediaUrl:
+          providerRef === null
+            ? resolvePlayableMediaUrl(question as MediaRow)
+            : (track?.previewUrl ?? undefined),
+        mediaCredit: track
+          ? {
+              provider: track.provider,
+              title: track.title,
+              artist: track.artist,
+              coverUrl: track.coverUrl,
+              link: track.link,
+            }
+          : null,
+      }
+    })
     .filter((question) => question.mediaUrl !== undefined)
 
   const answers =
@@ -186,6 +312,7 @@ export async function loadRoomContent(companyId: number): Promise<RoomContentThe
           mediaType: question.type_media,
           mediaUrl: question.mediaUrl ?? null,
           mediaStartMs: Number(question.media_start_ms ?? 0),
+          mediaCredit: question.mediaCredit,
           answers: answersByQuestion.get(id) ?? [],
         },
       ]

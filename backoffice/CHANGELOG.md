@@ -8,6 +8,8 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Extraits de blind test fournis par Deezer : dans le champ audio d'une question, l'auteur cherche un titre (`GET /media-catalog/tracks`), l'écoute et le rattache à la question (`PUT /questions/:questionId/media/provider`). Un titre sans extrait est refusé. Une question référence soit un fichier importé, soit un titre (`media_provider`, `media_provider_ref`), jamais les deux. Au lancement d'une partie, le serveur donne à la salle le lien d'extrait à jour et le crédit ; l'écran de salle télécharge l'extrait sans jeton de salle et affiche « Extrait fourni par Deezer » à la révélation. Si le fournisseur ne répond pas, la question est écartée et la partie démarre.
+  US: US-AUDIO-03 (#185)
 - Formats de partie partagés : Découverte (3 manches × 3 questions), Courte (6 × 7), Standard (10 × 10) et Personnalisé, avec la durée estimée d'une partie calculée depuis les délais du moteur (`GAME_FORMATS`, `GAME_FORMAT_SETTINGS`, `estimateGameDurationMs` dans `@quizzup/shared`). Le lobby du mode démo de l'écran de salle propose ces formats, Découverte par défaut, avec leur durée estimée.
   US: US-FORMAT-01 (#143)
 - Programmer une session depuis le formulaire de création de partie : la case « Programmer pour plus tard » ouvre la date, l'heure (dans le fuseau de la salle), la durée et l'effectif annoncé ; une session programmée peut n'avoir aucun joueur. Le formulaire se préremplit depuis l'agenda (`?roomId=`, `?scheduledAt=`). Une session programmée se modifie par le même formulaire (route `games/:gameId/edit`, bouton « Modifier » de l'agenda). Les refus du serveur (`slot_taken`, `session_in_past`, `session_too_far`, `room_inactive`) s'affichent sur le champ concerné.
