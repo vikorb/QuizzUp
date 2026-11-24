@@ -753,6 +753,12 @@ export const LIVE_EVENT = {
   COMMAND: 'command',
   /** Flux du personnel : l'accusé (ou l'expiration) d'une commande, `RoomCommandResultMessage`. */
   COMMAND_RESULT: 'command_result',
+  /**
+   * Une partie de la salle a changé (demande d'inscription, joueur, lien, lancement…), sur le flux
+   * de la salle et sur celui du personnel de sa compagnie : `{ gameId }`. Aucune donnée de joueur ;
+   * le client relit la partie par la route habituelle.
+   */
+  GAME_UPDATED: 'game_updated',
 } as const
 
 export type LiveEvent = (typeof LIVE_EVENT)[keyof typeof LIVE_EVENT]

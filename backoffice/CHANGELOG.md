@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Suivi en direct des inscriptions : le lobby de la salle et le panneau d'inscription du backoffice se mettent à jour dès qu'une partie change (événement `game_updated` sur les flux existants), au lieu d'interroger le serveur toutes les 3 à 5 secondes. Flux coupé : une interrogation lente (15 s) prend le relais.
+  US: US-LIVE-01 (#129)
+
 - Format de partie au backoffice et au lobby : à la création, le formulaire propose Découverte, Courte, Standard (par défaut) et Personnalisé, avec les nombres et la durée estimée de chaque format. Les champs manches et questions n'apparaissent qu'en Personnalisé. Le lobby du staff affiche le format et sa durée.
   US: US-FORMAT-01 (#143)
 

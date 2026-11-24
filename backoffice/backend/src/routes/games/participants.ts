@@ -91,6 +91,8 @@ const gamesParticipantsRoutes: FastifyPluginAsync = async (app) => {
           return reply.code(409).send({ error: 'game_not_pending' })
         }
 
+        app.liveHub.gameUpdated(companyId, game.roomId, gameId)
+
         return reply.code(201).send({ participant: maskEmails(toParticipant(created), req) })
       } catch (error) {
         if (isUniqueViolation(error)) {
@@ -152,6 +154,8 @@ const gamesParticipantsRoutes: FastifyPluginAsync = async (app) => {
       if (deleted === 0) {
         return reply.code(404).send({ error: 'participant_not_found' })
       }
+
+      app.liveHub.gameUpdated(companyId, game.roomId, gameId)
 
       return reply.code(204).send()
     }

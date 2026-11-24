@@ -14,6 +14,11 @@ import {
   refuseGameRegistrationServiceMock,
   resetGamesServiceMock,
 } from '@frontend-tests/_helpers/gamesServiceMock'
+import {
+  gameUpdatedListenerMock,
+  liveStateMock,
+  useLiveCompanyMock,
+} from '@frontend-tests/_helpers/liveCompanyMock'
 import { mountWithFrontendMocks, tWithParamsMock } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { GAME_STATE_PENDING, GAME_STATE_RUNNING } from '@quizzup/shared'
@@ -36,7 +41,8 @@ enableAutoUnmount(afterEach)
 
 const GAME_ID = 4
 const COMPANY_ID = 1
-const POLL_MS = 5000
+// Lecture lente tant que le flux du personnel n'est pas ouvert (`GameJoinPanel.vue`).
+const POLL_MS = 15_000
 
 beforeEach(() => {
   resetGamesServiceMock()
@@ -46,6 +52,8 @@ beforeEach(() => {
   })
   vi.setSystemTime(new Date('2026-11-24T10:00:00.000Z'))
   setVisibility('visible')
+  // Flux fermé : la lecture lente tourne. Les tests du flux ouvert passent l'état à `live`.
+  liveStateMock.value = 'reconnecting'
 })
 
 afterEach(() => {
@@ -208,8 +216,8 @@ describe('views/games/detail/GameJoinPanel.vue: states', () => {
   })
 })
 
-describe('views/games/detail/GameJoinPanel.vue: polling', () => {
-  it('reads the requests every 5 seconds while the game is pending', async () => {
+describe('views/games/detail/GameJoinPanel.vue: slow polling while the stream is closed', () => {
+  it('reads the requests every 15 seconds while the game is pending', async () => {
     const wrapper = await mountPanel()
 
     expect(listGameRegistrationsServiceMock).toHaveBeenCalledTimes(1)
@@ -275,6 +283,101 @@ describe('views/games/detail/GameJoinPanel.vue: polling', () => {
     await tick(wrapper, POLL_MS * 3)
 
     expect(listGameRegistrationsServiceMock).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('views/games/detail/GameJoinPanel.vue: game_updated event', () => {
+  beforeEach(() => {
+    liveStateMock.value = 'live'
+  })
+
+  it('opens the stream of the company of the game, only while the game is pending', async () => {
+    const wrapper = await mountPanel()
+
+    const [companyId] = useLiveCompanyMock.mock.calls.at(-1) ?? []
+
+    expect(typeof companyId).toBe('function')
+    expect((companyId as () => number | null)()).toBe(COMPANY_ID)
+
+    await wrapper.setProps({ game: createGame({ state: GAME_STATE_RUNNING }) })
+    expect((companyId as () => number | null)()).toBeNull()
+  })
+
+  it('reads the requests again on the event of this game, and asks the page to reload', async () => {
+    const wrapper = await mountPanel()
+
+    setRegistrations([fusees])
+    gameUpdatedListenerMock.current?.(GAME_ID)
+    await flushPromises()
+
+    expect(listGameRegistrationsServiceMock).toHaveBeenCalledTimes(2)
+    expect(row(wrapper, 5).exists()).toBe(true)
+    expect(wrapper.emitted('changed')).toHaveLength(1)
+  })
+
+  it('ignores the event of another game', async () => {
+    const wrapper = await mountPanel()
+
+    gameUpdatedListenerMock.current?.(GAME_ID + 1)
+    await flushPromises()
+
+    expect(listGameRegistrationsServiceMock).toHaveBeenCalledTimes(1)
+    expect(wrapper.emitted('changed')).toBeUndefined()
+  })
+
+  it('does not poll at all while the stream is open', async () => {
+    const wrapper = await mountPanel()
+
+    await tick(wrapper, POLL_MS * 4)
+
+    expect(listGameRegistrationsServiceMock).toHaveBeenCalledTimes(1)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('reads once more when the event comes during a read, so the answer is not stale', async () => {
+    let answer!: (value: Awaited<ReturnType<typeof listGameRegistrationsServiceMock>>) => void
+    listGameRegistrationsServiceMock.mockReturnValueOnce(
+      new Promise((resolve) => (answer = resolve))
+    )
+    await mountPanel()
+
+    gameUpdatedListenerMock.current?.(GAME_ID)
+    answer({ ok: true, status: 200, data: { registrations: [] } })
+    await flushPromises()
+
+    expect(listGameRegistrationsServiceMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('falls back to slow polling when the stream drops, and catches up when it is back, without a second timer', async () => {
+    const wrapper = await mountPanel()
+
+    liveStateMock.value = 'reconnecting'
+    await flushPromises()
+    expect(vi.getTimerCount()).toBe(1)
+    await tick(wrapper, POLL_MS)
+    expect(listGameRegistrationsServiceMock).toHaveBeenCalledTimes(2)
+
+    liveStateMock.value = 'live'
+    await flushPromises()
+    expect(listGameRegistrationsServiceMock).toHaveBeenCalledTimes(3)
+    expect(vi.getTimerCount()).toBe(0)
+
+    await tick(wrapper, POLL_MS * 4)
+    expect(listGameRegistrationsServiceMock).toHaveBeenCalledTimes(3)
+  })
+
+  it('removes its timer when the game is launched or the panel destroyed', async () => {
+    liveStateMock.value = 'reconnecting'
+    const wrapper = await mountPanel()
+    expect(vi.getTimerCount()).toBe(1)
+
+    await wrapper.setProps({ game: createGame({ state: GAME_STATE_RUNNING }) })
+    expect(vi.getTimerCount()).toBe(0)
+
+    await wrapper.setProps({ game: createGame() })
+    expect(vi.getTimerCount()).toBe(1)
+    wrapper.unmount()
+    expect(vi.getTimerCount()).toBe(0)
   })
 })
 

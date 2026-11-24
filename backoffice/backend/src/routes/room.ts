@@ -393,6 +393,13 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
       if (outcome === 'changed') {
         return reply.code(409).send({ error: 'game_participants_changed' })
       }
+
+      // Le personnel voit la partie passer « en cours » sans relire la fiche.
+      app.liveHub.gameUpdated(
+        Number(req.user.company_id),
+        Number(req.user.room_id),
+        Number(current.id)
+      )
     }
 
     return { game: await findCurrentRoomGame(req) }
@@ -424,6 +431,8 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
         ? reply.code(404).send({ error: 'game_not_found' })
         : reply.code(409).send({ error })
     }
+
+    app.liveHub.gameUpdated(Number(req.user.company_id), Number(req.user.room_id), gameId)
 
     return { game: await findRoomGame(req, gameId) }
   })

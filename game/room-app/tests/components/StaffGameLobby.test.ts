@@ -21,14 +21,20 @@ import { PENDING_FINISHES_KEY } from '@/game/pendingFinishes'
 import { createMemorySessionStorage, GameSession, type SessionStorage } from '@/game/session'
 import { closeGame, configureRoomGame, useRoomGame } from '@/game/useRoomGame'
 import { saveRoomDesksCount } from '@/hardware/roomHardware'
+import { startRoomLive, stopRoomLive } from '@/live/roomLive'
 import { setCurrentLocale } from '@/plugins/i18n'
 import { signIn, syncRoomAuth } from '@/state/roomAuth'
 import * as roomApi from '@/utils/roomApi'
 import LobbyView from '@/views/LobbyView.vue'
 
+import { createFakeLiveServer, helloMessage } from '../_helpers/fakeLiveServer'
 import { getPlayableThemes } from '../_helpers/fixtures'
 import { pressKey } from '../_helpers/keyboard'
 import { mountWithApp, PRELOAD_TIMEOUT_MS, preloadRoutes } from '../_helpers/mount'
+
+/** Lecture lente du lobby tant que le flux de la salle est fermé (`StaffGameLobby.vue`). */
+const FALLBACK_POLL_MS = 15_000
+const GAME_UPDATED = 'event: game_updated\ndata: {"gameId":42}\n\n'
 
 const GAME: roomApi.RoomGame = {
   id: 42,
@@ -155,7 +161,7 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
     expect(wrapper.find('[data-test="waiting-game"]').exists()).toBe(true)
     expect(wrapper.find('input[name=desk-1-name]').exists()).toBe(false)
 
-    await vi.advanceTimersByTimeAsync(3000)
+    await vi.advanceTimersByTimeAsync(FALLBACK_POLL_MS)
     await flushPromises()
 
     expect(fetchGame).toHaveBeenCalledWith('token-salle')
@@ -442,11 +448,11 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
     const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
     await flushPromises()
 
-    await vi.advanceTimersByTimeAsync(3000)
+    await vi.advanceTimersByTimeAsync(FALLBACK_POLL_MS)
     await flushPromises()
     expect(wrapper.find('[data-test="start-game"]').exists()).toBe(true)
 
-    await vi.advanceTimersByTimeAsync(6000)
+    await vi.advanceTimersByTimeAsync(FALLBACK_POLL_MS * 2)
     await flushPromises()
     expect(wrapper.text()).toContain('Backoffice injoignable')
     vi.useRealTimers()
@@ -763,6 +769,113 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
       expect(several.find('[data-test="pending-registrations"]').text()).toBe(
         '3 inscriptions en attente de validation'
       )
+    })
+  })
+
+  describe('suivi en direct (game_updated)', () => {
+    let server: ReturnType<typeof createFakeLiveServer>
+    let fetchGame: ReturnType<typeof vi.spyOn>
+
+    async function mountOnLiveStream() {
+      vi.useFakeTimers()
+      server = createFakeLiveServer()
+      vi.stubGlobal('fetch', server.fetchMock)
+      fetchGame = vi.spyOn(roomApi, 'fetchCurrentGame').mockResolvedValue(GAME)
+      startRoomLive()
+      await vi.advanceTimersByTimeAsync(0)
+      server.streams.at(-1)?.push(helloMessage())
+      await vi.advanceTimersByTimeAsync(0)
+      const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+      await flushPromises()
+      return wrapper
+    }
+
+    afterEach(() => {
+      stopRoomLive()
+      vi.unstubAllGlobals()
+      vi.useRealTimers()
+    })
+
+    it('relit la partie sur l’événement, et plus aucune lecture périodique tant que le flux est ouvert', async () => {
+      await mountOnLiveStream()
+      expect(fetchGame).toHaveBeenCalledTimes(1)
+
+      await vi.advanceTimersByTimeAsync(FALLBACK_POLL_MS * 4)
+      expect(fetchGame).toHaveBeenCalledTimes(1)
+
+      server.streams.at(-1)?.push(GAME_UPDATED)
+      await vi.advanceTimersByTimeAsync(0)
+      await flushPromises()
+      expect(fetchGame).toHaveBeenCalledTimes(2)
+    })
+
+    it('relit une seule fois quand un événement arrive pendant une lecture', async () => {
+      await mountOnLiveStream()
+      let release!: (game: roomApi.RoomGame) => void
+      const pending = new Promise<roomApi.RoomGame>((resolve) => {
+        release = resolve
+      })
+      fetchGame.mockImplementationOnce(() => pending)
+
+      server.streams.at(-1)?.push(GAME_UPDATED)
+      await vi.advanceTimersByTimeAsync(0)
+      server.streams.at(-1)?.push(GAME_UPDATED)
+      await vi.advanceTimersByTimeAsync(0)
+      release(GAME)
+      await flushPromises()
+
+      // 1 (montage) + 1 (premier événement) + 1 (relecture demandée pendant celle-ci)
+      expect(fetchGame).toHaveBeenCalledTimes(3)
+    })
+
+    it('flux coupé : lecture lente ; flux rétabli : une lecture de rattrapage puis plus rien, sans double abonnement', async () => {
+      await mountOnLiveStream()
+      server.streams.at(-1)?.end()
+      await vi.advanceTimersByTimeAsync(0)
+      await flushPromises()
+      fetchGame.mockClear()
+
+      await vi.advanceTimersByTimeAsync(FALLBACK_POLL_MS)
+      await flushPromises()
+      expect(fetchGame).toHaveBeenCalledTimes(1)
+
+      // Le flux revient après l'attente de reconnexion (1 s) : nouveau hello.
+      await vi.advanceTimersByTimeAsync(1000)
+      server.streams.at(-1)?.push(helloMessage('stream-2'))
+      await vi.advanceTimersByTimeAsync(0)
+      await flushPromises()
+      expect(fetchGame).toHaveBeenCalledTimes(2)
+
+      await vi.advanceTimersByTimeAsync(FALLBACK_POLL_MS * 4)
+      expect(fetchGame).toHaveBeenCalledTimes(2)
+
+      server.streams.at(-1)?.push(GAME_UPDATED)
+      await vi.advanceTimersByTimeAsync(0)
+      await flushPromises()
+      expect(fetchGame).toHaveBeenCalledTimes(3)
+    })
+
+    it('au démontage : plus d’abonnement ni de minuterie', async () => {
+      const wrapper = await mountOnLiveStream()
+      wrapper.unmount()
+      fetchGame.mockClear()
+
+      server.streams.at(-1)?.push(GAME_UPDATED)
+      await vi.advanceTimersByTimeAsync(FALLBACK_POLL_MS * 4)
+      expect(fetchGame).not.toHaveBeenCalled()
+      expect(vi.getTimerCount()).toBeLessThanOrEqual(2) // garde-fou et rapport du flux, pas du lobby
+    })
+
+    it('flux fermé au démontage pendant la lecture lente : la minuterie est retirée', async () => {
+      vi.useFakeTimers()
+      fetchGame = vi.spyOn(roomApi, 'fetchCurrentGame').mockResolvedValue(GAME)
+      const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+      await flushPromises()
+      wrapper.unmount()
+      fetchGame.mockClear()
+
+      await vi.advanceTimersByTimeAsync(FALLBACK_POLL_MS * 4)
+      expect(fetchGame).not.toHaveBeenCalled()
     })
   })
 })

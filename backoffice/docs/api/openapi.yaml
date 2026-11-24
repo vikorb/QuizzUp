@@ -3978,6 +3978,7 @@ paths:
         - `replaced` : un autre poste de la salle a ouvert son flux ; celui-ci est fermé juste après.
         - `session_ended` : la session n'est plus valable (`{ error }`) ; le flux est fermé juste après.
         - `command` : une commande du personnel à proposer au moteur, `{ commandId, command }` (`pause`, `resume`), `{ commandId, command: skip, round, questionIndex }` ou `{ commandId, command: abort, gameId }`. La salle répond par `POST /room/commands/{commandId}/result` dans les 10 s.
+        - `game_updated` : une partie de la salle a changé (demande d'inscription, joueur ajouté ou retiré, lien, ouverture, lancement, annulation…), `{ gameId }` seulement, sans donnée de joueur. La salle relit la partie par `GET /room/games/current` ; sans flux ouvert, elle relit toutes les 15 s.
 
         Une ligne de commentaire `: ping` est écrite toutes les 15 s. La session est revérifiée toutes les 60 s sans être prolongée.
 
@@ -4475,6 +4476,7 @@ paths:
         - `snapshot` : toujours le premier, `{ rooms: RoomLive[] }` pour toutes les salles actives de la compagnie, y compris hors ligne.
         - `room_status` : un `RoomLive` à chaque rapport, ouverture ou fermeture du flux d'une salle, et quand une salle passe hors ligne. Un client ignore un `roomId` absent de son instantané (salle supprimée ou désactivée depuis).
         - `command_result` : le sort d'une commande envoyée par `POST /companies/{companyId}/rooms/{roomId}/commands`, `{ commandId, roomId, command, result, reason? }`. `result` vaut `applied`, `refused` (avec `reason`) ou `expired`. Aucun rejeu : une commande dont le résultat arrive pendant une coupure du flux n'est pas rejouée.
+        - `game_updated` : une partie de la compagnie a changé, `{ gameId }` seulement, sans donnée de joueur. Le client relit par les routes existantes (par exemple `GET /companies/{companyId}/games/{id}/registrations`). Aucun rejeu : un client relit aussi à la réouverture du flux.
         - `session_ended` : la session n'est plus valable (`{ error }`) ; le flux est fermé juste après.
 
         `RoomLive` : `{ roomId, presence, controllable, lastSeenAt, status }`. `presence` vaut `offline` (aucun rapport depuis 45 s), `in_game` (en ligne, partie en cours, phase hors `lobby`, `finished`, `aborted`) ou `online`. `controllable` : en ligne et flux de la salle ouvert. `lastSeenAt` : date (ISO 8601) du dernier rapport de `POST /room/status`. `status` : ce dernier rapport, conservé tant que le backend tourne même quand la salle est hors ligne (pour afficher « vue pour la dernière fois »), avec son champ `diagnostics` s'il y est (état matériel, lecture seule). Les deux valent `null` si la salle n'a envoyé aucun rapport depuis le démarrage du backend.

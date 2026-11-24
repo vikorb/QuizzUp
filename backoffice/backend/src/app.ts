@@ -9,6 +9,7 @@ import routes from './routes'
 import { isPublicPath, sendPublicError } from './routes/public/_shared'
 import authPlugin from './plugins/auth'
 import liveHubPlugin from './plugins/liveHub'
+import liveJoinRegistrationsPlugin from './plugins/liveJoinRegistrations'
 import { parseCorsOrigin, parsePublicOrigins } from './utils/cors'
 import { parseTrustProxy } from './utils/trustProxy'
 
@@ -102,6 +103,7 @@ export function buildApp() {
 
   app.register(authPlugin)
   app.register(liveHubPlugin)
+  app.register(liveJoinRegistrationsPlugin)
   app.register(routes)
 
   return app

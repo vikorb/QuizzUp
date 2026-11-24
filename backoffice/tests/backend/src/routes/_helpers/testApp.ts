@@ -1,4 +1,5 @@
 import fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
+import { LIVE_EVENT } from '@quizzup/shared'
 import { expect, vi } from 'vitest'
 
 import type { LiveHub } from '../../../../../backend/src/live/hub'
@@ -96,6 +97,52 @@ export async function createRouteApp(plugin: unknown) {
 /** Le hub du direct de l'application (décoré par `plugins/liveHub`, hors du typage de ce programme). */
 export function liveHubOf(app: FastifyInstance): LiveHub {
   return (app as unknown as { liveHub: LiveHub }).liveHub
+}
+
+/** Identifiants reçus par chaque abonné : le personnel et les salles de deux compagnies. */
+export type GameUpdates = {
+  /** Personnel de la compagnie 1 et de la compagnie 2. */
+  staff1: unknown[]
+  staff2: unknown[]
+  /** Flux de la salle 1 (compagnie 1), de la salle 2 (compagnie 1) et de la salle 3 (compagnie 2). */
+  room1: unknown[]
+  room2: unknown[]
+  room3: unknown[]
+}
+
+/** Abonne des faux flux et relève les `game_updated` reçus (ni nom ni e-mail : l'identifiant seul). */
+export function watchGameUpdates(app: FastifyInstance): GameUpdates {
+  const hub = liveHubOf(app)
+  const sinkInto = (received: unknown[]) => ({
+    send: (event: string, data: unknown) => {
+      if (event === LIVE_EVENT.GAME_UPDATED) {
+        received.push(data)
+      }
+    },
+    close: () => undefined,
+  })
+  const updates: GameUpdates = { staff1: [], staff2: [], room1: [], room2: [], room3: [] }
+
+  hub.subscribeStaff(1, 90, sinkInto(updates.staff1))
+  hub.subscribeStaff(2, 91, sinkInto(updates.staff2))
+  hub.openRoomStream(1, 1, sinkInto(updates.room1))
+  hub.openRoomStream(2, 1, sinkInto(updates.room2))
+  hub.openRoomStream(3, 2, sinkInto(updates.room3))
+
+  return updates
+}
+
+/** Le personnel et la salle 1 de la compagnie 1 reçoivent la partie ; aucun autre abonné ne reçoit rien. */
+export function expectOnlyCompany1Notified(updates: GameUpdates, gameId = 1): void {
+  expect(updates.staff1).toEqual([{ gameId }])
+  expect(updates.room1).toEqual([{ gameId }])
+  expect(updates.staff2).toEqual([])
+  expect(updates.room2).toEqual([])
+  expect(updates.room3).toEqual([])
+}
+
+export function expectNobodyNotified(updates: GameUpdates): void {
+  Object.values(updates).forEach((received) => expect(received).toEqual([]))
 }
 
 export function parseJson<T = Record<string, unknown>>(response: { json: () => unknown }): T {

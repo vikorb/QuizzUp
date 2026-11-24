@@ -21,8 +21,11 @@ import {
   authHeaders,
   companyAdminUser,
   createRouteApp,
+  expectNobodyNotified,
+  expectOnlyCompany1Notified,
   parseJson,
   type TestUser,
+  watchGameUpdates,
 } from './_helpers/testApp'
 
 resetRouteMocksBeforeEach()
@@ -372,6 +375,50 @@ describe('routes/room.ts — current game (US-GAME-08)', () => {
     expect(parseJson<CurrentBody>(finished).game).toBeNull()
 
     await app.close()
+  })
+
+  describe('game_updated on start', () => {
+    const otherCompanyRoomUser = {
+      ...roomUser,
+      company_id: 2,
+      room_id: 3,
+      sid: 'sid-room-2',
+    } as TestUser
+
+    const startAs = async (user: TestUser, gameId = 5) => {
+      seedRoom()
+      seedGame()
+      const app = await createRouteApp(roomRoutes)
+      const updates = watchGameUpdates(app)
+      const response = await app.inject({
+        method: 'POST',
+        url: `/room/games/${gameId}/start`,
+        headers: authHeaders(user),
+      })
+
+      await app.close()
+
+      return { response, updates }
+    }
+
+    it('tells the staff of the company and the room, by the game id only', async () => {
+      const { response, updates } = await startAs(roomUser)
+
+      expect(response.statusCode).toBe(200)
+      expectOnlyCompany1Notified(updates, 5)
+    })
+
+    it('tells nobody when the game is not the room’s, or belongs to another company', async () => {
+      const unknown = await startAs(roomUser, 6)
+      dbState.games.length = 0
+      dbState.rooms.length = 0
+      const foreign = await startAs(otherCompanyRoomUser)
+
+      expect(unknown.response.statusCode).toBe(404)
+      expectNobodyNotified(unknown.updates)
+      expect(foreign.response.statusCode).toBe(404)
+      expectNobodyNotified(foreign.updates)
+    })
   })
 
   describe('start with the desks loaded by the room', () => {
