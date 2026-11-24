@@ -3212,12 +3212,29 @@ paths:
 
         La salle accuse réception de la partie lancée : `pending` → `running`, `startedAt` renseigné. Idempotent si la partie tourne déjà.
 
+        Le personnel peut valider une demande, ajouter ou retirer un joueur tant que la partie est en attente. Pour ne pas lancer une partie avec une liste périmée, la salle envoie dans `podiums` les pupitres qu'elle a chargés : si, au moment du lancement, ils ne sont pas exactement ceux des participants en base, le serveur répond `409 game_participants_changed` et ne démarre rien (la partie reste `pending`). La comparaison et le passage à `running` se font sous le même verrou de la partie que la validation d'une demande. Sans `podiums` (ancien écran de salle), aucune vérification.
+
         Accès : réservé au rôle `room`.
       operationId: startRoomGame
       x-availability: disponible
       x-us: 'US-GAME-08'
       parameters:
         - $ref: '#/components/parameters/GameIdParam'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                podiums:
+                  type: array
+                  maxItems: 6
+                  description: Pupitres des participants chargés par la salle, sans doublon
+                  items:
+                    type: integer
+                    minimum: 1
+                    maximum: 6
       responses:
         '200':
           description: Partie démarrée
@@ -3229,6 +3246,12 @@ paths:
                   game:
                     allOf:
                       - $ref: '#/components/schemas/RoomGame'
+        '400':
+          description: Identifiant ou corps invalide (`invalid_params`, `invalid_body`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
           description: Compte qui n'est pas un compte de salle
           content:
@@ -3237,6 +3260,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Pas de partie courante avec cet id (`game_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Les pupitres envoyés ne sont plus ceux des participants (`game_participants_changed`) ; rien n'est démarré
           content:
             application/json:
               schema:

@@ -24,6 +24,9 @@ const PG_INTEGRATION_URL = process.env.PG_INTEGRATION_URL
 
 type Db = typeof import('@backend/db').default
 
+const TRUNCATE_TABLES =
+  'TRUNCATE game_registrations, game_participants, games, rooms, admins, companies RESTART IDENTITY CASCADE'
+
 const at = (time: string) => `2027-03-10T${time}:00.000Z`
 const NOW = new Date(at('12:00'))
 
@@ -39,14 +42,14 @@ describe.skipIf(!PG_INTEGRATION_URL)('accueil des joueurs : schéma et purge', (
     await db.migrate.latest({ directory })
   }, 120_000)
 
+  // Base partagée avec les autres `*.pg.test.ts` : on ne laisse aucune ligne derrière nous.
   afterAll(async () => {
+    await db?.raw(TRUNCATE_TABLES)
     await db?.destroy()
   })
 
   beforeEach(async () => {
-    await db.raw(
-      'TRUNCATE game_registrations, game_participants, games, rooms, admins, companies RESTART IDENTITY CASCADE'
-    )
+    await db.raw(TRUNCATE_TABLES)
 
     await db('companies').insert({ id: 1, name: 'Centre', email: 'c@x.test' })
     await db('admins').insert({

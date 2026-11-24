@@ -121,6 +121,21 @@ async function forbidden<T>(run: () => Promise<T>) {
   return run()
 }
 
+// Simule un retrait validé par un autre poste juste après le commit de la transaction.
+function removeParticipantsAfterNextCommit() {
+  const transaction = db.transaction
+
+  vi.spyOn(db, 'transaction').mockImplementationOnce((async (
+    ...args: Parameters<typeof transaction>
+  ) => {
+    const result = await transaction(...args)
+
+    dbState.game_participants.length = 0
+
+    return result
+  }) as typeof transaction)
+}
+
 async function call(
   method: Method,
   url: string,
@@ -486,6 +501,18 @@ describe('POST /companies/:companyId/games/:gameId/registrations/:registrationId
     })
   })
 
+  it('answers with the participant it wrote, even if another desk removed it right after', async () => {
+    removeParticipantsAfterNextCommit()
+
+    const response = await accept({ podium: 2 })
+
+    expect(response.statusCode).toBe(201)
+    expect(parseJson<AcceptBody>(response).participant).toMatchObject({
+      podium: 2,
+      displayName: 'Léa',
+    })
+  })
+
   it('uses the podium chosen by the staff', async () => {
     const response = await accept({ podium: 3 })
 
@@ -691,6 +718,18 @@ describe('POST /companies/:companyId/games/:gameId/participants', () => {
       secondPlayer: { displayName: 'Ana', hasEmail: false },
     })
     expect(dbState.game_participants).toHaveLength(1)
+  })
+
+  it('answers with the participant it wrote, even if another desk removed it right after', async () => {
+    removeParticipantsAfterNextCommit()
+
+    const response = await add({ podium: 2, displayName: 'Hugo' })
+
+    expect(response.statusCode).toBe(201)
+    expect(parseJson<AddBody>(response).participant).toMatchObject({
+      podium: 2,
+      displayName: 'Hugo',
+    })
   })
 
   it('hides the e-mail from the user role', async () => {

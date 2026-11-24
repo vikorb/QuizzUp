@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import type { FastifyInstance } from 'fastify'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { assertTestDatabase } from '../../../setup/assertTestDatabase'
 import {
@@ -30,8 +30,12 @@ import {
  */
 const PG_INTEGRATION_URL = process.env.PG_INTEGRATION_URL
 
+const TRUNCATE_TABLES =
+  'TRUNCATE game_registrations, game_participants, games, rooms, admins, companies RESTART IDENTITY CASCADE'
+
 type Db = typeof import('@backend/db').default
 type Json = Record<string, any>
+type Trx = Parameters<Parameters<Db['transaction']>[0]>[0]
 
 const staffUser: TestUser = { ...companyAdminUser, role: 'user', sid: 'sid-staff' }
 const roomAccount: TestUser = {
@@ -39,6 +43,8 @@ const roomAccount: TestUser = {
   role: 'room',
   sid: 'sid-room',
 }
+// Le compte de la salle 1 : c'est lui qui appelle `/room/games/:id/start`.
+const roomDesk = { ...roomAccount, room_id: 1 } as TestUser
 const otherCompanyAdmin: TestUser = {
   ...companyAdminUser,
   id: 3,
@@ -51,6 +57,7 @@ const otherCompanyAdmin: TestUser = {
 describe.skipIf(!PG_INTEGRATION_URL)('accueil des joueurs sur PostgreSQL', () => {
   let db: Db
   let app: FastifyInstance
+  let roomApp: FastifyInstance
 
   beforeAll(async () => {
     process.env.DATABASE_URL = PG_INTEGRATION_URL
@@ -61,17 +68,19 @@ describe.skipIf(!PG_INTEGRATION_URL)('accueil des joueurs sur PostgreSQL', () =>
 
     const gamesRoutes = (await import('@backend/routes/games')).default
     app = await createRouteApp(gamesRoutes)
+    roomApp = await createRouteApp((await import('@backend/routes/room')).default)
   }, 120_000)
 
+  // Base partagée avec les autres `*.pg.test.ts` : on ne laisse aucune ligne derrière nous.
   afterAll(async () => {
     await app?.close()
+    await roomApp?.close()
+    await db?.raw(TRUNCATE_TABLES)
     await db?.destroy()
   })
 
   beforeEach(async () => {
-    await db.raw(
-      'TRUNCATE game_registrations, game_participants, games, rooms, admins, companies RESTART IDENTITY CASCADE'
-    )
+    await db.raw(TRUNCATE_TABLES)
 
     for (const companyId of [1, 2]) {
       await db('companies').insert({
@@ -158,6 +167,143 @@ describe.skipIf(!PG_INTEGRATION_URL)('accueil des joueurs sur PostgreSQL', () =>
       podium === undefined ? undefined : { podium },
       user
     )
+
+  const startRoom = (gameId: number, podiums?: number[]) =>
+    roomApp.inject({
+      method: 'POST',
+      url: `/room/games/${gameId}/start`,
+      headers: authHeaders(roomDesk),
+      payload: podiums === undefined ? undefined : { podiums },
+    })
+
+  /** Tient le verrou de la partie dans une transaction, comme le ferait une autre requête. */
+  async function holdGameLock(gameId: number, whileHeld?: (trx: Trx) => Promise<unknown>) {
+    let release!: () => void
+    let locked!: () => void
+    const gate = new Promise<void>((resolve) => (release = resolve))
+    const isLocked = new Promise<void>((resolve) => (locked = resolve))
+    const done = db.transaction(async (trx) => {
+      await trx('games').where('id', gameId).forUpdate().first('id')
+      locked()
+      await gate
+      await whileHeld?.(trx)
+    })
+
+    await isLocked
+
+    return { release, done }
+  }
+
+  /** Attend que `count` requêtes soient bloquées en base sur un verrou (pas d'attente à l'aveugle). */
+  const waitForBlocked = (count: number) =>
+    vi.waitFor(async () => {
+      const { rows } = await db.raw(
+        "SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'"
+      )
+
+      expect(rows[0].n).toBe(count)
+    }, 5000)
+
+  const podiumsOf = async (gameId: number) =>
+    (await db('game_participants').where('game_id', gameId).orderBy('podium').select('podium')).map(
+      (row) => Number(row.podium)
+    )
+
+  describe('lancement par la salle : joueurs chargés', () => {
+    it('refuse le lancement avec une liste périmée (joueur ajouté après le relevé), la partie reste en attente', async () => {
+      const gameId = await insertGame('pending')
+      await db('game_participants').insert([
+        { game_id: gameId, podium: 1, display_name: 'Léa' },
+        { game_id: gameId, podium: 2, display_name: 'Noé' },
+      ])
+      const loaded = [1, 2]
+
+      const added = await request('POST', `/companies/1/games/${gameId}/participants`, {
+        podium: 3,
+        displayName: 'Zoé',
+      })
+      const stale = await startRoom(gameId, loaded)
+
+      expect(added.statusCode).toBe(201)
+      expect(stale.statusCode).toBe(409)
+      expect(parseJson(stale)).toEqual({ error: 'game_participants_changed' })
+      expect(await db('games').where('id', gameId).first()).toMatchObject({
+        state: 'pending',
+        started_at: null,
+      })
+
+      const fresh = await startRoom(gameId, [3, 1, 2])
+
+      expect(fresh.statusCode).toBe(200)
+      expect(parseJson<Json>(fresh).game.state).toBe('running')
+      expect(await podiumsOf(gameId)).toEqual([1, 2, 3])
+    })
+
+    it('garde l’ancien comportement sans pupitres : la partie démarre', async () => {
+      const gameId = await insertGame('pending')
+      await db('game_participants').insert({ game_id: gameId, podium: 1, display_name: 'Léa' })
+
+      const response = await startRoom(gameId)
+
+      expect(response.statusCode).toBe(200)
+      expect(await db('games').where('id', gameId).first()).toMatchObject({ state: 'running' })
+    })
+
+    it('attend le verrou de la partie, puis compare avec la liste validée entre-temps', async () => {
+      const gameId = await insertGame('pending')
+      await db('game_participants').insert([
+        { game_id: gameId, podium: 1, display_name: 'Léa' },
+        { game_id: gameId, podium: 2, display_name: 'Noé' },
+      ])
+      const held = await holdGameLock(gameId, (trx) =>
+        trx('game_participants').insert({ game_id: gameId, podium: 3, display_name: 'Zoé' })
+      )
+
+      const start = startRoom(gameId, [1, 2])
+      await waitForBlocked(1)
+      held.release()
+      await held.done
+      const response = await start
+
+      expect(response.statusCode).toBe(409)
+      expect(parseJson(response)).toEqual({ error: 'game_participants_changed' })
+      expect(await db('games').where('id', gameId).first()).toMatchObject({ state: 'pending' })
+      expect(await podiumsOf(gameId)).toEqual([1, 2, 3])
+    })
+
+    it('validation d’une demande et lancement en parallèle : jamais une partie lancée avec une liste périmée', async () => {
+      const gameId = await insertGame('pending')
+      await db('game_participants').insert([
+        { game_id: gameId, podium: 1, display_name: 'Léa' },
+        { game_id: gameId, podium: 2, display_name: 'Noé' },
+      ])
+      const registrationId = await insertRegistration(gameId, 'Zoé')
+      const held = await holdGameLock(gameId)
+
+      const accepted = accept(gameId, registrationId, 3)
+      const started = startRoom(gameId, [1, 2])
+      await waitForBlocked(2)
+      held.release()
+      await held.done
+      const [acceptResponse, startResponse] = await Promise.all([accepted, started])
+      const game = await db('games').where('id', gameId).first()
+
+      // Soit la validation passe d'abord (le lancement voit 3 joueurs et refuse), soit le
+      // lancement passe d'abord (la validation trouve la partie en cours) : jamais les deux.
+      if (startResponse.statusCode === 200) {
+        expect(acceptResponse.statusCode).toBe(409)
+        expect(parseJson(acceptResponse)).toEqual({ error: 'game_not_pending' })
+        expect(game.state).toBe('running')
+        expect(await podiumsOf(gameId)).toEqual([1, 2])
+      } else {
+        expect(acceptResponse.statusCode).toBe(201)
+        expect(startResponse.statusCode).toBe(409)
+        expect(parseJson(startResponse)).toEqual({ error: 'game_participants_changed' })
+        expect(game.state).toBe('pending')
+        expect(await podiumsOf(gameId)).toEqual([1, 2, 3])
+      }
+    })
+  })
 
   describe('une partie en attente et une partie en cours dans la même salle', () => {
     it('crée une partie en attente alors qu’une partie tourne, puis refuse une deuxième en attente', async () => {

@@ -9,14 +9,17 @@ import { isUniqueViolation } from '../_shared/dbErrors'
 import { acceptRegistrationSchema, gameParamsSchema, registrationParamsSchema } from './_schemas'
 import {
   findGameState,
-  findParticipantByPodium,
   getGameDesksCount,
   maskEmails,
+  participantSelect,
+  type ParticipantDbRow,
   registrationSelect,
+  toParticipant,
   toRegistration,
 } from './_shared'
 
-type AcceptOutcome = { podium: number } | { status: number; body: Record<string, unknown> }
+type AcceptOutcome =
+  { participant: ParticipantDbRow } | { status: number; body: Record<string, unknown> }
 
 /**
  * Demandes d'inscription faites depuis les téléphones (lot 2). Le personnel les valide (la ligne
@@ -149,30 +152,34 @@ const gamesRegistrationsRoutes: FastifyPluginAsync = async (app) => {
             return { status: 409, body: { error: 'podium_taken' } }
           }
 
-          await trx('game_participants').insert({
-            game_id: gameId,
-            podium,
-            display_name: registration.display_name,
-            email: registration.email,
-            consent_at: registration.consent_at,
-            marketing_consent_at: registration.marketing_consent_at,
-            second_display_name: registration.second_display_name,
-            second_email: registration.second_email,
-            second_consent_at: registration.second_consent_at,
-            second_marketing_consent_at: registration.second_marketing_consent_at,
-          })
+          // Le participant est lu par l'INSERT lui-même : une relecture après le commit pourrait
+          // tomber sur un retrait simultané.
+          const [participant] = (await trx('game_participants')
+            .insert({
+              game_id: gameId,
+              podium,
+              display_name: registration.display_name,
+              email: registration.email,
+              consent_at: registration.consent_at,
+              marketing_consent_at: registration.marketing_consent_at,
+              second_display_name: registration.second_display_name,
+              second_email: registration.second_email,
+              second_consent_at: registration.second_consent_at,
+              second_marketing_consent_at: registration.second_marketing_consent_at,
+            })
+            .returning(participantSelect)) as ParticipantDbRow[]
           await trx('game_registrations').where('id', registrationId).delete()
 
-          return { podium }
+          return { participant: participant! }
         })
 
         if ('status' in outcome) {
           return reply.code(outcome.status).send(outcome.body)
         }
 
-        const participant = await findParticipantByPodium(db, gameId, outcome.podium)
-
-        return reply.code(201).send({ participant: maskEmails(participant, req) })
+        return reply
+          .code(201)
+          .send({ participant: maskEmails(toParticipant(outcome.participant), req) })
       } catch (error) {
         // Le verrou rend ce cas rare ; l'index unique reste le dernier arbitre du pupitre.
         if (isUniqueViolation(error)) {

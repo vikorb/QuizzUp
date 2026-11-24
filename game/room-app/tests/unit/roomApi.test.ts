@@ -98,11 +98,24 @@ describe('API de la salle', () => {
     await startRoomGame('tok', 4)
     expect(fetchMock.mock.calls[0]?.[0]).toBe(`${API}/room/games/4/start`)
     expect(fetchMock.mock.calls[0]?.[1]?.method).toBe('POST')
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBeUndefined()
 
     const save = respond(200, { room: { id: 1, name: 'Salle', config: { version: 1 } } })
     await saveRoomConfig('tok', { version: 1 })
     expect(save.mock.calls.at(-1)?.[1]?.method).toBe('PUT')
     expect(save.mock.calls.at(-1)?.[1]?.body).toBe(JSON.stringify({ config: { version: 1 } }))
+  })
+
+  it('envoie les pupitres chargés au démarrage, et remonte le 409 du backoffice', async () => {
+    const fetchMock = respond(200, { game: { id: 4 } })
+    await startRoomGame('tok', 4, [3, 1])
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ podiums: [3, 1] }))
+
+    respond(409, { error: 'game_participants_changed' })
+    await expect(startRoomGame('tok', 4, [3])).rejects.toMatchObject({
+      status: 409,
+      code: 'game_participants_changed',
+    })
   })
 
   it('envoie la fin de partie avec les scores', async () => {

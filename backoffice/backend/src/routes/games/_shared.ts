@@ -342,16 +342,19 @@ function toParticipantRow(gameId: number, participant: GameParticipantInput) {
   }
 }
 
+/** Insère les participants et renvoie les lignes écrites, lues dans la même transaction. */
 export async function insertParticipants(
   trx: Knex.Transaction,
   gameId: number,
   participants: GameParticipantInput[]
-): Promise<void> {
-  if (participants.length > 0) {
-    await trx('game_participants').insert(
-      participants.map((participant) => toParticipantRow(gameId, participant))
-    )
+): Promise<ParticipantDbRow[]> {
+  if (participants.length === 0) {
+    return []
   }
+
+  return (await trx('game_participants')
+    .insert(participants.map((participant) => toParticipantRow(gameId, participant)))
+    .returning(participantSelect)) as ParticipantDbRow[]
 }
 
 export type NewGame = {
@@ -411,19 +414,6 @@ export async function getGameDesksCount(companyId: number, roomId: number): Prom
   const room = await findRoomInCompany(companyId, roomId)
 
   return getRoomDesksCount(room?.config)
-}
-
-/** Un participant, relu dans la transaction qui vient de l'écrire. */
-export async function findParticipantByPodium(
-  conn: Knex | Knex.Transaction,
-  gameId: number,
-  podium: number
-): Promise<GameParticipantRow> {
-  const row = (await conn('game_participants')
-    .where({ game_id: gameId, podium })
-    .first(participantSelect)) as ParticipantDbRow
-
-  return toParticipant(row)
 }
 
 /** Jeton d'un lien d'inscription : 32 octets aléatoires, jamais dérivés d'une donnée de la partie. */

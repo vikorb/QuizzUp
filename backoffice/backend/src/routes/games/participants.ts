@@ -9,10 +9,11 @@ import { isUniqueViolation } from '../_shared/dbErrors'
 import { gameParamsSchema, participantParamsSchema, participantSchema } from './_schemas'
 import {
   findGameState,
-  findParticipantByPodium,
   getGameDesksCount,
   insertParticipants,
   maskEmails,
+  type ParticipantDbRow,
+  toParticipant,
 } from './_shared'
 
 /**
@@ -72,21 +73,25 @@ const gamesParticipantsRoutes: FastifyPluginAsync = async (app) => {
       try {
         // Verrou de la partie : un lancement simultané ne laisse pas entrer un joueur en cours de
         // partie. Le pupitre déjà pris est refusé par l'index unique (partie, pupitre).
-        const isAdded = await db.transaction(async (trx): Promise<boolean> => {
+        // Le participant est lu par l'INSERT lui-même : une relecture après le commit pourrait
+        // tomber sur un retrait simultané.
+        const created = await db.transaction(async (trx): Promise<ParticipantDbRow | null> => {
           const locked = await trx('games').where('id', gameId).forUpdate().first('state')
 
           if (locked?.state !== GAME_STATE_PENDING) {
-            return false
+            return null
           }
 
-          await insertParticipants(trx, gameId, [participant])
+          const [row] = await insertParticipants(trx, gameId, [participant])
 
-          return true
+          return row!
         })
 
-        if (!isAdded) {
+        if (!created) {
           return reply.code(409).send({ error: 'game_not_pending' })
         }
+
+        return reply.code(201).send({ participant: maskEmails(toParticipant(created), req) })
       } catch (error) {
         if (isUniqueViolation(error)) {
           return reply.code(409).send({ error: 'podium_taken' })
@@ -94,10 +99,6 @@ const gamesParticipantsRoutes: FastifyPluginAsync = async (app) => {
 
         throw error
       }
-
-      const created = await findParticipantByPodium(db, gameId, participant.podium)
-
-      return reply.code(201).send({ participant: maskEmails(created, req) })
     }
   )
 
