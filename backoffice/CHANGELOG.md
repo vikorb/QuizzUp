@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Pilotage en direct, commandes à distance (écran de salle) : la salle applique `pause`, `resume`, `skip` et `abort` reçus par le flux, par les mêmes chemins que les boutons locaux, puis rend l'accusé (`POST /room/commands/:id/result`). Commande rejouée : même accusé, sans nouvelle application. `skip` refusé (`not_in_question`) s'il ne désigne plus la question en cours ; `abort` refusé s'il vise une autre partie. Scénario Playwright pause, refus, reprise.
+  US: US-LIVE-01 (#129)
+
 - Diagnostic à distance d'une salle, en lecture seule : l'écran de salle publie son état matériel dans son rapport d'état (version, source des buzzers et manettes, pilote et état des lumières, fumée activée et armée, audio prêt, date de la dernière erreur) et la fiche de la salle l'affiche dans un bloc « Diagnostic ». Rien n'est stocké. Une valeur inconnue est lue comme « inconnu » et ne fait jamais paraître la salle hors ligne.
   US: US-DIAG-01 (#157)
 - Commandes à distance, côté serveur : `POST /companies/{companyId}/rooms/{roomId}/commands` relaie pause, reprise, passer et arrêter à l'écran de salle connecté, qui répond par `POST /room/commands/{commandId}/result` ; le personnel reçoit le résultat (`applied`, `refused` ou `expired` après 10 s) sur le flux en direct. L'arrêt d'une partie depuis le backoffice prévient la salle quand elle est pilotable.
