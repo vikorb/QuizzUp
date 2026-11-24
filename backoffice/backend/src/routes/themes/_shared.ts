@@ -18,6 +18,7 @@ import {
 import db from '../../db'
 import {
   getProviderPlaylistTracks,
+  isPlayableTrack,
   MediaProviderUnavailableError,
   providerRefSchema,
 } from '../../services/mediaProvider'
@@ -183,7 +184,7 @@ export async function checkThemePlaylist(
       return { status: 422, error: 'theme_playlist_not_found' }
     }
 
-    const playable = tracks.filter((track) => track.readable && track.previewUrl !== null)
+    const playable = tracks.filter(isPlayableTrack)
 
     return playable.length < THEME_PLAYLIST_MIN_PLAYABLE_TRACKS
       ? { status: 422, error: 'theme_playlist_too_small' }

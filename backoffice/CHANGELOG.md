@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Blind test par playlist, côté salle : `GET /room/games/current/content` tire les titres d'un thème de playlist chez le fournisseur d'extraits et en fait des questions « Quel est ce titre ? » (quatre réponses, identifiants négatifs, crédit du titre). Nouvelle route `GET /room/games/current/tracks` qui rend les liens d'extrait à jour pour reprendre une partie après rechargement. En mode enfants, seuls les thèmes adaptés sont lus.
+  US: US-PLAYLIST-01 (#204)
+
 - API publique, bac à sable : la salle de démonstration naît avec des créneaux réservables (tous les jours de 10 h à 20 h, créneaux d'une heure, 4 pupitres), et un guide pas à pas (`docs/api/essayer-l-api-publique.md`) montre comment créer une clé puis réserver. Aucune clé n'est créée par le seed.
   US: US-BOOKING-01 (#188)
 
