@@ -67,7 +67,11 @@
       <section v-else-if="step === 'equip'" key="equip" class="lights__stage">
         <h1 class="lights__title">{{ $t('setupLights.equip.title') }}</h1>
         <p v-if="equipError" class="lights__error" role="alert" data-test="lights-equip-error">
-          {{ $t('setupLights.equip.smokeConflict') }}
+          {{
+            equipError === 'template'
+              ? $t('setupLights.equip.templateRefused')
+              : $t('setupLights.equip.smokeConflict')
+          }}
         </p>
         <div class="choices">
           <button
@@ -123,16 +127,7 @@
                 @click="choose(() => onModel(model.template))"
               >
                 <strong>{{ model.name }}</strong>
-                <span>
-                  {{
-                    model.needsArtnet
-                      ? $t('setupLights.models.needsArtnet')
-                      : $t('setupLights.models.hint', {
-                          desks: model.template.desksCount,
-                          n: model.template.fixtures.length,
-                        })
-                  }}
-                </span>
+                <span>{{ model.hint }}</span>
               </button>
             </li>
           </ul>
@@ -140,6 +135,14 @@
       </section>
 
       <section v-else-if="step === 'test' && current" key="test" class="lights__stage">
+        <p
+          v-if="universesRefused"
+          class="lights__small"
+          role="status"
+          data-test="lights-universes-refused"
+        >
+          {{ $t('setupLights.equip.universesRefused') }}
+        </p>
         <p class="lights__small">
           {{ $t('setupLights.test.progress', { n: index + 1, total: tests.length }) }}
         </p>
@@ -377,7 +380,10 @@ const index = ref(0)
 const phase = ref<'asking' | 'help'>('asking')
 const saving = ref(false)
 const saveError = ref(false)
-const equipError = ref(false)
+// Pourquoi le choix d'équipement est refusé : le modèle lui-même, ou la machine à fumée gardée.
+const equipError = ref<'template' | 'smoke' | null>(null)
+// La proposition d'univers n'a pas pu être faite sans recouvrir un appareil (fumée comprise).
+const universesRefused = ref(false)
 // Un choix d'équipement est en cours (confirmation ouverte, lumières appliquées) : pas de Retour.
 const choosing = ref(false)
 let confirming = false
@@ -493,7 +499,7 @@ async function choose(action: () => Promise<void>): Promise<void> {
 }
 
 function onEquipBack(): void {
-  equipError.value = false
+  equipError.value = null
   step.value = 'scan'
 }
 
@@ -504,18 +510,29 @@ const modelName = (template: RoomTemplate): string =>
 
 // Un modèle qui place des appareils sur un univers que l'interface choisie ne sait pas émettre
 // (USB : univers 0 seulement) serait sans signal : il n'est pas proposé.
-const models = computed(() =>
-  ROOM_TEMPLATES.map((template) => {
+const models = computed(() => {
+  const { driver } = view.value.config.lighting
+  const { desksCount } = view.value.config
+  const announced =
+    driver === 'artnet-bridge'
+      ? (nodes.value.find((item) => item.ip === chosenIp.value)?.universes?.length ?? 0)
+      : 0
+  return ROOM_TEMPLATES.map((template) => {
     const rig = createRigFromTemplate(template)
-    return {
-      template,
-      name: modelName(template),
-      needsArtnet:
-        rig.ok &&
-        unsupportedUniverseProblems(rig.fixtures, view.value.config.lighting.driver).length > 0,
+    const needsArtnet = rig.ok && unsupportedUniverseProblems(rig.fixtures, driver).length > 0
+    const used = rig.ok ? new Set(rig.fixtures.map((item) => item.universe ?? 0)).size : 0
+    // Le nombre de pupitres réglé avec les buzzers fait foi : l'écart est dit, rien n'est exclu.
+    let hint = needsArtnet
+      ? t('setupLights.models.needsArtnet')
+      : announced > 0 && used > announced
+        ? t('setupLights.models.needsOutputs', { need: used, have: announced })
+        : t('setupLights.models.hint', { desks: template.desksCount, n: template.fixtures.length })
+    if (template.desksCount !== desksCount) {
+      hint += ` · ${t('setupLights.models.desksDiffer', { n: desksCount })}`
     }
+    return { template, name: modelName(template), needsArtnet, hint }
   })
-)
+})
 
 const onSixDesk = (): Promise<void> =>
   equipFrom(t('setupLights.equip.replaceConfirm'), (target) => {
@@ -543,7 +560,7 @@ async function equipFrom(
     (item) => kindOf(item.profileId) === 'smoke'
   )
   // Essai à blanc : une machine à fumée dont l'adresse chevauche le modèle bloque l'import.
-  equipError.value = !importModel(createSetupWizard(view.value.config), load, smokes, desksCount)
+  equipError.value = importModel(createSetupWizard(view.value.config), load, smokes, desksCount)
   if (equipError.value) {
     return
   }
@@ -552,18 +569,21 @@ async function equipFrom(
   await startTests()
 }
 
-/** Remplace les appareils par ceux du modèle, en gardant les machines à fumée existantes. */
+/**
+ * Remplace les appareils par ceux du modèle, en gardant les machines à fumée existantes. Renvoie
+ * `null` si tout est accepté, sinon ce qui est refusé : le modèle, ou la machine à fumée.
+ */
 function importModel(
   target: SetupWizard,
   load: (target: SetupWizard) => boolean,
   smokes: FixtureConfig[],
   desksCount: number
-): boolean {
+): 'template' | 'smoke' | null {
   if (!load(target)) {
-    return false
+    return 'template'
   }
   target.setDesksCount(desksCount)
-  return smokes.every(
+  const kept = smokes.every(
     (smoke) =>
       target.addFixture({
         profileId: smoke.profileId,
@@ -573,25 +593,33 @@ function importModel(
         ...(smoke.desk === undefined ? {} : { desk: smoke.desk }),
       }).ok
   )
+  return kept ? null : 'smoke'
 }
 
 async function onKeep(): Promise<void> {
-  await offerUniverses()
   await startTests()
 }
 
 /**
- * Le boîtier Art-Net choisi annonce ses sorties : propose de placer les appareils sur les univers
- * correspondants. Rien ne change sans confirmation. Les univers choisis étant des sorties
- * distinctes dans le même ordre, le déplacement final ne chevauche jamais : seul l'ordre des
- * déplacements compte, d'où la reprise des refus passagers. Les machines à fumée suivent leur
- * groupe ; aucun réglage de fumée n'est touché (déplacer un appareil réinitialise même le test de coupure).
+ * Le boîtier Art-Net choisi annonce ses sorties : propose de placer les appareils du modèle sur les
+ * univers correspondants. Rien ne change sans confirmation. La machine à fumée ne bouge jamais
+ * (ni univers ni adresse), et aucun appareil ne peut arriver sur ses canaux : tout est essayé à
+ * blanc sur une copie de l'assistant, et si un seul appareil est refusé rien n'est proposé.
  */
 async function offerUniverses(): Promise<void> {
+  universesRefused.value = false
   const node = nodes.value.find((item) => item.ip === chosenIp.value)
   const { driver, fixtures } = view.value.config.lighting
-  const changes = node && driver === 'artnet-bridge' ? proposeUniverses(node, fixtures) : null
-  if (!node || !changes) {
+  if (!node || driver !== 'artnet-bridge') {
+    return
+  }
+  const lights = fixtures.filter((item) => kindOf(item.profileId) !== 'smoke')
+  const changes = proposeUniverses(node, lights)
+  if (!changes) {
+    return
+  }
+  if (!placeOnUniverses(createSetupWizard(view.value.config), changes)) {
+    universesRefused.value = true
     return
   }
   const message = t('setupLights.equip.universesConfirm', {
@@ -599,21 +627,15 @@ async function offerUniverses(): Promise<void> {
     n: changes.length,
   })
   if (await confirm({ message })) {
-    run(() => placeOnUniverses(changes))
+    run(() => placeOnUniverses(wizard, changes))
   }
 }
 
-function placeOnUniverses(changes: UniverseAssignment[]): void {
-  let pending = changes
-  while (pending.length > 0) {
-    const refused = pending.filter(
-      ({ fixtureId, universe }) => !wizard.updateFixture(fixtureId, { universe }).ok
-    )
-    if (refused.length === pending.length) {
-      return
-    }
-    pending = refused
-  }
+/** Tout ou rien pour l'appelant : `false` dès qu'un appareil est refusé (chevauchement, fumée). */
+function placeOnUniverses(target: SetupWizard, changes: UniverseAssignment[]): boolean {
+  return changes.every(
+    ({ fixtureId, universe }) => target.updateFixture(fixtureId, { universe }).ok
+  )
 }
 
 function onLater(): void {

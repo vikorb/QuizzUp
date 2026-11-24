@@ -309,6 +309,29 @@ describe('assistant d’installation : appareils', () => {
     expect(wizard.getState().config.lighting.customProfiles).toHaveLength(profiles)
   })
 
+  it('refait le test de gel quand un modèle remplace les appareils', () => {
+    const wizard = atFixtures()
+    wizard.addFixture({ profileId: 'smoke-relay', name: 'Fumée' })
+    wizard.checkSmoke('freezeTest', true)
+    expect(wizard.getState().smokeChecks.freezeTest).toBe(true)
+    wizard.importRoomTemplate((ROOM_TEMPLATES as readonly [RoomTemplate])[0])
+    expect(wizard.getState().smokeChecks.freezeTest).toBe(false)
+  })
+
+  it('refait le test de gel quand la fumée change d’univers, pas quand un autre appareil bouge', () => {
+    const wizard = atFixtures()
+    const par = wizard.addFixture({ profileId: 'par-rgb', name: 'PAR' })
+    const smoke = wizard.addFixture({ profileId: 'smoke-relay', name: 'Fumée' })
+    if (!par.ok || !smoke.ok) {
+      throw new Error('appareils non ajoutés')
+    }
+    wizard.checkSmoke('freezeTest', true)
+    expect(wizard.updateFixture(par.fixture.id, { universe: 1 })).toEqual({ ok: true })
+    expect(wizard.getState().smokeChecks.freezeTest).toBe(true)
+    expect(wizard.updateFixture(smoke.fixture.id, { universe: 1 })).toEqual({ ok: true })
+    expect(wizard.getState().smokeChecks.freezeTest).toBe(false)
+  })
+
   it('refuse un modèle invalide sans rien changer', () => {
     const wizard = atFixtures()
     wizard.addFixture({ profileId: 'par-rgb', name: 'Ancien' })

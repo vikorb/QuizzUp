@@ -1,4 +1,9 @@
-import { createSixDeskRoomRig, ROOM_TEMPLATES } from '@quizzup/hardware'
+import {
+  createSixDeskRoomRig,
+  findProfile,
+  ROOM_TEMPLATES,
+  type RoomTemplate,
+} from '@quizzup/hardware'
 import { flushPromises } from '@vue/test-utils'
 
 import { useConfirm } from '@/composables/useConfirm'
@@ -511,7 +516,7 @@ describe('lumières plein écran : proposition d’univers', () => {
     expect(wrapper.text()).toContain('Appareil 1 sur 4')
   })
 
-  it('sur les appareils gardés, décale les univers dans un ordre sans chevauchement', async () => {
+  it('sur les appareils gardés, ne propose rien : la proposition ne concerne que le modèle', async () => {
     await seedLighting({
       fixtures: [
         { id: 'haut', name: 'Haut', profileId: 'par-rgb', address: 1, universe: 2 },
@@ -521,10 +526,8 @@ describe('lumières plein écran : proposition d’univers', () => {
     bridge.nodes = node(['0.0.0', '0.0.1'])
     const { wrapper } = await mountLights()
     await click(wrapper, 'lights-scan-next')
-    void sel(wrapper, 'lights-keep').trigger('click')
-    await vi.waitFor(() => expect(useConfirm().state.open).toBe(true))
-    useConfirm().accept()
-    await flushPromises()
+    await click(wrapper, 'lights-keep')
+    expect(useConfirm().state.open).toBe(false)
 
     await answerYes(wrapper, 2)
     await click(wrapper, 'lights-finish')
@@ -534,28 +537,130 @@ describe('lumières plein écran : proposition d’univers', () => {
         fixture.universe ?? 0,
       ])
     )
-    expect(universes).toEqual({ haut: 1, bas: 0 })
+    expect(universes).toEqual({ haut: 2, bas: 1 })
   })
 
-  it('placer les appareils ne change pas les réglages de la fumée', async () => {
+  it('ne déplace jamais la fumée et ne pose rien sur ses canaux : rien n’est proposé', async () => {
+    const smokeAt20 = {
+      id: 'fumee',
+      name: 'Fumée',
+      profileId: 'smoke-dmx',
+      address: 20,
+      universe: 1,
+    }
     await seedLighting({
+      fixtures: [{ id: 'par1', name: 'PAR du fond', profileId: 'par-rgb', address: 1 }, smokeAt20],
+    })
+    bridge.nodes = node(['0.0.1', '0.0.2'])
+    const { wrapper } = await mountLights()
+    await click(wrapper, 'lights-scan-next')
+    void sel(wrapper, SIX_DESKS).trigger('click')
+    await vi.waitFor(() => expect(useConfirm().state.open).toBe(true))
+    useConfirm().accept()
+    await flushPromises()
+
+    // Pas de seconde confirmation : le déplacement recouvrirait les canaux de la fumée.
+    expect(useConfirm().state.open).toBe(false)
+    expect(sel(wrapper, 'lights-universes-refused').text()).toContain('machine à fumée')
+
+    await answerYes(wrapper, RIG_SIZE)
+    await click(wrapper, 'lights-smoke-next')
+    await click(wrapper, 'lights-finish')
+    const { fixtures, customProfiles } = getRoomHardwareConfig().lighting
+    const smoke = fixtures.find((fixture) => fixture.profileId === 'smoke-dmx')
+    expect(smoke).toMatchObject({ universe: 1, address: 20 })
+    const others = fixtures.filter((fixture) => fixture !== smoke)
+    expect(others).toHaveLength(RIG_SIZE)
+    expect(new Set(others.map((fixture) => fixture.universe ?? 0))).toEqual(new Set([0, 1]))
+    for (const fixture of others.filter((item) => (item.universe ?? 0) === 1)) {
+      const size = findProfile(fixture.profileId, customProfiles)?.channels.length ?? 0
+      expect(fixture.address <= 20 && 20 < fixture.address + size).toBe(false)
+    }
+  })
+
+  it('placer les appareils du modèle laisse tous les réglages de la fumée intacts', async () => {
+    const smoke = {
+      enabled: true,
+      maxDurationMs: 2000,
+      cooldownMs: 45_000,
+      maxLevel: 100,
+      requireConfirmation: false,
+      cutsOnSignalLoss: true,
+    }
+    await seedLighting({
+      smoke,
       fixtures: [
         { id: 'par1', name: 'PAR du fond', profileId: 'par-rgb', address: 1 },
         { id: 'fumee', name: 'Fumée', profileId: 'smoke-dmx', address: 400 },
       ],
     })
-    const smokeBefore = getRoomHardwareConfig().lighting.smoke
+    expect(getRoomHardwareConfig().lighting.smoke).toEqual(smoke)
     bridge.nodes = node(['0.0.1'])
     const { wrapper } = await mountLights()
     await click(wrapper, 'lights-scan-next')
-    void sel(wrapper, 'lights-keep').trigger('click')
+    void sel(wrapper, FOUR_PAR).trigger('click')
     await vi.waitFor(() => expect(useConfirm().state.open).toBe(true))
     useConfirm().accept()
+    await vi.waitFor(() => expect(useConfirm().state.message).toContain('0.0.1'))
+    // Seuls les quatre appareils du modèle sont comptés, pas la machine à fumée.
+    expect(useConfirm().state.message).toContain('4 appareil(s)')
+    useConfirm().accept()
     await flushPromises()
-    await answerYes(wrapper, 1)
+    await answerYes(wrapper, 4)
     await click(wrapper, 'lights-smoke-next')
     await click(wrapper, 'lights-finish')
-    expect(getRoomHardwareConfig().lighting.smoke).toEqual(smokeBefore)
+
+    const config = getRoomHardwareConfig().lighting
+    const lights = config.fixtures.filter((fixture) => fixture.profileId !== 'smoke-dmx')
+    expect(lights.map((fixture) => fixture.universe)).toEqual([1, 1, 1, 1])
+    const smokeFixture = config.fixtures.find((fixture) => fixture.profileId === 'smoke-dmx')
+    expect(smokeFixture).toMatchObject({ address: 400 })
+    expect(smokeFixture?.universe ?? 0).toBe(0)
+    // Les cinq réglages gardent leur valeur. `enabled` retombe à faux : en fin de parcours l'assistant
+    // enregistre la fumée désactivée tant que ses vérifications ne sont pas refaites (comportement
+    // existant, le parcours le dit à l'écran) ; un modèle ne l'active jamais.
+    expect(config.smoke).toEqual({ ...smoke, enabled: false })
+  })
+
+  it('prévient quand le boîtier annonce moins de sorties que le modèle n’en demande', async () => {
+    bridge.nodes = node(['0.0.0'])
+    const { wrapper } = await mountLights()
+    await click(wrapper, 'lights-scan-next')
+    expect(sel(wrapper, SIX_DESKS).text()).toContain('Demande 2 sorties, ton boîtier en annonce 1')
+    expect(sel(wrapper, SIX_DESKS).attributes('disabled')).toBeUndefined()
+    expect(sel(wrapper, FOUR_PAR).text()).not.toContain('Demande')
+  })
+})
+
+describe('lumières plein écran : indications et refus des modèles', () => {
+  it('dit quand le nombre de pupitres réglé avec les buzzers diffère du modèle', async () => {
+    const config = getRoomHardwareConfig()
+    await saveRoomHardwareConfig({ ...config, desksCount: 4 })
+    const { wrapper } = await toEquip()
+    expect(sel(wrapper, FOUR_PAR).text()).not.toContain('tu as réglé')
+    expect(sel(wrapper, SIX_DESKS).text()).toContain('tu as réglé 4 pupitres')
+  })
+
+  it('un modèle refusé par l’assistant affiche son propre message, sans rien changer', async () => {
+    const broken: RoomTemplate = {
+      id: 'broken',
+      name: 'Modèle cassé',
+      desksCount: 4,
+      fixtures: [{ id: 'x', name: 'X', profileId: 'inconnu' }],
+      customProfiles: [],
+    }
+    await seedLighting({ fixtures: [] })
+    const templates = ROOM_TEMPLATES as RoomTemplate[]
+    templates.push(broken)
+    try {
+      const { wrapper } = await toEquip()
+      await click(wrapper, 'lights-model-broken')
+      expect(sel(wrapper, 'lights-equip-error').text()).toContain('n’a pas pu être appliqué')
+      expect(sel(wrapper, 'lights-equip-error').text()).not.toContain('fumée')
+      expect(stepOf(wrapper)).toBe('equip')
+    } finally {
+      templates.pop()
+    }
   })
 })
 
