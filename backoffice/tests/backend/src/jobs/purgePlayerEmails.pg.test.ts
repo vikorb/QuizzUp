@@ -47,7 +47,7 @@ describe.skipIf(!PG_INTEGRATION_URL)('purgeExpiredPlayerEmails sur PostgreSQL', 
   // Un test arrêté par son délai laisse sa requête tourner côté serveur : elle bloquerait le TRUNCATE suivant.
   afterEach(async () => {
     await db.raw(
-      "SELECT pg_cancel_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid() AND state = 'active'"
+      "SELECT pg_cancel_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid() AND state = 'active' AND backend_type = 'client backend' AND usename = current_user"
     )
   })
 

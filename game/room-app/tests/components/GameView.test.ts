@@ -17,11 +17,14 @@ import { enterDemo, syncRoomAuth } from '@/state/roomAuth'
 import GameView from '@/views/GameView.vue'
 
 import { createManualClock, REGISTRATIONS } from '../_helpers/fixtures'
+import { pressKey } from '../_helpers/keyboard'
 import { mountWithApp, PRELOAD_TIMEOUT_MS, preloadRoutes } from '../_helpers/mount'
 
 beforeAll(preloadRoutes, PRELOAD_TIMEOUT_MS)
 
 const BLIND_TEST_ONLY = [MINI_GAME_FLASH_BLIND_TEST]
+
+const KEY_BY_DESK = { 1: 'Digit1', 2: 'KeyQ', 3: 'KeyA', 4: 'KeyZ' } as const
 
 describe('GameView', () => {
   let clock: ReturnType<typeof createManualClock>
@@ -131,6 +134,24 @@ describe('GameView', () => {
     expect(wrapper.text()).toContain('Léa trouve au palier 1')
     expect(wrapper.find('.answer--correct').exists()).toBe(true)
     expect(state.value?.scores.find((line) => line.participantId === 1)?.score).toBe(100)
+    wrapper.unmount()
+  })
+
+  it('le choisisseur lance la question avec une vraie touche du clavier', async () => {
+    startNewGame({
+      registrations: REGISTRATIONS,
+      themes: getDemoThemes(),
+      seed: 11,
+      miniGames: BLIND_TEST_ONLY,
+    })
+    const { state } = useRoomGame()
+    const { wrapper } = await mountWithApp(GameView, { route: '/play' })
+    clock.advance(DEFAULT_GAME_TIMINGS.roundIntroMs + 1)
+    await vi.waitFor(() => expect(state.value?.phase.name).toBe('theme_choice'))
+
+    // Seule la phase est vérifiée : le `timeStamp` réel de l'événement ne doit rien changer au verdict.
+    pressKey(KEY_BY_DESK[state.value?.rounds[0]?.chooserParticipantId as 1 | 2 | 3])
+    await vi.waitFor(() => expect(state.value?.phase.name).toBe('question'))
     wrapper.unmount()
   })
 
