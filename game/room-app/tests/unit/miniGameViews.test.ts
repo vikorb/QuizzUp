@@ -1,4 +1,8 @@
-import { type ButtonIndex, getMiniGameQuestion } from '@quizzup/game-engine'
+import {
+  type ButtonIndex,
+  FIRST_BUZZ_ANSWER_TIMEOUT_MS,
+  getMiniGameQuestion,
+} from '@quizzup/game-engine'
 import {
   MINI_GAME_DOUBLE_OR_NOTHING,
   MINI_GAME_ESTIMATE,
@@ -241,4 +245,23 @@ describe('getMiniGameView', () => {
       })
     }
   )
+
+  it('premier buzz : expose le temps restant en ms, fenêtre puis réponse', () => {
+    const { session, clock } = startOn(MINI_GAME_FIRST_BUZZ)
+    const open = getMiniGameView(session.state, clock.value)
+    const windowMs = open?.mode === 'buzz' ? open.remainingMs : 0
+    expect(windowMs).toBeGreaterThan(2000)
+    expect(open?.mode === 'buzz' && open.answerRemainingMs).toBe(0)
+
+    clock.advance(2000)
+    const later = getMiniGameView(session.state, clock.value)
+    expect(later?.mode === 'buzz' && later.remainingMs).toBe(windowMs - 2000)
+
+    session.press(3, 0)
+    clock.advance(1000)
+    const answering = getMiniGameView(session.state, clock.value)
+    expect(answering?.mode === 'buzz' && answering.answerRemainingMs).toBe(
+      FIRST_BUZZ_ANSWER_TIMEOUT_MS - 1000
+    )
+  })
 })

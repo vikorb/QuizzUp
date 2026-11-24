@@ -13,7 +13,7 @@ import { syncHardwareWithRoom } from '@/hardware/hardwareSync'
 import { createAppI18n } from '@/plugins/i18n'
 import { createRoomRouter } from '@/router'
 import { isRoomReady, refreshRoomAccount } from '@/state/roomAuth'
-import { authHeaders, getRoomToken } from '@/utils/auth'
+import { fetchRoomMedia } from '@/utils/mediaFetch'
 import { guardSingleInstance } from '@/utils/singleInstance'
 import AlreadyOpenView from '@/views/AlreadyOpenView.vue'
 
@@ -27,10 +27,7 @@ function startRoom(): void {
       createDemoSynthPlayer(() => extracts.getContext())
     ),
     sounds: UiSoundPlayer.sharing(extracts),
-    fetchMedia: (url) => {
-      const token = getRoomToken()
-      return fetch(url, token ? { headers: authHeaders(token) } : {})
-    },
+    fetchMedia: fetchRoomMedia,
   })
 
   const router = createRoomRouter()

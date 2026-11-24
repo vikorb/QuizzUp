@@ -1,6 +1,8 @@
-import fastify, { type FastifyReply, type FastifyRequest } from 'fastify'
+import fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
 import { expect, vi } from 'vitest'
 
+import type { LiveHub } from '../../../../../backend/src/live/hub'
+import liveHubPlugin from '../../../../../backend/src/plugins/liveHub'
 import { createConsoleNetwork } from '../../../../../backend/src/security/consoleNetwork'
 import { parseTotpKey } from '../../../../../backend/src/security/secretBox'
 
@@ -83,10 +85,17 @@ export async function createRouteApp(plugin: unknown) {
     }
   })
 
+  // Le hub du direct, comme dans `buildApp` : les routes du direct et l'arrêt d'une partie s'en servent.
+  await app.register(liveHubPlugin as never)
   await app.register(plugin as never)
   await app.ready()
 
   return app
+}
+
+/** Le hub du direct de l'application (décoré par `plugins/liveHub`, hors du typage de ce programme). */
+export function liveHubOf(app: FastifyInstance): LiveHub {
+  return (app as unknown as { liveHub: LiveHub }).liveHub
 }
 
 export function parseJson<T = Record<string, unknown>>(response: { json: () => unknown }): T {

@@ -2,10 +2,13 @@ import { z } from 'zod'
 
 import {
   BUZZER_SOURCE_KINDS,
+  GAME_COMMAND_REFUSALS,
   GAME_PHASES,
   LIGHTING_DRIVERS,
   LIGHTING_OUTPUT_STATUSES,
   MINI_GAMES,
+  ROOM_COMMAND_RESULT,
+  ROOM_COMMANDS,
   ROOM_DIAGNOSTICS_MAX_GAMEPADS,
   ROOM_LOG_APP_VERSION_MAX_LENGTH,
   ROOM_SCREENS,
@@ -66,3 +69,38 @@ export const roomStatusBodySchema = z.object({
   // Absent des écrans de salle plus anciens, ou illisible : le rapport reste valide, sans diagnostic.
   diagnostics: roomDiagnosticsSchema.optional().catch(undefined),
 })
+
+const commandIdSchema = z.uuid()
+
+/**
+ * Commande du personnel : `skip` vise une question précise (`round` et `questionIndex`), `abort`
+ * une partie précise (`gameId`).
+ */
+export const roomCommandBodySchema = z.discriminatedUnion('command', [
+  z.object({
+    commandId: commandIdSchema,
+    command: z.enum(ROOM_COMMANDS).extract(['pause', 'resume']),
+  }),
+  z.object({
+    commandId: commandIdSchema,
+    command: z.enum(ROOM_COMMANDS).extract(['skip']),
+    round: z.number().int().min(0).max(1000),
+    questionIndex: z.number().int().min(0).max(1000),
+  }),
+  z.object({
+    commandId: commandIdSchema,
+    command: z.enum(ROOM_COMMANDS).extract(['abort']),
+    gameId: z.number().int().positive(),
+  }),
+])
+
+export const roomCommandResultParamsSchema = z.object({ commandId: commandIdSchema })
+
+/** Accusé de la salle : `refused` dit pourquoi ; `expired` n'est décidé que par le serveur. */
+export const roomCommandResultBodySchema = z.discriminatedUnion('result', [
+  z.object({ result: z.literal(ROOM_COMMAND_RESULT.APPLIED) }),
+  z.object({
+    result: z.literal(ROOM_COMMAND_RESULT.REFUSED),
+    reason: z.enum(GAME_COMMAND_REFUSALS),
+  }),
+])
