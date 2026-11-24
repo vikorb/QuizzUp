@@ -48,6 +48,7 @@ beforeEach(async () => {
 afterEach(async () => {
   await app.close()
   vi.useRealTimers()
+  vi.unstubAllEnvs()
 })
 
 function list(query = '', user: TestUser | null = companyAdminUser, companyId = 1) {
@@ -123,6 +124,16 @@ describe('GET /companies/:companyId/vouchers', () => {
       'expired',
       'valid',
     ])
+  })
+
+  it('keeps the url but not the QR code: up to 200 SVG per page would cost too much', async () => {
+    vi.stubEnv('PUBLIC_APP_URL', 'https://bo.quizzup.test')
+    seedOneOfEach()
+
+    const { vouchers } = parseJson<ListBody>(await list())
+
+    expect(vouchers[0]!.url).toBe(`https://bo.quizzup.test/bon/#${String(vouchers[0]!.code)}`)
+    expect(vouchers.some((voucher) => 'qrSvg' in voucher)).toBe(false)
   })
 
   it.each([

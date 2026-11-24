@@ -9,6 +9,7 @@ import {
   type VoucherState,
 } from '@quizzup/shared'
 import db from '../../db'
+import { qrSvg } from '../../utils/qrSvg'
 
 /** Index unique partiel : un bon par pupitre et par partie (la collision de code est l'autre cas). */
 export const VOUCHER_ISSUED_CONSTRAINT = 'vouchers_game_id_participant_id_active_unique'
@@ -80,6 +81,14 @@ export function toVoucherRow(row: Record<string, unknown>, now: Date = new Date(
     ),
     url: voucherUrl(voucher.code),
   }
+}
+
+/**
+ * Ajoute le QR code de la page du bon (`null` si `url` l'est). À part de `toVoucherRow` : un QR
+ * coûte, et la liste de la compagnie (jusqu'à `VOUCHER_LIST_MAX_LIMIT` bons) n'en a pas besoin.
+ */
+export function withVoucherQr(voucher: VoucherRow): VoucherRow & { qrSvg: string | null } {
+  return { ...voucher, qrSvg: voucher.url ? qrSvg(voucher.url) : null }
 }
 
 /**

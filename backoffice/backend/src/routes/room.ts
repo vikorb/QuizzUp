@@ -21,6 +21,7 @@ import { roomSelect } from './companies/rooms/_shared'
 import { addGameJoin, findGameInCompany, openScheduledGame } from './games/_shared'
 import { getMediaVersion } from './questions/_shared'
 import { isInPlayableTheme, isReadableByCompany, loadRoomContent } from './room/_content'
+import { areRoundsAcceptable, roomRoundsSchema, saveGameRounds } from './room/_history'
 import { findCurrentGameId } from './room/_join'
 import { isRoomAccount, roomPodiumsSchema, roomScoresSchema } from './room/_shared'
 
@@ -32,8 +33,11 @@ const roomGameParamsSchema = z.object({
 // aucune vérification.
 const roomGameStartBodySchema = z.object({ podiums: roomPodiumsSchema.optional() })
 
-// Scores finaux par pupitre.
-const roomGameFinishBodySchema = z.object({ scores: roomScoresSchema })
+// Scores finaux par pupitre, et manches jouées (facultatives : un ancien écran n'en envoie pas).
+const roomGameFinishBodySchema = z.object({
+  scores: roomScoresSchema,
+  rounds: roomRoundsSchema.optional(),
+})
 
 const roomConfigBodySchema = z.object({
   config: roomConfigSchema,
@@ -459,7 +463,7 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const podiums = new Set(game.participants.map((participant) => participant.podium))
-    const { scores } = parsedBody.data
+    const { scores, rounds } = parsedBody.data
 
     // Un score par pupitre inscrit, ni plus ni moins : pas de partie close à moitié notée.
     if (
@@ -468,6 +472,10 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
       new Set(scores.map((line) => line.podium)).size !== scores.length
     ) {
       return reply.code(400).send({ error: 'game_scores_invalid' })
+    }
+
+    if (rounds && !(await areRoundsAcceptable(req.user.company_id, game.roundsCount, rounds))) {
+      return reply.code(400).send({ error: 'game_rounds_invalid' })
     }
 
     await db.transaction(async (trx) => {
@@ -486,6 +494,8 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
           .where({ game_id: gameId, podium })
           .update({ score, updated_at: trx.fn.now() })
       }
+
+      await saveGameRounds(trx, gameId, rounds ?? [])
     })
 
     const finished = await findRoomGame(req, gameId)

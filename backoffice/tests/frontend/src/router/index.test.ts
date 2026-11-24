@@ -1,4 +1,8 @@
-import { setAuthenticatedAdmin, setUnauthenticated } from '@frontend-tests/_helpers/authStateMock'
+import {
+  setAuthenticatedAdmin,
+  setAuthenticatedUser,
+  setUnauthenticated,
+} from '@frontend-tests/_helpers/authStateMock'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { describe, expect, it } from 'vitest'
 
@@ -82,5 +86,27 @@ describe('router: unknown address', () => {
     await router.push('/cette/page/nexiste/pas')
 
     expect(router.currentRoute.value.name).toBe('home')
+  })
+})
+
+describe('router: vouchers page', () => {
+  it('sends a signed-out visitor to the login page, then back to the vouchers', async () => {
+    setUnauthenticated()
+
+    await router.push('/vouchers')
+
+    expect(router.currentRoute.value.name).toBe('login')
+    expect(router.currentRoute.value.query.redirect).toBe('/vouchers')
+  })
+
+  it.each([
+    ['staff', () => setAuthenticatedUser()],
+    ['admins', () => setAuthenticatedAdmin()],
+  ])('opens for %s, who all hold the voucher rights', async (_role, signIn) => {
+    signIn()
+
+    await router.push('/vouchers')
+
+    expect(router.currentRoute.value.name).toBe('vouchers')
   })
 })

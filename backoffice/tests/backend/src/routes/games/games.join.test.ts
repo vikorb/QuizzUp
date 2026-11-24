@@ -12,6 +12,7 @@ import {
   ROOM_STATUS_ACTIVE,
 } from '@quizzup/shared'
 import gamesRoutes from '@backend/routes/games'
+import { qrSvg } from '@backend/utils/qrSvg'
 import { db, dbState, MOCK_NOW } from '../_helpers/mockDb'
 import { securityState } from '../_helpers/mockSecurity'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
@@ -172,6 +173,7 @@ describe('POST /companies/:companyId/games with openJoin', () => {
     const { game } = parseJson<{ game: Record<string, any> }>(response)
     expect(game).toMatchObject({ state: GAME_STATE_PENDING, participants: [] })
     expect(game.join.url).toMatch(/^https:\/\/bo\.quizzup\.test\/rejoindre\/#[\w-]{43}$/)
+    expect(game.join.qrSvg).toBe(qrSvg(game.join.url))
     expect(game.join.expiresAt).toBe(
       new Date(NOW.getTime() + JOIN_LINK_TTL_MINUTES * 60_000).toISOString()
     )
@@ -256,6 +258,7 @@ describe('GET /companies/:companyId/games/:gameId', () => {
     expect(game).toMatchObject({
       join: {
         url: `https://bo.quizzup.test/rejoindre/#${TOKEN}`,
+        qrSvg: qrSvg(`https://bo.quizzup.test/rejoindre/#${TOKEN}`),
         expiresAt: '2027-03-10T10:00:00.000Z',
       },
       pendingRegistrationsCount: 1,
@@ -269,9 +272,12 @@ describe('GET /companies/:companyId/games/:gameId', () => {
       join_expires_at: '2027-03-10T10:00:00.000Z',
     })
 
-    const { game } = parseJson<{ game: { join: { url: string } } }>(await read())
+    const { game } = parseJson<{ game: { join: { url: string; qrSvg: string | null } } }>(
+      await read()
+    )
 
     expect(game.join.url).toBe(`/rejoindre/#${TOKEN}`)
+    expect(game.join.qrSvg).toBeNull()
   })
 
   it('has no link once it expired or the game is no longer pending', async () => {
@@ -314,6 +320,7 @@ describe('POST and DELETE /companies/:companyId/games/:gameId/join', () => {
     expect(first.statusCode).toBe(200)
     expect(parseJson<{ join: Record<string, string> }>(first).join).toEqual({
       url: `https://bo.quizzup.test/rejoindre/#${firstToken}`,
+      qrSvg: qrSvg(`https://bo.quizzup.test/rejoindre/#${firstToken}`),
       expiresAt: new Date(NOW.getTime() + JOIN_LINK_TTL_MINUTES * 60_000).toISOString(),
     })
     expect(firstToken).toMatch(/^[\w-]{43}$/)
