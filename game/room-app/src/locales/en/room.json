@@ -118,7 +118,6 @@
       "join": {
         "title": "Scan to sign up",
         "qrAlt": "Sign-up QR code for the game",
-        "expired": "The sign-up link has expired: the staff can generate a new one in the back office.",
         "pending": "{n} sign-up waiting for approval | {n} sign-ups waiting for approval"
       },
       "duo": "{first} & {second}",

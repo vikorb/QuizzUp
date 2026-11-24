@@ -627,31 +627,46 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
       expect(wrapper.find('[data-test="join-url"]').text()).toBe(JOIN.url)
     })
 
-    it.each([
-      ['absent', { url: JOIN.url, expiresAt: JOIN.expiresAt }],
-      ['null', { ...JOIN, qrSvg: null }],
-    ])('sans QR code (%s), n’affiche que l’adresse en clair', async (_label, join) => {
-      const wrapper = await mountLobby({ join })
+    it('sans QR code (serveur sans adresse publique), n’affiche pas l’adresse relative', async () => {
+      const wrapper = await mountLobby({
+        join: { url: '/rejoindre/#jeton', qrSvg: null, expiresAt: JOIN.expiresAt },
+      })
 
-      expect(wrapper.find('[data-test="join-qr"]').exists()).toBe(false)
-      expect(wrapper.find('[data-test="join-url"]').text()).toBe(JOIN.url)
+      expect(wrapper.find('[data-test="join"]').exists()).toBe(false)
+      expect(wrapper.text()).not.toContain('/rejoindre/')
     })
 
-    it('n’affiche rien quand le lien est fermé ou inconnu du serveur', async () => {
+    it.each([
+      ['null', { ...JOIN, qrSvg: null }],
+      ['absent', { url: JOIN.url, expiresAt: JOIN.expiresAt }],
+    ])(
+      'sans QR code (%s) mais avec une adresse absolue, affiche l’adresse seule',
+      async (_label, join) => {
+        const wrapper = await mountLobby({ join })
+
+        expect(wrapper.find('[data-test="join-qr"]').exists()).toBe(false)
+        expect(wrapper.find('[data-test="join-url"]').text()).toBe(JOIN.url)
+      }
+    )
+
+    it('n’affiche aucun lien quand il est fermé ou inconnu du serveur, mais garde la zone vivante vide', async () => {
       for (const join of [null, undefined]) {
         vi.restoreAllMocks()
         const wrapper = await mountLobby({ join })
         expect(wrapper.find('[data-test="join"]').exists()).toBe(false)
-        expect(wrapper.find('[data-test="join-expired"]').exists()).toBe(false)
-        expect(wrapper.find('[data-test="pending-registrations"]').exists()).toBe(false)
+        const live = wrapper.find('[data-test="pending-registrations"]')
+        expect(live.attributes('role')).toBe('status')
+        expect(live.text()).toBe('')
       }
     })
 
-    it('retire le QR code d’un lien expiré et le dit', async () => {
-      const wrapper = await mountLobby({ join: { ...JOIN, expiresAt: '2000-01-01T00:00:00Z' } })
+    it('garde le compteur des demandes quand le lien est fermé', async () => {
+      const wrapper = await mountLobby({ join: null, pendingRegistrationsCount: 2 })
 
       expect(wrapper.find('[data-test="join"]').exists()).toBe(false)
-      expect(wrapper.find('[data-test="join-expired"]').text()).toContain('a expiré')
+      expect(wrapper.find('[data-test="pending-registrations"]').text()).toBe(
+        '2 inscriptions en attente de validation'
+      )
     })
 
     it('n’affiche pas le QR code d’une partie déjà en cours', async () => {

@@ -69,17 +69,17 @@
             <p class="staff-lobby__join-url" data-test="join-url">{{ joinOffer.url }}</p>
           </div>
         </section>
-        <p v-else-if="joinExpired" class="staff-lobby__subtitle" data-test="join-expired">
-          {{ $t('room.staffLobby.join.expired') }}
-        </p>
 
+        <!-- Zone vivante toujours présente tant que la partie attend : seul son texte change. -->
         <p
-          v-if="pendingRegistrations > 0 && !isRunning"
+          v-if="!isRunning"
           class="staff-lobby__subtitle"
           role="status"
           data-test="pending-registrations"
         >
-          {{ $t('room.staffLobby.join.pending', pendingRegistrations) }}
+          {{
+            pendingRegistrations > 0 ? $t('room.staffLobby.join.pending', pendingRegistrations) : ''
+          }}
         </p>
 
         <div class="staff-lobby__desks">
@@ -223,13 +223,14 @@ let disposed = false
 
 const isRunning = computed(() => game.value?.state === GAME_STATE_RUNNING)
 
-/** Heure de la dernière lecture de la partie : un lien expiré n'affiche plus son QR code. */
-const now = ref(Date.now())
-const joinLink = computed(() => (isRunning.value ? null : (game.value?.join ?? null)))
-const joinExpired = computed(
-  () => joinLink.value !== null && Date.parse(joinLink.value.expiresAt) <= now.value
-)
-const joinOffer = computed(() => (joinExpired.value ? null : joinLink.value))
+/**
+ * Le serveur renvoie `join: null` dès que le lien est fermé ou expiré : on s'y fie. Sans QR, une
+ * adresse relative (serveur sans adresse publique) est inutilisable : on ne l'affiche pas.
+ */
+const joinOffer = computed(() => {
+  const link = isRunning.value ? null : (game.value?.join ?? null)
+  return link && (link.qrSvg || /^https?:\/\//i.test(link.url)) ? link : null
+})
 /** Le QR est un SVG rendu par `<img>` (jamais `v-html`) : aucun script de la réponse ne s'exécute. */
 const joinQrSrc = computed(() =>
   joinOffer.value?.qrSvg
@@ -290,7 +291,6 @@ async function refresh(): Promise<void> {
     if (starting.value || disposed) {
       return
     }
-    now.value = Date.now()
     game.value = current
     status.value = current ? 'ready' : 'waiting'
     savedGame.value = hasSaveFor(current)

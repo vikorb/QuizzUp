@@ -118,7 +118,6 @@
       "join": {
         "title": "Scanne pour t’inscrire",
         "qrAlt": "QR code d’inscription à la partie",
-        "expired": "Le lien d’inscription a expiré : le staff peut en générer un nouveau au backoffice.",
         "pending": "{n} inscription en attente de validation | {n} inscriptions en attente de validation"
       },
       "duo": "{first} & {second}",
