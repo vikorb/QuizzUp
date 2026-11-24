@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { QUESTION_MEDIA_PROVIDERS, THEME_SCOPES } from '@quizzup/shared'
+import { QUESTION_AUDIO_EFFECTS, QUESTION_MEDIA_PROVIDERS, THEME_SCOPES } from '@quizzup/shared'
 
 import { providerRefSchema } from '../../services/mediaProvider'
 
@@ -16,6 +16,9 @@ export const importQuestionsQuerySchema = z.object({
   scope: z.enum(THEME_SCOPES).optional(),
   companyId: z.coerce.number().int().positive().optional(),
 })
+
+/** Effet audio d'une question : `null` l'efface (retour à `none`). */
+export const questionAudioEffectSchema = z.enum(QUESTION_AUDIO_EFFECTS).nullable()
 
 /** Corps de `PUT /questions/:questionId/media/provider` : un titre d'un fournisseur d'extraits. */
 export const questionMediaProviderBodySchema = z.object({

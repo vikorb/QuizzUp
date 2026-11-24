@@ -2665,6 +2665,12 @@ paths:
                                   example: /room/questions/12/media,
                                 }
                               mediaStartMs: { type: integer }
+                              audioEffect:
+                                {
+                                  type: string,
+                                  enum: [none, short, reverse, slowed],
+                                  description: "Effet joué sur l'extrait (blind test), `none` hors question audio ou sans effet.",
+                                }
                               mediaCredit:
                                 type: object
                                 nullable: true
@@ -4331,6 +4337,10 @@ paths:
         Statut : **Non disponible**
 
         Route prévue pour créer une question et ses réponses.
+
+        Effet audio : le champ optionnel `audioEffect` (voir `UpdateQuestionRequest`) est accepté
+        à la création, avec les mêmes règles (`question_audio_effect_invalid`,
+        `audio_effect_requires_audio`).
       operationId: createQuestion
       x-availability: non_disponible
       x-us: 'US Gestion des questions'
@@ -6095,6 +6105,14 @@ components:
           description: |
             Libellé « artiste — titre » enregistré au rattachement, pour afficher le titre sans
             interroger le fournisseur ; `null` si `mediaProvider` l'est.
+        audioEffect:
+          type: string
+          enum: [none, short, reverse, slowed]
+          default: none
+          description: |
+            Effet joué sur l'extrait de la question audio (blind test) : `none`, `short` (paliers
+            très courts, appliqué par le moteur), `reverse` (à l'envers) ou `slowed` (ralenti).
+            `none` pour une question qui n'est pas audio.
         status:
           type: integer
           enum: [0, 1, 2, 3]
@@ -6145,6 +6163,15 @@ components:
             `question_media_start_out_of_range`) ; refusé sans fichier (`question_media_not_found`).
             Passer `typeMedia` à une autre valeur que `audio` détache et supprime le fichier.
           example: not_found
+        audioEffect:
+          type: string
+          enum: [none, short, reverse, slowed]
+          nullable: true
+          description: |
+            Effet joué sur l'extrait (blind test) ; `null` l'efface (retour à `none`). Valeur
+            inconnue : `question_audio_effect_invalid`. Autre chose que `none` sur une question qui
+            n'est pas audio : `audio_effect_requires_audio` (le type est celui envoyé, sinon celui
+            de la base). Passer `typeMedia` à autre chose que `audio` remet l'effet à `none`.
 
     ValidationError:
       type: object

@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Effet audio d'une question (`audioEffect` : `none`, `short`, `reverse`, `slowed`) : stocké sur la question, validé (400 `question_audio_effect_invalid`, `audio_effect_requires_audio`) et distribué à la salle avec le contenu de la partie.
+  US: US-AUDIO-02 (#144)
+
 - Show lumière réglable par salle : `lighting.scenes` surcharge les scènes par défaut (bornées : 400 ms au moins entre deux éclairs, un seul jet de fumée par scène, jamais dans une boucle), une scène peut en enchaîner une autre (`next`), nouveaux signaux `game_paused`, `game_resumed`, `session_exit` et `round_started.<miniGame>`. Les clés de configuration inconnues sont conservées. Modèles de salle prêts à l'emploi (4 modèles, sans fumée) et proposition d'univers Art-Net.
   US: US-SHOW-01 (#145)
 - Diagnostic à distance d'une salle, en lecture seule : l'écran de salle publie son état matériel dans son rapport d'état (version, source des buzzers et manettes, pilote et état des lumières, fumée activée et armée, audio prêt, date de la dernière erreur) et la fiche de la salle l'affiche dans un bloc « Diagnostic ». Rien n'est stocké. Une valeur inconnue est lue comme « inconnu » et ne fait jamais paraître la salle hors ligne.
