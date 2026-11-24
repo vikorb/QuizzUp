@@ -126,6 +126,82 @@ describe('audioBridge', () => {
     expect(player.play).toHaveBeenCalledTimes(1)
   })
 
+  it.each(['reverse', 'slowed', 'short'] as const)(
+    'passe l’effet %s au lecteur sans toucher au point de départ ni à la durée',
+    (audioEffect) => {
+      const player = fakePlayer()
+      createAudioBridge(player).handleEvents([
+        event('blind_test_stage_started', {
+          mediaUrl: 'a.mp3',
+          mediaStartMs: 12_500,
+          extractMs: 5000,
+          audioEffect,
+        }),
+      ])
+      expect(player.play).toHaveBeenCalledWith('a.mp3', 12.5, 5000, { effect: audioEffect })
+    }
+  )
+
+  it.each([
+    ['sans champ', {}],
+    ['nul', { audioEffect: null }],
+    ['none', { audioEffect: 'none' }],
+    ['inconnu', { audioEffect: 'echo' }],
+    ['du mauvais type', { audioEffect: 42 }],
+  ])('joue comme avant un extrait dont l’effet est %s', (_label, extra) => {
+    const player = fakePlayer()
+    createAudioBridge(player).handleEvents([
+      event('blind_test_stage_started', {
+        mediaUrl: 'a.mp3',
+        mediaStartMs: 12_500,
+        extractMs: 5000,
+        ...extra,
+      }),
+    ])
+    expect(player.play).toHaveBeenCalledOnce()
+    expect(player.play).toHaveBeenCalledWith('a.mp3', 12.5, 5000)
+  })
+
+  it('reprise avec un effet : le lecteur reçoit le palier entier et le temps déjà joué', () => {
+    const player = fakePlayer()
+    const bridge = createAudioBridge(player)
+
+    bridge.restore({
+      mediaUrl: 'a.mp3',
+      mediaStartMs: 2000,
+      audioEffect: 'slowed',
+      extractMs: 20_000,
+      elapsedMs: 5000,
+      paused: true,
+    })
+    expect(player.play).toHaveBeenCalledWith('a.mp3', 2, 20_000, {
+      effect: 'slowed',
+      elapsedMs: 5000,
+    })
+    expect(player.pause).toHaveBeenCalled()
+
+    bridge.restore({
+      mediaUrl: 'a.mp3',
+      mediaStartMs: 2000,
+      audioEffect: 'slowed',
+      extractMs: 1000,
+      elapsedMs: 1000,
+      paused: false,
+    })
+    expect(player.play).toHaveBeenCalledTimes(1)
+  })
+
+  it('reprise avec un effet inconnu ou absent : calcul d’avant', () => {
+    const player = fakePlayer()
+    const bridge = createAudioBridge(player)
+    const base = { mediaUrl: 'a.mp3', mediaStartMs: 2000, extractMs: 20_000, elapsedMs: 5000 }
+
+    bridge.restore({ ...base, audioEffect: 'echo', paused: false })
+    bridge.restore({ ...base, paused: false })
+    expect(player.play).toHaveBeenNthCalledWith(1, 'a.mp3', 7, 15_000)
+    expect(player.play).toHaveBeenNthCalledWith(2, 'a.mp3', 7, 15_000)
+  })
+
   it('ne joue rien sans média', () => {
     const player = fakePlayer()
     createAudioBridge(player).handleEvents([

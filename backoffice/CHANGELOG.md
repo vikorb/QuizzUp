@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Effet audio joué en salle : le blind test lit l'extrait avec l'effet de la question (court, inversé, ralenti), avec des paliers raccourcis pour `short` et une reprise fidèle après rechargement.
+  US: US-AUDIO-02 (#144)
+
 - Extraits de blind test fournis par Deezer : dans le champ audio d'une question, l'auteur cherche un titre (`GET /media-catalog/tracks`), l'écoute et le rattache à la question (`PUT /questions/:questionId/media/provider`). Un titre sans extrait est refusé. Une question référence soit un fichier importé, soit un titre (`media_provider`, `media_provider_ref`), jamais les deux. Au lancement d'une partie, le serveur donne à la salle le lien d'extrait à jour et le crédit ; l'écran de salle télécharge l'extrait sans jeton de salle et affiche « Extrait fourni par Deezer » à la révélation. Si le fournisseur ne répond pas, la question est écartée et la partie démarre.
   US: US-AUDIO-03 (#185)
 - Formats de partie partagés : Découverte (3 manches × 3 questions), Courte (6 × 7), Standard (10 × 10) et Personnalisé, avec la durée estimée d'une partie calculée depuis les délais du moteur (`GAME_FORMATS`, `GAME_FORMAT_SETTINGS`, `estimateGameDurationMs` dans `@quizzup/shared`). Le lobby du mode démo de l'écran de salle propose ces formats, Découverte par défaut, avec leur durée estimée.
