@@ -1,0 +1,763 @@
+openapi: 3.0.3
+
+info:
+  title: QuizzUp API de réservation
+  version: 1.0.0
+  description: |
+    API publique de réservation de QuizzUp (`/public/v1`) : le site d'un centre, ou son outil de
+    réservation, consulte les créneaux d'une salle et crée, modifie et annule des sessions à
+    l'avance. Elle est distincte de l'API du backoffice (`openapi.yaml`), qu'une clé d'API
+    n'ouvre jamais ; inversement, un jeton du backoffice n'ouvre jamais `/public`.
+
+    Ce fichier est servi sans authentification par `GET /public/v1/openapi.yaml`.
+
+    **Authentification.** En-tête `Authorization: Bearer qzk_…`. La clé est créée par un
+    administrateur du centre dans le backoffice ; son secret n'est montré qu'une fois. Elle ouvre
+    les salles et les réservations de sa seule compagnie. Une clé révoquée est refusée tout de
+    suite. **Ne mettez jamais la clé dans un navigateur ni dans une application distribuée** :
+    appelez l'API depuis votre serveur.
+
+    **Format des erreurs.** Statut HTTP et corps `{ "error": "<code_snake_case>" }`, avec
+    `details.fieldErrors` pour `invalid_body` seulement. Les codes sont stables ;
+    traitez un code inconnu de façon générique selon son statut HTTP.
+    Codes communs : `invalid_json` (400), `invalid_body` (400), `api_key_missing` (401),
+    `api_key_invalid` (401), `company_inactive` (403), `payload_too_large` (413),
+    `too_many_requests` (429), `server_error` (500).
+    `api_key_invalid` répond de la même façon pour une clé inconnue et pour une clé révoquée.
+
+    **Limite de débit.** Fenêtre fixe d'une minute : 120 requêtes par clé par défaut, et 20
+    échecs d'authentification par adresse. Au-delà, `429 too_many_requests` avec l'en-tête
+    `Retry-After` (secondes), `RateLimit-Limit` et `RateLimit-Remaining`.
+
+    **Corps limité à 16 Ko** (`413 payload_too_large`).
+
+    **Idempotence.** `POST /public/v1/bookings` exige l'en-tête `Idempotency-Key`. Rejouer la même
+    clé avec le même corps ne crée rien : la réponse est `201` avec l'état courant de la réservation
+    et l'en-tête `Idempotent-Replayed: true`. La même clé avec un corps différent est refusée
+    (`422 idempotency_key_reused`). Une requête en erreur n'est jamais mémorisée : on peut la
+    rejouer avec la même clé. La clé est retenue 24 heures. `PATCH` et `DELETE` sont idempotents par
+    nature.
+
+    **Dates.** Les instants sont en ISO 8601 UTC (`2027-03-10T14:00:00.000Z`). Une date de jour
+    (`date`) est une date locale de la salle (`YYYY-MM-DD`), dans son fuseau.
+
+    **Données personnelles.** Les prénoms et les e-mails des joueurs sont facultatifs. Tout e-mail
+    exige `emailConsent: true`, attesté par le centre. Les e-mails ne sont jamais renvoyés (seulement
+    `hasEmail`). À l'annulation d'une réservation, ils sont effacés tout de suite.
+
+    **Versions.** Dans v1, on ne fait que des ajouts (champs facultatifs, nouveaux codes d'erreur,
+    nouvelles routes). Un changement incompatible ouvre `/public/v2` à côté de v1.
+
+servers:
+  - url: http://localhost:3001
+    description: API locale
+
+tags:
+  - name: Rooms
+    description: Salles ouvertes à la réservation et leurs créneaux
+  - name: Bookings
+    description: Réservations (sessions programmées) créées par l'API
+  - name: Spec
+    description: Contrat de l'API
+
+security:
+  - bearerAuth: []
+
+paths:
+  /public/v1/rooms:
+    get:
+      tags:
+        - Rooms
+      summary: Lister les salles réservables
+      description: |
+        Salles actives de la compagnie de la clé dont les réglages de créneaux ont
+        `publicBooking: true`. Une salle sans créneaux n'apparaît pas.
+      operationId: listPublicRooms
+      responses:
+        '200':
+          description: Salles réservables
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [rooms]
+                properties:
+                  rooms:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PublicRoom'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/CompanyInactive'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /public/v1/availability:
+    get:
+      tags:
+        - Rooms
+      summary: Lister les créneaux libres d'une salle un jour donné
+      description: |
+        Créneaux de la grille de la salle pour `date` (date locale de la salle) qui sont encore
+        libres : ni dans le passé, ni au-delà de l'horizon de réservation (365 jours), ni
+        chevauchant une autre session. Liste vide si la salle est fermée ce jour-là.
+        Le début d'un créneau réservé par `POST /public/v1/bookings` doit être exactement un `startsAt`
+        renvoyé ici.
+      operationId: getPublicAvailability
+      parameters:
+        - name: room
+          in: query
+          required: true
+          description: Identifiant de la salle
+          schema:
+            type: integer
+            example: 3
+        - name: date
+          in: query
+          required: true
+          description: Jour local de la salle
+          schema:
+            type: string
+            format: date
+            example: '2027-03-10'
+      responses:
+        '200':
+          description: Créneaux libres
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [roomId, date, timezone, slots]
+                properties:
+                  roomId:
+                    type: integer
+                  date:
+                    type: string
+                    format: date
+                  timezone:
+                    type: string
+                    example: Europe/Paris
+                  slots:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Slot'
+        '400':
+          description: Paramètres invalides (`invalid_query`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/CompanyInactive'
+        '404':
+          description: >-
+            Salle introuvable (`room_not_found`) : elle n'existe pas, appartient à une autre
+            compagnie, est inactive ou n'est pas ouverte à la réservation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '422':
+          description: >-
+            Jour hors de la période réservable (`date_out_of_range`) : avant la veille ou au-delà de
+            l'horizon
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /public/v1/bookings:
+    post:
+      tags:
+        - Bookings
+      summary: Réserver un créneau
+      description: |
+        Crée une session programmée (`state: scheduled`) dans la salle, au créneau `startsAt`. Les
+        joueurs sont facultatifs et peuvent être complétés plus tard (`PATCH`, ou inscription par le
+        centre). Le format de partie prend les valeurs par défaut.
+
+        L'en-tête `Idempotency-Key` est obligatoire (voir la description de l'API). Un rejeu renvoie
+        `201` avec l'état courant de la réservation et `Idempotent-Replayed: true`.
+      operationId: createPublicBooking
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBookingRequest'
+      responses:
+        '201':
+          description: Réservation créée, ou rejeu d'une réservation déjà créée avec la même clé
+          headers:
+            Idempotent-Replayed:
+              description: '`true` sur un rejeu ; absent sur la première réponse'
+              schema:
+                type: string
+                enum: ['true']
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '400':
+          description: >-
+            En-tête `Idempotency-Key` absent ou invalide (`idempotency_key_required`), JSON
+            illisible (`invalid_json`) ou corps invalide (`invalid_body`, avec `details.fieldErrors`,
+            dont l'e-mail sans `emailConsent: true`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/CompanyInactive'
+        '404':
+          description: Salle introuvable, inactive ou non réservable (`room_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '409':
+          description: Le créneau chevauche une autre session de la salle (`slot_taken`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          description: |
+            - `idempotency_key_reused` : même clé, corps différent ;
+            - `slot_unavailable` : `startsAt` n'est pas le début d'un créneau de la grille (hors
+              grille, jour fermé, passé ou trop lointain) ;
+            - `too_many_players` : un pupitre au-delà de `bookableDesks`, ou `playersCount` au-delà
+              de 2 × `bookableDesks`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /public/v1/bookings/{id}:
+    parameters:
+      - $ref: '#/components/parameters/BookingId'
+    get:
+      tags:
+        - Bookings
+      summary: Lire une réservation
+      description: |
+        Ne voit que les sessions de la compagnie créées par l'API (quelle que soit la clé). Un
+        identifiant inexistant et celui d'une autre compagnie reçoivent la même réponse
+        `404 booking_not_found`.
+      operationId: getPublicBooking
+      responses:
+        '200':
+          description: La réservation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/CompanyInactive'
+        '404':
+          $ref: '#/components/responses/BookingNotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    patch:
+      tags:
+        - Bookings
+      summary: Modifier une réservation
+      description: |
+        Au moins un champ ; les champs absents sont gardés. `participants` remplace toute la liste.
+        Autorisé seulement tant que la session est `scheduled` : une fois ouverte par le centre, elle
+        ne se modifie plus (`409 booking_not_modifiable`). `playersCount`, `externalRef` et `locale`
+        acceptent `null` pour être effacés.
+      operationId: updatePublicBooking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBookingRequest'
+      responses:
+        '200':
+          description: La réservation modifiée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '400':
+          description: JSON illisible (`invalid_json`) ou corps invalide (`invalid_body`, avec `details.fieldErrors`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/CompanyInactive'
+        '404':
+          description: Réservation introuvable (`booking_not_found`) ou nouvelle salle introuvable (`room_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '409':
+          description: >-
+            La session n'est plus `scheduled` (`booking_not_modifiable`) ou le nouveau créneau
+            chevauche une autre session (`slot_taken`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          description: '`slot_unavailable` ou `too_many_players`, comme à la création'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      tags:
+        - Bookings
+      summary: Annuler une réservation
+      description: |
+        Passe la session en `cancelled` et libère son créneau. Les e-mails et consentements des
+        participants sont effacés tout de suite ; les noms sont gardés. Idempotent : annuler une
+        réservation déjà annulée renvoie `200`. Refusé (`409 booking_not_cancellable`) si le
+        centre a déjà ouvert la session, ou si elle est en cours ou terminée.
+      operationId: cancelPublicBooking
+      responses:
+        '200':
+          description: La réservation, en état `cancelled`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/CompanyInactive'
+        '404':
+          $ref: '#/components/responses/BookingNotFound'
+        '409':
+          description: La session est ouverte, en cours ou terminée (`booking_not_cancellable`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /public/v1/openapi.yaml:
+    get:
+      tags:
+        - Spec
+      summary: Contrat de l'API (ce fichier)
+      description: Sans authentification. Sert le fichier `public-v1.yaml`.
+      operationId: getPublicOpenApi
+      security: []
+      responses:
+        '200':
+          description: Le contrat OpenAPI de `/public/v1`
+          content:
+            application/yaml:
+              schema:
+                type: string
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: qzk_<préfixe>_<secret>
+      description: Clé d'API créée dans le backoffice. Jamais un jeton du backoffice.
+
+  parameters:
+    BookingId:
+      name: id
+      in: path
+      required: true
+      description: Identifiant de la réservation
+      schema:
+        type: integer
+        example: 128
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: >-
+        Clé choisie par l'appelant (1 à 255 caractères ASCII visibles), unique par réservation voulue
+        (un identifiant de commande, ou un UUID). Retenue 24 heures par compagnie.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+        pattern: '^[\x21-\x7E]+$'
+        example: commande-2027-000412
+
+  responses:
+    Unauthorized:
+      description: Clé absente (`api_key_missing`) ou inconnue ou révoquée (`api_key_invalid`)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PublicError'
+    CompanyInactive:
+      description: La compagnie de la clé est inactive (`company_inactive`)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PublicError'
+    BookingNotFound:
+      description: Réservation introuvable (`booking_not_found`), qu'elle n'existe pas ou qu'elle appartienne à une autre compagnie
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PublicError'
+    PayloadTooLarge:
+      description: Corps de plus de 16 Ko (`payload_too_large`)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PublicError'
+    TooManyRequests:
+      description: Limite de débit dépassée (`too_many_requests`)
+      headers:
+        Retry-After:
+          description: Secondes à attendre avant de réessayer
+          schema:
+            type: integer
+            minimum: 1
+        RateLimit-Limit:
+          description: Requêtes permises par minute pour cette clé
+          schema:
+            type: integer
+        RateLimit-Remaining:
+          description: Requêtes restantes dans la fenêtre en cours
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PublicError'
+    ServerError:
+      description: Erreur serveur (`server_error`)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PublicError'
+
+  schemas:
+    PublicError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Code stable en snake_case
+          example: slot_taken
+        details:
+          type: object
+          description: Présent pour `invalid_body` seulement
+          properties:
+            fieldErrors:
+              type: object
+              additionalProperties:
+                type: array
+                items:
+                  type: string
+
+    PublicRoom:
+      type: object
+      required: [id, name, timezone, slotMinutes, breakMinutes, bookableDesks, maxPlayers, days]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        timezone:
+          type: string
+          description: Fuseau IANA de la salle ; les heures de `days` s'y lisent
+          example: Europe/Paris
+        slotMinutes:
+          type: integer
+          description: Durée d'un créneau en minutes
+          example: 60
+        breakMinutes:
+          type: integer
+          description: Pause entre deux créneaux, `0` pour des créneaux bout à bout
+          example: 0
+        bookableDesks:
+          type: integer
+          minimum: 1
+          maximum: 6
+          description: Pupitres ouverts à la réservation (déjà plafonné au nombre de pupitres de la salle)
+          example: 4
+        maxPlayers:
+          type: integer
+          description: Joueurs au plus par réservation (2 joueurs par pupitre ouvert)
+          example: 8
+        days:
+          type: object
+          description: >-
+            Horaires d'ouverture, clés `"1"` (lundi) à `"7"` (dimanche) ; un jour absent est
+            fermé. Pour connaître les créneaux d'un jour, appelez `GET /public/v1/availability`.
+          additionalProperties:
+            $ref: '#/components/schemas/PublicRoomDay'
+          example:
+            '1': { opensAt: '10:00', closesAt: '22:00' }
+            '6': { opensAt: '10:00', firstSessionAt: '10:30', closesAt: '01:00' }
+
+    PublicRoomDay:
+      type: object
+      required: [opensAt, closesAt]
+      properties:
+        opensAt:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+          example: '10:00'
+        firstSessionAt:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+          description: Début du premier créneau ; `opensAt` s'il est absent
+          example: '10:30'
+        closesAt:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+          description: Fermeture ; une heure inférieure ou égale à `opensAt` veut dire « le lendemain »
+          example: '22:00'
+
+    Slot:
+      type: object
+      required: [startsAt, endsAt, localTime]
+      properties:
+        startsAt:
+          type: string
+          format: date-time
+          description: 'Début du créneau (UTC), valeur à envoyer dans `POST /public/v1/bookings`'
+          example: '2027-03-10T14:00:00.000Z'
+        endsAt:
+          type: string
+          format: date-time
+          example: '2027-03-10T15:00:00.000Z'
+        localTime:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+          description: Heure de début dans le fuseau de la salle
+          example: '15:00'
+
+    SecondPlayerInput:
+      type: object
+      required: [displayName]
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          nullable: true
+        emailConsent:
+          type: boolean
+          description: Obligatoire à `true` si `email` est fourni (`invalid_body` sinon)
+
+    ParticipantInput:
+      type: object
+      required: [podium, displayName]
+      properties:
+        podium:
+          type: integer
+          minimum: 1
+          maximum: 6
+          description: Numéro du pupitre, unique dans la liste, au plus `bookableDesks` (`422 too_many_players` sinon)
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          nullable: true
+        emailConsent:
+          type: boolean
+          description: Obligatoire à `true` si `email` est fourni (`invalid_body` sinon)
+        secondPlayer:
+          allOf:
+            - $ref: '#/components/schemas/SecondPlayerInput'
+          nullable: true
+
+    CreateBookingRequest:
+      type: object
+      required: [roomId, startsAt]
+      properties:
+        roomId:
+          type: integer
+          example: 3
+        startsAt:
+          type: string
+          format: date-time
+          description: Début exact d'un créneau renvoyé par `GET /public/v1/availability`
+          example: '2027-03-10T14:00:00.000Z'
+        playersCount:
+          type: integer
+          minimum: 1
+          maximum: 12
+          description: Nombre de joueurs annoncé, au plus `maxPlayers` de la salle
+        locale:
+          type: string
+          enum: [fr, en]
+          description: Langue des joueurs
+        externalRef:
+          type: string
+          maxLength: 100
+          description: Référence de la réservation dans le système du client
+          example: RESA-2027-000412
+        participants:
+          type: array
+          maxItems: 6
+          description: Joueurs déjà connus, facultatif
+          items:
+            $ref: '#/components/schemas/ParticipantInput'
+
+    UpdateBookingRequest:
+      type: object
+      description: Au moins un champ (`400 invalid_body` sinon)
+      properties:
+        roomId:
+          type: integer
+        startsAt:
+          type: string
+          format: date-time
+          description: Début exact d'un créneau libre de la salle
+        playersCount:
+          type: integer
+          minimum: 1
+          maximum: 12
+          nullable: true
+        locale:
+          type: string
+          enum: [fr, en]
+          nullable: true
+        externalRef:
+          type: string
+          maxLength: 100
+          nullable: true
+        participants:
+          type: array
+          maxItems: 6
+          description: Remplace toute la liste
+          items:
+            $ref: '#/components/schemas/ParticipantInput'
+
+    BookingParticipant:
+      type: object
+      required: [podium, displayName, hasEmail, secondPlayer]
+      description: Les e-mails ne sont jamais renvoyés
+      properties:
+        podium:
+          type: integer
+        displayName:
+          type: string
+        hasEmail:
+          type: boolean
+        secondPlayer:
+          type: object
+          nullable: true
+          required: [displayName, hasEmail]
+          properties:
+            displayName:
+              type: string
+            hasEmail:
+              type: boolean
+
+    Booking:
+      type: object
+      required:
+        - id
+        - roomId
+        - state
+        - startsAt
+        - endsAt
+        - playersCount
+        - locale
+        - externalRef
+        - participants
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: integer
+        roomId:
+          type: integer
+        state:
+          type: string
+          enum: [scheduled, pending, running, finished, aborted, cancelled]
+          description: >-
+            `scheduled` : réservée. `pending`, `running`, `finished`, `aborted` : le centre a ouvert
+            la session ou elle a eu lieu. `cancelled` : annulée. Seule une réservation `scheduled`
+            se modifie, seule une réservation `scheduled` ou `cancelled` s'annule.
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        playersCount:
+          type: integer
+          nullable: true
+        locale:
+          type: string
+          enum: [fr, en]
+          nullable: true
+        externalRef:
+          type: string
+          nullable: true
+        participants:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingParticipant'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    BookingResponse:
+      type: object
+      required: [booking]
+      properties:
+        booking:
+          $ref: '#/components/schemas/Booking'

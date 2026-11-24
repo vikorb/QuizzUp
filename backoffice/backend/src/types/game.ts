@@ -31,7 +31,8 @@ export type GameRow = {
   companyId: number
   roomId: number
   roomName?: string
-  adminId: number
+  /** `null` pour une réservation faite par l'API (la partie porte alors une clé d'API). */
+  adminId: number | null
   roundsCount: number
   questionsPerRound: number
   /** Mini-jeux choisis au lancement, `null` = tous. */

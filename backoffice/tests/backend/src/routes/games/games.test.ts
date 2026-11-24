@@ -1211,6 +1211,12 @@ describe('routes/games/_shared.ts', () => {
     expect(toGameRow({ id: '7', seed: '1' })).not.toHaveProperty('participantsCount')
   })
 
+  it('keeps adminId null for a booking made through the API (no admin, not 0)', () => {
+    expect(toGameRow({ id: '7', seed: '1', adminId: null }).adminId).toBeNull()
+    expect(toGameRow({ id: '7', seed: '1' }).adminId).toBeNull()
+    expect(toGameRow({ id: '7', seed: '1', adminId: '2' }).adminId).toBe(2)
+  })
+
   it('returns participant ids as numbers', async () => {
     dbState.game_participants.push({
       id: '12',
