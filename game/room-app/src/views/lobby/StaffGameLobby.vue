@@ -51,6 +51,37 @@
           }}
         </p>
 
+        <section
+          v-if="joinOffer"
+          class="staff-lobby__join"
+          :class="{ 'staff-lobby__join--url-only': !joinQrSrc }"
+          data-test="join"
+        >
+          <img
+            v-if="joinQrSrc"
+            class="staff-lobby__qr"
+            :src="joinQrSrc"
+            :alt="$t('room.staffLobby.join.qrAlt')"
+            data-test="join-qr"
+          />
+          <div class="staff-lobby__join-text">
+            <h2>{{ $t('room.staffLobby.join.title') }}</h2>
+            <p class="staff-lobby__join-url" data-test="join-url">{{ joinOffer.url }}</p>
+          </div>
+        </section>
+
+        <!-- Zone vivante toujours présente tant que la partie attend : seul son texte change. -->
+        <p
+          v-if="!isRunning"
+          class="staff-lobby__subtitle"
+          role="status"
+          data-test="pending-registrations"
+        >
+          {{
+            pendingRegistrations > 0 ? $t('room.staffLobby.join.pending', pendingRegistrations) : ''
+          }}
+        </p>
+
         <div class="staff-lobby__desks">
           <article
             v-for="participant in sortedParticipants"
@@ -191,6 +222,22 @@ let failures = 0
 let disposed = false
 
 const isRunning = computed(() => game.value?.state === GAME_STATE_RUNNING)
+
+/**
+ * Le serveur renvoie `join: null` dès que le lien est fermé ou expiré : on s'y fie. Sans QR, une
+ * adresse relative (serveur sans adresse publique) est inutilisable : on ne l'affiche pas.
+ */
+const joinOffer = computed(() => {
+  const link = isRunning.value ? null : (game.value?.join ?? null)
+  return link && (link.qrSvg || /^https?:\/\//i.test(link.url)) ? link : null
+})
+/** Le QR est un SVG rendu par `<img>` (jamais `v-html`) : aucun script de la réponse ne s'exécute. */
+const joinQrSrc = computed(() =>
+  joinOffer.value?.qrSvg
+    ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(joinOffer.value.qrSvg)}`
+    : null
+)
+const pendingRegistrations = computed(() => game.value?.pendingRegistrationsCount ?? 0)
 
 const sortedParticipants = computed(() =>
   (game.value?.participants ?? [])
@@ -439,6 +486,54 @@ onBeforeUnmount(() => {
 .staff-lobby__subtitle {
   color: var(--text-1);
   font-size: var(--stage-small);
+}
+
+.staff-lobby__join {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--stage-gap);
+}
+
+.staff-lobby__qr {
+  /* Fond clair autour des modules et taille lisible de 3 à 4 m. */
+  box-sizing: border-box;
+  width: clamp(240px, 38vh, 420px);
+  aspect-ratio: 1;
+  padding: 16px;
+  border-radius: var(--radius-card);
+  background: var(--qr-paper);
+  image-rendering: crisp-edges;
+}
+
+.staff-lobby__join-text {
+  display: grid;
+  gap: 10px;
+  max-width: 560px;
+  text-align: left;
+}
+
+.staff-lobby__join--url-only .staff-lobby__join-text {
+  text-align: center;
+}
+
+.staff-lobby__join-text h2,
+.staff-lobby__join-url {
+  margin: 0;
+}
+
+.staff-lobby__join-text h2 {
+  font-size: var(--stage-text);
+  font-weight: 900;
+  color: var(--text-0);
+}
+
+.staff-lobby__join-url {
+  color: var(--text-0);
+  font-size: var(--stage-text);
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .staff-lobby__desks {

@@ -73,6 +73,35 @@ export type Game = {
   locale?: GameLocale | null
   /** Origine de la session (lot 14) : absent tant que l'API publique n'est pas livrée. */
   source?: GameSource
+  /** Lien d'inscription ouvert (partie en attente seulement), sinon `null` ; fiche d'une partie. */
+  join?: GameJoin | null
+  /** Demandes d'inscription à valider ; fiche d'une partie. */
+  pendingRegistrationsCount?: number
+}
+
+/** Lien d'inscription par QR code ; `url` est relative si le serveur ne connaît pas son adresse publique. */
+export type GameJoin = {
+  url: string
+  /** SVG complet du QR code ; `null` sans adresse publique côté serveur, absent = `null`. */
+  qrSvg?: string | null
+  expiresAt: string
+}
+
+/** Demande d'inscription faite depuis un téléphone, à valider par le personnel. */
+export type GameRegistration = {
+  id: number
+  createdAt: string
+  displayName: string
+  /** `null` si absent, ou masqué pour le rôle `user` (voir `hasEmail`). */
+  email: string | null
+  hasEmail: boolean
+  marketingConsent: boolean
+  secondPlayer: {
+    displayName: string
+    email: string | null
+    hasEmail: boolean
+    marketingConsent: boolean
+  } | null
 }
 
 export type GameSource = 'backoffice' | 'api'
@@ -115,6 +144,8 @@ export type CreateGamePayload = {
   participants: CreateGameParticipantPayload[]
   roundsCount?: number
   questionsPerRound?: number
+  /** Ouvre le lien d'inscription par QR code : les participants deviennent facultatifs. */
+  openJoin?: boolean
   /** Omis quand tous les mini-jeux sont autorisés (= tous, y compris les futurs). */
   miniGames?: MiniGame[]
   /** Instant ISO 8601 de début : présent, la partie est une session programmée. */
@@ -180,6 +211,8 @@ export type GameFormValues = {
   /** Mini-jeux cochés (tous par défaut). */
   miniGames: MiniGame[]
   participants: GameParticipantFormValues[]
+  /** Interrupteur « Inscription des joueurs par QR code » : la partie peut n'avoir aucun participant. */
+  openJoin: boolean
   /** Case « Programmer pour plus tard » : la partie devient une session à date et heure fixées. */
   scheduled: boolean
   /** Jour (`YYYY-MM-DD`) et heure (`HH:MM`) lus dans le fuseau de la salle choisie. */
@@ -229,6 +262,10 @@ export type GameApiErrorCode =
   | 'room_inactive'
   | 'room_busy'
   | 'podium_not_in_room'
+  | 'game_not_pending'
+  | 'podium_taken'
+  | 'room_full'
+  | 'registration_not_found'
   | 'company_deleted'
   | 'company_inactive'
   | 'game_already_over'
@@ -274,6 +311,14 @@ export type GamesQuery = {
 
 export type GameResponse = {
   game: Game
+}
+
+export type GameJoinResponse = {
+  join: GameJoin
+}
+
+export type GameRegistrationsResponse = {
+  registrations: GameRegistration[]
 }
 
 export type GameRoomsResponse = {

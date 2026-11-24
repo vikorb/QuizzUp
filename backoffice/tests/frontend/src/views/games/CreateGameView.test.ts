@@ -5,6 +5,7 @@ import {
 import {
   createGameFixture,
   createGameServiceMock,
+  createJoinFixture,
   createScheduledGameFixture,
   createScheduleFixture,
   listGameRoomsServiceMock,
@@ -156,6 +157,49 @@ describe('views/games/CreateGameView.vue', () => {
       name: 'games',
       query: { companyId: '2', created: '99' },
     })
+  })
+
+  it('opens the game page, with its QR code, when the sign-up by QR code was enabled', async () => {
+    setAuthenticatedUser()
+
+    const wrapper = await mountView()
+    const form = wrapper.getComponent({ name: 'CreateGameForm' })
+
+    form.vm.$emit('created', createGameFixture({ id: 99, join: createJoinFixture() }))
+
+    expect(pushMock).toHaveBeenCalledWith({
+      name: 'games-detail',
+      params: { gameId: '99' },
+      query: {},
+    })
+    expect(pushMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the company chosen by the superadmin on the way to the game page', async () => {
+    setAuthenticatedSuperadmin({ companyId: 1 })
+    currentRouteMock.query = { companyId: '2' }
+
+    const wrapper = await mountView()
+    const form = wrapper.getComponent({ name: 'CreateGameForm' })
+
+    form.vm.$emit('created', createGameFixture({ id: 99, join: createJoinFixture() }))
+
+    expect(pushMock).toHaveBeenCalledWith({
+      name: 'games-detail',
+      params: { gameId: '99' },
+      query: { companyId: '2' },
+    })
+  })
+
+  it('returns to the list when the game has no sign-up link', async () => {
+    setAuthenticatedUser()
+
+    const wrapper = await mountView()
+    const form = wrapper.getComponent({ name: 'CreateGameForm' })
+
+    form.vm.$emit('created', createGameFixture({ id: 99, join: null }))
+
+    expect(pushMock).toHaveBeenCalledWith({ name: 'games', query: { created: '99' } })
   })
 
   it('follows the live presence of the company the form is for', async () => {
