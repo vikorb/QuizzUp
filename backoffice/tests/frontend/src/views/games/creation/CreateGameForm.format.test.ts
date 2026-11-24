@@ -383,6 +383,9 @@ describe('views/games/creation/CreateGameForm.vue : format de partie', () => {
       ['en', enGames, 'round', 'rounds'],
     ])('has a singular and a plural for the rounds in %s', (_locale, messages, one, many) => {
       expect(messages.games.detail.fields.roundsValue).toBe(`{count} ${one} | {count} ${many}`)
+      expect(messages.games.detail.fields.questionsValue).toBe(
+        '{count} question | {count} questions'
+      )
       expect(messages.games.detail.fields.formatValue).toBe('{rounds} × {questions}')
     })
 

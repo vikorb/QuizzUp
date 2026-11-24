@@ -510,7 +510,7 @@ Format inspiré de Keep a Changelog.
 
 ### Fixed
 
-- Corrections de recette : le champ de date de l'Agenda n'est plus écrasé ; les boutons de la page d'inscription et de la page du bon reprennent la police de la page ; la demande d'inscription affiche « Demandée le … » ; le format d'une partie s'accorde au singulier (« 1 manche × 1 question ») et une durée sans écart s'écrit « 1 min » au lieu de « 1 à 1 min », au backoffice et sur l'écran de salle.
+- Corrections de recette : le champ de date de l'Agenda n'est plus écrasé ; les boutons reprennent la police de l'interface (Exo 2) au lieu de la police système, au backoffice comme sur les pages publiques ; la demande d'inscription affiche « Demandée le … » ; le format d'une partie s'accorde au singulier (« 1 manche × 1 question ») et une durée sans écart s'écrit « 1 min » au lieu de « 1 à 1 min », au backoffice et sur l'écran de salle.
   US: US-UX-02 (#132)
 
 - Relais PowerShell des lumières : un envoi partiel est repris jusqu'au bout, et la lecture est bornée par tour : un client qui envoie sans fin ne bloque plus les autres connexions.

@@ -270,8 +270,6 @@ body {
 .voucher__btn {
   width: 100%;
   min-height: 48px;
-  /* Un bouton n'hérite pas de la police de la page : sans cela il sort en police système. */
-  font-family: inherit;
   font-size: 16px;
 }
 
