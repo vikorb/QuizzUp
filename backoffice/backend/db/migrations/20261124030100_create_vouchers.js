@@ -63,6 +63,7 @@ exports.up = async function (knex) {
     table.unique(['code'], { indexName: 'vouchers_code_unique' })
     table.index(['company_id', 'created_at'], 'vouchers_company_id_created_at_index')
     table.index(['game_id'], 'vouchers_game_id_index')
+    table.index(['participant_id'], 'vouchers_participant_id_index')
   })
 
   await knex.raw(`

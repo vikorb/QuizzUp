@@ -334,6 +334,7 @@ Table vouchers {
     (game_id, participant_id) [unique, name: 'vouchers_game_id_participant_id_active_unique', note: 'Partiel : WHERE status <> 2. Un bon par pupitre et par partie']
     (company_id, created_at) [name: 'vouchers_company_id_created_at_index']
     game_id [name: 'vouchers_game_id_index']
+    participant_id [name: 'vouchers_participant_id_index']
   }
 
   Note: 'État calculé, jamais stocké : cancelled (status 0), redeemed (redeemed_at renseigné), expired (expires_at passée), valid sinon (VOUCHER_STATES).'
