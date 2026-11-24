@@ -1,10 +1,14 @@
 import {
   FLASH_BLIND_TEST_ANSWER_TIMEOUT_MS,
   FLASH_BLIND_TEST_BUZZ_WINDOW_MS,
+  FLASH_BLIND_TEST_SHORT_STAGE_DURATIONS_MS,
+  FLASH_BLIND_TEST_STAGE_DURATIONS_MS,
   flashBlindTest,
   type FlashBlindTestState,
+  getFlashBlindTestStageDurationsMs,
 } from '@engine/miniGames/flashBlindTest'
 import type { QuestionStep } from '@engine/miniGames/miniGame'
+import type { EngineQuestion } from '@engine/types'
 import { QUESTION_MEDIA_TYPE_IMAGE } from '@quizzup/shared'
 import { describe, expect, it } from 'vitest'
 
@@ -261,5 +265,104 @@ describe('flashBlindTest answers', () => {
 
     const buzz = press(state, 1, 0, 10)
     expect(press(buzz.state, 1, 3, 20).events).toEqual([])
+  })
+})
+
+function startWith(audioEffect?: NonNullable<EngineQuestion['audioEffect']>) {
+  const effectQuestion = { ...question, audioEffect }
+
+  return flashBlindTest.start(effectQuestion, PARTICIPANTS, 0, questionContext(effectQuestion))
+}
+
+describe('flashBlindTest audio effect', () => {
+  it('declares the short stages as 0.5 / 2 / 10 s', () => {
+    expect(FLASH_BLIND_TEST_SHORT_STAGE_DURATIONS_MS).toEqual([500, 2000, 10_000])
+  })
+
+  it.each([
+    [undefined, 'none'],
+    ['none', 'none'],
+    ['reverse', 'reverse'],
+    ['slowed', 'slowed'],
+    ['short', 'short'],
+  ] as const)('carries the effect %s in the stage payload as %s', (audioEffect, expected) => {
+    expect(startWith(audioEffect).events[0]?.payload).toMatchObject({ audioEffect: expected })
+  })
+
+  it.each([undefined, 'none', 'reverse', 'slowed'] as const)(
+    'keeps the 1 / 5 / 20 s stages and the same timings for %s',
+    (audioEffect) => {
+      const { state } = startWith(audioEffect)
+
+      expect(getFlashBlindTestStageDurationsMs({ audioEffect })).toBe(
+        FLASH_BLIND_TEST_STAGE_DURATIONS_MS
+      )
+      expect(flashBlindTest.tick(state, STAGE_1_END - 1).events).toEqual([])
+      expect(flashBlindTest.tick(state, STAGE_1_END).events[0]).toMatchObject({
+        payload: { stage: 2, extractMs: 5000, audioEffect: audioEffect ?? 'none' },
+      })
+    }
+  )
+
+  it('plays 0.5 / 2 / 10 s stages for the short effect, with the same buzz window', () => {
+    const shortStage1End = 500 + FLASH_BLIND_TEST_BUZZ_WINDOW_MS
+    const shortStage2End = shortStage1End + 2000 + FLASH_BLIND_TEST_BUZZ_WINDOW_MS
+    const shortStage3End = shortStage2End + 10_000 + FLASH_BLIND_TEST_BUZZ_WINDOW_MS
+    const first = startWith('short')
+    let { state } = first
+
+    expect(first.events[0]).toMatchObject({
+      payload: { stage: 1, extractMs: 500, buzzWindowMs: 3000 },
+    })
+    expect(flashBlindTest.tick(state, shortStage1End - 1).events).toEqual([])
+
+    const stage2 = flashBlindTest.tick(state, shortStage1End)
+    expect(stage2.events[0]).toMatchObject({
+      at: shortStage1End,
+      payload: { stage: 2, extractMs: 2000, audioEffect: 'short' },
+    })
+    state = stage2.state
+
+    const stage3 = flashBlindTest.tick(state, shortStage2End)
+    expect(stage3.events[0]).toMatchObject({ payload: { stage: 3, extractMs: 10_000 } })
+    state = stage3.state
+
+    expect(flashBlindTest.tick(state, shortStage3End - 1).state.status).toBe('playing')
+    expect(flashBlindTest.tick(state, shortStage3End).state.status).toBe('done')
+  })
+
+  it('keeps the points per stage and resumes with the short remaining time', () => {
+    const { state } = startWith('short')
+    const buzz = press(state, 1, 0, 200)
+    const wrong = press(buzz.state, 1, 0, 700)
+
+    expect(wrong.events.at(-1)).toMatchObject({
+      type: 'blind_test_stage_resumed',
+      payload: {
+        stage: 1,
+        elapsedMs: 200,
+        remainingMs: 500 + FLASH_BLIND_TEST_BUZZ_WINDOW_MS - 200,
+      },
+    })
+
+    const stage2 = flashBlindTest.tick(wrong.state, 500 + 500 + FLASH_BLIND_TEST_BUZZ_WINDOW_MS)
+    const right = press(press(stage2.state, 2, 0, 4200).state, 2, 2, 4300)
+    expect(right.answers?.at(-1)).toMatchObject({ isCorrect: true, points: 50, stage: 2 })
+  })
+
+  it('gives the same steps for an absent effect and for none', () => {
+    expect(startWith('none').events.map((event) => event.payload)).toEqual(
+      startWith(undefined).events.map((event) => event.payload)
+    )
+    expect(startWith('none').state).toEqual({
+      ...startWith(undefined).state,
+      question: { ...question, audioEffect: 'none' },
+    })
+  })
+
+  it('stays serialisable with an effect', () => {
+    const { state } = startWith('short')
+
+    expect(JSON.parse(JSON.stringify(state))).toEqual(state)
   })
 })

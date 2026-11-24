@@ -50,6 +50,8 @@ tags:
     description: Salles de jeu d'une compagnie et leur configuration matérielle
   - name: Games
     description: Parties lancées par l'opérateur dans une salle
+  - name: Vouchers
+    description: Bons de fidélisation remis aux joueurs d'une partie terminée, émis et utilisés par le personnel
   - name: ApiKeys
     description: >-
       Clés de l'API de réservation `/public/v1` d'une compagnie et journal de leurs appels (le contrat
@@ -61,8 +63,9 @@ tags:
   - name: Public
     description: |
       API publique sous `/public/v1` (vitrine, réservation) : sans compte, sans jeton, sans cookie.
-      Routes livrées : `POST /public/v1/demo-requests` (demande de démonstration) et
-      `GET /public/v1/logos/{file}` (logo d'un centre). Toutes suivent ces conventions.
+      Routes livrées : `POST /public/v1/demo-requests` (demande de démonstration),
+      `GET /public/v1/logos/{file}` (logo d'un centre) et `POST /public/v1/vouchers/lookup`
+      (consultation d'un bon). Toutes suivent ces conventions.
 
       L'API de réservation (`/public/v1/rooms`, `/availability`, `/bookings`) fait exception : elle
       exige une clé d'API (`Authorization: Bearer qzk_…`) et son contrat est dans `public-v1.yaml`.
@@ -2081,6 +2084,8 @@ paths:
 
         Le corps accepte aussi `scheduledAt`, `durationMinutes`, `playersCount`, `externalRef` et `locale` (voir `CreateGameRequest`). Avec `scheduledAt`, la partie est créée à l'état `scheduled` (participants de 0 à 6, pas de contrôle `room_busy`) ; erreurs propres : 400 `session_in_past` (fin ≤ maintenant), 400 `session_too_far` (début au-delà de 365 jours), 409 `slot_taken` (chevauchement d'une autre session de la salle). Sans `scheduledAt`, rien ne change.
 
+        Avec `openJoin: true`, la partie en attente ouvre aussitôt son lien d'inscription (`join` dans la réponse) et accepte `participants: []` : les joueurs s'inscrivent depuis leur téléphone et le personnel valide leurs demandes. Une partie en cours dans la salle ne bloque pas la création ; seule une partie déjà en attente répond `room_busy`.
+
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
       operationId: createCompanyGame
       x-availability: disponible
@@ -2123,7 +2128,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: Compagnie supprimée (`company_deleted`) ou inactive (`company_inactive`), salle inactive (`room_inactive`) ou partie déjà en attente / en cours (`room_busy`)
+          description: Compagnie supprimée (`company_deleted`) ou inactive (`company_inactive`), salle inactive (`room_inactive`) ou partie déjà en attente dans la salle (`room_busy` ; une partie en cours ne bloque pas)
           content:
             application/json:
               schema:
@@ -2137,7 +2142,7 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Partie avec ses participants.
+        Partie avec ses participants. Pour une partie en attente dont le lien d'inscription est ouvert et non expiré, `join` donne l'adresse à afficher en QR code ; `pendingRegistrationsCount` compte les demandes d'inscription à valider.
 
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
       operationId: getCompanyGame
@@ -2328,7 +2333,409 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: Session pas à l'état `scheduled` (`game_not_scheduled`), ouverture à plus de 60 minutes du début (`session_not_open_yet`), partie déjà en attente ou en cours dans la salle (`room_busy`), salle inactive (`room_inactive`) ou compagnie inactive (`company_inactive`)
+          description: Session pas à l'état `scheduled` (`game_not_scheduled`), ouverture à plus de 60 minutes du début (`session_not_open_yet`), partie déjà en attente dans la salle (`room_busy` ; une partie en cours ne bloque pas), salle inactive (`room_inactive`) ou compagnie inactive (`company_inactive`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/games/{gameId}/join:
+    post:
+      tags:
+        - Games
+      summary: "[DISPONIBLE] Ouvrir (ou renouveler) le lien d'inscription"
+      description: |
+        Statut : **Disponible**
+
+        Génère un nouveau jeton pour une partie `pending` : l'ancien lien cesse de fonctionner. Le lien est valable 180 minutes. Le jeton est dans le fragment (`#`) de l'adresse, qui n'est donc jamais envoyé au serveur ni écrit dans ses journaux. Sans `PUBLIC_APP_URL`, l'adresse est relative (`/rejoindre/#jeton`).
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: openCompanyGameJoin
+      x-availability: disponible
+      x-us: 'US-JOIN-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/GameIdParam'
+      responses:
+        '200':
+          description: Lien ouvert
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  join:
+                    $ref: '#/components/schemas/GameJoin'
+        '400':
+          description: Identifiants invalides (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non connecté
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (autre compagnie, ou rôle sans droit)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Partie introuvable (`not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La partie n'est pas en attente (`game_not_pending`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Games
+      summary: "[DISPONIBLE] Fermer le lien d'inscription"
+      description: |
+        Statut : **Disponible**
+
+        Révoque le jeton : le lien ne fonctionne plus. Idempotent : refaire l'appel sur un lien déjà fermé renvoie `204`. Les demandes déjà reçues restent à valider.
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: closeCompanyGameJoin
+      x-availability: disponible
+      x-us: 'US-JOIN-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/GameIdParam'
+      responses:
+        '204':
+          description: Lien fermé
+        '400':
+          description: Identifiants invalides (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non connecté
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (autre compagnie, ou rôle sans droit)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Partie introuvable (`not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/games/{gameId}/registrations:
+    get:
+      tags:
+        - Games
+      summary: "[DISPONIBLE] Lister les demandes d'inscription"
+      description: |
+        Statut : **Disponible**
+
+        Demandes envoyées depuis les téléphones et pas encore traitées, les plus anciennes d'abord. Les emails sont masqués pour le rôle `user` (`email: null`, `hasEmail` dit s'il y en a un). Les demandes sont purgées après 24 heures, ou dès que la partie n'est plus en attente.
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: listCompanyGameRegistrations
+      x-availability: disponible
+      x-us: 'US-JOIN-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/GameIdParam'
+      responses:
+        '200':
+          description: Demandes en attente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  registrations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/GameRegistration'
+        '400':
+          description: Identifiants invalides (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non connecté
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (autre compagnie, ou rôle sans droit)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Partie introuvable (`not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/games/{gameId}/registrations/{registrationId}/accept:
+    post:
+      tags:
+        - Games
+      summary: "[DISPONIBLE] Valider une demande d'inscription"
+      description: |
+        Statut : **Disponible**
+
+        Transforme la demande en participant (la demande est supprimée) et renvoie ce participant. Sans `podium`, le plus petit pupitre libre de la salle est pris. Deux validations simultanées ne prennent jamais le même pupitre.
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: acceptCompanyGameRegistration
+      x-availability: disponible
+      x-us: 'US-JOIN-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/GameIdParam'
+        - name: registrationId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                podium:
+                  type: integer
+                  minimum: 1
+                  maximum: 6
+                  description: Pupitre voulu. Au-delà du nombre de pupitres de la salle, `400 podium_not_in_room` (avec `desksCount`).
+      responses:
+        '201':
+          description: Participant créé
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  participant:
+                    $ref: '#/components/schemas/GameParticipant'
+        '400':
+          description: Corps ou identifiants invalides (`invalid_body`, `invalid_params`), ou pupitre absent de la salle (`podium_not_in_room`, avec `desksCount`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non connecté
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (autre compagnie, ou rôle sans droit)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Partie introuvable (`not_found`) ou demande introuvable (`registration_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La partie n'est pas en attente (`game_not_pending`), pupitre déjà pris (`podium_taken`) ou salle pleine (`room_full`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/games/{gameId}/registrations/{registrationId}:
+    delete:
+      tags:
+        - Games
+      summary: "[DISPONIBLE] Refuser une demande d'inscription"
+      description: |
+        Statut : **Disponible**
+
+        Supprime définitivement la demande. Aucune trace ne reste.
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: deleteCompanyGameRegistration
+      x-availability: disponible
+      x-us: 'US-JOIN-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/GameIdParam'
+        - name: registrationId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '204':
+          description: Demande supprimée
+        '400':
+          description: Identifiants invalides (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non connecté
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (autre compagnie, ou rôle sans droit)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Partie introuvable (`not_found`) ou demande introuvable (`registration_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/games/{gameId}/participants:
+    post:
+      tags:
+        - Games
+      summary: '[DISPONIBLE] Ajouter un joueur à une partie en attente'
+      description: |
+        Statut : **Disponible**
+
+        Ajout au comptoir. Mêmes règles que les `participants` de `POST /companies/{companyId}/games` (email avec `emailConsent`, `marketingConsent` seulement avec un email).
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: addCompanyGameParticipant
+      x-availability: disponible
+      x-us: 'US-JOIN-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/GameIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGameParticipant'
+      responses:
+        '201':
+          description: Participant ajouté
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  participant:
+                    $ref: '#/components/schemas/GameParticipant'
+        '400':
+          description: Corps invalide (`invalid_body`, dont `email_consent_required`), identifiants invalides (`invalid_params`) ou pupitre absent de la salle (`podium_not_in_room`, avec `desksCount`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non connecté
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (autre compagnie, ou rôle sans droit)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Partie introuvable (`not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La partie n'est pas en attente (`game_not_pending`) ou pupitre déjà pris (`podium_taken`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/games/{gameId}/participants/{participantId}:
+    delete:
+      tags:
+        - Games
+      summary: "[DISPONIBLE] Retirer un joueur d'une partie en attente"
+      description: |
+        Statut : **Disponible**
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: deleteCompanyGameParticipant
+      x-availability: disponible
+      x-us: 'US-JOIN-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/GameIdParam'
+        - name: participantId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '204':
+          description: Joueur retiré
+        '400':
+          description: Identifiants invalides (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non connecté
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (autre compagnie, ou rôle sans droit)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Partie introuvable (`not_found`) ou joueur introuvable (`participant_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La partie n'est pas en attente (`game_not_pending`)
           content:
             application/json:
               schema:
@@ -2386,6 +2793,363 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: Partie déjà terminée (`game_already_over`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/games/{gameId}/vouchers:
+    post:
+      tags:
+        - Vouchers
+      summary: '[DISPONIBLE] Émettre un bon pour un pupitre'
+      description: |
+        Statut : **Disponible** (lot 6b)
+
+        Émet le bon de fidélisation d'un pupitre d'une partie terminée (un bon par pupitre et par partie, partagé par le duo). Le libellé du bon est copié du réglage `voucherLabel` du centre au moment de l'émission ; la fin de validité est l'émission plus `voucherValidityDays` jours. Le code (`XXXX-XXXX`) est tiré sur 40 bits.
+
+        `url` est l'adresse de la page publique du bon (`PUBLIC_APP_URL` + `/bon/#<code>`), nulle tant que `PUBLIC_APP_URL` n'est pas réglée. Le QR code (`qrSvg`) n'est pas encore fourni : il arrive avec le générateur de QR du lot 2.
+
+        Ordre des contrôles : droit, paramètres et corps, compagnie, compagnie et partie existantes (`404 not_found`), bons activés (`409 vouchers_disabled`), partie terminée (`409 game_not_finished`), pupitre de cette partie (`404 participant_not_found`), bon déjà émis (`409 voucher_already_issued`, y compris pour un bon annulé).
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: createGameVoucher
+      x-availability: disponible
+      x-us: 'US-VOUCHER-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/GameIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueVoucherRequest'
+      responses:
+        '201':
+          description: Bon émis
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  voucher:
+                    $ref: '#/components/schemas/Voucher'
+        '400':
+          description: Identifiants ou corps invalides (`invalid_params`, `invalid_body`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Compagnie ou partie introuvable (`not_found`), pupitre qui n'est pas de cette partie (`participant_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Bons désactivés pour ce centre (`vouchers_disabled`), partie pas terminée (`game_not_finished`), bon déjà émis pour ce pupitre (`voucher_already_issued`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      tags:
+        - Vouchers
+      summary: "[DISPONIBLE] Lister les bons d'une partie"
+      description: |
+        Statut : **Disponible** (lot 6b)
+
+        Bons non supprimés de la partie, dans l'ordre des pupitres, avec leur `state` (un bon annulé est listé : c'est à la feuille de résultats de l'ignorer).
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: listGameVouchers
+      x-availability: disponible
+      x-us: 'US-VOUCHER-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/GameIdParam'
+      responses:
+        '200':
+          description: Bons de la partie
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vouchers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Voucher'
+        '400':
+          description: Identifiants invalides (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Partie introuvable (`not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/vouchers:
+    get:
+      tags:
+        - Vouchers
+      summary: "[DISPONIBLE] Lister les bons d'une compagnie"
+      description: |
+        Statut : **Disponible** (lot 6b)
+
+        Bons non supprimés de la compagnie, du plus récent au plus ancien (l'identifiant décroissant départage les égalités). Les filtres sont facultatifs et se cumulent ; `total` est le nombre de bons qui passent les filtres, quelle que soit la page. `limit` au-delà de 200 est ramené à 200.
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: listCompanyVouchers
+      x-availability: disponible
+      x-us: 'US-VOUCHER-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - name: state
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/VoucherState'
+        - name: gameId
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Page de bons
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vouchers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Voucher'
+                  total:
+                    type: integer
+        '400':
+          description: Identifiant ou filtres invalides (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/vouchers/lookup:
+    post:
+      tags:
+        - Vouchers
+      summary: '[DISPONIBLE] Retrouver un bon par son code'
+      description: |
+        Statut : **Disponible** (lot 6b)
+
+        Le code est une valeur au porteur : il circule dans le corps, jamais dans l'URL. La saisie est normalisée (majuscules, sans espace ni tiret, `O` lu `0`, `I` et `L` lus `1`), donc `abcd 1234` et `ABCD-1234` désignent le même bon. Un code mal formé, inconnu ou d'une autre compagnie répond le même `404 voucher_not_found`.
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: lookupCompanyVoucher
+      x-availability: disponible
+      x-us: 'US-VOUCHER-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoucherCodeRequest'
+      responses:
+        '200':
+          description: Détail du bon
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  voucher:
+                    $ref: '#/components/schemas/Voucher'
+        '400':
+          description: Identifiant ou corps invalides (`invalid_params`, `invalid_body`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Aucun bon pour ce code dans la compagnie (`voucher_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/vouchers/redeem:
+    post:
+      tags:
+        - Vouchers
+      summary: '[DISPONIBLE] Marquer un bon comme utilisé'
+      description: |
+        Statut : **Disponible** (lot 6b)
+
+        Usage unique, valable dans toutes les salles de la compagnie, par n'importe quel membre du personnel. La décision tient en une seule instruction SQL (`UPDATE … WHERE redeemed_at IS NULL AND status = 1 AND expires_at > now`) : si deux comptoirs valident le même bon en même temps, un seul reçoit `200`, l'autre `409 voucher_already_redeemed`. Il n'y a pas de retour en arrière sur un bon utilisé.
+
+        Refus, selon l'état du bon : annulé `409 voucher_cancelled`, déjà utilisé `409 voucher_already_redeemed`, périmé `410 voucher_expired`. Un code mal formé, inconnu ou d'une autre compagnie répond `404 voucher_not_found`.
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: redeemCompanyVoucher
+      x-availability: disponible
+      x-us: 'US-VOUCHER-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoucherCodeRequest'
+      responses:
+        '200':
+          description: Bon utilisé (`state` vaut `redeemed`)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  voucher:
+                    $ref: '#/components/schemas/Voucher'
+        '400':
+          description: Identifiant ou corps invalides (`invalid_params`, `invalid_body`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Aucun bon pour ce code dans la compagnie (`voucher_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Bon annulé (`voucher_cancelled`) ou déjà utilisé (`voucher_already_redeemed`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '410':
+          description: Bon périmé (`voucher_expired`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/vouchers/{voucherId}/status:
+    patch:
+      tags:
+        - Vouchers
+      summary: '[DISPONIBLE] Annuler un bon'
+      description: |
+        Statut : **Disponible** (lot 6b)
+
+        Seule l'annulation existe (`status: 0`). Idempotent : annuler un bon déjà annulé renvoie `200`. Un bon périmé peut être annulé ; un bon utilisé non (`409 voucher_already_redeemed`). Le bon annulé bloque une nouvelle émission pour le même pupitre.
+
+        Accès : superadmin (toutes les compagnies) et `admin` de la compagnie ; refusé au rôle `user`.
+      operationId: cancelCompanyVoucher
+      x-availability: disponible
+      x-us: 'US-VOUCHER-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/VoucherIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: integer
+                  enum: [0]
+                  description: Annulation
+      responses:
+        '200':
+          description: Bon annulé
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  voucher:
+                    $ref: '#/components/schemas/Voucher'
+        '400':
+          description: Identifiants ou corps invalides (`invalid_params`, `invalid_body`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Bon introuvable dans la compagnie (`voucher_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Bon déjà utilisé (`voucher_already_redeemed`)
           content:
             application/json:
               schema:
@@ -2559,9 +3323,9 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Partie en attente ou en cours de la salle du compte connecté, ou `null`. Les emails des participants ne sont pas renvoyés.
+        Partie en attente ou en cours de la salle du compte connecté, ou `null`. Les emails des participants ne sont pas renvoyés. Pour une partie en attente, `game.join` donne le lien d'inscription à afficher en QR code et `game.pendingRegistrationsCount` le nombre de demandes à valider ; les noms des demandes ne sont jamais envoyés à la salle.
 
-        **À venir (lot 13)** : la réponse gagnera `next`, la session `scheduled` la plus proche de la salle dont la fin prévue (`scheduledEndAt`) est dans le futur, au même format que `game` (noms seulement, aucun email), ou `null`.
+        `next` : la session `scheduled` la plus proche de la salle dont la fin prévue (`scheduledEndAt`) est dans le futur, au même format que `game` (noms seulement, aucun email), ou `null`. Une session en retard mais dont le créneau n'est pas fini reste renvoyée.
 
         Accès : réservé au rôle `room`.
       operationId: getCurrentRoomGame
@@ -2583,7 +3347,7 @@ paths:
                     allOf:
                       - $ref: '#/components/schemas/RoomGame'
                     nullable: true
-                    description: '**À venir (lot 13).** Prochaine session programmée de la salle.'
+                    description: Prochaine session programmée de la salle.
         '403':
           description: Compte qui n'est pas un compte de salle
           content:
@@ -2665,6 +3429,12 @@ paths:
                                   example: /room/questions/12/media,
                                 }
                               mediaStartMs: { type: integer }
+                              audioEffect:
+                                {
+                                  type: string,
+                                  enum: [none, short, reverse, slowed],
+                                  description: "Effet joué sur l'extrait (blind test), `none` hors question audio ou sans effet.",
+                                }
                               mediaCredit:
                                 type: object
                                 nullable: true
@@ -2757,15 +3527,15 @@ paths:
     post:
       tags:
         - Rooms
-      summary: '[NON DISPONIBLE] Ouvrir une session programmée de la salle'
+      summary: '[DISPONIBLE] Ouvrir une session programmée de la salle'
       description: |
-        Statut : **Non disponible** (à venir, lot 13)
+        Statut : **Disponible**
 
-        Passe une session `scheduled` de la salle à l'état `pending` (bouton « Lancer » de l'écran de salle). Mêmes règles et mêmes codes que `POST /companies/{companyId}/games/{gameId}/open`, avec le même traitement côté serveur.
+        Passe une session `scheduled` de la salle à l'état `pending` (bouton « Lancer » de l'écran de salle). Mêmes règles que `POST /companies/{companyId}/games/{gameId}/open`, avec le même traitement côté serveur ; les codes d'erreur sont listés ci-dessous (le `404` est `game_not_found`, là où le backoffice répond `not_found`).
 
         Accès : réservé au rôle `room`, limité à sa propre salle (une autre salle : `404`).
       operationId: openRoomGame
-      x-availability: non_disponible
+      x-availability: disponible
       x-us: 'Lot 13 / sessions programmées'
       parameters:
         - $ref: '#/components/parameters/GameIdParam'
@@ -2779,20 +3549,32 @@ paths:
                 properties:
                   game:
                     $ref: '#/components/schemas/RoomGame'
+        '400':
+          description: Identifiant de partie invalide (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token manquant ou invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Compte qui n'est pas un compte de salle
+          description: Compte qui n'est pas un compte de salle (`forbidden`)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: Partie introuvable ou d'une autre salle
+          description: Partie introuvable, supprimée ou d'une autre salle ou compagnie (`game_not_found`)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: Session pas à l'état `scheduled` (`game_not_scheduled`), ouverture à plus de 60 minutes du début (`session_not_open_yet`), partie déjà en attente ou en cours (`room_busy`), salle inactive (`room_inactive`) ou compagnie inactive (`company_inactive`)
+          description: Session pas à l'état `scheduled` (`game_not_scheduled`), ouverture à plus de 60 minutes du début (`session_not_open_yet`), partie déjà en attente dans la salle (`room_busy` ; une partie en cours ne bloque pas), salle inactive (`room_inactive`) ou compagnie inactive (`company_inactive`)
           content:
             application/json:
               schema:
@@ -2808,12 +3590,29 @@ paths:
 
         La salle accuse réception de la partie lancée : `pending` → `running`, `startedAt` renseigné. Idempotent si la partie tourne déjà.
 
+        Le personnel peut valider une demande, ajouter ou retirer un joueur tant que la partie est en attente. Pour ne pas lancer une partie avec une liste périmée, la salle envoie dans `podiums` les pupitres qu'elle a chargés : si, au moment du lancement, ils ne sont pas exactement ceux des participants en base, le serveur répond `409 game_participants_changed` et ne démarre rien (la partie reste `pending`). La comparaison et le passage à `running` se font sous le même verrou de la partie que la validation d'une demande. Sans `podiums` (ancien écran de salle), aucune vérification.
+
         Accès : réservé au rôle `room`.
       operationId: startRoomGame
       x-availability: disponible
       x-us: 'US-GAME-08'
       parameters:
         - $ref: '#/components/parameters/GameIdParam'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                podiums:
+                  type: array
+                  maxItems: 6
+                  description: Pupitres des participants chargés par la salle, sans doublon
+                  items:
+                    type: integer
+                    minimum: 1
+                    maximum: 6
       responses:
         '200':
           description: Partie démarrée
@@ -2825,6 +3624,12 @@ paths:
                   game:
                     allOf:
                       - $ref: '#/components/schemas/RoomGame'
+        '400':
+          description: Identifiant ou corps invalide (`invalid_params`, `invalid_body`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
           description: Compte qui n'est pas un compte de salle
           content:
@@ -2833,6 +3638,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Pas de partie courante avec cet id (`game_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Les pupitres envoyés ne sont plus ceux des participants (`game_participants_changed`) ; rien n'est démarré
           content:
             application/json:
               schema:
@@ -4145,14 +4956,13 @@ paths:
     get:
       tags:
         - Themes
-      summary: '[NON DISPONIBLE] Lister les thèmes'
+      summary: '[DISPONIBLE] Lister les thèmes'
       description: |
-        Statut : **Non disponible**
+        Statut : **Disponible**
 
-        Route prévue pour la gestion des thèmes de quiz.
+        Liste les thèmes visibles : globaux, et ceux de la compagnie du compte (le superadmin voit tout).
       operationId: listThemes
-      x-availability: non_disponible
-      x-us: 'US Gestion des thèmes'
+      x-availability: disponible
       responses:
         '200':
           description: Liste des thèmes
@@ -4165,24 +4975,29 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Theme'
-        '501':
-          description: Route prévue mais pas encore implémentée
+        '401':
+          description: Token manquant ou invalide
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/NotImplementedResponse'
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
     post:
       tags:
         - Themes
-      summary: '[NON DISPONIBLE] Créer un thème'
+      summary: '[DISPONIBLE] Créer un thème'
       description: |
-        Statut : **Non disponible**
+        Statut : **Disponible**
 
-        Route prévue pour créer un thème de quiz.
+        Crée un thème de quiz.
       operationId: createTheme
-      x-availability: non_disponible
-      x-us: 'US Gestion des thèmes'
+      x-availability: disponible
       requestBody:
         required: true
         content:
@@ -4199,25 +5014,52 @@ paths:
                 properties:
                   theme:
                     $ref: '#/components/schemas/Theme'
-        '501':
-          description: Route prévue mais pas encore implémentée
+        '400':
+          description: >-
+            Corps invalide (`theme_name_required`, `theme_mode_invalid`, `theme_company_required`,
+            `theme_playlist_ref_invalid`, `theme_playlist_mode_invalid`)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/NotImplementedResponse'
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token manquant ou invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: |
+            Playlist refusée : inconnue du fournisseur (`theme_playlist_not_found`) ou moins de 4
+            titres jouables (`theme_playlist_too_small`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Fournisseur indisponible (délai, quota, réponse invalide) (`media_provider_unavailable`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /themes/{themeId}:
     get:
       tags:
         - Themes
-      summary: '[NON DISPONIBLE] Récupérer un thème'
+      summary: '[DISPONIBLE] Récupérer un thème'
       description: |
-        Statut : **Non disponible**
+        Statut : **Disponible**
 
-        Route prévue pour récupérer le détail d'un thème.
+        Récupère le détail d'un thème.
       operationId: getThemeById
-      x-availability: non_disponible
-      x-us: 'US Gestion des thèmes'
+      x-availability: disponible
       parameters:
         - $ref: '#/components/parameters/ThemeId'
       responses:
@@ -4230,24 +5072,41 @@ paths:
                 properties:
                   theme:
                     $ref: '#/components/schemas/Theme'
-        '501':
-          description: Route prévue mais pas encore implémentée
+        '400':
+          description: Identifiant invalide (`theme_id_invalid`)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/NotImplementedResponse'
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token manquant ou invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (`forbidden`), permission manquante ou thème d'une autre compagnie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Thème introuvable (`theme_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
     patch:
       tags:
         - Themes
-      summary: '[NON DISPONIBLE] Modifier un thème'
+      summary: '[DISPONIBLE] Modifier un thème'
       description: |
-        Statut : **Non disponible**
+        Statut : **Disponible**
 
-        Route prévue pour modifier un thème.
+        Modifie un thème.
       operationId: updateTheme
-      x-availability: non_disponible
-      x-us: 'US Gestion des thèmes'
+      x-availability: disponible
       parameters:
         - $ref: '#/components/parameters/ThemeId'
       requestBody:
@@ -4266,24 +5125,57 @@ paths:
                 properties:
                   theme:
                     $ref: '#/components/schemas/Theme'
-        '501':
-          description: Route prévue mais pas encore implémentée
+        '400':
+          description: >-
+            Corps invalide (`theme_id_invalid`, `theme_name_required`, `theme_mode_invalid`,
+            `theme_playlist_ref_invalid`, `theme_playlist_mode_invalid`)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/NotImplementedResponse'
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token manquant ou invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (`forbidden`), permission manquante ou thème d'une autre compagnie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Thème introuvable (`theme_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: |
+            Playlist refusée : inconnue du fournisseur (`theme_playlist_not_found`) ou moins de 4
+            titres jouables (`theme_playlist_too_small`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Fournisseur indisponible (délai, quota, réponse invalide) (`media_provider_unavailable`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
     delete:
       tags:
         - Themes
-      summary: '[NON DISPONIBLE] Supprimer un thème'
+      summary: '[DISPONIBLE] Supprimer un thème'
       description: |
-        Statut : **Non disponible**
+        Statut : **Disponible**
 
-        Route prévue pour supprimer logiquement un thème.
+        Supprime logiquement un thème.
       operationId: deleteTheme
-      x-availability: non_disponible
-      x-us: 'US Gestion des thèmes'
+      x-availability: disponible
       parameters:
         - $ref: '#/components/parameters/ThemeId'
       responses:
@@ -4296,12 +5188,30 @@ paths:
                 properties:
                   theme:
                     $ref: '#/components/schemas/Theme'
-        '501':
-          description: Route prévue mais pas encore implémentée
+        '400':
+          description: Identifiant invalide (`theme_id_invalid`)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/NotImplementedResponse'
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token manquant ou invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (`forbidden`), permission manquante ou thème d'une autre compagnie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Thème introuvable (`theme_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /questions:
     get:
@@ -4349,6 +5259,10 @@ paths:
         Statut : **Non disponible**
 
         Route prévue pour créer une question et ses réponses.
+
+        Effet audio : le champ optionnel `audioEffect` (voir `UpdateQuestionRequest`) est accepté
+        à la création, avec les mêmes règles (`question_audio_effect_invalid`,
+        `audio_effect_requires_audio`).
       operationId: createQuestion
       x-availability: non_disponible
       x-us: 'US Gestion des questions'
@@ -5643,6 +6557,75 @@ paths:
               schema:
                 $ref: '#/components/schemas/PublicError'
 
+  /public/v1/vouchers/lookup:
+    post:
+      tags:
+        - Public
+      summary: '[DISPONIBLE] Consulter un bon à partir de son code'
+      description: |
+        Statut : **Disponible** (lot 6b)
+
+        Route publique de la page `/bon/#<code>` : aucune authentification. Le code est une valeur au porteur : il circule dans le corps, jamais dans l'URL. Il est normalisé comme pour le personnel (majuscules, sans espace ni tiret, `O` lu `0`, `I` et `L` lus `1`).
+
+        La réponse ne contient ni le nom du joueur ni la partie : le libellé, le centre, son logo, la fin de validité et l'état. Un code mal formé, inconnu, supprimé ou d'une compagnie supprimée répond le même `404 voucher_not_found`. Limite : 20 recherches par minute et par adresse, trouvées ou non (`429` `too_many_requests`, en-tête `Retry-After`). Le corps est limité à 1 Ko.
+      operationId: lookupPublicVoucher
+      x-availability: disponible
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoucherCodeRequest'
+      responses:
+        '200':
+          description: Le bon
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicVoucher'
+        '400':
+          description: Corps invalide (`invalid_json`, `invalid_body` avec `details.fieldErrors`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '404':
+          description: Aucun bon pour ce code (`voucher_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '413':
+          description: Corps de plus de 1 Ko (`payload_too_large`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '415':
+          description: Corps qui n'est pas du JSON (`unsupported_media_type`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '429':
+          description: Trop de recherches depuis cette adresse (`too_many_requests`)
+          headers:
+            Retry-After:
+              description: Secondes avant de pouvoir réessayer
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '500':
+          description: Erreur serveur (`server_error`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -5686,6 +6669,15 @@ components:
       schema:
         type: integer
         example: 1
+
+    VoucherIdParam:
+      name: voucherId
+      in: path
+      required: true
+      description: Identifiant du bon
+      schema:
+        type: integer
+        example: 12
 
     DemoRequestId:
       name: demoRequestId
@@ -5765,6 +6757,113 @@ components:
             `question_type_media_invalid`, `question_kind_media_invalid`,
             `question_answers_min_required`, `question_correct_answer_required`,
             `question_true_false_answers_invalid`, `question_estimate_answers_invalid`)
+
+    VoucherState:
+      type: string
+      enum: [valid, redeemed, expired, cancelled]
+      description: |
+        État calculé, jamais stocké : `cancelled` (annulé, même s'il était utilisé ou périmé), `redeemed` (utilisé), `expired` (non utilisé, fin de validité passée), `valid` sinon.
+
+    Voucher:
+      type: object
+      description: Bon de fidélisation vu par le personnel. Le bénéficiaire est un pupitre (nom seulement, jamais d'e-mail).
+      properties:
+        id:
+          type: integer
+          example: 12
+        gameId:
+          type: integer
+          example: 7
+        participantId:
+          type: integer
+          example: 31
+        podium:
+          type: integer
+          description: Numéro du pupitre bénéficiaire
+          example: 1
+        displayName:
+          type: string
+          example: Camille
+        secondDisplayName:
+          type: string
+          nullable: true
+          description: Second joueur du pupitre, qui partage le bon
+        code:
+          type: string
+          description: Valeur au porteur, `XXXX-XXXX` (alphabet de Crockford sans I, L, O ni U)
+          example: 7K2M-9QXD
+        label:
+          type: string
+          description: Libellé du centre au moment de l'émission
+          example: Une partie offerte
+        state:
+          $ref: '#/components/schemas/VoucherState'
+        expiresAt:
+          type: string
+          format: date-time
+        redeemedAt:
+          type: string
+          format: date-time
+          nullable: true
+        redeemedBy:
+          type: integer
+          nullable: true
+          description: Compte qui a enregistré l'utilisation (nul si ce compte a été supprimé)
+        createdAt:
+          type: string
+          format: date-time
+        url:
+          type: string
+          nullable: true
+          description: Page publique du bon (`PUBLIC_APP_URL` + `/bon/#<code>`), nulle tant que `PUBLIC_APP_URL` n'est pas réglée
+          example: https://bo.quizzup.fr/bon/#7K2M-9QXD
+
+    IssueVoucherRequest:
+      type: object
+      required:
+        - participantId
+      properties:
+        participantId:
+          type: integer
+          minimum: 1
+          description: Pupitre de la partie qui reçoit le bon
+
+    VoucherCodeRequest:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          maxLength: 64
+          description: Code saisi ou lu sur le bon, avec ou sans tiret, en majuscules ou non
+          example: 7k2m 9qxd
+
+    PublicVoucher:
+      type: object
+      description: Ce qu'un porteur voit de son bon, sans nom de joueur ni partie
+      required:
+        - label
+        - companyName
+        - logoUrl
+        - expiresAt
+        - state
+      properties:
+        label:
+          type: string
+          example: Une partie offerte
+        companyName:
+          type: string
+          example: Escape Lab
+        logoUrl:
+          type: string
+          nullable: true
+          example: /public/v1/logos/6f1c2a9e-3b7d-4c55-9a10-0d2f5b8e7a41.png
+        expiresAt:
+          type: string
+          format: date-time
+        state:
+          $ref: '#/components/schemas/VoucherState'
 
     ApiKey:
       type: object
@@ -5995,6 +7094,90 @@ components:
         processed:
           type: boolean
 
+    Theme:
+      type: object
+      properties:
+        id:
+          type: integer
+        adminId:
+          type: integer
+        companyId:
+          type: integer
+          nullable: true
+        scope:
+          type: string
+          enum: [global, company]
+        name:
+          type: string
+        mode:
+          type: string
+          enum: [classic, image, audio, mixed]
+        playlistRef:
+          type: string
+          nullable: true
+          pattern: '^\d{1,20}$'
+          description: >-
+            Identifiant de la playlist du fournisseur d'extraits (Deezer). `null` sans playlist.
+            Seulement en mode `audio` ; aucun titre ni lien n'est stocké.
+        status:
+          type: integer
+          enum: [0, 1, 2, 3]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        questionsCount:
+          type: integer
+          description: Présent dans la liste seulement
+
+    CreateThemeRequest:
+      type: object
+      required: [name, mode]
+      properties:
+        name:
+          type: string
+        mode:
+          type: string
+          enum: [classic, image, audio, mixed]
+        scope:
+          type: string
+          enum: [global, company]
+        companyId:
+          type: integer
+          nullable: true
+        playlistRef:
+          type: string
+          nullable: true
+          pattern: '^\d{1,20}$'
+          description: >-
+            Playlist du fournisseur d'extraits, mode `audio` seulement. Le serveur la contrôle :
+            `theme_playlist_not_found` (422), `theme_playlist_too_small` (422, moins de 4 titres
+            lisibles avec extrait), `media_provider_unavailable` (502).
+
+    UpdateThemeRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        mode:
+          type: string
+          enum: [classic, image, audio, mixed]
+        playlistRef:
+          type: string
+          nullable: true
+          pattern: '^\d{1,20}$'
+          description: >-
+            Absent : inchangé. `null` : efface la playlist. Un thème qui quitte le mode `audio`
+            perd sa playlist ; en renseigner une hors du mode `audio` est refusé
+            (`theme_playlist_mode_invalid`). Mêmes contrôles qu'à la création.
+
     MediaProviderTrack:
       type: object
       description: Titre d'un fournisseur d'extraits, normalisé
@@ -6120,6 +7303,14 @@ components:
           description: |
             Libellé « artiste — titre » enregistré au rattachement, pour afficher le titre sans
             interroger le fournisseur ; `null` si `mediaProvider` l'est.
+        audioEffect:
+          type: string
+          enum: [none, short, reverse, slowed]
+          default: none
+          description: |
+            Effet joué sur l'extrait de la question audio (blind test) : `none`, `short` (paliers
+            très courts, appliqué par le moteur), `reverse` (à l'envers) ou `slowed` (ralenti).
+            `none` pour une question qui n'est pas audio.
         status:
           type: integer
           enum: [0, 1, 2, 3]
@@ -6170,6 +7361,15 @@ components:
             `question_media_start_out_of_range`) ; refusé sans fichier (`question_media_not_found`).
             Passer `typeMedia` à une autre valeur que `audio` détache et supprime le fichier.
           example: not_found
+        audioEffect:
+          type: string
+          enum: [none, short, reverse, slowed]
+          nullable: true
+          description: |
+            Effet joué sur l'extrait (blind test) ; `null` l'efface (retour à `none`). Valeur
+            inconnue : `question_audio_effect_invalid`. Autre chose que `none` sur une question qui
+            n'est pas audio : `audio_effect_requires_audio` (le type est celui envoyé, sinon celui
+            de la base). Passer `typeMedia` à autre chose que `audio` remet l'effet à `none`.
 
     ValidationError:
       type: object
@@ -6390,6 +7590,17 @@ components:
           nullable: true
           description: URL publique du logo (`GET /public/v1/logos/{file}`), ou `null` sans logo
           example: /public/v1/logos/6f1c2a9e-3b7d-4c55-9a10-0d2f5b8e7a41.png
+        voucherLabel:
+          type: string
+          nullable: true
+          description: Libellé des bons de fidélisation du centre ; `null` = bons désactivés
+          example: Une partie offerte
+        voucherValidityDays:
+          type: integer
+          minimum: 1
+          maximum: 730
+          description: Durée de validité d'un bon, en jours
+          example: 90
 
     CreateCompanyRequest:
       type: object
@@ -6424,6 +7635,17 @@ components:
           example: contact@quizzup.fr
         status:
           $ref: '#/components/schemas/Status'
+        voucherLabel:
+          type: string
+          nullable: true
+          maxLength: 120
+          description: Libellé des bons de fidélisation ; vide ou `null` désactive les bons (les bons déjà émis gardent leur libellé)
+          example: Une partie offerte
+        voucherValidityDays:
+          type: integer
+          minimum: 1
+          maximum: 730
+          description: Durée de validité des bons émis ensuite, en jours
 
     UpdateStatusRequest:
       type: object
@@ -7074,6 +8296,14 @@ components:
         - $ref: '#/components/schemas/GameSummary'
         - type: object
           properties:
+            join:
+              allOf:
+                - $ref: '#/components/schemas/GameJoin'
+              nullable: true
+              description: Lien d'inscription ; `null` s'il est fermé, expiré ou si la partie n'est plus en attente
+            pendingRegistrationsCount:
+              type: integer
+              description: Demandes d'inscription à valider (0 si la partie n'est plus en attente)
             participants:
               type: array
               items:
@@ -7084,6 +8314,14 @@ components:
         - $ref: '#/components/schemas/GameSummary'
         - type: object
           properties:
+            join:
+              allOf:
+                - $ref: '#/components/schemas/GameJoin'
+              nullable: true
+              description: Lien d'inscription ; `null` s'il est fermé, expiré ou si la partie n'est plus en attente
+            pendingRegistrationsCount:
+              type: integer
+              description: Demandes d'inscription à valider (0 si la partie n'est plus en attente)
             participants:
               type: array
               items:
@@ -7106,11 +8344,17 @@ components:
       type: object
       required: [roomId]
       description: >-
-        Sans `scheduledAt`, `participants` est requis (1 à 6). Avec `scheduledAt`, la partie est
+        Sans `scheduledAt` ni `openJoin: true`, `participants` est requis (1 à 6). Avec `scheduledAt`, la partie est
         créée à l'état `scheduled`, `participants` peut être vide (0 à 6) et le contrôle
         `room_busy` ne s'applique pas. Seul le chevauchement d'une autre session de la salle est
         interdit (`slot_taken`) : une création manuelle peut sortir de la grille des créneaux.
       properties:
+        openJoin:
+          type: boolean
+          description: >-
+            Ouvre le lien d'inscription dès la création et accepte `participants: []`. Sans effet
+            avec `scheduledAt` : le lien s'ouvre une fois la session en attente
+            (`POST /companies/{companyId}/games/{gameId}/join`).
         scheduledAt:
           type: string
           format: date-time
@@ -7160,51 +8404,104 @@ components:
           type: array
           maxItems: 6
           description: >-
-            Au moins un participant sans `scheduledAt`. Au plus autant de participants que la salle a de pupitres (`desksCount`, 4 par défaut,
+            Au moins un participant sans `scheduledAt` ni `openJoin`. Au plus autant de participants que la salle a de pupitres (`desksCount`, 4 par défaut,
             6 au maximum) ; un pupitre au-delà donne `400 podium_not_in_room`.
           items:
-            type: object
-            required: [podium, displayName]
-            properties:
-              podium:
-                type: integer
-                minimum: 1
-                maximum: 6
-              displayName:
-                type: string
-                maxLength: 100
-              email:
-                type: string
-                format: email
-                nullable: true
-              emailConsent:
-                type: boolean
-                description: Case RGPD cochée explicitement ; requise si `email` est renseigné
-              marketingConsent:
-                type: boolean
-                description: >-
-                  Case « recevoir les offres du centre », distincte de `emailConsent` et facultative.
-                  `true` sans `email` donne `400 marketing_consent_requires_email`. Le serveur
-                  horodate lui-même.
-              secondPlayer:
-                type: object
-                nullable: true
-                description: 2e joueur facultatif du pupitre (même score que le 1er)
-                required: [displayName]
-                properties:
-                  displayName:
-                    type: string
-                    maxLength: 100
-                  email:
-                    type: string
-                    format: email
-                    nullable: true
-                  emailConsent:
-                    type: boolean
-                    description: Requise si `email` est renseigné
-                  marketingConsent:
-                    type: boolean
-                    description: Offres du centre ; `true` sans `email` donne `400 marketing_consent_requires_email`
+            $ref: '#/components/schemas/CreateGameParticipant'
+
+    CreateGameParticipant:
+      type: object
+      required: [podium, displayName]
+      properties:
+        podium:
+          type: integer
+          minimum: 1
+          maximum: 6
+        displayName:
+          type: string
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          nullable: true
+        emailConsent:
+          type: boolean
+          description: Case RGPD cochée explicitement ; requise si `email` est renseigné
+        marketingConsent:
+          type: boolean
+          description: >-
+            Case « recevoir les offres du centre », distincte de `emailConsent` et facultative.
+            `true` sans `email` donne `400 marketing_consent_requires_email`. Le serveur
+            horodate lui-même.
+        secondPlayer:
+          type: object
+          nullable: true
+          description: 2e joueur facultatif du pupitre (même score que le 1er)
+          required: [displayName]
+          properties:
+            displayName:
+              type: string
+              maxLength: 100
+            email:
+              type: string
+              format: email
+              nullable: true
+            emailConsent:
+              type: boolean
+              description: Requise si `email` est renseigné
+            marketingConsent:
+              type: boolean
+              description: Offres du centre ; `true` sans `email` donne `400 marketing_consent_requires_email`
+
+    GameJoin:
+      type: object
+      description: >-
+        Lien d'inscription d'une partie en attente. Le jeton est dans le fragment (`#`) de l'adresse :
+        il n'est jamais envoyé au serveur. Sans `PUBLIC_APP_URL`, l'adresse est relative.
+      properties:
+        url:
+          type: string
+          example: https://app.quizzup.example/rejoindre/#Zm9vYmFyYmF6cXV4
+        expiresAt:
+          type: string
+          format: date-time
+          description: Valable 180 minutes après l'ouverture ou le renouvellement
+
+    GameRegistration:
+      type: object
+      description: >-
+        Demande d'inscription faite depuis un téléphone, en attente de validation. Les emails sont
+        `null` pour le rôle `user` (`hasEmail` dit s'il y en a un).
+      properties:
+        id:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        displayName:
+          type: string
+        hasEmail:
+          type: boolean
+        email:
+          type: string
+          format: email
+          nullable: true
+        marketingConsent:
+          type: boolean
+        secondPlayer:
+          type: object
+          nullable: true
+          properties:
+            displayName:
+              type: string
+            hasEmail:
+              type: boolean
+            email:
+              type: string
+              format: email
+              nullable: true
+            marketingConsent:
+              type: boolean
 
     Account:
       type: object

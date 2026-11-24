@@ -691,11 +691,36 @@ export const QUESTION_MEDIA_PROVIDERS = [QUESTION_MEDIA_PROVIDER_DEEZER] as cons
 
 export type QuestionMediaProvider = (typeof QUESTION_MEDIA_PROVIDERS)[number]
 
+/**
+ * Effet joué sur l'extrait d'une question audio (blind test) : choisi par question, car la
+ * reconnaissance d'un extrait transformé dépend de l'extrait. Même liste que `EXTRACT_EFFECTS`
+ * de `@quizzup/audio` (`short` est appliqué par le moteur, les autres par le lecteur).
+ */
+export const QUESTION_AUDIO_EFFECT_NONE = 'none' as const
+export const QUESTION_AUDIO_EFFECT_SHORT = 'short' as const
+export const QUESTION_AUDIO_EFFECT_REVERSE = 'reverse' as const
+export const QUESTION_AUDIO_EFFECT_SLOWED = 'slowed' as const
+
+export const QUESTION_AUDIO_EFFECTS = [
+  QUESTION_AUDIO_EFFECT_NONE,
+  QUESTION_AUDIO_EFFECT_SHORT,
+  QUESTION_AUDIO_EFFECT_REVERSE,
+  QUESTION_AUDIO_EFFECT_SLOWED,
+] as const
+
+export type QuestionAudioEffect = (typeof QUESTION_AUDIO_EFFECTS)[number]
+
 /** Durée de l'extrait fourni par le fournisseur. */
 export const QUESTION_MEDIA_PROVIDER_EXTRACT_MS = 30_000
 
 /** Longueur minimale d'une recherche de titre (vérifiée par l'API, aussi par l'écran). */
 export const QUESTION_MEDIA_PROVIDER_SEARCH_MIN_LENGTH = 2
+
+/**
+ * Titres jouables (lisibles, avec un extrait en https) qu'une playlist doit compter pour devenir
+ * un thème : le bon titre plus trois leurres.
+ */
+export const THEME_PLAYLIST_MIN_PLAYABLE_TRACKS = 4
 
 /** Questions demandées au plus par appel au contenu de la salle (`?ids=`). */
 export const ROOM_CONTENT_MAX_IDS = 200
@@ -937,4 +962,6 @@ export * from './schedule.js'
 export * from './questionImport.js'
 export * from './stats.js'
 export * from './totp.js'
+export * from './join.js'
+export * from './vouchers.js'
 export * from './publicApi.js'

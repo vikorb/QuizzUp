@@ -334,6 +334,77 @@ describe('routes/questions.ts', () => {
     await app.close()
   })
 
+  it('stores the audio effect of an audio question and returns it', async () => {
+    const app = await createRouteApp(questionsRoutes)
+    const post = (overrides: Record<string, unknown>) =>
+      app.inject({
+        method: 'POST',
+        url: '/questions',
+        headers: authHeaders(superadminUser),
+        payload: questionBody({ typeMedia: 'audio', ...overrides }),
+      })
+
+    const reverse = await post({ audioEffect: 'reverse' })
+    const byDefault = await post({})
+    const cleared = await post({ audioEffect: null })
+
+    expect(reverse.statusCode).toBe(201)
+    const created = parseJson<{ question: QuestionPayload }>(reverse).question
+    expect(created).toMatchObject({ audioEffect: 'reverse' })
+    expect(dbState.questions.find((row) => row.id === created.id)).toMatchObject({
+      audio_effect: 'reverse',
+    })
+    expect(parseJson<{ question: QuestionPayload }>(byDefault).question).toMatchObject({
+      audioEffect: 'none',
+    })
+    expect(parseJson<{ question: QuestionPayload }>(cleared).question).toMatchObject({
+      audioEffect: 'none',
+    })
+
+    await app.close()
+  })
+
+  it('refuses an unknown audio effect on creation', async () => {
+    const app = await createRouteApp(questionsRoutes)
+    const before = dbState.questions.length
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/questions',
+      headers: authHeaders(superadminUser),
+      payload: questionBody({ typeMedia: 'audio', audioEffect: 'echo' }),
+    })
+
+    expect(response.statusCode).toBe(400)
+    expect(parseJson(response)).toEqual({ error: 'question_audio_effect_invalid' })
+    expect(dbState.questions).toHaveLength(before)
+
+    await app.close()
+  })
+
+  it('refuses an audio effect on a question that is not audio, but accepts none', async () => {
+    const app = await createRouteApp(questionsRoutes)
+    const post = (overrides: Record<string, unknown>) =>
+      app.inject({
+        method: 'POST',
+        url: '/questions',
+        headers: authHeaders(superadminUser),
+        payload: questionBody(overrides),
+      })
+
+    const slowed = await post({ audioEffect: 'slowed' })
+    const image = await post({ typeMedia: 'image', audioEffect: 'short' })
+    const none = await post({ audioEffect: 'none' })
+
+    expect(slowed.statusCode).toBe(400)
+    expect(parseJson(slowed)).toEqual({ error: 'audio_effect_requires_audio' })
+    expect(image.statusCode).toBe(400)
+    expect(parseJson(image)).toEqual({ error: 'audio_effect_requires_audio' })
+    expect(none.statusCode).toBe(201)
+
+    await app.close()
+  })
+
   it('limits visibility to global and own-company questions for non-superadmins', async () => {
     const app = await createRouteApp(questionsRoutes)
 

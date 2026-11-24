@@ -14,6 +14,9 @@ export type CompanyRow = {
   deletedAt: string | null
   accountsCount: number
   logoUrl: string | null
+  /** Libellé des bons de fidélisation ; nul = bons désactivés. */
+  voucherLabel: string | null
+  voucherValidityDays: number
 }
 
 /** Compagnie telle que lue en base : `logoKey` (clé de stockage) ne sort jamais de l'API. */
@@ -35,4 +38,6 @@ export type CompanyUpdateBody = {
   name?: string
   email?: string
   status?: CompanyStatus
+  voucherLabel?: string | null
+  voucherValidityDays?: number
 }
