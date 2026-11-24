@@ -161,6 +161,30 @@ describe('services/roomsService.ts', () => {
     })
   })
 
+  it('loads the room logs without query when there is no filter nor cursor', async () => {
+    const { loadRoomLogsService } = await loadService()
+
+    await loadRoomLogsService(7, 3)
+
+    expect(apiRequestJsonMock).toHaveBeenCalledWith({
+      path: '/companies/7/rooms/3/logs',
+      method: 'GET',
+      authenticated: true,
+    })
+  })
+
+  it('sends the level filter and the cursor of the room logs', async () => {
+    const { loadRoomLogsService } = await loadService()
+
+    await loadRoomLogsService(7, 3, { level: 'warn', before: 42 })
+
+    expect(apiRequestJsonMock).toHaveBeenCalledWith({
+      path: '/companies/7/rooms/3/logs?level=warn&before=42',
+      method: 'GET',
+      authenticated: true,
+    })
+  })
+
   it('deletes the room account', async () => {
     const { deleteRoomAccountService } = await loadService()
 
