@@ -103,6 +103,7 @@
         "noContent": "Aucun thème jouable pour cette partie : ajoute des questions audio actives au backoffice.",
         "gameGone": "Cette partie n’est plus disponible (arrêtée ou terminée au backoffice).",
         "startFailed": "Impossible de démarrer la partie. Vérifie la connexion et réessaie.",
+        "participantsChanged": "Les joueurs ont changé pendant la préparation de la partie. Vérifie la liste affichée, puis relance la partie.",
         "invalidGame": "Un joueur est placé sur un pupitre inconnu : corrige la partie au backoffice.",
         "noPlayers": "Aucun joueur n’est inscrit à cette partie : ajoute-les au backoffice.",
         "invalidSetup": "Le format de cette partie (manches, questions ou joueurs) n’est pas jouable : corrige-la au backoffice.",

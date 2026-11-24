@@ -38,6 +38,7 @@ type DbState = {
   rooms: Row[]
   games: Row[]
   game_participants: Row[]
+  game_registrations: Row[]
   vouchers: Row[]
   room_logs: Row[]
   demo_requests: Row[]
@@ -63,6 +64,7 @@ export const dbState: DbState = {
   rooms: [],
   games: [],
   game_participants: [],
+  game_registrations: [],
   vouchers: [],
   room_logs: [],
   demo_requests: [],
@@ -151,6 +153,7 @@ export function resetDb(seed?: Partial<DbState>): void {
   dbState.rooms = structuredClone(seed?.rooms ?? [])
   dbState.games = structuredClone(seed?.games ?? [])
   dbState.game_participants = structuredClone(seed?.game_participants ?? [])
+  dbState.game_registrations = structuredClone(seed?.game_registrations ?? [])
   dbState.vouchers = structuredClone(seed?.vouchers ?? [])
   dbState.room_logs = structuredClone(seed?.room_logs ?? [])
   dbState.demo_requests = structuredClone(seed?.demo_requests ?? [])
@@ -763,10 +766,9 @@ class QueryBuilder {
     return getTableRows(this.table).some(matches) || pending.some(matches)
   }
 
-  // Index unique partiel `games_room_id_active_unique` : une seule partie pending/running par salle.
+  // Index uniques partiels `games_room_id_pending_unique` et `games_room_id_running_unique` : au
+  // plus une partie pending et une partie running par salle (elles peuvent coexister).
   private assertRoomActiveIndex(rows: Row[]): void {
-    const isActive = (row: Row): boolean =>
-      ['pending', 'running'].includes(row.state as string) && row.status !== 2
     const nextState = this.updatePayload?.state
 
     if (this.table !== 'games' || (nextState !== 'pending' && nextState !== 'running')) {
@@ -775,7 +777,11 @@ class QueryBuilder {
 
     const taken = rows.some((row) =>
       dbState.games.some(
-        (other) => other !== row && other.room_id === row.room_id && isActive(other)
+        (other) =>
+          other !== row &&
+          other.room_id === row.room_id &&
+          other.state === nextState &&
+          other.status !== 2
       )
     )
 

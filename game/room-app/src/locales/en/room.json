@@ -103,6 +103,7 @@
         "noContent": "No playable theme for this game: add active audio questions in the back office.",
         "gameGone": "This game is no longer available (stopped or finished in the back office).",
         "startFailed": "Could not start the game. Check the connection and try again.",
+        "participantsChanged": "The players changed while the game was being prepared. Check the list shown, then start the game again.",
         "invalidGame": "A player sits at an unknown desk: fix the game in the back office.",
         "noPlayers": "No player is registered for this game: add them in the back office.",
         "invalidSetup": "This game's format (rounds, questions or players) cannot be played: fix it in the back office.",

@@ -2084,6 +2084,8 @@ paths:
 
         Le corps accepte aussi `scheduledAt`, `durationMinutes`, `playersCount`, `externalRef` et `locale` (voir `CreateGameRequest`). Avec `scheduledAt`, la partie est créée à l'état `scheduled` (participants de 0 à 6, pas de contrôle `room_busy`) ; erreurs propres : 400 `session_in_past` (fin ≤ maintenant), 400 `session_too_far` (début au-delà de 365 jours), 409 `slot_taken` (chevauchement d'une autre session de la salle). Sans `scheduledAt`, rien ne change.
 
+        Avec `openJoin: true`, la partie en attente ouvre aussitôt son lien d'inscription (`join` dans la réponse) et accepte `participants: []` : les joueurs s'inscrivent depuis leur téléphone et le personnel valide leurs demandes. Une partie en cours dans la salle ne bloque pas la création ; seule une partie déjà en attente répond `room_busy`.
+
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
       operationId: createCompanyGame
       x-availability: disponible
@@ -2126,7 +2128,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: Compagnie supprimée (`company_deleted`) ou inactive (`company_inactive`), salle inactive (`room_inactive`) ou partie déjà en attente / en cours (`room_busy`)
+          description: Compagnie supprimée (`company_deleted`) ou inactive (`company_inactive`), salle inactive (`room_inactive`) ou partie déjà en attente dans la salle (`room_busy` ; une partie en cours ne bloque pas)
           content:
             application/json:
               schema:
@@ -2140,7 +2142,7 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Partie avec ses participants.
+        Partie avec ses participants. Pour une partie en attente dont le lien d'inscription est ouvert et non expiré, `join` donne l'adresse à afficher en QR code ; `pendingRegistrationsCount` compte les demandes d'inscription à valider.
 
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
       operationId: getCompanyGame
@@ -2331,7 +2333,409 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: Session pas à l'état `scheduled` (`game_not_scheduled`), ouverture à plus de 60 minutes du début (`session_not_open_yet`), partie déjà en attente ou en cours dans la salle (`room_busy`), salle inactive (`room_inactive`) ou compagnie inactive (`company_inactive`)
+          description: Session pas à l'état `scheduled` (`game_not_scheduled`), ouverture à plus de 60 minutes du début (`session_not_open_yet`), partie déjà en attente dans la salle (`room_busy` ; une partie en cours ne bloque pas), salle inactive (`room_inactive`) ou compagnie inactive (`company_inactive`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/games/{gameId}/join:
+    post:
+      tags:
+        - Games
+      summary: "[DISPONIBLE] Ouvrir (ou renouveler) le lien d'inscription"
+      description: |
+        Statut : **Disponible**
+
+        Génère un nouveau jeton pour une partie `pending` : l'ancien lien cesse de fonctionner. Le lien est valable 180 minutes. Le jeton est dans le fragment (`#`) de l'adresse, qui n'est donc jamais envoyé au serveur ni écrit dans ses journaux. Sans `PUBLIC_APP_URL`, l'adresse est relative (`/rejoindre/#jeton`).
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: openCompanyGameJoin
+      x-availability: disponible
+      x-us: 'US-JOIN-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/GameIdParam'
+      responses:
+        '200':
+          description: Lien ouvert
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  join:
+                    $ref: '#/components/schemas/GameJoin'
+        '400':
+          description: Identifiants invalides (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non connecté
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (autre compagnie, ou rôle sans droit)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Partie introuvable (`not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La partie n'est pas en attente (`game_not_pending`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Games
+      summary: "[DISPONIBLE] Fermer le lien d'inscription"
+      description: |
+        Statut : **Disponible**
+
+        Révoque le jeton : le lien ne fonctionne plus. Idempotent : refaire l'appel sur un lien déjà fermé renvoie `204`. Les demandes déjà reçues restent à valider.
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: closeCompanyGameJoin
+      x-availability: disponible
+      x-us: 'US-JOIN-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/GameIdParam'
+      responses:
+        '204':
+          description: Lien fermé
+        '400':
+          description: Identifiants invalides (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non connecté
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (autre compagnie, ou rôle sans droit)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Partie introuvable (`not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/games/{gameId}/registrations:
+    get:
+      tags:
+        - Games
+      summary: "[DISPONIBLE] Lister les demandes d'inscription"
+      description: |
+        Statut : **Disponible**
+
+        Demandes envoyées depuis les téléphones et pas encore traitées, les plus anciennes d'abord. Les emails sont masqués pour le rôle `user` (`email: null`, `hasEmail` dit s'il y en a un). Les demandes sont purgées après 24 heures, ou dès que la partie n'est plus en attente.
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: listCompanyGameRegistrations
+      x-availability: disponible
+      x-us: 'US-JOIN-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/GameIdParam'
+      responses:
+        '200':
+          description: Demandes en attente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  registrations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/GameRegistration'
+        '400':
+          description: Identifiants invalides (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non connecté
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (autre compagnie, ou rôle sans droit)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Partie introuvable (`not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/games/{gameId}/registrations/{registrationId}/accept:
+    post:
+      tags:
+        - Games
+      summary: "[DISPONIBLE] Valider une demande d'inscription"
+      description: |
+        Statut : **Disponible**
+
+        Transforme la demande en participant (la demande est supprimée) et renvoie ce participant. Sans `podium`, le plus petit pupitre libre de la salle est pris. Deux validations simultanées ne prennent jamais le même pupitre.
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: acceptCompanyGameRegistration
+      x-availability: disponible
+      x-us: 'US-JOIN-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/GameIdParam'
+        - name: registrationId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                podium:
+                  type: integer
+                  minimum: 1
+                  maximum: 6
+                  description: Pupitre voulu. Au-delà du nombre de pupitres de la salle, `400 podium_not_in_room` (avec `desksCount`).
+      responses:
+        '201':
+          description: Participant créé
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  participant:
+                    $ref: '#/components/schemas/GameParticipant'
+        '400':
+          description: Corps ou identifiants invalides (`invalid_body`, `invalid_params`), ou pupitre absent de la salle (`podium_not_in_room`, avec `desksCount`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non connecté
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (autre compagnie, ou rôle sans droit)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Partie introuvable (`not_found`) ou demande introuvable (`registration_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La partie n'est pas en attente (`game_not_pending`), pupitre déjà pris (`podium_taken`) ou salle pleine (`room_full`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/games/{gameId}/registrations/{registrationId}:
+    delete:
+      tags:
+        - Games
+      summary: "[DISPONIBLE] Refuser une demande d'inscription"
+      description: |
+        Statut : **Disponible**
+
+        Supprime définitivement la demande. Aucune trace ne reste.
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: deleteCompanyGameRegistration
+      x-availability: disponible
+      x-us: 'US-JOIN-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/GameIdParam'
+        - name: registrationId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '204':
+          description: Demande supprimée
+        '400':
+          description: Identifiants invalides (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non connecté
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (autre compagnie, ou rôle sans droit)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Partie introuvable (`not_found`) ou demande introuvable (`registration_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/games/{gameId}/participants:
+    post:
+      tags:
+        - Games
+      summary: '[DISPONIBLE] Ajouter un joueur à une partie en attente'
+      description: |
+        Statut : **Disponible**
+
+        Ajout au comptoir. Mêmes règles que les `participants` de `POST /companies/{companyId}/games` (email avec `emailConsent`, `marketingConsent` seulement avec un email).
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: addCompanyGameParticipant
+      x-availability: disponible
+      x-us: 'US-JOIN-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/GameIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGameParticipant'
+      responses:
+        '201':
+          description: Participant ajouté
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  participant:
+                    $ref: '#/components/schemas/GameParticipant'
+        '400':
+          description: Corps invalide (`invalid_body`, dont `email_consent_required`), identifiants invalides (`invalid_params`) ou pupitre absent de la salle (`podium_not_in_room`, avec `desksCount`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non connecté
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (autre compagnie, ou rôle sans droit)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Partie introuvable (`not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La partie n'est pas en attente (`game_not_pending`) ou pupitre déjà pris (`podium_taken`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/games/{gameId}/participants/{participantId}:
+    delete:
+      tags:
+        - Games
+      summary: "[DISPONIBLE] Retirer un joueur d'une partie en attente"
+      description: |
+        Statut : **Disponible**
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: deleteCompanyGameParticipant
+      x-availability: disponible
+      x-us: 'US-JOIN-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/GameIdParam'
+        - name: participantId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '204':
+          description: Joueur retiré
+        '400':
+          description: Identifiants invalides (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Non connecté
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (autre compagnie, ou rôle sans droit)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Partie introuvable (`not_found`) ou joueur introuvable (`participant_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La partie n'est pas en attente (`game_not_pending`)
           content:
             application/json:
               schema:
@@ -2919,7 +3323,7 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Partie en attente ou en cours de la salle du compte connecté, ou `null`. Les emails des participants ne sont pas renvoyés.
+        Partie en attente ou en cours de la salle du compte connecté, ou `null`. Les emails des participants ne sont pas renvoyés. Pour une partie en attente, `game.join` donne le lien d'inscription à afficher en QR code et `game.pendingRegistrationsCount` le nombre de demandes à valider ; les noms des demandes ne sont jamais envoyés à la salle.
 
         `next` : la session `scheduled` la plus proche de la salle dont la fin prévue (`scheduledEndAt`) est dans le futur, au même format que `game` (noms seulement, aucun email), ou `null`. Une session en retard mais dont le créneau n'est pas fini reste renvoyée.
 
@@ -3170,7 +3574,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: Session pas à l'état `scheduled` (`game_not_scheduled`), ouverture à plus de 60 minutes du début (`session_not_open_yet`), partie déjà en attente ou en cours (`room_busy`), salle inactive (`room_inactive`) ou compagnie inactive (`company_inactive`)
+          description: Session pas à l'état `scheduled` (`game_not_scheduled`), ouverture à plus de 60 minutes du début (`session_not_open_yet`), partie déjà en attente dans la salle (`room_busy` ; une partie en cours ne bloque pas), salle inactive (`room_inactive`) ou compagnie inactive (`company_inactive`)
           content:
             application/json:
               schema:
@@ -3186,12 +3590,29 @@ paths:
 
         La salle accuse réception de la partie lancée : `pending` → `running`, `startedAt` renseigné. Idempotent si la partie tourne déjà.
 
+        Le personnel peut valider une demande, ajouter ou retirer un joueur tant que la partie est en attente. Pour ne pas lancer une partie avec une liste périmée, la salle envoie dans `podiums` les pupitres qu'elle a chargés : si, au moment du lancement, ils ne sont pas exactement ceux des participants en base, le serveur répond `409 game_participants_changed` et ne démarre rien (la partie reste `pending`). La comparaison et le passage à `running` se font sous le même verrou de la partie que la validation d'une demande. Sans `podiums` (ancien écran de salle), aucune vérification.
+
         Accès : réservé au rôle `room`.
       operationId: startRoomGame
       x-availability: disponible
       x-us: 'US-GAME-08'
       parameters:
         - $ref: '#/components/parameters/GameIdParam'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                podiums:
+                  type: array
+                  maxItems: 6
+                  description: Pupitres des participants chargés par la salle, sans doublon
+                  items:
+                    type: integer
+                    minimum: 1
+                    maximum: 6
       responses:
         '200':
           description: Partie démarrée
@@ -3203,6 +3624,12 @@ paths:
                   game:
                     allOf:
                       - $ref: '#/components/schemas/RoomGame'
+        '400':
+          description: Identifiant ou corps invalide (`invalid_params`, `invalid_body`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
           description: Compte qui n'est pas un compte de salle
           content:
@@ -3211,6 +3638,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Pas de partie courante avec cet id (`game_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Les pupitres envoyés ne sont plus ceux des participants (`game_participants_changed`) ; rien n'est démarré
           content:
             application/json:
               schema:
@@ -7655,6 +8088,14 @@ components:
         - $ref: '#/components/schemas/GameSummary'
         - type: object
           properties:
+            join:
+              allOf:
+                - $ref: '#/components/schemas/GameJoin'
+              nullable: true
+              description: Lien d'inscription ; `null` s'il est fermé, expiré ou si la partie n'est plus en attente
+            pendingRegistrationsCount:
+              type: integer
+              description: Demandes d'inscription à valider (0 si la partie n'est plus en attente)
             participants:
               type: array
               items:
@@ -7665,6 +8106,14 @@ components:
         - $ref: '#/components/schemas/GameSummary'
         - type: object
           properties:
+            join:
+              allOf:
+                - $ref: '#/components/schemas/GameJoin'
+              nullable: true
+              description: Lien d'inscription ; `null` s'il est fermé, expiré ou si la partie n'est plus en attente
+            pendingRegistrationsCount:
+              type: integer
+              description: Demandes d'inscription à valider (0 si la partie n'est plus en attente)
             participants:
               type: array
               items:
@@ -7687,11 +8136,17 @@ components:
       type: object
       required: [roomId]
       description: >-
-        Sans `scheduledAt`, `participants` est requis (1 à 6). Avec `scheduledAt`, la partie est
+        Sans `scheduledAt` ni `openJoin: true`, `participants` est requis (1 à 6). Avec `scheduledAt`, la partie est
         créée à l'état `scheduled`, `participants` peut être vide (0 à 6) et le contrôle
         `room_busy` ne s'applique pas. Seul le chevauchement d'une autre session de la salle est
         interdit (`slot_taken`) : une création manuelle peut sortir de la grille des créneaux.
       properties:
+        openJoin:
+          type: boolean
+          description: >-
+            Ouvre le lien d'inscription dès la création et accepte `participants: []`. Sans effet
+            avec `scheduledAt` : le lien s'ouvre une fois la session en attente
+            (`POST /companies/{companyId}/games/{gameId}/join`).
         scheduledAt:
           type: string
           format: date-time
@@ -7741,51 +8196,104 @@ components:
           type: array
           maxItems: 6
           description: >-
-            Au moins un participant sans `scheduledAt`. Au plus autant de participants que la salle a de pupitres (`desksCount`, 4 par défaut,
+            Au moins un participant sans `scheduledAt` ni `openJoin`. Au plus autant de participants que la salle a de pupitres (`desksCount`, 4 par défaut,
             6 au maximum) ; un pupitre au-delà donne `400 podium_not_in_room`.
           items:
-            type: object
-            required: [podium, displayName]
-            properties:
-              podium:
-                type: integer
-                minimum: 1
-                maximum: 6
-              displayName:
-                type: string
-                maxLength: 100
-              email:
-                type: string
-                format: email
-                nullable: true
-              emailConsent:
-                type: boolean
-                description: Case RGPD cochée explicitement ; requise si `email` est renseigné
-              marketingConsent:
-                type: boolean
-                description: >-
-                  Case « recevoir les offres du centre », distincte de `emailConsent` et facultative.
-                  `true` sans `email` donne `400 marketing_consent_requires_email`. Le serveur
-                  horodate lui-même.
-              secondPlayer:
-                type: object
-                nullable: true
-                description: 2e joueur facultatif du pupitre (même score que le 1er)
-                required: [displayName]
-                properties:
-                  displayName:
-                    type: string
-                    maxLength: 100
-                  email:
-                    type: string
-                    format: email
-                    nullable: true
-                  emailConsent:
-                    type: boolean
-                    description: Requise si `email` est renseigné
-                  marketingConsent:
-                    type: boolean
-                    description: Offres du centre ; `true` sans `email` donne `400 marketing_consent_requires_email`
+            $ref: '#/components/schemas/CreateGameParticipant'
+
+    CreateGameParticipant:
+      type: object
+      required: [podium, displayName]
+      properties:
+        podium:
+          type: integer
+          minimum: 1
+          maximum: 6
+        displayName:
+          type: string
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          nullable: true
+        emailConsent:
+          type: boolean
+          description: Case RGPD cochée explicitement ; requise si `email` est renseigné
+        marketingConsent:
+          type: boolean
+          description: >-
+            Case « recevoir les offres du centre », distincte de `emailConsent` et facultative.
+            `true` sans `email` donne `400 marketing_consent_requires_email`. Le serveur
+            horodate lui-même.
+        secondPlayer:
+          type: object
+          nullable: true
+          description: 2e joueur facultatif du pupitre (même score que le 1er)
+          required: [displayName]
+          properties:
+            displayName:
+              type: string
+              maxLength: 100
+            email:
+              type: string
+              format: email
+              nullable: true
+            emailConsent:
+              type: boolean
+              description: Requise si `email` est renseigné
+            marketingConsent:
+              type: boolean
+              description: Offres du centre ; `true` sans `email` donne `400 marketing_consent_requires_email`
+
+    GameJoin:
+      type: object
+      description: >-
+        Lien d'inscription d'une partie en attente. Le jeton est dans le fragment (`#`) de l'adresse :
+        il n'est jamais envoyé au serveur. Sans `PUBLIC_APP_URL`, l'adresse est relative.
+      properties:
+        url:
+          type: string
+          example: https://app.quizzup.example/rejoindre/#Zm9vYmFyYmF6cXV4
+        expiresAt:
+          type: string
+          format: date-time
+          description: Valable 180 minutes après l'ouverture ou le renouvellement
+
+    GameRegistration:
+      type: object
+      description: >-
+        Demande d'inscription faite depuis un téléphone, en attente de validation. Les emails sont
+        `null` pour le rôle `user` (`hasEmail` dit s'il y en a un).
+      properties:
+        id:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        displayName:
+          type: string
+        hasEmail:
+          type: boolean
+        email:
+          type: string
+          format: email
+          nullable: true
+        marketingConsent:
+          type: boolean
+        secondPlayer:
+          type: object
+          nullable: true
+          properties:
+            displayName:
+              type: string
+            hasEmail:
+              type: boolean
+            email:
+              type: string
+              format: email
+              nullable: true
+            marketingConsent:
+              type: boolean
 
     Account:
       type: object
