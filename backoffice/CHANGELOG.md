@@ -8,6 +8,8 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Formulaire de question : sélecteur « Effet sur l'extrait » (aucun, très court, à l'envers, ralenti), visible seulement pour une question audio. L'effet est relu à la modification, remis à « aucun » quand la question cesse d'être audio, et les erreurs de l'API (`question_audio_effect_invalid`, `audio_effect_requires_audio`) s'affichent sous le champ.
+  US: US-AUDIO-02 (#144)
 - Pilotage en direct, commandes à distance (écran de salle) : la salle applique `pause`, `resume`, `skip` et `abort` reçus par le flux, par les mêmes chemins que les boutons locaux, puis rend l'accusé (`POST /room/commands/:id/result`). Commande rejouée : même accusé, sans nouvelle application. `skip` refusé (`not_in_question`) s'il ne désigne plus la question en cours ; `abort` refusé s'il vise une autre partie. Scénario Playwright pause, refus, reprise.
   US: US-LIVE-01 (#129)
 - Pilotage en direct, commandes à distance (frontend) : boutons « Mettre en pause », « Reprendre », « Passer la question » et « Arrêter la partie » dans le panneau en direct d'une partie. Le résultat (`applied`, `refused` avec sa raison, `expired`) vient de l'événement `command_result` du flux ; sans résultat après 12 s, la commande est tenue pour expirée. Boutons inactifs si la salle n'est pas pilotable.
