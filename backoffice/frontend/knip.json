@@ -1,4 +1,4 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "entry": ["scripts/check-surface.mjs", "src/surface/centre.ts"]
+  "entry": ["scripts/check-surface.mjs", "src/surface/centre.ts", "src/public/join/main.ts"]
 }

@@ -2,8 +2,11 @@ import { setAuthenticatedUser } from '@frontend-tests/_helpers/authStateMock'
 import { confirmMock, setConfirmResult } from '@frontend-tests/_helpers/confirmMock'
 import {
   abortGameServiceMock,
+  acceptGameRegistrationServiceMock,
   createGameFixture,
   createParticipantFixture,
+  createRegistrationFixture,
+  listGameRegistrationsServiceMock,
   loadGameServiceMock,
   mockServiceFailure,
   resetGamesServiceMock,
@@ -13,6 +16,7 @@ import { createRoomLive } from '@frontend-tests/_helpers/liveMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { currentRouteMock, pushMock } from '@frontend-tests/_helpers/routerMock'
+import { listGameVouchersServiceMock } from '@frontend-tests/_helpers/vouchersServiceMock'
 import {
   GAME_STATE_FINISHED,
   GAME_STATE_RUNNING,
@@ -83,6 +87,77 @@ describe('views/games/GameDetailView.vue', () => {
     expect(wrapper.text()).toContain('Salle Néon')
     expect(wrapper.text()).toContain('games.state.pending')
     expect(wrapper.text()).toContain('games.detail.fields.formatValue')
+  })
+
+  it('shows the sign-up panel of a pending game and reloads the game once a request is validated', async () => {
+    listGameRegistrationsServiceMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { registrations: [createRegistrationFixture({ id: 5 })] },
+    })
+
+    const wrapper = await mountView()
+
+    expect(listGameRegistrationsServiceMock).toHaveBeenCalledWith(1, 4)
+    expect(wrapper.find('[data-test="game-join-registration-5"]').exists()).toBe(true)
+
+    await wrapper.get('[data-test="game-join-accept"]').trigger('click')
+    await flushPromises()
+
+    expect(acceptGameRegistrationServiceMock).toHaveBeenCalledWith(1, 4, 5, undefined)
+    expect(loadGameServiceMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('reads the game again without a loading screen when the panel asks, and drops the panel once launched', async () => {
+    const wrapper = await mountView()
+
+    loadGameServiceMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: { game: createGameFixture({ id: 4, state: GAME_STATE_RUNNING }) },
+    })
+    wrapper.getComponent({ name: 'GameJoinPanel' }).vm.$emit('changed')
+    await nextTick()
+
+    expect(loadGameServiceMock).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).not.toContain('games.detail.loading')
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('games.state.running')
+    expect(wrapper.find('[data-test="game-join-panel"]').exists()).toBe(false)
+  })
+
+  it('keeps the game and the panel on screen when that quiet reading fails', async () => {
+    const wrapper = await mountView()
+
+    mockServiceFailure(loadGameServiceMock, 'server_error', 500)
+    wrapper.getComponent({ name: 'GameJoinPanel' }).vm.$emit('changed')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Salle Néon')
+    expect(wrapper.text()).not.toContain('games.errors.serverError')
+    expect(wrapper.find('[data-test="game-join-panel"]').exists()).toBe(true)
+
+    loadGameServiceMock.mockRejectedValueOnce(new Error('offline'))
+    wrapper.getComponent({ name: 'GameJoinPanel' }).vm.$emit('changed')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Salle Néon')
+    expect(wrapper.find('[data-test="game-join-panel"]').exists()).toBe(true)
+  })
+
+  it('has no sign-up panel for a game that is not pending', async () => {
+    loadGameServiceMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { game: createGameFixture({ id: 4, state: GAME_STATE_FINISHED }) },
+    })
+
+    const wrapper = await mountView()
+
+    expect(listGameRegistrationsServiceMock).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-test="game-join-panel"]').exists()).toBe(false)
   })
 
   it('shows « all » mini-games when the game has no restriction', async () => {
@@ -240,6 +315,24 @@ describe('views/games/GameDetailView.vue', () => {
     })
 
     expect(abortButton(await mountView()).exists()).toBe(false)
+  })
+
+  it('shows the vouchers panel of a finished game only', async () => {
+    const pending = await mountView()
+
+    expect(pending.find('[data-test="game-vouchers-panel"]').exists()).toBe(false)
+    expect(listGameVouchersServiceMock).not.toHaveBeenCalled()
+
+    loadGameServiceMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: { game: createGameFixture({ id: 4, state: GAME_STATE_FINISHED, participants: [] }) },
+    })
+
+    const finished = await mountView()
+
+    expect(finished.find('[data-test="game-vouchers-panel"]').exists()).toBe(true)
+    expect(listGameVouchersServiceMock).toHaveBeenCalledWith(1, 4)
   })
 
   it('links to the results sheet of a finished game only', async () => {

@@ -1,14 +1,107 @@
 {
   "vouchers": {
+    "menu": "Bons",
+    "title": "Bons de fidélisation",
+    "subtitle": "Recherchez un bon par son code, marquez-le comme utilisé et suivez les bons émis.",
+    "state": {
+      "valid": "Valable",
+      "redeemed": "Utilisé",
+      "expired": "Expiré",
+      "cancelled": "Annulé"
+    },
+    "filters": {
+      "title": "Filtres",
+      "company": "Compagnie",
+      "state": "État",
+      "allStates": "Tous les états"
+    },
+    "search": {
+      "title": "Utiliser un bon",
+      "label": "Code du bon",
+      "placeholder": "XXXX-XXXX",
+      "submit": "Rechercher",
+      "searching": "Recherche…",
+      "malformed": "Ce code n'a pas la forme d'un code de bon : 8 caractères, par exemple 7K2M-9QXP.",
+      "redeem": "Marquer comme utilisé",
+      "redeeming": "Enregistrement…",
+      "redeemed": "Le bon {code} est marqué comme utilisé.",
+      "noCompany": "Aucune compagnie sélectionnée."
+    },
+    "detail": {
+      "code": "Code",
+      "label": "Bon",
+      "holder": "Équipe",
+      "state": "État",
+      "expiresAt": "Valable jusqu'au",
+      "redeemedAt": "Utilisé le"
+    },
+    "list": {
+      "title": "Bons émis",
+      "loading": "Chargement des bons…",
+      "empty": "Aucun bon ne correspond à ces critères.",
+      "retry": "Réessayer",
+      "columns": {
+        "code": "Code",
+        "label": "Bon",
+        "holder": "Équipe",
+        "state": "État",
+        "expiresAt": "Fin de validité",
+        "actions": "Actions"
+      }
+    },
+    "cancel": {
+      "action": "Annuler",
+      "title": "Annuler le bon",
+      "confirm": "Annuler le bon {code} ? Il ne pourra plus être utilisé.",
+      "done": "Le bon {code} est annulé.",
+      "ariaLabel": "Annuler le bon {code}"
+    },
+    "panel": {
+      "title": "Bons de fidélisation",
+      "loading": "Chargement des bons…",
+      "empty": "Cette partie n'a aucun pupitre.",
+      "retry": "Réessayer",
+      "desk": "Pupitre {podium}",
+      "issue": "Émettre un bon",
+      "issuing": "Émission…",
+      "issueAria": "Émettre un bon pour le pupitre {podium}",
+      "issued": "Bon {code} émis pour le pupitre {podium}.",
+      "validUntil": "Valable jusqu'au {date}"
+    },
+    "sheet": {
+      "title": "Vos bons",
+      "validUntil": "Valable jusqu'au {date}",
+      "singleUse": "Usage unique, à présenter à l'accueil.",
+      "qrAlt": "QR code du bon {code}"
+    },
+    "settings": {
+      "title": "Bons de fidélisation",
+      "label": "Libellé du bon",
+      "labelPlaceholder": "Une partie offerte",
+      "labelHint": "Texte imprimé sur le bon. Laissez vide pour désactiver les bons.",
+      "validityDays": "Durée de validité (jours)",
+      "validityHint": "De {min} à {max} jours, à partir de l'émission.",
+      "invalidValidity": "La durée doit être un nombre entier de jours, de {min} à {max}.",
+      "labelTooLong": "Le libellé fait au plus {max} caractères."
+    },
     "errors": {
       "vouchersDisabled": "Les bons de fidélisation ne sont pas activés pour cette compagnie : renseignez d'abord le libellé du bon dans ses réglages.",
+      "vouchersDisabledStaff": "Les bons de fidélisation ne sont pas activés pour ce centre : voyez avec un administrateur.",
       "gameNotFinished": "Cette partie n'est pas terminée : les bons ne peuvent être émis qu'à la fin de la partie.",
       "voucherAlreadyIssued": "Un bon a déjà été émis pour ce pupitre.",
       "participantNotFound": "Ce pupitre ne fait pas partie de cette partie.",
       "voucherNotFound": "Aucun bon ne correspond à ce code.",
       "voucherCancelled": "Ce bon a été annulé.",
       "voucherAlreadyRedeemed": "Ce bon a déjà été utilisé.",
-      "voucherExpired": "Ce bon a expiré."
+      "voucherExpired": "Ce bon a expiré.",
+      "unauthorized": "Vous devez être connecté pour effectuer cette action.",
+      "forbidden": "Vous n'avez pas les droits nécessaires pour effectuer cette action.",
+      "notFound": "L'élément demandé est introuvable.",
+      "apiUnreachable": "API injoignable.",
+      "invalidJson": "La réponse du serveur est illisible.",
+      "invalidParams": "Paramètres invalides.",
+      "invalidBody": "La demande envoyée est invalide. Vérifiez les informations puis réessayez.",
+      "serverError": "Erreur serveur."
     }
   }
 }
