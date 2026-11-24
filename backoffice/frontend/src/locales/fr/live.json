@@ -13,6 +13,30 @@
       "live": "Suivi en direct actif.",
       "reconnecting": "Suivi en direct interrompu, nouvelle tentative en cours…",
       "error": "Suivi en direct arrêté."
+    },
+    "phase": {
+      "lobby": "Attente des joueurs",
+      "round_intro": "Introduction de la manche",
+      "theme_choice": "Choix du thème",
+      "question": "Question en cours",
+      "reveal": "Réponse dévoilée",
+      "round_summary": "Bilan de la manche",
+      "finished": "Partie terminée",
+      "aborted": "Partie arrêtée"
+    },
+    "panel": {
+      "title": "Suivi en direct",
+      "paused": "En pause",
+      "stale": "Dernières valeurs reçues de la salle.",
+      "phase": "Étape",
+      "round": "Manche",
+      "roundValue": "{round} sur {total}",
+      "question": "Question",
+      "questionValue": "{question} sur {total}",
+      "miniGame": "Mini-jeu",
+      "scoresTitle": "Scores par pupitre",
+      "noScores": "Aucun score pour l'instant.",
+      "desk": "Pupitre {podium}"
     }
   }
 }

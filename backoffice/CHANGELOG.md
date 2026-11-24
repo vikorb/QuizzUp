@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Détail d'une partie : panneau de suivi en direct (présence de la salle, pause, étape, manche, question, mini-jeu, scores par pupitre avec le nom des joueurs), alimenté par le flux en direct de la compagnie. Il ne s'affiche que si la salle joue la partie affichée ; hors ligne, il garde les dernières valeurs reçues.
+  US: US-LIVE-01 (#129)
+
 - Journaux d'erreurs d'une salle consultables depuis le tableau des salles d'un client : panneau en ligne avec filtre par niveau, actualisation et « charger plus », réservé aux administrateurs.
   US: US-LOG-01 (#157)
 - Statistiques d'exploitation d'une compagnie : route `GET /companies/:companyId/stats` et écran « Statistiques » (séances terminées et arrêtées, taux d'abandon, durée médiane, répartition par salle, joueurs, créneaux les plus chargés), réservés aux administrateurs. Aucune donnée individuelle ne sort.

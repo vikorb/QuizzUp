@@ -13,6 +13,30 @@
       "live": "Live tracking is on.",
       "reconnecting": "Live tracking interrupted, trying again…",
       "error": "Live tracking stopped."
+    },
+    "phase": {
+      "lobby": "Waiting for players",
+      "round_intro": "Round introduction",
+      "theme_choice": "Theme choice",
+      "question": "Question in progress",
+      "reveal": "Answer revealed",
+      "round_summary": "Round summary",
+      "finished": "Game finished",
+      "aborted": "Game stopped"
+    },
+    "panel": {
+      "title": "Live tracking",
+      "paused": "Paused",
+      "stale": "Last values received from the room.",
+      "phase": "Step",
+      "round": "Round",
+      "roundValue": "{round} of {total}",
+      "question": "Question",
+      "questionValue": "{question} of {total}",
+      "miniGame": "Mini-game",
+      "scoresTitle": "Scores by desk",
+      "noScores": "No score yet.",
+      "desk": "Desk {podium}"
     }
   }
 }
