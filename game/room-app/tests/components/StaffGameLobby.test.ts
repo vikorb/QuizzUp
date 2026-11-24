@@ -103,6 +103,14 @@ function saveGame(storage: SessionStorage): void {
   )
 }
 
+/** Monte le lobby sur la partie `GAME` modifiée par `game`. */
+async function mountLobby(game: Partial<roomApi.RoomGame>) {
+  vi.spyOn(roomApi, 'fetchCurrentGame').mockResolvedValue({ ...GAME, ...game })
+  const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+  await flushPromises()
+  return wrapper
+}
+
 describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
   let player: ExtractPlayer
   let storage: SessionStorage
@@ -596,6 +604,78 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
         '3 résultats de parties en attente'
       )
       expect(wrapper.text()).toContain('Backoffice injoignable')
+    })
+  })
+  describe('inscription par QR code', () => {
+    const QR_SVG =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 2"><path d="M0 0h1v1H0z"/></svg>'
+    const JOIN = {
+      url: 'https://quizz.example/rejoindre/#jeton',
+      qrSvg: QR_SVG,
+      expiresAt: '2999-01-01T00:00:00Z',
+    }
+
+    it('affiche le QR code en image (jamais en HTML brut) et l’adresse en clair', async () => {
+      const wrapper = await mountLobby({ join: JOIN })
+
+      const img = wrapper.find('[data-test="join-qr"]')
+      expect(img.element.tagName).toBe('IMG')
+      expect(img.attributes('src')).toBe(
+        `data:image/svg+xml;charset=utf-8,${encodeURIComponent(QR_SVG)}`
+      )
+      expect(wrapper.find('[data-test="join"] svg').exists()).toBe(false)
+      expect(wrapper.find('[data-test="join-url"]').text()).toBe(JOIN.url)
+    })
+
+    it.each([
+      ['absent', { url: JOIN.url, expiresAt: JOIN.expiresAt }],
+      ['null', { ...JOIN, qrSvg: null }],
+    ])('sans QR code (%s), n’affiche que l’adresse en clair', async (_label, join) => {
+      const wrapper = await mountLobby({ join })
+
+      expect(wrapper.find('[data-test="join-qr"]').exists()).toBe(false)
+      expect(wrapper.find('[data-test="join-url"]').text()).toBe(JOIN.url)
+    })
+
+    it('n’affiche rien quand le lien est fermé ou inconnu du serveur', async () => {
+      for (const join of [null, undefined]) {
+        vi.restoreAllMocks()
+        const wrapper = await mountLobby({ join })
+        expect(wrapper.find('[data-test="join"]').exists()).toBe(false)
+        expect(wrapper.find('[data-test="join-expired"]').exists()).toBe(false)
+        expect(wrapper.find('[data-test="pending-registrations"]').exists()).toBe(false)
+      }
+    })
+
+    it('retire le QR code d’un lien expiré et le dit', async () => {
+      const wrapper = await mountLobby({ join: { ...JOIN, expiresAt: '2000-01-01T00:00:00Z' } })
+
+      expect(wrapper.find('[data-test="join"]').exists()).toBe(false)
+      expect(wrapper.find('[data-test="join-expired"]').text()).toContain('a expiré')
+    })
+
+    it('n’affiche pas le QR code d’une partie déjà en cours', async () => {
+      const wrapper = await mountLobby({
+        state: 'running',
+        join: JOIN,
+        pendingRegistrationsCount: 2,
+      })
+
+      expect(wrapper.find('[data-test="join"]').exists()).toBe(false)
+      expect(wrapper.find('[data-test="pending-registrations"]').exists()).toBe(false)
+    })
+
+    it('compte les inscriptions à valider, sans en montrer les noms', async () => {
+      const wrapper = await mountLobby({ join: JOIN, pendingRegistrationsCount: 1 })
+      expect(wrapper.find('[data-test="pending-registrations"]').text()).toBe(
+        '1 inscription en attente de validation'
+      )
+
+      vi.restoreAllMocks()
+      const several = await mountLobby({ join: JOIN, pendingRegistrationsCount: 3 })
+      expect(several.find('[data-test="pending-registrations"]').text()).toBe(
+        '3 inscriptions en attente de validation'
+      )
     })
   })
 })

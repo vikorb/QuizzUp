@@ -115,6 +115,12 @@
       "resume": "Reprendre la partie",
       "restart": "Recommencer depuis le début",
       "restartConfirm": "Recommencer la partie depuis le début ? Les scores déjà marqués sur ce PC seront perdus.",
+      "join": {
+        "title": "Scanne pour t’inscrire",
+        "qrAlt": "QR code d’inscription à la partie",
+        "expired": "Le lien d’inscription a expiré : le staff peut en générer un nouveau au backoffice.",
+        "pending": "{n} inscription en attente de validation | {n} inscriptions en attente de validation"
+      },
       "duo": "{first} & {second}",
       "pendingResults": "{n} résultat de partie en attente d’envoi au backoffice : nouvel essai automatique. | {n} résultats de parties en attente d’envoi au backoffice : nouvel essai automatique."
     }

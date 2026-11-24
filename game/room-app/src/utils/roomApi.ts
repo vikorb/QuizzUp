@@ -18,6 +18,14 @@ export type RoomGameParticipant = {
   score: number
 }
 
+/** Lien d'inscription par QR code de la partie en attente (`join` de `GET /room/games/current`). */
+export type RoomGameJoin = {
+  url: string
+  /** SVG complet du QR code ; absent ou `null` si le serveur n'a pas d'adresse publique. */
+  qrSvg?: string | null
+  expiresAt: string
+}
+
 export type RoomGame = {
   id: number
   seed: number
@@ -27,6 +35,10 @@ export type RoomGame = {
   miniGames: MiniGame[] | null
   state: string
   participants: RoomGameParticipant[]
+  /** Lien d'inscription ouvert, `null` s'il est fermé (absent d'un backoffice ancien). */
+  join?: RoomGameJoin | null
+  /** Demandes d'inscription à valider au backoffice (jamais leurs noms). */
+  pendingRegistrationsCount?: number
 }
 
 export type RoomInfo = {
