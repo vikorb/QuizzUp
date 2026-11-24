@@ -147,6 +147,16 @@ export {
 export type { SimulationOutput } from './dmx/simulationOutput'
 export { createSimulationOutput } from './dmx/simulationOutput'
 export { DMX_CHANNELS, encodeRawDmxFrame, encodeUsbProFrame, MAX_UNIVERSES } from './dmx/universe'
+export type { IntelHexErrorReason } from './firmware/intelHex'
+export { IntelHexError, parseIntelHex, writeIntelHex } from './firmware/intelHex'
+export type {
+  BootloaderClient,
+  FirmwareErrorCode,
+  FirmwareProgress,
+  FirmwareStep,
+  InstallFirmwareOptions,
+} from './firmware/stk500'
+export { FirmwareError, installFirmware, restoreFirmware, UNO_FLASH_SIZE } from './firmware/stk500'
 export type {
   DeskResolver,
   DiagnosticRefusal,
@@ -254,6 +264,44 @@ export {
   SMOKE_RELAY_REQUIRED,
   TIMED_RELAY_MAX_MS,
 } from './setup/setupWizard'
+export type {
+  SmokeBoardLink,
+  SmokeBoardLinkOptions,
+  SmokeBoardPhase,
+  SmokeBoardPort,
+  SmokeBoardProblem,
+  SmokeBoardState,
+  SmokeBoardStatus,
+} from './smoke/boardLink'
+export {
+  BOARD_BANNER_TIMEOUT_MS,
+  BOARD_FIRE_INTERVAL_MS,
+  BOARD_PRESENCE_MS,
+  BOARD_SILENCE_MS,
+  createSmokeBoardLink,
+} from './smoke/boardLink'
+export type {
+  BannerRejection,
+  BannerResult,
+  BoardBanner,
+  BoardCause,
+  BoardCommand,
+  BoardOutputState,
+  BoardStatusLine,
+  LineSplitter,
+} from './smoke/boardProtocol'
+export {
+  BOARD_BAUD_RATE,
+  BOARD_CAUSES,
+  BOARD_MAX_LINE_BYTES,
+  BOARD_OUTPUT_STATES,
+  BOARD_PROTOCOL,
+  createLineSplitter,
+  encodeBoardCommand,
+  isBannerLine,
+  parseBanner,
+  parseStatusLine,
+} from './smoke/boardProtocol'
 export type { ButtonIndex, BuzzerButton, Desk, Rgb, Rgbw, Unsubscribe } from './types'
 export {
   buttonToIndex,
