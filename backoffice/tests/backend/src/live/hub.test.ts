@@ -440,7 +440,7 @@ describe('live hub remote commands', () => {
     hub.sendCommand(1, COMPANY, 'cmd-1', { command: 'skip', round: 1, questionIndex: 0 })
     hub.settleCommand(1, 'cmd-1', {
       result: ROOM_COMMAND_RESULT.REFUSED,
-      reason: GAME_COMMAND_REFUSAL.STALE_COMMAND,
+      reason: GAME_COMMAND_REFUSAL.NOT_IN_QUESTION,
     })
 
     expect(resultsOf(staff)).toEqual([
@@ -449,7 +449,7 @@ describe('live hub remote commands', () => {
         roomId: 1,
         command: 'skip',
         result: 'refused',
-        reason: 'stale_command',
+        reason: 'not_in_question',
       },
     ])
   })
@@ -472,7 +472,7 @@ describe('live hub remote commands', () => {
   it('answers expired to the staff after 10 seconds without acknowledgement, once', () => {
     const { hub, staff } = controllableRoom()
 
-    hub.sendCommand(1, COMPANY, 'cmd-1', { command: 'abort' })
+    hub.sendCommand(1, COMPANY, 'cmd-1', { command: 'abort', gameId: 1 })
 
     vi.advanceTimersByTime(ROOM_COMMAND_TIMEOUT_MS - 1)
     expect(resultsOf(staff)).toEqual([])
@@ -547,7 +547,9 @@ describe('live hub remote commands', () => {
   it('never relays a command of another company to the room', () => {
     const { hub, room } = controllableRoom()
 
-    expect(hub.sendCommand(1, COMPANY + 1, 'cmd-1', { command: 'abort' })).toBe('not_controllable')
+    expect(hub.sendCommand(1, COMPANY + 1, 'cmd-1', { command: 'abort', gameId: 1 })).toBe(
+      'not_controllable'
+    )
     expect(room.events).toEqual([])
   })
 
@@ -618,6 +620,58 @@ describe('live hub remote commands', () => {
     vi.advanceTimersByTime(ROOM_COMMAND_TIMEOUT_MS)
 
     expect(hub.pendingCommandCount()).toBe(0)
+    expect(hub.sendCommand(1, COMPANY, 'one-too-many', { command: 'pause' })).toBe('sent')
+  })
+
+  it('relays the game of an abort', () => {
+    const { hub, room } = controllableRoom()
+
+    expect(hub.sendCommand(1, COMPANY, 'cmd-1', { command: 'abort', gameId: 7 })).toBe('sent')
+    expect(room.events).toEqual([
+      { event: LIVE_EVENT.COMMAND, data: { commandId: 'cmd-1', command: 'abort', gameId: 7 } },
+    ])
+  })
+
+  it('answers conflict, and relays nothing, for a known identifier with another content', () => {
+    const { hub, room } = controllableRoom()
+
+    expect(hub.sendCommand(1, COMPANY, 'cmd-1', { command: 'pause' })).toBe('sent')
+    expect(hub.sendCommand(1, COMPANY, 'cmd-1', { command: 'resume' })).toBe('conflict')
+
+    expect(
+      hub.sendCommand(1, COMPANY, 'cmd-2', { command: 'skip', round: 1, questionIndex: 2 })
+    ).toBe('sent')
+    expect(
+      hub.sendCommand(1, COMPANY, 'cmd-2', { command: 'skip', round: 2, questionIndex: 2 })
+    ).toBe('conflict')
+    expect(
+      hub.sendCommand(1, COMPANY, 'cmd-2', { command: 'skip', round: 1, questionIndex: 3 })
+    ).toBe('conflict')
+    expect(
+      hub.sendCommand(1, COMPANY, 'cmd-2', { command: 'skip', round: 1, questionIndex: 2 })
+    ).toBe('duplicate')
+
+    expect(hub.sendCommand(1, COMPANY, 'cmd-3', { command: 'abort', gameId: 1 })).toBe('sent')
+    expect(hub.sendCommand(1, COMPANY, 'cmd-3', { command: 'abort', gameId: 2 })).toBe('conflict')
+    expect(hub.sendCommand(1, COMPANY, 'cmd-3', { command: 'abort', gameId: 1 })).toBe('duplicate')
+
+    expect(room.events).toHaveLength(3)
+  })
+
+  it('never refuses an abort because of the cap, and does not count it in the cap', () => {
+    const { hub, room } = controllableRoom()
+
+    for (let index = 0; index < COMMAND_MAX_PER_ROOM; index += 1) {
+      hub.sendCommand(1, COMPANY, `cmd-${index}`, { command: 'pause' })
+    }
+
+    expect(hub.sendCommand(1, COMPANY, 'abort-1', { command: 'abort', gameId: 1 })).toBe('sent')
+    expect(hub.sendCommand(1, COMPANY, 'abort-2', { command: 'abort', gameId: 1 })).toBe('sent')
+    expect(hub.sendCommand(1, COMPANY, 'one-too-many', { command: 'pause' })).toBe('too_many')
+    expect(room.events).toHaveLength(COMMAND_MAX_PER_ROOM + 2)
+
+    vi.advanceTimersByTime(ROOM_COMMAND_TIMEOUT_MS)
+
     expect(hub.sendCommand(1, COMPANY, 'one-too-many', { command: 'pause' })).toBe('sent')
   })
 

@@ -1185,7 +1185,7 @@ describe('routes/games.ts (US-GAME-08)', () => {
         })
       }
 
-      it('tells the room to abort once the game is aborted, when the room is controllable', async () => {
+      it('tells the room to abort its game once the game is aborted, and returns the command', async () => {
         seedRoom()
         seedGame()
         const app = await createRouteApp(gamesRoutes)
@@ -1198,14 +1198,21 @@ describe('routes/games.ts (US-GAME-08)', () => {
         expect(events).toEqual([
           {
             event: LIVE_EVENT.COMMAND,
-            data: { commandId: expect.stringMatching(/^[0-9a-f-]{36}$/), command: 'abort' },
+            data: {
+              commandId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+              command: 'abort',
+              gameId: 1,
+            },
           },
         ])
+        expect(parseJson<{ relay: unknown }>(response).relay).toEqual({
+          commandId: (events[0]?.data as { commandId: string }).commandId,
+        })
 
         await app.close()
       })
 
-      it('aborts as before when the room is not controllable, and sends nothing', async () => {
+      it('aborts as before when the room is not controllable, and sends nothing (relay null)', async () => {
         seedRoom()
         seedGame()
         const app = await createRouteApp(gamesRoutes)
@@ -1217,7 +1224,62 @@ describe('routes/games.ts (US-GAME-08)', () => {
           state: GAME_STATE_ABORTED,
           finishedAt: MOCK_NOW,
         })
+        expect(parseJson<{ relay: unknown }>(response).relay).toBeNull()
         expect(liveHubOf(app).pendingCommandCount()).toBe(0)
+
+        await app.close()
+      })
+
+      it.each([
+        ['another game', 99],
+        ['no game (demo mode or idle screen)', null],
+      ])('does not relay when the room reports %s', async (_label, reportedGameId) => {
+        seedRoom()
+        seedGame()
+        const app = await createRouteApp(gamesRoutes)
+        const events = openRoomStream(app)
+
+        liveHubOf(app).report(1, 1, { ...liveReport, gameId: reportedGameId })
+
+        const response = await abort(app)
+
+        expect(response.statusCode).toBe(200)
+        expect(parseJson<GameBody>(response).game).toMatchObject({ state: GAME_STATE_ABORTED })
+        expect(parseJson<{ relay: unknown }>(response).relay).toBeNull()
+        expect(events).toEqual([])
+
+        await app.close()
+      })
+
+      it('does not relay when the abort changed no row (game finished in the meantime)', async () => {
+        seedRoom()
+        seedGame()
+        const app = await createRouteApp(gamesRoutes)
+        const events = openRoomStream(app)
+        const game = dbState.games[0]
+        const participants = dbState.game_participants
+
+        // La partie se termine entre la lecture de l'arrêt et son écriture.
+        Object.defineProperty(dbState, 'game_participants', {
+          configurable: true,
+          get: () => {
+            Object.defineProperty(dbState, 'game_participants', {
+              configurable: true,
+              writable: true,
+              value: participants,
+            })
+            if (game) game.state = GAME_STATE_FINISHED
+
+            return participants
+          },
+        })
+
+        const response = await abort(app)
+
+        expect(response.statusCode).toBe(200)
+        expect(parseJson<GameBody>(response).game).toMatchObject({ state: GAME_STATE_FINISHED })
+        expect(parseJson<{ relay: unknown }>(response).relay).toBeNull()
+        expect(events).toEqual([])
 
         await app.close()
       })

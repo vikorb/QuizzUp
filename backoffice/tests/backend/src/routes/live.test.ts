@@ -798,11 +798,13 @@ describe('POST /companies/:companyId/rooms/:roomId/commands', () => {
     const response = await postCommand(superadminUser, '/companies/2/rooms/3/commands', {
       commandId: COMMAND_ID,
       command: 'abort',
+      gameId: 5,
     })
 
     expect(response.statusCode).toBe(202)
     expect(await nextMessage<RoomCommandMessage>(room, LIVE_EVENT.COMMAND)).toMatchObject({
       command: 'abort',
+      gameId: 5,
     })
   })
 
@@ -831,9 +833,38 @@ describe('POST /companies/:companyId/rooms/:roomId/commands', () => {
     })
   })
 
+  it('answers 409 command_id_conflict when an identifier comes back with another content, and relays nothing', async () => {
+    const room = await openControllableRoom(roomUser)
+    const url = '/companies/1/rooms/1/commands'
+
+    await postCommand(companyAdminUser, url, { commandId: COMMAND_ID, command: 'pause' })
+    const conflict = await postCommand(companyAdminUser, url, {
+      commandId: COMMAND_ID,
+      command: 'resume',
+    })
+    const skipA = { commandId: OTHER_COMMAND_ID, command: 'skip', round: 1, questionIndex: 2 }
+    await postCommand(companyAdminUser, url, skipA)
+    const skipB = await postCommand(companyAdminUser, url, { ...skipA, questionIndex: 3 })
+
+    expect(conflict.statusCode).toBe(409)
+    expect(conflict.json()).toEqual({ error: 'command_id_conflict' })
+    expect(skipB.statusCode).toBe(409)
+    expect(await nextMessage<RoomCommandMessage>(room, LIVE_EVENT.COMMAND)).toMatchObject({
+      command: 'pause',
+    })
+    expect(await nextMessage<RoomCommandMessage>(room, LIVE_EVENT.COMMAND)).toMatchObject({
+      command: 'skip',
+    })
+  })
+
   it.each([
     ['a command that does not exist', { commandId: COMMAND_ID, command: 'dance' }],
     ['the start command, not handled yet', { commandId: COMMAND_ID, command: 'start' }],
+    ['an abort without game', { commandId: COMMAND_ID, command: 'abort' }],
+    [
+      'an abort with a game that is not an id',
+      { commandId: COMMAND_ID, command: 'abort', gameId: 0 },
+    ],
     ['a missing identifier', { command: 'pause' }],
     ['an identifier that is not a uuid', { commandId: 'cmd-1', command: 'pause' }],
     ['a skip without round', { commandId: COMMAND_ID, command: 'skip', questionIndex: 1 }],
@@ -910,6 +941,7 @@ describe('POST /companies/:companyId/rooms/:roomId/commands', () => {
     const refused = await postCommand(companyAdminUser, '/companies/2/rooms/3/commands', {
       commandId: COMMAND_ID,
       command: 'abort',
+      gameId: 5,
     })
     const own = await postCommand(companyUser, '/companies/2/rooms/3/commands', {
       commandId: OTHER_COMMAND_ID,
@@ -940,7 +972,7 @@ describe('POST /companies/:companyId/rooms/:roomId/commands', () => {
     expect(first.raw()).not.toContain(LIVE_EVENT.COMMAND)
   })
 
-  it('answers 429 too_many_commands beyond the cap per room', async () => {
+  it('answers 429 too_many_requests beyond the cap per room', async () => {
     await openControllableRoom(roomUser)
 
     for (let index = 0; index < COMMAND_MAX_PER_ROOM; index += 1) {
@@ -958,7 +990,37 @@ describe('POST /companies/:companyId/rooms/:roomId/commands', () => {
     })
 
     expect(refused.statusCode).toBe(429)
-    expect(refused.json()).toEqual({ error: 'too_many_commands' })
+    expect(refused.json()).toEqual({ error: 'too_many_requests' })
+    expect(refused.headers['retry-after']).toBe('10')
+  })
+
+  it('still relays an abort when the cap per room is reached', async () => {
+    const room = await openControllableRoom(roomUser)
+
+    for (let index = 0; index < COMMAND_MAX_PER_ROOM; index += 1) {
+      await postCommand(companyAdminUser, '/companies/1/rooms/1/commands', {
+        commandId: crypto.randomUUID(),
+        command: 'pause',
+      })
+    }
+
+    const abort = await postCommand(companyAdminUser, '/companies/1/rooms/1/commands', {
+      commandId: COMMAND_ID,
+      command: 'abort',
+      gameId: 1,
+    })
+
+    expect(abort.statusCode).toBe(202)
+
+    for (let index = 0; index < COMMAND_MAX_PER_ROOM; index += 1) {
+      await nextMessage<RoomCommandMessage>(room, LIVE_EVENT.COMMAND)
+    }
+
+    expect(await nextMessage<RoomCommandMessage>(room, LIVE_EVENT.COMMAND)).toEqual({
+      commandId: COMMAND_ID,
+      command: 'abort',
+      gameId: 1,
+    })
   })
 })
 
@@ -1009,7 +1071,7 @@ describe('POST /room/commands/:commandId/result', () => {
 
     const response = await postResult(roomUser, COMMAND_ID, {
       result: ROOM_COMMAND_RESULT.REFUSED,
-      reason: GAME_COMMAND_REFUSAL.STALE_COMMAND,
+      reason: GAME_COMMAND_REFUSAL.NOT_IN_QUESTION,
     })
 
     expect(response.statusCode).toBe(204)
@@ -1018,7 +1080,7 @@ describe('POST /room/commands/:commandId/result', () => {
       roomId: 1,
       command: 'pause',
       result: 'refused',
-      reason: 'stale_command',
+      reason: 'not_in_question',
     })
   })
 

@@ -4,6 +4,7 @@ import {
   LIVE_EVENT,
   LIVE_HEARTBEAT_MS,
   LIVE_STATUS_EVERY_MS,
+  ROOM_COMMAND_TIMEOUT_MS,
   ROOM_STATUS_ACTIVE,
   ROOM_STATUS_DELETED,
 } from '@quizzup/shared'
@@ -11,6 +12,7 @@ import db from '../db'
 import { LIVE_MAX_STREAMS_PER_ACCOUNT } from '../live/hub'
 import { canAccessCompanyContext } from '../security/companiesPolicy'
 import { API_ACTION, API_RESOURCE } from '../security/permissions'
+import { replyTooManyRequests } from '../security/rateLimit'
 import { requireApiPermission } from '../security/requireApiPermission'
 import { roomParamsSchema, roomsParamsSchema } from './companies/rooms/_schemas'
 import { findRoomInCompany } from './companies/rooms/_shared'
@@ -146,8 +148,13 @@ const liveRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(409).send({ error: 'room_not_controllable' })
       }
 
+      if (outcome === 'conflict') {
+        return reply.code(409).send({ error: 'command_id_conflict' })
+      }
+
       if (outcome === 'too_many') {
-        return reply.code(429).send({ error: 'too_many_commands' })
+        // Une commande gardée disparaît au plus tard au bout de `ROOM_COMMAND_TIMEOUT_MS`.
+        return replyTooManyRequests(reply, ROOM_COMMAND_TIMEOUT_MS / 1000)
       }
 
       // Un identifiant déjà reçu (nouvel essai du client) répond comme le premier envoi.

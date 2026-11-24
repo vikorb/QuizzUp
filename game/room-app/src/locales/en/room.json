@@ -71,8 +71,7 @@
         "not_paused": "The game is not paused.",
         "paused": "The question cannot be skipped while the game is paused.",
         "not_in_question": "The question had already changed: nothing was skipped.",
-        "game_over": "The game is over.",
-        "stale_command": "The command arrived too late: it no longer targets the current game."
+        "game_over": "The game is over."
       }
     },
     "toolbar": {

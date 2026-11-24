@@ -447,11 +447,10 @@ export const GAME_COMMAND_REFUSAL_ALREADY_PAUSED = 'already_paused' as const
 export const GAME_COMMAND_REFUSAL_NOT_PAUSED = 'not_paused' as const
 /** Passer une question est refusé pendant une pause. */
 export const GAME_COMMAND_REFUSAL_PAUSED = 'paused' as const
+/** Aussi pour un `skip` qui ne vise plus la question en cours (`round` ou `questionIndex` périmé). */
 export const GAME_COMMAND_REFUSAL_NOT_IN_QUESTION = 'not_in_question' as const
 /** Aucune partie en cours : terminée, arrêtée ou pas encore lancée. */
 export const GAME_COMMAND_REFUSAL_GAME_OVER = 'game_over' as const
-/** `skip` visé sur une question qui n'est plus la question en cours (`round` ou `questionIndex` périmé). */
-export const GAME_COMMAND_REFUSAL_STALE_COMMAND = 'stale_command' as const
 
 export const GAME_COMMAND_REFUSAL = {
   ALREADY_PAUSED: GAME_COMMAND_REFUSAL_ALREADY_PAUSED,
@@ -459,7 +458,6 @@ export const GAME_COMMAND_REFUSAL = {
   PAUSED: GAME_COMMAND_REFUSAL_PAUSED,
   NOT_IN_QUESTION: GAME_COMMAND_REFUSAL_NOT_IN_QUESTION,
   GAME_OVER: GAME_COMMAND_REFUSAL_GAME_OVER,
-  STALE_COMMAND: GAME_COMMAND_REFUSAL_STALE_COMMAND,
 } as const
 
 export const GAME_COMMAND_REFUSALS = [
@@ -468,7 +466,6 @@ export const GAME_COMMAND_REFUSALS = [
   GAME_COMMAND_REFUSAL_PAUSED,
   GAME_COMMAND_REFUSAL_NOT_IN_QUESTION,
   GAME_COMMAND_REFUSAL_GAME_OVER,
-  GAME_COMMAND_REFUSAL_STALE_COMMAND,
 ] as const
 
 export type GameCommandRefusal = (typeof GAME_COMMAND_REFUSAL)[keyof typeof GAME_COMMAND_REFUSAL]
@@ -684,8 +681,9 @@ export type RoomLive = {
 
 /**
  * Commandes à distance (US-LIVE-01) : le personnel propose, l'écran de salle applique ou refuse.
- * `skip` vise une question précise : la salle le refuse (`stale_command`) si `round` et
- * `questionIndex` ne sont plus ceux de la partie.
+ * `skip` vise une question précise : la salle le refuse (`not_in_question`) si `round` et
+ * `questionIndex` ne sont plus ceux de la partie. `abort` vise une partie précise : la salle le
+ * refuse si `gameId` n'est pas celle qu'elle joue.
  */
 export const ROOM_COMMANDS = ['pause', 'resume', 'skip', 'abort'] as const
 
@@ -703,8 +701,9 @@ export const ROOM_COMMAND_RESULT = {
 export type RoomCommandResult = (typeof ROOM_COMMAND_RESULT)[keyof typeof ROOM_COMMAND_RESULT]
 
 export type RoomCommand =
-  | { command: Exclude<RoomCommandName, 'skip'> }
+  | { command: 'pause' | 'resume' }
   | { command: 'skip'; round: number; questionIndex: number }
+  | { command: 'abort'; gameId: number }
 
 /** Charge utile de l'événement `command` du flux de la salle. */
 export type RoomCommandMessage = RoomCommand & { commandId: string }

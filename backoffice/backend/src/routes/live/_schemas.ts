@@ -34,14 +34,25 @@ export const roomStatusBodySchema = z.object({
 
 const commandIdSchema = z.uuid()
 
-/** Commande du personnel : `skip` vise une question précise (`round` et `questionIndex`). */
+/**
+ * Commande du personnel : `skip` vise une question précise (`round` et `questionIndex`), `abort`
+ * une partie précise (`gameId`).
+ */
 export const roomCommandBodySchema = z.discriminatedUnion('command', [
-  z.object({ commandId: commandIdSchema, command: z.enum(ROOM_COMMANDS).exclude(['skip']) }),
+  z.object({
+    commandId: commandIdSchema,
+    command: z.enum(ROOM_COMMANDS).extract(['pause', 'resume']),
+  }),
   z.object({
     commandId: commandIdSchema,
     command: z.enum(ROOM_COMMANDS).extract(['skip']),
     round: z.number().int().min(0).max(1000),
     questionIndex: z.number().int().min(0).max(1000),
+  }),
+  z.object({
+    commandId: commandIdSchema,
+    command: z.enum(ROOM_COMMANDS).extract(['abort']),
+    gameId: z.number().int().positive(),
   }),
 ])
 

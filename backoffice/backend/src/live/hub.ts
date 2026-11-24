@@ -29,7 +29,10 @@ export type LiveSink = {
 /** Flux du personnel ouverts en même temps par un même compte. */
 export const LIVE_MAX_STREAMS_PER_ACCOUNT = 5
 
-/** Commandes gardées en mémoire en même temps pour une salle, accusées comprises (dédoublonnage). */
+/**
+ * Commandes gardées en mémoire en même temps pour une salle, accusées comprises (dédoublonnage).
+ * `abort` n'est jamais compté ni refusé : l'arrêt d'une partie ne doit pas dépendre de cette limite.
+ */
 export const COMMAND_MAX_PER_ROOM = 10
 
 const SWEEP_EVERY_MS = 15_000
@@ -50,11 +53,21 @@ type PendingCommand = {
   companyId: number
   roomId: number
   command: RoomCommandName
+  /** Contenu de la commande : un même identifiant avec un autre contenu est un conflit. */
+  fingerprint: string
   settled: boolean
   timer: NodeJS.Timeout
 }
 
-export type SendCommandOutcome = 'sent' | 'duplicate' | 'not_controllable' | 'too_many'
+export type SendCommandOutcome = 'sent' | 'duplicate' | 'conflict' | 'not_controllable' | 'too_many'
+
+const fingerprintOf = (command: RoomCommand): string =>
+  JSON.stringify([
+    command.command,
+    'round' in command ? command.round : null,
+    'questionIndex' in command ? command.questionIndex : null,
+    'gameId' in command ? command.gameId : null,
+  ])
 
 export type CommandAck =
   | { result: typeof ROOM_COMMAND_RESULT.APPLIED }
@@ -213,8 +226,9 @@ export function createLiveHub({ now = Date.now }: { now?: () => number } = {}) {
 
     /**
      * Relaie une commande au flux de la salle. Refusée si la salle n'est pas pilotable ou n'est pas
-     * celle de cette compagnie ; un identifiant déjà vu pour cette salle n'est pas relayé deux fois.
-     * Sans accusé au bout de `ROOM_COMMAND_TIMEOUT_MS`, le personnel reçoit `expired`.
+     * celle de cette compagnie ; un identifiant déjà vu pour cette salle n'est pas relayé deux fois
+     * (`duplicate`, ou `conflict` si son contenu diffère). Sans accusé au bout de
+     * `ROOM_COMMAND_TIMEOUT_MS`, le personnel reçoit `expired`.
      */
     sendCommand(
       roomId: number,
@@ -225,17 +239,22 @@ export function createLiveHub({ now = Date.now }: { now?: () => number } = {}) {
       const key = commandKey(roomId, commandId)
       const entry = rooms.get(roomId)
 
-      if (commands.has(key)) {
-        return 'duplicate'
+      const fingerprint = fingerprintOf(command)
+      const known = commands.get(key)
+
+      if (known) {
+        return known.fingerprint === fingerprint ? 'duplicate' : 'conflict'
       }
 
       if (!entry?.stream || entry.companyId !== companyId || !toLive(roomId, entry).controllable) {
         return 'not_controllable'
       }
 
-      const kept = [...commands.values()].filter((item) => item.roomId === roomId).length
+      const kept = [...commands.values()].filter(
+        (item) => item.roomId === roomId && item.command !== 'abort'
+      ).length
 
-      if (kept >= COMMAND_MAX_PER_ROOM) {
+      if (command.command !== 'abort' && kept >= COMMAND_MAX_PER_ROOM) {
         return 'too_many'
       }
 
@@ -255,7 +274,14 @@ export function createLiveHub({ now = Date.now }: { now?: () => number } = {}) {
       }, ROOM_COMMAND_TIMEOUT_MS)
 
       timer.unref()
-      commands.set(key, { companyId, roomId, command: command.command, settled: false, timer })
+      commands.set(key, {
+        companyId,
+        roomId,
+        command: command.command,
+        fingerprint,
+        settled: false,
+        timer,
+      })
       entry.stream.sink.send(LIVE_EVENT.COMMAND, { commandId, ...command })
 
       return 'sent'
