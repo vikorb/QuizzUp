@@ -1,3 +1,4 @@
+import { routes as surfaceRoutes } from '@surface'
 import { vi } from 'vitest'
 
 type RouterAfterEachCallback = (...args: unknown[]) => unknown
@@ -15,6 +16,12 @@ export const currentRouteMock = {
   meta: {},
   matched: [],
 }
+
+// Seules les routes de la surface construite existent ici : un test choisit sa surface avec
+// `vi.mock('@surface', …)`.
+export const hasRouteMock = vi.fn((name: string) =>
+  surfaceRoutes.some((route) => route.name === name)
+)
 
 export const afterEachCallbacks: RouterAfterEachCallback[] = []
 
@@ -45,6 +52,7 @@ export const routerMock = {
   replace: replaceMock,
   afterEach: afterEachMock,
   resolve: resolveMock,
+  hasRoute: hasRouteMock,
   currentRoute: {
     value: currentRouteMock,
   },

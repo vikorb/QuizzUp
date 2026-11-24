@@ -10,6 +10,16 @@ Format inspiré de Keep a Changelog.
 
 - Écran de salle, habillage : sous 3 secondes la barre de temps vire à l'orange, pulse et fait « tic » à 3, 2 et 1 s (jamais en pause, jamais pendant le blind test) ; chaque écran d'une partie apparaît en fondu ; les scores montent au lieu de sauter et des confettis saluent le vainqueur. Tout mouvement est coupé quand le système demande de réduire les animations.
   US: US-SHOW-01 (#145)
+- Formats de partie partagés : Découverte (3 manches × 3 questions), Courte (6 × 7), Standard (10 × 10) et Personnalisé, avec la durée estimée d'une partie calculée depuis les délais du moteur (`GAME_FORMATS`, `GAME_FORMAT_SETTINGS`, `estimateGameDurationMs` dans `@quizzup/shared`). Le lobby du mode démo de l'écran de salle propose ces formats, Découverte par défaut, avec leur durée estimée.
+  US: US-FORMAT-01 (#143)
+- Programmer une session depuis le formulaire de création de partie : la case « Programmer pour plus tard » ouvre la date, l'heure (dans le fuseau de la salle), la durée et l'effectif annoncé ; une session programmée peut n'avoir aucun joueur. Le formulaire se préremplit depuis l'agenda (`?roomId=`, `?scheduledAt=`). Une session programmée se modifie par le même formulaire (route `games/:gameId/edit`, bouton « Modifier » de l'agenda). Les refus du serveur (`slot_taken`, `session_in_past`, `session_too_far`, `room_inactive`) s'affichent sur le champ concerné.
+  US: US-SESSION-01 (#142)
+- Écran de salle : catalogue des 48 annonces vocales (identifiant, texte français et anglais) et correspondance événement de partie → annonce (`announcementForEvent`). Une annonce cite le numéro de pupitre, jamais un prénom ; aucune annonce pendant un palier de blind test. Aucun fichier son n'est livré et rien n'est encore branché : l'écran reste muet.
+  US: US-AUDIO-02 (#144)
+- Détail d'une partie : panneau de suivi en direct (présence de la salle, pause, étape, manche, question, mini-jeu, scores par pupitre avec le nom des joueurs), alimenté par le flux en direct de la compagnie. Il ne s'affiche que si la salle joue la partie affichée ; hors ligne, il garde les dernières valeurs reçues.
+  US: US-LIVE-01 (#129)
+- Deux constructions du frontend : la surface « centre » (`npm run build:centre`, dossier `dist`) ne contient aucun écran de la console éditeur ; la surface « console » (`npm run build:console`, dossier `dist-console`) les ajoute. `npm run check:surface` construit les deux et échoue si un écran de la console se retrouve dans la surface centre ; la CI le lance. En production et en recette, la console est servie sur son propre hôte, réservé aux adresses de `CONSOLE_ALLOWED_CIDRS`. `npm run dev` et la démo Docker gardent tous les écrans.
+  US: US-CONSOLE-01 (#161)
 
 - Journaux d'erreurs d'une salle consultables depuis le tableau des salles d'un client : panneau en ligne avec filtre par niveau, actualisation et « charger plus », réservé aux administrateurs.
   US: US-LOG-01 (#157)

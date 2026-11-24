@@ -1,4 +1,4 @@
-# Trois sous-domaines, certificats HTTPS obtenus automatiquement par Caddy.
+# Quatre sous-domaines, certificats HTTPS obtenus automatiquement par Caddy.
 # DOMAIN vient du fichier .env (ex. 51-15-12-34.sslip.io : aucun nom de domaine à acheter).
 {
 	email {$ACME_EMAIL}
@@ -31,4 +31,42 @@ salle.{$DOMAIN} {
 	root * /srv/salle
 	try_files {path} /index.html
 	file_server
+}
+
+# Console de l'éditeur : construction à part du frontend (écrans réservés à l'éditeur, absents de
+# bo.). Elle appelle l'API sur son propre nom d'hôte, chemin /api, même origine : son trafic ne
+# passe pas par api.{$DOMAIN}, donc pas par internet. CONSOLE_ALLOWED_CIDRS : CIDR séparés par des
+# ESPACES, la même variable que l'API (garde réseau du superadmin). Ce filtre masque le nom d'hôte
+# (connexion coupée, sans réponse) ; la protection est dans l'API.
+console.{$DOMAIN} {
+	@hors not remote_ip {$CONSOLE_ALLOWED_CIDRS}
+	handle @hors {
+		abort
+	}
+
+	header {
+		X-Frame-Options DENY
+		X-Content-Type-Options nosniff
+	}
+
+	# Flux SSE : ni compression ni tampon. `uri strip_prefix` retire le préfixe /api.
+	@sse path /api/room/stream /api/companies/*/live
+	handle @sse {
+		uri strip_prefix /api
+		reverse_proxy backend:3001 {
+			flush_interval -1
+		}
+	}
+
+	handle_path /api/* {
+		encode gzip
+		reverse_proxy backend:3001
+	}
+
+	handle {
+		encode gzip
+		root * /srv/console
+		try_files {path} /index.html
+		file_server
+	}
 }
