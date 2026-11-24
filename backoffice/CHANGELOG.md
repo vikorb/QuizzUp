@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Lumières Art-Net sans exécutable (`game/artnet-bridge/powershell`) : `quizzup-lumieres.ps1` (PowerShell 5.1, présent sur tout Windows) parle le même protocole WebSocket que le pont et envoie les trames Art-Net ; lanceur `Lancer les lumieres.cmd`. Pas de découverte de nœuds : l'adresse du nœud se saisit à la main. Jamais essayé face à un vrai nœud Art-Net.
+  US: US-DMX-01 (#203)
+
 - Écran de salle, habillage : sous 3 secondes la barre de temps vire à l'orange, pulse et fait « tic » à 3, 2 et 1 s (jamais en pause, jamais pendant le blind test) ; chaque écran d'une partie apparaît en fondu ; les scores montent au lieu de sauter et des confettis saluent le vainqueur. Tout mouvement est coupé quand le système demande de réduire les animations.
   US: US-SHOW-01 (#145)
 - Socle de l'API de réservation : tables `api_keys` (seule l'empreinte de la clé est stockée), `api_idempotency_keys` et `api_request_logs` ; une partie peut être créée par une clé d'API (`games.api_key_id`, `admin_id` devenu facultatif, l'un des deux obligatoire). Ressources `apiKey` et `apiLog` dans la matrice de permissions (admin et superadmin). Contrat de l'API publique dans `docs/api/public-v1.yaml`. Aucune route n'est encore ouverte.

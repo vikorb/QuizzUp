@@ -151,6 +151,7 @@ GitHub.
 | A5 Deux univers | appareils placés sur les univers 1 et 2 (§3.4) | tout répond comme en USB (refaire D2-D5) |
 | A6 Local Network Access | Chrome à jour, page en HTTPS vers le pont local. **Dépend du lot 9** (recette HTTPS en ligne, VPS pas encore déployé) | aucune demande bloquante, ou procédure écrite |
 | A7 Pont tué | arrêter le pont en pleine partie | comportement du NET-2/3 à la perte d'Art-Net **relevé** ; fumée coupée en ≤ 10 s (F7) ; pont relancé par la tâche planifiée en ≤ ~1 min ; écran reconnecté sans recharger |
+| A8 Relais PowerShell | `game/artnet-bridge/powershell/quizzup-lumieres.ps1` (jamais essayé sur un vrai nœud, seulement contre un récepteur UDP local) lancé sur le PC de la salle avec `-Target` ; refaire A4 (sans découverte), A5, A7, F6 | le NET-2/3 reçoit les mêmes trames qu'avec le pont exe ; noir en ≤ 2,5 s si Chrome est tué ; comportement à `Ctrl+C` et à la fermeture de la fenêtre **relevé** |
 
 ## 5. Résultats
 

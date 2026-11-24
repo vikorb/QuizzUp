@@ -424,6 +424,10 @@ jobs:
       - name: Test de fumée (WebSocket)
         run: node scripts/smoke-bridge.mjs dist-sea/quizzup-artnet-bridge.exe http://localhost:4174
 
+      # Relais PowerShell 5.1 : vrai WebSocket + vrai récepteur UDP local (tests ignorés hors Windows).
+      - name: Tests du relais PowerShell
+        run: npx vitest --run tests/powershellRelay.test.ts
+
       - name: Publier l'exécutable
         uses: actions/upload-artifact@v4
         with:
