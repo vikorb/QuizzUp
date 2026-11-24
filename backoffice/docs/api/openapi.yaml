@@ -50,6 +50,10 @@ tags:
     description: Salles de jeu d'une compagnie et leur configuration matérielle
   - name: Games
     description: Parties lancées par l'opérateur dans une salle
+  - name: ApiKeys
+    description: >-
+      Clés de l'API de réservation `/public/v1` d'une compagnie et journal de leurs appels (le contrat
+      de l'API elle-même est dans `public-v1.yaml`)
   - name: Stats
     description: Statistiques d'exploitation d'une compagnie (agrégats, aucun joueur)
   - name: DemoRequests
@@ -59,6 +63,9 @@ tags:
       API publique sous `/public/v1` (vitrine, réservation) : sans compte, sans jeton, sans cookie.
       Routes livrées : `POST /public/v1/demo-requests` (demande de démonstration) et
       `GET /public/v1/logos/{file}` (logo d'un centre). Toutes suivent ces conventions.
+
+      L'API de réservation (`/public/v1/rooms`, `/availability`, `/bookings`) fait exception : elle
+      exige une clé d'API (`Authorization: Bearer qzk_…`) et son contrat est dans `public-v1.yaml`.
 
       - Erreurs au format `PublicError` : statut HTTP et `{ "error": "<code_snake_case>" }`, avec
         `details.fieldErrors` pour `invalid_body` seulement. Codes communs : `invalid_json` (400),
@@ -3416,6 +3423,246 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /companies/{companyId}/api-keys:
+    get:
+      tags:
+        - ApiKeys
+      summary: "[NON DISPONIBLE] Lister les clés d'API de la compagnie"
+      description: |
+        Statut : **Non disponible** (à venir, lot 14.1)
+
+        Clés de l'API de réservation `/public/v1` (`public-v1.yaml`), actives et révoquées. Jamais le secret ni son empreinte : seul le préfixe sert à reconnaître une clé.
+
+        Accès : superadmin (toutes les compagnies) et `admin` de la compagnie ; refusé au rôle `user`.
+      operationId: listApiKeys
+      x-availability: non_disponible
+      x-us: 'Lot 14 / API de réservation'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+      responses:
+        '200':
+          description: Clés d'API
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  apiKeys:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApiKey'
+        '400':
+          description: Paramètres invalides (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Compagnie introuvable (`not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      tags:
+        - ApiKeys
+      summary: "[NON DISPONIBLE] Créer une clé d'API"
+      description: |
+        Statut : **Non disponible** (à venir, lot 14.1)
+
+        Crée une clé au format `qzk_<8 caractères>_<secret>`. **Le secret n'est renvoyé que par cette réponse** : il n'est ni stocké (seule son empreinte SHA-256 l'est) ni relisible ensuite. Au plus 10 clés actives par compagnie.
+
+        Accès : superadmin (toutes les compagnies) et `admin` de la compagnie ; refusé au rôle `user`.
+      operationId: createApiKey
+      x-availability: non_disponible
+      x-us: 'Lot 14 / API de réservation'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  description: Nom de l'intégration qui se servira de la clé
+                  example: Site web du centre
+      responses:
+        '201':
+          description: Clé créée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  apiKey:
+                    $ref: '#/components/schemas/ApiKey'
+                  secret:
+                    type: string
+                    description: Jeton complet, à copier tout de suite
+                    example: qzk_3f9a1c07_Xn0qWm8m3uU2m4m2KkqQZ6l1dL3jJ0s9bYc
+        '400':
+          description: Corps invalide (`invalid_body`, avec détails) ou paramètres invalides (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Compagnie introuvable (`not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Limite de clés actives atteinte (`api_key_limit_reached`), compagnie inactive (`company_inactive`) ou supprimée (`company_deleted`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/api-keys/{apiKeyId}:
+    delete:
+      tags:
+        - ApiKeys
+      summary: "[NON DISPONIBLE] Révoquer une clé d'API"
+      description: |
+        Statut : **Non disponible** (à venir, lot 14.1)
+
+        Révoque la clé : `status` passe à `2` et `deletedAt` est renseigné (suppression logique). Les appels qui la présentent sont refusés tout de suite (`401 api_key_invalid`). Idempotent : révoquer une clé déjà révoquée renvoie `200`. Les réservations déjà faites avec cette clé restent.
+
+        Accès : superadmin (toutes les compagnies) et `admin` de la compagnie ; refusé au rôle `user`.
+      operationId: revokeApiKey
+      x-availability: non_disponible
+      x-us: 'Lot 14 / API de réservation'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/ApiKeyIdParam'
+      responses:
+        '200':
+          description: Clé révoquée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  apiKey:
+                    $ref: '#/components/schemas/ApiKey'
+        '400':
+          description: Paramètres invalides (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Clé introuvable dans cette compagnie (`not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/api-logs:
+    get:
+      tags:
+        - ApiKeys
+      summary: "[NON DISPONIBLE] Lister le journal des appels de l'API de réservation"
+      description: |
+        Statut : **Non disponible** (à venir, lot 14.1)
+
+        Appels reçus par `/public/v1` avec une clé de la compagnie, du plus récent au plus ancien (conservés 90 jours). Pagination par curseur : `before` est l'`id` de la dernière ligne lue (les `id` décroissent) ; `nextBefore` vaut `null` à la fin. Le journal ne contient ni adresse IP, ni corps, ni paramètres de requête : la route est le motif (`/public/v1/bookings/:id`), jamais l'URL.
+
+        Accès : superadmin (toutes les compagnies) et `admin` de la compagnie ; refusé au rôle `user`.
+      operationId: listApiLogs
+      x-availability: non_disponible
+      x-us: 'Lot 14 / API de réservation'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - name: apiKeyId
+          in: query
+          required: false
+          description: Ne garder que les appels de cette clé
+          schema:
+            type: integer
+        - name: statusClass
+          in: query
+          required: false
+          description: Ne garder que les réponses de cette classe de statut
+          schema:
+            type: string
+            enum: ['2xx', '4xx', '5xx']
+        - name: before
+          in: query
+          required: false
+          description: '`id` de la dernière ligne lue'
+          schema:
+            type: integer
+            minimum: 1
+        - name: limit
+          in: query
+          required: false
+          description: Nombre de lignes, 100 au plus
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 100
+      responses:
+        '200':
+          description: Appels journalisés
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  logs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApiLog'
+                  nextBefore:
+                    type: integer
+                    nullable: true
+                    description: Valeur de `before` pour la page suivante, `null` s'il n'y en a plus
+        '400':
+          description: Paramètres ou filtres invalides (`invalid_params`, `invalid_query`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Compagnie introuvable (`not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /demo-requests:
     get:
       tags:
@@ -5348,6 +5595,15 @@ components:
         type: integer
         example: 1
 
+    ApiKeyIdParam:
+      name: apiKeyId
+      in: path
+      required: true
+      description: Identifiant de la clé d'API
+      schema:
+        type: integer
+        example: 1
+
     RoomIdParam:
       name: roomId
       in: path
@@ -5444,6 +5700,94 @@ components:
             `question_type_media_invalid`, `question_kind_media_invalid`,
             `question_answers_min_required`, `question_correct_answer_required`,
             `question_true_false_answers_invalid`, `question_estimate_answers_invalid`)
+
+    ApiKey:
+      type: object
+      description: >-
+        Clé de l'API de réservation. Ni le secret ni son empreinte ne sont jamais renvoyés (le secret
+        l'est une seule fois, à la création).
+      required: [id, name, keyPrefix, status, createdAt, lastUsedAt, createdBy]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+          example: Site web du centre
+        keyPrefix:
+          type: string
+          description: '`qzk_` et 8 caractères : permet de reconnaître la clé'
+          example: qzk_3f9a1c07
+        status:
+          type: integer
+          enum: [1, 2]
+          description: '`1` active, `2` révoquée'
+        createdAt:
+          type: string
+          format: date-time
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Dernier appel (précis à la minute près) ; `null` si la clé n'a jamais servi
+        createdBy:
+          type: object
+          nullable: true
+          description: Compte qui a créé la clé
+          properties:
+            id:
+              type: integer
+            username:
+              type: string
+
+    ApiLog:
+      type: object
+      description: Un appel reçu par `/public/v1`, sans adresse IP, corps ni paramètres
+      required:
+        - id
+        - apiKeyId
+        - keyPrefix
+        - method
+        - route
+        - statusCode
+        - errorCode
+        - gameId
+        - durationMs
+        - idempotentReplay
+        - createdAt
+      properties:
+        id:
+          type: integer
+        apiKeyId:
+          type: integer
+        keyPrefix:
+          type: string
+          example: qzk_3f9a1c07
+        method:
+          type: string
+          example: POST
+        route:
+          type: string
+          description: Motif de la route, jamais l'URL brute
+          example: /public/v1/bookings/:id
+        statusCode:
+          type: integer
+          example: 201
+        errorCode:
+          type: string
+          nullable: true
+          description: Code d'erreur de la réponse (`slot_taken`), `null` si elle a réussi
+        gameId:
+          type: integer
+          nullable: true
+          description: Réservation concernée, s'il y en a une
+        durationMs:
+          type: integer
+        idempotentReplay:
+          type: boolean
+          description: Réponse rejouée par l'idempotence (`Idempotent-Replayed`)
+        createdAt:
+          type: string
+          format: date-time
 
     PublicError:
       type: object
@@ -6505,7 +6849,14 @@ components:
           type: string
         adminId:
           type: integer
-          description: Opérateur qui a lancé la partie
+          nullable: true
+          description: Opérateur qui a lancé la partie ; `null` pour une réservation faite par l'API de réservation
+        source:
+          type: string
+          enum: [backoffice, api]
+          description: >-
+            Origine de la partie : `api` si elle a été réservée avec une clé d'API (`/public/v1`),
+            sinon `backoffice`. [NON DISPONIBLE] Pas encore renvoyé par la liste ni le détail (à venir).
         roundsCount:
           type: integer
           example: 10

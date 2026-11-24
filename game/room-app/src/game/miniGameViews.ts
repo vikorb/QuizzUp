@@ -79,7 +79,10 @@ export type BuzzView = QuestionBase & {
   status: 'open' | 'answering'
   /** Avancement de la fenêtre de buzz (0 → 1), figé pendant une réponse. */
   progress: number
+  /** Temps restant de la fenêtre de buzz, en ms. */
+  remainingMs: number
   answeringParticipantId: number | null
+  answerRemainingMs: number
   answerRemainingRatio: number
   lockedOutIds: number[]
   /** Points en jeu si on trouve maintenant (révélation progressive). */
@@ -148,6 +151,8 @@ export function getMiniGameView(state: GameState, now: number): MiniGameView | n
       mini.kind === MINI_GAME_FIRST_BUZZ
         ? FIRST_BUZZ_ANSWER_TIMEOUT_MS
         : PROGRESSIVE_REVEAL_ANSWER_TIMEOUT_MS
+    const answerRemainingMs =
+      mini.answerDeadline === null ? 0 : getRemaining(mini.answerDeadline, now)
 
     return {
       ...base,
@@ -155,11 +160,11 @@ export function getMiniGameView(state: GameState, now: number): MiniGameView | n
       question: mini.question,
       status: mini.status === 'answering' ? 'answering' : 'open',
       progress: ratio(elapsedMs, mini.windowMs),
+      remainingMs: Math.max(0, mini.windowMs - elapsedMs),
       answeringParticipantId: mini.answeringParticipantId,
+      answerRemainingMs,
       answerRemainingRatio:
-        mini.answerDeadline === null
-          ? 0
-          : ratio(getRemaining(mini.answerDeadline, now), answerTimeoutMs),
+        mini.answerDeadline === null ? 0 : ratio(answerRemainingMs, answerTimeoutMs),
       lockedOutIds: mini.lockedOutIds,
       pointsAtStake:
         mini.kind === MINI_GAME_PROGRESSIVE_REVEAL ? getProgressiveRevealPoints(elapsedMs) : null,

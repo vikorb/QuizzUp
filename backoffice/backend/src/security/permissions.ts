@@ -14,6 +14,8 @@ export const API_RESOURCE = {
   STATS: 'stats',
   ROOM_LOG: 'roomLog',
   DEMO_REQUEST: 'demoRequest',
+  API_KEY: 'apiKey',
+  API_LOG: 'apiLog',
 } as const
 
 export const API_ACTION = {
@@ -94,7 +96,8 @@ const staffPlayerVoucherPermissions: PermissionKey[] = [
 ]
 
 // Export, désinscription et effacement RGPD des joueurs, annulation d'un bon, statistiques (Q11 :
-// pas pour `user`) et journaux des salles (réservés à l'admin) : superadmin et admin seulement.
+// pas pour `user`), journaux des salles et clés d'API (réservés à l'admin) : superadmin et admin
+// seulement.
 const adminPlayerVoucherPermissions: PermissionKey[] = [
   'player:read',
   'player:update',
@@ -105,6 +108,13 @@ const adminPlayerVoucherPermissions: PermissionKey[] = [
   'stats:read',
 
   'roomLog:list',
+
+  // Lot 14 : clés de l'API de réservation et journal de leurs appels, jamais pour `user`.
+  'apiKey:list',
+  'apiKey:create',
+  'apiKey:delete',
+
+  'apiLog:list',
 ]
 
 const permissionsByRole: Record<ApiRole, PermissionKey[]> = {

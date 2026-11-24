@@ -29,7 +29,7 @@
       <span v-if="tags?.[line.participantId]" class="score__tag">{{
         tags[line.participantId]
       }}</span>
-      <span class="score__value">{{ line.score }}</span>
+      <span class="score__value"><TweenedNumber :value="line.score" /></span>
     </article>
   </section>
 </template>
@@ -38,6 +38,7 @@
 import { mdiCheckCircleOutline, mdiLockOutline, mdiSkullOutline } from '@mdi/js'
 
 import DeskBadge from '@/components/game/DeskBadge.vue'
+import TweenedNumber from '@/components/game/TweenedNumber.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import type { LeaderboardLine } from '@/game/selectors'
 

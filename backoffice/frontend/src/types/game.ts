@@ -41,7 +41,8 @@ export type Game = {
   companyId: number
   roomId: number
   roomName?: string
-  adminId: number
+  /** `null` pour une réservation faite par l'API. */
+  adminId: number | null
   roundsCount: number
   questionsPerRound: number
   /** Mini-jeux autorisés pour la partie ; `null` ou absent = tous. */
