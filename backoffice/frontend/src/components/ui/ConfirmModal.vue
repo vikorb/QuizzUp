@@ -48,6 +48,7 @@ import { useI18n } from 'vue-i18n'
 
 import UiButton from '@/components/ui/UiButton.vue'
 import { useConfirm } from '@/composables/useConfirm'
+import { trapTabKey } from '@/utils/focusTrap'
 
 const { t } = useI18n()
 const { state, accept, cancel } = useConfirm()
@@ -74,18 +75,6 @@ function handleCancel(): void {
   cancel()
 }
 
-function focusableElements(): HTMLElement[] {
-  if (!dialogRef.value) {
-    return []
-  }
-
-  return Array.from(
-    dialogRef.value.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    )
-  ).filter((element) => !element.hasAttribute('disabled'))
-}
-
 // Piège de focus : Tab / Shift+Tab bouclent à l'intérieur du dialogue, Échap annule.
 function handleKeydown(event: KeyboardEvent): void {
   if (event.key === 'Escape') {
@@ -94,30 +83,7 @@ function handleKeydown(event: KeyboardEvent): void {
     return
   }
 
-  if (event.key !== 'Tab') {
-    return
-  }
-
-  const focusables = focusableElements()
-  const first = focusables[0]
-  const last = focusables[focusables.length - 1]
-
-  if (!first || !last) {
-    return
-  }
-
-  const active = document.activeElement as HTMLElement | null
-
-  if (event.shiftKey && active === first) {
-    event.preventDefault()
-    last.focus()
-    return
-  }
-
-  if (!event.shiftKey && active === last) {
-    event.preventDefault()
-    first.focus()
-  }
+  trapTabKey(event, dialogRef.value)
 }
 
 watch(

@@ -27,6 +27,14 @@ import { OPCODE, openRawClient, openUdpReceiver } from './_helpers/rawClient'
 const SCRIPT = fileURLToPath(new URL('../powershell/quizzup-lumieres.ps1', import.meta.url))
 const ORIGIN = 'https://salle.quizzup.fr'
 const MARKER_TIMEOUT_MS = 30_000
+/**
+ * Attente d'une trame ou d'un paquet qui DOIT arriver. Le relais est un processus PowerShell à
+ * boucle unique : sur un poste chargé (runner de CI), un démarrage à froid ou une pause peut dépasser
+ * les 2 s par défaut des helpers sans que le relais soit en défaut. Un succès ne dépend pas de cette
+ * valeur ; seul un vrai blocage la atteint. Trois attentes de suite (le pire test) restent sous le
+ * délai de 60 s du test : le blocage est dit par « aucune trame du serveur », pas par « Test timed out ».
+ */
+const EXPECTED_TIMEOUT_MS = 15_000
 const ZEROS = new Uint8Array(512)
 const ADDRESS_0 = { net: 0, subnet: 0, universe: 0 }
 
@@ -56,6 +64,14 @@ const browserFrame = (universe = 0, seed = 1) => {
 }
 
 type Relay = { pid: number; port: number; receiver: UdpReceiver; output: () => string }
+
+/** Faux nœud Art-Net dont l'attente de paquets suit `EXPECTED_TIMEOUT_MS`. */
+async function openReceiver(): Promise<UdpReceiver> {
+  const receiver = await openUdpReceiver()
+  const waitFor = receiver.waitFor
+  receiver.waitFor = (count, timeoutMs = EXPECTED_TIMEOUT_MS) => waitFor(count, timeoutMs)
+  return receiver
+}
 
 const running: { pid: number; receiver: UdpReceiver }[] = []
 
@@ -94,7 +110,7 @@ const powershellArgs = (relayArgs: string[]) => [
  * libéré avant que le relais ne le prenne : si un autre processus l'a pris entre-temps, nouvel essai.
  */
 async function startRelay(options: StartOptions = {}): Promise<Relay> {
-  const receiver = await openUdpReceiver()
+  const receiver = await openReceiver()
   for (let attempt = 1; ; attempt += 1) {
     const port = await freePort()
     try {
@@ -175,6 +191,8 @@ const text = (frame: { payload: Buffer }) => frame.payload.toString('utf8')
 async function connect(relay: Relay, hello: string | null, headers = {}): Promise<RawClient> {
   const client = await openRawClient(relay.port, headers)
   expect(client.status).toBe(101)
+  const next = client.next
+  client.next = (timeoutMs = EXPECTED_TIMEOUT_MS) => next(timeoutMs)
   if (hello !== null) {
     client.send(OPCODE.text, hello)
   }
@@ -235,11 +253,17 @@ describe.skipIf(process.platform !== 'win32')(
 
     it('lit les origines dans QUIZZUP_BRIDGE_ORIGINS et répond 426 hors WebSocket', async () => {
       const relay = await startRelay({ origin: 'env' })
-      const status = await new Promise<number>((resolve) => {
-        request({ host: '127.0.0.1', port: relay.port, path: '/' }, (response) => {
+      const status = await new Promise<number>((resolve, reject) => {
+        const get = request({ host: '127.0.0.1', port: relay.port, path: '/' }, (response) => {
           response.resume()
           resolve(response.statusCode ?? 0)
-        }).end()
+        })
+        get.setTimeout(EXPECTED_TIMEOUT_MS, () => {
+          reject(new Error(`aucune réponse HTTP du relais après ${EXPECTED_TIMEOUT_MS} ms`))
+          get.destroy()
+        })
+        get.on('error', reject)
+        get.end()
       })
       expect(status).toBe(426)
       const client = await connect(relay, helloV1)
@@ -371,7 +395,7 @@ describe.skipIf(process.platform !== 'win32')(
     it('aucune présentation en 2 s : error « hello » puis 4000', async () => {
       const relay = await startRelay()
       const client = await connect(relay, null)
-      expect(text(await client.next(8000))).toBe(errorMessage('hello', 'aucune présentation reçue'))
+      expect(text(await client.next())).toBe(errorMessage('hello', 'aucune présentation reçue'))
       expect(closeInfo(await client.next())).toMatchObject({ code: CLOSE_CODES.helloExpected })
       await finish(client, CLOSE_CODES.helloExpected)
     })
@@ -710,7 +734,7 @@ describe.skipIf(process.platform !== 'win32')(
         ].join('\r\n'),
         'utf8'
       )
-      const receiver = await openUdpReceiver()
+      const receiver = await openReceiver()
       try {
         const run = spawnSync(
           'powershell.exe',

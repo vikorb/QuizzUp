@@ -83,17 +83,20 @@ export const gamesListQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
 })
 
-const emailSchema = z.string().trim().toLowerCase().email().max(255).optional().nullable()
+export const emailSchema = z.string().trim().toLowerCase().email().max(255).optional().nullable()
 const displayNameSchema = z.string().trim().min(1).max(GAME_PARTICIPANT_DISPLAY_NAME_MAX_LENGTH)
 
 // RGPD : la case doit être cochée explicitement pour qu'un email soit gardé.
-function hasConsentIfEmail(player: { email?: string | null; emailConsent?: boolean }): boolean {
+export function hasConsentIfEmail(player: {
+  email?: string | null
+  emailConsent?: boolean
+}): boolean {
   return !player.email || player.emailConsent === true
 }
 
 // Consentement aux offres du centre : distinct de la conservation de l'email, mais sans email
 // il n'y a personne à qui écrire.
-function hasEmailIfMarketing(player: {
+export function hasEmailIfMarketing(player: {
   email?: string | null
   marketingConsent?: boolean
 }): boolean {

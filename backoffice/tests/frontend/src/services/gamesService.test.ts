@@ -2,12 +2,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   abortGameService,
+  acceptGameRegistrationService,
   cancelGameService,
+  closeGameJoinService,
   createGameService,
+  listGameRegistrationsService,
   listGameRoomsService,
   listGamesService,
   loadGameService,
+  openGameJoinService,
   openGameService,
+  refuseGameRegistrationService,
   updateGameService,
 } from '@/services/gamesService'
 
@@ -281,5 +286,90 @@ describe('services/gamesService', () => {
     apiFetchMock.mockResolvedValue(new Response('not json', { status: 200 }))
 
     expect(await listGamesService(7)).toEqual({ ok: false, status: 200, error: 'invalid_json' })
+  })
+
+  describe('sign-ups by QR code', () => {
+    it('opens or regenerates the join link with a POST', async () => {
+      apiFetchMock.mockResolvedValue(jsonResponse(200, { join: { url: '/rejoindre/#t' } }))
+
+      const result = await openGameJoinService(7, 3)
+
+      expect(apiFetchMock).toHaveBeenCalledWith({
+        path: '/companies/7/games/3/join',
+        method: 'POST',
+        authenticated: true,
+      })
+      expect(result).toEqual({ ok: true, status: 200, data: { join: { url: '/rejoindre/#t' } } })
+    })
+
+    it('closes the join link, an empty 204 being a success', async () => {
+      apiFetchMock.mockResolvedValue(new Response(null, { status: 204 }))
+
+      const result = await closeGameJoinService(7, 3)
+
+      expect(apiFetchMock).toHaveBeenCalledWith({
+        path: '/companies/7/games/3/join',
+        method: 'DELETE',
+        authenticated: true,
+      })
+      expect(result).toEqual({ ok: true, status: 204, data: undefined })
+    })
+
+    it('lists the pending registrations', async () => {
+      apiFetchMock.mockResolvedValue(jsonResponse(200, { registrations: [{ id: 5 }] }))
+
+      const result = await listGameRegistrationsService(7, 3)
+
+      expect(apiFetchMock).toHaveBeenCalledWith({
+        path: '/companies/7/games/3/registrations',
+        authenticated: true,
+      })
+      expect(result).toEqual({ ok: true, status: 200, data: { registrations: [{ id: 5 }] } })
+    })
+
+    it('accepts a registration on the chosen podium', async () => {
+      apiFetchMock.mockResolvedValue(jsonResponse(201, { participant: { id: 9 } }))
+
+      await acceptGameRegistrationService(7, 3, 5, 2)
+
+      expect(apiFetchMock).toHaveBeenCalledWith({
+        path: '/companies/7/games/3/registrations/5/accept',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ podium: 2 }),
+        authenticated: true,
+      })
+    })
+
+    it('accepts a registration without a podium: the server takes the first free one', async () => {
+      apiFetchMock.mockResolvedValue(jsonResponse(201, { participant: { id: 9 } }))
+
+      await acceptGameRegistrationService(7, 3, 5)
+
+      expect(apiFetchMock.mock.calls[0]?.[0].body).toBe('{}')
+    })
+
+    it('reads the exact error code of a refused validation', async () => {
+      apiFetchMock.mockResolvedValue(jsonResponse(409, { error: 'podium_taken' }))
+
+      expect(await acceptGameRegistrationService(7, 3, 5, 2)).toEqual({
+        ok: false,
+        status: 409,
+        error: 'podium_taken',
+      })
+    })
+
+    it('refuses a registration with a DELETE', async () => {
+      apiFetchMock.mockResolvedValue(new Response(null, { status: 204 }))
+
+      const result = await refuseGameRegistrationService(7, 3, 5)
+
+      expect(apiFetchMock).toHaveBeenCalledWith({
+        path: '/companies/7/games/3/registrations/5',
+        method: 'DELETE',
+        authenticated: true,
+      })
+      expect(result.ok).toBe(true)
+    })
   })
 })

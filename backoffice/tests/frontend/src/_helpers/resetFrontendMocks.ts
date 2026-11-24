@@ -15,6 +15,7 @@ import { resetRoomsServiceMock } from './roomsServiceMock'
 import { resetRouterMock } from './routerMock'
 import { resetRouterUtilsMock } from './routerUtilsMock'
 import { resetThemesServiceMock } from './themesServiceMock'
+import { resetVouchersServiceMock } from './vouchersServiceMock'
 
 export function resetFrontendMocksBeforeEach(): void {
   beforeEach(() => {
@@ -28,6 +29,7 @@ export function resetFrontendMocksBeforeEach(): void {
     resetCompanyDetailFormMock()
     resetCompanyLogoServiceMock()
     resetThemesServiceMock()
+    resetVouchersServiceMock()
     resetQuestionsServiceMock()
     resetQuestionImportServiceMock()
     resetQuestionMediaServiceMock()
