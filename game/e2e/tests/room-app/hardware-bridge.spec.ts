@@ -7,7 +7,7 @@ import {
   startBridge,
   startFakeNode,
 } from '../support/artnetBridge'
-import { enterDemo } from '../support/roomApp'
+import { enterDemo, HARDWARE_KEY } from '../support/roomApp'
 
 /**
  * Écran de salle + **vrai pont Art-Net** (sources de `game/artnet-bridge`, lancées par le test)
@@ -15,8 +15,6 @@ import { enterDemo } from '../support/roomApp'
  * pont » quand il est absent, arrêt d'urgence maintenu après un rechargement.
  * L'écran « Matériel » démarre les lumières comme le fait « Lancer la salle ».
  */
-const HARDWARE_KEY = 'quizzup_room_hardware'
-
 async function useBridgeAt(page: Page, bridgeUrl: string): Promise<void> {
   const config = {
     lighting: {
