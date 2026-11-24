@@ -4,7 +4,7 @@ import {
   createScheduleFixture,
   roomsFixture,
 } from '@frontend-tests/_helpers/gamesServiceMock'
-import { MINI_GAME_FIRST_BUZZ, MINI_GAMES } from '@quizzup/shared'
+import { GAME_EXTERNAL_REF_MAX_LENGTH, MINI_GAME_FIRST_BUZZ, MINI_GAMES } from '@quizzup/shared'
 import { describe, expect, it } from 'vitest'
 
 import type { GameFormValues, GameRoom } from '@/types/game'
@@ -17,7 +17,6 @@ import {
   createGameFormValuesFromGame,
   createGameParticipantFormValues,
   getGameRoomTimeZone,
-  getScheduledInstant,
   hasGameFormErrors,
   hasMaskedParticipantEmails,
   parseGamePrefill,
@@ -43,25 +42,31 @@ function scheduledForm(overrides: Partial<GameFormValues> = {}): GameFormValues 
   }
 }
 
-describe('getScheduledInstant', () => {
-  it('reads the day and time in the time zone of the room', () => {
-    expect(getScheduledInstant(scheduledForm(), 'Europe/Paris')?.toISOString()).toBe(
+describe('the instant of the day and time typed', () => {
+  it('is read in the time zone of the room', () => {
+    expect(buildCreateGamePayload(scheduledForm(), 'Europe/Paris').scheduledAt).toBe(
       '2026-12-05T13:00:00.000Z'
     )
-    expect(getScheduledInstant(scheduledForm(), 'Europe/London')?.toISOString()).toBe(
+    expect(buildCreateGamePayload(scheduledForm(), 'Europe/London').scheduledAt).toBe(
       '2026-12-05T14:00:00.000Z'
     )
   })
 
   it.each([
-    ['no day', { scheduledDate: '' }],
-    ['no time', { scheduledTime: '' }],
-    ['a time out of range', { scheduledTime: '25:00' }],
-    ['a day the calendar refuses', { scheduledDate: '2026-02-30' }],
+    ['no day', { scheduledDate: '' }, 'scheduledAtRequired'],
+    ['no time', { scheduledTime: '' }, 'scheduledAtRequired'],
+    ['a time out of range', { scheduledTime: '25:00' }, 'scheduledAtInvalid'],
+    ['a day the calendar refuses', { scheduledDate: '2026-02-30' }, 'scheduledAtInvalid'],
     // 02:30 n'existe pas le 28 mars 2027 à Paris (passage à l'heure d'été).
-    ['a time skipped by the clock change', { scheduledDate: '2027-03-28', scheduledTime: '02:30' }],
-  ])('is null with %s', (_label, overrides) => {
-    expect(getScheduledInstant(scheduledForm(overrides), 'Europe/Paris')).toBeNull()
+    [
+      'a time skipped by the clock change',
+      { scheduledDate: '2027-03-28', scheduledTime: '02:30' },
+      'scheduledAtInvalid',
+    ],
+  ])('is refused with %s', (_label, overrides, code) => {
+    const errors = validateGameForm(scheduledForm(overrides), 4, 'Europe/Paris')
+
+    expect(errors.scheduledAt).toBe(`games.form.errors.${code}`)
   })
 })
 
@@ -146,6 +151,20 @@ describe('validateGameForm of a scheduled session', () => {
     expect(errors.playersCount).toBe('games.form.errors.playersCountInvalid')
   })
 
+  it('refuses a booking reference that is too long, and accepts the longest one', () => {
+    const tooLong = 'x'.repeat(GAME_EXTERNAL_REF_MAX_LENGTH + 1)
+    const longest = 'x'.repeat(GAME_EXTERNAL_REF_MAX_LENGTH)
+
+    expect(
+      validateGameForm(scheduledForm({ externalRef: tooLong }), 4, 'Europe/Paris')
+    ).toMatchObject({ externalRef: 'games.form.errors.externalRefTooLong' })
+    expect(
+      hasGameFormErrors(
+        validateGameForm(scheduledForm({ externalRef: ` ${longest} ` }), 4, 'Europe/Paris')
+      )
+    ).toBe(false)
+  })
+
   it('accepts the bounds of the duration and of the headcount', () => {
     for (const overrides of [
       { durationMinutes: '10', playersCount: '12' },
@@ -181,12 +200,50 @@ describe('buildCreateGamePayload of a scheduled session', () => {
     })
   })
 
-  it('leaves out the duration and the headcount when they are empty', () => {
-    const payload = buildCreateGamePayload(scheduledForm(), 'Europe/Paris')
+  it('leaves out the duration, the headcount and the reference when they are empty', () => {
+    const payload = buildCreateGamePayload(scheduledForm({ externalRef: '  ' }), 'Europe/Paris')
 
     expect(payload.scheduledAt).toBe('2026-12-05T13:00:00.000Z')
     expect(payload).not.toHaveProperty('durationMinutes')
     expect(payload).not.toHaveProperty('playersCount')
+    expect(payload).not.toHaveProperty('externalRef')
+  })
+
+  it('sends the booking reference, trimmed', () => {
+    const payload = buildCreateGamePayload(
+      scheduledForm({ externalRef: ' BK-42 ' }),
+      'Europe/Paris'
+    )
+
+    expect(payload.externalRef).toBe('BK-42')
+  })
+
+  it('keeps the instant of the link while the day and time shown are those of the link', () => {
+    // 01:30Z le 25 octobre 2026 : 02:30 à Paris, au second passage de l'heure (la première est 00:30Z).
+    const form = scheduledForm({ scheduledDate: '2026-10-25', scheduledTime: '02:30' })
+
+    expect(buildCreateGamePayload(form, 'Europe/Paris').scheduledAt).toBe(
+      '2026-10-25T00:30:00.000Z'
+    )
+    expect(
+      buildCreateGamePayload(form, 'Europe/Paris', '2026-10-25T01:30:00.000Z').scheduledAt
+    ).toBe('2026-10-25T01:30:00.000Z')
+  })
+
+  it('reads the typed time again once it is not the one of the link', () => {
+    const form = scheduledForm({ scheduledDate: '2026-10-25', scheduledTime: '03:00' })
+
+    expect(
+      buildCreateGamePayload(form, 'Europe/Paris', '2026-10-25T01:30:00.000Z').scheduledAt
+    ).toBe('2026-10-25T02:00:00.000Z')
+  })
+
+  it('drops the seconds of the instant of the link', () => {
+    const form = scheduledForm({ scheduledDate: '2026-10-25', scheduledTime: '02:30' })
+
+    expect(
+      buildCreateGamePayload(form, 'Europe/Paris', '2026-10-25T01:30:42.000Z').scheduledAt
+    ).toBe('2026-10-25T01:30:00.000Z')
   })
 
   it('keeps the body of an immediate game, whatever the hidden schedule fields hold', () => {
@@ -313,6 +370,10 @@ describe('editing a scheduled session', () => {
   })
   const withParticipants = { includeParticipants: true }
 
+  function editedForm() {
+    return createGameFormValuesFromGame(game, 'Europe/Paris')
+  }
+
   it('fills the form from the session, in the time zone of its room', () => {
     const form = createGameFormValuesFromGame(game, 'Europe/Paris')
 
@@ -377,18 +438,13 @@ describe('editing a scheduled session', () => {
 
   describe('buildUpdateGamePayload', () => {
     it('sends nothing the server controls when nothing moved', () => {
-      const form = createGameFormValuesFromGame(game, 'Europe/Paris')
-      const payload = buildUpdateGamePayload(form, 'Europe/Paris', game, withParticipants)
+      const payload = buildUpdateGamePayload(editedForm(), 'Europe/Paris', game, withParticipants)
 
-      expect(payload).not.toHaveProperty('scheduledAt')
-      expect(payload).not.toHaveProperty('durationMinutes')
-      expect(payload).not.toHaveProperty('roundsCount')
-      expect(payload).not.toHaveProperty('questionsPerRound')
-      expect(payload).toMatchObject({ roomId: 10, miniGames: null, playersCount: 7 })
+      expect(payload).toEqual({ roomId: 10, playersCount: 7 })
     })
 
     it('sends the new start, duration and format when they changed', () => {
-      const form = createGameFormValuesFromGame(game, 'Europe/Paris')
+      const form = editedForm()
       Object.assign(form, {
         scheduledTime: '15:30',
         durationMinutes: '90',
@@ -405,7 +461,7 @@ describe('editing a scheduled session', () => {
     })
 
     it('clears the headcount with null and writes only the chosen mini-games', () => {
-      const form = createGameFormValuesFromGame(game, 'Europe/Paris')
+      const form = editedForm()
       form.playersCount = ''
       form.miniGames = [MINI_GAME_FIRST_BUZZ]
 
@@ -415,14 +471,134 @@ describe('editing a scheduled session', () => {
       })
     })
 
-    it('sends the participants by podium, or none when they are locked', () => {
-      const form = createGameFormValuesFromGame(game, 'Europe/Paris')
+    it('writes all the mini-games as the full list, never null, once all are ticked again', () => {
+      const restricted = { ...game, miniGames: [MINI_GAME_FIRST_BUZZ] }
+      const form = createGameFormValuesFromGame(restricted, 'Europe/Paris')
+      form.miniGames = [...MINI_GAMES].reverse()
+
+      const payload = buildUpdateGamePayload(form, 'Europe/Paris', restricted, withParticipants)
+
+      expect(payload.miniGames).toEqual([...MINI_GAMES])
+    })
+
+    it('leaves the mini-games out when the selection is the one loaded', () => {
+      const restricted = { ...game, miniGames: [MINI_GAME_FIRST_BUZZ] }
+      const form = createGameFormValuesFromGame(restricted, 'Europe/Paris')
+
+      expect(
+        buildUpdateGamePayload(form, 'Europe/Paris', restricted, withParticipants)
+      ).not.toHaveProperty('miniGames')
+    })
+
+    it('sends the participants by podium once they changed, none when they did not', () => {
+      const form = editedForm()
+      form.participants[0].displayName = 'Team A bis'
+
       const payload = buildUpdateGamePayload(form, 'Europe/Paris', game, withParticipants)
 
-      expect(payload.participants?.map((item) => item.podium)).toEqual([1, 2])
+      expect(payload.participants?.map((item) => [item.podium, item.displayName])).toEqual([
+        [1, 'Team A bis'],
+        [2, 'Team B'],
+      ])
+      expect(
+        buildUpdateGamePayload(editedForm(), 'Europe/Paris', game, withParticipants)
+      ).not.toHaveProperty('participants')
+    })
+
+    it('sends the participants when one is added or removed', () => {
+      const added = editedForm()
+      added.participants.push(createGameParticipantFormValues(3))
+      added.participants[2].displayName = 'Team C'
+      const removed = editedForm()
+      removed.participants.pop()
+
+      expect(
+        buildUpdateGamePayload(added, 'Europe/Paris', game, withParticipants).participants
+      ).toHaveLength(3)
+      expect(
+        buildUpdateGamePayload(removed, 'Europe/Paris', game, withParticipants).participants
+      ).toHaveLength(1)
+    })
+
+    it('never sends the participants when they are locked', () => {
+      const form = editedForm()
+      form.participants[0].displayName = 'Team A bis'
+
       expect(
         buildUpdateGamePayload(form, 'Europe/Paris', game, { includeParticipants: false })
       ).not.toHaveProperty('participants')
+    })
+
+    it('sends the booking reference only when it changed, and null to clear it', () => {
+      const withRef = { ...game, externalRef: 'BK-1' }
+      const form = createGameFormValuesFromGame(withRef, 'Europe/Paris')
+
+      expect(form.externalRef).toBe('BK-1')
+      expect(
+        buildUpdateGamePayload(form, 'Europe/Paris', withRef, withParticipants)
+      ).not.toHaveProperty('externalRef')
+
+      form.externalRef = ' BK-2 '
+      expect(
+        buildUpdateGamePayload(form, 'Europe/Paris', withRef, withParticipants).externalRef
+      ).toBe('BK-2')
+
+      form.externalRef = ' '
+      expect(
+        buildUpdateGamePayload(form, 'Europe/Paris', withRef, withParticipants).externalRef
+      ).toBeNull()
+    })
+
+    it('does not send an empty booking reference of a session that had none', () => {
+      expect(
+        buildUpdateGamePayload(editedForm(), 'Europe/Paris', game, withParticipants)
+      ).not.toHaveProperty('externalRef')
+    })
+
+    describe('at the repeated hour of the autumn clock change', () => {
+      // 01:30Z le 25 octobre 2026 : 02:30 à Paris, second passage (le premier est 00:30Z).
+      const repeated = createScheduledGameFixture('2026-10-25T01:30:00.000Z', {
+        id: 6,
+        roomId: 10,
+        participants: [],
+      })
+
+      it('shows the session at 02:30 and sends no start when another field changes', () => {
+        const form = createGameFormValuesFromGame(repeated, 'Europe/Paris')
+
+        expect(form).toMatchObject({ scheduledDate: '2026-10-25', scheduledTime: '02:30' })
+
+        form.playersCount = '5'
+
+        const payload = buildUpdateGamePayload(form, 'Europe/Paris', repeated, withParticipants)
+
+        expect(payload).not.toHaveProperty('scheduledAt')
+        expect(payload.playersCount).toBe(5)
+      })
+
+      it('reads a different time again, and the first passage once the time is typed again', () => {
+        const form = createGameFormValuesFromGame(repeated, 'Europe/Paris')
+
+        form.scheduledTime = '03:00'
+        expect(
+          buildUpdateGamePayload(form, 'Europe/Paris', repeated, withParticipants).scheduledAt
+        ).toBe('2026-10-25T02:00:00.000Z')
+
+        // Retaper 02:30 après une autre heure : c'est l'instant d'origine qui revient.
+        form.scheduledTime = '02:30'
+        expect(
+          buildUpdateGamePayload(form, 'Europe/Paris', repeated, withParticipants)
+        ).not.toHaveProperty('scheduledAt')
+      })
+
+      it('reads the typed time in the new room when the room changes', () => {
+        const form = createGameFormValuesFromGame(repeated, 'Europe/Paris')
+
+        // Londres : le même texte (02:30) est lu en heure de Londres (UTC+0 ce jour-là).
+        expect(
+          buildUpdateGamePayload(form, 'Europe/London', repeated, withParticipants).scheduledAt
+        ).toBe('2026-10-25T02:30:00.000Z')
+      })
     })
   })
 })

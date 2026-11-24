@@ -66,7 +66,6 @@ describe('services/gamesService', () => {
 
     const result = await updateGameService(7, 3, {
       roomId: 10,
-      miniGames: null,
       playersCount: null,
       scheduledAt: '2027-03-27T09:00:00.000Z',
     })
@@ -77,7 +76,6 @@ describe('services/gamesService', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         roomId: 10,
-        miniGames: null,
         playersCount: null,
         scheduledAt: '2027-03-27T09:00:00.000Z',
       }),
@@ -99,7 +97,6 @@ describe('services/gamesService', () => {
 
       const result = await updateGameService(7, 3, {
         roomId: 10,
-        miniGames: null,
         playersCount: null,
       })
 

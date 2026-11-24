@@ -48,7 +48,9 @@
     },
     "banners": {
       "opened": "The session in room \"{room}\" is open: it now waits to be launched in the room.",
-      "cancelled": "The session in room \"{room}\" has been cancelled."
+      "cancelled": "The session in room \"{room}\" has been cancelled.",
+      "scheduled": "The session in room \"{room}\" is scheduled.",
+      "updated": "The session in room \"{room}\" has been updated."
     }
   }
 }

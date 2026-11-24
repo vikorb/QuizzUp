@@ -113,6 +113,8 @@
             name="scheduledTime"
             :label="$t('games.form.time')"
             :disabled="isBusy"
+            :invalid="!!fieldErrors.scheduledAt"
+            described-by="game-date_error"
             required
           />
 
@@ -138,6 +140,17 @@
             :hint="$t('games.form.playersCountHint', { max: GAME_MAX_PLAYERS })"
             :disabled="isBusy"
             :error="errorLabel(fieldErrors.playersCount, { max: GAME_MAX_PLAYERS })"
+          />
+
+          <FormField
+            id="game-external-ref"
+            v-model="form.externalRef"
+            name="externalRef"
+            autocomplete="off"
+            :label="$t('games.form.externalRef')"
+            :hint="$t('games.form.externalRefHint', { max: GAME_EXTERNAL_REF_MAX_LENGTH })"
+            :disabled="isBusy"
+            :error="errorLabel(fieldErrors.externalRef, { max: GAME_EXTERNAL_REF_MAX_LENGTH })"
           />
         </div>
       </template>
@@ -228,6 +241,7 @@
 import { mdiAccountPlusOutline } from '@mdi/js'
 import type { MiniGame, RoomLive } from '@quizzup/shared'
 import {
+  GAME_EXTERNAL_REF_MAX_LENGTH,
   GAME_MAX_PLAYERS,
   GAME_MAX_QUESTIONS_PER_ROUND,
   GAME_MAX_ROUNDS,
@@ -282,6 +296,7 @@ import {
   setGameScheduled,
   validateGameForm,
 } from '@/utils/game/form'
+import { getGameRoomName } from '@/utils/game/format'
 import { getRoomPresenceKind, getRoomPresenceLabelKey } from '@/utils/room/presence'
 import { isBlank } from '@/utils/validation'
 
@@ -343,7 +358,8 @@ const roomChangeNotice = ref<{ moved: string[]; removed: string[] } | null>(null
 
 const isBusy = computed(() => saving.value || props.roomsLoading)
 const activeRooms = computed(() => getActiveGameRooms(props.rooms))
-const hasNoActiveRoom = computed(() => !props.roomsLoading && activeRooms.value.length === 0)
+// Aucune salle à choisir : ni active, ni (en modification) celle de la session.
+const hasNoActiveRoom = computed(() => !props.roomsLoading && roomOptions.value.length === 0)
 // Pupitres de la salle choisie : seuls ceux-là sont proposés (4 tant qu'aucune salle n'est choisie).
 const desksCount = computed(() => getGameRoomDesksCount(props.rooms, form.roomId))
 const canAddParticipant = computed(() => canAddGameParticipant(form.participants, desksCount.value))
@@ -358,7 +374,7 @@ const canRemoveParticipant = computed(
 const timeZone = computed(() => getGameRoomTimeZone(props.rooms, form.roomId))
 const durationBounds = { min: SESSION_MIN_MINUTES, max: SESSION_MAX_MINUTES }
 const durationHint = computed(() =>
-  t('games.form.durationHint', {
+  t(props.game ? 'games.form.durationHintEdit' : 'games.form.durationHint', {
     ...durationBounds,
     default:
       props.rooms.find((room) => String(room.id) === form.roomId)?.schedule?.slotMinutes ??
@@ -393,12 +409,23 @@ const selectedRoomPresence = computed(() =>
   form.roomId ? getRoomPresence(Number(form.roomId)) : null
 )
 
-const roomOptions = computed<SelectFieldOption[]>(() =>
-  activeRooms.value.map((room) => ({
+// En modification, la salle actuelle reste proposée même devenue inactive : sans elle, la session
+// ne s'enregistrerait plus (le serveur ne contrôle la salle que si on en change).
+const roomOptions = computed<SelectFieldOption[]>(() => {
+  const options = activeRooms.value.map((room) => ({
     label: getRoomOptionLabel(room),
     value: String(room.id),
   }))
-)
+  const { game } = props
+
+  if (game && !options.some((option) => option.value === String(game.roomId))) {
+    const room = props.rooms.find((item) => item.id === game.roomId)
+
+    options.push({ label: room?.name ?? getGameRoomName(game), value: String(game.roomId) })
+  }
+
+  return options
+})
 
 function syncParticipantErrors(): void {
   fieldErrors.participants = form.participants.map(() => createGameParticipantFieldErrors())
@@ -442,6 +469,11 @@ function describeParticipant(participant: GameParticipantFormValues, index: numb
 // (premier libre) ; s'il n'y a plus de place, les derniers sont retirés. Rien n'est fait en
 // silence : un avertissement nomme les participants déplacés (avec leur nouveau pupitre) et retirés.
 watch(desksCount, (count) => {
+  // Joueurs verrouillés : ils ne partent pas avec la modification, rien à ajuster ni à signaler.
+  if (participantsLocked.value) {
+    return
+  }
+
   const before = form.participants.map((participant) => ({
     key: participant.key,
     podium: participant.podium,
@@ -641,7 +673,10 @@ async function onSubmit(): Promise<void> {
             includeParticipants: !participantsLocked.value,
           })
         )
-      : await createGameService(props.companyId, buildCreateGamePayload(form, timeZone.value))
+      : await createGameService(
+          props.companyId,
+          buildCreateGamePayload(form, timeZone.value, props.prefill?.scheduledAt)
+        )
 
     if (!result.ok) {
       applyApiError(result.error)

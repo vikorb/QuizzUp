@@ -10,6 +10,7 @@ import {
 } from '@frontend-tests/_helpers/gamesServiceMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
+import { GAME_EXTERNAL_REF_MAX_LENGTH, MINI_GAME_FIRST_BUZZ, MINI_GAMES } from '@quizzup/shared'
 import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -49,6 +50,18 @@ function roomSelect(wrapper: VueWrapper) {
 
 function input(wrapper: VueWrapper, name: string) {
   return wrapper.get<HTMLInputElement>(`input[name="${name}"]`)
+}
+
+function timeInput(wrapper: VueWrapper) {
+  return input(wrapper, 'scheduledTime')
+}
+
+const SMALL_ROOM: GameRoom = { ...roomsFixture[1], id: 13, name: 'Salle mini', desksCount: 2 }
+
+function roomOptionLabels(wrapper: VueWrapper): string[] {
+  return roomSelect(wrapper)
+    .findAll('option')
+    .map((option) => option.text())
 }
 
 function dateError(wrapper: VueWrapper): string | undefined {
@@ -162,6 +175,46 @@ describe('views/games/creation/CreateGameForm.vue: programmer une session', () =
         })
       )
       expect(wrapper.emitted('created')).toHaveLength(1)
+    })
+
+    it('sends the booking reference, and refuses one that is too long', async () => {
+      const wrapper = mountForm()
+
+      await roomSelect(wrapper).get('select').setValue('10')
+      await schedule(wrapper)
+      await input(wrapper, 'externalRef').setValue('x'.repeat(GAME_EXTERNAL_REF_MAX_LENGTH + 1))
+      await submit(wrapper)
+
+      expect(createGameServiceMock).not.toHaveBeenCalled()
+      expect(wrapper.get('[data-name="externalRef"] [data-test="form-field-error"]').text()).toBe(
+        'games.form.errors.externalRefTooLong'
+      )
+
+      await input(wrapper, 'externalRef').setValue(' BK-42 ')
+      await submit(wrapper)
+
+      expect(createGameServiceMock).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({ externalRef: 'BK-42' })
+      )
+    })
+
+    it('has no booking reference field for an immediate game', () => {
+      expect(mountForm().find('input[name="externalRef"]').exists()).toBe(false)
+    })
+
+    it('links the date error to the time field too, without writing it twice', async () => {
+      const wrapper = mountForm()
+
+      await roomSelect(wrapper).get('select').setValue('10')
+      await wrapper.get('[data-test="game-scheduled"]').setValue(true)
+      await input(wrapper, 'scheduledDate').setValue('2026-12-05')
+      await submit(wrapper)
+
+      expect(wrapper.findAll('[data-test="form-field-error"]')).toHaveLength(1)
+      expect(timeInput(wrapper).attributes('aria-invalid')).toBe('true')
+      expect(timeInput(wrapper).attributes('aria-describedby')).toBe('game-date_error')
+      expect(input(wrapper, 'playersCount').attributes('aria-invalid')).toBe('false')
     })
 
     it('reads the same time one hour later in UTC for a room in London', async () => {
@@ -307,6 +360,38 @@ describe('views/games/creation/CreateGameForm.vue: programmer une session', () =
       )
     })
 
+    it('keeps the instant of the link at the repeated hour of the autumn change', async () => {
+      // 01:30Z le 25 octobre 2026 : 02:30 à Paris, au second passage de l'heure.
+      const wrapper = mountForm({
+        prefill: { roomId: 10, scheduledAt: '2026-10-25T01:30:00.000Z' },
+      })
+      await flushPromises()
+
+      expect(timeInput(wrapper).element.value).toBe('02:30')
+
+      await submit(wrapper)
+
+      expect(createGameServiceMock).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({ scheduledAt: '2026-10-25T01:30:00.000Z' })
+      )
+    })
+
+    it('reads a time typed after the link again in the time zone of the room', async () => {
+      const wrapper = mountForm({
+        prefill: { roomId: 10, scheduledAt: '2026-10-25T01:30:00.000Z' },
+      })
+      await flushPromises()
+
+      await timeInput(wrapper).setValue('03:00')
+      await submit(wrapper)
+
+      expect(createGameServiceMock).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({ scheduledAt: '2026-10-25T02:00:00.000Z' })
+      )
+    })
+
     it('waits for the rooms when they are still loading', async () => {
       const wrapper = mountForm({
         rooms: [],
@@ -373,20 +458,13 @@ describe('views/games/creation/CreateGameForm.vue: programmer une session', () =
       const [companyId, gameId, payload] = updateGameServiceMock.mock.calls[0]
       expect(companyId).toBe(1)
       expect(gameId).toBe(5)
-      expect(payload).toMatchObject({
+      expect(payload).toEqual({
         roomId: 10,
         scheduledAt: '2026-12-05T14:30:00.000Z',
         playersCount: 7,
-        miniGames: null,
-        participants: [
-          {
-            podium: 1,
-            displayName: 'Team A',
-            email: 'a@quizzup.test',
-            emailConsent: true,
-          },
-        ],
       })
+      expect(payload).not.toHaveProperty('miniGames')
+      expect(payload).not.toHaveProperty('participants')
       expect(payload).not.toHaveProperty('roundsCount')
       expect(payload).not.toHaveProperty('durationMinutes')
       expect(wrapper.emitted('saved')).toHaveLength(1)
@@ -460,6 +538,130 @@ describe('views/games/creation/CreateGameForm.vue: programmer une session', () =
       await submit(wrapper)
 
       expect(wrapper.get('[data-test="form-result-error"]').text()).toBe('games.errors.serverError')
+    })
+
+    it('sends the players again, with their consent, only once they changed', async () => {
+      const wrapper = mountForm({ game: editedGame })
+
+      await input(wrapper, 'participants.0.displayName').setValue('Team A bis')
+      await submit(wrapper)
+
+      expect(updateGameServiceMock.mock.calls[0][2]).toMatchObject({
+        participants: [
+          { podium: 1, displayName: 'Team A bis', email: 'a@quizzup.test', emailConsent: true },
+        ],
+      })
+    })
+
+    it('never sends null for the mini-games: the full list is written out when all are ticked', async () => {
+      const restricted = { ...editedGame, miniGames: [MINI_GAME_FIRST_BUZZ] }
+      const wrapper = mountForm({ game: restricted })
+
+      await wrapper
+        .findComponent({ name: 'GameMiniGamesField' })
+        .vm.$emit('update:modelValue', [...MINI_GAMES].reverse())
+      await submit(wrapper)
+
+      expect(updateGameServiceMock.mock.calls[0][2]).toMatchObject({ miniGames: [...MINI_GAMES] })
+    })
+
+    it('keeps the instant of a session at the repeated hour of the autumn change', async () => {
+      // 01:30Z le 25 octobre 2026 : 02:30 à Paris, au second passage de l'heure.
+      const repeated = createScheduledGameFixture('2026-10-25T01:30:00.000Z', {
+        id: 6,
+        roomId: 10,
+        playersCount: 4,
+        participants: [],
+      })
+      const wrapper = mountForm({ game: repeated })
+
+      expect(timeInput(wrapper).element.value).toBe('02:30')
+
+      await input(wrapper, 'playersCount').setValue('5')
+      await submit(wrapper)
+
+      const payload = updateGameServiceMock.mock.calls[0][2] as Record<string, unknown>
+      expect(payload).not.toHaveProperty('scheduledAt')
+      expect(payload.playersCount).toBe(5)
+    })
+
+    it('says an empty duration keeps the current one', () => {
+      const wrapper = mountForm({ game: editedGame })
+
+      expect(wrapper.get('[data-name="durationMinutes"]').attributes('hint')).toBe(
+        'games.form.durationHintEdit'
+      )
+    })
+
+    it('fills the booking reference, sends it when changed and clears it with null', async () => {
+      const withRef = { ...editedGame, externalRef: 'BK-1' }
+      const wrapper = mountForm({ game: withRef })
+
+      expect(input(wrapper, 'externalRef').element.value).toBe('BK-1')
+
+      await submit(wrapper)
+      expect(updateGameServiceMock.mock.calls[0][2]).not.toHaveProperty('externalRef')
+
+      await input(wrapper, 'externalRef').setValue('BK-2')
+      await submit(wrapper)
+      expect(updateGameServiceMock.mock.calls[1][2]).toMatchObject({ externalRef: 'BK-2' })
+
+      await input(wrapper, 'externalRef').setValue('')
+      await submit(wrapper)
+      expect(updateGameServiceMock.mock.calls[2][2]).toMatchObject({ externalRef: null })
+    })
+
+    it('does not send a reference the session never had', async () => {
+      const wrapper = mountForm({ game: editedGame })
+
+      await submit(wrapper)
+
+      expect(updateGameServiceMock.mock.calls[0][2]).not.toHaveProperty('externalRef')
+    })
+
+    it('keeps the current room in the list when it became inactive, and saves', async () => {
+      const closed = { ...editedGame, roomId: 12 }
+      const wrapper = mountForm({ game: closed, rooms: [...rooms, roomsFixture[2]] })
+
+      expect(roomSelect(wrapper).get('select').element.value).toBe('12')
+      expect(roomOptionLabels(wrapper)).toContain('Salle fermée')
+
+      await submit(wrapper)
+
+      expect(updateGameServiceMock.mock.calls[0][2]).toMatchObject({ roomId: 12 })
+      expect(wrapper.emitted('saved')).toHaveLength(1)
+    })
+
+    it('names the current room from the session when the rooms do not list it at all', () => {
+      const wrapper = mountForm({ game: { ...editedGame, roomId: 77, roomName: 'Salle perdue' } })
+
+      expect(roomOptionLabels(wrapper)).toContain('Salle perdue')
+    })
+
+    it('does not move the locked players, nor warn, when the room changes', async () => {
+      const players = [
+        createParticipantFixture({ podium: 3, displayName: 'Team C', email: null, hasEmail: true }),
+      ]
+      const wrapper = mountForm({
+        game: { ...editedGame, participants: players },
+        rooms: [...rooms, SMALL_ROOM],
+      })
+
+      await roomSelect(wrapper).get('select').setValue('13')
+
+      expect(wrapper.find('[data-test="game-room-change-notice"]').exists()).toBe(false)
+    })
+
+    it('moves the players of an unlocked session and warns when the room changes', async () => {
+      const players = [createParticipantFixture({ podium: 3, displayName: 'Team C' })]
+      const wrapper = mountForm({
+        game: { ...editedGame, participants: players },
+        rooms: [...rooms, SMALL_ROOM],
+      })
+
+      await roomSelect(wrapper).get('select').setValue('13')
+
+      expect(wrapper.find('[data-test="game-room-change-notice"]').exists()).toBe(true)
     })
 
     it('locks the players when their emails are masked, and does not send them', async () => {

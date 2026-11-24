@@ -2,6 +2,7 @@ import type { MiniGame } from '@quizzup/shared'
 import {
   GAME_DEFAULT_QUESTIONS_PER_ROUND,
   GAME_DEFAULT_ROUNDS,
+  GAME_EXTERNAL_REF_MAX_LENGTH,
   GAME_MAX_PLAYERS,
   GAME_MAX_QUESTIONS_PER_ROUND,
   GAME_MAX_ROUNDS,
@@ -157,6 +158,7 @@ export function createDefaultGameFormValues(): GameFormValues {
     scheduledTime: '',
     durationMinutes: '',
     playersCount: '',
+    externalRef: '',
   }
 }
 
@@ -181,6 +183,7 @@ export function createGameFieldErrors(participantsCount = 0): GameFieldErrors {
     scheduledAt: '',
     durationMinutes: '',
     playersCount: '',
+    externalRef: '',
     participants: Array.from({ length: participantsCount }, createGameParticipantFieldErrors),
   }
 }
@@ -325,8 +328,8 @@ function getDuplicatedPodiums(participants: GameParticipantFormValues[]): Set<st
 function validateSchedule(
   form: GameFormValues,
   timeZone: string
-): Pick<GameFieldErrors, 'scheduledAt' | 'durationMinutes' | 'playersCount'> {
-  const errors = { scheduledAt: '', durationMinutes: '', playersCount: '' }
+): Pick<GameFieldErrors, 'scheduledAt' | 'durationMinutes' | 'playersCount' | 'externalRef'> {
+  const errors = { scheduledAt: '', durationMinutes: '', playersCount: '', externalRef: '' }
 
   if (isBlank(form.scheduledDate) || isBlank(form.scheduledTime)) {
     errors.scheduledAt = 'games.form.errors.scheduledAtRequired'
@@ -346,6 +349,10 @@ function validateSchedule(
     parseIntegerInRange(form.playersCount, GAME_MAX_PLAYERS) === null
   ) {
     errors.playersCount = 'games.form.errors.playersCountInvalid'
+  }
+
+  if (form.externalRef.trim().length > GAME_EXTERNAL_REF_MAX_LENGTH) {
+    errors.externalRef = 'games.form.errors.externalRefTooLong'
   }
 
   return errors
@@ -401,7 +408,8 @@ export function hasGameFormErrors(errors: GameFieldErrors): boolean {
       errors.miniGames ||
       errors.scheduledAt ||
       errors.durationMinutes ||
-      errors.playersCount
+      errors.playersCount ||
+      errors.externalRef
     ) || errors.participants.some((participant) => Object.values(participant).some(Boolean))
   )
 }
@@ -461,18 +469,61 @@ export function getSelectedMiniGames(selected: MiniGame[]): MiniGame[] | undefin
   return ordered.length === MINI_GAMES.length ? undefined : ordered
 }
 
-/** Corps de POST /companies/:companyId/games, à n'appeler qu'après validation. */
+function buildParticipantsPayload(
+  participants: GameParticipantFormValues[]
+): CreateGameParticipantPayload[] {
+  return [...participants]
+    .map(buildParticipantPayload)
+    .sort((left, right) => left.podium - right.podium)
+}
+
+/** Mini-jeux d'une session, dans l'ordre de MINI_GAMES ; sans liste enregistrée, tous. */
+function getGameMiniGames(game: Game): MiniGame[] {
+  return game.miniGames?.length
+    ? MINI_GAMES.filter((miniGame) => game.miniGames?.includes(miniGame))
+    : [...MINI_GAMES]
+}
+
+/**
+ * Instant du jour et de l'heure saisis. Si le jour et l'heure sont ceux que `origin` (instant de
+ * départ : session chargée, adresse d'un créneau) affiche dans ce fuseau, c'est `origin` lui-même,
+ * à la minute : à l'heure qui se répète au changement d'automne, le texte seul ne dit pas lequel des
+ * deux passages. Toute autre saisie se relit dans le fuseau.
+ */
+function resolveScheduledInstant(
+  form: GameFormValues,
+  timeZone: string,
+  origin?: string | null
+): Date | null {
+  const typed = getScheduledInstant(form, timeZone)
+  const originMs = origin ? Date.parse(origin) : Number.NaN
+
+  if (typed === null || Number.isNaN(originMs)) {
+    return typed
+  }
+
+  const minuteMs = Math.floor(originMs / MINUTE_MS) * MINUTE_MS
+  const isUnchanged =
+    form.scheduledDate.trim() === getLocalDate(minuteMs, timeZone) &&
+    form.scheduledTime.trim() === formatAgendaTime(minuteMs, timeZone, 'en')
+
+  return isUnchanged ? new Date(minuteMs) : typed
+}
+
+/**
+ * Corps de POST /companies/:companyId/games, à n'appeler qu'après validation. `instantOrigin` :
+ * instant de l'adresse d'un créneau, gardé tant que le jour et l'heure n'ont pas été changés.
+ */
 export function buildCreateGamePayload(
   form: GameFormValues,
-  timeZone: string = ROOM_DEFAULT_TIMEZONE
+  timeZone: string = ROOM_DEFAULT_TIMEZONE,
+  instantOrigin?: string
 ): CreateGamePayload {
   const payload: CreateGamePayload = {
     roomId: Number(form.roomId),
     roundsCount: Number(form.roundsCount.trim()),
     questionsPerRound: Number(form.questionsPerRound.trim()),
-    participants: [...form.participants]
-      .map(buildParticipantPayload)
-      .sort((left, right) => left.podium - right.podium),
+    participants: buildParticipantsPayload(form.participants),
   }
   const miniGames = getSelectedMiniGames(form.miniGames)
 
@@ -480,7 +531,7 @@ export function buildCreateGamePayload(
     payload.miniGames = miniGames
   }
 
-  const startsAt = form.scheduled ? getScheduledInstant(form, timeZone) : null
+  const startsAt = form.scheduled ? resolveScheduledInstant(form, timeZone, instantOrigin) : null
 
   if (startsAt) {
     payload.scheduledAt = startsAt.toISOString()
@@ -492,15 +543,20 @@ export function buildCreateGamePayload(
     if (!isBlank(form.playersCount)) {
       payload.playersCount = Number(form.playersCount.trim())
     }
+
+    if (!isBlank(form.externalRef)) {
+      payload.externalRef = form.externalRef.trim()
+    }
   }
 
   return payload
 }
 
 /**
- * Corps de PATCH d'une session programmée, à n'appeler qu'après validation. Début, durée et format ne
- * sont envoyés que s'ils ont changé : le serveur les contrôle (créneau passé, format personnalisé).
- * `participants` absent = gardés tels quels.
+ * Corps de PATCH d'une session programmée, à n'appeler qu'après validation. Début, durée, format,
+ * mini-jeux, référence et joueurs ne sont envoyés que s'ils ont changé : le serveur contrôle les
+ * trois premiers (créneau passé, format personnalisé) et réécrit les dates de consentement des joueurs
+ * qu'on lui renvoie. `participants` absent = gardés tels quels.
  */
 export function buildUpdateGamePayload(
   form: GameFormValues,
@@ -510,11 +566,11 @@ export function buildUpdateGamePayload(
 ): UpdateGamePayload {
   const roundsCount = Number(form.roundsCount.trim())
   const questionsPerRound = Number(form.questionsPerRound.trim())
-  const startsAt = getScheduledInstant(form, timeZone)
+  const startsAt = resolveScheduledInstant(form, timeZone, original.scheduledAt)
+  const miniGames = MINI_GAMES.filter((miniGame) => form.miniGames.includes(miniGame))
+  const externalRef = form.externalRef.trim()
   const payload: UpdateGamePayload = {
     roomId: Number(form.roomId),
-    // Une liste complète de mini-jeux s'écrit `null` en modification (« absent » = inchangé).
-    miniGames: getSelectedMiniGames(form.miniGames) ?? null,
     playersCount: isBlank(form.playersCount) ? null : Number(form.playersCount.trim()),
   }
 
@@ -524,6 +580,11 @@ export function buildUpdateGamePayload(
 
   if (questionsPerRound !== original.questionsPerRound) {
     payload.questionsPerRound = questionsPerRound
+  }
+
+  // « Tous » s'écrit `[...MINI_GAMES]` : le serveur le range en « tous, futurs compris ».
+  if (miniGames.join() !== getGameMiniGames(original).join()) {
+    payload.miniGames = miniGames
   }
 
   if (startsAt && startsAt.getTime() !== Date.parse(original.scheduledAt ?? '')) {
@@ -538,17 +599,26 @@ export function buildUpdateGamePayload(
     }
   }
 
+  if (externalRef !== (original.externalRef ?? '')) {
+    payload.externalRef = externalRef || null
+  }
+
   if (options.includeParticipants) {
-    payload.participants = [...form.participants]
-      .map(buildParticipantPayload)
-      .sort((left, right) => left.podium - right.podium)
+    const participants = buildParticipantsPayload(form.participants)
+    const originalParticipants = buildParticipantsPayload(
+      (original.participants ?? []).map(createParticipantValuesFromGame)
+    )
+
+    if (JSON.stringify(participants) !== JSON.stringify(originalParticipants)) {
+      payload.participants = participants
+    }
   }
 
   return payload
 }
 
 /** Instant du jour et de l'heure saisis, lus dans le fuseau de la salle ; `null` s'ils n'existent pas. */
-export function getScheduledInstant(form: GameFormValues, timeZone: string): Date | null {
+function getScheduledInstant(form: GameFormValues, timeZone: string): Date | null {
   const date = form.scheduledDate.trim()
   const time = form.scheduledTime.trim()
 
@@ -702,13 +772,14 @@ export function createGameFormValuesFromGame(game: Game, timeZone: string): Game
     roomId: String(game.roomId),
     roundsCount: String(game.roundsCount),
     questionsPerRound: String(game.questionsPerRound),
-    miniGames: game.miniGames?.length ? [...game.miniGames] : [...MINI_GAMES],
+    miniGames: getGameMiniGames(game),
     participants: [...(game.participants ?? [])]
       .sort((left, right) => left.podium - right.podium)
       .map(createParticipantValuesFromGame),
     scheduled: true,
     durationMinutes: String(getGameDurationMinutes(game) ?? ''),
     playersCount: game.playersCount ? String(game.playersCount) : '',
+    externalRef: game.externalRef ?? '',
   }
 
   if (game.scheduledAt) {

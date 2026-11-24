@@ -125,7 +125,8 @@
         "scheduledAtRequired": "Choose the day and time of the session.",
         "scheduledAtInvalid": "This day and time do not exist in the room's time zone (clock change?).",
         "durationInvalid": "The duration must be a whole number of minutes between {min} and {max}.",
-        "playersCountInvalid": "The number of players must be an integer between 1 and {max}."
+        "playersCountInvalid": "The number of players must be an integer between 1 and {max}.",
+        "externalRefTooLong": "The reference cannot be longer than {max} characters."
       },
       "secondPlayer": "2nd player",
       "secondDisplayNamePlaceholder": "e.g. Alex",
@@ -138,7 +139,10 @@
       "durationMinutes": "Duration (minutes)",
       "durationHint": "Between {min} and {max}. Empty: {default} min, the room default.",
       "playersCount": "Announced players",
+      "durationHintEdit": "Between {min} and {max}. Empty: the current duration of the session is kept.",
       "playersCountHint": "Optional, from 1 to {max}.",
+      "externalRef": "Booking reference",
+      "externalRefHint": "Optional, {max} characters at most: the booking number in your own system.",
       "participantsHintScheduled": "Optional for a scheduled session: players can be added later (up to {max} podiums).",
       "participantsLocked": "Players' email addresses are hidden for your role: their list cannot be edited here.",
       "submitScheduled": "Schedule the session",

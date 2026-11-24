@@ -1,5 +1,7 @@
 import type { RouteLocationRaw } from 'vue-router'
 
+import type { AgendaSavedBanner } from '@/utils/game/agenda'
+
 type GameCompanyQuery = {
   companyId?: number | null
 }
@@ -50,8 +52,25 @@ export function getEditGameRoute(
   }
 }
 
-export function getAgendaRoute(options: GameCompanyQuery = {}): RouteLocationRaw {
-  return { name: 'agenda', query: buildCompanyQuery(options) }
+/** `roomId` et `date` (jour de la salle) ouvrent l'agenda sur une session ; `saved` y annonce son succès. */
+export function getAgendaRoute(
+  options: GameCompanyQuery & { roomId?: number; date?: string; saved?: AgendaSavedBanner } = {}
+): RouteLocationRaw {
+  const query = buildCompanyQuery(options)
+
+  if (options.roomId) {
+    query.roomId = String(options.roomId)
+  }
+
+  if (options.date) {
+    query.date = options.date
+  }
+
+  if (options.saved) {
+    query.saved = options.saved
+  }
+
+  return { name: 'agenda', query }
 }
 
 export function getGameDetailRoute(

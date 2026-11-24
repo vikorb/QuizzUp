@@ -125,7 +125,8 @@
         "scheduledAtRequired": "Choisissez le jour et l'heure de la session.",
         "scheduledAtInvalid": "Ce jour et cette heure n'existent pas dans le fuseau de la salle (changement d'heure ?).",
         "durationInvalid": "La durée doit être un nombre entier de minutes entre {min} et {max}.",
-        "playersCountInvalid": "Le nombre de joueurs doit être un entier entre 1 et {max}."
+        "playersCountInvalid": "Le nombre de joueurs doit être un entier entre 1 et {max}.",
+        "externalRefTooLong": "La référence ne peut pas dépasser {max} caractères."
       },
       "secondPlayer": "2e joueur",
       "secondDisplayNamePlaceholder": "Ex : Alex",
@@ -138,7 +139,10 @@
       "durationMinutes": "Durée (minutes)",
       "durationHint": "Entre {min} et {max}. Vide : {default} min, durée par défaut de la salle.",
       "playersCount": "Joueurs annoncés",
+      "durationHintEdit": "Entre {min} et {max}. Vide : la durée actuelle de la session est conservée.",
       "playersCountHint": "Facultatif, de 1 à {max}.",
+      "externalRef": "Référence de réservation",
+      "externalRefHint": "Facultatif, {max} caractères au plus : le numéro de la réservation dans votre système.",
       "participantsHintScheduled": "Facultatif pour une session programmée : les joueurs peuvent être ajoutés plus tard (jusqu'à {max} pupitres).",
       "participantsLocked": "Les adresses email des joueurs sont masquées pour votre rôle : leur liste ne peut pas être modifiée ici.",
       "submitScheduled": "Programmer la session",

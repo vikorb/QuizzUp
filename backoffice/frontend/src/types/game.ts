@@ -121,20 +121,24 @@ export type CreateGamePayload = {
   /** Absent : durée du créneau de la salle. */
   durationMinutes?: number
   playersCount?: number
+  externalRef?: string
 }
 
 /**
- * Corps de PATCH /companies/:companyId/games/:gameId : les champs absents sont gardés. Ici une
- * liste complète de mini-jeux s'écrit `null`, et `playersCount: null` efface l'effectif.
+ * Corps de PATCH /companies/:companyId/games/:gameId : les champs absents sont gardés. Une liste
+ * complète de mini-jeux s'écrit `[...MINI_GAMES]` (le serveur la range en « tous »), jamais `null`.
+ * `playersCount: null` et `externalRef: null` effacent la valeur.
  */
 export type UpdateGamePayload = {
   roomId: number
   roundsCount?: number
   questionsPerRound?: number
-  miniGames: MiniGame[] | null
+  /** Absent : programme inchangé. */
+  miniGames?: MiniGame[]
   scheduledAt?: string
   durationMinutes?: number
   playersCount: number | null
+  externalRef?: string | null
   /** Absent : participants gardés tels quels (emails masqués pour le rôle `user`). */
   participants?: CreateGameParticipantPayload[]
 }
@@ -184,6 +188,8 @@ export type GameFormValues = {
   durationMinutes: string
   /** Effectif annoncé, facultatif. */
   playersCount: string
+  /** Référence du système de réservation du centre, facultative. */
+  externalRef: string
 }
 
 export type GameParticipantFieldErrors = {
@@ -204,6 +210,7 @@ export type GameFieldErrors = {
   scheduledAt: string
   durationMinutes: string
   playersCount: string
+  externalRef: string
   participants: GameParticipantFieldErrors[]
 }
 

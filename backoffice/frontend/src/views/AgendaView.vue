@@ -95,6 +95,7 @@ import {
   getLocalDate,
   getRoomTimezone,
   isCalendarDate,
+  parseAgendaRequest,
   shiftDate,
 } from '@/utils/game/agenda'
 import { resolveGameCompanyId } from '@/utils/game/company'
@@ -206,19 +207,47 @@ const companyContext = computed(() => ({
 // Une réponse lente ne doit pas écraser celle d'un jour demandé après elle.
 let loadSequence = 0
 
+// Salle, jour et succès demandés par l'adresse (retour du formulaire de session) : lus une fois.
+let request = parseAgendaRequest(route.query)
+
 function clearActionBanner(): void {
   actionBanner.value = null
 }
 
-/** Garde la salle choisie si elle existe encore, sinon la première salle active ; jour = aujourd'hui. */
+function isActiveRoom(id: string | undefined): boolean {
+  return activeRooms.value.some((room) => String(room.id) === id)
+}
+
+/**
+ * Garde la salle choisie si elle existe encore, sinon celle de l'adresse (si elle est active), sinon
+ * la première salle active ; jour = celui de l'adresse (avec sa salle), sinon aujourd'hui.
+ */
 function ensureSelection(): void {
-  if (!activeRooms.value.some((room) => String(room.id) === roomId.value)) {
-    roomId.value = activeRooms.value[0] ? String(activeRooms.value[0].id) : ''
+  const requestedRoomId = isActiveRoom(request.roomId) ? request.roomId : undefined
+
+  if (!isActiveRoom(roomId.value)) {
+    roomId.value = requestedRoomId ?? (activeRooms.value[0] ? String(activeRooms.value[0].id) : '')
   }
 
   if (date.value === '') {
-    date.value = getLocalDate(Date.now(), timeZone.value)
+    date.value =
+      requestedRoomId === roomId.value && request.date
+        ? request.date
+        : getLocalDate(Date.now(), timeZone.value)
   }
+
+  request = { saved: request.saved }
+}
+
+/** Annonce une fois le succès du formulaire de session, puis nettoie l'adresse. */
+function showSavedBanner(): void {
+  if (!request.saved) {
+    return
+  }
+
+  actionBanner.value = createSuccessBanner(request.saved, { room: selectedRoom.value?.name ?? '' })
+  request = {}
+  void router.replace(getAgendaRoute(companyContext.value))
 }
 
 /**
@@ -263,6 +292,7 @@ async function load(reloadRooms: boolean, silent = false): Promise<void> {
       rooms.value = roomsResult.data.rooms
       roomsCompanyId.value = companyId.value
       ensureSelection()
+      showSavedBanner()
     }
 
     if (!selectedRoom.value || !date.value) {

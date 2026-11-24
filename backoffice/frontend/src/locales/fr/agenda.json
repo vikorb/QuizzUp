@@ -48,7 +48,9 @@
     },
     "banners": {
       "opened": "La session de la salle « {room} » est ouverte : elle attend maintenant son lancement dans la salle.",
-      "cancelled": "La session de la salle « {room} » a bien été annulée."
+      "cancelled": "La session de la salle « {room} » a bien été annulée.",
+      "scheduled": "La session de la salle « {room} » est programmée.",
+      "updated": "La session de la salle « {room} » a bien été modifiée."
     }
   }
 }

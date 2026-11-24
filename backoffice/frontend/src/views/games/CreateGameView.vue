@@ -39,7 +39,7 @@
         :live-uncertain="liveUncertain"
         :now="liveNow"
         @created="handleCreated"
-        @saved="goToAgenda"
+        @saved="handleSaved"
         @cancel="goBack"
       />
     </BaseCard>
@@ -61,8 +61,9 @@ import { listGameRoomsService, loadGameService } from '@/services/gamesService'
 import { authState } from '@/state/authState'
 import type { Game, GameRoom } from '@/types/game'
 import { isSuperadminRole } from '@/utils/company/details/permissions'
+import { type AgendaSavedBanner, getLocalDate } from '@/utils/game/agenda'
 import { parseGameId, resolveGameCompanyId } from '@/utils/game/company'
-import { parseGamePrefill } from '@/utils/game/form'
+import { getGameRoomTimeZone, parseGamePrefill } from '@/utils/game/form'
 
 import CreateGameForm from './creation/CreateGameForm.vue'
 
@@ -166,6 +167,24 @@ function goToAgenda(): void {
   void router.push(getAgendaRoute(companyContext.value))
 }
 
+/** Retour à l'agenda sur la salle et le jour (local à la salle) de la session, avec un bandeau de succès. */
+function goToAgendaOf(game: Game, saved: AgendaSavedBanner): void {
+  const startsAt = game.scheduledAt ? Date.parse(game.scheduledAt) : Number.NaN
+
+  void router.push(
+    getAgendaRoute({
+      ...companyContext.value,
+      ...(Number.isNaN(startsAt)
+        ? {}
+        : {
+            roomId: Number(game.roomId),
+            date: getLocalDate(startsAt, getGameRoomTimeZone(rooms.value, String(game.roomId))),
+          }),
+      saved,
+    })
+  )
+}
+
 // Annuler ne fait aucun appel : on revient à l'écran d'où l'on vient (agenda ou liste).
 function goBack(): void {
   if (isEdit || prefill?.scheduledAt) {
@@ -179,11 +198,15 @@ function goBack(): void {
 // Une session programmée n'est pas lancée : la liste des parties dirait le contraire, l'agenda la montre.
 function handleCreated(game: Game): void {
   if (game.scheduledAt) {
-    goToAgenda()
+    goToAgendaOf(game, 'scheduled')
     return
   }
 
   void router.push(getGamesRoute({ ...companyContext.value, createdGameId: game.id }))
+}
+
+function handleSaved(game: Game): void {
+  goToAgendaOf(game, 'updated')
 }
 
 onMounted(loadAll)

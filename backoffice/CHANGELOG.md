@@ -8,7 +8,7 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
-- Programmer une session depuis le formulaire de création de partie : la case « Programmer pour plus tard » ouvre la date, l'heure (dans le fuseau de la salle), la durée et l'effectif annoncé ; une session programmée peut n'avoir aucun joueur. Le formulaire se préremplit depuis l'agenda (`?roomId=`, `?scheduledAt=`). Une session programmée se modifie par le même formulaire (route `games/:gameId/edit`, bouton « Modifier » de l'agenda). Les refus du serveur (`slot_taken`, `session_in_past`, `session_too_far`, `room_busy`, `room_inactive`) s'affichent sur le champ concerné.
+- Programmer une session depuis le formulaire de création de partie : la case « Programmer pour plus tard » ouvre la date, l'heure (dans le fuseau de la salle), la durée et l'effectif annoncé ; une session programmée peut n'avoir aucun joueur. Le formulaire se préremplit depuis l'agenda (`?roomId=`, `?scheduledAt=`). Une session programmée se modifie par le même formulaire (route `games/:gameId/edit`, bouton « Modifier » de l'agenda). Les refus du serveur (`slot_taken`, `session_in_past`, `session_too_far`, `room_inactive`) s'affichent sur le champ concerné.
   US: US-SESSION-01 (#142)
 
 - Journaux d'erreurs d'une salle consultables depuis le tableau des salles d'un client : panneau en ligne avec filtre par niveau, actualisation et « charger plus », réservé aux administrateurs.

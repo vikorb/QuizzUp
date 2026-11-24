@@ -51,6 +51,35 @@ export function isCalendarDate(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`))
 }
 
+/** Succès du formulaire de session que l'agenda annonce à son retour (bandeau `agenda.banners.*`). */
+export const AGENDA_SAVED_BANNERS = ['scheduled', 'updated'] as const
+export type AgendaSavedBanner = (typeof AGENDA_SAVED_BANNERS)[number]
+
+/** Ce que l'adresse de l'agenda demande : salle (id), jour (`YYYY-MM-DD`) et bandeau de succès. */
+export type AgendaRequest = { roomId?: string; date?: string; saved?: AgendaSavedBanner }
+
+/** Lecture stricte : une valeur qui n'est pas exactement un texte attendu est ignorée. */
+export function parseAgendaRequest(query: Record<string, unknown>): AgendaRequest {
+  const { roomId, date, saved } = query
+  const request: AgendaRequest = {}
+
+  if (typeof roomId === 'string' && /^[1-9]\d*$/.test(roomId)) {
+    request.roomId = roomId
+  }
+
+  if (typeof date === 'string' && isCalendarDate(date)) {
+    request.date = date
+  }
+
+  const banner = AGENDA_SAVED_BANNERS.find((code) => code === saved)
+
+  if (banner) {
+    request.saved = banner
+  }
+
+  return request
+}
+
 export function shiftDate(date: string, days: number): string {
   return new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10)
 }

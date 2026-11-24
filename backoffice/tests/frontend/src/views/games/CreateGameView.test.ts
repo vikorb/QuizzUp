@@ -6,6 +6,7 @@ import {
   createGameFixture,
   createGameServiceMock,
   createScheduledGameFixture,
+  createScheduleFixture,
   listGameRoomsServiceMock,
   loadGameServiceMock,
   mockServiceFailure,
@@ -63,7 +64,11 @@ const createGameFormStub = defineComponent({
           h('button', {
             type: 'button',
             'data-test': 'stub-saved',
-            onClick: () => emit('saved'),
+            onClick: () =>
+              emit(
+                'saved',
+                createScheduledGameFixture('2026-12-05T13:00:00.000Z', { id: 5, roomId: 10 })
+              ),
           }),
           h('button', {
             type: 'button',
@@ -234,7 +239,52 @@ describe('views/games/CreateGameView.vue', () => {
 
       form.vm.$emit('created', createScheduledGameFixture('2026-12-05T13:00:00.000Z', { id: 7 }))
 
-      expect(pushMock).toHaveBeenCalledWith({ name: 'agenda', query: {} })
+      expect(pushMock).toHaveBeenCalledWith({
+        name: 'agenda',
+        query: { roomId: '10', date: '2026-12-05', saved: 'scheduled' },
+      })
+    })
+
+    it('returns to the day of the room, not the UTC day, in the time zone of that room', async () => {
+      setAuthenticatedUser()
+      listGameRoomsServiceMock.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        data: {
+          rooms: [
+            {
+              ...roomsFixture[0],
+              schedule: createScheduleFixture(undefined, 'America/Montreal'),
+            },
+          ],
+        },
+      })
+
+      const wrapper = await mountView()
+      const form = wrapper.getComponent({ name: 'CreateGameForm' })
+
+      // 01:00Z le 6 décembre : encore le 5 au soir à Montréal (UTC-5), déjà le 6 à Paris.
+      form.vm.$emit('created', createScheduledGameFixture('2026-12-06T01:00:00.000Z', { id: 7 }))
+
+      expect(pushMock).toHaveBeenCalledWith({
+        name: 'agenda',
+        query: { roomId: '10', date: '2026-12-05', saved: 'scheduled' },
+      })
+    })
+
+    it('keeps the company of the superadmin on the way back to the agenda', async () => {
+      setAuthenticatedSuperadmin({ companyId: 1 })
+      currentRouteMock.query = { companyId: '2' }
+
+      const wrapper = await mountView()
+      const form = wrapper.getComponent({ name: 'CreateGameForm' })
+
+      form.vm.$emit('created', createScheduledGameFixture('2026-12-05T13:00:00.000Z', { id: 7 }))
+
+      expect(pushMock).toHaveBeenCalledWith({
+        name: 'agenda',
+        query: { companyId: '2', roomId: '10', date: '2026-12-05', saved: 'scheduled' },
+      })
     })
 
     it('cancels back to the agenda when the form was opened from a slot', async () => {
@@ -347,7 +397,10 @@ describe('views/games/CreateGameView.vue', () => {
       const wrapper = await mountView()
       await wrapper.get('[data-test="stub-saved"]').trigger('click')
 
-      expect(pushMock).toHaveBeenCalledWith({ name: 'agenda', query: {} })
+      expect(pushMock).toHaveBeenCalledWith({
+        name: 'agenda',
+        query: { roomId: '10', date: '2026-12-05', saved: 'updated' },
+      })
     })
 
     it('cancels back to the agenda, keeping the company chosen by the superadmin', async () => {
