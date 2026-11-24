@@ -257,6 +257,56 @@ l'utilisateur n'est pas connecté »).
 puis `launchctl load ~/Library/LaunchAgents/fr.quizzup.artnet-bridge.plist` (chemin de `node` :
 `which node`, `/opt/homebrew/bin/node` sur Mac Apple Silicon avec Homebrew).
 
+## Variante PowerShell (sans exécutable ni Node.js)
+
+`powershell/quizzup-lumieres.ps1` fait le même travail que l'exécutable, avec le seul Windows
+PowerShell 5.1 livré avec Windows : pas d'installation, pas de droits administrateur, aucun module.
+Même protocole que le pont (hello v1/v2, ack, codes de fermeture 4000 à 4005, contrôle de l'origine,
+cible réseau local seulement, `-Target` prioritaire sur la cible de l'écran de salle, univers 0 à 15,
+trames ArtDMX identiques octet pour octet, passage au noir au silence, à la déconnexion et à la
+fermeture de la fenêtre). L'écoute est un socket TCP lié à `127.0.0.1` (pas HTTP.sys) : rien n'est
+joignable depuis le réseau, comme avec l'exécutable. Rien à changer côté `@quizzup/hardware`.
+
+**Lancer** : double-clic sur `powershell/Lancer les lumieres.cmd` (la fenêtre reste ouverte en cas
+d'erreur), ou :
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File quizzup-lumieres.ps1 `
+  -Origin https://salle.quizzup.fr -Target 192.168.1.50
+```
+
+L'origine de l'écran de salle est obligatoire (`-Origin`, répétable, ou variable
+`QUIZZUP_BRIDGE_ORIGINS` séparée par des virgules ; le `.cmd` prend `https://salle.quizzup.fr` par
+défaut). Réglages : `-Target`, `-Universe` (défaut `0`, ex. `0.0.5`), `-Port` (7654), `-Bind`,
+`-ArtnetPort` (6454), `-Timeout` (2500 ms), `-Blackout` (3000 ms). Laisser la fenêtre ouverte ;
+`Ctrl+C` arrête le relais.
+
+**Au démarrage de Windows** : `Win + R` → `shell:startup` → y placer un raccourci vers
+`Lancer les lumieres.cmd` (en y ajoutant `-Target <IP du nœud>` si besoin).
+
+**Limites** :
+
+- **Jamais essayé sur un vrai nœud Art-Net** : validé seulement contre un récepteur UDP local
+  (cf. `docs/recette/banc-materiel.md`, A8).
+- Pas de `--map`, `--config` ni `--poll-broadcast` : le bouton « Chercher les nœuds » n'est pas
+  disponible (l'ack annonce `features: []`), l'IP du nœud se saisit à la main ou via `-Target`.
+- **Pas de gel (`hold`)** : ni test de coupure de la fumée, ni fumée par Art-Net à travers ce relais.
+  L'écran de salle affiche alors « pont trop ancien » pour ces deux fonctions : c'est attendu avec
+  ce relais. La fumée se pilote par l'interface USB, avec les garde-fous matériels.
+- **Cadence** : l'ack annonce 4 univers (`universes: 4`), ce que le test de débit garantit : 4 univers
+  à 40 Hz pendant 5 s, retard maximal sous 250 ms en CI (environ 40 ms mesuré sur un PC de
+  développement, environ 8 % d'un cœur). Le relais accepte les univers 0 à 15 mais ne garantit rien
+  au-delà de 4. Une trame par univers et par tour de boucle, jamais plus d'une toutes les 22 ms par
+  univers : les trames trop rapprochées sont fusionnées (la dernière gagne).
+- **Fermer la fenêtre** envoie du noir (trois passes de trames à zéro, séquence 0, sur les univers déjà
+  utilisés) grâce à un petit gestionnaire de console compilé au démarrage (`Add-Type`, rien à installer ;
+  quelques dixièmes de seconde au démarrage). Si le poste la refuse (AppLocker, mode de langage
+  restreint), le script l'écrit en jaune au démarrage, continue, et il faut **arrêter par `Ctrl+C`
+  sans jamais fermer la fenêtre pendant une partie**. `Ctrl+C` envoie aussi un noir. Les deux cas
+  sont **à valider sur le banc** (A8) : le test automatique ne couvre que l'émission du noir, pas la
+  fermeture d'une vraie fenêtre.
+- Les tests (`tests/powershellRelay.test.ts`) ne tournent que sous Windows.
+
 ## Sécurité
 
 - **Écoute uniquement sur `127.0.0.1`** : rien n'est joignable depuis le réseau.
