@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Mode enfants : option à la création et à la modification d'une partie dans le backoffice. Sur la page du téléphone, aucun e-mail n'est demandé ni enregistré pour une partie en mode enfants (`kidsMode` dans `POST /public/v1/join/lookup`).
+  US: US-KIDS-01 (#158)
+
 - Format de partie au backoffice et au lobby : à la création, le formulaire propose Découverte, Courte, Standard (par défaut) et Personnalisé, avec les nombres et la durée estimée de chaque format. Les champs manches et questions n'apparaissent qu'en Personnalisé. Le lobby du staff affiche le format et sa durée.
   US: US-FORMAT-01 (#143)
 

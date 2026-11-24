@@ -13,6 +13,7 @@ const LINK = {
   roomName: 'Salle 1',
   logoUrl: null,
   expiresAt: '2027-03-10T10:00:00.000Z',
+  kidsMode: false,
 }
 
 const fetchMock = vi.fn()
@@ -421,6 +422,62 @@ describe('public/join/JoinPage — the form', () => {
         .replace('{hours}', String(NOTICE_PARAMS.hours))
     )
     expect(page.get('details p').text()).not.toContain('{')
+  })
+})
+
+const useKidsLink = (kidsMode: boolean) =>
+  fetchMock.mockImplementation(async (url: string) =>
+    url.endsWith('/lookup') ? reply(200, { ...LINK, kidsMode }) : reply(201, { ok: true })
+  )
+
+describe('public/join/JoinPage — kids mode', () => {
+  it('shows the e-mail field and its consents when the game is not in kids mode', async () => {
+    useKidsLink(false)
+
+    const page = await openPage()
+
+    expect(page.find('#email-0').exists()).toBe(true)
+    expect(page.text()).toContain(fr.email)
+    expect(page.get('details').text()).toContain('s’il est saisi')
+  })
+
+  it('hides the e-mail field, the consents and the e-mail part of the notice in kids mode', async () => {
+    useKidsLink(true)
+
+    const page = await openPage()
+
+    expect(page.find('#name-0').exists()).toBe(true)
+    expect(page.find('#email-0').exists()).toBe(false)
+    expect(page.find('input[type="email"]').exists()).toBe(false)
+    expect(page.find('input[type="checkbox"]').exists()).toBe(false)
+    expect(page.text()).not.toContain(fr.email)
+    expect(page.get('details').text()).toContain('Aucun e-mail n’est demandé')
+    expect(page.get('details').text()).not.toContain('s’il est saisi')
+  })
+
+  it('sends no e-mail, nor any consent, in kids mode, for both players', async () => {
+    useKidsLink(true)
+
+    const page = await openPage()
+
+    await typeInto('#name-0', 'Camille')
+    await page
+      .findAll('button')
+      .find((button) => button.text() === fr.addSecond)!
+      .trigger('click')
+    await typeInto('#name-1', 'Léa')
+
+    expect(page.find('#email-1').exists()).toBe(false)
+
+    await page.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(bodyOf(calls('/registrations')[0]!)).toEqual({
+      token: TOKEN,
+      displayName: 'Camille',
+      secondPlayer: { displayName: 'Léa' },
+    })
+    expect(page.text()).toContain(fr.successTitle)
   })
 })
 
