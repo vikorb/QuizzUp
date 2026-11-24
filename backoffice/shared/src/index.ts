@@ -690,6 +690,25 @@ export const QUESTION_MEDIA_PROVIDERS = [QUESTION_MEDIA_PROVIDER_DEEZER] as cons
 
 export type QuestionMediaProvider = (typeof QUESTION_MEDIA_PROVIDERS)[number]
 
+/**
+ * Effet joué sur l'extrait d'une question audio (blind test) : choisi par question, car la
+ * reconnaissance d'un extrait transformé dépend de l'extrait. Même liste que `EXTRACT_EFFECTS`
+ * de `@quizzup/audio` (`short` est appliqué par le moteur, les autres par le lecteur).
+ */
+export const QUESTION_AUDIO_EFFECT_NONE = 'none' as const
+export const QUESTION_AUDIO_EFFECT_SHORT = 'short' as const
+export const QUESTION_AUDIO_EFFECT_REVERSE = 'reverse' as const
+export const QUESTION_AUDIO_EFFECT_SLOWED = 'slowed' as const
+
+export const QUESTION_AUDIO_EFFECTS = [
+  QUESTION_AUDIO_EFFECT_NONE,
+  QUESTION_AUDIO_EFFECT_SHORT,
+  QUESTION_AUDIO_EFFECT_REVERSE,
+  QUESTION_AUDIO_EFFECT_SLOWED,
+] as const
+
+export type QuestionAudioEffect = (typeof QUESTION_AUDIO_EFFECTS)[number]
+
 /** Durée de l'extrait fourni par le fournisseur. */
 export const QUESTION_MEDIA_PROVIDER_EXTRACT_MS = 30_000
 
