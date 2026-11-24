@@ -745,6 +745,12 @@ if (result.ok) {
   haut, confirmation retirée. Elle sert à l'import et à l'éditeur JSON de l'écran de salle ; seul
   l'assistant assouplit la fumée. Conséquence : le JSON ne peut plus ni allonger un jet ni rapprocher
   deux jets, même sur une salle où la fumée est désactivée.
+- **Limite connue : le niveau maximal (`maxLevel`) ne peut que baisser.** Aucun écran ne permet de le
+  remonter (l'assistant règle `enabled`, `cutsOnSignalLoss`, `maxDurationMs` et `cooldownMs`) : le
+  relever demandera un réglage dédié de l'assistant, à ajouter dans un lot à part.
+- **Nouvelle clé de configuration** : l'export écarte toute clé absente de `ROOT_KEYS` et de
+  `LIGHTING_KEYS` (`config.ts`). Une nouvelle clé (ex. `lighting.usb`) s'y ajoute avec un test
+  d'aller-retour export → import, sinon l'export la perd sans rien dire.
 
 ## Commandes
 

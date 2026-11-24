@@ -347,3 +347,80 @@ describe('garde-fou fumée : withoutSmokeEscalation', () => {
     })
   })
 })
+
+describe('withoutSmokeEscalation : entrées hostiles', () => {
+  const room = equippedRoom({ cutsOnSignalLoss: true })
+  const withRawSmoke = (smoke: unknown) =>
+    ({ ...room, lighting: { ...room.lighting, smoke } }) as unknown as RoomHardwareConfig
+
+  /** Les six champs, un à un : jamais plus permissifs que ceux de la salle. */
+  const expectNeverLooser = (next: RoomHardwareConfig) => {
+    const before = room.lighting.smoke
+    const after = withoutSmokeEscalation(room, next).lighting.smoke
+    expect(after.enabled && !before.enabled, 'enabled').toBe(false)
+    expect(after.maxDurationMs, 'maxDurationMs').toBeLessThanOrEqual(before.maxDurationMs)
+    expect(after.cooldownMs, 'cooldownMs').toBeGreaterThanOrEqual(before.cooldownMs)
+    expect(after.maxLevel, 'maxLevel').toBeLessThanOrEqual(before.maxLevel)
+    expect(before.requireConfirmation && !after.requireConfirmation, 'requireConfirmation').toBe(
+      false
+    )
+    expect(after.cutsOnSignalLoss === true && before.cutsOnSignalLoss !== true, 'cuts').toBe(false)
+  }
+
+  it('smoke réduit à { enabled: true } : les réglages de la salle restent (ni 3000 ms, ni 30000 ms, ni 255)', () => {
+    const result = withoutSmokeEscalation(room, withRawSmoke({ enabled: true })).lighting.smoke
+    expect(result).toEqual({
+      enabled: true,
+      maxDurationMs: 2_000,
+      cooldownMs: 60_000,
+      maxLevel: 200,
+      requireConfirmation: true,
+    })
+  })
+
+  it.each([
+    ['vide', {}],
+    ['NaN', { maxDurationMs: Number.NaN, cooldownMs: Number.NaN, maxLevel: Number.NaN }],
+    ['infinis', { maxDurationMs: Infinity, cooldownMs: -Infinity, maxLevel: Infinity }],
+    ['négatifs', { maxDurationMs: -1, cooldownMs: -1, maxLevel: -1 }],
+    ['chaînes', { maxDurationMs: '9000', cooldownMs: '0', maxLevel: '255', enabled: 'true' }],
+    ['null', { maxDurationMs: null, cooldownMs: null, maxLevel: null, requireConfirmation: null }],
+    ['trop grands', { maxDurationMs: 1e12, cooldownMs: 0, maxLevel: 1e12 }],
+    ['confirmation retirée', { requireConfirmation: false }],
+  ])('smoke %s', (_name, smoke) => {
+    expectNeverLooser(withRawSmoke({ enabled: true, cutsOnSignalLoss: true, ...smoke }))
+  })
+
+  it.each([
+    ['smoke absent', { ...room.lighting, smoke: undefined }],
+    ['smoke null', { ...room.lighting, smoke: null }],
+    ['smoke chaîne', { ...room.lighting, smoke: 'oui' }],
+    ['smoke tableau', { ...room.lighting, smoke: [] }],
+    ['lighting absent', undefined],
+    ['lighting null', null],
+  ])('%s', (_name, lighting) => {
+    const next = { ...room, lighting } as unknown as RoomHardwareConfig
+    const result = withoutSmokeEscalation(room, next).lighting.smoke
+    expect(result.enabled).toBe(false)
+    for (const field of ['maxDurationMs', 'cooldownMs', 'maxLevel'] as const) {
+      expect(Number.isFinite(result[field]), field).toBe(true)
+    }
+    expect(result.maxDurationMs).toBeLessThanOrEqual(room.lighting.smoke.maxDurationMs)
+    expect(result.cooldownMs).toBeGreaterThanOrEqual(room.lighting.smoke.cooldownMs)
+    expect(result.maxLevel).toBeLessThanOrEqual(room.lighting.smoke.maxLevel)
+    expect(result.requireConfirmation).toBe(true)
+    expect(result).not.toHaveProperty('cutsOnSignalLoss')
+  })
+
+  it('une salle sans réglage de fumée reste désactivée, bornée par les deux côtés', () => {
+    const bare = { ...room, lighting: undefined } as unknown as RoomHardwareConfig
+    const result = withoutSmokeEscalation(bare, room).lighting.smoke
+    expect(result).toEqual({
+      enabled: false,
+      maxDurationMs: 2_000,
+      cooldownMs: 60_000,
+      maxLevel: 200,
+      requireConfirmation: true,
+    })
+  })
+})

@@ -277,6 +277,9 @@ function unknownKeys(input: Record<string, unknown>, known: readonly string[]) {
   )
 }
 
+// Clés connues de la relecture. L'export (`withoutUnknownKeys`) écarte toute clé absente d'ici : une
+// nouvelle clé de configuration (ex. `lighting.usb`) s'ajoute ici, avec un test d'aller-retour
+// export → import, sinon l'export la perd sans rien dire.
 const ROOT_KEYS = ['version', 'desksCount', 'buzzers', 'lighting', 'plan', 'setupDone'] as const
 const LIGHTING_KEYS = [
   'driver',
@@ -461,14 +464,18 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
  * Fumée de `next` ramenée à celle de `previous` quand elle serait plus permissive : jamais
  * activée (ni dispensée du relais) si elle ne l'était pas, jamais plus longue, plus fréquente ni
  * plus forte, confirmation humaine jamais retirée. Pour l'éditeur JSON avancé et l'import : ce qui
- * assouplit la fumée passe par l'assistant, avec ses vérifications.
+ * assouplit la fumée passe par l'assistant, avec ses vérifications. Les deux côtés sont normalisés
+ * d'abord (champ absent, `NaN`, texte, `smoke` ou `lighting` absent : valeurs par défaut bornées),
+ * donc le résultat ne dépasse jamais `previous` normalisé, quelle que soit l'entrée.
  */
 export function withoutSmokeEscalation(
   previous: RoomHardwareConfig,
   next: RoomHardwareConfig
 ): RoomHardwareConfig {
-  const before = previous.lighting.smoke
-  const after = next.lighting.smoke
+  const smokeOf = (config: RoomHardwareConfig) =>
+    normalizeSmokeSafety(asRecord(asRecord(config?.lighting).smoke) as Partial<SmokeSafetyConfig>)
+  const before = smokeOf(previous)
+  const after = smokeOf(next)
   const smoke = normalizeSmokeSafety({
     enabled: before.enabled && after.enabled,
     maxDurationMs: Math.min(before.maxDurationMs, after.maxDurationMs),
@@ -477,7 +484,7 @@ export function withoutSmokeEscalation(
     requireConfirmation: before.requireConfirmation || after.requireConfirmation,
     cutsOnSignalLoss: before.cutsOnSignalLoss === true && after.cutsOnSignalLoss === true,
   })
-  return { ...next, lighting: { ...next.lighting, smoke } }
+  return { ...next, lighting: { ...asRecord(next?.lighting), smoke } as LightingConfig }
 }
 
 export const ROOM_CONFIG_EXPORT_FORMAT = 'quizzup-room-config'
