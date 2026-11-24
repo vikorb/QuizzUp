@@ -1,5 +1,7 @@
+import { MINI_GAME_TRUE_FALSE } from '@quizzup/shared'
 import { flushPromises } from '@vue/test-utils'
 
+import { MINI_GAMES_STORAGE_KEY } from '@/game/miniGamesSetting'
 import { createMemorySessionStorage } from '@/game/session'
 import { closeGame, configureRoomGame, useRoomGame } from '@/game/useRoomGame'
 import { saveRoomDesksCount } from '@/hardware/roomHardware'
@@ -51,8 +53,9 @@ describe('LobbyView', () => {
     await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('play'))
     const { state, session } = useRoomGame()
     expect(state.value?.setup.participants).toEqual([{ id: 2, podium: 2, displayName: 'Hugo' }])
-    // Mode démo : partie courte par défaut.
+    // Mode démo : format Découverte (3 × 3) par défaut.
     expect(state.value?.setup.roundsCount).toBe(3)
+    expect(state.value?.setup.questionsPerRound).toBe(3)
     expect(session.value?.savedRegistrations[0]).toMatchObject({
       email: 'hugo@exemple.fr',
       consent: true,
@@ -90,6 +93,78 @@ describe('LobbyView', () => {
 
     expect(wrapper.find('.desk--4').classes()).toContain('desk--ping')
     expect(wrapper.find('.desk--4').text()).toContain('Buzzer OK')
+    wrapper.unmount()
+  })
+})
+
+describe('LobbyView — format de partie', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    syncRoomAuth()
+    enterDemo()
+    configureRoomGame({ storage: createMemorySessionStorage() })
+  })
+
+  afterEach(() => closeGame())
+
+  it('propose Découverte, Courte et Standard avec leur durée estimée, sans Personnalisé', async () => {
+    const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+
+    const labels = wrapper.findAll('.format__option').map((option) => option.text())
+    expect(labels).toEqual([
+      'Découverte · 3 manches × 3 questions · 3 à 5 min',
+      'Courte · 6 manches × 7 questions · 12 à 19 min',
+      'Standard · 10 manches × 10 questions · 28 à 44 min',
+    ])
+    wrapper.unmount()
+  })
+
+  it('coche Découverte par défaut', async () => {
+    const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+
+    const checked = wrapper
+      .findAll<HTMLInputElement>('input[name=format]')
+      .filter((input) => input.element.checked)
+    expect(checked.map((input) => input.element.value)).toEqual(['discovery'])
+    wrapper.unmount()
+  })
+
+  it('joue le format choisi : Courte donne 6 manches de 7 questions', async () => {
+    const { wrapper, router } = await mountWithApp(LobbyView, { route: '/lobby' })
+
+    await wrapper.find('input[name=format][value=short]').setValue(true)
+    await wrapper.find('input[name=desk-1-name]').setValue('Léa')
+    await findButton(wrapper, 'Démarrer la partie')?.trigger('click')
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('play'))
+
+    const { state } = useRoomGame()
+    expect(state.value?.setup.roundsCount).toBe(6)
+    expect(state.value?.setup.questionsPerRound).toBe(7)
+    wrapper.unmount()
+  })
+
+  it('joue Standard en 10 manches de 10 questions', async () => {
+    const { wrapper, router } = await mountWithApp(LobbyView, { route: '/lobby' })
+
+    await wrapper.find('input[name=format][value=standard]').setValue(true)
+    await wrapper.find('input[name=desk-1-name]').setValue('Léa')
+    await findButton(wrapper, 'Démarrer la partie')?.trigger('click')
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('play'))
+
+    const { state } = useRoomGame()
+    expect(state.value?.setup.roundsCount).toBe(10)
+    expect(state.value?.setup.questionsPerRound).toBe(10)
+    wrapper.unmount()
+  })
+
+  it('calcule l’estimation sur les mini-jeux autorisés de la salle', async () => {
+    // Vrai/faux seul : 6,1 s typique, 8,5 s haut par question.
+    localStorage.setItem(MINI_GAMES_STORAGE_KEY, JSON.stringify([MINI_GAME_TRUE_FALSE]))
+    const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+
+    expect(wrapper.find('.format__option').text()).toBe(
+      'Découverte · 3 manches × 3 questions · 2 à 3 min'
+    )
     wrapper.unmount()
   })
 })

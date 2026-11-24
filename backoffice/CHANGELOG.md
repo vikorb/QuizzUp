@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Formats de partie partagés : Découverte (3 manches × 3 questions), Courte (6 × 7), Standard (10 × 10) et Personnalisé, avec la durée estimée d'une partie calculée depuis les délais du moteur (`GAME_FORMATS`, `GAME_FORMAT_SETTINGS`, `estimateGameDurationMs` dans `@quizzup/shared`). Le lobby du mode démo de l'écran de salle propose ces formats, Découverte par défaut, avec leur durée estimée.
+  US: US-FORMAT-01 (#143)
+
 - Journaux d'erreurs d'une salle consultables depuis le tableau des salles d'un client : panneau en ligne avec filtre par niveau, actualisation et « charger plus », réservé aux administrateurs.
   US: US-LOG-01 (#157)
 - Statistiques d'exploitation d'une compagnie : route `GET /companies/:companyId/stats` et écran « Statistiques » (séances terminées et arrêtées, taux d'abandon, durée médiane, répartition par salle, joueurs, créneaux les plus chargés), réservés aux administrateurs. Aucune donnée individuelle ne sort.

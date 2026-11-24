@@ -31,8 +31,12 @@
       "buzzerOk": "Buzzer OK",
       "clear": "Libérer le pupitre",
       "format": "Format de partie",
-      "formatFull": "Partie complète · {rounds} manches × {questions} questions",
-      "formatShort": "Partie courte · {rounds} manches × {questions} questions",
+      "formats": {
+        "discovery": "Découverte",
+        "short": "Courte",
+        "standard": "Standard"
+      },
+      "formatSummary": "{name} · {rounds} manches × {questions} questions · {min} à {max} min",
       "start": "Démarrer la partie",
       "needPlayer": "Inscris au moins un joueur pour démarrer.",
       "keysHint": "Simulation clavier : {keys}",
