@@ -63,6 +63,8 @@
       v-if="isAudio"
       v-model="form.audio"
       :existing-file="existingMediaFile"
+      :existing-provider="savedQuestion?.mediaProvider ?? null"
+      :existing-provider-label="savedQuestion?.mediaProviderLabel ?? null"
       :question-id="savedQuestionId"
       :disabled="saving"
       :error="getErrorLabel(errors.audio)"
@@ -170,6 +172,7 @@ import Tooltip from '@/components/ui/Tooltip.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { QuestionMediaError } from '@/services/questionMediaError'
 import {
+  attachQuestionMediaProviderService,
   deleteQuestionMediaService,
   uploadQuestionMediaService,
 } from '@/services/questionMediaService'
@@ -259,6 +262,7 @@ function createAudioState(startMs = 0): QuestionAudioState {
     startMs,
     rightsAttested: false,
     removeExisting: false,
+    track: null,
   }
 }
 
@@ -519,8 +523,8 @@ function buildPayload(): QuestionPayload {
 }
 
 /**
- * Le fichier audio passe par ses propres routes, une fois la question enregistrée : upload ou
- * retrait, puis point de départ (validé par l'API par rapport à la durée du fichier).
+ * L'extrait audio passe par ses propres routes, une fois la question enregistrée : upload,
+ * rattachement d'un titre ou retrait, puis point de départ (validé par l'API par rapport à la durée du fichier).
  */
 async function applyAudioChanges(question: Question): Promise<Question> {
   if (!isAudio.value) {
@@ -536,7 +540,12 @@ async function applyAudioChanges(question: Question): Promise<Question> {
       rightsAttested: form.audio.rightsAttested,
     })
     form.audio = { ...createAudioState(form.audio.startMs) }
-  } else if (form.audio.removeExisting && current.mediaFile) {
+  } else if (form.audio.track) {
+    const { provider, ref: trackRef } = form.audio.track
+
+    current = await attachQuestionMediaProviderService(current.id, { provider, ref: trackRef })
+    form.audio = createAudioState()
+  } else if (form.audio.removeExisting && (current.mediaFile || current.mediaProvider)) {
     current = await deleteQuestionMediaService(current.id)
     form.audio = createAudioState()
   }

@@ -105,11 +105,12 @@
 
 # --- Écran de salle --------------------------------------------------------------------------
 # Permissions-Policy : Web Serial (interface DMX USB), plein écran et manettes (buzzers) autorisés
-# pour l'origine de l'écran de salle uniquement. connect-src : l'API, et le pont Art-Net local
-# (ws://127.0.0.1:<port>, exception « localhost » du contenu mixte).
+# pour l'origine de l'écran de salle uniquement. connect-src : l'API, le pont Art-Net local
+# (ws://127.0.0.1:<port>, exception « localhost » du contenu mixte) et https://*.dzcdn.net (les
+# extraits audio fournis par Deezer, téléchargés par fetch ; img-src et media-src ont déjà https:).
 {$HOST_SALLE} {
 	import common
-	import static_site /srv/web/salle "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https://{$HOST_API} ws://127.0.0.1:* ws://localhost:*; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" "serial=(self), fullscreen=(self), gamepad=(self), camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+	import static_site /srv/web/salle "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https://{$HOST_API} https://*.dzcdn.net ws://127.0.0.1:* ws://localhost:*; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" "serial=(self), fullscreen=(self), gamepad=(self), camera=(), microphone=(), geolocation=(), payment=(), usb=()"
 }
 
 # --- API -------------------------------------------------------------------------------------

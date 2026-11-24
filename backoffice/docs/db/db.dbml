@@ -109,6 +109,8 @@ Table questions {
   media_uploaded_by bigint [note: 'admins.id, SET NULL']
   media_uploaded_at timestamptz
   media_rights_attested_at timestamptz [note: 'L uploadeur atteste détenir le droit de diffuser le fichier']
+  media_provider varchar(20) [note: 'Extrait fourni par un service d extraits : deezer. NULL sinon. Exclusif avec media_key (CHECK).']
+  media_provider_ref varchar(64) [note: 'Identifiant du titre chez le fournisseur (chiffres). Renseigné si et seulement si media_provider l est. Le lien d extrait n est jamais stocké.']
 
   status smallint [not null, default: 1, note: '0=inactive, 1=active, 2=deleted, 3=draft']
   created_at timestamptz [not null, default: `now()`]

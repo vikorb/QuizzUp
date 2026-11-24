@@ -110,6 +110,18 @@ src/
   complétés avec `VITE_API_URL` ; seuls les extraits **audio** sont préchargés. En mode démo,
   thèmes « sans tubes » dont les extraits `demo://` sont **synthétisés** à la volée
   (`audio/demoSynthPlayer.ts`, libres de droits).
+- **Sources d'audio** : un extrait vient soit d'un fichier importé (`mediaUrl` = chemin relatif de
+  l'API, téléchargé avec le jeton de la salle), soit d'un service tiers (`mediaUrl` = URL absolue
+  `https://…` d'un MP3 de 30 s, signée et à durée de vie courte, accompagnée d'un `mediaCredit`
+  `{ provider: 'deezer', title, artist, coverUrl, link }`). `utils/mediaFetch.ts` n'envoie le jeton
+  qu'à l'origine de l'API : un tiers reçoit `fetch(url, { credentials: 'omit' })`, sans en-tête
+  (son préflight n'accepte que `Range`). Les extraits sont préchargés dès la réception du contenu ;
+  un extrait en échec reste muet, la partie continue. À la reprise après un rechargement, le contenu
+  est redemandé (`refreshSavedMedia`) pour remplacer les liens expirés de la sauvegarde ; hors ligne,
+  elle sert telle quelle. Le crédit (`game/mediaCredits.ts`, table `id de question → crédit`)
+  s'affiche à la révélation seulement : pochette, « artiste — titre », « Extrait fourni par
+  Deezer ». **Domaine à autoriser** : `https://*.dzcdn.net` dans `connect-src` de la CSP de l'écran
+  de salle (`deploy/prod/Caddyfile`) ; `img-src` et `media-src` autorisent déjà `https:`.
 - **Config matérielle** : gardée sur le compte de la salle (`rooms.config`), relue via
   `GET /room/me` et enregistrée via `PUT /room/config` (`hardware/hardwareSync.ts`) ; le navigateur
   n'en garde qu'une copie de secours. Chaque enregistrement renvoie la révision lue

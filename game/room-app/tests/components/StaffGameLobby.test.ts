@@ -451,14 +451,15 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
       { storage }
     )
     vi.spyOn(roomApi, 'fetchCurrentGame').mockResolvedValue({ ...GAME, state: 'running' })
-    const content = vi.spyOn(roomApi, 'fetchCurrentContent')
+    // Le contenu est redemandé à la reprise : les liens signés de la sauvegarde ont pu expirer.
+    const content = vi.spyOn(roomApi, 'fetchCurrentContent').mockResolvedValue(getPlayableThemes())
     const { wrapper, router } = await mountWithApp(LobbyView, { route: '/lobby' })
     await flushPromises()
 
     expect(wrapper.text()).toContain('Partie en cours')
     await wrapper.find('[data-test="resume-game"]').trigger('click')
     await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('play'))
-    expect(content).not.toHaveBeenCalled()
+    expect(content).toHaveBeenCalledTimes(1)
   })
 
   it('demande confirmation avant de recommencer une partie en cours', async () => {

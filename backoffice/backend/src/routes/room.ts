@@ -205,7 +205,8 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
     return { game: await findCurrentRoomGame(req) }
   })
 
-  // Catalogue de la partie en cours : seules les questions audio avec un fichier sont jouables.
+  // Catalogue de la partie en cours : une question audio n'est jouable qu'avec un fichier ou un
+  // extrait de fournisseur qui répond.
   app.get('/room/games/current/content', { preHandler: [app.authenticate] }, async (req, reply) => {
     if (!isRoomAccount(req)) {
       return reply.code(403).send({ error: 'forbidden' })
@@ -215,7 +216,7 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(404).send({ error: 'game_not_found' })
     }
 
-    return { themes: await loadRoomContent(req.user.company_id) }
+    return { themes: await loadRoomContent(req.user.company_id, req.log) }
   })
 
   // Extrait audio d'une question jouable, lisible seulement pendant une partie de la salle.

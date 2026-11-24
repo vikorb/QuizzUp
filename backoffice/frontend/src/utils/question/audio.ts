@@ -4,6 +4,7 @@ import {
   QUESTION_AUDIO_MIME_TYPE_MPEG,
   QUESTION_AUDIO_MIME_TYPE_OGG,
   QUESTION_AUDIO_RECOMMENDED_EXCERPT_MS,
+  QUESTION_MEDIA_PROVIDER_SEARCH_MIN_LENGTH,
   type QuestionAudioMimeType,
 } from '@quizzup/shared'
 
@@ -16,6 +17,18 @@ export const AUDIO_PREVIEW_DURATIONS_MS = [1000, 5000, 20_000] as const
 export const AUDIO_FILE_ACCEPT = '.mp3,.ogg,audio/mpeg,audio/ogg'
 
 export const AUDIO_START_STEP_MS = 100
+
+/** Requête prête à envoyer, ou `null` si elle est vide ou trop courte une fois nettoyée. */
+export function normalizeTrackQuery(raw: string): string | null {
+  const query = raw.trim()
+
+  return query.length >= QUESTION_MEDIA_PROVIDER_SEARCH_MIN_LENGTH ? query : null
+}
+
+/** `Queen`, `Bohemian Rhapsody` → `Queen — Bohemian Rhapsody` (même forme que l'API). */
+export function formatTrackLabel(track: { artist: string; title: string }): string {
+  return `${track.artist} — ${track.title}`
+}
 
 const EXTENSION_MIME_TYPES: Readonly<Record<string, QuestionAudioMimeType>> = {
   mp3: QUESTION_AUDIO_MIME_TYPE_MPEG,
