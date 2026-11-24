@@ -27,8 +27,16 @@ export type FakeApi = {
   sendEvent: (event: string) => void
 }
 
-/** Partie préparée au backoffice et son contenu (`GET /room/games/current`, `.../content`). */
-export type FakeLive = { game: Record<string, unknown> & { id: number }; themes: unknown[] }
+/**
+ * Partie préparée au backoffice et son contenu (`GET /room/games/current`, `.../content`).
+ * `scheduled` : `game` est une session programmée de la salle (fuseau `timezone`) : elle est servie
+ * en `next` jusqu'à `POST /room/games/:id/open`, puis en `game` en attente.
+ */
+export type FakeLive = {
+  game: Record<string, unknown> & { id: number }
+  themes: unknown[]
+  scheduled?: { timezone: string }
+}
 
 /** Un flux sans commande est rendu (avec son seul `hello`) au bout de ce délai. */
 const STREAM_HOLD_MS = 20_000
@@ -73,6 +81,7 @@ export async function mockBackofficeApi(
     pendingEvents.push(chunk)
     wakeStream?.()
   }
+  let opened = false
   const api: FakeApi = {
     calls: [],
     roomConfig: {},
@@ -107,7 +116,12 @@ export async function mockBackofficeApi(
     }
     if (pathname === '/room/me') {
       return cors(route, 200, {
-        room: { id: 1, name: 'Salle 1', config: api.roomConfig },
+        room: {
+          id: 1,
+          name: 'Salle 1',
+          config: api.roomConfig,
+          schedule: options.live?.scheduled ? { timezone: options.live.scheduled.timezone } : null,
+        },
         company: { id: options.account.companyId, name: 'Centre' },
       })
     }
@@ -117,7 +131,18 @@ export async function mockBackofficeApi(
       return cors(route, 200, { room: { id: 1, name: 'Salle 1', config: api.roomConfig } })
     }
     if (pathname === '/room/games/current') {
-      return cors(route, 200, { game: options.live?.game ?? null })
+      if (options.live?.scheduled && !opened) {
+        return cors(route, 200, { game: null, next: options.live.game })
+      }
+      const game = options.live?.game
+      return cors(route, 200, {
+        game: game && options.live?.scheduled ? { ...game, state: 'pending' } : (game ?? null),
+        next: null,
+      })
+    }
+    if (options.live?.scheduled && pathname === `/room/games/${options.live.game.id}/open`) {
+      opened = true
+      return cors(route, 200, { game: { ...options.live.game, state: 'pending' } })
     }
     if (options.live && pathname === '/room/games/current/content') {
       return cors(route, 200, { themes: options.live.themes })
