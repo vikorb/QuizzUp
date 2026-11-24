@@ -34,8 +34,12 @@ info:
     d'une compagnie supprimée.
 
     **Limite de débit.** Fenêtre fixe d'une minute : 120 requêtes par clé par défaut, et 20
-    échecs d'authentification par adresse. Au-delà, `429 too_many_requests` avec l'en-tête
-    `Retry-After` (secondes), `RateLimit-Limit` et `RateLimit-Remaining`.
+    échecs d'authentification (`401`) par adresse. Une requête avec une clé valide n'est limitée que
+    par sa clé : les clés d'un même serveur ne partagent pas leur quota, et les appels réussis ne
+    comptent pas dans la limite d'échecs. Au-delà, `429 too_many_requests` avec l'en-tête
+    `Retry-After` (secondes). `RateLimit-Limit` et `RateLimit-Remaining` accompagnent toute réponse à
+    une clé reconnue, `429` par clé compris ; le `429` de la limite d'échecs, qui ne repose sur aucune
+    clé, n'a que `Retry-After`.
 
     **Corps limité à 16 Ko** (`413 payload_too_large`).
 
@@ -231,7 +235,9 @@ paths:
         '403':
           $ref: '#/components/responses/CompanyInactive'
         '404':
-          description: Salle introuvable, inactive ou non réservable (`room_not_found`)
+          description: >-
+            Salle introuvable, inactive ou non réservable (`room_not_found`) ; ou rejeu d'une clé dont
+            la réservation a été supprimée depuis (`booking_not_found`)
           content:
             application/json:
               schema:
@@ -298,6 +304,11 @@ paths:
         Autorisé seulement tant que la session est `scheduled` : une fois ouverte par le centre, elle
         ne se modifie plus (`409 booking_not_modifiable`). `playersCount`, `externalRef` et `locale`
         acceptent `null` pour être effacés.
+
+        Si le centre a fermé la salle à la réservation depuis, la réservation reste modifiable
+        (`participants`, `playersCount`, `externalRef`, `locale`) tant qu'on ne change ni de salle ni
+        d'heure ; seul un changement vers une salle non réservable, ou d'heure dans une telle salle,
+        est refusé (`404 room_not_found`).
       operationId: updatePublicBooking
       requestBody:
         required: true

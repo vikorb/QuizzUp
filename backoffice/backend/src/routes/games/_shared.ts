@@ -60,6 +60,7 @@ export const gameSelect = [
   'games.players_count as playersCount',
   'games.external_ref as externalRef',
   'games.locale',
+  'games.kids_mode as kidsMode',
   'games.status',
   'games.created_at as createdAt',
   'games.updated_at as updatedAt',
@@ -181,6 +182,7 @@ export function toGameRow(row: Record<string, unknown>): GameRow {
     playersCount: toOptionalNumber(row.playersCount) ?? null,
     externalRef: game.externalRef ?? null,
     locale: game.locale ?? null,
+    kidsMode: Boolean(row.kidsMode),
     ...(participantsCount === undefined ? {} : { participantsCount }),
   }
 }
@@ -365,6 +367,8 @@ export type NewGame = {
   companyId: number
   roomId: number
   adminId: number | null
+  /** Clé d'API qui a créé la partie (réservation par l'API publique), sinon `null`. */
+  apiKeyId?: number
   format: GameFormat
   roundsCount: number
   questionsPerRound: number
@@ -376,6 +380,8 @@ export type NewGame = {
   playersCount?: number
   externalRef?: string
   locale?: GameLocale
+  /** Mode enfants : seuls les thèmes adaptés aux enfants sont joués. Absent : désactivé. */
+  kidsMode?: boolean
   /** Lien d'inscription ouvert dès la création (partie en attente seulement). */
   join?: { token: string; expiresAt: Date }
 }
@@ -391,6 +397,7 @@ export async function insertGameWithParticipants(
       company_id: game.companyId,
       room_id: game.roomId,
       admin_id: game.adminId,
+      api_key_id: game.apiKeyId ?? null,
       format: game.format,
       rounds_count: game.roundsCount,
       questions_per_round: game.questionsPerRound,
@@ -402,6 +409,7 @@ export async function insertGameWithParticipants(
       players_count: game.playersCount ?? null,
       external_ref: game.externalRef ?? null,
       locale: game.locale ?? null,
+      kids_mode: game.kidsMode ?? false,
       join_token: game.join?.token ?? null,
       join_expires_at: game.join?.expiresAt.toISOString() ?? null,
       status: GAME_STATUS_ACTIVE,

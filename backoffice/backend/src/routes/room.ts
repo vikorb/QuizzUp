@@ -13,6 +13,8 @@ import {
   ROOM_STATUS_DELETED,
 } from '@quizzup/shared'
 import db from '../db'
+import { createRateLimiter, replyTooManyRequests } from '../security/rateLimit'
+import { providerRefSchema } from '../services/mediaProvider'
 import { getMediaStorage, isValidMediaKey } from '../storage/mediaStorage'
 import type { RoomRow } from '../types/room'
 import { ROOM_CONFIG_MAX_LENGTH, roomConfigSchema } from './companies/rooms/_schemas'
@@ -20,9 +22,20 @@ import { companyLogoUrl } from './companies/_shared'
 import { roomSelect } from './companies/rooms/_shared'
 import { addGameJoin, findGameInCompany, openScheduledGame } from './games/_shared'
 import { getMediaVersion } from './questions/_shared'
-import { isInPlayableTheme, isReadableByCompany, loadRoomContent } from './room/_content'
+import {
+  isInPlayableTheme,
+  isReadableByCompany,
+  loadPlaylistThemes,
+  loadRoomContent,
+} from './room/_content'
 import { areRoundsAcceptable, roomRoundsSchema, saveGameRounds } from './room/_history'
 import { findCurrentGameId } from './room/_join'
+import {
+  findPlaylistTracks,
+  PLAYLISTS_MAX_PER_GAME,
+  ROOM_TRACKS_RATE_LIMIT_MAX,
+  ROOM_TRACKS_RATE_LIMIT_WINDOW_MS,
+} from './room/_playlists'
 import { isRoomAccount, roomPodiumsSchema, roomScoresSchema } from './room/_shared'
 
 const roomGameParamsSchema = z.object({
@@ -59,6 +72,26 @@ const roomContentQuerySchema = z.object({
     .optional(),
 })
 
+// `refs` : références de titres d'une playlist (chiffres) séparées par des virgules, dédupliquées.
+// `themeIds` : thèmes de playlist à relire (entiers positifs, 6 au plus), dédupliqués.
+const roomTracksQuerySchema = z.object({
+  themeIds: z
+    .string()
+    .transform((value) => value.split(','))
+    .pipe(
+      z
+        .array(z.string().regex(/^\d+$/).transform(Number).pipe(z.number().int().positive()))
+        .min(1)
+        .max(PLAYLISTS_MAX_PER_GAME)
+    )
+    .transform((ids) => [...new Set(ids)]),
+  refs: z
+    .string()
+    .transform((value) => value.split(','))
+    .pipe(z.array(providerRefSchema).max(ROOM_CONTENT_MAX_IDS))
+    .transform((refs) => [...new Set(refs)]),
+})
+
 const roomQuestionParamsSchema = z.object({
   questionId: z.coerce.number().int().positive(),
 })
@@ -67,7 +100,7 @@ const roomQuestionParamsSchema = z.object({
 const MEDIA_CACHE_CONTROL = 'private, no-cache'
 
 /** Partie en cours, sinon en attente, de la salle. Les emails restent côté backoffice. */
-function findCurrentRoomGameId(req: FastifyRequest): Promise<number | null> {
+function findCurrentRoomGameId(req: FastifyRequest) {
   return findCurrentGameId(req.user.company_id, Number(req.user.room_id))
 }
 
@@ -86,9 +119,9 @@ async function findNextRoomGame(req: FastifyRequest) {
 }
 
 async function findCurrentRoomGame(req: FastifyRequest) {
-  const currentId = await findCurrentRoomGameId(req)
+  const current = await findCurrentRoomGameId(req)
 
-  return currentId === null ? null : findRoomGame(req, currentId)
+  return current === null ? null : findRoomGame(req, current.id)
 }
 
 /** Partie de la salle (quel que soit son état), au format du PC de la salle. */
@@ -125,6 +158,11 @@ async function findRoomGame(req: FastifyRequest, gameId: number) {
  * rôle `room`, qui n'ont accès à aucune autre route du backoffice.
  */
 const roomRoutes: FastifyPluginAsync = async (app) => {
+  const tracksLimiter = createRateLimiter({
+    max: ROOM_TRACKS_RATE_LIMIT_MAX,
+    windowMs: ROOM_TRACKS_RATE_LIMIT_WINDOW_MS,
+  })
+
   app.get('/room/me', { preHandler: [app.authenticate] }, async (req, reply) => {
     if (!isRoomAccount(req)) {
       return reply.code(403).send({ error: 'forbidden' })
@@ -256,13 +294,66 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ error: 'invalid_query', details: parsedQuery.error.flatten() })
     }
 
-    if ((await findCurrentRoomGameId(req)) === null) {
+    const current = await findCurrentRoomGameId(req)
+
+    if (current === null) {
       return reply.code(404).send({ error: 'game_not_found' })
     }
 
+    // Mode enfants : seuls les thèmes `kids_friendly` sont envoyés à la salle.
     return {
-      themes: await loadRoomContent(req.user.company_id, req.log, parsedQuery.data.ids),
+      themes: await loadRoomContent(
+        req.user.company_id,
+        req.log,
+        parsedQuery.data.ids,
+        current.kidsMode,
+        current.questionsPerRound
+      ),
     }
+  })
+
+  // Reprise après rechargement : liens d'extrait à jour des titres de playlist (identifiants de
+  // question négatifs). Seules les playlists des `themeIds` sont relues, et à travers le filtre du
+  // catalogue (compagnie, thème actif, mode enfants) : un thème interdit ou inconnu est ignoré, un
+  // titre inconnu, sans extrait ou d'une autre compagnie est absent.
+  app.get('/room/games/current/tracks', { preHandler: [app.authenticate] }, async (req, reply) => {
+    if (!isRoomAccount(req)) {
+      return reply.code(403).send({ error: 'forbidden' })
+    }
+
+    // Compté avant la validation, par salle : chaque appel peut coûter jusqu'à 6 lectures chez le
+    // fournisseur.
+    const limit = tracksLimiter.hit(`room:${req.user.room_id}`)
+
+    if (!limit.allowed) {
+      return replyTooManyRequests(reply, limit.retryAfterSeconds)
+    }
+
+    const parsedQuery = roomTracksQuerySchema.safeParse(req.query)
+
+    if (!parsedQuery.success) {
+      return reply.code(400).send({ error: 'invalid_query', details: parsedQuery.error.flatten() })
+    }
+
+    const current = await findCurrentRoomGameId(req)
+
+    if (current === null) {
+      return reply.code(404).send({ error: 'game_not_found' })
+    }
+
+    const { refs, themeIds } = parsedQuery.data
+    const { items, unavailable } = await findPlaylistTracks(
+      await loadPlaylistThemes(req.user.company_id, themeIds, current.kidsMode),
+      refs
+    )
+
+    if (unavailable && items.length < refs.length) {
+      req.log.warn({ company_id: req.user.company_id }, 'media provider unavailable')
+
+      return reply.code(502).send({ error: 'media_provider_unavailable' })
+    }
+
+    return { items }
   })
 
   // Extrait audio d'une question jouable, lisible seulement pendant une partie de la salle.
@@ -280,7 +371,9 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(400).send({ error: 'question_id_invalid' })
       }
 
-      if ((await findCurrentRoomGameId(req)) === null) {
+      const current = await findCurrentRoomGameId(req)
+
+      if (current === null) {
         return reply.code(404).send({ error: 'game_not_found' })
       }
 
@@ -294,7 +387,7 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
         question.type_media !== QUESTION_MEDIA_TYPE_AUDIO ||
         !isReadableByCompany(question, req.user.company_id) ||
         !isValidMediaKey(question.media_key) ||
-        !(await isInPlayableTheme(Number(question.id), req.user.company_id))
+        !(await isInPlayableTheme(Number(question.id), req.user.company_id, current.kidsMode))
       ) {
         return reply.code(404).send({ error: 'question_media_not_found' })
       }

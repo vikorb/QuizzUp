@@ -3,6 +3,7 @@ import type { FastifyBaseLogger } from 'fastify'
 import {
   ANSWER_STATUS_ACTIVE,
   DEFAULT_QUESTION_KIND,
+  GAME_DEFAULT_QUESTIONS_PER_ROUND,
   QUESTION_AUDIO_EFFECT_NONE,
   QUESTION_MEDIA_TYPE_AUDIO,
   QUESTION_MEDIA_TYPE_IMAGE,
@@ -21,6 +22,7 @@ import {
   MediaProviderUnavailableError,
   type ProviderTrack,
 } from '../../services/mediaProvider'
+import { drawPlaylistThemes, toPlaylistThemes } from './_playlists'
 
 /** Forme attendue par le moteur de jeu (`EngineTheme` de `@quizzup/game-engine`). */
 export type RoomContentAnswer = { id: number; text: string; isCorrect: boolean }
@@ -148,25 +150,49 @@ async function resolveProviderTracks(refs: string[]): Promise<Map<string, Provid
   return tracks
 }
 
-/** Thèmes actifs lisibles par la compagnie (tous, ou parmi `themeIds`). */
-async function loadReadableThemes(companyId: number, themeIds?: Array<number | string>) {
+/**
+ * Thèmes actifs lisibles par la compagnie (tous, ou parmi `themeIds`). Avec `kidsOnly`, seuls les
+ * thèmes adaptés aux enfants (mode enfants d'une partie).
+ */
+async function loadReadableThemes(
+  companyId: number,
+  themeIds?: Array<number | string>,
+  kidsOnly = false
+) {
   const query = db('themes')
     .where('status', THEME_STATUS_ACTIVE)
-    .select('id', 'name', 'scope', 'company_id')
+    .select('id', 'name', 'scope', 'company_id', 'playlist_ref')
     .orderBy('id', 'asc')
 
   if (themeIds) {
     query.whereIn('id', themeIds)
   }
 
+  if (kidsOnly) {
+    query.where('kids_friendly', true)
+  }
+
   return (await query).filter((theme) => isReadableByCompany(theme as ScopedRow, companyId))
 }
 
 /**
- * Une question n'est jouable par la salle que si elle appartient à au moins un thème actif
- * lisible par sa compagnie : même règle que le catalogue, pour la route média.
+ * Thèmes de playlist que la partie peut recevoir : mêmes thèmes que le catalogue (actifs, lisibles
+ * par la compagnie, et adaptés aux enfants en mode enfants), donc même règle que `isInPlayableTheme`.
  */
-export async function isInPlayableTheme(questionId: number, companyId: number): Promise<boolean> {
+export async function loadPlaylistThemes(companyId: number, themeIds: number[], kidsOnly = false) {
+  return toPlaylistThemes(await loadReadableThemes(companyId, themeIds, kidsOnly))
+}
+
+/**
+ * Une question n'est jouable par la salle que si elle appartient à au moins un thème actif
+ * lisible par sa compagnie : même règle que le catalogue, pour la route média. Avec `kidsOnly`
+ * (partie en mode enfants), ce thème doit en plus être adapté aux enfants.
+ */
+export async function isInPlayableTheme(
+  questionId: number,
+  companyId: number,
+  kidsOnly = false
+): Promise<boolean> {
   const links = await db('question_themes').where('question_id', questionId).select('theme_id')
 
   if (links.length === 0) {
@@ -175,7 +201,8 @@ export async function isInPlayableTheme(questionId: number, companyId: number): 
 
   const themes = await loadReadableThemes(
     companyId,
-    links.map((link) => link.theme_id)
+    links.map((link) => link.theme_id),
+    kidsOnly
   )
 
   return themes.length > 0
@@ -189,15 +216,45 @@ export async function isInPlayableTheme(questionId: number, companyId: number): 
  * que si elle a un lien. Le moteur trie ensuite par éligibilité de chaque mini-jeu. Les
  * thèmes vides sont écartés. Avec `questionIds`, seules ces questions sont chargées et résolues
  * (toujours filtrées par la compagnie). Les questions de fournisseur écartées font l'objet d'un
- * seul avertissement par chargement.
+ * seul avertissement par chargement. Avec `kidsOnly` (partie en mode enfants), seuls les thèmes
+ * adaptés aux enfants sont chargés : une question qui est aussi dans un autre thème n'en sort pas.
+ * Les thèmes qui portent une playlist reçoivent en plus `questionsPerRound` titres tirés de la
+ * playlist (jamais avec `questionIds` : une reprise ne tire rien de nouveau, voir la route `tracks`).
  */
 export async function loadRoomContent(
   companyId: number,
   log: Pick<FastifyBaseLogger, 'warn'>,
+  questionIds?: number[],
+  kidsOnly = false,
+  questionsPerRound: number = GAME_DEFAULT_QUESTIONS_PER_ROUND
+): Promise<RoomContentTheme[]> {
+  const themes = await loadReadableThemes(companyId, undefined, kidsOnly)
+  // Les deux lectures du fournisseur (extraits enregistrés, playlists) se font ensemble.
+  const [stored, drawn] = await Promise.all([
+    loadStoredContent(themes, companyId, log, questionIds),
+    questionIds ? [] : drawPlaylistThemes(toPlaylistThemes(themes), questionsPerRound, log),
+  ])
+  const byId = new Map(stored.map((theme) => [theme.id, theme]))
+
+  for (const theme of drawn) {
+    const existing = byId.get(theme.id)
+
+    byId.set(
+      theme.id,
+      existing ? { ...existing, questions: [...existing.questions, ...theme.questions] } : theme
+    )
+  }
+
+  return [...byId.values()].sort((a, b) => a.id - b.id)
+}
+
+/** Questions enregistrées des thèmes donnés (le contenu d'avant les playlists). */
+async function loadStoredContent(
+  themes: Awaited<ReturnType<typeof loadReadableThemes>>,
+  companyId: number,
+  log: Pick<FastifyBaseLogger, 'warn'>,
   questionIds?: number[]
 ): Promise<RoomContentTheme[]> {
-  const themes = await loadReadableThemes(companyId)
-
   if (themes.length === 0) {
     return []
   }
