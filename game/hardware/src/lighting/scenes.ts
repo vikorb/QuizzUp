@@ -94,6 +94,8 @@ export const SCENE_IDS = {
   ROUND_END: 'round-end',
   VICTORY: 'victory',
   VICTORY_TIE: 'victory-tie',
+  EXIT: 'exit',
+  EXIT_OFF: 'exit-off',
   IDENTIFY: 'identify',
 } as const
 
@@ -122,6 +124,65 @@ export const MIN_FLASH_INTERVAL_MS = 400
 export const FLASH_RISE_LEVEL = 0.1
 
 const AMBIENT = NEON.primary
+
+/**
+ * Lumière de sortie (`lighting.exit`) : en fin de session, blanc chaud et fort pour que les joueurs
+ * voient la sortie. Jamais de stroboscope (cible `all`) ni de fumée.
+ */
+export type ExitLightConfig = {
+  /** Faux : aucune scène de sortie ne part seule (après la victoire ou une partie incomplète). */
+  enabled: boolean
+  /** Attente avant l'allumage, à partir de la fin de la scène de victoire. */
+  delayMs: number
+  /** Durée pendant laquelle la sortie reste allumée, avant de s'éteindre en douceur. */
+  holdMs: number
+  /** Intensité 0-1. */
+  intensity: number
+  color: Rgbw
+}
+
+/** Durée des fondus d'allumage et d'extinction de la sortie. */
+const EXIT_FADE_MS = 3_000
+
+export const DEFAULT_EXIT: Readonly<ExitLightConfig> = {
+  enabled: true,
+  delayMs: 10_000,
+  holdMs: 300_000,
+  intensity: 1,
+  color: { r: 255, g: 180, b: 107, w: 255 },
+}
+
+/**
+ * Scène `exit` : attente, fondu vers la lumière de sortie, maintien, puis `exit-off`. Priorité 15 :
+ * elle ne coupe pas une scène de jeu en cours, et `game_started` (20) l'interrompt.
+ */
+export function exitScene(settings: ExitLightConfig = DEFAULT_EXIT): SceneDefinition {
+  return {
+    id: SCENE_IDS.EXIT,
+    name: 'Lumière de sortie',
+    priority: 15,
+    steps: [
+      { type: 'wait', durationMs: settings.delayMs },
+      {
+        type: 'color',
+        color: settings.color,
+        intensity: settings.intensity,
+        fadeMs: EXIT_FADE_MS,
+        holdMs: settings.holdMs,
+        aim: 'home',
+      },
+    ],
+    next: SCENE_IDS.EXIT_OFF,
+  }
+}
+
+/** Scène `exit-off` : fondu de la lumière de sortie vers l'ambiance (fin du maintien, ou bouton). */
+export const EXIT_OFF_SCENE: SceneDefinition = {
+  id: SCENE_IDS.EXIT_OFF,
+  name: 'Éteindre la sortie',
+  priority: 15,
+  steps: [{ type: 'color', color: AMBIENT, intensity: 0.3, fadeMs: EXIT_FADE_MS, aim: 'home' }],
+}
 
 export const DEFAULT_SCENES: readonly SceneDefinition[] = [
   {
@@ -257,6 +318,7 @@ export const DEFAULT_SCENES: readonly SceneDefinition[] = [
       { type: 'color', target: 'desk', color: NEON.warn, holdMs: 4_000 },
       { type: 'color', color: AMBIENT, intensity: 0.3, fadeMs: 1500, aim: 'home' },
     ],
+    next: SCENE_IDS.EXIT,
   },
   {
     // Égalité en tête : pas de pupitre à mettre en avant, toute la salle fête. La fumée garde le
@@ -272,8 +334,28 @@ export const DEFAULT_SCENES: readonly SceneDefinition[] = [
       { type: 'color', color: NEON.warn, intensity: 0.6, holdMs: 4_000 },
       { type: 'color', color: AMBIENT, intensity: 0.3, fadeMs: 1500, aim: 'home' },
     ],
+    next: SCENE_IDS.EXIT,
   },
+  exitScene(),
+  EXIT_OFF_SCENE,
 ]
+
+/**
+ * Scènes par défaut d'une salle : la lumière de sortie suit `lighting.exit`, et la victoire ne
+ * l'enchaîne plus quand elle est coupée (`enabled: false`).
+ */
+export function defaultScenesFor(exit: ExitLightConfig): SceneDefinition[] {
+  return DEFAULT_SCENES.map((scene) => {
+    if (scene.id === SCENE_IDS.EXIT) {
+      return exitScene(exit)
+    }
+    if (!exit.enabled && scene.next === SCENE_IDS.EXIT) {
+      const { next: _next, ...withoutNext } = scene
+      return withoutNext
+    }
+    return scene
+  })
+}
 
 /**
  * Événement de jeu → scène, avec les noms d'événements du moteur (`@quizzup/game-engine`).
@@ -295,6 +377,8 @@ export const DEFAULT_BINDINGS: Readonly<Record<string, string>> = Object.fromEnt
   // Clé dérivée de `game_ended` quand plusieurs pupitres gagnent (cf. `resolveEvent`).
   ['game_ended_tie', SCENE_IDS.VICTORY_TIE],
   ['game_aborted', SCENE_IDS.IDLE],
+  // Partie terminée faute de contenu : pas de célébration, mais la salle doit trouver la sortie.
+  ['game_ended_incomplete', SCENE_IDS.EXIT],
 ])
 
 /**
