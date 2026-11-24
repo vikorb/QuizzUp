@@ -25,6 +25,7 @@ import {
   canReadTheme,
   checkThemePlaylist,
   getThemeAccessRow,
+  isValidKidsFriendly,
   isValidThemeMode,
   parsePositiveId,
   themeSelect,
@@ -167,6 +168,14 @@ const themeIdRoutes: FastifyPluginAsync = async (app) => {
         }
 
         patch.mode = req.body.mode
+      }
+
+      if (!isValidKidsFriendly(req.body.kidsFriendly)) {
+        return reply.code(400).send({ error: 'theme_kids_friendly_invalid' })
+      }
+
+      if (req.body.kidsFriendly !== undefined) {
+        patch.kids_friendly = req.body.kidsFriendly
       }
 
       const mode = req.body.mode ?? accessTheme.mode

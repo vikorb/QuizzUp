@@ -1,4 +1,9 @@
-import { createSixDeskRoomRig } from '@quizzup/hardware'
+import {
+  createSixDeskRoomRig,
+  findProfile,
+  ROOM_TEMPLATES,
+  type RoomTemplate,
+} from '@quizzup/hardware'
 import { flushPromises } from '@vue/test-utils'
 
 import { useConfirm } from '@/composables/useConfirm'
@@ -9,6 +14,7 @@ import {
   saveBuzzerKeymap,
   saveRoomHardwareConfig,
   startLighting,
+  stopLighting,
 } from '@/hardware/roomHardware'
 import { enterDemo, syncRoomAuth } from '@/state/roomAuth'
 import SetupLightsView from '@/views/SetupLightsView.vue'
@@ -283,6 +289,378 @@ describe('lumières plein écran : fumée', () => {
     expect(sel(wrapper, 'lights-done').exists()).toBe(true)
     await click(wrapper, 'lights-finish')
     expect(getRoomHardwareConfig().lighting.smoke.enabled).toBe(false)
+  })
+})
+
+const FOUR_PAR = 'lights-model-four-desks-four-par-rgbw'
+const SIX_DESKS = 'lights-model-six-desks-eight-heads'
+
+async function answerYes(wrapper: Wrapper, count: number) {
+  for (let remaining = count; remaining > 0; remaining -= 1) {
+    await click(wrapper, 'lights-yes')
+  }
+}
+
+describe('lumières plein écran : modèles de salle', () => {
+  it('liste les modèles du paquet matériel avec leur taille', async () => {
+    const { wrapper } = await toEquip()
+    const names = ROOM_TEMPLATES.map((template) => sel(wrapper, `lights-model-${template.id}`))
+    expect(names.every((button) => button.exists())).toBe(true)
+    expect(sel(wrapper, FOUR_PAR).text()).toContain('4 pupitres, 4 PAR RVBW')
+    expect(sel(wrapper, FOUR_PAR).text()).toContain('4 pupitres, 4 appareils')
+  })
+
+  it('sur une salle vide, applique le modèle sans confirmation et teste ses appareils', async () => {
+    await seedLighting({ fixtures: [] })
+    const desksCount = getRoomHardwareConfig().desksCount
+    const { wrapper } = await toEquip()
+    await click(wrapper, FOUR_PAR)
+    expect(useConfirm().state.open).toBe(false)
+    expect(wrapper.text()).toContain('Appareil 1 sur 4')
+
+    await answerYes(wrapper, 4)
+    await click(wrapper, 'lights-finish')
+    const config = getRoomHardwareConfig()
+    expect(config.lighting.fixtures).toHaveLength(4)
+    expect(config.desksCount).toBe(desksCount)
+  })
+
+  it('sur une salle déjà réglée, demande confirmation ; refuser ne change rien', async () => {
+    await seedLighting({
+      fixtures: [{ id: 'par1', name: 'PAR du fond', profileId: 'par-rgb', address: 1 }],
+    })
+    const before = getRoomHardwareConfig().lighting
+    const { wrapper } = await toEquip()
+
+    void sel(wrapper, FOUR_PAR).trigger('click')
+    await vi.waitFor(() => expect(useConfirm().state.open).toBe(true))
+    expect(useConfirm().state.message).toContain('4 pupitres, 4 PAR RVBW')
+    useConfirm().cancel()
+    await flushPromises()
+
+    expect(stepOf(wrapper)).toBe('equip')
+    expect(getRoomHardwareConfig().lighting).toEqual(before)
+    // Les appareils actuels sont toujours ceux proposés au test.
+    await click(wrapper, 'lights-keep')
+    expect(wrapper.text()).toContain('Appareil 1 sur 1')
+  })
+
+  it('sur une salle déjà réglée, confirmer remplace les appareils', async () => {
+    await seedLighting({
+      fixtures: [{ id: 'par1', name: 'PAR du fond', profileId: 'par-rgb', address: 1 }],
+    })
+    const { wrapper } = await toEquip()
+    void sel(wrapper, FOUR_PAR).trigger('click')
+    await vi.waitFor(() => expect(useConfirm().state.open).toBe(true))
+    useConfirm().accept()
+    await flushPromises()
+    expect(wrapper.text()).toContain('Appareil 1 sur 4')
+    await answerYes(wrapper, 4)
+    await click(wrapper, 'lights-finish')
+    const names = getRoomHardwareConfig().lighting.fixtures.map((fixture) => fixture.name)
+    expect(names).toHaveLength(4)
+    expect(names).not.toContain('PAR du fond')
+  })
+
+  it('un modèle ne touche jamais à la fumée : machine et réglages gardés', async () => {
+    await seedLighting({
+      fixtures: [
+        { id: 'par1', name: 'PAR du fond', profileId: 'par-rgb', address: 1 },
+        { id: 'fumee', name: 'Fumée', profileId: 'smoke-dmx', address: 400 },
+      ],
+    })
+    const smokeBefore = getRoomHardwareConfig().lighting.smoke
+    expect(smokeBefore.enabled).toBe(false)
+    const { wrapper } = await toEquip()
+    void sel(wrapper, FOUR_PAR).trigger('click')
+    await vi.waitFor(() => expect(useConfirm().state.open).toBe(true))
+    useConfirm().accept()
+    await flushPromises()
+    await answerYes(wrapper, 4)
+    await click(wrapper, 'lights-smoke-next')
+    await click(wrapper, 'lights-finish')
+
+    const { fixtures, smoke } = getRoomHardwareConfig().lighting
+    expect(smoke).toEqual(smokeBefore)
+    expect(fixtures.filter((fixture) => fixture.profileId === 'smoke-dmx')).toHaveLength(1)
+    expect(fixtures).toHaveLength(5)
+  })
+
+  it('refuse un modèle qui chevauche la machine à fumée, sans rien changer', async () => {
+    await seedLighting({
+      fixtures: [{ id: 'fumee', name: 'Fumée', profileId: 'smoke-dmx', address: 5 }],
+    })
+    const { wrapper } = await toEquip()
+    await click(wrapper, FOUR_PAR)
+    expect(sel(wrapper, 'lights-equip-error').exists()).toBe(true)
+    expect(stepOf(wrapper)).toBe('equip')
+  })
+
+  it('désactive un modèle à plusieurs univers sur une interface USB', async () => {
+    installFakeSerial(createFakeUsbPort())
+    const { wrapper } = await mountLights()
+    await click(wrapper, 'lights-usb')
+    await click(wrapper, 'lights-scan-next')
+    const multi = sel(wrapper, SIX_DESKS)
+    expect(multi.attributes('disabled')).toBeDefined()
+    expect(multi.text()).toContain('Demande un boîtier réseau')
+    expect(sel(wrapper, FOUR_PAR).attributes('disabled')).toBeUndefined()
+  })
+
+  it('les modèles sont des boutons nommés, dans un groupe titré, sans bouton principal de plus', async () => {
+    const { wrapper } = await toEquip()
+    const group = sel(wrapper, 'lights-models')
+    const title = document.getElementById(group.attributes('aria-labelledby') ?? '')
+    expect(title?.textContent?.trim()).toBe('Ou pars d’un modèle de salle')
+    for (const button of group.findAll('button')) {
+      expect(button.attributes('type')).toBe('button')
+      expect(button.text()).not.toBe('')
+    }
+    expect(primaryTests(wrapper)).toEqual([])
+  })
+})
+
+const node = (universes?: string[]) => [
+  {
+    ip: '192.168.1.20',
+    shortName: 'NET-3',
+    longName: 'Boîtier',
+    ...(universes ? { universes } : {}),
+  },
+]
+
+// Pont Art-Net factice : il s'ouvre et acquitte le hello (l'application des lumières s'y connecte).
+class AckSocket {
+  readyState = 0
+  bufferedAmount = 0
+  binaryType = 'blob'
+  onopen: (() => void) | null = null
+  onmessage: ((event: { data: unknown }) => void) | null = null
+  onerror: (() => void) | null = null
+  onclose: ((event: { code: number; reason: string }) => void) | null = null
+
+  constructor() {
+    queueMicrotask(() => {
+      this.readyState = 1
+      this.onopen?.()
+    })
+  }
+
+  send(data: unknown) {
+    if (typeof data === 'string' && (JSON.parse(data) as { type: string }).type === 'hello') {
+      const ack = { type: 'ack', protocol: 1, bridge: 'b', universes: 16 }
+      queueMicrotask(() => this.onmessage?.({ data: JSON.stringify(ack) }))
+    }
+  }
+
+  close() {
+    this.readyState = 3
+  }
+}
+
+describe('lumières plein écran : proposition d’univers', () => {
+  beforeEach(() => {
+    vi.stubGlobal('WebSocket', AckSocket)
+  })
+
+  afterEach(async () => {
+    await stopLighting()
+    vi.unstubAllGlobals()
+  })
+
+  it('propose les sorties du boîtier ; confirmer place les appareils', async () => {
+    await seedLighting({ fixtures: [] })
+    bridge.nodes = node(['0.0.1'])
+    const { wrapper } = await mountLights()
+    await click(wrapper, 'lights-scan-next')
+    void sel(wrapper, FOUR_PAR).trigger('click')
+    await vi.waitFor(() => expect(useConfirm().state.open).toBe(true))
+    expect(useConfirm().state.message).toContain('0.0.1')
+    expect(useConfirm().state.message).toContain('4 appareil(s)')
+    useConfirm().accept()
+    await flushPromises()
+
+    await answerYes(wrapper, 4)
+    await click(wrapper, 'lights-finish')
+    const { fixtures, driver } = getRoomHardwareConfig().lighting
+    expect(driver).toBe('artnet-bridge')
+    expect(fixtures.map((fixture) => fixture.universe)).toEqual([1, 1, 1, 1])
+  })
+
+  it('refuser la proposition garde les univers actuels', async () => {
+    await seedLighting({ fixtures: [] })
+    bridge.nodes = node(['0.0.1'])
+    const { wrapper } = await mountLights()
+    await click(wrapper, 'lights-scan-next')
+    void sel(wrapper, FOUR_PAR).trigger('click')
+    await vi.waitFor(() => expect(useConfirm().state.open).toBe(true))
+    useConfirm().cancel()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Appareil 1 sur 4')
+    await answerYes(wrapper, 4)
+    await click(wrapper, 'lights-finish')
+    const universes = getRoomHardwareConfig().lighting.fixtures.map(
+      (fixture) => fixture.universe ?? 0
+    )
+    expect(universes).toEqual([0, 0, 0, 0])
+  })
+
+  it('ne propose rien quand le boîtier n’annonce aucune sortie', async () => {
+    await seedLighting({ fixtures: [] })
+    bridge.nodes = node()
+    const { wrapper } = await mountLights()
+    await click(wrapper, 'lights-scan-next')
+    await click(wrapper, FOUR_PAR)
+    expect(useConfirm().state.open).toBe(false)
+    expect(wrapper.text()).toContain('Appareil 1 sur 4')
+  })
+
+  it('sur les appareils gardés, ne propose rien : la proposition ne concerne que le modèle', async () => {
+    await seedLighting({
+      fixtures: [
+        { id: 'haut', name: 'Haut', profileId: 'par-rgb', address: 1, universe: 2 },
+        { id: 'bas', name: 'Bas', profileId: 'par-rgb', address: 1, universe: 1 },
+      ],
+    })
+    bridge.nodes = node(['0.0.0', '0.0.1'])
+    const { wrapper } = await mountLights()
+    await click(wrapper, 'lights-scan-next')
+    await click(wrapper, 'lights-keep')
+    expect(useConfirm().state.open).toBe(false)
+
+    await answerYes(wrapper, 2)
+    await click(wrapper, 'lights-finish')
+    const universes = Object.fromEntries(
+      getRoomHardwareConfig().lighting.fixtures.map((fixture) => [
+        fixture.id,
+        fixture.universe ?? 0,
+      ])
+    )
+    expect(universes).toEqual({ haut: 2, bas: 1 })
+  })
+
+  it('ne déplace jamais la fumée et ne pose rien sur ses canaux : rien n’est proposé', async () => {
+    const smokeAt20 = {
+      id: 'fumee',
+      name: 'Fumée',
+      profileId: 'smoke-dmx',
+      address: 20,
+      universe: 1,
+    }
+    await seedLighting({
+      fixtures: [{ id: 'par1', name: 'PAR du fond', profileId: 'par-rgb', address: 1 }, smokeAt20],
+    })
+    bridge.nodes = node(['0.0.1', '0.0.2'])
+    const { wrapper } = await mountLights()
+    await click(wrapper, 'lights-scan-next')
+    void sel(wrapper, SIX_DESKS).trigger('click')
+    await vi.waitFor(() => expect(useConfirm().state.open).toBe(true))
+    useConfirm().accept()
+    await flushPromises()
+
+    // Pas de seconde confirmation : le déplacement recouvrirait les canaux de la fumée.
+    expect(useConfirm().state.open).toBe(false)
+    expect(sel(wrapper, 'lights-universes-refused').text()).toContain('machine à fumée')
+
+    await answerYes(wrapper, RIG_SIZE)
+    await click(wrapper, 'lights-smoke-next')
+    await click(wrapper, 'lights-finish')
+    const { fixtures, customProfiles } = getRoomHardwareConfig().lighting
+    const smoke = fixtures.find((fixture) => fixture.profileId === 'smoke-dmx')
+    expect(smoke).toMatchObject({ universe: 1, address: 20 })
+    const others = fixtures.filter((fixture) => fixture !== smoke)
+    expect(others).toHaveLength(RIG_SIZE)
+    expect(new Set(others.map((fixture) => fixture.universe ?? 0))).toEqual(new Set([0, 1]))
+    for (const fixture of others.filter((item) => (item.universe ?? 0) === 1)) {
+      const size = findProfile(fixture.profileId, customProfiles)?.channels.length ?? 0
+      expect(fixture.address <= 20 && 20 < fixture.address + size).toBe(false)
+    }
+  })
+
+  it('placer les appareils du modèle laisse tous les réglages de la fumée intacts', async () => {
+    const smoke = {
+      enabled: true,
+      maxDurationMs: 2000,
+      cooldownMs: 45_000,
+      maxLevel: 100,
+      requireConfirmation: false,
+      cutsOnSignalLoss: true,
+    }
+    await seedLighting({
+      smoke,
+      fixtures: [
+        { id: 'par1', name: 'PAR du fond', profileId: 'par-rgb', address: 1 },
+        { id: 'fumee', name: 'Fumée', profileId: 'smoke-dmx', address: 400 },
+      ],
+    })
+    expect(getRoomHardwareConfig().lighting.smoke).toEqual(smoke)
+    bridge.nodes = node(['0.0.1'])
+    const { wrapper } = await mountLights()
+    await click(wrapper, 'lights-scan-next')
+    void sel(wrapper, FOUR_PAR).trigger('click')
+    await vi.waitFor(() => expect(useConfirm().state.open).toBe(true))
+    useConfirm().accept()
+    await vi.waitFor(() => expect(useConfirm().state.message).toContain('0.0.1'))
+    // Seuls les quatre appareils du modèle sont comptés, pas la machine à fumée.
+    expect(useConfirm().state.message).toContain('4 appareil(s)')
+    useConfirm().accept()
+    await flushPromises()
+    await answerYes(wrapper, 4)
+    await click(wrapper, 'lights-smoke-next')
+    await click(wrapper, 'lights-finish')
+
+    const config = getRoomHardwareConfig().lighting
+    const lights = config.fixtures.filter((fixture) => fixture.profileId !== 'smoke-dmx')
+    expect(lights.map((fixture) => fixture.universe)).toEqual([1, 1, 1, 1])
+    const smokeFixture = config.fixtures.find((fixture) => fixture.profileId === 'smoke-dmx')
+    expect(smokeFixture).toMatchObject({ address: 400 })
+    expect(smokeFixture?.universe ?? 0).toBe(0)
+    // Les cinq réglages gardent leur valeur. `enabled` retombe à faux : en fin de parcours l'assistant
+    // enregistre la fumée désactivée tant que ses vérifications ne sont pas refaites (comportement
+    // existant, le parcours le dit à l'écran) ; un modèle ne l'active jamais.
+    expect(config.smoke).toEqual({ ...smoke, enabled: false })
+  })
+
+  it('prévient quand le boîtier annonce moins de sorties que le modèle n’en demande', async () => {
+    bridge.nodes = node(['0.0.0'])
+    const { wrapper } = await mountLights()
+    await click(wrapper, 'lights-scan-next')
+    expect(sel(wrapper, SIX_DESKS).text()).toContain('Demande 2 sorties, ton boîtier en annonce 1')
+    expect(sel(wrapper, SIX_DESKS).attributes('disabled')).toBeUndefined()
+    expect(sel(wrapper, FOUR_PAR).text()).not.toContain('Demande')
+  })
+})
+
+describe('lumières plein écran : indications et refus des modèles', () => {
+  it('dit quand le nombre de pupitres réglé avec les buzzers diffère du modèle', async () => {
+    const config = getRoomHardwareConfig()
+    await saveRoomHardwareConfig({ ...config, desksCount: 4 })
+    const { wrapper } = await toEquip()
+    expect(sel(wrapper, FOUR_PAR).text()).not.toContain('tu as réglé')
+    expect(sel(wrapper, SIX_DESKS).text()).toContain('tu as réglé 4 pupitres')
+  })
+
+  it('un modèle refusé par l’assistant affiche son propre message, sans rien changer', async () => {
+    const broken: RoomTemplate = {
+      id: 'broken',
+      name: 'Modèle cassé',
+      desksCount: 4,
+      fixtures: [{ id: 'x', name: 'X', profileId: 'inconnu' }],
+      customProfiles: [],
+    }
+    await seedLighting({ fixtures: [] })
+    const templates = ROOM_TEMPLATES as RoomTemplate[]
+    templates.push(broken)
+    try {
+      const { wrapper } = await toEquip()
+      await click(wrapper, 'lights-model-broken')
+      expect(sel(wrapper, 'lights-equip-error').text()).toContain('n’a pas pu être appliqué')
+      expect(sel(wrapper, 'lights-equip-error').text()).not.toContain('fumée')
+      expect(stepOf(wrapper)).toBe('equip')
+    } finally {
+      templates.pop()
+    }
   })
 })
 

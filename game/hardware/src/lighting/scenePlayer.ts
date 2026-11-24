@@ -21,8 +21,17 @@ export type ScenePlayerOptions = {
 }
 
 export type ScenePlayer = {
-  /** Lance une scène ; refusée (false) si une scène plus prioritaire est en cours. */
-  play: (scene: SceneDefinition, context: SceneContext, now: number) => boolean
+  /**
+   * Lance une scène ; refusée (false) si une scène plus prioritaire est en cours. `restore` :
+   * restitue seulement l'état lumineux (étapes de couleur et attentes), sans fumée ni éclair, y
+   * compris dans les scènes enchaînées par `next` (reprise après une pause).
+   */
+  play: (
+    scene: SceneDefinition,
+    context: SceneContext,
+    now: number,
+    playOptions?: { restore?: boolean }
+  ) => boolean
   /** Fait avancer la scène et met à jour l'état des appareils. */
   update: (now: number) => void
   stop: () => void
@@ -38,7 +47,15 @@ type Active = {
   stepIndex: number
   stepStartedAt: number
   from: Map<string, FixtureState>
+  /** Rejeu de reprise : la scène (et celles qu'elle enchaîne) est vidée de ses pas `smoke` et `flash`. */
+  restore: boolean
 }
+
+/** Scène de reprise : ni jet de fumée ni éclair, seulement l'état lumineux. */
+const forRestore = (scene: SceneDefinition): SceneDefinition => ({
+  ...scene,
+  steps: scene.steps.filter((step) => step.type !== 'smoke' && step.type !== 'flash'),
+})
 
 const MAX_INSTANT_STEPS = 64
 const LATE_SMOKE_TOLERANCE_MS = 500
@@ -304,7 +321,7 @@ export function createScenePlayer(options: ScenePlayerOptions): ScenePlayer {
           at += Math.floor((now - at) / lap) * lap
         }
         startedAt.set(next.id, at)
-        entry = enterStep({ ...entry, scene: next }, 0, at, now)
+        entry = enterStep({ ...entry, scene: entry.restore ? forRestore(next) : next }, 0, at, now)
         active = entry
         continue
       }
@@ -338,12 +355,20 @@ export function createScenePlayer(options: ScenePlayerOptions): ScenePlayer {
   }
 
   return {
-    play(scene, context, now) {
+    play(scene, context, now, playOptions) {
       if (active && scene.priority < active.scene.priority) {
         return false
       }
+      const restore = playOptions?.restore === true
       // `held` reste : `commit` l'efface appareil par appareil quand la nouvelle scène les vise.
-      const entry: Active = { scene, context, stepIndex: 0, stepStartedAt: now, from: new Map() }
+      const entry: Active = {
+        scene: restore ? forRestore(scene) : scene,
+        context,
+        stepIndex: 0,
+        stepStartedAt: now,
+        from: new Map(),
+        restore,
+      }
       active = enterStep(entry, 0, now, now)
       update(now)
       return true

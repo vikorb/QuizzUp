@@ -1,0 +1,65 @@
+{
+  "players": {
+    "menu": "Players",
+    "title": "Players",
+    "subtitle": "Players of the company, recognised by their e-mail address",
+    "anonymous": "{count} player without an e-mail address (counted only) | {count} players without an e-mail address (counted only)",
+    "filters": {
+      "title": "Search",
+      "company": "Company",
+      "search": "Player name",
+      "searchPlaceholder": "Part of the name",
+      "searchByName": "The search is by player name, not by e-mail address: remove the « {'@'} »."
+    },
+    "actions": {
+      "export": "Export offers (CSV)",
+      "unsubscribe": "Remove {name} from offers",
+      "erase": "Erase {name}"
+    },
+    "offers": {
+      "accepted": "Accepted",
+      "declined": "No"
+    },
+    "table": {
+      "title": "Players",
+      "loading": "Loading players...",
+      "empty": "No players yet.",
+      "emptySearch": "No player has this name.",
+      "retry": "Retry",
+      "columns": {
+        "name": "Name",
+        "email": "E-mail",
+        "sessions": "Games",
+        "lastPlayedAt": "Last game",
+        "bestScore": "Best score",
+        "offers": "Offers",
+        "actions": "Actions"
+      }
+    },
+    "erase": {
+      "title": "Erase this player?",
+      "message": "Erasing {name} ({email}) is permanent and cannot be undone. Their e-mail address and consents are removed from every game of the company, and so are their pending sign-up requests. Their name is replaced by « Joueur effacé » in games already played.",
+      "confirm": "Erase permanently"
+    },
+    "unsubscribe": {
+      "title": "Remove this player from offers?",
+      "message": "{name} ({email}) will no longer receive the venue's offers. You cannot undo this removal from this screen.",
+      "confirm": "Remove from offers"
+    },
+    "banners": {
+      "unsubscribed": "The venue's offers are withdrawn for {name}.",
+      "erased": "{name} has been permanently erased."
+    },
+    "errors": {
+      "missingToken": "Your session has expired: please sign in again.",
+      "unauthorized": "You must be signed in to view players.",
+      "forbidden": "You do not have the rights for this action on players.",
+      "apiUnreachable": "API unreachable.",
+      "invalidJson": "The server response is unreadable.",
+      "invalidParams": "Invalid parameters.",
+      "invalidBody": "The request sent is invalid.",
+      "playerNotFound": "This player cannot be found: they may already have been erased.",
+      "serverError": "Server error."
+    }
+  }
+}
