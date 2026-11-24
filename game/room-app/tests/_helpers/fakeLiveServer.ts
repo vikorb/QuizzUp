@@ -38,9 +38,12 @@ export function createFakeLiveServer() {
   const encoder = new TextEncoder()
   const streams: FakeStream[] = []
   const statuses: FakeStatusCall[] = []
-  const state: { streamReply: StreamReply; statusReply: StatusReply } = {
+  /** Accusés de commande reçus (`POST /room/commands/:id/result`). */
+  const acks: { commandId: string; body: Record<string, unknown> }[] = []
+  const state: { streamReply: StreamReply; statusReply: StatusReply; ackReply: StreamReply } = {
     streamReply: { status: 200 },
     statusReply: { status: 204 },
+    ackReply: { status: 204 },
   }
 
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init: RequestInit = {}) => {
@@ -113,6 +116,15 @@ export function createFakeLiveServer() {
       })
     }
 
+    const ack = /\/room\/commands\/([^/]+)\/result$/.exec(url)
+
+    if (ack) {
+      acks.push({ commandId: ack[1] ?? '', body: JSON.parse(String(init.body)) })
+      return state.ackReply === 'network-error'
+        ? networkError()
+        : new Response(null, { status: state.ackReply.status })
+    }
+
     throw new Error(`Appel réseau inattendu : ${url}`)
   })
 
@@ -120,6 +132,8 @@ export function createFakeLiveServer() {
     fetchMock,
     streams,
     statuses,
+    acks,
+    setAckReply: (reply: StreamReply) => (state.ackReply = reply),
     setStreamReply: (reply: StreamReply) => (state.streamReply = reply),
     setStatusReply: (reply: StatusReply) => (state.statusReply = reply),
   }
