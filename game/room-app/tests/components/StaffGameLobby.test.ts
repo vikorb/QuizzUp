@@ -203,7 +203,8 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
     await wrapper.find('[data-test="start-game"]').trigger('click')
     await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('play'))
 
-    expect(start).toHaveBeenCalledWith('token-salle', 42)
+    // Les pupitres chargés partent avec la demande : le backoffice vérifie qu'ils n'ont pas changé.
+    expect(start).toHaveBeenCalledWith('token-salle', 42, [3, 1])
     expect(player.preload).toHaveBeenCalled()
     const { state } = useRoomGame()
     expect(state.value?.setup.seed).toBe(123_456)
@@ -290,7 +291,7 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
           { participants: [GAME.participants[0]!] }
         )
 
-        expect(start).toHaveBeenCalledWith('token-salle', 42)
+        expect(start).toHaveBeenCalledWith('token-salle', 42, [3])
         expect(wrapper.text()).not.toContain('Aucun mini-jeu choisi n’est jouable')
       })
     })
@@ -317,6 +318,32 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('n’est plus disponible')
     expect(useRoomGame().state.value).toBeNull()
+  })
+
+  it('n’entre pas en partie et recharge le lobby quand les joueurs ont changé pendant la préparation', async () => {
+    const added = { id: 8, podium: 2, displayName: 'Noé', score: 0 }
+    const current = vi
+      .spyOn(roomApi, 'fetchCurrentGame')
+      .mockResolvedValueOnce(GAME)
+      .mockResolvedValue({ ...GAME, participants: [...GAME.participants, added] })
+    vi.spyOn(roomApi, 'fetchCurrentContent').mockResolvedValue(getPlayableThemes())
+    const start = vi
+      .spyOn(roomApi, 'startRoomGame')
+      .mockRejectedValue(new roomApi.RoomApiError(409, 'game_participants_changed'))
+    const { wrapper, router } = await mountWithApp(LobbyView, { route: '/lobby' })
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('Noé')
+
+    await wrapper.find('[data-test="start-game"]').trigger('click')
+    await flushPromises()
+
+    expect(start).toHaveBeenCalledWith('token-salle', 42, [3, 1])
+    expect(router.currentRoute.value.name).not.toBe('play')
+    expect(useRoomGame().state.value).toBeNull()
+    expect(current).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('Les joueurs ont changé')
+    expect(wrapper.text()).toContain('Noé')
+    expect(wrapper.find('[data-test="start-game"]').attributes('disabled')).toBeUndefined()
   })
 
   it('signale un backoffice injoignable', async () => {

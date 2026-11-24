@@ -137,6 +137,8 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
           'updated_at as updatedAt',
           'deleted_at as deletedAt',
           'logo_key as logoKey',
+          'voucher_label as voucherLabel',
+          'voucher_validity_days as voucherValidityDays',
         ])
 
       const createdCompany = Array.isArray(inserted) ? inserted[0] : inserted

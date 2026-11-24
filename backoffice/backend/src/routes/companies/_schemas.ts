@@ -10,6 +10,9 @@ import {
   COMPANY_STATUS_ACTIVE,
   COMPANY_STATUS_DELETED,
   COMPANY_STATUS_INACTIVE,
+  VOUCHER_LABEL_MAX_LENGTH,
+  VOUCHER_VALIDITY_MAX_DAYS,
+  VOUCHER_VALIDITY_MIN_DAYS,
 } from '@quizzup/shared'
 
 export const paramsSchema = z.object({
@@ -49,13 +52,24 @@ export const updateCompanySchema = z
     name: z.string().trim().min(2).max(120).optional(),
     email: z.string().trim().toLowerCase().email().max(255).optional(),
     status: companyStatusSchema.optional(),
+    // Libellé vide ou `null` : bons désactivés.
+    voucherLabel: z
+      .string()
+      .trim()
+      .max(VOUCHER_LABEL_MAX_LENGTH)
+      .nullable()
+      .transform((label) => label || null)
+      .optional(),
+    voucherValidityDays: z
+      .number()
+      .int()
+      .min(VOUCHER_VALIDITY_MIN_DAYS)
+      .max(VOUCHER_VALIDITY_MAX_DAYS)
+      .optional(),
   })
-  .refine(
-    (body) => body.name !== undefined || body.email !== undefined || body.status !== undefined,
-    {
-      message: 'empty_body',
-    }
-  )
+  .refine((body) => Object.values(body).some((value) => value !== undefined), {
+    message: 'empty_body',
+  })
 
 export const updateCompanyStatusSchema = z.object({
   status: companyStatusSchema,

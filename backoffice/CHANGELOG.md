@@ -10,6 +10,13 @@ Format inspiré de Keep a Changelog.
 
 - Formulaire de question : sélecteur « Effet sur l'extrait » (aucun, très court, à l'envers, ralenti), visible seulement pour une question audio. L'effet est relu à la modification, remis à « aucun » quand la question cesse d'être audio, et les erreurs de l'API (`question_audio_effect_invalid`, `audio_effect_requires_audio`) s'affichent sous le champ.
   US: US-AUDIO-02 (#144)
+- Playlists, thèmes : un thème audio peut porter une playlist du fournisseur de musique (`playlistRef` sur `POST` / `PATCH` / `GET /themes`), vérifiée à l'enregistrement (400 `theme_playlist_ref_invalid`, `theme_playlist_mode_invalid` ; 422 `theme_playlist_not_found`, `theme_playlist_too_small` ; 502 `media_provider_unavailable`). Un thème qui quitte le mode audio perd sa playlist.
+  US: US-PLAYLIST-01 (#204)
+- Bons de fidélisation, API : émission d'un bon pour un participant d'une partie terminée, liste par partie et par compagnie, recherche et utilisation par code (le code voyage dans le corps, jamais dans l'adresse), annulation réservée aux administrateurs. Recherche publique `POST /public/v1/vouchers/lookup`, limitée à 20 requêtes par minute, qui ne révèle ni le joueur ni la partie. Réglages par compagnie : libellé du bon (vide : bons désactivés) et durée de validité (1 à 730 jours, 90 par défaut).
+  US: US-VOUCHER-01 (#156)
+- Accueil des joueurs, API du personnel : lien d'inscription d'une partie en attente (`POST` / `DELETE …/games/:gameId/join`, jeton valable 180 minutes, renouvelable), demandes d'inscription (`GET …/registrations`, validation avec attribution d'un pupitre, refus), ajout et retrait d'un participant tant que la partie est en attente, `openJoin` à la création. `join` et `pendingRegistrationsCount` sont renvoyés avec la partie, y compris à l'écran de salle. Les demandes de plus de 24 heures ou d'une partie qui n'est plus en attente sont purgées. `room_busy` ne vise plus que la partie en attente : une partie en cours ne bloque plus la préparation de la suivante.
+  US: US-JOIN-01 (#166)
+
 - Console éditeur : écran des demandes de démonstration (filtre « À traiter », « Traitées », « Toutes » ; marquer une demande traitée ; supprimer), réservé au superadmin.
   US: US-CONSOLE-01 (#161)
 
