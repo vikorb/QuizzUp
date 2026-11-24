@@ -28,6 +28,7 @@ import {
   MAX_FLASHES_PER_SECOND,
   SCENE_IDS,
 } from './scenes'
+import { parseScenes } from './showConfig'
 import type { SmokeController, SmokeFireResult, SmokeState } from './smoke'
 import { createSmokeController } from './smoke'
 
@@ -232,7 +233,10 @@ export function createLightingController(options: LightingControllerOptions): Li
   const fixtures = rig.fixtures
 
   const scenes = new Map<string, SceneDefinition>()
-  for (const scene of [...DEFAULT_SCENES, ...(options.scenes ?? [])]) {
+  // Les scènes de la salle sont rebornées ici : une config qui n'est pas passée par
+  // `parseRoomHardwareConfig` ne contourne ni les plafonds d'éclairs ni la règle de la fumée.
+  const roomScenes = parseScenes(config.scenes).scenes
+  for (const scene of [...DEFAULT_SCENES, ...roomScenes, ...(options.scenes ?? [])]) {
     scenes.set(scene.id, scene)
   }
   const bindings: Record<string, string | null> = { ...DEFAULT_BINDINGS, ...config.bindings }
@@ -244,6 +248,7 @@ export function createLightingController(options: LightingControllerOptions): Li
   const player: ScenePlayer = createScenePlayer({
     fixtures,
     deskColors: config.deskColors,
+    resolveScene: (sceneId) => scenes.get(sceneId),
     onSmoke: (durationMs) => {
       const result = fireSmoke(durationMs)
       if (!result.ok) {
@@ -914,8 +919,14 @@ export function createLightingController(options: LightingControllerOptions): Li
       // Égalité en tête : aucun pupitre à mettre en avant, scène dédiée qui vise toute la salle.
       return { key: winners.length > 1 && desk === null ? 'game_ended_tie' : event.type, desk }
     }
+    // Début de manche : `round_started.<miniGame>` si la salle l'a réglé (`null` compris), sinon
+    // `round_started` pour tous les mini-jeux.
+    const specific =
+      event.type === 'round_started' && typeof payload.miniGame === 'string'
+        ? `round_started.${payload.miniGame}`
+        : null
     return {
-      key: event.type,
+      key: specific !== null && Object.hasOwn(bindings, specific) ? specific : event.type,
       desk: explicitDesk ?? participantDesk(payload.participantId, options.resolveDesk),
     }
   }
