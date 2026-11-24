@@ -71,11 +71,18 @@ const companyApiLogsRoutes: FastifyPluginAsync = async (app) => {
       }
 
       if (before) {
-        query.where('id', '<', before)
+        // Curseur composite sur l'ordre de l'index (company_id, created_at DESC, id DESC) : `before`
+        // est l'`id` de la dernière ligne lue. Un `id` hors de la compagnie ne retrouve aucune ligne
+        // de référence : la comparaison est nulle et la page vide.
+        query.whereRaw(
+          '(created_at, id) < (SELECT created_at, id FROM api_request_logs WHERE id = ? AND company_id = ?)',
+          [before, companyId]
+        )
       }
 
       // Une ligne de plus que la page : sa présence dit s'il y a une page suivante.
       const rows = (await query
+        .orderBy('created_at', 'desc')
         .orderBy('id', 'desc')
         .limit(limit + 1)
         .select(

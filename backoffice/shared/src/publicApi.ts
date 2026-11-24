@@ -18,6 +18,9 @@ export type ApiKeyStatus = (typeof API_KEY_STATUSES)[number]
 /** Début de tout secret d'API (`qzk_<préfixe>_<secret>`) : permet de le repérer dans du code. */
 export const API_KEY_TOKEN_PREFIX = 'qzk_' as const
 
+/** Format complet d'un secret d'API : `qzk_<8 hex>_<32 octets en base64url, soit 43 caractères>`. */
+export const API_KEY_TOKEN_PATTERN = /^qzk_[0-9a-f]{8}_[A-Za-z0-9_-]{43}$/
+
 /** Nombre maximal de clés actives par compagnie. */
 export const API_KEY_MAX_ACTIVE = 10 as const
 
@@ -47,6 +50,9 @@ export type ApiKey = {
   status: ApiKeyStatus
   createdAt: string
   lastUsedAt: string | null
+  /** Date de révocation (ISO 8601) ; `null` tant que la clé est active. */
+  revokedAt: string | null
+  /** `null` si le créateur est un compte hors de la compagnie (superadmin de l'éditeur) ou supprimé. */
   createdBy: { id: number; username: string } | null
 }
 

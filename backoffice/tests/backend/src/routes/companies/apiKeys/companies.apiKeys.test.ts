@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   API_KEY_MAX_ACTIVE,
+  API_KEY_TOKEN_PATTERN,
   API_KEY_NAME_MAX_LENGTH,
   API_KEY_STATUS_ACTIVE,
   API_KEY_STATUS_REVOKED,
@@ -12,7 +13,7 @@ import {
 } from '@quizzup/shared'
 import { generateApiKey, hashApiKey } from '@backend/security/apiKeys'
 import companyApiKeysRoutes from '@backend/routes/companies/apiKeys'
-import { dbState, lockedTables } from '../../_helpers/mockDb'
+import { db, dbState, lockedTables } from '../../_helpers/mockDb'
 import { otherCompanyAdmin, seedApiKey, staffUserOfCompany1 } from '../../_helpers/apiKeys'
 import { resetRouteMocksBeforeEach } from '../../_helpers/resetRouteMocks'
 import {
@@ -89,9 +90,38 @@ describe('GET /companies/:companyId/api-keys', () => {
       status: API_KEY_STATUS_REVOKED,
       createdAt: '2026-11-20T10:00:00.000Z',
       lastUsedAt: '2026-11-21T09:00:00.000Z',
+      revokedAt: '2026-11-21T10:00:00.000Z',
       createdBy: null,
     })
-    expect(apiKeys[1]).toMatchObject({ createdBy: { id: 2, username: 'alice' }, lastUsedAt: null })
+    expect(apiKeys[1]).toMatchObject({
+      createdBy: { id: 2, username: 'alice' },
+      lastUsedAt: null,
+      revokedAt: null,
+    })
+  })
+
+  it('does not name a creator who is not an account of the company', async () => {
+    // Dans le mockDb : 1 = root (superadmin, compagnie 1), 2 = alice (compagnie 1), 3 = bob (compagnie 2).
+    seedApiKey({ name: 'Créée par l’éditeur', company_id: 2, created_by_admin_id: 1 })
+    seedApiKey({ name: 'Créée par Bob', company_id: 2, created_by_admin_id: 3 })
+    seedApiKey({ name: 'Créée par un compte de B', created_by_admin_id: 3 })
+    seedApiKey({ name: 'Créée par Alice', created_by_admin_id: 2 })
+
+    const asA = await request(companyAdminUser, 'GET', URL_COMPANY_1)
+    const asB = await request(otherCompanyAdmin, 'GET', '/companies/2/api-keys')
+    const createdBy = (response: typeof asA) =>
+      parseJson<{ apiKeys: ApiKeyBody[] }>(response).apiKeys.map((key) => [key.name, key.createdBy])
+
+    expect(createdBy(asB)).toEqual([
+      ['Créée par Bob', { id: 3, username: 'bob' }],
+      ['Créée par l’éditeur', null],
+    ])
+    expect(createdBy(asA)).toEqual([
+      ['Créée par Alice', { id: 2, username: 'alice' }],
+      ['Créée par un compte de B', null],
+    ])
+    expect(asA.body).not.toContain('bob')
+    expect(asB.body).not.toContain('root')
   })
 
   it('never returns the hash or the secret', async () => {
@@ -170,7 +200,7 @@ describe('POST /companies/:companyId/api-keys', () => {
 
     const { apiKey, secret } = parseJson<{ apiKey: ApiKeyBody; secret: string }>(response)
 
-    expect(secret).toMatch(/^qzk_[0-9a-f]{8}_[A-Za-z0-9_-]{43}$/)
+    expect(secret).toMatch(API_KEY_TOKEN_PATTERN)
     expect(apiKey).toEqual({
       id: 1,
       name: 'Site web du centre',
@@ -178,6 +208,7 @@ describe('POST /companies/:companyId/api-keys', () => {
       status: API_KEY_STATUS_ACTIVE,
       createdAt: expect.any(String),
       lastUsedAt: null,
+      revokedAt: null,
       createdBy: { id: 2, username: 'alice' },
     })
 
@@ -257,6 +288,32 @@ describe('POST /companies/:companyId/api-keys', () => {
     expect(generateApiKey).toHaveBeenCalledTimes(2)
     expect(parseJson<{ secret: string }>(response).secret.slice(0, 12)).not.toBe(taken.prefix)
     expect(dbState.api_keys).toHaveLength(2)
+  })
+
+  it('retries with a new draw when the hash is already taken', async () => {
+    const taken = realGenerateApiKey()
+    seedApiKey({ key_prefix: 'qzk_ffffffff', key_hash: taken.hash, company_id: 2 })
+    vi.mocked(generateApiKey).mockReturnValueOnce({ ...realGenerateApiKey(), hash: taken.hash })
+
+    const response = await request(companyAdminUser, 'POST', URL_COMPANY_1, { name: 'Retirage' })
+
+    expect(response.statusCode).toBe(201)
+    expect(generateApiKey).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not retry a unique violation on another constraint, and answers 500', async () => {
+    vi.spyOn(db, 'transaction').mockRejectedValueOnce(
+      Object.assign(new Error('duplicate key'), {
+        code: '23505',
+        constraint: 'api_keys_other_unique',
+      })
+    )
+
+    const response = await request(companyAdminUser, 'POST', URL_COMPANY_1, { name: 'Autre' })
+
+    expect(response.statusCode).toBe(500)
+    expect(generateApiKey).toHaveBeenCalledTimes(1)
+    expect(dbState.api_keys).toHaveLength(0)
   })
 
   it('gives up with a 500 after repeated collisions, without storing anything', async () => {

@@ -51,7 +51,7 @@ const companyApiKeyIdRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(404).send({ error: 'not_found' })
       }
 
-      const [apiKey] = await toApiKeys([row])
+      const [apiKey] = await toApiKeys([row], companyId)
 
       return { apiKey }
     }

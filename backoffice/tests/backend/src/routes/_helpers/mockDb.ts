@@ -553,6 +553,34 @@ class QueryBuilder {
       return this
     }
 
+    // Curseur du journal des appels : `(created_at, id) < (SELECT created_at, id FROM <table>
+    // WHERE id = ? AND company_id = ?)`. Sans ligne de référence, SQL compare à NULL : rien ne passe.
+    const cursor = sql.match(
+      /^\(created_at, id\) < \(SELECT created_at, id FROM (\w+) WHERE id = \? AND company_id = \?\)$/i
+    )
+
+    if (cursor?.[1]) {
+      const reference = getTableRows(cursor[1] as TableName).find(
+        (row) =>
+          Number(row.id) === Number(bindings[0]) && Number(row.company_id) === Number(bindings[1])
+      )
+
+      this.filters.push((row) => {
+        if (!reference) {
+          return false
+        }
+
+        const time = new Date(row.created_at as string).getTime()
+        const referenceTime = new Date(reference.created_at as string).getTime()
+
+        return (
+          time < referenceTime || (time === referenceTime && Number(row.id) < Number(reference.id))
+        )
+      })
+
+      return this
+    }
+
     const columnMatch = sql.match(/lower\(([\w.]+)\)/i)
     const column = columnMatch?.[1] ? normalizeColumn(columnMatch[1]) : null
     const expected = String(bindings[0] ?? '').toLowerCase()
@@ -761,13 +789,15 @@ class QueryBuilder {
   // Index uniques d'`api_keys` (`key_prefix`, `key_hash`) : la base réelle refuse un doublon.
   private assertUniqueColumns(payload: Row): void {
     const columns = this.table === 'api_keys' ? ['key_prefix', 'key_hash'] : []
-    const taken = columns.some((column) =>
+    const taken = columns.find((column) =>
       getTableRows(this.table).some((row) => row[column] === payload[column])
     )
 
     if (taken) {
       throw Object.assign(new Error('duplicate key value violates unique constraint'), {
         code: '23505',
+        // Nom de l'index unique, comme le champ `constraint` de l'erreur `pg`.
+        constraint: `api_keys_${taken}_unique`,
       })
     }
   }

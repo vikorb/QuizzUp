@@ -105,6 +105,37 @@ describe('GET /companies/:companyId/api-logs', () => {
     expect(last.nextBefore).toBeNull()
   })
 
+  it('orders and paginates by date first, the id only breaking ties', async () => {
+    seedApiKey()
+    seedLog({ created_at: '2026-11-20T10:00:00.000Z' }) // id 1
+    seedLog({ created_at: '2026-11-21T10:00:00.000Z' }) // id 2
+    seedLog({ created_at: '2026-11-19T10:00:00.000Z' }) // id 3 : le plus grand id, le plus ancien
+    seedLog({ created_at: '2026-11-21T10:00:00.000Z' }) // id 4 : même date que 2
+
+    const first = parseJson<LogsBody>(await get(companyAdminUser, `${URL_COMPANY_1}?limit=2`))
+    const second = parseJson<LogsBody>(
+      await get(companyAdminUser, `${URL_COMPANY_1}?limit=2&before=${first.nextBefore}`)
+    )
+
+    expect(first.logs.map((log) => log.id)).toEqual([4, 2])
+    expect(first.nextBefore).toBe(2)
+    expect(second.logs.map((log) => log.id)).toEqual([1, 3])
+    expect(second.nextBefore).toBeNull()
+  })
+
+  it('answers an empty page when the cursor is not a log of the company', async () => {
+    seedApiKey()
+    seedApiKey({ company_id: 2 })
+    seedLog({ created_at: '2026-11-20T10:00:00.000Z' })
+    seedLog({ company_id: 2, api_key_id: 2, created_at: '2026-11-22T10:00:00.000Z' })
+
+    const unknown = await get(companyAdminUser, `${URL_COMPANY_1}?before=999`)
+    const ofAnotherCompany = await get(companyAdminUser, `${URL_COMPANY_1}?before=2`)
+
+    expect(parseJson<LogsBody>(unknown)).toEqual({ logs: [], nextBefore: null })
+    expect(parseJson<LogsBody>(ofAnotherCompany)).toEqual({ logs: [], nextBefore: null })
+  })
+
   it('caps the page at the maximum size', async () => {
     seedApiKey()
     for (let index = 0; index < API_LOG_LIST_MAX_LIMIT + 5; index += 1) {

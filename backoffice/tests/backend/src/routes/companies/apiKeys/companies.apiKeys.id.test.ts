@@ -41,6 +41,7 @@ describe('DELETE /companies/:companyId/api-keys/:apiKeyId', () => {
     expect(parseJson<{ apiKey: Record<string, unknown> }>(response).apiKey).toMatchObject({
       id: 1,
       status: API_KEY_STATUS_REVOKED,
+      revokedAt: MOCK_NOW,
       createdBy: { id: 2, username: 'alice' },
     })
     expect(dbState.api_keys[0]).toMatchObject({
@@ -56,9 +57,10 @@ describe('DELETE /companies/:companyId/api-keys/:apiKeyId', () => {
     const response = await revoke(companyAdminUser, '/companies/1/api-keys/1')
 
     expect(response.statusCode).toBe(200)
-    expect(parseJson<{ apiKey: Record<string, unknown> }>(response).apiKey.status).toBe(
-      API_KEY_STATUS_REVOKED
-    )
+    expect(parseJson<{ apiKey: Record<string, unknown> }>(response).apiKey).toMatchObject({
+      status: API_KEY_STATUS_REVOKED,
+      revokedAt: '2026-11-21T10:00:00.000Z',
+    })
     expect(dbState.api_keys[0]?.deleted_at).toBe('2026-11-21T10:00:00.000Z')
   })
 

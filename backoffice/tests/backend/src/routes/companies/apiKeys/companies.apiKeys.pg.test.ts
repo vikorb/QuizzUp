@@ -24,6 +24,7 @@ type Db = typeof import('@backend/db').default
 describe.skipIf(!PG_INTEGRATION_URL)("création de clés d'API sur PostgreSQL", () => {
   let db: Db
   let app: Awaited<ReturnType<typeof createRouteApp>>
+  let logsApp: Awaited<ReturnType<typeof createRouteApp>>
 
   beforeAll(async () => {
     process.env.DATABASE_URL = PG_INTEGRATION_URL
@@ -35,10 +36,12 @@ describe.skipIf(!PG_INTEGRATION_URL)("création de clés d'API sur PostgreSQL", 
     const routes = (await import('@backend/routes/companies/apiKeys')).default
 
     app = await createRouteApp(routes)
+    logsApp = await createRouteApp((await import('@backend/routes/companies/apiLogs')).default)
   }, 120_000)
 
   afterAll(async () => {
     await app?.close()
+    await logsApp?.close()
     await db?.destroy()
   }, 30_000)
 
@@ -96,5 +99,69 @@ describe.skipIf(!PG_INTEGRATION_URL)("création de clés d'API sur PostgreSQL", 
     expect(JSON.stringify(stored)).not.toContain(secret)
     expect(stored.key_prefix).toBe(secret.slice(0, 12))
     expect(stored.key_hash).toHaveLength(64)
+  })
+
+  it('names the unique index violated by a duplicate prefix or hash (the creation retries on both)', async () => {
+    const base = { company_id: 1, name: 'A', key_prefix: 'qzk_00000001', key_hash: 'a'.repeat(64) }
+
+    await db('api_keys').insert(base)
+
+    await expect(
+      db('api_keys').insert({ ...base, key_hash: 'b'.repeat(64) })
+    ).rejects.toMatchObject({ code: '23505', constraint: 'api_keys_key_prefix_unique' })
+    await expect(
+      db('api_keys').insert({ ...base, key_prefix: 'qzk_00000002' })
+    ).rejects.toMatchObject({ code: '23505', constraint: 'api_keys_key_hash_unique' })
+  })
+
+  describe('journal des appels', () => {
+    const readLogs = async (query: string) =>
+      (
+        await logsApp.inject({
+          method: 'GET',
+          url: `/companies/1/api-logs?${query}`,
+          headers: authHeaders(companyAdminUser),
+        })
+      ).json() as { logs: Array<{ id: number }>; nextBefore: number | null }
+
+    it('orders and paginates by date, not by id, and returns an empty page for an unknown cursor', async () => {
+      await db('companies').insert({ id: 2, name: 'Centre B', email: 'b@x.test' })
+      await db('api_keys').insert([
+        { id: 1, company_id: 1, name: 'A', key_prefix: 'qzk_00000001', key_hash: 'a'.repeat(64) },
+        { id: 2, company_id: 2, name: 'B', key_prefix: 'qzk_00000002', key_hash: 'b'.repeat(64) },
+      ])
+
+      const log = (id: number, createdAt: string, companyId = 1) => ({
+        id,
+        company_id: companyId,
+        api_key_id: companyId,
+        method: 'GET',
+        route: '/public/v1/rooms',
+        status_code: 200,
+        duration_ms: 5,
+        created_at: createdAt,
+      })
+
+      // L'id le plus grand (3) est le plus ancien ; 4 et 2 ont la même date, 4 gagne par l'id.
+      await db('api_request_logs').insert([
+        log(1, '2026-11-20T10:00:00.000Z'),
+        log(2, '2026-11-21T10:00:00.000Z'),
+        log(3, '2026-11-19T10:00:00.000Z'),
+        log(4, '2026-11-21T10:00:00.000Z'),
+        log(5, '2026-11-22T10:00:00.000Z', 2),
+      ])
+
+      const first = await readLogs('limit=2')
+      const second = await readLogs(`limit=2&before=${first.nextBefore}`)
+
+      expect(first.logs.map((l) => l.id)).toEqual([4, 2])
+      expect(first.nextBefore).toBe(2)
+      expect(second.logs.map((l) => l.id)).toEqual([1, 3])
+      expect(second.nextBefore).toBeNull()
+
+      // Un curseur qui n'est pas une ligne de la compagnie (inexistant, ou d'une autre) : page vide.
+      expect(await readLogs('before=999')).toEqual({ logs: [], nextBefore: null })
+      expect(await readLogs('before=5')).toEqual({ logs: [], nextBefore: null })
+    }, 30_000)
   })
 })

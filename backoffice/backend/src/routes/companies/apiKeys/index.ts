@@ -20,6 +20,13 @@ import { apiKeySelect, toApiKeys, type ApiKeyDbRow } from './_shared'
 /** Collision de préfixe (32 bits) : on retire un autre jeton plutôt que de répondre 500. */
 const CREATE_MAX_ATTEMPTS = 5
 
+/** Index uniques d'`api_keys` que seul un nouveau tirage de la clé peut éviter. */
+const GENERATION_CONSTRAINTS = new Set(['api_keys_key_prefix_unique', 'api_keys_key_hash_unique'])
+
+function constraintOf(error: unknown): string {
+  return String((error as { constraint?: string }).constraint ?? '')
+}
+
 type CreateOutcome =
   | { row: ApiKeyDbRow }
   | { error: 'not_found' | 'company_deleted' | 'company_inactive' | 'api_key_limit_reached' }
@@ -62,7 +69,7 @@ const companyApiKeysRoutes: FastifyPluginAsync = async (app) => {
         .orderBy('id', 'desc')
         .select(apiKeySelect)) as ApiKeyDbRow[]
 
-      return { apiKeys: await toApiKeys(rows) }
+      return { apiKeys: await toApiKeys(rows, companyId) }
     }
   )
 
@@ -150,7 +157,7 @@ const companyApiKeysRoutes: FastifyPluginAsync = async (app) => {
             return reply.code(ERROR_STATUS[outcome.error]).send({ error: outcome.error })
           }
 
-          const [apiKey] = await toApiKeys([outcome.row])
+          const [apiKey] = await toApiKeys([outcome.row], companyId)
 
           // Le secret n'est renvoyé qu'ici : ni stocké, ni journalisé, ni mis en cache.
           return reply
@@ -158,7 +165,8 @@ const companyApiKeysRoutes: FastifyPluginAsync = async (app) => {
             .header('Cache-Control', 'no-store')
             .send({ apiKey, secret: generated.token })
         } catch (error) {
-          if (!isUniqueViolation(error)) {
+          // Seule une collision sur le préfixe ou l'empreinte se règle par un nouveau tirage.
+          if (!isUniqueViolation(error) || !GENERATION_CONSTRAINTS.has(constraintOf(error))) {
             throw error
           }
         }
