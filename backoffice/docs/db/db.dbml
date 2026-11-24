@@ -300,6 +300,7 @@ Table games {
   admin_id bigint [note: 'Compte qui a lancé la partie ; null pour une réservation faite par l’API (alors api_key_id est renseigné)']
   api_key_id bigint [note: 'Clé d’API qui a créé la réservation (lot 14) ; null pour une partie créée au backoffice']
 
+  format varchar(30) [note: 'discovery, short, standard ou custom (GAME_FORMATS, CHECK games_format_check) ; null = partie d’avant les formats (« Personnalisé »). Simple étiquette : rounds_count et questions_per_round restent la vérité du moteur']
   rounds_count smallint [not null, default: 10, note: '1 à 20']
   questions_per_round smallint [not null, default: 10, note: '1 à 20']
   seed bigint [not null, note: 'Graine des tirages : rejouer la partie à l’identique']

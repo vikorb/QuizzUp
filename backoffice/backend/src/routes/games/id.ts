@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { FastifyPluginAsync } from 'fastify'
 
 import {
+  GAME_FORMAT_CUSTOM,
   GAME_STATE_ABORTED,
   GAME_STATE_PENDING,
   GAME_STATE_RUNNING,
@@ -145,6 +146,12 @@ const gamesIdRoutes: FastifyPluginAsync = async (app) => {
         room_id: body.roomId,
         scheduled_at: startsAt.toISOString(),
         scheduled_end_at: endsAt.toISOString(),
+        // Des nombres qui changent ne correspondent plus à un format fixe (arbitrage 15).
+        format:
+          (body.roundsCount ?? game.roundsCount) !== game.roundsCount ||
+          (body.questionsPerRound ?? game.questionsPerRound) !== game.questionsPerRound
+            ? GAME_FORMAT_CUSTOM
+            : undefined,
         rounds_count: body.roundsCount,
         questions_per_round: body.questionsPerRound,
         mini_games: body.miniGames ? JSON.stringify(body.miniGames) : body.miniGames,
