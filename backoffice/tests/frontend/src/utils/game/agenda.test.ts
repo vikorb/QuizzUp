@@ -18,6 +18,7 @@ import {
   type AgendaEntry,
   buildAgendaTimeline,
   canCancelScheduledGame,
+  canEditScheduledGame,
   canOpenScheduledGame,
   formatAgendaTime,
   getAgendaStateKind,
@@ -27,6 +28,7 @@ import {
   getLocalDate,
   getRoomTimezone,
   isCalendarDate,
+  parseAgendaRequest,
   shiftDate,
 } from '@/utils/game/agenda'
 
@@ -419,6 +421,15 @@ describe('utils/game/agenda', () => {
       expect(canCancelScheduledGame({ ...game, state: GAME_STATE_PENDING })).toBe(false)
       expect(canCancelScheduledGame({ ...game, state: GAME_STATE_CANCELLED })).toBe(false)
     })
+
+    it('edits only a scheduled session, even when its slot is over', () => {
+      expect(canEditScheduledGame(game)).toBe(true)
+      expect(canEditScheduledGame(createScheduledGameFixture('2020-01-01T10:00:00.000Z'))).toBe(
+        true
+      )
+      expect(canEditScheduledGame({ ...game, state: GAME_STATE_PENDING })).toBe(false)
+      expect(canEditScheduledGame({ ...game, state: GAME_STATE_CANCELLED })).toBe(false)
+    })
   })
 
   describe('formatAgendaTime', () => {
@@ -438,6 +449,30 @@ describe('utils/game/agenda', () => {
 
     it('shows midnight as 00:00 and accepts a timestamp', () => {
       expect(formatAgendaTime(Date.parse('2026-12-01T23:00:00.000Z'), PARIS, 'fr')).toBe('00:00')
+    })
+  })
+
+  describe('parseAgendaRequest', () => {
+    it('reads a room, a day and a success banner', () => {
+      expect(parseAgendaRequest({ roomId: '10', date: '2026-12-05', saved: 'scheduled' })).toEqual({
+        roomId: '10',
+        date: '2026-12-05',
+        saved: 'scheduled',
+      })
+      expect(parseAgendaRequest({ saved: 'updated' })).toEqual({ saved: 'updated' })
+    })
+
+    it.each([
+      ['a room that is not a plain number', { roomId: '1e1' }],
+      ['a room that is zero or negative', { roomId: '0' }],
+      ['a room with a sign or a decimal', { roomId: '+3' }],
+      ['a repeated room', { roomId: ['10', '11'] }],
+      ['a day that is not a day', { date: '2026-13-45' }],
+      ['a day with a time', { date: '2026-12-05T10:00' }],
+      ['a banner that does not exist', { saved: 'deleted' }],
+      ['values that are not text', { roomId: 10, date: {}, saved: true }],
+    ])('ignores %s', (_label, query) => {
+      expect(parseAgendaRequest(query)).toEqual({})
     })
   })
 })

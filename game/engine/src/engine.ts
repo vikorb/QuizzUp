@@ -1,6 +1,7 @@
 import {
   GAME_DEFAULT_QUESTIONS_PER_ROUND,
   GAME_DEFAULT_ROUNDS,
+  GAME_DEFAULT_TIMINGS_MS,
   GAME_MAX_QUESTIONS_PER_ROUND,
   GAME_MAX_ROUNDS,
   GAME_PODIUMS,
@@ -30,12 +31,7 @@ import type {
   RoundRecord,
 } from './types'
 
-export const DEFAULT_GAME_TIMINGS: GameTimings = {
-  roundIntroMs: 4000,
-  themeChoiceMs: 15_000,
-  revealMs: 5000,
-  roundSummaryMs: 8000,
-}
+export const DEFAULT_GAME_TIMINGS: GameTimings = { ...GAME_DEFAULT_TIMINGS_MS }
 
 export type GamePhase =
   | { name: 'lobby' }

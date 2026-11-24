@@ -19,7 +19,7 @@ import {
 import { liveNowMock } from '@frontend-tests/_helpers/liveCompanyMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
-import { pushMock, replaceMock } from '@frontend-tests/_helpers/routerMock'
+import { currentRouteMock, pushMock, replaceMock } from '@frontend-tests/_helpers/routerMock'
 import { GAME_STATE_PENDING, ROOM_STATUS_ACTIVE, ROOM_STATUS_INACTIVE } from '@quizzup/shared'
 import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -154,6 +154,10 @@ function gameRow(wrapper: VueWrapper, gameId: number) {
 
 function hasButton(wrapper: VueWrapper, gameId: number, name: string): boolean {
   return gameRow(wrapper, gameId).find(`[data-test="agenda-${name}"]`).exists()
+}
+
+function roomSelectValue(wrapper: VueWrapper): string {
+  return findSelect(wrapper, 'agenda.filters.room').element.value
 }
 
 function setVisibility(state: 'visible' | 'hidden'): void {
@@ -705,6 +709,40 @@ describe('views/AgendaView.vue', () => {
       ).toBeUndefined()
     })
 
+    it('offers to edit a scheduled session, even one that was not launched, and no other', async () => {
+      const wrapper = await mountAgenda()
+
+      expect([5, 8, 9, 10].map((id) => hasButton(wrapper, id, 'edit'))).toEqual([
+        true,
+        true,
+        true,
+        false,
+      ])
+    })
+
+    it('opens the edit form of a session', async () => {
+      const wrapper = await mountAgenda()
+
+      await gameRow(wrapper, 8).get('[data-test="agenda-edit"]').trigger('click')
+
+      expect(pushMock).toHaveBeenCalledWith({
+        name: 'games-edit',
+        params: { gameId: '8' },
+        query: {},
+      })
+    })
+
+    it('names the hour of the session in the label of the edit button', async () => {
+      const wrapper = await mountAgenda({
+        $t: (key: string, params?: { time?: string }) =>
+          params?.time ? `${key}|${params.time}` : key,
+      })
+
+      expect(gameRow(wrapper, 5).get('[data-test="agenda-edit"]').attributes('aria-label')).toBe(
+        'agenda.actions.editAt|11:00'
+      )
+    })
+
     it('opens the detail of a session', async () => {
       const wrapper = await mountAgenda()
 
@@ -875,6 +913,75 @@ describe('views/AgendaView.vue', () => {
       await flushPromises()
 
       expect(listGamesServiceMock).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('return from the session form', () => {
+    it('opens on the room and the day of the address', async () => {
+      currentRouteMock.query = { roomId: '11', date: '2026-12-01' }
+
+      const wrapper = await mountAgenda()
+
+      expect(roomSelectValue(wrapper)).toBe('11')
+      expect(dateInput(wrapper).element.value).toBe('2026-12-01')
+      // Montréal : UTC-5 en décembre, la fenêtre du 1er décembre commence à 05:00Z.
+      expect(listGamesServiceMock).toHaveBeenCalledWith(1, {
+        roomId: 11,
+        from: '2026-12-01T05:00:00.000Z',
+        to: '2026-12-03T05:00:00.000Z',
+        limit: 200,
+      })
+    })
+
+    it.each([
+      ['an invalid room and day', { roomId: 'abc', date: '2026-13-45' }],
+      ['a room that is not a plain number', { roomId: '1e1', date: '2026-12-01' }],
+      ['an unknown room', { roomId: '99', date: '2026-12-01' }],
+      ['an inactive room', { roomId: '12', date: '2026-12-01' }],
+    ])('keeps the usual room and day with %s', async (_label, query) => {
+      currentRouteMock.query = query
+
+      const wrapper = await mountAgenda()
+
+      expect(roomSelectValue(wrapper)).toBe('10')
+      expect(dateInput(wrapper).element.value).toBe('2026-11-24')
+    })
+
+    it('keeps the room of the address and today when only the day is invalid', async () => {
+      currentRouteMock.query = { roomId: '11', date: 'demain' }
+
+      const wrapper = await mountAgenda()
+
+      // 23:30Z : encore le 23 novembre à Montréal.
+      expect(roomSelectValue(wrapper)).toBe('11')
+      expect(dateInput(wrapper).element.value).toBe('2026-11-23')
+    })
+
+    it.each([
+      ['scheduled', 'agenda.banners.scheduled'],
+      ['updated', 'agenda.banners.updated'],
+    ])('announces the success %s once, then cleans the address', async (saved, key) => {
+      currentRouteMock.query = { roomId: '11', date: '2026-12-01', saved }
+
+      const wrapper = await mountAgenda()
+
+      expect(bannerText(wrapper)).toContain(key)
+      expect(replaceMock).toHaveBeenCalledTimes(1)
+      expect(replaceMock).toHaveBeenCalledWith({ name: 'agenda', query: {} })
+
+      await wrapper.get('[data-test="agenda-next-day"]').trigger('click')
+      await flushPromises()
+
+      expect(replaceMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('shows no banner for a success that does not exist', async () => {
+      currentRouteMock.query = { saved: 'deleted' }
+
+      const wrapper = await mountAgenda()
+
+      expect(wrapper.text()).not.toContain('agenda.banners.')
+      expect(replaceMock).not.toHaveBeenCalled()
     })
   })
 })

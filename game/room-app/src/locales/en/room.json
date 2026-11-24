@@ -31,8 +31,12 @@
       "buzzerOk": "Buzzer OK",
       "clear": "Free the desk",
       "format": "Game format",
-      "formatFull": "Full game · {rounds} rounds × {questions} questions",
-      "formatShort": "Short game · {rounds} rounds × {questions} questions",
+      "formats": {
+        "discovery": "Discovery",
+        "short": "Short",
+        "standard": "Standard"
+      },
+      "formatSummary": "{name} · {rounds} rounds × {questions} questions · {min} to {max} min",
       "start": "Start the game",
       "needPlayer": "Register at least one player to start.",
       "keysHint": "Keyboard simulation: {keys}",

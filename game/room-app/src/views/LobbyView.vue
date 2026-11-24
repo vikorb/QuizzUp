@@ -35,9 +35,12 @@
             <input v-model="formatId" type="radio" name="format" :value="option.id" />
             <span>
               {{
-                $t(option.labelKey, {
+                $t('room.lobby.formatSummary', {
+                  name: $t(`room.lobby.formats.${option.id}`),
                   rounds: option.roundsCount,
                   questions: option.questionsPerRound,
+                  min: option.minMinutes,
+                  max: option.maxMinutes,
                 })
               }}
             </span>
@@ -69,7 +72,13 @@
 
 <script setup lang="ts">
 import { mdiPlay, mdiShieldLockOutline } from '@mdi/js'
-import { GAME_DEFAULT_QUESTIONS_PER_ROUND, GAME_DEFAULT_ROUNDS } from '@quizzup/shared'
+import {
+  estimateGameDurationMs,
+  GAME_FORMAT_CUSTOM,
+  GAME_FORMAT_DISCOVERY,
+  GAME_FORMAT_SETTINGS,
+  GAME_FORMATS,
+} from '@quizzup/shared'
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -77,6 +86,7 @@ import RoomTopBar from '@/components/game/RoomTopBar.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { loadDemoThemes } from '@/game/content'
+import { readMiniGamesSetting } from '@/game/miniGamesSetting'
 import {
   createEmptyRegistration,
   hasErrors,
@@ -92,15 +102,19 @@ import { isDemo } from '@/state/roomAuth'
 import DeskRegistration from '@/views/lobby/DeskRegistration.vue'
 import StaffGameLobby from '@/views/lobby/StaffGameLobby.vue'
 
-const FORMATS = [
-  {
-    id: 'full',
-    labelKey: 'room.lobby.formatFull',
-    roundsCount: GAME_DEFAULT_ROUNDS,
-    questionsPerRound: GAME_DEFAULT_QUESTIONS_PER_ROUND,
-  },
-  { id: 'short', labelKey: 'room.lobby.formatShort', roundsCount: 3, questionsPerRound: 3 },
-] as const
+// Pas de saisie libre en démo : on propose les formats à nombres fixes, estimation comprise.
+const MS_PER_MINUTE = 60_000
+const miniGames = readMiniGamesSetting()
+const FORMATS = GAME_FORMATS.filter((id) => id !== GAME_FORMAT_CUSTOM).map((id) => {
+  const settings = GAME_FORMAT_SETTINGS[id]
+  const { typicalMs, highMs } = estimateGameDurationMs({ ...settings, miniGames })
+  return {
+    id,
+    ...settings,
+    minMinutes: Math.round(typicalMs / MS_PER_MINUTE),
+    maxMinutes: Math.ceil(highMs / MS_PER_MINUTE),
+  }
+})
 
 const PING_DURATION_MS = 1200
 
@@ -124,7 +138,7 @@ watch(
 )
 // 4 pupitres ou moins sur une ligne ; 5 et 6 sur deux lignes de 3 (les cartes restent lisibles).
 const deskColumns = computed(() => (desks.value.length <= 4 ? desks.value.length : 3))
-const formatId = ref<(typeof FORMATS)[number]['id']>(isDemo.value ? 'short' : 'full')
+const formatId = ref<(typeof FORMATS)[number]['id']>(GAME_FORMAT_DISCOVERY)
 const submitted = ref(false)
 const starting = ref(false)
 const pinged = reactive(new Set<DeskNumber>())
@@ -163,7 +177,7 @@ async function onStart(): Promise<void> {
     return
   }
 
-  const format = FORMATS.find((option) => option.id === formatId.value) ?? FORMATS[0]
+  const format = GAME_FORMAT_SETTINGS[formatId.value]
 
   starting.value = true
   startFailed.value = false
