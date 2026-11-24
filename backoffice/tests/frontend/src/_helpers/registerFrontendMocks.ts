@@ -100,6 +100,7 @@ vi.mock('@/services/roomsService', async () => {
     loadRoomAccountService: roomsService.loadRoomAccountServiceMock,
     createRoomAccountService: roomsService.createRoomAccountServiceMock,
     deleteRoomAccountService: roomsService.deleteRoomAccountServiceMock,
+    loadRoomLogsService: roomsService.loadRoomLogsServiceMock,
   }
 })
 

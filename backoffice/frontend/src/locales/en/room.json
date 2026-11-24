@@ -84,6 +84,7 @@
         "enableConfirm": "Do you really want to enable the room {name}?",
         "disableConfirm": "Do you really want to disable the room {name}?",
         "account": "Manage the room account",
+        "logs": "View error logs",
         "schedule": "Set the room time slots"
       }
     },
@@ -244,6 +245,48 @@
         "server_error": "Server error.",
         "api_unreachable": "The server is currently unreachable.",
         "default": "An error occurred."
+      }
+    },
+    "logs": {
+      "title": "Error logs — {name}",
+      "loading": "Loading the logs...",
+      "empty": "No error reported by this room.",
+      "firstOccurrence": "First occurrence on the room: {date}",
+      "errors": {
+        "serverError": "Server error while loading the logs.",
+        "forbidden": "You do not have the rights to view the logs.",
+        "apiUnreachable": "The server is currently unreachable.",
+        "notFound": "Room not found.",
+        "default": "An error occurred while loading the logs."
+      },
+      "occurrences": "{count} occurrences",
+      "levels": {
+        "error": "Error",
+        "warn": "Warning"
+      },
+      "filters": {
+        "levelLabel": "Level",
+        "level": {
+          "all": "All levels"
+        }
+      },
+      "details": {
+        "toggle": "Details",
+        "appVersion": "Room screen version"
+      },
+      "context": {
+        "route": "Screen",
+        "phase": "Phase",
+        "miniGame": "Mini-game",
+        "desk": "Desk",
+        "driver": "Lights driver",
+        "httpStatus": "HTTP status"
+      },
+      "actions": {
+        "refresh": "Refresh the logs",
+        "close": "Close the logs",
+        "loadMore": "Load more",
+        "loadingMore": "Loading..."
       }
     }
   }
