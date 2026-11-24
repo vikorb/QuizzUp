@@ -148,8 +148,15 @@ async function resolveProviderTracks(refs: string[]): Promise<Map<string, Provid
   return tracks
 }
 
-/** Thèmes actifs lisibles par la compagnie (tous, ou parmi `themeIds`). */
-async function loadReadableThemes(companyId: number, themeIds?: Array<number | string>) {
+/**
+ * Thèmes actifs lisibles par la compagnie (tous, ou parmi `themeIds`). Avec `kidsOnly`, seuls les
+ * thèmes adaptés aux enfants (mode enfants d'une partie).
+ */
+async function loadReadableThemes(
+  companyId: number,
+  themeIds?: Array<number | string>,
+  kidsOnly = false
+) {
   const query = db('themes')
     .where('status', THEME_STATUS_ACTIVE)
     .select('id', 'name', 'scope', 'company_id')
@@ -157,6 +164,10 @@ async function loadReadableThemes(companyId: number, themeIds?: Array<number | s
 
   if (themeIds) {
     query.whereIn('id', themeIds)
+  }
+
+  if (kidsOnly) {
+    query.where('kids_friendly', true)
   }
 
   return (await query).filter((theme) => isReadableByCompany(theme as ScopedRow, companyId))
@@ -189,14 +200,16 @@ export async function isInPlayableTheme(questionId: number, companyId: number): 
  * que si elle a un lien. Le moteur trie ensuite par éligibilité de chaque mini-jeu. Les
  * thèmes vides sont écartés. Avec `questionIds`, seules ces questions sont chargées et résolues
  * (toujours filtrées par la compagnie). Les questions de fournisseur écartées font l'objet d'un
- * seul avertissement par chargement.
+ * seul avertissement par chargement. Avec `kidsOnly` (partie en mode enfants), seuls les thèmes
+ * adaptés aux enfants sont chargés : une question qui est aussi dans un autre thème n'en sort pas.
  */
 export async function loadRoomContent(
   companyId: number,
   log: Pick<FastifyBaseLogger, 'warn'>,
-  questionIds?: number[]
+  questionIds?: number[],
+  kidsOnly = false
 ): Promise<RoomContentTheme[]> {
-  const themes = await loadReadableThemes(companyId)
+  const themes = await loadReadableThemes(companyId, undefined, kidsOnly)
 
   if (themes.length === 0) {
     return []

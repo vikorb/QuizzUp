@@ -151,6 +151,7 @@ const gamesIdRoutes: FastifyPluginAsync = async (app) => {
         players_count: body.playersCount,
         external_ref: body.externalRef,
         locale: body.locale,
+        kids_mode: body.kidsMode,
         updated_at: db.fn.now(),
       }
 

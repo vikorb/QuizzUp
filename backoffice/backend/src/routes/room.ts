@@ -252,12 +252,22 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ error: 'invalid_query', details: parsedQuery.error.flatten() })
     }
 
-    if ((await findCurrentRoomGameId(req)) === null) {
+    const gameId = await findCurrentRoomGameId(req)
+
+    if (gameId === null) {
       return reply.code(404).send({ error: 'game_not_found' })
     }
 
+    // Mode enfants : seuls les thèmes `kids_friendly` sont envoyés à la salle.
+    const game = await db('games').where('id', gameId).first('kids_mode')
+
     return {
-      themes: await loadRoomContent(req.user.company_id, req.log, parsedQuery.data.ids),
+      themes: await loadRoomContent(
+        req.user.company_id,
+        req.log,
+        parsedQuery.data.ids,
+        Boolean(game?.kids_mode)
+      ),
     }
   })
 

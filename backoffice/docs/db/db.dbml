@@ -106,6 +106,7 @@ Table themes {
   mode varchar(50) [not null, note: 'classic, image, audio, mixed']
   playlist_provider varchar(20) [note: 'Fournisseur de la playlist : deezer. NULL sinon. Réservé au mode audio (CHECK).']
   playlist_ref varchar(64) [note: 'Identifiant de la playlist chez le fournisseur (chiffres). Renseigné si et seulement si playlist_provider l est. Aucun titre ni lien d extrait n est stocké.']
+  kids_friendly boolean [not null, default: false, note: 'Thème adapté aux enfants : seuls ces thèmes sont envoyés à l écran de salle quand games.kids_mode est vrai']
 
   status smallint [not null, default: 1, note: '0=inactive, 1=active, 2=deleted, 3=draft']
   created_at timestamptz [not null, default: `now()`]
@@ -311,6 +312,7 @@ Table games {
   players_count smallint [note: '1 à 12 (GAME_MAX_PLAYERS : 6 pupitres × 2 joueurs) ; nombre de joueurs annoncé à la réservation']
   external_ref varchar(100) [note: 'Référence du système de réservation du client']
   locale varchar(5) [note: 'fr ou en (GAME_LOCALES)']
+  kids_mode boolean [not null, default: false, note: 'Partie en mode enfants : seuls les thèmes kids_friendly sont joués, aucun e-mail n est demandé sur le téléphone']
   join_token varchar(64) [note: 'Jeton du lien d’inscription (32 octets en base64url, en clair), dans le fragment # de l’URL ; null = lien fermé. Unique (index partiel)']
   join_expires_at timestamptz [note: 'Fin de validité du lien (180 minutes, JOIN_LINK_TTL_MINUTES). Nul si et seulement si join_token est nul (CHECK games_join_check)']
 

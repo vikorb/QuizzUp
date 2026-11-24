@@ -57,6 +57,8 @@ export type GameRow = {
   /** Référence du système de réservation du client. */
   externalRef: string | null
   locale: GameLocale | null
+  /** Mode enfants : thèmes adaptés aux enfants seulement, aucun e-mail demandé aux joueurs. */
+  kidsMode: boolean
   status: GameStatus
   createdAt: string
   updatedAt: string | null
