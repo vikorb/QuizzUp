@@ -263,8 +263,9 @@ puis `launchctl load ~/Library/LaunchAgents/fr.quizzup.artnet-bridge.plist` (che
 PowerShell 5.1 livré avec Windows : pas d'installation, pas de droits administrateur, aucun module.
 Même protocole que le pont (hello v1/v2, ack, codes de fermeture 4000 à 4005, contrôle de l'origine,
 cible réseau local seulement, `-Target` prioritaire sur la cible de l'écran de salle, univers 0 à 15,
-trames ArtDMX identiques octet pour octet, passage au noir au silence et à la déconnexion). Rien à
-changer côté `@quizzup/hardware`.
+trames ArtDMX identiques octet pour octet, passage au noir au silence, à la déconnexion et à la
+fermeture de la fenêtre). L'écoute est un socket TCP lié à `127.0.0.1` (pas HTTP.sys) : rien n'est
+joignable depuis le réseau, comme avec l'exécutable. Rien à changer côté `@quizzup/hardware`.
 
 **Lancer** : double-clic sur `powershell/Lancer les lumieres.cmd` (la fenêtre reste ouverte en cas
 d'erreur), ou :
@@ -289,9 +290,21 @@ défaut). Réglages : `-Target`, `-Universe` (défaut `0`, ex. `0.0.5`), `-Port`
   (cf. `docs/recette/banc-materiel.md`, A8).
 - Pas de `--map`, `--config` ni `--poll-broadcast` : le bouton « Chercher les nœuds » n'est pas
   disponible (l'ack annonce `features: []`), l'IP du nœud se saisit à la main ou via `-Target`.
-- Fermer la fenêtre ne coupe pas proprement : le nœud garde la dernière trame. L'arrêt de l'écran
-  de salle (ou une coupure) passe au noir au bout de `-Timeout` ; `Ctrl+C` est censé envoyer un noir
-  avant de quitter, **non vérifié** ; pour la fumée, garder les garde-fous matériels.
+- **Pas de gel (`hold`)** : ni test de coupure de la fumée, ni fumée par Art-Net à travers ce relais.
+  L'écran de salle affiche alors « pont trop ancien » pour ces deux fonctions : c'est attendu avec
+  ce relais. La fumée se pilote par l'interface USB, avec les garde-fous matériels.
+- **Cadence** : l'ack annonce 4 univers (`universes: 4`), ce que le test de débit garantit : 4 univers
+  à 40 Hz pendant 5 s, retard maximal sous 250 ms en CI (environ 40 ms mesuré sur un PC de
+  développement, environ 8 % d'un cœur). Le relais accepte les univers 0 à 15 mais ne garantit rien
+  au-delà de 4. Une trame par univers et par tour de boucle, jamais plus d'une toutes les 22 ms par
+  univers : les trames trop rapprochées sont fusionnées (la dernière gagne).
+- **Fermer la fenêtre** envoie du noir (trois passes de trames à zéro, séquence 0, sur les univers déjà
+  utilisés) grâce à un petit gestionnaire de console compilé au démarrage (`Add-Type`, rien à installer ;
+  quelques dixièmes de seconde au démarrage). Si le poste la refuse (AppLocker, mode de langage
+  restreint), le script l'écrit en jaune au démarrage, continue, et il faut **arrêter par `Ctrl+C`
+  sans jamais fermer la fenêtre pendant une partie**. `Ctrl+C` envoie aussi un noir. Les deux cas
+  sont **à valider sur le banc** (A8) : le test automatique ne couvre que l'émission du noir, pas la
+  fermeture d'une vraie fenêtre.
 - Les tests (`tests/powershellRelay.test.ts`) ne tournent que sous Windows.
 
 ## Sécurité

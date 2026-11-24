@@ -385,9 +385,9 @@ jobs:
         shell: powershell
         working-directory: ${{ github.workspace }}
         run: |
-          $files = @(Get-ChildItem -Path deploy -Recurse -Filter *.ps1 -ErrorAction SilentlyContinue)
+          $files = @(Get-ChildItem -Path deploy, game/artnet-bridge/powershell -Recurse -Filter *.ps1 -ErrorAction SilentlyContinue)
           if ($files.Count -eq 0) {
-            Write-Host 'Aucun script deploy/**/*.ps1 à analyser.'
+            Write-Host 'Aucun script deploy/**/*.ps1 ni game/artnet-bridge/powershell/*.ps1 à analyser.'
             exit 0
           }
           $failed = $false
