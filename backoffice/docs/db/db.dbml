@@ -230,11 +230,69 @@ Table room_logs {
   Note: 'Journal sans status ni suppression logique. Purgé à chaque insertion : au-delà de ROOM_LOG_RETENTION_DAYS jours (30 par défaut) et au-delà de 5000 lignes par salle. Supprimé avec la salle.'
 }
 
+Table api_keys {
+  id bigint [pk, increment]
+  company_id bigint [not null]
+  name varchar(100) [not null, note: 'Nom donné par l’admin (l’intégration qui s’en sert)']
+  key_prefix varchar(16) [not null, unique, note: 'qzk_ + 8 caractères : affiché dans le backoffice pour reconnaître la clé']
+  key_hash char(64) [not null, unique, note: 'SHA-256 du jeton entier (qzk_<préfixe>_<secret>). Jamais le jeton, jamais renvoyé par l’API']
+  created_by_admin_id bigint [note: 'Compte qui a créé la clé']
+  last_used_at timestamptz [note: 'Mis à jour au plus une fois par minute']
+
+  status smallint [not null, default: 1, note: '1=active, 2=revoked (API_KEY_STATUSES)']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz
+  deleted_at timestamptz [note: 'Renseigné si et seulement si status = 2 (révocation)']
+
+  indexes {
+    (company_id, status) [name: 'api_keys_company_id_status_index']
+  }
+
+  Note: 'Clés de l’API de réservation /public/v1 (lot 14). Au plus API_KEY_MAX_ACTIVE (10) clés actives par compagnie. CHECK : api_keys_status_check, api_keys_deleted_at_check.'
+}
+
+Table api_idempotency_keys {
+  id bigint [pk, increment]
+  company_id bigint [not null]
+  api_key_id bigint [not null]
+  idempotency_key varchar(255) [not null, note: 'En-tête Idempotency-Key de la requête']
+  request_hash char(64) [not null, note: 'SHA-256 du corps validé : même clé et corps différent = idempotency_key_reused. Aucun e-mail stocké']
+  game_id bigint [not null, note: 'Partie créée par la première requête']
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (company_id, idempotency_key) [unique, name: 'api_idempotency_keys_company_id_key_unique', note: 'Portée = la compagnie : un essai refait après une rotation de clé est dédupliqué']
+    (created_at) [name: 'api_idempotency_keys_created_at_index', note: 'Purge après API_IDEMPOTENCY_TTL_HOURS (24 h)']
+  }
+}
+
+Table api_request_logs {
+  id bigint [pk, increment]
+  company_id bigint [not null]
+  api_key_id bigint [not null]
+  method varchar(8) [not null]
+  route varchar(120) [not null, note: 'Motif de route (/public/v1/bookings/:id), jamais l’URL brute']
+  status_code smallint [not null]
+  error_code varchar(80) [note: 'Code d’erreur de la réponse, s’il y en a un']
+  game_id bigint [note: 'Réservation concernée ; null si elle est supprimée ensuite']
+  duration_ms integer [not null]
+  idempotent_replay boolean [not null, default: false, note: 'Réponse rejouée par l’idempotence']
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (company_id, created_at, id) [name: 'api_request_logs_company_id_created_at_index', note: 'created_at et id décroissants']
+    (created_at) [name: 'api_request_logs_created_at_index', note: 'Purge après API_LOG_RETENTION_DAYS (90 jours)']
+  }
+
+  Note: 'Journal sans status ni suppression logique. Ne contient ni adresse IP, ni corps, ni paramètres de requête.'
+}
+
 Table games {
   id bigint [pk, increment]
   company_id bigint [not null]
   room_id bigint [not null]
-  admin_id bigint [not null, note: 'Compte qui a lancé la partie']
+  admin_id bigint [note: 'Compte qui a lancé la partie ; null pour une réservation faite par l’API (alors api_key_id est renseigné)']
+  api_key_id bigint [note: 'Clé d’API qui a créé la réservation (lot 14) ; null pour une partie créée au backoffice']
 
   rounds_count smallint [not null, default: 10, note: '1 à 20']
   questions_per_round smallint [not null, default: 10, note: '1 à 20']
@@ -261,6 +319,7 @@ Table games {
     (company_id) [name: 'games_company_id_index']
     (room_id) [name: 'games_room_id_index']
     (admin_id) [name: 'games_admin_id_index']
+    (api_key_id) [name: 'games_api_key_id_index']
     (state) [name: 'games_state_index']
     (status) [name: 'games_status_index']
     (company_id, scheduled_at) [name: 'games_company_id_scheduled_at_index', note: 'Partiel : WHERE scheduled_at IS NOT NULL (agenda)']
@@ -273,7 +332,8 @@ Table games {
     pas de chevauchement de sessions dans une salle (SQLSTATE 23P01, extension btree_gist). Intervalles semi-ouverts : deux sessions bout à bout sont acceptées ;
     annulée, terminée, arrêtée ou supprimée libère le créneau ; une partie sans scheduled_at n’est pas concernée.
     CHECK : games_schedule_range_check (bornes nulles ensemble, sinon fin > début), games_scheduled_state_check (scheduled exige scheduled_at),
-    games_cancelled_check ((state = cancelled) = (cancelled_at non nul)), games_players_count_check, games_locale_check.
+    games_cancelled_check ((state = cancelled) = (cancelled_at non nul)), games_players_count_check, games_locale_check,
+    games_creator_check (admin_id non nul ou api_key_id non nul : une partie a toujours un créateur).
   '''
 }
 
@@ -423,6 +483,15 @@ Ref: room_logs.room_id > rooms.id [delete: cascade]
 Ref: games.company_id > companies.id [delete: restrict]
 Ref: games.room_id > rooms.id [delete: restrict]
 Ref: games.admin_id > admins.id [delete: restrict]
+Ref: api_keys.company_id > companies.id [delete: restrict]
+Ref: api_keys.created_by_admin_id > admins.id [delete: restrict]
+Ref: api_idempotency_keys.company_id > companies.id [delete: restrict]
+Ref: api_idempotency_keys.api_key_id > api_keys.id [delete: restrict]
+Ref: api_idempotency_keys.game_id > games.id [delete: cascade]
+Ref: api_request_logs.company_id > companies.id [delete: restrict]
+Ref: api_request_logs.api_key_id > api_keys.id [delete: restrict]
+Ref: api_request_logs.game_id > games.id [delete: set null]
+Ref: games.api_key_id > api_keys.id [delete: restrict]
 Ref: game_participants.game_id > games.id [delete: cascade]
 Ref: game_rounds.game_id > games.id [delete: cascade]
 Ref: game_rounds.theme_id > themes.id [delete: restrict]
