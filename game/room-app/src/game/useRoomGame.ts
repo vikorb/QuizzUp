@@ -219,6 +219,8 @@ export type NewGameOptions = {
   /** Mini-jeux tirés au sort (réglage de la salle, sinon tous). */
   miniGames?: MiniGame[]
   seed?: number
+  /** Questions déjà vues par ces joueurs (`game.avoidQuestionIds`), posées en dernier. */
+  avoidQuestionIds?: number[]
 }
 
 function buildSetup(options: NewGameOptions, registrations: Registration[]): GameSetup {
@@ -230,6 +232,8 @@ function buildSetup(options: NewGameOptions, registrations: Registration[]): Gam
     questionsPerRound: options.questionsPerRound,
     // Tous les mini-jeux par défaut, ou le réglage de la salle.
     miniGames: options.miniGames ?? readMiniGamesSetting(),
+    // Sauvegardée avec le setup : le rejeu de la reprise tire les mêmes questions.
+    ...(options.avoidQuestionIds && { avoidQuestionIds: options.avoidQuestionIds }),
   }
 }
 

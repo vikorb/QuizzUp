@@ -41,6 +41,8 @@ export type RoomGame = {
   join?: RoomGameJoin | null
   /** Demandes d'inscription à valider au backoffice (jamais leurs noms). */
   pendingRegistrationsCount?: number
+  /** Questions déjà vues par ces joueurs, à poser en dernier (absent d'un backoffice ancien). */
+  avoidQuestionIds?: number[]
 }
 
 /** Centre de la salle, tel que `GET /room/me` le renvoie (`logoUrl` : adresse complète, `null` sans logo). */

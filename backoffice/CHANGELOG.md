@@ -8,6 +8,8 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Questions déjà vues : une partie évite les questions que ses joueurs, reconnus par leur e-mail, ont déjà eues dans les parties terminées de la même compagnie (`avoidQuestionIds` dans `GET /room/games/current`, 2 000 au plus). Un thème ne se vide jamais : les questions déjà vues passent en dernier.
+  US: US-CONTENT-01 (#158)
 - Playlists à l'écran de salle : à la reprise d'une partie, les extraits des titres de playlist sont relus auprès du serveur (route `tracks`) à part des questions du catalogue ; une panne du fournisseur ne bloque pas la reprise. Le texte « Quel est ce titre ? » est traduit.
   US: US-PLAYLIST-01 (#204)
 - Mode enfants : option à la création et à la modification d'une partie dans le backoffice. Sur la page du téléphone, aucun e-mail n'est demandé ni enregistré pour une partie en mode enfants (`kidsMode` dans `POST /public/v1/join/lookup`).
