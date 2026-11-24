@@ -32,6 +32,42 @@ export type SmokeSafetyConfig = {
    * seulement quand elle est vraie, pour ne pas modifier les configs existantes.
    */
   cutsOnSignalLoss?: boolean
+  /**
+   * Carte USB de la fumée. Facultatif : une version plus ancienne l'ignore. Jamais exportée, et
+   * jamais retirée ni modifiée par `withoutSmokeEscalation` : la retirer ferait retomber la fumée
+   * sur le seul DMX, sans le chien de garde de la carte.
+   */
+  board?: SmokeBoardConfig
+}
+
+/** Valeurs de SmokeSafetyConfig.board.kind reconnues (carte Arduino Uno programmée pour QuizzUp). */
+export const SMOKE_BOARD_KINDS = ['uno-serial'] as const
+
+/**
+ * Carte USB qui pilote la machine à fumée (`lighting.smoke.board`). Seul l'identifiant USB est
+ * enregistré : la version du programme se lit sur la carte. Présente = la fumée passe par la carte
+ * et n'est jamais lancée sans elle (`board_unavailable`).
+ */
+export type SmokeBoardConfig = {
+  kind: (typeof SMOKE_BOARD_KINDS)[number]
+  usbVendorId: number
+  usbProductId: number
+}
+
+const isUsbId = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 0xffff
+
+/** Carte relue de façon stricte : `undefined` pour tout ce qui n'est pas exactement une carte connue. */
+export function parseSmokeBoard(input: unknown): SmokeBoardConfig | undefined {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return undefined
+  }
+  const { kind, usbVendorId, usbProductId } = input as Record<string, unknown>
+  return (SMOKE_BOARD_KINDS as readonly unknown[]).includes(kind) &&
+    isUsbId(usbVendorId) &&
+    isUsbId(usbProductId)
+    ? { kind: kind as SmokeBoardConfig['kind'], usbVendorId, usbProductId }
+    : undefined
 }
 
 export const DEFAULT_SMOKE_SAFETY: SmokeSafetyConfig = {
@@ -57,6 +93,8 @@ export type SmokeRefusal =
   | 'page_hidden'
   /** Partie en pause : refusé par le contrôleur de lumières, jamais par le contrôleur de fumée. */
   | 'paused'
+  /** Carte de fumée configurée mais pas prête (débranchée, muette, en pause) : refusé par le contrôleur de lumières. */
+  | 'board_unavailable'
 
 export type SmokeFireResult = { ok: true; durationMs: number } | { ok: false; reason: SmokeRefusal }
 
@@ -91,6 +129,7 @@ const pick = (value: unknown, fallback: number) =>
   typeof value === 'number' && Number.isFinite(value) ? value : fallback
 
 export function normalizeSmokeSafety(input: Partial<SmokeSafetyConfig> = {}): SmokeSafetyConfig {
+  const board = parseSmokeBoard(input.board)
   return {
     enabled: input.enabled === true,
     maxDurationMs: Math.min(
@@ -111,6 +150,7 @@ export function normalizeSmokeSafety(input: Partial<SmokeSafetyConfig> = {}): Sm
     // Seule une valeur explicitement `false` retire la confirmation.
     requireConfirmation: input.requireConfirmation !== false,
     ...(input.cutsOnSignalLoss === true ? { cutsOnSignalLoss: true } : {}),
+    ...(board ? { board } : {}),
   }
 }
 

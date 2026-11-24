@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Fumée par la carte USB, contrôleur : le contrôleur de lumières accepte un lien vers la carte (`smokeLink`) et lui envoie l'ordre de fumée à chaque trame. L'arrêt part tout de suite à la pause, à l'onglet masqué, à la fermeture de la page, à l'arrêt d'urgence et au changement de sortie. Un lien perdu coupe le jet et désarme la fumée ; un tir est refusé (`board_unavailable`) tant que la carte n'est pas prête. Le réglage `lighting.smoke.board` n'est jamais exporté, et le port de la carte est exclu du choix du port DMX. À valider sur le banc.
+  US: US-SHOW-01 (#215)
+
 - Lumières à la pause : quand la partie est mise en pause, la salle passe sur une ambiance basse (scène `pause`, sans éclair ni fumée) ; à la reprise elle retrouve la lumière de la phase en cours. Les liaisons `game_paused` et `game_resumed` restent réglables par salle.
   US: US-SHOW-01 (#145)
 - Matériel, configuration de salle : export et import (`exportRoomConfig`, `parseRoomConfigImport`), avec un garde-fou fumée (`withoutSmokeEscalation`). Un import ou le JSON de la configuration avancée ne peut jamais rendre la fumée plus permissive que celle de la salle : ni l'activer, ni dispenser du relais, ni allonger un jet, ni rapprocher deux jets, ni retirer la confirmation. Un fichier invalide, trop gros ou d'une version plus récente est refusé avec une raison lisible. Les boutons Exporter et Importer viendront avec le lot suivant.

@@ -421,6 +421,17 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
     )
   }
 
+  // Une carte illisible ne fait pas retomber la fumée sur le seul DMX, sans le chien de garde de la
+  // carte : la fumée est désactivée jusqu'à ce que la carte soit choisie de nouveau.
+  const rawBoard = asRecord(lighting.smoke).board
+  if (rawBoard !== undefined && !smoke.board) {
+    smoke = { ...smoke, enabled: false }
+    problems.push(
+      'Fumée désactivée : la carte de la fumée est illisible dans la configuration. ' +
+        'La choisir de nouveau dans l’écran Matériel.'
+    )
+  }
+
   const { scenes, problems: sceneProblems } = parseScenes(lighting.scenes)
   problems.push(...sceneProblems)
   const { exit, problems: exitProblems } = parseExit(lighting.exit)
@@ -483,6 +494,9 @@ export function withoutSmokeEscalation(
     maxLevel: Math.min(before.maxLevel, after.maxLevel),
     requireConfirmation: before.requireConfirmation || after.requireConfirmation,
     cutsOnSignalLoss: before.cutsOnSignalLoss === true && after.cutsOnSignalLoss === true,
+    // Toujours celle de la salle en place, jamais celle de `next` : la retirer ou la changer
+    // supprimerait le chien de garde de la carte.
+    board: before.board,
   })
   return { ...next, lighting: { ...asRecord(next?.lighting), smoke } as LightingConfig }
 }
@@ -494,11 +508,13 @@ export const ROOM_CONFIG_IMPORT_MAX_BYTES = 64 * 1024
 
 /**
  * Config telle qu'on l'exporte et l'importe : clés étrangères écartées, fumée jamais activée ni
- * dispensée du relais (elle se réarme dans l'assistant, avec ses vérifications), assistant à refaire.
+ * dispensée du relais (elle se réarme dans l'assistant, avec ses vérifications), carte de fumée
+ * retirée (elle est propre au PC de la salle), assistant à refaire.
  */
 function portableConfig(config: RoomHardwareConfig): RoomHardwareConfig {
   const { setupDone: _setupDone, ...rest } = withoutUnknownKeys(config)
-  const { cutsOnSignalLoss: _cuts, ...smoke } = rest.lighting.smoke
+  // `board` désigne une carte branchée sur ce PC : jamais exportée.
+  const { cutsOnSignalLoss: _cuts, board: _board, ...smoke } = rest.lighting.smoke
   return { ...rest, lighting: { ...rest.lighting, smoke: { ...smoke, enabled: false } } }
 }
 

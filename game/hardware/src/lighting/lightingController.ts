@@ -16,6 +16,7 @@ import { outputUniverses } from '../dmx/output'
 import type { FixtureKind } from '../dmx/profiles'
 import { createUniverse, DMX_CHANNELS, MAX_UNIVERSES } from '../dmx/universe'
 import { createEmitter } from '../emitter'
+import type { SmokeBoardLink, SmokeBoardState, SmokeBoardStatus } from '../smoke/boardLink'
 import type { Desk, Rgbw, Unsubscribe } from '../types'
 import { clampByte, isDesk } from '../types'
 import type { ScenePlayer } from './scenePlayer'
@@ -30,7 +31,7 @@ import {
   SCENE_IDS,
 } from './scenes'
 import { parseExit, parseScenes } from './showConfig'
-import type { SmokeController, SmokeFireResult, SmokeState } from './smoke'
+import type { SmokeController, SmokeFireResult, SmokeState, SmokeStopReason } from './smoke'
 import { createSmokeController } from './smoke'
 
 /** Délai sans trame au-delà duquel on considère que la page a gelé : la fumée est coupée. */
@@ -84,6 +85,8 @@ export type LightingWarning =
   | { kind: 'output_error'; message: string; at: number }
   | { kind: 'output_recovered'; at: number }
   | { kind: 'page_hidden'; at: number }
+  /** Carte de la fumée perdue (débranchée, muette, contredite) : fumée coupée et désarmée. */
+  | { kind: 'board_lost'; problem: SmokeBoardState['problem']; at: number }
   | { kind: 'unknown_scene'; sceneId: string; at: number }
 
 export type FixtureView = {
@@ -129,6 +132,12 @@ export type LightingController = {
    * d'urgence garde la priorité.
    */
   setGamePaused: (paused: boolean) => void
+  /**
+   * Remplace le lien vers la carte de la fumée (carte rebranchée : un lien ne s'ouvre qu'une fois).
+   * Le jet en cours est coupé et la fumée **désarmée** : prête, jamais armée toute seule. Il n'y a
+   * pas de retrait : une salle qui a une carte ne retombe pas sur le seul DMX.
+   */
+  setSmokeLink: (link: SmokeBoardLink) => void
   playScene: (sceneId: string, context?: SceneContext) => boolean
   identifyFixture: (fixtureId: string) => boolean
   smoke: {
@@ -212,7 +221,23 @@ export type LightingControllerOptions = {
   resolveDesk?: DeskResolver
   /** Scènes en plus ou à la place des scènes par défaut (même identifiant = remplacement). */
   scenes?: readonly SceneDefinition[]
+  /**
+   * Lien vers la carte USB de la fumée. Reçoit à chaque trame « la fumée sort maintenant » et ne
+   * renouvelle jamais l'ordre de lui-même : si les trames s'arrêtent, la carte coupe à la fin de son
+   * bail. Avec ce lien (ou `lighting.smoke.board`), aucun jet ne part tant que la carte n'est pas
+   * prête (`board_unavailable`). Un relais DMX câblé en plus reçoit le même ordre.
+   */
+  smokeLink?: SmokeBoardLink
 }
+
+/** États du lien où la carte est perdue pour de bon (un lien ne se rouvre pas). */
+const BOARD_LOST: readonly SmokeBoardStatus[] = [
+  'no_firmware',
+  'silent',
+  'disconnected',
+  'fault',
+  'closed',
+]
 
 const participantDesk = (value: unknown, resolveDesk: DeskResolver | undefined): Desk | null =>
   typeof value === 'number' && resolveDesk ? resolveDesk(value) : null
@@ -271,6 +296,8 @@ export function createLightingController(options: LightingControllerOptions): Li
   })
 
   let output = options.output
+  let smokeLink: SmokeBoardLink | null = options.smokeLink ?? null
+  let detachLink: Unsubscribe | null = null
   let outputStatus: DmxOutputStatus = 'closed'
   let outputError: string | null = null
   let detachOutput: Unsubscribe | null = null
@@ -398,6 +425,9 @@ export function createLightingController(options: LightingControllerOptions): Li
           ])
     pending = true
     flush()
+    // Chaque trame est aussi l'ordre donné à la carte : fumée en cours, et seulement ainsi.
+    // (Arrêt d'urgence et erreur de sortie ont déjà coupé la fumée : leur état n'est jamais « firing ».)
+    smokeLink?.drive(smoke.getState().status === 'firing')
   }
 
   /**
@@ -849,16 +879,33 @@ export function createLightingController(options: LightingControllerOptions): Li
       // Onglet en arrière-plan : les minuteurs sont bridés, la trame d'arrêt pourrait tarder.
       return { ok: false, reason: 'page_hidden' }
     }
+    if (!emergency && boardRequired() && !boardReady()) {
+      // Carte configurée mais pas prête (débranchée, muette, en pause de 5 s après sa remise à zéro) :
+      // pas de jet, ni sur la carte ni, par le relais DMX, sans elle.
+      return { ok: false, reason: 'board_unavailable' }
+    }
     return smoke.fire(durationMs)
+  }
+
+  /** La fumée passe par une carte : lien fourni, ou carte enregistrée dans la configuration. */
+  function boardRequired() {
+    return smokeLink !== null || smoke.getState().config.board !== undefined
+  }
+
+  /** Carte identifiée, qui répond, et hors pause : un `F` serait pris en compte. */
+  function boardReady() {
+    const state = smokeLink?.getState()
+    return state?.status === 'ready' && state.phase === 'ready'
   }
 
   /**
    * Coupe le jet en cours (arrêt manuel, mise en pause) et envoie la trame à 0 tout de suite :
    * sans cela elle ne partirait qu'au tick suivant, jusqu'à une période de trame plus tard.
    */
-  const stopSmoke = () => {
+  const cutSmoke = (reason: SmokeStopReason) => {
     const wasFiring = smoke.getState().status === 'firing'
-    smoke.stop('manual')
+    smoke.stop(reason)
+    smokeLink?.drive(false)
     if (frozenUntil !== null) {
       // Arrêt pendant un test de coupure : la fumée doit être réautorisée par un humain.
       smoke.disarm()
@@ -874,11 +921,31 @@ export function createLightingController(options: LightingControllerOptions): Li
     }
     notify()
   }
+  const stopSmoke = () => cutSmoke('manual')
+
+  /** Carte perdue : jet coupé (trame à 0 tout de suite), fumée désarmée, à réarmer par un humain. */
+  const onBoardState = (state: SmokeBoardState) => {
+    if (!BOARD_LOST.includes(state.status)) {
+      return
+    }
+    cutSmoke('output_error')
+    smoke.disarm()
+    warn({ kind: 'board_lost', problem: state.problem, at: clock.now() })
+  }
+
+  const attachLink = () => {
+    detachLink?.()
+    detachLink = smokeLink ? smokeLink.onChange(onBoardState) : null
+    if (smokeLink) {
+      onBoardState(smokeLink.getState())
+    }
+  }
 
   const onVisibilityChange = () => {
     if (doc?.visibilityState === 'hidden') {
       // Onglet masqué : le navigateur ralentit les minuteurs, on ne garde pas de fumée active.
       smoke.stop('page_hidden')
+      smokeLink?.drive(false)
       if (timer !== null) {
         tick()
       }
@@ -888,6 +955,7 @@ export function createLightingController(options: LightingControllerOptions): Li
 
   const onPageHide = () => {
     smoke.stop('shutdown')
+    smokeLink?.drive(false)
     if (outputStatus === 'open') {
       void writeFrames(output, blackFrames()).catch(() => undefined)
     }
@@ -956,6 +1024,8 @@ export function createLightingController(options: LightingControllerOptions): Li
     return run
   }
 
+  attachLink()
+
   return {
     start: () =>
       serialize(async () => {
@@ -980,6 +1050,7 @@ export function createLightingController(options: LightingControllerOptions): Li
         doc?.removeEventListener('visibilitychange', onVisibilityChange)
         globalThis.removeEventListener?.('pagehide', onPageHide)
         smoke.stop('shutdown')
+        smokeLink?.drive(false)
         player.blackout()
         await closeOutput()
         notify()
@@ -987,6 +1058,7 @@ export function createLightingController(options: LightingControllerOptions): Li
     setOutput: (next) =>
       serialize(async () => {
         smoke.stop('output_error')
+        smokeLink?.drive(false)
         stopLoop()
         await closeOutput()
         output = next
@@ -1028,6 +1100,13 @@ export function createLightingController(options: LightingControllerOptions): Li
         }
         playScene(sceneId, { desk }, resumed || eventOptions?.restore === true)
       }
+    },
+    setSmokeLink(next) {
+      cutSmoke('output_error')
+      smoke.disarm()
+      smokeLink = next
+      attachLink()
+      notify()
     },
     setGamePaused(paused) {
       if (gamePaused === paused) {
@@ -1080,6 +1159,7 @@ export function createLightingController(options: LightingControllerOptions): Li
       cancelFreeze()
       emergencyReason = reason
       smoke.emergencyStop()
+      smokeLink?.drive(false)
       player.blackout()
       send(blackFrames())
       notify()
