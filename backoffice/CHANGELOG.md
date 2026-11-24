@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Écran de salle : catalogue des 48 annonces vocales (identifiant, texte français et anglais) et correspondance événement de partie → annonce (`announcementForEvent`). Une annonce cite le numéro de pupitre, jamais un prénom ; aucune annonce pendant un palier de blind test. Aucun fichier son n'est livré et rien n'est encore branché : l'écran reste muet.
+  US: US-AUDIO-02 (#144)
+
 - Journaux d'erreurs d'une salle consultables depuis le tableau des salles d'un client : panneau en ligne avec filtre par niveau, actualisation et « charger plus », réservé aux administrateurs.
   US: US-LOG-01 (#157)
 - Statistiques d'exploitation d'une compagnie : route `GET /companies/:companyId/stats` et écran « Statistiques » (séances terminées et arrêtées, taux d'abandon, durée médiane, répartition par salle, joueurs, créneaux les plus chargés), réservés aux administrateurs. Aucune donnée individuelle ne sort.
