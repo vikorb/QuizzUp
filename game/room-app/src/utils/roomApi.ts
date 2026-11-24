@@ -143,14 +143,18 @@ export async function fetchRoomInfo(token: string): Promise<RoomInfo> {
 
 /** Partie en attente ou en cours de la salle, ou `null` si le staff n'en a lancé aucune. */
 export async function fetchCurrentGame(token: string): Promise<RoomGame | null> {
-  const data = await request<{ game: RoomGame | null }>(token, '/room/games/current')
-  return data.game
+  return (await fetchCurrentState(token)).game
 }
 
-/** Prochaine session programmée de la salle (`next`), `null` s'il n'y en a pas ou si le serveur est ancien. */
-export async function fetchNextSession(token: string): Promise<RoomGame | null> {
-  const data = await request<{ next?: RoomGame | null }>(token, '/room/games/current')
-  return data.next ?? null
+/** Une seule lecture : la partie courante et la prochaine session programmée (`next`, absent d'un serveur ancien). */
+export async function fetchCurrentState(
+  token: string
+): Promise<{ game: RoomGame | null; next: RoomGame | null }> {
+  const data = await request<{ game: RoomGame | null; next?: RoomGame | null }>(
+    token,
+    '/room/games/current'
+  )
+  return { game: data.game, next: data.next ?? null }
 }
 
 /** « Lancer » : ouvre une session programmée de la salle (`scheduled` → en attente). */

@@ -176,6 +176,7 @@ import {
   estimateGameDurationMs,
   GAME_FORMAT_CUSTOM,
   GAME_STATE_RUNNING,
+  ROOM_DEFAULT_TIMEZONE,
   SESSION_OPEN_EARLY_MINUTES,
 } from '@quizzup/shared'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
@@ -205,8 +206,7 @@ import { onRoomGameUpdated, useRoomLive } from '@/live/roomLive'
 import { getRoomToken } from '@/utils/auth'
 import {
   fetchCurrentContent,
-  fetchCurrentGame,
-  fetchNextSession,
+  fetchCurrentState,
   fetchRoomInfo,
   openRoomGame,
   RoomApiError,
@@ -265,7 +265,7 @@ function hasSaveFor(current: RoomGame | null): boolean {
 const savedGame = ref(false)
 /** Prochaine session programmée de la salle, lue seulement quand aucune partie n'attend. */
 const next = shallowRef<RoomGame | null>(null)
-/** Fuseau de la salle (`/room/me`), lu avec la première session : `''` = salle sans réglage, `null` = inconnu. */
+/** Fuseau de la salle (`/room/me`, sinon celui par défaut du backoffice), lu avec la première session ; `null` = pas encore lu. */
 const roomTimeZone = ref<string | null>(null)
 const now = ref(Date.now())
 let clock: ReturnType<typeof setInterval> | null = null
@@ -354,7 +354,7 @@ function inRoomZone(ms: number, withDay: boolean): string {
     hour: '2-digit',
     minute: '2-digit',
     hourCycle: 'h23',
-    timeZone: roomTimeZone.value || undefined,
+    timeZone: roomTimeZone.value ?? undefined,
   }).format(ms)
 }
 
@@ -386,20 +386,12 @@ function toRegistrations(current: RoomGame): Registration[] | StartError {
   return registrations
 }
 
-/** `next` de la salle et, avec la première, son fuseau. Lecture ratée : on garde ce qui s'affichait. */
-async function readNext(token: string): Promise<RoomGame | null> {
-  try {
-    const session = await fetchNextSession(token)
-    if (session && roomTimeZone.value === null) {
-      roomTimeZone.value = await fetchRoomInfo(token).then(
-        (room) => room.schedule?.timezone ?? '',
-        () => null
-      )
-    }
-    return session
-  } catch {
-    return next.value
-  }
+/** Fuseau de la salle, comme le backoffice qui programme ses sessions. Lecture ratée : session cachée, relue plus tard. */
+async function readTimeZone(token: string): Promise<void> {
+  roomTimeZone.value = await fetchRoomInfo(token).then(
+    (room) => room.schedule?.timezone ?? ROOM_DEFAULT_TIMEZONE,
+    () => null
+  )
 }
 
 async function refresh(): Promise<void> {
@@ -417,13 +409,20 @@ async function refresh(): Promise<void> {
   }
   polling = true
   try {
-    const current = await fetchCurrentGame(token)
-    const upcoming = current ? null : await readNext(token)
+    const { game: current, next: coming } = await fetchCurrentState(token)
+    const upcoming = current ? null : coming
+    if (upcoming && roomTimeZone.value === null) {
+      await readTimeZone(token)
+    }
     failures = 0
     if (starting.value || disposed) {
       return
     }
     now.value = Date.now()
+    // Une autre partie ou session a pris la place de celle affichée : son message d'erreur ne la suit pas.
+    if ((current ?? upcoming)?.id !== (game.value ?? next.value)?.id) {
+      error.value = null
+    }
     game.value = current
     next.value = upcoming
     status.value = current ? 'ready' : 'waiting'
@@ -455,14 +454,14 @@ const onStart = (): Promise<void> => launch(game.value)
 const onLaunchNext = (): Promise<void> => launch(shownNext.value, true)
 
 /** `opening` : la partie est une session programmée, que le backoffice ouvre avant le démarrage. */
-async function launch(current: RoomGame | null, opening = false): Promise<void> {
+async function launch(first: RoomGame | null, opening = false): Promise<void> {
   const token = getRoomToken()
-  if (starting.value || !current || !token) {
+  if (starting.value || !first || !token) {
     return
   }
-  const registrations = toRegistrations(current)
-  if (typeof registrations === 'string') {
-    error.value = registrations
+  const checked = toRegistrations(first)
+  if (typeof checked === 'string') {
+    error.value = checked
     return
   }
   // Partie déjà commencée : la recommencer efface la progression de la salle.
@@ -475,11 +474,23 @@ async function launch(current: RoomGame | null, opening = false): Promise<void> 
 
   starting.value = true
   error.value = null
-  let opened = false
   try {
+    let current = first
+    let registrations = checked
     if (opening) {
-      await openRoomGame(token, current.id)
-      opened = true
+      await openRoomGame(token, first.id)
+      // La partie démarre avec ce que le serveur a après l'ouverture, pas avec `next` lu avant.
+      const opened = (await fetchCurrentState(token)).game
+      if (!opened) {
+        throw new RoomApiError(404, 'game_not_found')
+      }
+      const players = toRegistrations(opened)
+      if (typeof players === 'string') {
+        error.value = players
+        return
+      }
+      current = opened
+      registrations = players
     }
     const themes = await fetchCurrentContent(token)
     if (disposed) {
@@ -518,7 +529,7 @@ async function launch(current: RoomGame | null, opening = false): Promise<void> 
     rememberBackofficeGameId(current.id, current.seed)
   } catch (caught) {
     error.value = toStartError(caught)
-    if (error.value === 'participantsChanged' && !disposed) {
+    if (error.value === 'participantsChanged' && !opening && !disposed) {
       // Le relevé affiché est périmé : on le recharge (`refresh` ne tourne pas pendant `starting`).
       starting.value = false
       await refresh()
@@ -526,8 +537,8 @@ async function launch(current: RoomGame | null, opening = false): Promise<void> 
     return
   } finally {
     starting.value = false
-    // Session ouverte puis échec : elle est maintenant la partie en attente, l'écran la relit.
-    if (opened && error.value !== null && !disposed) {
+    // « Lancer » a échoué : la session a changé (refusée, annulée, ouverte) et l'écran la relit.
+    if (opening && error.value !== null && !disposed) {
       void refresh()
     }
   }
