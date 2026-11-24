@@ -1,9 +1,13 @@
 import { z } from 'zod'
 
 import {
+  GAME_DEFAULT_FORMAT,
   GAME_DEFAULT_QUESTIONS_PER_ROUND,
   GAME_DEFAULT_ROUNDS,
   GAME_EXTERNAL_REF_MAX_LENGTH,
+  GAME_FORMAT_CUSTOM,
+  GAME_FORMAT_SETTINGS,
+  GAME_FORMATS,
   GAME_LIST_DEFAULT_LIMIT,
   GAME_LIST_MAX_LIMIT,
   GAME_LOCALES,
@@ -13,6 +17,7 @@ import {
   GAME_PARTICIPANT_DISPLAY_NAME_MAX_LENGTH,
   GAME_PODIUMS,
   GAME_STATES,
+  type GameFormat,
   MINI_GAMES,
   SESSION_MAX_MINUTES,
   SESSION_MIN_MINUTES,
@@ -149,12 +154,34 @@ const miniGamesSchema = z
 const arePodiumsUnique = (participants: GameParticipantInput[] = []) =>
   new Set(participants.map((item) => item.podium)).size === participants.length
 
+/**
+ * Format et nombres d'une création : un format fixe (`discovery`, `short`, `standard`) donne les
+ * nombres de `GAME_FORMAT_SETTINGS` ; des nombres sans format font un `custom` ; rien d'envoyé,
+ * le format par défaut. Un format fixe accompagné de nombres est refusé par le schéma.
+ */
+function resolveGameFormat<
+  T extends { format?: GameFormat; roundsCount?: number; questionsPerRound?: number },
+>(body: T) {
+  const hasCounts = body.roundsCount !== undefined || body.questionsPerRound !== undefined
+  const format = body.format ?? (hasCounts ? GAME_FORMAT_CUSTOM : GAME_DEFAULT_FORMAT)
+  const counts =
+    format === GAME_FORMAT_CUSTOM
+      ? {
+          roundsCount: body.roundsCount ?? GAME_DEFAULT_ROUNDS,
+          questionsPerRound: body.questionsPerRound ?? GAME_DEFAULT_QUESTIONS_PER_ROUND,
+        }
+      : GAME_FORMAT_SETTINGS[format]
+
+  return { ...body, format, ...counts }
+}
+
 export const createGameSchema = z
   .object({
     // Les ids bigint sortent de l'API en texte : on accepte "7" comme 7.
     roomId: z.coerce.number().int().positive(),
-    roundsCount: roundsCountSchema.default(GAME_DEFAULT_ROUNDS),
-    questionsPerRound: questionsPerRoundSchema.default(GAME_DEFAULT_QUESTIONS_PER_ROUND),
+    format: z.enum(GAME_FORMATS).optional(),
+    roundsCount: roundsCountSchema.optional(),
+    questionsPerRound: questionsPerRoundSchema.optional(),
     // Une session programmée peut n'avoir aucun joueur nommé (arbitrage 6).
     participants: participantsSchema.default([]),
     // Ouvre tout de suite le lien d'inscription par QR code (partie immédiate) : sans joueur à la
@@ -187,6 +214,14 @@ export const createGameSchema = z
     message: 'participants_podium_duplicated',
     path: ['participants'],
   })
+  .refine(
+    (body) =>
+      body.format === undefined ||
+      body.format === GAME_FORMAT_CUSTOM ||
+      (body.roundsCount === undefined && body.questionsPerRound === undefined),
+    { message: 'format_fixes_counts', path: ['format'] }
+  )
+  .transform(resolveGameFormat)
 
 /**
  * Modification d'une session `scheduled` : au moins un champ, les absents sont gardés.
