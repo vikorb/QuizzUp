@@ -80,7 +80,11 @@ export function applyPublicDefaults(app: FastifyInstance) {
     }
 
     // Le détail reste dans le journal du serveur (sans corps de requête) ; le client n'en reçoit rien.
-    req.log.error({ err: error }, 'public API error')
+    // Liste blanche : une erreur PostgreSQL porte `detail` (ex. « Failing row contains (…) ») qui
+    // recopie les valeurs de la ligne, donc prénoms et e-mails de joueurs.
+    const { name, message, code, stack } = error
+
+    req.log.error({ err: { type: name, message, code, stack } }, 'public API error')
     return sendPublicError(reply, 500, 'server_error')
   })
 }

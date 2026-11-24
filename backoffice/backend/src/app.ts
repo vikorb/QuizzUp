@@ -9,7 +9,7 @@ import routes from './routes'
 import { isPublicPath, sendPublicError } from './routes/public/_shared'
 import authPlugin from './plugins/auth'
 import liveHubPlugin from './plugins/liveHub'
-import { parseCorsOrigin, parseOriginList } from './utils/cors'
+import { parseCorsOrigin, parsePublicOrigins } from './utils/cors'
 import { parseTrustProxy } from './utils/trustProxy'
 
 import type { FastifyStaticSwaggerOptions } from '@fastify/swagger'
@@ -47,9 +47,10 @@ export function buildApp() {
     allowedHeaders: ['Content-Type', 'Authorization'],
   }
 
-  // API publique : sans cookie ni jeton, ouverte aux seuls sites listés dans VITRINE_ORIGINS
-  // (aucune origine si la variable est vide, comme pour un appel de serveur à serveur).
-  const vitrineOrigins = parseOriginList(process.env.VITRINE_ORIGINS)
+  // API publique : sans cookie ni jeton, ouverte aux seuls sites listés dans VITRINE_ORIGINS, plus
+  // l'origine de PUBLIC_APP_URL qui sert les pages pour téléphone (aucune origine si les deux
+  // sont vides, comme pour un appel de serveur à serveur).
+  const vitrineOrigins = parsePublicOrigins(process.env.VITRINE_ORIGINS, process.env.PUBLIC_APP_URL)
   const publicCors = {
     origin: vitrineOrigins.length > 0 ? vitrineOrigins : false,
     credentials: false,

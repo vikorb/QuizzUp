@@ -194,14 +194,7 @@
         <div>
           <h3 class="game-form__section-title">{{ $t('games.form.sections.participants') }}</h3>
           <p class="game-form__notice">
-            {{
-              $t(
-                form.scheduled
-                  ? 'games.form.participantsHintScheduled'
-                  : 'games.form.participantsHint',
-                { max: desksCount }
-              )
-            }}
+            {{ $t(participantsHintKey, { max: desksCount }) }}
           </p>
           <p
             v-if="participantsLocked"
@@ -226,6 +219,22 @@
           </span>
         </UiButton>
       </div>
+
+      <div v-if="!game && !form.scheduled" class="game-form__switch">
+        <SwitchField
+          id="game-form-open-join"
+          :model-value="form.openJoin"
+          :disabled="isBusy"
+          :label="$t('games.form.openJoin')"
+          aria-describedby="game-form-open-join-hint"
+          data-test="game-open-join"
+          @change="onOpenJoinChange"
+        />
+        <label for="game-form-open-join">{{ $t('games.form.openJoin') }}</label>
+      </div>
+      <p v-if="!game && !form.scheduled" id="game-form-open-join-hint" class="game-form__notice">
+        {{ $t('games.form.openJoinHint') }}
+      </p>
 
       <div class="game-form__participants">
         <GameParticipantFields
@@ -282,6 +291,7 @@ import FormActions from '@/components/ui/form/FormActions.vue'
 import FormField from '@/components/ui/form/FormField.vue'
 import FormResult from '@/components/ui/form/FormResult.vue'
 import SelectField from '@/components/ui/form/SelectField.vue'
+import SwitchField from '@/components/ui/form/SwitchField.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import RoomPresenceBadge from '@/components/ui/RoomPresenceBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
@@ -320,6 +330,7 @@ import {
   hasGameFormErrors,
   hasMaskedParticipantEmails,
   openGameSecondPlayer,
+  setGameOpenJoin,
   setGameScheduled,
   validateGameForm,
 } from '@/utils/game/form'
@@ -395,8 +406,18 @@ const participantsLocked = computed(() =>
   props.game ? hasMaskedParticipantEmails(props.game) : false
 )
 const canRemoveParticipant = computed(
-  () => !participantsLocked.value && canRemoveGameParticipant(form.participants, form.scheduled)
+  () =>
+    !participantsLocked.value &&
+    canRemoveGameParticipant(form.participants, form.scheduled || form.openJoin)
 )
+// Programmée ou ouverte au lien d'inscription, la partie peut n'avoir aucun participant au départ.
+const participantsHintKey = computed(() => {
+  if (form.scheduled) {
+    return 'games.form.participantsHintScheduled'
+  }
+
+  return form.openJoin ? 'games.form.participantsHintOpenJoin' : 'games.form.participantsHint'
+})
 // Jour et heure se lisent dans le fuseau de la salle choisie, comme l'agenda.
 const timeZone = computed(() => getGameRoomTimeZone(props.rooms, form.roomId))
 const durationBounds = { min: SESSION_MIN_MINUTES, max: SESSION_MAX_MINUTES }
@@ -506,6 +527,11 @@ function onScheduledChange(event: Event): void {
     setGameScheduled(form, event.target.checked)
     syncParticipantErrors()
   }
+}
+
+function onOpenJoinChange(openJoin: boolean): void {
+  setGameOpenJoin(form, openJoin)
+  syncParticipantErrors()
 }
 
 function describeParticipant(participant: GameParticipantFormValues, index: number): string {
@@ -829,6 +855,15 @@ async function onSubmit(): Promise<void> {
   margin: 0;
   accent-color: var(--primary);
   cursor: pointer;
+}
+
+.game-form__switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  color: var(--text-1);
+  font-size: 14px;
 }
 
 .game-form__participants {
