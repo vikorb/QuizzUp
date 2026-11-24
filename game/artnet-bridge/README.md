@@ -305,10 +305,14 @@ défaut). Réglages : `-Target`, `-Universe` (défaut `0`, ex. `0.0.5`), `-Port`
   sans jamais fermer la fenêtre pendant une partie**. `Ctrl+C` envoie aussi un noir. Les deux cas
   sont **à valider sur le banc** (A8) : le test automatique ne couvre que l'émission du noir, pas la
   fermeture d'une vraie fenêtre.
-- **Écran de salle qui lit trop lentement** : si le relais ne peut plus rien lui envoyer pendant 0,5 s
+- **Écran de salle qui lit trop lentement** : si un envoi vers lui n'est pas terminé au bout de 0,5 s
   (onglet figé, connexion morte), la connexion est coupée et le noir part comme à toute déconnexion.
-  Une trame de plus de 515 octets ferme la connexion (code 1009), et un client qui envoie sans fin
-  ne retient pas le relais (64 Kio lus au plus par tour) : lumières et écran suivant ne sont pas gênés.
+  Une trame de plus de 515 octets ferme la connexion (code 1009). Le relais lit au plus 1 Kio par
+  connexion et par tour de boucle : un client qui envoie sans fin (mesuré avec des ping en rafale) ne
+  retient pas le relais. Une seconde connexion reçoit sa réponse « busy » en environ 0,1 s (2 à 7 s
+  avec une lecture non bornée) et l'écart entre deux paquets Art-Net reste à la cadence de rappel
+  (environ 0,8 s, contre 4,3 s). Les trames de ce client lui-même restent derrière ses ping dans
+  le flux TCP : l'inondation ralentit sa propre partie, pas le reste.
 - Les tests (`tests/powershellRelay.test.ts`) ne tournent que sous Windows.
 
 ## Sécurité
