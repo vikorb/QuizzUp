@@ -82,26 +82,20 @@ attente de la CI GitHub, merge), jamais de rebase ni de push forcé.
 | Jeu                   | #148 mini-jeux tirés sans remise, #151 effets sur les extraits et voix d'annonces, #162 boutons et mises en page de l'écran de salle, #186 extraits de blind test fournis, #191 catalogue des annonces vocales, #192 formats partagés et durée estimée, #193 compte à rebours, transitions, scores animés et confettis |
 | Production, outillage | #137 pile de production (`deploy/prod/`), #138 guides, #147 conceptions, #149 dépendances, #172 tests PostgreSQL de la CI pris par motif, #200 tests de l'écran de jeu stables sous charge                                                                                                                             |
 
-**Mergé le 24 novembre** (#197 à #261) :
+**Mergé le 24 novembre** (#197 à #264) :
 
-| Domaine                    | PR                                                                                                                                                                                                                                                                                            |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Pilotage en direct         | #212 et #214 commandes à distance (backoffice, écran de salle), #248 événement `game_updated` à la place de l'interrogation du lobby, #259 scénario Playwright des commandes vues du backoffice                                                                                               |
-| Sessions, accueil, joueurs | #205 routes de salle des sessions, #253 prochaine session au lobby, #257 événement `schedule_changed`, #202 accueil (API, personnel), #224 page d'inscription sur téléphone, #226 accueil sur la fiche d'une partie, #227 et #229 QR code (serveur, lobby), #225 et #238 joueurs (API, écran) |
-| Formats, contenu           | #234 et #243 format de partie (serveur, backoffice et lobby), #232 et #252 mode enfants (serveur, formulaire et téléphone), #250 questions déjà vues évitées, #223 manches jouées enregistrées                                                                                                |
-| Audio, playlists           | #206, #207 et #216 effet audio d'une question (stockage, lecture, formulaire), #209, #230, #241 et #249 playlists (thème, formulaire, tirage côté salle, reprise d'une partie)                                                                                                                |
-| Bons de fidélisation       | #198 API, #228 backoffice, fiche et feuille, #239 page publique du bon                                                                                                                                                                                                                        |
-| API de réservation         | #210 et #247 clés d'API et journal des appels (serveur, fiche client), #231 salles et créneaux, #240 réservations, #245 bac à sable, #254 contrat servi par `GET /public/v1/openapi.yaml`                                                                                                     |
-| Lumières, spectacle        | #197 show réglable et modèles de salle, #217 scène de sortie, #233 lumières de pause et de reprise, #236 et #244 export et import de la configuration, #237 modèles de salle et proposition d'univers, #213, #235 et #251 relais PowerShell Art-Net, #246 identité retenue des périphériques  |
-| Fumée par la carte USB     | #218 programme de la carte compilé en CI, #221 lien série, #220 installation par Web Serial, #242 fumée par la carte depuis le contrôleur, #255 carte dans l'écran Matériel, #258 test de coupure par la carte, reprise seule du lien, guide                                                  |
-| Console, salle             | #208 écran des demandes de démonstration, #222 logo du centre sur l'écran de salle                                                                                                                                                                                                            |
-| Tests, outillage           | #219 endurance sur trois parties, #256 inscription par QR et impression de la feuille, #261 ESLint sur le TypeScript du backend et référence de média partagée, #211 point de reprise précédent                                                                                               |
-
-**Après ce point** : corrections trouvées pendant la recette navigateur (branche
-`fix/recette-navigateur`) : champ de date de l'Agenda écrasé (29 px de large), boutons des pages
-publiques en police système, libellé « Demandée le … », accords au singulier (« 1 manche × 1
-question », « 1 min »). En cours : scénario Playwright du test de coupure par la carte (branche
-`test/e2e-coupure-carte`, copie de travail `journaux-salle`).
+| Domaine                    | PR                                                                                                                                                                                                                                                                                                                                                                         |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pilotage en direct         | #212 et #214 commandes à distance (backoffice, écran de salle), #248 événement `game_updated` à la place de l'interrogation du lobby, #259 scénario Playwright des commandes vues du backoffice                                                                                                                                                                            |
+| Sessions, accueil, joueurs | #205 routes de salle des sessions, #253 prochaine session au lobby, #257 événement `schedule_changed`, #202 accueil (API, personnel), #224 page d'inscription sur téléphone, #226 accueil sur la fiche d'une partie, #227 et #229 QR code (serveur, lobby), #225 et #238 joueurs (API, écran)                                                                              |
+| Formats, contenu           | #234 et #243 format de partie (serveur, backoffice et lobby), #232 et #252 mode enfants (serveur, formulaire et téléphone), #250 questions déjà vues évitées, #223 manches jouées enregistrées                                                                                                                                                                             |
+| Audio, playlists           | #206, #207 et #216 effet audio d'une question (stockage, lecture, formulaire), #209, #230, #241 et #249 playlists (thème, formulaire, tirage côté salle, reprise d'une partie)                                                                                                                                                                                             |
+| Bons de fidélisation       | #198 API, #228 backoffice, fiche et feuille, #239 page publique du bon                                                                                                                                                                                                                                                                                                     |
+| API de réservation         | #210 et #247 clés d'API et journal des appels (serveur, fiche client), #231 salles et créneaux, #240 réservations, #245 bac à sable, #254 contrat servi par `GET /public/v1/openapi.yaml`                                                                                                                                                                                  |
+| Lumières, spectacle        | #197 show réglable et modèles de salle, #217 scène de sortie, #233 lumières de pause et de reprise, #236 et #244 export et import de la configuration, #237 modèles de salle et proposition d'univers, #213, #235 et #251 relais PowerShell Art-Net, #246 identité retenue des périphériques                                                                               |
+| Fumée par la carte USB     | #218 programme de la carte compilé en CI, #221 lien série, #220 installation par Web Serial, #242 fumée par la carte depuis le contrôleur, #255 carte dans l'écran Matériel, #258 test de coupure par la carte, reprise seule du lien, guide                                                                                                                               |
+| Console, salle             | #208 écran des demandes de démonstration, #222 logo du centre sur l'écran de salle                                                                                                                                                                                                                                                                                         |
+| Tests, outillage           | #219 endurance sur trois parties, #256 inscription par QR et impression de la feuille, #261 ESLint sur le TypeScript du backend et référence de média partagée, #211 et #262 points de reprise, #263 corrections de la recette navigateur (police des boutons, champ de date de l'Agenda, accords au singulier), #264 scénarios Playwright du test de coupure par la carte |
 
 **Vérifié dans un vrai navigateur, sur la pile Docker réelle** (sans erreur de console) :
 
@@ -132,7 +126,11 @@ appels sur une base remplie ; SonarQube et Lighthouse (reportés).
 `http://localhost:4173` (et non `127.0.0.1`, refusé par le CORS). L'écran de salle (`:4174`) se
 lance avec `docker compose -f backoffice/docker-compose.yml up -d room-app` s'il n'est pas
 démarré. Une salle n'apparaît dans l'API publique qu'après l'enregistrement de ses créneaux avec
-la réservation publique cochée.
+la réservation publique cochée. Après une mise à jour du code de `backoffice/shared`, relancer les
+conteneurs (ils reconstruisent `shared` au démarrage) : sinon le backoffice affiche une page
+blanche. Tant que la démonstration tourne, les tests de `game/e2e` lancés en local réutilisent ses
+serveurs (`:4174`) : ils testent la copie de travail principale, pas la branche en cours ;
+l'arrêter (`npm run demo:stop`) avant de valider une branche qui touche l'écran de salle.
 
 Prochain horodatage de migration libre : `20261124190000`.
 
@@ -142,7 +140,7 @@ Prochain horodatage de migration libre : `20261124190000`.
 | -------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | 1        | Banc matériel sur place (`docs/recette/banc-materiel.md`) : buzzers, lumières par le relais, carte de la fumée (F20 à F30)       |
 | 1        | Blind test par playlist de bout en bout dès que les liens des playlists sont fournis                                             |
-| 2        | Scénario Playwright du test de coupure par la carte ; `schedule_changed` à la suppression ou à la désactivation d'une salle      |
+| 2        | `schedule_changed` à la suppression ou à la désactivation d'une salle                                                            |
 | 2        | Montage de la pile de production sur une machine (`deploy/prod/`), `caddy validate`, SSE derrière Caddy                          |
 | 3        | Suivis ci-dessous, regroupés par zone ; règles ESLint lourdes du backend ; `knip`                                                |
 | 3        | Reportés par Enzo : e-mails, textes légaux, SonarQube, Lighthouse                                                                |
@@ -183,7 +181,7 @@ relevé de la salle ; reprise du lien de la carte de fumée : 5 essais, 3 s d'é
   `game_id` ni indicateur de rejeu) ; code d'erreur inconnu affiché brut dans le journal ;
   `OPENAPI_PATH` à régler au déploiement ; chemins `/maps`, `/shop/items`, `/assets/upload-url` de
   `openapi.yaml` à vérifier (ils ne semblent pas appartenir au produit).
-- _Matériel_ : pas de scénario Playwright du test de coupure par la carte ; une salle équipée de
+- _Matériel_ : l'assistant n'active la fumée qu'à l'enregistrement du récapitulatif, sans le dire après un test de coupure réussi ; une salle équipée de
   la carte seule ne peut pas lancer le test de coupure ; « moins d'une seconde » à mesurer sur le
   banc ; `.hex` embarqué dans le paquet principal ; gardes `inProgress()` non testées ; même
   identifiant USB pour une interface DMX à CH340 et un clone de Uno (banc) ; réaction de l'ancien
