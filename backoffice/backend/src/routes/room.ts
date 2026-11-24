@@ -5,6 +5,7 @@ import {
   GAME_STATE_FINISHED,
   GAME_STATE_PENDING,
   GAME_STATE_RUNNING,
+  GAME_STATE_SCHEDULED,
   GAME_STATUS_DELETED,
   QUESTION_MEDIA_TYPE_AUDIO,
   QUESTION_STATUS_ACTIVE,
@@ -17,7 +18,7 @@ import type { RoomRow } from '../types/room'
 import { ROOM_CONFIG_MAX_LENGTH, roomConfigSchema } from './companies/rooms/_schemas'
 import { companyLogoUrl } from './companies/_shared'
 import { roomSelect } from './companies/rooms/_shared'
-import { addGameJoin, findGameInCompany } from './games/_shared'
+import { addGameJoin, findGameInCompany, openScheduledGame } from './games/_shared'
 import { getMediaVersion } from './questions/_shared'
 import { isInPlayableTheme, isReadableByCompany, loadRoomContent } from './room/_content'
 import { findCurrentGameId } from './room/_join'
@@ -64,6 +65,20 @@ const MEDIA_CACHE_CONTROL = 'private, no-cache'
 /** Partie en cours, sinon en attente, de la salle. Les emails restent côté backoffice. */
 function findCurrentRoomGameId(req: FastifyRequest): Promise<number | null> {
   return findCurrentGameId(req.user.company_id, Number(req.user.room_id))
+}
+
+/** Prochaine session programmée de la salle dont la fin prévue est dans le futur (en retard comprise). */
+async function findNextRoomGame(req: FastifyRequest) {
+  const next = await db('games')
+    .where('room_id', req.user.room_id)
+    .where('company_id', req.user.company_id)
+    .where('state', GAME_STATE_SCHEDULED)
+    .whereNot('status', GAME_STATUS_DELETED)
+    .where('scheduled_end_at', '>', new Date().toISOString())
+    .orderBy('scheduled_at', 'asc')
+    .first('id')
+
+  return next ? findRoomGame(req, Number(next.id)) : null
 }
 
 async function findCurrentRoomGame(req: FastifyRequest) {
@@ -218,7 +233,10 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
     const game = await findCurrentRoomGame(req)
 
     // Lien d'inscription et nombre de demandes, jamais le nom d'une demande non validée.
-    return { game: game ? await addGameJoin(game) : null }
+    return {
+      game: game ? await addGameJoin(game) : null,
+      next: await findNextRoomGame(req),
+    }
   })
 
   // Catalogue de la partie en cours : une question audio n'est jouable qu'avec un fichier ou un
@@ -374,6 +392,36 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
     }
 
     return { game: await findCurrentRoomGame(req) }
+  })
+
+  // « Lancer » : la salle ouvre une de ses sessions programmées (`scheduled` → `pending`), avec les
+  // mêmes règles et les mêmes codes que le backoffice. Une autre salle ou compagnie : 404.
+  app.post('/room/games/:gameId/open', { preHandler: [app.authenticate] }, async (req, reply) => {
+    if (!isRoomAccount(req)) {
+      return reply.code(403).send({ error: 'forbidden' })
+    }
+
+    const parsedParams = roomGameParamsSchema.safeParse(req.params)
+
+    if (!parsedParams.success) {
+      return reply.code(400).send({ error: 'invalid_params' })
+    }
+
+    const { gameId } = parsedParams.data
+
+    if (!(await findRoomGame(req, gameId))) {
+      return reply.code(404).send({ error: 'game_not_found' })
+    }
+
+    const error = await openScheduledGame(req.user.company_id, gameId)
+
+    if (error) {
+      return error === 'not_found'
+        ? reply.code(404).send({ error: 'game_not_found' })
+        : reply.code(409).send({ error })
+    }
+
+    return { game: await findRoomGame(req, gameId) }
   })
 
   // Fin de partie (podium) : la salle enregistre les scores et passe la partie « terminée ».

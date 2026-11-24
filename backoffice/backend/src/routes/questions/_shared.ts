@@ -10,6 +10,8 @@ import {
   QUESTION_KINDS,
   getQuestionKindAnswersError,
   getQuestionKindMediaError,
+  QUESTION_AUDIO_EFFECT_NONE,
+  QUESTION_MEDIA_TYPE_AUDIO,
   QUESTION_MEDIA_TYPE_NONE,
   QUESTION_MEDIA_TYPES,
   QUESTION_STATUS_ACTIVE,
@@ -20,6 +22,7 @@ import {
   THEME_SCOPE_GLOBAL,
   THEME_STATUS_DELETED,
   type AnswerStatus,
+  type QuestionAudioEffect,
   type QuestionKind,
   type QuestionMediaType,
   type QuestionStatus,
@@ -46,6 +49,7 @@ import {
   themeSelect,
   type ThemeAccessRow,
 } from '../themes/_shared'
+import { questionAudioEffectSchema } from './_schemas'
 
 export { getCurrentAdminId, getCurrentAdminRole, isUserRole, parseOptionalNumber, parsePositiveId }
 
@@ -61,6 +65,7 @@ export type QuestionBody = {
   kind?: QuestionKind
   mediaUrl?: string | null
   mediaStartMs?: number
+  audioEffect?: unknown
   status?: QuestionStatus
   answers?: unknown
 }
@@ -136,6 +141,7 @@ export const questionSelect = [
   'questions.media_provider as mediaProvider',
   'questions.media_provider_ref as mediaProviderRef',
   'questions.media_uploaded_at as mediaUploadedAt',
+  'questions.audio_effect as audioEffect',
   'questions.status',
   'questions.created_at as createdAt',
   'questions.updated_at as updatedAt',
@@ -501,6 +507,34 @@ export function parseQuestionThemeIds(body: QuestionBody): number[] {
   ]
 }
 
+/**
+ * Effet audio envoyé : `effect` vaut `undefined` si le champ est absent, `none` si `null`
+ * (effacement), sinon la valeur contrôlée contre la liste de `@quizzup/shared`.
+ */
+export function parseQuestionAudioEffect(
+  value: unknown
+): { error: string } | { effect: QuestionAudioEffect | undefined } {
+  if (value === undefined) {
+    return { effect: undefined }
+  }
+
+  const parsed = questionAudioEffectSchema.safeParse(value)
+
+  return parsed.success
+    ? { effect: parsed.data ?? QUESTION_AUDIO_EFFECT_NONE }
+    : { error: 'question_audio_effect_invalid' }
+}
+
+/** Un effet autre que `none` n'a de sens que sur une question audio. */
+export function getQuestionAudioEffectError(
+  effect: QuestionAudioEffect,
+  typeMedia: QuestionMediaType
+): string | null {
+  return effect !== QUESTION_AUDIO_EFFECT_NONE && typeMedia !== QUESTION_MEDIA_TYPE_AUDIO
+    ? 'audio_effect_requires_audio'
+    : null
+}
+
 /** Corps d'une question une fois contrôlé, tel que `POST /questions` et l'import CSV l'écrivent. */
 export type QuestionInput = {
   questionText: string
@@ -508,6 +542,7 @@ export type QuestionInput = {
   typeMedia: QuestionMediaType
   kind: QuestionKind
   mediaUrl: string | null
+  audioEffect: QuestionAudioEffect
   answers: NormalizedAnswer[]
 }
 
@@ -541,8 +576,15 @@ export function validateQuestionInput(
     return { error: 'question_kind_invalid' }
   }
 
+  const audioEffect = parseQuestionAudioEffect(body.audioEffect)
+
+  if ('error' in audioEffect) {
+    return audioEffect
+  }
+
   const error =
     getQuestionKindMediaError(kind, typeMedia) ??
+    getQuestionAudioEffectError(audioEffect.effect ?? QUESTION_AUDIO_EFFECT_NONE, typeMedia) ??
     validateAnswers(answers) ??
     validateAnswersForKind(kind, answers) ??
     (hasInvalidAnswerStatus(answers) ? 'question_answer_status_invalid' : null)
@@ -556,6 +598,7 @@ export function validateQuestionInput(
           typeMedia,
           kind,
           mediaUrl: body.mediaUrl ?? null,
+          audioEffect: audioEffect.effect ?? QUESTION_AUDIO_EFFECT_NONE,
           answers,
         },
       }

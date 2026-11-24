@@ -39,22 +39,22 @@ Les `events` (numérotés par `seq`) sont destinés à `game_events` ; `state.ro
 Le moteur ne joue aucun son et ne pilote aucun matériel : l'hôte **réagit aux événements**
 renvoyés par `reduceGame` et lit `state.phase` pour l'affichage.
 
-| Événement                                     | Payload principal                                                | Réaction attendue de l'hôte                                                  |
-| --------------------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `game_started`                                | —                                                                | écran d'accueil → partie, ambiance lumière                                   |
-| `round_started`                               | `position`, `miniGame`                                           | annonce du mini-jeu                                                          |
-| `round_chooser_selected`                      | `participantId`, `reason`                                        | mettre en avant le pupitre qui choisit                                       |
-| `round_themes_offered`                        | `themeIds`                                                       | afficher les 4 thèmes (A-D)                                                  |
-| `round_theme_selected`                        | `themeId`, `participantId`, `automatic`                          | thème retenu                                                                 |
-| `question_started`                            | `questionId`, `questionIndex`, `miniGame`                        | afficher la question et les réponses                                         |
-| `blind_test_stage_started`                    | `stage`, `extractMs`, `buzzWindowMs`, `mediaUrl`, `mediaStartMs` | **jouer l'extrait** de `extractMs` depuis `mediaStartMs`                     |
-| `buzzer_pressed`                              | `participantId`, `stage`                                         | lumière/son du pupitre qui a buzzé                                           |
-| `blind_test_paused`                           | `elapsedMs`                                                      | **couper l'audio**, attendre la réponse A-D                                  |
-| `blind_test_stage_resumed`                    | `stage`, `elapsedMs`, `remainingMs`                              | reprendre la fenêtre de buzz (audio déjà terminé si `elapsedMs ≥ extractMs`) |
-| `answer_correct` / `answer_wrong`             | `participantId`, `answerId`, `timedOut`                          | effet bonne / mauvaise réponse                                               |
-| `points_awarded`                              | `participantId`, `points`, `total`                               | animation de score                                                           |
-| `question_ended`                              | `questionId`, `winnerIds`, `skipped?`                            | phase `reveal` : afficher la bonne réponse                                   |
-| `round_ended` / `game_ended` / `game_aborted` | classement, raison                                               | récap, podium final, effets de fin (fumée…)                                  |
+| Événement                                     | Payload principal                                                               | Réaction attendue de l'hôte                                                          |
+| --------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `game_started`                                | —                                                                               | écran d'accueil → partie, ambiance lumière                                           |
+| `round_started`                               | `position`, `miniGame`                                                          | annonce du mini-jeu                                                                  |
+| `round_chooser_selected`                      | `participantId`, `reason`                                                       | mettre en avant le pupitre qui choisit                                               |
+| `round_themes_offered`                        | `themeIds`                                                                      | afficher les 4 thèmes (A-D)                                                          |
+| `round_theme_selected`                        | `themeId`, `participantId`, `automatic`                                         | thème retenu                                                                         |
+| `question_started`                            | `questionId`, `questionIndex`, `miniGame`                                       | afficher la question et les réponses                                                 |
+| `blind_test_stage_started`                    | `stage`, `extractMs`, `buzzWindowMs`, `mediaUrl`, `mediaStartMs`, `audioEffect` | **jouer l'extrait** de `extractMs` depuis `mediaStartMs`, avec l'effet `audioEffect` |
+| `buzzer_pressed`                              | `participantId`, `stage`                                                        | lumière/son du pupitre qui a buzzé                                                   |
+| `blind_test_paused`                           | `elapsedMs`                                                                     | **couper l'audio**, attendre la réponse A-D                                          |
+| `blind_test_stage_resumed`                    | `stage`, `elapsedMs`, `remainingMs`                                             | reprendre la fenêtre de buzz (audio déjà terminé si `elapsedMs ≥ extractMs`)         |
+| `answer_correct` / `answer_wrong`             | `participantId`, `answerId`, `timedOut`                                         | effet bonne / mauvaise réponse                                                       |
+| `points_awarded`                              | `participantId`, `points`, `total`                                              | animation de score                                                                   |
+| `question_ended`                              | `questionId`, `winnerIds`, `skipped?`                                           | phase `reveal` : afficher la bonne réponse                                           |
+| `round_ended` / `game_ended` / `game_aborted` | classement, raison                                                              | récap, podium final, effets de fin (fumée…)                                          |
 
 Règles d'intégration :
 
@@ -94,7 +94,7 @@ on répond seul).
 
 | Mini-jeu (`code`)                             | Questions                      | Règles                                                                                                                                                                |
 | --------------------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Blind test éclair (`flash_blind_test`)        | audio                          | extraits 1 / 5 / 20 s, premier buzz répond seul, 100 / 50 / 20, erreur = bloqué pour le palier                                                                        |
+| Blind test éclair (`flash_blind_test`)        | audio                          | extraits 1 / 5 / 20 s (0,5 / 2 / 10 s si `audioEffect: 'short'`), premier buzz répond seul, 100 / 50 / 20, erreur = bloqué pour le palier                             |
 | Rapidité (`quick_answer`)                     | QCM                            | tous répondent en 15 s, 100 → 20 points selon la vitesse                                                                                                              |
 | Premier buzz (`first_buzz`)                   | QCM                            | premier buzz répond seul, 100 points, erreur = −25 (borné à 0) et la main passe                                                                                       |
 | Vrai ou faux éclair (`true_false`)            | 2 réponses « Vrai » / « Faux » | A = vrai, B = faux, 6 s, 50 points, révélation 2,5 s                                                                                                                  |

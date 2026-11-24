@@ -1,6 +1,7 @@
 import type { EngineQuestion, EngineTheme } from '@quizzup/game-engine'
 import type { MiniGame, RoomLogEntryInput } from '@quizzup/shared'
 
+import { toExtractEffect } from '@/audio/extractEffect'
 import type { MediaCredit } from '@/game/mediaCredits'
 import { authHeaders, getApiBase } from '@/utils/auth'
 
@@ -134,6 +135,7 @@ export async function fetchCurrentContent(
     questions: theme.questions.map((question) => ({
       ...question,
       mediaUrl: resolveMediaUrl(question.mediaUrl),
+      audioEffect: toExtractEffect(question.audioEffect),
     })),
   }))
 }
