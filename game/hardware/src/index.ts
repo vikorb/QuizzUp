@@ -50,6 +50,9 @@ export type {
   BuzzerSource,
   LightingConfig,
   ParsedRoomHardwareConfig,
+  RoomConfigImportRefusal,
+  RoomConfigImportResult,
+  RoomConfigImportSummary,
   RoomHardwareConfig,
 } from './config'
 export {
@@ -57,8 +60,12 @@ export {
   activeLightingConfig,
   defaultRoomHardwareConfig,
   DMX_REFRESH_LIMITS,
+  exportRoomConfig,
   gamepadMatcher,
+  parseRoomConfigImport,
   parseRoomHardwareConfig,
+  ROOM_CONFIG_EXPORT_FORMAT,
+  ROOM_CONFIG_IMPORT_MAX_BYTES,
   ROOM_HARDWARE_CONFIG_VERSION,
   smokeLacksRelay,
   smokeRelayRuleMet,
@@ -66,6 +73,7 @@ export {
   withBuzzerLayout,
   withDesksCount,
   withLearnedKeymap,
+  withoutSmokeEscalation,
   withoutUnknownKeys,
   withPlanPoint,
 } from './config'
@@ -147,6 +155,16 @@ export {
 export type { SimulationOutput } from './dmx/simulationOutput'
 export { createSimulationOutput } from './dmx/simulationOutput'
 export { DMX_CHANNELS, encodeRawDmxFrame, encodeUsbProFrame, MAX_UNIVERSES } from './dmx/universe'
+export type { IntelHexErrorReason } from './firmware/intelHex'
+export { IntelHexError, parseIntelHex, writeIntelHex } from './firmware/intelHex'
+export type {
+  BootloaderClient,
+  FirmwareErrorCode,
+  FirmwareProgress,
+  FirmwareStep,
+  InstallFirmwareOptions,
+} from './firmware/stk500'
+export { FirmwareError, installFirmware, restoreFirmware, UNO_FLASH_SIZE } from './firmware/stk500'
 export type {
   DeskResolver,
   DiagnosticRefusal,
