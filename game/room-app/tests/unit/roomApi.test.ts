@@ -161,6 +161,19 @@ describe('API de la salle', () => {
     )
   })
 
+  it('joint les manches jouées à la fin de partie, seulement si elles sont fournies', async () => {
+    const fetchMock = respond(200, { game: { id: 4, state: 'finished' } })
+    const rounds = [
+      { position: 1, miniGame: 'quick_answer' as const, themeId: 2, questionIds: [5] },
+    ]
+
+    await finishRoomGame('tok', 4, [{ podium: 1, score: 300 }], rounds)
+
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(
+      JSON.stringify({ scores: [{ podium: 1, score: 300 }], rounds })
+    )
+  })
+
   it('abandonne l’envoi de fin de partie après 10 s, sans délai pour les autres appels', async () => {
     expect(FINISH_REQUEST_TIMEOUT_MS).toBe(10_000)
     const timeout = vi.spyOn(AbortSignal, 'timeout')

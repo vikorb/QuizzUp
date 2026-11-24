@@ -38,6 +38,7 @@ type DbState = {
   rooms: Row[]
   games: Row[]
   game_participants: Row[]
+  game_rounds: Row[]
   game_registrations: Row[]
   vouchers: Row[]
   room_logs: Row[]
@@ -64,6 +65,7 @@ export const dbState: DbState = {
   rooms: [],
   games: [],
   game_participants: [],
+  game_rounds: [],
   game_registrations: [],
   vouchers: [],
   room_logs: [],
@@ -153,6 +155,7 @@ export function resetDb(seed?: Partial<DbState>): void {
   dbState.rooms = structuredClone(seed?.rooms ?? [])
   dbState.games = structuredClone(seed?.games ?? [])
   dbState.game_participants = structuredClone(seed?.game_participants ?? [])
+  dbState.game_rounds = structuredClone(seed?.game_rounds ?? [])
   dbState.game_registrations = structuredClone(seed?.game_registrations ?? [])
   dbState.vouchers = structuredClone(seed?.vouchers ?? [])
   dbState.room_logs = structuredClone(seed?.room_logs ?? [])

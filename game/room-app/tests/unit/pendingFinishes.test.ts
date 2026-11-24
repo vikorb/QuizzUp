@@ -123,7 +123,7 @@ describe('file des résultats de partie à envoyer', () => {
       await enqueuePendingFinish(report(1, 500))
 
       expect(localStorage.getItem(PENDING_FINISHES_KEY)).toBeNull()
-      expect(finish).toHaveBeenCalledWith('tok', 1, [{ podium: 1, score: 500 }])
+      expect(finish).toHaveBeenCalledWith('tok', 1, [{ podium: 1, score: 500 }], undefined)
       expect(count.value).toBe(0)
       expect(getFinishStatus(1)).toBe('sent')
     })
@@ -247,7 +247,7 @@ describe('file des résultats de partie à envoyer', () => {
       expect(stored()).toEqual([report(7, 900)])
       expect(count.value).toBe(1)
       expect(getFinishStatus(7)).toBe('sending')
-      expect(finish).toHaveBeenCalledWith('tok', 7, [{ podium: 1, score: 900 }])
+      expect(finish).toHaveBeenCalledWith('tok', 7, [{ podium: 1, score: 900 }], undefined)
 
       call.resolve()
       await sending
@@ -594,7 +594,7 @@ describe('file des résultats de partie à envoyer', () => {
       finish.mockReturnValueOnce(first.promise)
 
       const sending = flushPendingFinishes()
-      expect(finish).toHaveBeenCalledWith('tok', 1, expect.any(Array))
+      expect(finish).toHaveBeenCalledWith('tok', 1, expect.any(Array), undefined)
 
       // La salle se reconnecte pendant que la requête part avec l'ancien jeton, qui est refusé.
       setRoomToken('frais')
@@ -694,6 +694,60 @@ describe('file des résultats de partie à envoyer', () => {
       await vi.advanceTimersByTimeAsync(RETRY_DELAYS_MS[0])
 
       expect(finish).toHaveBeenCalledTimes(2)
+      expect(readPendingFinishes()).toEqual([])
+    })
+  })
+
+  describe('manches jouées', () => {
+    const rounds = [
+      { position: 1, miniGame: 'quick_answer' as const, themeId: 4, questionIds: [10, 11] },
+      { position: 2, miniGame: 'streak' as const, themeId: null, questionIds: [] },
+    ]
+
+    it('envoie les manches avec les scores', async () => {
+      await enqueuePendingFinish({ ...report(7, 900), rounds })
+
+      expect(finish).toHaveBeenCalledWith('tok', 7, [{ podium: 1, score: 900 }], rounds)
+    })
+
+    it('garde les manches hors ligne, après un rechargement, jusqu’au renvoi', async () => {
+      finish.mockRejectedValueOnce(new Error('offline'))
+
+      await enqueuePendingFinish({ ...report(7, 900), rounds })
+
+      expect(stored()).toEqual([{ ...report(7, 900), rounds }])
+
+      // Page rechargée : la file est relue depuis le stockage, puis le réseau revient.
+      resetPendingFinishes()
+      await flushPendingFinishes()
+
+      expect(finish).toHaveBeenLastCalledWith('tok', 7, [{ podium: 1, score: 900 }], rounds)
+      expect(readPendingFinishes()).toEqual([])
+    })
+
+    it('envoie une ancienne entrée sans manches, et ignore des manches illisibles', async () => {
+      localStorage.setItem(
+        PENDING_FINISHES_KEY,
+        JSON.stringify([report(1), { ...report(2), rounds: [{ position: 'un' }] }])
+      )
+
+      await flushPendingFinishes()
+
+      expect(finish.mock.calls.map((call) => [call[1], call[3]])).toEqual([
+        [1, undefined],
+        [2, undefined],
+      ])
+      expect(readPendingFinishes()).toEqual([])
+    })
+
+    it('renvoie les scores sans les manches quand le backoffice refuse les manches', async () => {
+      finish.mockRejectedValueOnce(new RoomApiError(400, 'game_rounds_invalid'))
+
+      await enqueuePendingFinish({ ...report(7, 900), rounds })
+
+      expect(finish).toHaveBeenCalledTimes(2)
+      expect(finish).toHaveBeenLastCalledWith('tok', 7, [{ podium: 1, score: 900 }], undefined)
+      expect(getFinishStatus(7)).toBe('sent')
       expect(readPendingFinishes()).toEqual([])
     })
   })

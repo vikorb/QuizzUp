@@ -160,18 +160,30 @@ export async function startRoomGame(
 /** Score final d'un pupitre, envoyé au podium. */
 export type RoomGameScore = { podium: number; score: number }
 
+/** Manche jouée, envoyée au podium : mini-jeu, thème et questions effectivement posées. */
+export type RoomGameRound = {
+  position: number
+  miniGame: MiniGame
+  themeId: number | null
+  questionIds: number[]
+}
+
 /** Délai maximal de l'envoi de fin de partie : au-delà, l'envoi est réessayé plus tard. */
 export const FINISH_REQUEST_TIMEOUT_MS = 10_000
 
-/** Fin de partie : le backoffice la passe « terminée » avec les scores (idempotent). */
+/**
+ * Fin de partie : le backoffice la passe « terminée » avec les scores et, si fournies, les manches
+ * jouées (idempotent).
+ */
 export async function finishRoomGame(
   token: string,
   gameId: number,
-  scores: RoomGameScore[]
+  scores: RoomGameScore[],
+  rounds?: RoomGameRound[]
 ): Promise<RoomGame> {
   const data = await request<{ game: RoomGame }>(token, `/room/games/${gameId}/finish`, {
     method: 'POST',
-    body: { scores },
+    body: rounds ? { scores, rounds } : { scores },
     timeoutMs: FINISH_REQUEST_TIMEOUT_MS,
   })
   return data.game

@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Manches enregistrées : à la fin d'une partie, l'écran de salle envoie les manches jouées (mini-jeu, thème, questions posées) avec les scores ; `POST /room/games/:id/finish` les écrit dans `game_rounds` dans la même transaction (400 `game_rounds_invalid` si un thème ou une question n'est pas lisible par la compagnie). Sans manches, la partie se termine comme avant ; hors ligne, elles attendent avec les scores.
+  US: US-CONTENT-01 (#158)
+
 - Bons de fidélisation, API : émission d'un bon pour un participant d'une partie terminée, liste par partie et par compagnie, recherche et utilisation par code (le code voyage dans le corps, jamais dans l'adresse), annulation réservée aux administrateurs. Recherche publique `POST /public/v1/vouchers/lookup`, limitée à 20 requêtes par minute, qui ne révèle ni le joueur ni la partie. Réglages par compagnie : libellé du bon (vide : bons désactivés) et durée de validité (1 à 730 jours, 90 par défaut).
   US: US-VOUCHER-01 (#156)
 - Accueil des joueurs, API du personnel : lien d'inscription d'une partie en attente (`POST` / `DELETE …/games/:gameId/join`, jeton valable 180 minutes, renouvelable), demandes d'inscription (`GET …/registrations`, validation avec attribution d'un pupitre, refus), ajout et retrait d'un participant tant que la partie est en attente, `openJoin` à la création. `join` et `pendingRegistrationsCount` sont renvoyés avec la partie, y compris à l'écran de salle. Les demandes de plus de 24 heures ou d'une partie qui n'est plus en attente sont purgées. `room_busy` ne vise plus que la partie en attente : une partie en cours ne bloque plus la préparation de la suivante.

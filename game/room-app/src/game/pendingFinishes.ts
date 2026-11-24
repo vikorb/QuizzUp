@@ -2,7 +2,12 @@ import { computed, ref } from 'vue'
 
 import { reportRoomError } from '@/diagnostics/errorReporter'
 import { getRoomToken } from '@/utils/auth'
-import { finishRoomGame, RoomApiError, type RoomGameScore } from '@/utils/roomApi'
+import {
+  finishRoomGame,
+  RoomApiError,
+  type RoomGameRound,
+  type RoomGameScore,
+} from '@/utils/roomApi'
 
 /**
  * File d'attente des fins de partie à signaler au backoffice (`POST /room/games/:id/finish`).
@@ -14,8 +19,16 @@ export const PENDING_FINISHES_KEY = 'quizzup_room_pending_finishes'
 /** Attente avant chaque nouvel essai ; le dernier délai se répète tant que la file n'est pas vide. */
 export const RETRY_DELAYS_MS = [2000, 5000, 15_000, 30_000, 60_000] as const
 
-/** Rapport de fin d'une partie du backoffice : `seed` relie la partie locale à la partie retenue. */
-export type PendingFinish = { gameId: number; seed: number; scores: RoomGameScore[] }
+/**
+ * Rapport de fin d'une partie du backoffice : `seed` relie la partie locale à la partie retenue.
+ * `rounds` est absent d'une entrée mise en file par une version antérieure de l'écran de salle.
+ */
+export type PendingFinish = {
+  gameId: number
+  seed: number
+  scores: RoomGameScore[]
+  rounds?: RoomGameRound[]
+}
 
 /**
  * État d'envoi des résultats d'UNE partie (`getFinishStatus`) :
@@ -63,6 +76,19 @@ function isScore(value: unknown): value is RoomGameScore {
   )
 }
 
+function isRound(value: unknown): value is RoomGameRound {
+  const round = value as Partial<RoomGameRound> | null
+  return (
+    typeof round === 'object' &&
+    round !== null &&
+    Number.isInteger(round.position) &&
+    typeof round.miniGame === 'string' &&
+    (round.themeId === null || Number.isInteger(round.themeId)) &&
+    Array.isArray(round.questionIds) &&
+    round.questionIds.every((id) => Number.isInteger(id))
+  )
+}
+
 function toPendingFinish(value: unknown): PendingFinish | null {
   const item = value as Partial<PendingFinish> | null
   if (
@@ -80,11 +106,24 @@ function toPendingFinish(value: unknown): PendingFinish | null {
     gameId: Number(item.gameId),
     seed: Number(item.seed),
     scores: item.scores.map(({ podium, score }) => ({ podium, score })),
+    // Des manches illisibles ne retiennent pas les scores : la fin de partie part sans elles.
+    ...(Array.isArray(item.rounds) && item.rounds.every((round) => isRound(round))
+      ? { rounds: item.rounds.map(copyOfRound) }
+      : {}),
   }
 }
 
+function copyOfRound(round: RoomGameRound): RoomGameRound {
+  const { position, miniGame, themeId, questionIds } = round
+  return { position, miniGame, themeId, questionIds: [...questionIds] }
+}
+
 function copyOf(items: PendingFinish[]): PendingFinish[] {
-  return items.map((item) => ({ ...item, scores: item.scores.map((score) => ({ ...score })) }))
+  return items.map((item) => ({
+    ...item,
+    scores: item.scores.map((score) => ({ ...score })),
+    ...(item.rounds ? { rounds: item.rounds.map(copyOfRound) } : {}),
+  }))
 }
 
 /** File stockée ; `null` si le stockage est inaccessible, vide si son contenu est illisible. */
@@ -167,10 +206,14 @@ type Attempt = 'sent' | 'refused' | 'reauth' | 'auth' | 'retry'
 
 async function attempt(report: PendingFinish, token: string): Promise<Attempt> {
   try {
-    await finishRoomGame(token, report.gameId, report.scores)
+    await finishRoomGame(token, report.gameId, report.scores, report.rounds)
     return 'sent'
   } catch (error) {
     const status = error instanceof RoomApiError ? error.status : null
+    // Manches refusées (thème ou question inconnus du backoffice) : les scores partent sans elles.
+    if (report.rounds && error instanceof RoomApiError && error.code === 'game_rounds_invalid') {
+      return attempt({ ...report, rounds: undefined }, token)
+    }
     if (status !== null && FINAL_REFUSALS.has(status)) {
       console.warn(`Résultats de la partie ${report.gameId} refusés par le backoffice (${status})`)
       reportRoomError('finish_refused', error instanceof Error ? error.message : 'finish_refused', {
