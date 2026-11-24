@@ -27,6 +27,19 @@ export const gameParamsSchema = z.object({
   gameId: z.coerce.number().int().positive(),
 })
 
+export const registrationParamsSchema = gameParamsSchema.extend({
+  registrationId: z.coerce.number().int().positive(),
+})
+
+export const participantParamsSchema = gameParamsSchema.extend({
+  participantId: z.coerce.number().int().positive(),
+})
+
+/** Pupitre choisi pour une demande validée ; absent : le plus petit pupitre libre de la salle. */
+export const acceptRegistrationSchema = z.object({
+  podium: z.number().int().min(1).max(GAME_PODIUMS).optional(),
+})
+
 // L'année 0 est valide en ISO 8601 mais PostgreSQL la refuse (pas d'année 0) : 500 sinon. On
 // contrôle l'instant résolu, car un décalage peut y ramener une date écrite en l'an 1
 // (`0001-01-01T00:00:00+14:00`).
@@ -96,7 +109,7 @@ const secondPlayerSchema = z
     path: ['marketingConsent'],
   })
 
-const participantSchema = z
+export const participantSchema = z
   .object({
     podium: z.number().int().min(1).max(GAME_PODIUMS),
     displayName: displayNameSchema,
@@ -144,6 +157,9 @@ export const createGameSchema = z
     questionsPerRound: questionsPerRoundSchema.default(GAME_DEFAULT_QUESTIONS_PER_ROUND),
     // Une session programmée peut n'avoir aucun joueur nommé (arbitrage 6).
     participants: participantsSchema.default([]),
+    // Ouvre tout de suite le lien d'inscription par QR code (partie immédiate) : sans joueur à la
+    // création, les joueurs s'inscrivent ensuite. Ignoré pour une session programmée.
+    openJoin: z.boolean().optional(),
     // La liste complète est ramenée à « absent » (stocké `null`), comme le fait le formulaire :
     // un futur mini-jeu sera ainsi inclus d'office.
     miniGames: miniGamesSchema
@@ -155,10 +171,14 @@ export const createGameSchema = z
     externalRef: externalRefSchema.optional(),
     locale: z.enum(GAME_LOCALES).optional(),
   })
-  .refine((body) => body.scheduledAt !== undefined || body.participants.length >= 1, {
-    message: 'participants_required',
-    path: ['participants'],
-  })
+  .refine(
+    (body) =>
+      body.scheduledAt !== undefined || body.openJoin === true || body.participants.length >= 1,
+    {
+      message: 'participants_required',
+      path: ['participants'],
+    }
+  )
   .refine((body) => body.scheduledAt !== undefined || body.durationMinutes === undefined, {
     message: 'duration_requires_scheduled_at',
     path: ['durationMinutes'],
