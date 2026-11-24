@@ -11,6 +11,7 @@ import {
   ROOM_STATUS_ACTIVE,
   ROOM_STATUS_DELETED,
   ROOM_STATUS_INACTIVE,
+  type RoomDiagnostics,
   type RoomLive,
   type RoomStatusReport,
 } from '@quizzup/shared'
@@ -57,6 +58,17 @@ const report: RoomStatusReport = {
     { podium: 2, score: -10 },
   ],
   audioReady: true,
+}
+
+const diagnostics: RoomDiagnostics = {
+  appVersion: '0.1.0',
+  buzzerSource: 'gamepad',
+  gamepadCount: 1,
+  lightingDriver: 'artnet-bridge',
+  lightingStatus: 'open',
+  smokeEnabled: true,
+  smokeArmed: false,
+  lastErrorAt: '2026-11-24T09:30:00.000Z',
 }
 
 function seedRooms() {
@@ -259,6 +271,103 @@ describe('live routes without an open stream', () => {
     expect(response.json()).toMatchObject({ error: 'invalid_body' })
   })
 
+  it('POST /room/status accepts a report with diagnostics, and without (old room screens)', async () => {
+    const withDiagnostics = await app.inject({
+      method: 'POST',
+      url: '/room/status',
+      headers: authHeaders(roomUser),
+      payload: { ...report, diagnostics },
+    })
+    const noError = await app.inject({
+      method: 'POST',
+      url: '/room/status',
+      headers: authHeaders(roomUser),
+      payload: {
+        ...report,
+        diagnostics: { ...diagnostics, lightingStatus: 'closed', lastErrorAt: null },
+      },
+    })
+
+    expect(withDiagnostics.statusCode).toBe(204)
+    expect(noError.statusCode).toBe(204)
+    // `report` n'a pas de `diagnostics` : 'POST /room/status answers 204 to a valid report' le couvre.
+  })
+
+  it.each([
+    ['an unknown buzzer source', { buzzerSource: 'midi' }, { buzzerSource: null }],
+    ['an unknown lighting driver', { lightingDriver: 'sacn' }, { lightingDriver: null }],
+    ['an unknown output status', { lightingStatus: 'melting' }, { lightingStatus: null }],
+    ['a negative gamepad count', { gamepadCount: -1 }, { gamepadCount: null }],
+    ['too many gamepads', { gamepadCount: 17 }, { gamepadCount: null }],
+    ['a gamepad count with decimals', { gamepadCount: 1.5 }, { gamepadCount: null }],
+    ['an empty app version', { appVersion: '' }, { appVersion: null }],
+    ['an app version of the wrong type', { appVersion: 12 }, { appVersion: null }],
+    [
+      'an app version longer than 32 characters',
+      { appVersion: 'v'.repeat(33) },
+      { appVersion: null },
+    ],
+    ['a smoke flag that is not a boolean', { smokeArmed: 'yes' }, { smokeArmed: null }],
+    ['a last error that is not an ISO date', { lastErrorAt: 'yesterday' }, { lastErrorAt: null }],
+    ['a missing field', { smokeEnabled: undefined }, { smokeEnabled: null }],
+    ['a field this server does not know', { playerName: 'Alice' }, {}],
+  ])(
+    'POST /room/status accepts diagnostics with %s: the field is read as null or dropped, the room stays present',
+    async (_label, change, expected) => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/room/status',
+        headers: authHeaders(roomUser),
+        payload: { ...report, diagnostics: { ...diagnostics, ...change } },
+      })
+
+      expect(response.statusCode).toBe(204)
+
+      const staff = await connect('/companies/1/live', companyAdminUser)
+      const snapshot = JSON.parse((await staff.next()).data) as { rooms: RoomLive[] }
+
+      expect(snapshot.rooms[0]).toMatchObject({ roomId: 1, presence: 'in_game', status: report })
+      expect(snapshot.rooms[0]?.status?.diagnostics).toEqual({ ...diagnostics, ...expected })
+    }
+  )
+
+  it.each([
+    ['a string', 'x'],
+    ['a number', 12],
+    ['null', null],
+    ['an array', [diagnostics]],
+  ])(
+    'POST /room/status accepts diagnostics that is %s: the report is kept without diagnostics',
+    async (_label, bad) => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/room/status',
+        headers: authHeaders(roomUser),
+        payload: { ...report, diagnostics: bad },
+      })
+
+      expect(response.statusCode).toBe(204)
+
+      const staff = await connect('/companies/1/live', companyAdminUser)
+      const snapshot = JSON.parse((await staff.next()).data) as { rooms: RoomLive[] }
+
+      expect(snapshot.rooms[0]).toMatchObject({ roomId: 1, presence: 'in_game', status: report })
+      expect(snapshot.rooms[0]?.status).not.toHaveProperty('diagnostics')
+    }
+  )
+
+  it('POST /room/status still refuses a bad field outside diagnostics (400 invalid_body)', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/room/status',
+      headers: authHeaders(roomUser),
+      payload: { ...report, screen: 'nope', diagnostics },
+    })
+
+    expect(response.statusCode).toBe(400)
+    expect(response.json()).toMatchObject({ error: 'invalid_body' })
+  })
+
   it('POST /room/status accepts a phase this server does not know and reads it as null (204)', async () => {
     const response = await app.inject({
       method: 'POST',
@@ -392,6 +501,39 @@ describe('live routes with real streams', () => {
     })
     expect(live.lastSeenAt).toEqual(expect.any(String))
     expect(JSON.stringify(live)).not.toContain(streamId)
+  })
+
+  it('relays the diagnostics of a report to the staff, in the snapshot of a later stream too', async () => {
+    const staff = await connect('/companies/1/live', companyAdminUser)
+    await staff.next()
+
+    const posted = await postStatus(roomUser, { ...report, diagnostics })
+
+    expect(posted.status).toBe(204)
+    expect((await nextRoomLive(staff)).status?.diagnostics).toEqual(diagnostics)
+
+    const later = await connect('/companies/1/live', companyAdminUser)
+    const snapshot = JSON.parse((await later.next()).data) as { rooms: RoomLive[] }
+
+    expect(snapshot.rooms.find((room) => room.roomId === 1)?.status?.diagnostics).toEqual(
+      diagnostics
+    )
+  })
+
+  it('does not show the diagnostics of a room to the staff of another company', async () => {
+    const staffOne = await connect('/companies/1/live', companyAdminUser)
+    const staffTwo = await connect('/companies/2/live', companyUser)
+
+    await staffOne.next()
+    await staffTwo.next()
+
+    await postStatus(roomUser, { ...report, diagnostics })
+    await postStatus(otherCompanyRoomUser, report)
+
+    expect(await nextRoomLive(staffOne)).toMatchObject({ roomId: 1 })
+    expect(await nextRoomLive(staffTwo)).toMatchObject({ roomId: 3 })
+    expect(staffOne.raw()).toContain('"lightingDriver"')
+    expect(staffTwo.raw()).not.toContain('"lightingDriver"')
   })
 
   it('replaces the stream of a room: the old one gets replaced and closes, its reports are refused', async () => {

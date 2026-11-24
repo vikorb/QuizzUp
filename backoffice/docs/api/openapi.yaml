@@ -2992,6 +2992,53 @@ paths:
                         maximum: 1000000
                 audioReady:
                   type: boolean
+                diagnostics:
+                  type: object
+                  description: >-
+                    État matériel de la salle, facultatif (absent des écrans de salle plus anciens).
+                    Gardé en mémoire avec le rapport, jamais enregistré, diffusé dans
+                    `RoomLive.status.diagnostics`. Valeurs de `BUZZER_SOURCE_KINDS`,
+                    `LIGHTING_DRIVERS` et `LIGHTING_OUTPUT_STATUSES` de `@quizzup/shared`. Le
+                    diagnostic ne refuse jamais le rapport : un champ inconnu est retiré, un champ
+                    absent, de mauvais type, hors borne ou de valeur inconnue est lu `null`
+                    (« inconnu », sauf `lastErrorAt` où `null` veut dire aucune erreur), et un
+                    `diagnostics` qui n'est pas un objet est ignoré.
+                  properties:
+                    appVersion:
+                      type: string
+                      nullable: true
+                      minLength: 1
+                      maxLength: 32
+                    buzzerSource:
+                      type: string
+                      nullable: true
+                      enum: [keyboard, gamepad]
+                    gamepadCount:
+                      type: integer
+                      nullable: true
+                      minimum: 0
+                      maximum: 16
+                      description: Manettes que le navigateur de la salle voit en ce moment
+                    lightingDriver:
+                      type: string
+                      nullable: true
+                      enum: [simulation, usbpro, opendmx, artnet-bridge]
+                    lightingStatus:
+                      type: string
+                      nullable: true
+                      enum: [closed, opening, open, closing, error]
+                      description: '`closed` tant que les lumières ne sont pas démarrées sur ce poste'
+                    smokeEnabled:
+                      type: boolean
+                      nullable: true
+                    smokeArmed:
+                      type: boolean
+                      nullable: true
+                    lastErrorAt:
+                      type: string
+                      format: date-time
+                      nullable: true
+                      description: Dernière erreur notée par le poste depuis son démarrage, `null` si aucune
       responses:
         '204':
           description: Rapport pris en compte
@@ -3121,7 +3168,7 @@ paths:
         - `room_status` : un `RoomLive` à chaque rapport, ouverture ou fermeture du flux d'une salle, et quand une salle passe hors ligne. Un client ignore un `roomId` absent de son instantané (salle supprimée ou désactivée depuis).
         - `session_ended` : la session n'est plus valable (`{ error }`) ; le flux est fermé juste après.
 
-        `RoomLive` : `{ roomId, presence, controllable, lastSeenAt, status }`. `presence` vaut `offline` (aucun rapport depuis 45 s), `in_game` (en ligne, partie en cours, phase hors `lobby`, `finished`, `aborted`) ou `online`. `controllable` : en ligne et flux de la salle ouvert. `lastSeenAt` : date (ISO 8601) du dernier rapport de `POST /room/status`. `status` : ce dernier rapport, conservé tant que le backend tourne même quand la salle est hors ligne (pour afficher « vue pour la dernière fois »). Les deux valent `null` si la salle n'a envoyé aucun rapport depuis le démarrage du backend.
+        `RoomLive` : `{ roomId, presence, controllable, lastSeenAt, status }`. `presence` vaut `offline` (aucun rapport depuis 45 s), `in_game` (en ligne, partie en cours, phase hors `lobby`, `finished`, `aborted`) ou `online`. `controllable` : en ligne et flux de la salle ouvert. `lastSeenAt` : date (ISO 8601) du dernier rapport de `POST /room/status`. `status` : ce dernier rapport, conservé tant que le backend tourne même quand la salle est hors ligne (pour afficher « vue pour la dernière fois »), avec son champ `diagnostics` s'il y est (état matériel, lecture seule). Les deux valent `null` si la salle n'a envoyé aucun rapport depuis le démarrage du backend.
 
         Une ligne de commentaire `: ping` est écrite toutes les 15 s. La session est revérifiée toutes les 60 s sans être prolongée. 5 flux ouverts au plus par compte.
 

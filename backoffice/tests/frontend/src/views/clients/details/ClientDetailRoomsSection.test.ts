@@ -315,6 +315,22 @@ describe('views/clients/details/room/ClientDetailRoomsSection.vue', () => {
     expect(logsPanel(wrapper).exists()).toBe(false)
   })
 
+  it('shows the read-only diagnostic of the room next to its logs, and closes it with them', async () => {
+    const wrapper = await mountSection('admin')
+
+    expect(wrapper.find('#room-diagnostic').exists()).toBe(false)
+
+    await rowAction(wrapper, 1, 'logs').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('#room-diagnostic').exists()).toBe(true)
+    expect(wrapper.find('#room-diagnostic').text()).toContain('rooms.diagnostic.title')
+
+    await logsPanel(wrapper).find('.room-logs__close').trigger('click')
+
+    expect(wrapper.find('#room-diagnostic').exists()).toBe(false)
+  })
+
   it('lets the superadmin read the logs too', async () => {
     const wrapper = await mountSection('superadmin')
 

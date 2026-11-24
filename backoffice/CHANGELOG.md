@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Diagnostic à distance d'une salle, en lecture seule : l'écran de salle publie son état matériel dans son rapport d'état (version, source des buzzers et manettes, pilote et état des lumières, fumée activée et armée, audio prêt, date de la dernière erreur) et la fiche de la salle l'affiche dans un bloc « Diagnostic ». Rien n'est stocké. Une valeur inconnue est lue comme « inconnu » et ne fait jamais paraître la salle hors ligne.
+  US: US-DIAG-01 (#157)
+
 - Journaux d'erreurs d'une salle consultables depuis le tableau des salles d'un client : panneau en ligne avec filtre par niveau, actualisation et « charger plus », réservé aux administrateurs.
   US: US-LOG-01 (#157)
 - Statistiques d'exploitation d'une compagnie : route `GET /companies/:companyId/stats` et écran « Statistiques » (séances terminées et arrêtées, taux d'abandon, durée médiane, répartition par salle, joueurs, créneaux les plus chargés), réservés aux administrateurs. Aucune donnée individuelle ne sort.

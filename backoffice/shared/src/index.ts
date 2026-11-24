@@ -650,6 +650,47 @@ export const LIVE_STATUS_EVERY_MS = 15_000 as const
 /** Sans rapport depuis ce délai, la salle est hors ligne. */
 export const LIVE_OFFLINE_AFTER_MS = 45_000 as const
 
+/** Source des buzzers de la salle (`BuzzerSource.kind` de `game/hardware`). */
+export const BUZZER_SOURCE_KINDS = ['keyboard', 'gamepad'] as const
+
+export type BuzzerSourceKind = (typeof BUZZER_SOURCE_KINDS)[number]
+
+/** Pilotes de lumières (`DMX_DRIVERS` de `game/hardware`) : un test de contrat de la salle les compare. */
+export const LIGHTING_DRIVERS = ['simulation', 'usbpro', 'opendmx', 'artnet-bridge'] as const
+
+export type LightingDriver = (typeof LIGHTING_DRIVERS)[number]
+
+/** États de la sortie lumières (`DmxOutputStatus` de `game/hardware`), idem. */
+export const LIGHTING_OUTPUT_STATUSES = ['closed', 'opening', 'open', 'closing', 'error'] as const
+
+export type LightingOutputStatus = (typeof LIGHTING_OUTPUT_STATUSES)[number]
+
+/** Manettes vues par le navigateur de la salle : borne haute acceptée par le serveur. */
+export const ROOM_DIAGNOSTICS_MAX_GAMEPADS = 16 as const
+
+/**
+ * État matériel de la salle, en lecture seule pour le personnel (US-EXPLOIT, diagnostic à distance).
+ * Gardé en mémoire avec le rapport, jamais enregistré. Aucune donnée de joueur. L'audio prêt est
+ * `RoomStatusReport.audioReady`. Le serveur lit `null` pour tout champ qu'il ne comprend pas (valeur
+ * inconnue, mauvais type, hors borne) : `null` veut dire « inconnu », sauf `lastErrorAt` (aucune erreur).
+ */
+export type RoomDiagnostics = {
+  /** Version de l'écran de salle (même borne que les journaux). */
+  appVersion: string | null
+  buzzerSource: BuzzerSourceKind | null
+  /** Manettes que le navigateur voit en ce moment. */
+  gamepadCount: number | null
+  lightingDriver: LightingDriver | null
+  /** Lumières pas démarrées sur ce poste : `closed`. */
+  lightingStatus: LightingOutputStatus | null
+  /** Fumée autorisée dans la configuration de la salle. */
+  smokeEnabled: boolean | null
+  /** Fumée armée par l'opérateur pour la partie. */
+  smokeArmed: boolean | null
+  /** Date ISO de la dernière erreur notée par le poste depuis son démarrage, `null` si aucune. */
+  lastErrorAt: string | null
+}
+
 /** Rapport d'état envoyé par l'écran de salle (aucune donnée de joueur). */
 export type RoomStatusReport = {
   screen: RoomScreen
@@ -661,6 +702,8 @@ export type RoomStatusReport = {
   paused: boolean
   scores: { podium: number; score: number }[]
   audioReady: boolean
+  /** Absent des écrans de salle plus anciens. */
+  diagnostics?: RoomDiagnostics
 }
 
 /** État d'une salle tel que le voit le personnel. */
