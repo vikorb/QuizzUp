@@ -160,6 +160,25 @@ describe('config matérielle sur le compte de la salle', () => {
     expect(getHardwareSyncMeta().pending).toBe(false)
   })
 
+  it('renvoie au compte les clés inconnues qu’il a envoyées (pas de perte à l’aller-retour)', async () => {
+    vi.spyOn(roomApi, 'fetchRoomInfo').mockResolvedValue({
+      ...ROOM,
+      config: { futur: { a: 1 }, lighting: { reglageFutur: 'x' } },
+    })
+    const save = mockSave()
+    await syncHardwareWithRoom()
+    // Seulement des clés étrangères : la salle reste « neuve », rien n’est renvoyé au démarrage.
+    expect(save).not.toHaveBeenCalled()
+
+    await saveBuzzerKeymap(LOCAL_KEYMAP)
+
+    expect(save).toHaveBeenCalledOnce()
+    const sent = save.mock.calls[0]?.[1] as Record<string, unknown>
+    expect(sent.futur).toEqual({ a: 1 })
+    expect((sent.lighting as Record<string, unknown>).reglageFutur).toBe('x')
+    expect(localStorage.getItem('quizzup_room_hardware')).toContain('reglageFutur')
+  })
+
   it('n’envoie jamais une config par défaut sur une salle vierge', async () => {
     vi.spyOn(roomApi, 'fetchRoomInfo').mockResolvedValue({ ...ROOM, config: {} })
     const save = mockSave()
