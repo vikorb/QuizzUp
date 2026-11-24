@@ -9,6 +9,12 @@ Format inspiré de Keep a Changelog.
 ### Added
 
 - Installation d'un programme sur une carte Arduino Uno depuis le navigateur (bibliothèque `game/hardware`, pas encore d'écran) : lecture et écriture de fichiers Intel HEX, client du chargeur Optiboot par Web Serial (protocole STK500v1, 115200 puis 57600 bauds), sauvegarde de la flash relue avant toute écriture, écriture par pages suivie d'une relecture complète, restauration d'un `.hex`, erreurs nommées (`no_sync`, `wrong_signature`, `too_large`, `verify_failed`, `port_lost`, `port_busy`, `backup_failed`, `timeout`, `cancelled`). Testé contre un émulateur d'Optiboot ; rien n'a été essayé sur une vraie carte.
+- Bons dans le backoffice : panneau « Bons » sur la fiche d'une partie terminée (émettre le bon d'un pupitre, l'annuler), page « Bons » (recherche d'un code, utilisation, liste filtrable et paginée, annulation réservée aux admins), réglages du centre (libellé du bon, durée de validité) et un bloc par bon valable sur la feuille de résultats imprimable, avec son QR code quand le serveur le fournit.
+  US: US-VOUCHER-01 (#156)
+
+- QR code généré par le serveur : `join` vaut `{ url, qrSvg, expiresAt }` (fiche de partie, `POST /games/:id/join`, création avec `openJoin`, `GET /room/games/current`) et un bon porte `qrSvg` à côté de `url` (émission et bons d'une partie). `qrSvg` est un SVG complet, `null` sans `PUBLIC_APP_URL`. Une seule dépendance, `qrcode-generator` (version exacte, sans dépendance).
+  US: US-JOIN-01 (#166)
+
 - Manches enregistrées : à la fin d'une partie, l'écran de salle envoie les manches jouées (mini-jeu, thème, questions posées) avec les scores ; `POST /room/games/:id/finish` les écrit dans `game_rounds` dans la même transaction (400 `game_rounds_invalid` si un thème ou une question n'est pas lisible par la compagnie). Sans manches, la partie se termine comme avant ; hors ligne, elles attendent avec les scores.
   US: US-CONTENT-01 (#158)
 
