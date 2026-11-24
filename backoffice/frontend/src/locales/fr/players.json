@@ -1,0 +1,65 @@
+{
+  "players": {
+    "menu": "Joueurs",
+    "title": "Joueurs",
+    "subtitle": "Joueurs de la compagnie, reconnus par leur adresse e-mail",
+    "anonymous": "{count} joueur sans adresse e-mail (seulement compté) | {count} joueurs sans adresse e-mail (seulement comptés)",
+    "filters": {
+      "title": "Recherche",
+      "company": "Compagnie",
+      "search": "Nom du joueur",
+      "searchPlaceholder": "Une partie du nom",
+      "searchByName": "La recherche se fait par le nom du joueur, pas par son adresse e-mail : retirez le « {'@'} »."
+    },
+    "actions": {
+      "export": "Exporter les offres (CSV)",
+      "unsubscribe": "Retirer {name} des offres",
+      "erase": "Effacer {name}"
+    },
+    "offers": {
+      "accepted": "Acceptées",
+      "declined": "Non"
+    },
+    "table": {
+      "title": "Joueurs",
+      "loading": "Chargement des joueurs...",
+      "empty": "Aucun joueur pour le moment.",
+      "emptySearch": "Aucun joueur ne porte ce nom.",
+      "retry": "Réessayer",
+      "columns": {
+        "name": "Nom",
+        "email": "E-mail",
+        "sessions": "Parties",
+        "lastPlayedAt": "Dernière partie",
+        "bestScore": "Meilleur score",
+        "offers": "Offres",
+        "actions": "Actions"
+      }
+    },
+    "erase": {
+      "title": "Effacer ce joueur ?",
+      "message": "Effacer {name} ({email}) est définitif et ne peut pas être annulé. Son adresse e-mail et ses consentements sont supprimés de toutes les parties de la compagnie, ses demandes d'inscription en attente aussi. Son nom est remplacé par « Joueur effacé » dans les parties déjà jouées.",
+      "confirm": "Effacer définitivement"
+    },
+    "unsubscribe": {
+      "title": "Retirer ce joueur des offres ?",
+      "message": "{name} ({email}) ne recevra plus les offres du centre. Vous ne pourrez pas annuler ce retrait depuis cet écran.",
+      "confirm": "Retirer des offres"
+    },
+    "banners": {
+      "unsubscribed": "Les offres du centre sont retirées pour {name}.",
+      "erased": "{name} est effacé définitivement."
+    },
+    "errors": {
+      "missingToken": "Votre session a expiré : reconnectez-vous.",
+      "unauthorized": "Vous devez être connecté pour consulter les joueurs.",
+      "forbidden": "Vous n'avez pas les droits nécessaires pour cette action sur les joueurs.",
+      "apiUnreachable": "API injoignable.",
+      "invalidJson": "La réponse du serveur est illisible.",
+      "invalidParams": "Paramètres invalides.",
+      "invalidBody": "La demande envoyée est invalide.",
+      "playerNotFound": "Ce joueur est introuvable : il a peut-être déjà été effacé.",
+      "serverError": "Erreur serveur."
+    }
+  }
+}

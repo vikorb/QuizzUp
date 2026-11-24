@@ -25,6 +25,11 @@ export type ProviderTrack = {
 /** Titre d'une playlist : `readable` faux = titre non jouable (retiré du catalogue du pays) ; champ absent = jouable. */
 export type ProviderPlaylistTrack = ProviderTrack & { titleShort: string; readable: boolean }
 
+/** Titre jouable : lisible et avec un extrait en https (lien déjà filtré à la lecture). */
+export function isPlayableTrack(track: ProviderPlaylistTrack): boolean {
+  return track.readable && track.previewUrl !== null
+}
+
 /** Fournisseur injoignable ou réponse inexploitable (délai, réseau, statut ≥ 500, JSON invalide). */
 export class MediaProviderUnavailableError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
