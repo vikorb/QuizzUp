@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Logo du centre sur l'écran de salle : affiché dans la barre du haut et au-dessus du podium, lu avec `/room/me` (aucun appel de plus). Rien n'est affiché sans logo, si l'image ne charge pas, ou en mode démo.
+  US: US-RESULTS-01 (#156)
+
 - Programme de la carte de la fumée (Uno), écrit de zéro : la sortie du relais n'est au niveau haut que tant que la page redit « fumée » (bail de 500 ms), jamais plus de 10 s par jet, avec 5 s de pause entre deux jets, et un chien de garde matériel de 250 ms. Logique en C testée par gcc sur des vecteurs partagés ; la CI compile le programme pour `arduino:avr:uno` et publie le `.hex`. Rien n'est encore branché à l'écran de salle ni essayé sur une vraie carte.
   US: US-DMX-01 (#215)
 - Lumières Art-Net sans exécutable (`game/artnet-bridge/powershell`) : `quizzup-lumieres.ps1` (PowerShell 5.1, présent sur tout Windows) parle le même protocole WebSocket que le pont et envoie les trames Art-Net ; lanceur `Lancer les lumieres.cmd`. Pas de découverte de nœuds : l'adresse du nœud se saisit à la main. Jamais essayé face à un vrai nœud Art-Net.
