@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Fumée par la carte USB : le test de coupure de l'assistant parle de la carte (elle doit couper seule en moins d'une seconde), une carte muette, en défaut ou débranchée est reprise seule (cinq essais, fumée désarmée au retour), et un guide de l'opérateur pas à pas est ajouté (`docs/guides/fumee-carte-usb.md`). À valider sur le banc.
+  US: US-DMX-01 (#215)
+
 - Programme d'une salle en temps réel : l'événement `schedule_changed` part à chaque création, déplacement, annulation ou ouverture d'une session (backoffice, écran de salle, API publique de réservation). L'agenda du backoffice et le lobby de la salle se mettent à jour seuls, sans recharger la page.
   US: US-SCHED-01 (#142)
 - Tests de bout en bout de l'accueil : Playwright démarre aussi le frontend du backoffice (port 4176, API interceptée). Nouveaux scénarios : inscription d'un joueur par le lien du QR depuis un téléphone jusqu'au lobby de la salle, refus de la page téléphone (code inconnu, inscription fermée), feuille de résultats en mode impression avec son bon.

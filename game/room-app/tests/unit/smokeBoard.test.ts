@@ -1,4 +1,4 @@
-import { parseIntelHex, type SerialPortLike, writeIntelHex } from '@quizzup/hardware'
+import { type Clock, parseIntelHex, type SerialPortLike, writeIntelHex } from '@quizzup/hardware'
 
 import {
   getLighting,
@@ -16,8 +16,12 @@ import {
   reconnectSmokeBoard,
   resetSmokeBoard,
   restoreSmokeBoardProgram,
+  setSmokeBoardClock,
+  SMOKE_BOARD_RETRY_MAX,
+  SMOKE_BOARD_STABLE_MS,
   useSmokeBoard,
 } from '@/hardware/smokeBoard'
+import { expireRoomSession, signOut } from '@/state/roomAuth'
 
 import bundledHex from '../../../hardware/firmware/fumee/fumee.hex?raw'
 import { createFakeBoardPort, type FakeBoardOptions } from '../_helpers/fakeBoardPort'
@@ -94,8 +98,49 @@ async function pump<T>(operation: Promise<T>): Promise<T> {
   return tracked
 }
 
+/** Horloge manuelle des reprises : rien ne part tant que le test n'appelle pas `fire`. */
+function manualClock() {
+  let time = 0
+  let next = 1
+  const timers = new Map<number, () => void>()
+  /** Toutes les reprises programmées, même annulées ou déjà lancées. */
+  const scheduled: (() => void)[] = []
+  const clock: Clock = {
+    now: () => time,
+    setTimeout: (callback) => {
+      scheduled.push(callback)
+      timers.set(next, callback)
+      return next++ as unknown as ReturnType<typeof setTimeout>
+    },
+    clearTimeout: (handle) => void timers.delete(handle as unknown as number),
+    setInterval: () => 0 as unknown as ReturnType<typeof setInterval>,
+    clearInterval: () => undefined,
+  }
+  return {
+    clock,
+    pending: () => timers.size,
+    /** Rejoue la dernière reprise programmée, comme une minuterie qui arriverait malgré l'annulation. */
+    replayLast: () => scheduled.at(-1)!(),
+    advance: (ms: number) => void (time += ms),
+    /** Lance la reprise programmée (le délai est celui de la constante, sans l'attendre). */
+    async fire() {
+      const [id, callback] = [...timers.entries()][0]!
+      timers.delete(id)
+      const before = useSmokeBoard().state.value
+      callback()
+      // Un lien neuf est créé par la reprise, puis il se pose sur « prête » ou sur un échec.
+      await vi.waitFor(() => {
+        const after = useSmokeBoard().state.value
+        expect(after).not.toBe(before)
+        expect(after?.status).not.toMatch(/^(idle|connecting)$/)
+      })
+    },
+  }
+}
+
 afterEach(async () => {
   await resetSmokeBoard()
+  setSmokeBoardClock(null)
   Reflect.deleteProperty(navigator, 'serial')
 })
 
@@ -218,6 +263,164 @@ describe('carte USB de la fumée : connexion et gardes', () => {
 
     await vi.waitFor(() => expect(fake.isOutputOn()).toBe(false))
     expect(lighting().smoke.fire(1000)).toMatchObject({ ok: false })
+  })
+})
+
+describe('carte USB de la fumée : reprise seule en cours de page', () => {
+  it('carte débranchée puis rebranchée : reprise après le délai, fumée désarmée', async () => {
+    const time = manualClock()
+    setSmokeBoardClock(time.clock)
+    const { fake, serial } = await readyBoard()
+    lighting().smoke.arm()
+    fake.unplug()
+    await vi.waitFor(() => expect(useSmokeBoard().view.value).toBe('disconnected'))
+    expect(time.pending()).toBe(1)
+
+    const replugged = createFakeBoardPort()
+    serial.granted = [replugged.port]
+    await time.fire()
+
+    await vi.waitFor(() => expect(useSmokeBoard().view.value).toBe('ready'))
+    expect(smoke().armed).toBe(false)
+    expect(lighting().smoke.fire(1000)).toEqual({ ok: false, reason: 'not_armed' })
+    expect(replugged.fireLines()).toBe(0)
+  })
+
+  it('reprise bornée : après SMOKE_BOARD_RETRY_MAX essais, plus rien n’est tenté', async () => {
+    const time = manualClock()
+    setSmokeBoardClock(time.clock)
+    const { fake } = await readyBoard()
+    fake.unplug()
+    await vi.waitFor(() => expect(useSmokeBoard().view.value).toBe('disconnected'))
+
+    for (let attempt = 0; attempt < SMOKE_BOARD_RETRY_MAX; attempt += 1) {
+      expect(time.pending()).toBe(1)
+      await time.fire()
+    }
+
+    expect(time.pending()).toBe(0)
+    // Ouverture d'origine, puis un essai par reprise : aucun de plus.
+    expect(fake.opens).toHaveLength(1 + SMOKE_BOARD_RETRY_MAX)
+    expect(useSmokeBoard().view.value).toBe('disconnected')
+  })
+
+  it('une carte restée prête longtemps retrouve tous ses essais', async () => {
+    const time = manualClock()
+    setSmokeBoardClock(time.clock)
+    const { fake, serial } = await readyBoard()
+    fake.unplug()
+    await vi.waitFor(() => expect(useSmokeBoard().view.value).toBe('disconnected'))
+    for (let attempt = 0; attempt < SMOKE_BOARD_RETRY_MAX - 1; attempt += 1) {
+      await time.fire()
+    }
+    const replugged = createFakeBoardPort()
+    serial.granted = [replugged.port]
+    await time.fire()
+    await vi.waitFor(() => expect(useSmokeBoard().view.value).toBe('ready'))
+
+    time.advance(SMOKE_BOARD_STABLE_MS)
+    replugged.unplug()
+    await vi.waitFor(() => expect(useSmokeBoard().view.value).toBe('disconnected'))
+
+    expect(time.pending()).toBe(1)
+  })
+
+  it('un lien qui échoue juste après être prêt ne relance pas les essais à l’infini', async () => {
+    const time = manualClock()
+    setSmokeBoardClock(time.clock)
+    const { fake, serial } = await readyBoard()
+    fake.unplug()
+    await vi.waitFor(() => expect(useSmokeBoard().view.value).toBe('disconnected'))
+    for (let attempt = 0; attempt < SMOKE_BOARD_RETRY_MAX; attempt += 1) {
+      const flapping = createFakeBoardPort()
+      serial.granted = [flapping.port]
+      await time.fire()
+      await vi.waitFor(() => expect(useSmokeBoard().view.value).toBe('ready'))
+      flapping.unplug()
+      await vi.waitFor(() => expect(useSmokeBoard().view.value).toBe('disconnected'))
+    }
+
+    expect(time.pending()).toBe(0)
+  })
+
+  it('une reprise qui arrive pendant l’attente de la sauvegarde n’ouvre aucun port', async () => {
+    const time = manualClock()
+    setSmokeBoardClock(time.clock)
+    const { fake } = await readyBoard()
+    fake.unplug()
+    await vi.waitFor(() => expect(useSmokeBoard().view.value).toBe('disconnected'))
+    expect(time.pending()).toBe(1)
+    fake.replug()
+
+    const installing = installSmokeBoardProgram({ machineOff: true, download: () => undefined })
+    await vi.waitFor(() => expect(useSmokeBoard().install.value.phase).toBe('awaiting_backup'))
+    const opens = fake.opens.length
+    // La reprise programmée est annulée par l'installation ; une minuterie qui passerait quand même
+    // (rejouée ici) attend la fin de l'installation dans la file et ne touche à aucun port.
+    expect(time.pending()).toBe(0)
+
+    time.replayLast()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(fake.opens).toHaveLength(opens)
+    expect(useSmokeBoard().install.value.phase).toBe('awaiting_backup')
+    answerBackupSaved(false)
+    await installing
+  })
+
+  it('une carte en défaut n’est jamais reprise seule : le défaut reste affiché', async () => {
+    const time = manualClock()
+    setSmokeBoardClock(time.clock)
+    const { fake } = await readyBoard()
+    lighting().smoke.arm()
+
+    fake.reboot()
+    await vi.waitFor(() => expect(useSmokeBoard().view.value).toBe('fault'))
+    time.advance(SMOKE_BOARD_STABLE_MS * 10)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(time.pending()).toBe(0)
+    expect(fake.opens).toHaveLength(1)
+    expect(useSmokeBoard().view.value).toBe('fault')
+    expect(smoke().armed).toBe(false)
+  })
+
+  it.each([
+    ['session expirée', expireRoomSession],
+    ['déconnexion', signOut],
+  ])('%s : ni la minuterie ni le rebranchement ne relancent les lumières', async (_name, end) => {
+    const time = manualClock()
+    setSmokeBoardClock(time.clock)
+    const { fake, serial } = await readyBoard()
+    fake.unplug()
+    await vi.waitFor(() => expect(useSmokeBoard().view.value).toBe('disconnected'))
+    expect(time.pending()).toBe(1)
+
+    await end()
+    expect(getLighting()).toBeNull()
+    fake.replug()
+    serial.emit('connect', fake.port)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(time.pending()).toBe(0)
+    expect(getLighting()).toBeNull()
+    expect(fake.opens).toHaveLength(1)
+  })
+
+  it('carte sans notre programme : aucune reprise', async () => {
+    const time = manualClock()
+    setSmokeBoardClock(time.clock)
+    const fake = createFakeBoardPort({ banner: null })
+    installSerial(fake.port, [fake.port])
+    await provisionedRoom()
+    vi.useFakeTimers()
+    const reconnect = reconnectSmokeBoard()
+    await vi.advanceTimersByTimeAsync(3500)
+    await reconnect
+    vi.useRealTimers()
+
+    expect(useSmokeBoard().view.value).toBe('absent')
+    expect(time.pending()).toBe(0)
   })
 })
 

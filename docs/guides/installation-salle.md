@@ -417,7 +417,9 @@ signé (voir le [README du pont](../../game/artnet-bridge/README.md)).
 remplace ni l'arrêt d'urgence physique, ni le relais temporisé, ni la détection incendie du site.
 
 La fumée est **désactivée par défaut**. Elle se règle uniquement dans l'assistant Matériel (6.2) : le
-chemin court ne la règle pas. Pour l'utiliser :
+chemin court ne la règle pas. Si ta machine est commandée par une carte USB (compatible Arduino Uno),
+lis aussi [`fumee-carte-usb.md`](fumee-carte-usb.md) : branchement, installation du programme de la
+carte, restauration. Pour utiliser la fumée :
 
 1. Écran Matériel, onglet « Assistant », étape « Sécuriser la fumée ». Elle n'apparaît que si une
    machine à fumée est déclarée à l'étape « Déclarer les appareils ».

@@ -33,6 +33,9 @@ export function useFreezeTest() {
     )
   })
 
+  /** La fumée passe par la carte USB : c'est elle qui doit couper, et le texte du test le dit. */
+  const viaBoard = computed(() => hardware.value.config.lighting.smoke.board !== undefined)
+
   /** Raison de refuser le test avant même de demander confirmation, `null` sinon. */
   function precheck(): string | null {
     // Sans interface réelle ouverte, aucune fumée ne sortirait : le test ne prouverait rien.
@@ -66,9 +69,11 @@ export function useFreezeTest() {
     }
     const second = await confirm({
       message: t(
-        signalLoss.value
-          ? 'hardware.diagnostic.freezeConfirm2Signal'
-          : 'hardware.diagnostic.freezeConfirm2'
+        viaBoard.value
+          ? 'hardware.diagnostic.freezeConfirm2Board'
+          : signalLoss.value
+            ? 'hardware.diagnostic.freezeConfirm2Signal'
+            : 'hardware.diagnostic.freezeConfirm2'
       ),
       confirmLabel: t('hardware.diagnostic.freezeGo'),
       variant: 'danger',
@@ -106,5 +111,5 @@ export function useFreezeTest() {
     return true
   }
 
-  return { run, refusal, signalLoss }
+  return { run, refusal, signalLoss, viaBoard }
 }
