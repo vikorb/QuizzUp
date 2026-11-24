@@ -142,6 +142,7 @@ import { me } from '@/state/authState'
 import type { Company } from '@/types/company'
 import type { SelectFieldOption } from '@/types/form'
 import type { QuestionImportResult } from '@/types/questionImport'
+import { downloadBlob } from '@/utils/dom'
 import { formatFileSize } from '@/utils/question/audio'
 import {
   buildImportTemplate,
@@ -330,13 +331,7 @@ function downloadTemplate(): void {
     trueFalseQuestion: t('questionImport.template.trueFalseQuestion'),
     estimateQuestion: t('questionImport.template.estimateQuestion'),
   })
-  const url = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8' }))
-  const link = document.createElement('a')
-
-  link.href = url
-  link.download = IMPORT_TEMPLATE_FILE_NAME
-  link.click()
-  URL.revokeObjectURL(url)
+  downloadBlob(new Blob([content], { type: 'text/csv;charset=utf-8' }), IMPORT_TEMPLATE_FILE_NAME)
 }
 
 function goToQuestions(): void {
