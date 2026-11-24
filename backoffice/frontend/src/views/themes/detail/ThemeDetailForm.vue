@@ -24,6 +24,19 @@
       />
     </div>
 
+    <FormField
+      v-if="form.mode === THEME_MODE_AUDIO"
+      v-model="form.playlistLink"
+      :label="$t('themes.form.playlistLink')"
+      name="playlistLink"
+      inputmode="url"
+      autocomplete="off"
+      :placeholder="$t('themes.form.playlistLinkPlaceholder')"
+      :hint="$t('themes.form.playlistLinkHint', { min: THEME_PLAYLIST_MIN_PLAYABLE_TRACKS })"
+      :disabled="saving || isReadonly"
+      :error="getErrorLabel(errors.playlistLink)"
+    />
+
     <div v-if="isSuperAdmin" class="theme-form__grid">
       <SelectField
         id="theme-scope"
@@ -82,6 +95,7 @@ import {
   THEME_MODE_CLASSIC,
   THEME_MODE_IMAGE,
   THEME_MODE_MIXED,
+  THEME_PLAYLIST_MIN_PLAYABLE_TRACKS,
   THEME_SCOPE_COMPANY,
   THEME_SCOPE_GLOBAL,
   THEME_STATUS_ACTIVE,
@@ -111,6 +125,7 @@ import { authState } from '@/state/authState'
 import type { SelectFieldOption } from '@/types/form'
 import type { Theme, ThemePayload } from '@/types/theme'
 import { getApiErrorKey } from '@/utils/api'
+import { extractPlaylistRef } from '@/utils/theme/playlist'
 
 const props = defineProps<{
   theme: Theme | null
@@ -124,13 +139,14 @@ const emit = defineEmits<{
   (event: 'error', errorCode: string): void
 }>()
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 
 const form = reactive({
   name: '',
   mode: THEME_MODE_CLASSIC as ThemeMode,
   scope: THEME_SCOPE_GLOBAL as ThemeScope,
   companyId: '',
+  playlistLink: '',
   status: THEME_STATUS_ACTIVE as ThemeStatus,
 })
 
@@ -138,6 +154,7 @@ const errors = reactive({
   name: '',
   mode: '',
   companyId: '',
+  playlistLink: '',
 })
 
 const saving = ref(false)
@@ -226,6 +243,7 @@ watch(
       form.mode = THEME_MODE_CLASSIC
       form.scope = isSuperAdmin.value ? THEME_SCOPE_GLOBAL : THEME_SCOPE_COMPANY
       form.companyId = ''
+      form.playlistLink = ''
       form.status = THEME_STATUS_ACTIVE
 
       return
@@ -235,6 +253,7 @@ watch(
     form.mode = theme.mode
     form.scope = theme.scope
     form.companyId = theme.companyId ? String(theme.companyId) : ''
+    form.playlistLink = theme.playlistRef ?? ''
     form.status = toThemeStatus(theme.status)
   },
   { immediate: true }
@@ -244,6 +263,7 @@ function resetErrors(): void {
   errors.name = ''
   errors.mode = ''
   errors.companyId = ''
+  errors.playlistLink = ''
 }
 
 function resetMessages(): void {
@@ -276,7 +296,15 @@ function validateForm(): boolean {
     errors.companyId = 'themes.form.errors.companyIdInvalid'
   }
 
-  return !errors.name && !errors.mode && !errors.companyId
+  if (
+    form.mode === THEME_MODE_AUDIO &&
+    form.playlistLink.trim() &&
+    !extractPlaylistRef(form.playlistLink)
+  ) {
+    errors.playlistLink = 'themes.form.errors.playlistLinkInvalid'
+  }
+
+  return !errors.name && !errors.mode && !errors.companyId && !errors.playlistLink
 }
 
 function buildPayload(): ThemePayload {
@@ -293,7 +321,23 @@ function buildPayload(): ThemePayload {
     }
   }
 
+  // La playlist n'existe qu'en mode audio : ailleurs le serveur l'efface lui-même.
+  if (form.mode === THEME_MODE_AUDIO) {
+    const playlistRef = extractPlaylistRef(form.playlistLink)
+
+    if (playlistRef || props.theme?.playlistRef) {
+      payload.playlistRef = playlistRef
+    }
+  }
+
   return payload
+}
+
+/** Les codes de playlist ont leur texte ; les autres passent par les erreurs génériques. */
+function getSaveErrorKey(code: string): string {
+  const key = `themes.errors.apiErrors.${code}`
+
+  return te(key) ? key : getApiErrorKey(code, 'themes.errors')
 }
 
 async function submitForm(): Promise<void> {
@@ -316,7 +360,7 @@ async function submitForm(): Promise<void> {
         : await createThemeService(buildPayload())
 
     if (!result.ok) {
-      formError.value = t(getApiErrorKey(result.error, 'themes.errors'))
+      formError.value = t(getSaveErrorKey(result.error))
       emit('error', result.error)
       return
     }
