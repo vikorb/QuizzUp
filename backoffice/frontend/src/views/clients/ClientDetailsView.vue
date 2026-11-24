@@ -96,7 +96,8 @@ async function loadCompany(): Promise<void> {
 }
 
 function goBack(): void {
-  if (isSuperadmin.value) {
+  // La liste des clients n'existe que dans la console de l'éditeur.
+  if (isSuperadmin.value && router.hasRoute('clients')) {
     router.push('/clients')
     return
   }

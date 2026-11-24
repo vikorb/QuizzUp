@@ -12,6 +12,7 @@
       "@quizzup/shared": ["./shared/src/index.ts"],
       "@quizzup/shared/*": ["./shared/src/*"],
       "@/*": ["./frontend/src/*"],
+      "@surface": ["./frontend/src/surface/console.ts"],
       "@views/*": ["./frontend/src/views/*"],
       "@shared/*": ["./shared/src/*"],
       "@frontend-tests/*": ["./tests/frontend/src/*"],
