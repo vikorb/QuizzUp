@@ -464,9 +464,9 @@ jobs:
         shell: powershell
         working-directory: ${{ github.workspace }}
         run: |
-          $files = @(Get-ChildItem -Path deploy -Recurse -Filter *.ps1 -ErrorAction SilentlyContinue)
+          $files = @(Get-ChildItem -Path deploy, game/artnet-bridge/powershell -Recurse -Filter *.ps1 -ErrorAction SilentlyContinue)
           if ($files.Count -eq 0) {
-            Write-Host 'Aucun script deploy/**/*.ps1 à analyser.'
+            Write-Host 'Aucun script deploy/**/*.ps1 ni game/artnet-bridge/powershell/*.ps1 à analyser.'
             exit 0
           }
           $failed = $false
@@ -502,6 +502,10 @@ jobs:
       # refus (403) d'une autre origine.
       - name: Test de fumée (WebSocket)
         run: node scripts/smoke-bridge.mjs dist-sea/quizzup-artnet-bridge.exe http://localhost:4174
+
+      # Relais PowerShell 5.1 : vrai WebSocket + vrai récepteur UDP local (tests ignorés hors Windows).
+      - name: Tests du relais PowerShell
+        run: npx vitest --run tests/powershellRelay.test.ts
 
       - name: Publier l'exécutable
         uses: actions/upload-artifact@v4

@@ -70,6 +70,17 @@
       :error="getErrorLabel(errors.audio)"
     />
 
+    <SelectField
+      v-if="isAudio"
+      id="question-audio-effect"
+      v-model="form.audioEffect"
+      :label="$t('questions.form.audioEffect.label')"
+      :hint="$t('questions.form.audioEffect.hint')"
+      :options="audioEffectOptions"
+      :disabled="saving"
+      :error="getErrorLabel(errors.audioEffect)"
+    />
+
     <section class="question-form__answers">
       <div class="question-form__answers-header">
         <div class="question-form__answers-title">
@@ -144,6 +155,8 @@ import {
   DEFAULT_QUESTION_KIND,
   getQuestionKindAnswersError,
   getQuestionKindMediaError,
+  QUESTION_AUDIO_EFFECT_NONE,
+  QUESTION_AUDIO_EFFECTS,
   QUESTION_KIND_ANSWERS_ERROR_TRUE_FALSE,
   QUESTION_KIND_ESTIMATE,
   QUESTION_KIND_QCM,
@@ -156,6 +169,7 @@ import {
   QUESTION_STATUS_DELETED,
   QUESTION_STATUS_DRAFT,
   QUESTION_STATUS_INACTIVE,
+  type QuestionAudioEffect,
   type QuestionStatus,
 } from '@quizzup/shared'
 import { computed, reactive, ref, watch } from 'vue'
@@ -218,6 +232,7 @@ const form = reactive({
   kind: DEFAULT_QUESTION_KIND as QuestionKind,
   typeMedia: QUESTION_MEDIA_TYPE_NONE as QuestionMediaType,
   mediaUrl: '',
+  audioEffect: QUESTION_AUDIO_EFFECT_NONE as QuestionAudioEffect,
   status: QUESTION_STATUS_ACTIVE as QuestionStatus,
   answers: [
     { response: '', isCorrect: true },
@@ -232,7 +247,11 @@ const errors = reactive({
   answers: '',
   typeMedia: '',
   audio: '',
+  audioEffect: '',
 })
+
+// Codes que l'API renvoie pour ce champ : ils s'affichent sous le sélecteur.
+const AUDIO_EFFECT_ERROR_CODES = ['question_audio_effect_invalid', 'audio_effect_requires_audio']
 
 // Question déjà enregistrée : en création, si l'envoi du fichier échoue après la création, un
 // nouvel essai met à jour la même question au lieu d'en créer une seconde.
@@ -315,6 +334,13 @@ const kindOptions = computed<SelectFieldOption[]>(() => [
   { label: t('questions.kinds.estimate'), value: QUESTION_KIND_ESTIMATE },
 ])
 
+const audioEffectOptions = computed<SelectFieldOption[]>(() =>
+  QUESTION_AUDIO_EFFECTS.map((effect) => ({
+    label: t(`questions.form.audioEffect.options.${effect}`),
+    value: effect,
+  }))
+)
+
 const typeMediaOptions = computed<SelectFieldOption[]>(() => [
   {
     label: t('questions.media.none'),
@@ -334,6 +360,14 @@ const typeMediaOptions = computed<SelectFieldOption[]>(() => [
   },
 ])
 
+// L'erreur de l'API sur l'effet n'a plus lieu d'être dès que l'on change de choix.
+watch(
+  () => form.audioEffect,
+  () => {
+    errors.audioEffect = ''
+  }
+)
+
 watch(
   [() => props.question, () => props.initialThemeIds, () => props.themes],
   ([question]) => {
@@ -347,6 +381,7 @@ watch(
       form.kind = DEFAULT_QUESTION_KIND
       form.typeMedia = QUESTION_MEDIA_TYPE_NONE
       form.mediaUrl = ''
+      form.audioEffect = QUESTION_AUDIO_EFFECT_NONE
       form.status = QUESTION_STATUS_ACTIVE
       form.answers = [
         { response: '', isCorrect: true },
@@ -360,6 +395,7 @@ watch(
     form.kind = question.kind ?? DEFAULT_QUESTION_KIND
     form.typeMedia = question.typeMedia
     form.mediaUrl = question.mediaUrl ?? ''
+    form.audioEffect = question.audioEffect ?? QUESTION_AUDIO_EFFECT_NONE
     form.status = toQuestionStatus(question.status)
     form.answers = question.answers?.length
       ? question.answers.map((answer) => ({
@@ -406,6 +442,7 @@ function resetErrors(): void {
   errors.answers = ''
   errors.typeMedia = ''
   errors.audio = ''
+  errors.audioEffect = ''
 }
 
 function resetMessages(): void {
@@ -508,6 +545,8 @@ function buildPayload(): QuestionPayload {
       form.typeMedia === QUESTION_MEDIA_TYPE_NONE || isAudio.value
         ? null
         : form.mediaUrl.trim() || null,
+    // Un effet n'a de sens que sur une question audio : le choix reste en mémoire si l'on revient.
+    audioEffect: isAudio.value ? form.audioEffect : QUESTION_AUDIO_EFFECT_NONE,
     answers: form.answers.map((answer) => ({
       id: answer.id,
       response: answer.response.trim(),
@@ -601,7 +640,13 @@ async function submitForm(): Promise<void> {
       : await createQuestionService(buildPayload())
 
     savedQuestion.value = question
-  } catch {
+  } catch (error) {
+    const code = error instanceof Error ? error.message : ''
+
+    if (AUDIO_EFFECT_ERROR_CODES.includes(code)) {
+      errors.audioEffect = `questions.form.audioEffect.errors.${code}`
+    }
+
     formError.value = t('questions.errors.saveFailed')
     emit('error', 'saveFailed')
     saving.value = false

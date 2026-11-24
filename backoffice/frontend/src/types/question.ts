@@ -1,4 +1,4 @@
-import type { QuestionMediaProvider } from '@quizzup/shared'
+import type { QuestionAudioEffect, QuestionMediaProvider } from '@quizzup/shared'
 
 export type QuestionScope = 'global' | 'company'
 export type ThemeMode = 'classic' | 'image' | 'audio' | 'mixed'
@@ -73,6 +73,7 @@ export interface Question {
   mediaProviderRef?: string | null
   /** « artiste — titre » enregistré au rattachement ; `null` hors titre de fournisseur. */
   mediaProviderLabel?: string | null
+  audioEffect?: QuestionAudioEffect
   status: number
   canEdit?: boolean
   answers?: Answer[]
@@ -95,6 +96,7 @@ export interface QuestionPayload {
   kind: QuestionKind
   typeMedia: QuestionMediaType
   mediaUrl: string | null
+  audioEffect: QuestionAudioEffect
   answers: Answer[]
   status?: number
 }
