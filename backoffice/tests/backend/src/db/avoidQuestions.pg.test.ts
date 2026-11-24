@@ -320,18 +320,19 @@ describe.skipIf(!PG_INTEGRATION_URL)('questions déjà vues par les joueurs d’
     })
 
     it('est utilisé par la recherche des parties d’un même joueur', async () => {
-      const { rows } = await db.transaction(async (trx) => {
+      const plan = await db.transaction<string>(async (trx) => {
         await trx.raw('SET LOCAL enable_seqscan = off')
 
-        return trx.raw(
+        const { rows } = await trx.raw(
           `EXPLAIN SELECT game_id FROM game_participants
            WHERE lower(btrim(email)) IN (SELECT 'lea@x.test')
            UNION
            SELECT game_id FROM game_participants
            WHERE lower(btrim(second_email)) IN (SELECT 'lea@x.test')`
         )
+
+        return (rows as { 'QUERY PLAN': string }[]).map((row) => row['QUERY PLAN']).join(' ')
       })
-      const plan = (rows as { 'QUERY PLAN': string }[]).map((row) => row['QUERY PLAN']).join(' ')
 
       for (const name of EMAIL_INDEXES) {
         expect(plan).toContain(name)
