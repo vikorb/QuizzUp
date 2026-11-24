@@ -8,6 +8,8 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Pilotage en direct, commandes à distance (écran de salle) : la salle applique `pause`, `resume`, `skip` et `abort` reçus par le flux, par les mêmes chemins que les boutons locaux, puis rend l'accusé (`POST /room/commands/:id/result`). Commande rejouée : même accusé, sans nouvelle application. `skip` refusé (`not_in_question`) s'il ne désigne plus la question en cours ; `abort` refusé s'il vise une autre partie. Scénario Playwright pause, refus, reprise.
+  US: US-LIVE-01 (#129)
 - Pilotage en direct, commandes à distance (frontend) : boutons « Mettre en pause », « Reprendre », « Passer la question » et « Arrêter la partie » dans le panneau en direct d'une partie. Le résultat (`applied`, `refused` avec sa raison, `expired`) vient de l'événement `command_result` du flux ; sans résultat après 12 s, la commande est tenue pour expirée. Boutons inactifs si la salle n'est pas pilotable.
   US: US-LIVE-01 (#129)
 - API de réservation, clés et journal (backend) : `GET` / `POST /companies/:companyId/api-keys` (10 clés actives au plus, 409 `api_key_limit_reached` ; le secret n'est renvoyé qu'à la création), `DELETE /companies/:companyId/api-keys/:apiKeyId` (révocation, idempotente) et `GET /companies/:companyId/api-logs` (journal paginé, filtré par clé et par classe de statut). Purge du journal après 90 jours et des clés d'idempotence après 24 h.
