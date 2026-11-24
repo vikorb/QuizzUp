@@ -153,6 +153,7 @@ export function createDefaultGameFormValues(): GameFormValues {
     // Tous les mini-jeux cochés par défaut : l'opérateur retire ce qu'il ne veut pas.
     miniGames: [...MINI_GAMES],
     participants: [createGameParticipantFormValues(1)],
+    openJoin: false,
     scheduled: false,
     scheduledDate: '',
     scheduledTime: '',
@@ -527,6 +528,11 @@ export function buildCreateGamePayload(
   }
   const miniGames = getSelectedMiniGames(form.miniGames)
 
+  // Le serveur ignore le lien d'une session programmée : on ne l'envoie pas.
+  if (form.openJoin && !form.scheduled) {
+    payload.openJoin = true
+  }
+
   if (miniGames) {
     payload.miniGames = miniGames
   }
@@ -669,7 +675,23 @@ export function setGameScheduled(form: GameFormValues, scheduled: boolean): void
     Object.assign(form, {
       participants: form.participants.filter((participant) => !isParticipantBlank(participant)),
     })
-  } else if (form.participants.length === 0) {
+  } else if (form.participants.length === 0 && !form.openJoin) {
+    form.participants.push(createGameParticipantFormValues(1))
+  }
+}
+
+/**
+ * Bascule « Inscription des joueurs par QR code ». Les joueurs s'inscrivent ensuite : la ligne vierge
+ * du départ disparaît. Désactivée, la partie en exige un : on en remet une.
+ */
+export function setGameOpenJoin(form: GameFormValues, openJoin: boolean): void {
+  Object.assign(form, { openJoin })
+
+  if (openJoin) {
+    Object.assign(form, {
+      participants: form.participants.filter((participant) => !isParticipantBlank(participant)),
+    })
+  } else if (form.participants.length === 0 && !form.scheduled) {
     form.participants.push(createGameParticipantFormValues(1))
   }
 }

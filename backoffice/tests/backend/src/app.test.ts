@@ -4,6 +4,7 @@ import { buildApp } from '../../../backend/src/app'
 
 const BACKOFFICE_ORIGIN = 'https://bo.quizzup.test'
 const VITRINE_ORIGIN = 'https://vitrine.quizzup.test'
+const APP_ORIGIN = 'https://app.quizzup.test'
 
 async function startApp() {
   const app = buildApp()
@@ -88,6 +89,55 @@ describe('app.ts — /public/v1 et CORS', () => {
     await app.close()
   })
 
+  it('also opens /public/v1 to the origin of PUBLIC_APP_URL, and only to that origin', async () => {
+    vi.stubEnv('CORS_ORIGIN', BACKOFFICE_ORIGIN)
+    vi.stubEnv('VITRINE_ORIGINS', VITRINE_ORIGIN)
+    vi.stubEnv('PUBLIC_APP_URL', `${APP_ORIGIN}/`)
+    const app = await startApp()
+
+    const preflight = (origin: string) =>
+      app.inject({
+        method: 'OPTIONS',
+        url: '/public/v1/join/registrations',
+        headers: { origin, 'access-control-request-method': 'POST' },
+      })
+
+    for (const origin of [APP_ORIGIN, VITRINE_ORIGIN]) {
+      const allowed = await preflight(origin)
+      expect(allowed.statusCode).toBe(204)
+      expect(allowed.headers['access-control-allow-origin']).toBe(origin)
+    }
+    expect(
+      (await preflight(BACKOFFICE_ORIGIN)).headers['access-control-allow-origin']
+    ).toBeUndefined()
+
+    // Hors du préfixe public, l'origine de PUBLIC_APP_URL n'obtient rien de plus.
+    const health = await app.inject({
+      method: 'GET',
+      url: '/health',
+      headers: { origin: APP_ORIGIN },
+    })
+    expect(health.headers['access-control-allow-origin']).toBeUndefined()
+
+    await app.close()
+  })
+
+  it('opens /public/v1 to the PUBLIC_APP_URL origin alone when VITRINE_ORIGINS is empty', async () => {
+    vi.stubEnv('VITRINE_ORIGINS', '')
+    vi.stubEnv('PUBLIC_APP_URL', APP_ORIGIN)
+    const app = await startApp()
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/public/v1/anything',
+      headers: { origin: APP_ORIGIN },
+    })
+
+    expect(response.headers['access-control-allow-origin']).toBe(APP_ORIGIN)
+
+    await app.close()
+  })
+
   it('judges the CORS regime on the decoded path, like the router does', async () => {
     vi.stubEnv('CORS_ORIGIN', BACKOFFICE_ORIGIN)
     vi.stubEnv('VITRINE_ORIGINS', VITRINE_ORIGIN)
@@ -155,6 +205,7 @@ describe('app.ts — /public/v1 et CORS', () => {
   it('opens /public/v1 to nobody when VITRINE_ORIGINS is empty', async () => {
     vi.stubEnv('CORS_ORIGIN', BACKOFFICE_ORIGIN)
     vi.stubEnv('VITRINE_ORIGINS', '')
+    vi.stubEnv('PUBLIC_APP_URL', '')
     const app = await startApp()
 
     const response = await app.inject({

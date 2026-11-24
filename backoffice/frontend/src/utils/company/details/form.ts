@@ -30,12 +30,18 @@ import {
   hasCompanyFormErrors,
   validateCompanyForm,
 } from '@/utils/company/form'
+import {
+  getVoucherSettingsValues,
+  hasVoucherSettingsChanges,
+  validateVoucherSettings,
+} from '@/utils/voucher/settings'
 
 export function createCompanyDetailsForm(): EditCompanyFormValues {
   return {
     name: '',
     email: '',
     status: COMPANY_STATUS_ACTIVE,
+    ...getVoucherSettingsValues({}),
   }
 }
 
@@ -44,6 +50,7 @@ export function getCompanyDetailsFormValues(company: Company): EditCompanyFormVa
     name: company.name,
     email: company.email,
     status: company.status,
+    ...getVoucherSettingsValues(company),
   }
 }
 
@@ -59,7 +66,8 @@ export function hasCompanyDetailsChanges(
   return (
     form.name.trim() !== company.name ||
     form.email.trim().toLowerCase() !== company.email.toLowerCase() ||
-    form.status !== company.status
+    form.status !== company.status ||
+    hasVoucherSettingsChanges(form, company)
   )
 }
 
@@ -110,7 +118,10 @@ export async function saveClientDetailCompany(
   form: ClientDetailFormValues,
   t: ComposerTranslation
 ): Promise<ClientDetailSaveResult> {
-  const fieldErrors = validateCompanyForm(form, t, 'edit')
+  const fieldErrors = {
+    ...validateCompanyForm(form, t, 'edit'),
+    ...validateVoucherSettings(form, t),
+  }
 
   if (hasCompanyFormErrors(fieldErrors)) {
     return {
