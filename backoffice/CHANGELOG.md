@@ -11,6 +11,12 @@ Format inspiré de Keep a Changelog.
 - Écran de salle, accueil des joueurs : le lobby d'une partie en attente affiche le QR code d'inscription fourni par le serveur (dans un `<img>`, jamais en `v-html`), l'adresse en clair et le nombre d'inscriptions en attente de validation. Sans QR code, l'adresse seule ; un lien expiré est signalé ; rien en partie en cours.
   US: US-JOIN-01 (#166)
 
+- QR code généré par le serveur : `join` vaut `{ url, qrSvg, expiresAt }` (fiche de partie, `POST /games/:id/join`, création avec `openJoin`, `GET /room/games/current`) et un bon porte `qrSvg` à côté de `url` (émission et bons d'une partie). `qrSvg` est un SVG complet, `null` sans `PUBLIC_APP_URL`. Une seule dépendance, `qrcode-generator` (version exacte, sans dépendance).
+  US: US-JOIN-01 (#166)
+
+- Manches enregistrées : à la fin d'une partie, l'écran de salle envoie les manches jouées (mini-jeu, thème, questions posées) avec les scores ; `POST /room/games/:id/finish` les écrit dans `game_rounds` dans la même transaction (400 `game_rounds_invalid` si un thème ou une question n'est pas lisible par la compagnie). Sans manches, la partie se termine comme avant ; hors ligne, elles attendent avec les scores.
+  US: US-CONTENT-01 (#158)
+
 - Logo du centre sur l'écran de salle : affiché dans la barre du haut et au-dessus du podium, lu avec `/room/me` (aucun appel de plus). Rien n'est affiché sans logo, si l'image ne charge pas, ou en mode démo.
   US: US-RESULTS-01 (#156)
 
