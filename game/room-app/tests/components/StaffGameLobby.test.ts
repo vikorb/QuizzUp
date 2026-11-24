@@ -1,4 +1,10 @@
 import {
+  GAME_FORMAT_CUSTOM,
+  GAME_FORMAT_DISCOVERY,
+  GAME_FORMAT_SETTINGS,
+  GAME_FORMAT_SHORT,
+  GAME_FORMAT_STANDARD,
+  type GameFormat,
   MINI_GAME_FIRST_BUZZ,
   MINI_GAME_FLASH_BLIND_TEST,
   MINI_GAME_POINT_STEAL,
@@ -16,6 +22,7 @@ import { PENDING_FINISHES_KEY } from '@/game/pendingFinishes'
 import { createMemorySessionStorage, GameSession, type SessionStorage } from '@/game/session'
 import { closeGame, configureRoomGame, useRoomGame } from '@/game/useRoomGame'
 import { saveRoomDesksCount } from '@/hardware/roomHardware'
+import { setCurrentLocale } from '@/plugins/i18n'
 import { signIn, syncRoomAuth } from '@/state/roomAuth'
 import * as roomApi from '@/utils/roomApi'
 import LobbyView from '@/views/LobbyView.vue'
@@ -111,6 +118,12 @@ async function mountLobby(game: Partial<roomApi.RoomGame>) {
   return wrapper
 }
 
+/** Ligne du format affichée au lobby pour la partie `GAME` modifiée par `game`. */
+async function formatLine(game: Partial<roomApi.RoomGame>): Promise<string> {
+  const wrapper = await mountLobby(game)
+  return wrapper.get('[data-test="game-format"]').text()
+}
+
 describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
   let player: ExtractPlayer
   let storage: SessionStorage
@@ -155,6 +168,75 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
     await flushPromises()
     expect(wrapper.find('[data-test="player-3"]').classes()).toContain('player--ping')
     vi.useRealTimers()
+  })
+
+  describe('format de la partie', () => {
+    afterEach(() => setCurrentLocale('fr'))
+
+    it.each([
+      [GAME_FORMAT_DISCOVERY, 'Format Découverte · 3 à 6 min'],
+      [GAME_FORMAT_SHORT, 'Format Courte · 12 à 21 min'],
+      [GAME_FORMAT_STANDARD, 'Format Standard · 28 à 47 min'],
+    ] as const)('nomme le format %s et annonce sa durée', async (format, expected) => {
+      expect(await formatLine({ format, ...GAME_FORMAT_SETTINGS[format], miniGames: null })).toBe(
+        expected
+      )
+    })
+
+    it('affiche « Personnalisé » et l’estimation des nombres de la partie', async () => {
+      expect(
+        await formatLine({
+          format: GAME_FORMAT_CUSTOM,
+          roundsCount: 3,
+          questionsPerRound: 3,
+          miniGames: null,
+        })
+      ).toBe('Format Personnalisé · 3 à 6 min')
+    })
+
+    it.each([[null], [undefined]])(
+      'lit un format %s (partie d’avant les formats) comme personnalisé',
+      async (format) => {
+        expect(await formatLine({ format })).toContain('Format Personnalisé')
+      }
+    )
+
+    it('estime la durée avec les mini-jeux choisis pour la partie', async () => {
+      const all = await formatLine({
+        format: GAME_FORMAT_STANDARD,
+        roundsCount: 10,
+        questionsPerRound: 10,
+      })
+      const one = await formatLine({
+        format: GAME_FORMAT_STANDARD,
+        roundsCount: 10,
+        questionsPerRound: 10,
+        miniGames: [MINI_GAME_QUICK_ANSWER],
+      })
+
+      expect(all).toContain('28 à 47 min')
+      expect(one).toContain('27 à 38 min')
+    })
+
+    it('se traduit en anglais', async () => {
+      const wrapper = await mountLobby({
+        format: GAME_FORMAT_SHORT,
+        ...GAME_FORMAT_SETTINGS[GAME_FORMAT_SHORT],
+        miniGames: null,
+      })
+      setCurrentLocale('en')
+      await flushPromises()
+
+      expect(wrapper.get('[data-test="game-format"]').text()).toBe('Short format · 12 to 21 min')
+    })
+
+    it('lit un format inconnu de cet écran comme personnalisé, sans clé brute', async () => {
+      // Un serveur plus récent peut envoyer un format que cet écran ne connaît pas.
+      const line = await formatLine({ format: 'marathon' as unknown as GameFormat })
+
+      expect(line).toContain('Format Personnalisé')
+      expect(line).not.toContain('room.lobby')
+    })
   })
 
   it('affiche et démarre une partie à 6 pupitres venue du backoffice', async () => {

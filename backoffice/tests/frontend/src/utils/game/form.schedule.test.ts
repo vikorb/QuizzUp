@@ -257,12 +257,7 @@ describe('buildCreateGamePayload of a scheduled session', () => {
     }
     form.participants[0].displayName = 'Les Quizzeurs'
 
-    expect(Object.keys(buildCreateGamePayload(form))).toEqual([
-      'roomId',
-      'roundsCount',
-      'questionsPerRound',
-      'participants',
-    ])
+    expect(Object.keys(buildCreateGamePayload(form))).toEqual(['roomId', 'format', 'participants'])
   })
 })
 
