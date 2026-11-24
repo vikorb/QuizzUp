@@ -179,8 +179,8 @@ async function loadReadableThemes(
  * Thèmes de playlist que la partie peut recevoir : mêmes thèmes que le catalogue (actifs, lisibles
  * par la compagnie, et adaptés aux enfants en mode enfants), donc même règle que `isInPlayableTheme`.
  */
-export async function loadPlaylistThemes(companyId: number, kidsOnly = false) {
-  return toPlaylistThemes(await loadReadableThemes(companyId, undefined, kidsOnly))
+export async function loadPlaylistThemes(companyId: number, themeIds: number[], kidsOnly = false) {
+  return toPlaylistThemes(await loadReadableThemes(companyId, themeIds, kidsOnly))
 }
 
 /**
@@ -229,15 +229,14 @@ export async function loadRoomContent(
   questionsPerRound: number = GAME_DEFAULT_QUESTIONS_PER_ROUND
 ): Promise<RoomContentTheme[]> {
   const themes = await loadReadableThemes(companyId, undefined, kidsOnly)
-  const stored = await loadStoredContent(themes, companyId, log, questionIds)
-
-  if (questionIds) {
-    return stored
-  }
-
+  // Les deux lectures du fournisseur (extraits enregistrés, playlists) se font ensemble.
+  const [stored, drawn] = await Promise.all([
+    loadStoredContent(themes, companyId, log, questionIds),
+    questionIds ? [] : drawPlaylistThemes(toPlaylistThemes(themes), questionsPerRound, log),
+  ])
   const byId = new Map(stored.map((theme) => [theme.id, theme]))
 
-  for (const theme of await drawPlaylistThemes(toPlaylistThemes(themes), questionsPerRound, log)) {
+  for (const theme of drawn) {
     const existing = byId.get(theme.id)
 
     byId.set(

@@ -164,6 +164,21 @@ describe('buildPlaylistQuestions', () => {
     ])
   })
 
+  it('ignores a title whose reference is not a safe integer, as question and as decoy', () => {
+    const unsafe = track(6, { ref: '99999999999999999999' })
+    const list = [...tracks(5), unsafe]
+
+    for (let seed = 1; seed <= 40; seed += 1) {
+      for (const question of buildPlaylistQuestions(list, 10, seeded(seed))) {
+        expect(question.answers).toHaveLength(4)
+        expect(question.answers.every((answer) => Number.isSafeInteger(answer.id))).toBe(true)
+      }
+    }
+
+    expect(buildPlaylistQuestions(list, 10, seeded(1))).toHaveLength(5)
+    expect(buildPlaylistQuestions([track(1), unsafe], 5, seeded(1))).toEqual([])
+  })
+
   it('draws nothing from fewer than two playable titles', () => {
     expect(buildPlaylistQuestions([], 5, seeded(1))).toEqual([])
     expect(buildPlaylistQuestions(tracks(1), 5, seeded(1))).toEqual([])

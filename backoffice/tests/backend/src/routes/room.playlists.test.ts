@@ -19,6 +19,7 @@ import {
 } from '@quizzup/shared'
 import roomRoutes from '@backend/routes/room'
 import { loadRoomContent } from '@backend/routes/room/_content'
+import { ROOM_TRACKS_RATE_LIMIT_MAX } from '@backend/routes/room/_playlists'
 import { dbState } from './_helpers/mockDb'
 import {
   jsonResponse,
@@ -132,7 +133,17 @@ async function get(url: string, user: TestUser = roomUser) {
 }
 
 const readContent = (query = '') => get(`/room/games/current/content${query}`)
-const readTracks = (refs: string) => get(`/room/games/current/tracks?refs=${refs}`)
+/** `themeIds` : les thèmes de playlist à relire (par défaut les thèmes 1 et 2 des scénarios). */
+const readTracks = (refs: string, themeIds = '1,2') =>
+  get(`/room/games/current/tracks?refs=${refs}&themeIds=${themeIds}`)
+
+/** Réponse du fournisseur dont la lecture lève une erreur qui n'est pas une indisponibilité. */
+const brokenResponse = () =>
+  ({
+    get status(): number {
+      throw new Error('boom')
+    },
+  }) as unknown as Response
 
 const contentThemes = async (query = '') => parseJson<ContentBody>(await readContent(query)).themes
 
@@ -207,6 +218,13 @@ describe('routes/room.ts — content drawn from a playlist', () => {
     })
 
     expect((await contentThemes()).map((theme) => theme.id)).toEqual([2])
+  })
+
+  it('lets a server defect through instead of dropping the playlist theme', async () => {
+    playlistTheme(1, '900')
+    stubProviderFetch(brokenResponse)
+
+    await expect(loadRoomContent(1, { warn: vi.fn() })).rejects.toThrow('boom')
   })
 
   it('drops only an unknown playlist (404 or error 800), the others stay', async () => {
@@ -465,6 +483,99 @@ describe('routes/room.ts — tracks of the current game', () => {
 
     expect((await readTracks('101')).statusCode).toBe(404)
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('answers 400 on missing, empty, too many or non numeric themeIds, without calling the provider', async () => {
+    const fetchMock = stubPlaylists({})
+
+    for (const themeIds of ['', '1,,2', '1,2,3,4,5,6,7', 'a', '0', '-1', '1.5']) {
+      expect((await readTracks('101', themeIds)).statusCode, themeIds).toBe(400)
+    }
+
+    expect((await get('/room/games/current/tracks?refs=101')).statusCode).toBe(400)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('accepts six themeIds and deduplicates them', async () => {
+    for (let id = 1; id <= 6; id += 1) {
+      playlistTheme(id, String(900 + id))
+    }
+
+    const fetchMock = stubPlaylists(
+      Object.fromEntries(Array.from({ length: 6 }, (_v, i) => [901 + i, titles(100 * (i + 1), 5)]))
+    )
+
+    const response = await readTracks('101,601', '1,2,3,4,5,6')
+
+    expect(response.statusCode).toBe(200)
+    expect(parseJson<TracksBody>(response).items.map((item) => item.ref)).toEqual(['101', '601'])
+    expect(requestedPlaylists(fetchMock)).toHaveLength(6)
+
+    fetchMock.mockClear()
+    await readTracks('101', '1,1,1')
+    expect(requestedPlaylists(fetchMock)).toEqual(['901'])
+  })
+
+  it('reads one playlist per allowed theme asked for, nothing for the others', async () => {
+    playlistTheme(1, '900')
+    playlistTheme(2, '901', { scope: THEME_SCOPE_COMPANY, company_id: 2 })
+    playlistTheme(3, '902')
+    playlistTheme(4, '903')
+    const fetchMock = stubPlaylists({
+      900: titles(100, 3),
+      901: titles(200, 3),
+      902: titles(300, 3),
+      903: titles(400, 3),
+    })
+
+    const response = await readTracks('101,201,301,401', '1,2,3,99')
+
+    // Le thème 2 (autre compagnie) et 99 (inconnu) sont ignorés ; le thème 4 n'est pas demandé.
+    expect(parseJson<TracksBody>(response).items.map((item) => item.ref)).toEqual(['101', '301'])
+    expect(requestedPlaylists(fetchMock)).toEqual(['900', '902'])
+  })
+
+  it('serves no title of an inactive or deleted theme', async () => {
+    playlistTheme(1, '900', { status: 0 })
+    playlistTheme(2, '901', { status: 2, deleted_at: new Date().toISOString() })
+    const fetchMock = stubPlaylists({ 900: titles(100, 3), 901: titles(200, 3) })
+
+    const response = await readTracks('101,201')
+
+    expect(response.statusCode).toBe(200)
+    expect(parseJson<TracksBody>(response).items).toEqual([])
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('answers 429 after 6 calls a minute per room, with Retry-After', async () => {
+    playlistTheme(1, '900')
+    stubPlaylists({ 900: titles(100, 3) })
+    const app = await createRouteApp(roomRoutes)
+    const call = () =>
+      app.inject({
+        method: 'GET',
+        url: '/room/games/current/tracks?refs=101&themeIds=1',
+        headers: authHeaders(roomUser),
+      })
+
+    for (let attempt = 0; attempt < ROOM_TRACKS_RATE_LIMIT_MAX; attempt += 1) {
+      expect((await call()).statusCode).toBe(200)
+    }
+
+    const refused = await call()
+
+    expect(refused.statusCode).toBe(429)
+    expect(parseJson(refused)).toEqual({ error: 'too_many_requests' })
+    expect(Number(refused.headers['retry-after'])).toBeGreaterThanOrEqual(1)
+
+    await app.close()
+  })
+
+  it('does not hide a server defect as a provider outage', async () => {
+    playlistTheme(1, '900')
+    stubProviderFetch(brokenResponse)
+
+    expect((await readTracks('101')).statusCode).toBe(500)
   })
 
   it('answers 400 on missing, malformed or too many refs', async () => {

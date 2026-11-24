@@ -13,6 +13,7 @@ import {
   ROOM_STATUS_DELETED,
 } from '@quizzup/shared'
 import db from '../db'
+import { createRateLimiter, replyTooManyRequests } from '../security/rateLimit'
 import { providerRefSchema } from '../services/mediaProvider'
 import { getMediaStorage, isValidMediaKey } from '../storage/mediaStorage'
 import type { RoomRow } from '../types/room'
@@ -29,7 +30,12 @@ import {
 } from './room/_content'
 import { areRoundsAcceptable, roomRoundsSchema, saveGameRounds } from './room/_history'
 import { findCurrentGameId } from './room/_join'
-import { findPlaylistTracks } from './room/_playlists'
+import {
+  findPlaylistTracks,
+  PLAYLISTS_MAX_PER_GAME,
+  ROOM_TRACKS_RATE_LIMIT_MAX,
+  ROOM_TRACKS_RATE_LIMIT_WINDOW_MS,
+} from './room/_playlists'
 import { isRoomAccount, roomPodiumsSchema, roomScoresSchema } from './room/_shared'
 
 const roomGameParamsSchema = z.object({
@@ -67,7 +73,18 @@ const roomContentQuerySchema = z.object({
 })
 
 // `refs` : références de titres d'une playlist (chiffres) séparées par des virgules, dédupliquées.
+// `themeIds` : thèmes de playlist à relire (entiers positifs, 6 au plus), dédupliqués.
 const roomTracksQuerySchema = z.object({
+  themeIds: z
+    .string()
+    .transform((value) => value.split(','))
+    .pipe(
+      z
+        .array(z.string().regex(/^\d+$/).transform(Number).pipe(z.number().int().positive()))
+        .min(1)
+        .max(PLAYLISTS_MAX_PER_GAME)
+    )
+    .transform((ids) => [...new Set(ids)]),
   refs: z
     .string()
     .transform((value) => value.split(','))
@@ -141,6 +158,11 @@ async function findRoomGame(req: FastifyRequest, gameId: number) {
  * rôle `room`, qui n'ont accès à aucune autre route du backoffice.
  */
 const roomRoutes: FastifyPluginAsync = async (app) => {
+  const tracksLimiter = createRateLimiter({
+    max: ROOM_TRACKS_RATE_LIMIT_MAX,
+    windowMs: ROOM_TRACKS_RATE_LIMIT_WINDOW_MS,
+  })
+
   app.get('/room/me', { preHandler: [app.authenticate] }, async (req, reply) => {
     if (!isRoomAccount(req)) {
       return reply.code(403).send({ error: 'forbidden' })
@@ -291,11 +313,20 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
   })
 
   // Reprise après rechargement : liens d'extrait à jour des titres de playlist (identifiants de
-  // question négatifs). Seuls les titres des playlists que la partie peut recevoir sont rendus
-  // (mode enfants compris) ; un titre inconnu, sans extrait ou d'une autre compagnie est absent.
+  // question négatifs). Seules les playlists des `themeIds` sont relues, et à travers le filtre du
+  // catalogue (compagnie, thème actif, mode enfants) : un thème interdit ou inconnu est ignoré, un
+  // titre inconnu, sans extrait ou d'une autre compagnie est absent.
   app.get('/room/games/current/tracks', { preHandler: [app.authenticate] }, async (req, reply) => {
     if (!isRoomAccount(req)) {
       return reply.code(403).send({ error: 'forbidden' })
+    }
+
+    // Compté avant la validation, par salle : chaque appel peut coûter jusqu'à 6 lectures chez le
+    // fournisseur.
+    const limit = tracksLimiter.hit(`room:${req.user.room_id}`)
+
+    if (!limit.allowed) {
+      return replyTooManyRequests(reply, limit.retryAfterSeconds)
     }
 
     const parsedQuery = roomTracksQuerySchema.safeParse(req.query)
@@ -310,9 +341,9 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(404).send({ error: 'game_not_found' })
     }
 
-    const { refs } = parsedQuery.data
+    const { refs, themeIds } = parsedQuery.data
     const { items, unavailable } = await findPlaylistTracks(
-      await loadPlaylistThemes(req.user.company_id, current.kidsMode),
+      await loadPlaylistThemes(req.user.company_id, themeIds, current.kidsMode),
       refs
     )
 

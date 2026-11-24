@@ -28,8 +28,12 @@ const PLAYLIST_DECOYS = 3
 /** Titres jouables distincts au moins pour qu'une playlist donne une question. */
 const PLAYLIST_MIN_DRAW_TRACKS = 2
 
-/** Playlists au plus tirées par partie. */
-const PLAYLISTS_MAX_PER_GAME = 6
+/** Playlists au plus tirées par partie, et thèmes au plus relus par un appel de la route `tracks`. */
+export const PLAYLISTS_MAX_PER_GAME = 6
+
+/** Appels de la route `tracks` acceptés par salle et par fenêtre (une reprise par rechargement). */
+export const ROOM_TRACKS_RATE_LIMIT_MAX = 6
+export const ROOM_TRACKS_RATE_LIMIT_WINDOW_MS = 60_000
 
 /** Lectures de playlists simultanées au plus. */
 const PLAYLISTS_MAX_CONCURRENT_REQUESTS = 5
@@ -92,13 +96,16 @@ function toMediaCredit(track: ProviderPlaylistTrack): RoomContentMediaCredit {
  * Au plus `count` questions « Quel est ce titre ? » tirées parmi les titres jouables de la
  * playlist (lisibles, avec un extrait ; un seul par titre normalisé). Chaque question a trois
  * leurres pris dans toute la liste, même sans extrait, aux titres distincts du bon et entre eux.
- * Moins de 2 titres jouables : aucune question. `random` rend un nombre dans [0, 1).
+ * Moins de 2 titres jouables : aucune question. `random` rend un nombre dans [0, 1). Un titre dont
+ * la référence n'est pas un entier sûr est écarté (question et leurre) : son `id` négatif ne
+ * correspondrait plus à la référence.
  */
 export function buildPlaylistQuestions(
-  tracks: readonly ProviderPlaylistTrack[],
+  allTracks: readonly ProviderPlaylistTrack[],
   count: number,
   random: () => number
 ): RoomContentQuestion[] {
+  const tracks = allTracks.filter((track) => Number.isSafeInteger(Number(track.ref)))
   const playable = new Map<string, ProviderPlaylistTrack>()
 
   for (const track of tracks) {
@@ -148,7 +155,8 @@ export function buildPlaylistQuestions(
 /**
  * Lit les playlists (dédupliquées) : cinq appels simultanés au plus, sans cache (les liens
  * d'extrait expirent). Une playlist introuvable est absente du résultat, seule. Dès la première
- * indisponibilité du fournisseur plus aucun appel n'est lancé (ceux en vol se terminent).
+ * indisponibilité du fournisseur plus aucun appel n'est lancé (ceux en vol se terminent). Toute
+ * autre erreur est un défaut du serveur : elle remonte.
  */
 async function readPlaylists(
   refs: string[]
@@ -166,7 +174,11 @@ async function readPlaylists(
           playlists.set(ref, tracks)
         }
       } catch (error) {
-        unavailable ||= error instanceof MediaProviderUnavailableError
+        if (!(error instanceof MediaProviderUnavailableError)) {
+          throw error
+        }
+
+        unavailable = true
       }
     }
   }
