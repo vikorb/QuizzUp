@@ -274,6 +274,41 @@ describe('views/games/creation/CreateGameForm.vue : format de partie', () => {
       expect(estimate(wrapper).exists()).toBe(true)
     })
 
+    it('shows the original fixed format read-only, with the help about Custom', () => {
+      const wrapper = mountForm({ ...edited, format: GAME_FORMAT_SHORT })
+      const readonly = wrapper.get('[data-test="game-format-readonly"]')
+
+      expect(readonly.text()).toContain('games.form.formats.short')
+      expect(readonly.find('input, select, button').exists()).toBe(false)
+      expect(wrapper.get('[data-test="game-format-edit-hint"]').text()).toBe(
+        'games.form.formatEditHint'
+      )
+    })
+
+    it.each([[GAME_FORMAT_CUSTOM], [null], ['marathon']])(
+      'reads the format %s as Custom, with no help',
+      (format) => {
+        const wrapper = mountForm({ ...edited, format } as Game)
+
+        expect(wrapper.get('[data-test="game-format-readonly"]').text()).toContain(
+          'games.form.formats.custom'
+        )
+        expect(wrapper.find('[data-test="game-format-edit-hint"]').exists()).toBe(false)
+      }
+    )
+
+    it('sends no format when the counts of a fixed-format game change', async () => {
+      const wrapper = mountForm({ ...edited, format: GAME_FORMAT_SHORT })
+
+      await roundsInput(wrapper).setValue('9')
+      await wrapper.get('form').trigger('submit')
+      await flushPromises()
+
+      const payload = updateGameServiceMock.mock.calls[0][2] as Record<string, unknown>
+      expect(payload.roundsCount).toBe(9)
+      expect(payload).not.toHaveProperty('format')
+    })
+
     it('never sends a format, whether the counts changed or not', async () => {
       const wrapper = mountForm(edited)
 
@@ -301,6 +336,7 @@ describe('views/games/creation/CreateGameForm.vue : format de partie', () => {
       expect(form.format).toBeTruthy()
       expect(form.formatOption).toContain('{name}')
       expect(form.formatEstimate).toContain('{min}')
+      expect(form.formatEditHint).toBeTruthy()
       expect(errors.formatFixesCounts).toBeTruthy()
       expect(errors.formatNotUpdatable).toBeTruthy()
     })

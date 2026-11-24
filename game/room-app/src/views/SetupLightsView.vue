@@ -57,6 +57,14 @@
             >
               {{ usbMessage }}
             </li>
+            <li
+              v-if="dmxPortProblem"
+              class="status status--warn"
+              role="alert"
+              data-test="lights-dmx-port-problem"
+            >
+              {{ $t(`hardware.devices.dmx.${dmxPortProblem}`) }}
+            </li>
             <li v-if="nothingFound" class="status" role="status" data-test="lights-none">
               {{ $t('setupLights.scan.none') }}
             </li>
@@ -313,6 +321,7 @@ import {
   type SetupWizard,
   type UniverseAssignment,
   unsupportedUniverseProblems,
+  withDeviceIdentity,
 } from '@quizzup/hardware'
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -342,7 +351,7 @@ const WHITE = { r: 255, g: 255, b: 255, w: 255 }
 const { t, te } = useI18n()
 const router = useRouter()
 const { confirm } = useConfirm()
-const { hardware, lightingState } = useRoomHardware()
+const { hardware, lightingState, dmxPortProblem } = useRoomHardware()
 
 // Config de départ : les buzzers (et tout le reste hors lumières) sont repris tels quels à la fin.
 const initial = hardware.value.config
@@ -461,7 +470,10 @@ async function onUsb(): Promise<void> {
   usbSearching.value = true
   usbMessage.value = null
   try {
-    await connectDmxInterface('usbpro')
+    // `false` : la carte de la fumée a été choisie, refusée (bandeau `dmxPortProblem`).
+    if (!(await connectDmxInterface('usbpro'))) {
+      return
+    }
     opened = true
     usbFound.value = true
     chosenIp.value = null
@@ -647,7 +659,9 @@ function onLater(): void {
 
 /** Applique les lumières à la page seulement (rien n'est enregistré avant la fin). */
 async function applyToPage(): Promise<void> {
-  await saveRoomHardwareConfig(wizard.summary().config, { persist: false })
+  await saveRoomHardwareConfig(withDeviceIdentity(wizard.summary().config, hardware.value.config), {
+    persist: false,
+  })
   await startLighting()
 }
 
@@ -738,7 +752,11 @@ async function save(): Promise<boolean> {
   saveError.value = false
   try {
     getLighting()?.diagnostics.end()
-    await saveRoomHardwareConfig({ ...initial, lighting: wizard.summary().config.lighting })
+    // L'interface connectée pendant le parcours (`lighting.usb`) n'est pas dans `initial`.
+    await saveRoomHardwareConfig({
+      ...initial,
+      lighting: withDeviceIdentity(wizard.summary().config, hardware.value.config).lighting,
+    })
     finished = true
     return true
   } catch {

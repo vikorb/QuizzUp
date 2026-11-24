@@ -256,7 +256,7 @@ import BaseCard from '@/components/ui/BaseCard.vue'
 import SelectField from '@/components/ui/form/SelectField.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { useConfirm } from '@/composables/useConfirm'
-import { useLiveCompany } from '@/composables/useLiveCompany'
+import type { LiveConnectionState } from '@/composables/useLiveCompany'
 import {
   acceptGameRegistrationService,
   closeGameJoinService,
@@ -292,6 +292,10 @@ const PODIUM_AUTO = ''
 
 const props = defineProps<{
   game: Game
+  /** État du flux du personnel, ouvert par `GameLivePanel` (un seul flux par fiche). */
+  liveState: LiveConnectionState
+  /** Dernier `game_updated` reçu (nouvel objet à chaque événement) : la partie visée est relue. */
+  gameUpdate: { gameId: number } | null
 }>()
 
 const emit = defineEmits<{
@@ -325,17 +329,14 @@ let copiedTimer: ReturnType<typeof setTimeout> | undefined
 let refreshing = false
 // Une relecture demandée pendant une lecture en cours (événement, action) : refaite dès qu'elle finit.
 let refreshAgain = false
+// Démonté : plus aucune lecture ne doit partir.
+let disposed = false
+// Le flux a déjà été ouvert une fois : chaque `live` suivant est un retour après coupure.
+let wasLive = false
 // Incrémenté à chaque action réussie : une lecture partie avant ne dit plus la vérité.
 let generation = 0
 
 const isPending = computed(() => props.game.state === GAME_STATE_PENDING)
-const live = useLiveCompany(() => (isPending.value ? props.game.companyId : null), {
-  onGameUpdated: (gameId) => {
-    if (gameId === props.game.id) {
-      void refresh(true)
-    }
-  },
-})
 const isJoinOpen = computed(
   () => join.value !== null && Date.parse(join.value.expiresAt) > now.value
 )
@@ -449,7 +450,10 @@ async function refresh(notify = false): Promise<void> {
 
     if (refreshAgain) {
       refreshAgain = false
-      void refresh(true)
+
+      if (!disposed) {
+        void refresh(true)
+      }
     }
   }
 }
@@ -487,7 +491,7 @@ watch(
 
 // Lecture lente seulement tant que le flux du personnel n'est pas ouvert.
 watch(
-  () => isPending.value && live.state.value !== 'live',
+  () => isPending.value && props.liveState !== 'live',
   (needsFallback) => {
     clearInterval(timer)
     timer = undefined
@@ -504,11 +508,28 @@ watch(
 )
 
 // Flux rétabli après une coupure : ce qui a changé pendant ce temps n'a pas été annoncé.
-watch(live.state, (state, previous) => {
-  if (state === 'live' && previous !== 'connecting' && isPending.value) {
-    void refresh(true)
+watch(
+  () => props.liveState,
+  (state) => {
+    if (state === 'live') {
+      if (wasLive && isPending.value) {
+        void refresh(true)
+      }
+
+      wasLive = true
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () => props.gameUpdate,
+  (update) => {
+    if (update?.gameId === props.game.id) {
+      void refresh(true)
+    }
   }
-})
+)
 
 // Le nombre de pupitres vient de la salle ; sans réponse, ceux d'une salle neuve.
 async function loadDesksCount(): Promise<void> {
@@ -530,6 +551,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  disposed = true
   stopPolling()
   clearTimeout(copiedTimer)
   document.removeEventListener('keydown', onScreenKeydown)

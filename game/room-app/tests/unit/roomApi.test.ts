@@ -2,6 +2,7 @@ import {
   fetchCurrentContent,
   fetchCurrentGame,
   fetchCurrentState,
+  fetchCurrentTracks,
   fetchRoomInfo,
   FINISH_REQUEST_TIMEOUT_MS,
   finishRoomGame,
@@ -76,6 +77,35 @@ describe('API de la salle', () => {
     respond(200, { room: { id: 1, name: 'Salle', config: {} } })
     await expect(fetchRoomInfo('tok')).resolves.toMatchObject({ name: 'Salle', company: null })
   })
+
+  it('lit les titres de playlist par thèmes et références, avec le jeton', async () => {
+    const items = [{ ref: '12', mediaUrl: 'https://cdn/12.mp3', mediaCredit: { title: 'T' } }]
+    const fetchMock = respond(200, { items })
+
+    await expect(
+      fetchCurrentTracks('tok', { themeIds: [4, 5], refs: ['12', '13'], timeoutMs: 1000 })
+    ).resolves.toEqual(items)
+
+    const [url, init] = fetchMock.mock.calls[0] ?? []
+    expect(url).toBe(`${API}/room/games/current/tracks?themeIds=4,5&refs=12,13`)
+    expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer tok')
+  })
+
+  it.each([
+    [400, 'invalid_query'],
+    [404, 'game_not_found'],
+    [429, 'too_many_requests'],
+    [502, 'media_provider_unavailable'],
+  ])(
+    'titres de playlist : le %i du serveur devient une RoomApiError (%s)',
+    async (status, code) => {
+      respond(status, { error: code })
+
+      await expect(
+        fetchCurrentTracks('tok', { themeIds: [4], refs: ['12'] })
+      ).rejects.toMatchObject({ status, code })
+    }
+  )
 
   it('lit le centre de la salle et complète l’adresse de son logo', async () => {
     const company = { id: 4, name: 'Escape du Port' }

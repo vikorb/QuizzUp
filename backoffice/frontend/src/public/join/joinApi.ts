@@ -5,6 +5,8 @@ export type JoinLookup = {
   roomName: string
   logoUrl: string | null
   expiresAt: string
+  /** Mode enfants : la page ne demande aucun e-mail. */
+  kidsMode: boolean
 }
 
 /** Un joueur du formulaire : champs envoyés tels quels à `POST /public/v1/join/registrations`. */

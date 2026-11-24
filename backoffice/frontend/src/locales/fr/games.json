@@ -95,6 +95,7 @@
         "custom": "Personnalisé"
       },
       "formatOption": "{name} · {rounds} × {questions} · {min} à {max} min",
+      "formatEditHint": "Modifier les manches ou les questions passe la partie en Personnalisé.",
       "formatEstimate": "Durée estimée : {min} à {max} min, avec les mini-jeux cochés.",
       "roundsCount": "Manches",
       "roundsHint": "Entre 1 et {max}",
@@ -156,6 +157,8 @@
       "participantsHintOpenJoin": "Facultatif avec l'inscription par QR code : les joueurs s'inscrivent depuis leur téléphone et vous validez leur pupitre depuis la fiche de la partie.",
       "openJoin": "Inscription des joueurs par QR code",
       "openJoinHint": "Un lien et un QR code sont ouverts dès la création ; les demandes se valident sur la fiche de la partie.",
+      "kidsMode": "Mode enfants",
+      "kidsModeHint": "Seuls les thèmes adaptés aux enfants sont joués, et aucun e-mail n'est demandé aux joueurs sur leur téléphone.",
       "participantsLocked": "Les adresses email des joueurs sont masquées pour votre rôle : leur liste ne peut pas être modifiée ici.",
       "submitScheduled": "Programmer la session",
       "submittingScheduled": "Programmation...",

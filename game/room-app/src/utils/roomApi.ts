@@ -44,6 +44,8 @@ export type RoomGame = {
   /** Créneau d'une session programmée (ISO UTC) ; `null` ou absent : partie lancée sans créneau. */
   scheduledAt?: string | null
   scheduledEndAt?: string | null
+  /** Questions déjà vues par ces joueurs, à poser en dernier (absent d'un backoffice ancien). */
+  avoidQuestionIds?: number[]
 }
 
 /** Centre de la salle, tel que `GET /room/me` le renvoie (`logoUrl` : adresse complète, `null` sans logo). */
@@ -187,6 +189,26 @@ export async function fetchCurrentContent(
       audioEffect: toExtractEffect(question.audioEffect),
     })),
   }))
+}
+
+/** Titre d'une playlist de la partie : lien d'extrait à jour et crédit (`ref` = `-id` de la question). */
+export type RoomTrack = { ref: string; mediaUrl: string; mediaCredit: MediaCredit }
+
+/**
+ * Liens d'extrait à jour des titres de playlist de la partie (reprise après un rechargement).
+ * `themeIds` : les thèmes de playlist de la partie (1 à 6) ; `refs` : la valeur absolue des
+ * identifiants de question négatifs. Un titre que le serveur ne retrouve pas est absent du résultat.
+ */
+export async function fetchCurrentTracks(
+  token: string,
+  options: { themeIds: number[]; refs: string[]; timeoutMs?: number }
+): Promise<RoomTrack[]> {
+  const query = `?themeIds=${options.themeIds.join(',')}&refs=${options.refs.join(',')}`
+  const data = await request<{ items: RoomTrack[] }>(token, `/room/games/current/tracks${query}`, {
+    timeoutMs: options.timeoutMs,
+  })
+  // Le serveur rend des URL absolues https : rien à compléter.
+  return data.items
 }
 
 /**

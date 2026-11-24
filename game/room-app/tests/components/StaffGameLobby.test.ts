@@ -4,6 +4,7 @@ import {
   GAME_FORMAT_SETTINGS,
   GAME_FORMAT_SHORT,
   GAME_FORMAT_STANDARD,
+  type GameFormat,
   MINI_GAME_FIRST_BUZZ,
   MINI_GAME_FLASH_BLIND_TEST,
   MINI_GAME_POINT_STEAL,
@@ -80,6 +81,22 @@ async function startWith(miniGames: roomApi.RoomGame['miniGames']): Promise<void
 
   await wrapper.find('[data-test="start-game"]').trigger('click')
   await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('play'))
+}
+
+/** Lance la partie reçue et rend les questions que le moteur compte déjà comme posées. */
+async function playWith(game: Partial<roomApi.RoomGame>) {
+  vi.spyOn(roomApi, 'fetchCurrentGame').mockResolvedValue({ ...GAME, ...game })
+  vi.spyOn(roomApi, 'fetchCurrentContent').mockResolvedValue(getPlayableThemes())
+  vi.spyOn(roomApi, 'startRoomGame').mockResolvedValue({ ...GAME, state: 'running' })
+  const { wrapper, router } = await mountWithApp(LobbyView, { route: '/lobby' })
+  await flushPromises()
+
+  await wrapper.find('[data-test="start-game"]').trigger('click')
+  await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('play'))
+  const used = useRoomGame().state.value?.setup.avoidQuestionIds
+  closeGame()
+
+  return used
 }
 
 async function clickStart(
@@ -186,6 +203,8 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
   })
 
   describe('format de la partie', () => {
+    afterEach(() => setCurrentLocale('fr'))
+
     it.each([
       [GAME_FORMAT_DISCOVERY, 'Format Découverte · 3 à 6 min'],
       [GAME_FORMAT_SHORT, 'Format Courte · 12 à 21 min'],
@@ -241,7 +260,14 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
       await flushPromises()
 
       expect(wrapper.get('[data-test="game-format"]').text()).toBe('Short format · 12 to 21 min')
-      setCurrentLocale('fr')
+    })
+
+    it('lit un format inconnu de cet écran comme personnalisé, sans clé brute', async () => {
+      // Un serveur plus récent peut envoyer un format que cet écran ne connaît pas.
+      const line = await formatLine({ format: 'marathon' as unknown as GameFormat })
+
+      expect(line).toContain('Format Personnalisé')
+      expect(line).not.toContain('room.lobby')
     })
   })
 
@@ -308,6 +334,12 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
     expect(state.value?.setup.participants.map((participant) => participant.podium).sort()).toEqual(
       [1, 3]
     )
+  })
+
+  it('transmet au moteur les questions déjà vues par les joueurs, absentes sans elles', async () => {
+    expect(await playWith({ avoidQuestionIds: [11, 12] })).toEqual([11, 12])
+    // Un backoffice ancien ne l'envoie pas : rien à éviter.
+    expect(await playWith({})).toEqual([])
   })
 
   describe('mini-jeux de la partie', () => {

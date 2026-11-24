@@ -40,8 +40,15 @@
         />
 
         <!-- Le format se choisit à la création : le serveur refuse de le modifier ensuite. -->
+        <div v-if="game" class="game-form__format" data-test="game-format-readonly">
+          <span class="game-form__format-label">{{ $t('games.form.format') }}</span>
+          <span class="game-form__format-value">{{ gameFormatName }}</span>
+          <p v-if="gameFormatIsFixed" class="game-form__notice" data-test="game-format-edit-hint">
+            {{ $t('games.form.formatEditHint') }}
+          </p>
+        </div>
         <SelectField
-          v-if="!game"
+          v-else
           id="game-format"
           v-model="form.format"
           :label="$t('games.form.format')"
@@ -96,6 +103,22 @@
         :uncertain="liveUncertain"
         :now="now"
       />
+
+      <div class="game-form__switch">
+        <SwitchField
+          id="game-form-kids-mode"
+          :model-value="form.kidsMode"
+          :disabled="isBusy"
+          :label="$t('games.form.kidsMode')"
+          aria-describedby="game-form-kids-mode-hint"
+          data-test="game-kids-mode"
+          @change="form.kidsMode = $event"
+        />
+        <label for="game-form-kids-mode">{{ $t('games.form.kidsMode') }}</label>
+      </div>
+      <p id="game-form-kids-mode-hint" class="game-form__notice">
+        {{ $t('games.form.kidsModeHint') }}
+      </p>
     </section>
 
     <section class="game-form__section" data-test="game-schedule-section">
@@ -429,6 +452,12 @@ const durationHint = computed(() =>
       SESSION_DEFAULT_MINUTES,
   })
 )
+// Format d'origine d'une session modifiée (lecture seule) ; `null` ou inconnu : personnalisé.
+const gameFormat = computed(
+  () => GAME_FORMATS.find((format) => format === props.game?.format) ?? GAME_FORMAT_CUSTOM
+)
+const gameFormatName = computed(() => t(`games.form.formats.${gameFormat.value}`))
+const gameFormatIsFixed = computed(() => gameFormat.value !== GAME_FORMAT_CUSTOM)
 const isCustomFormat = computed(() => form.format === GAME_FORMAT_CUSTOM)
 // Estimation des nombres saisis (format personnalisé) ; `null` tant qu'ils sont invalides.
 const formPlan = computed(() => getGameFormPlan(form))
@@ -836,6 +865,22 @@ async function onSubmit(): Promise<void> {
 .game-form__grid--schedule {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: start;
+}
+
+.game-form__format {
+  display: grid;
+  gap: 4px;
+}
+
+.game-form__format-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.game-form__format-value {
+  font-weight: 800;
+  color: var(--text-0);
 }
 
 .game-form__check {

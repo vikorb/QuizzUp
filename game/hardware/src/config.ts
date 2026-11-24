@@ -15,11 +15,12 @@ import type { DmxDriver } from './dmx/output'
 import { DMX_DRIVERS } from './dmx/output'
 import type { FixtureProfile } from './dmx/profiles'
 import { hasProgressiveSmokeChannel } from './dmx/profiles'
+import type { UsbId } from './dmx/serialOutput'
 import type { ExitLightConfig, SceneDefinition } from './lighting/scenes'
 import { DEFAULT_DESK_COLORS } from './lighting/scenes'
 import { parseExit, parseScenes } from './lighting/showConfig'
 import type { SmokeSafetyConfig } from './lighting/smoke'
-import { DEFAULT_SMOKE_SAFETY, normalizeSmokeSafety } from './lighting/smoke'
+import { DEFAULT_SMOKE_SAFETY, normalizeSmokeSafety, parseSmokeBoard } from './lighting/smoke'
 import type { PlanPoint, PlanTarget, RoomPlan } from './plan'
 import { defaultRoomPlan, parseRoomPlan, withPlanPoint as movePlanPoint } from './plan'
 import type { Desk, Rgb } from './types'
@@ -44,6 +45,13 @@ export type LightingConfig = {
    * du pont, s'il existe, reste prioritaire. Absente = le pont n'a pas de cible.
    */
   artnet?: ArtnetTargetConfig
+  /**
+   * Interface USB-DMX retenue à la connexion (fabricant + produit USB, sans numéro de série : Web
+   * Serial n'en donne pas). Après un rechargement, seul un port de ce modèle est repris, jamais un
+   * autre ; deux ports du même modèle ne sont pas départagés (voir `findDmxPortByUsb`). Jamais la
+   * carte de la fumée. Absente = ancien choix (une puce DMX connue).
+   */
+  usb?: UsbId
   refreshHz: number
   fixtures: FixtureConfig[]
   customProfiles: FixtureProfile[]
@@ -69,7 +77,17 @@ export type LightingConfig = {
  * une manette. `match` est un morceau du nom de la carte, pour la retrouver quand plusieurs
  * manettes sont branchées.
  */
-export type BuzzerSource = { kind: 'keyboard' } | { kind: 'gamepad'; match?: string }
+export type BuzzerSource =
+  | { kind: 'keyboard' }
+  | {
+      kind: 'gamepad'
+      match?: string
+      /**
+       * `Gamepad.id` complet de la carte apprise, retenu à l'apprentissage : s'il est là, seule une
+       * carte de cet `id` est lue (à la place de `match`). Désigne la carte de ce PC : jamais exporté.
+       */
+      id?: string
+    }
 
 /** Configuration matérielle d'une salle, stockée dans `rooms.config` (JSONB). */
 export type RoomHardwareConfig = {
@@ -163,10 +181,33 @@ function parseBuzzerSource(input: unknown): BuzzerSource | undefined {
     return { kind: 'keyboard' }
   }
   if (raw.kind === 'gamepad') {
-    return typeof raw.match === 'string' && raw.match.trim()
-      ? { kind: 'gamepad', match: raw.match.trim() }
-      : { kind: 'gamepad' }
+    return {
+      kind: 'gamepad',
+      ...(typeof raw.match === 'string' && raw.match.trim() ? { match: raw.match.trim() } : {}),
+      // Un `id` illisible est ignoré : la carte se retrouve par `match`.
+      ...(typeof raw.id === 'string' && raw.id.trim() && raw.id.length <= MAX_GAMEPAD_ID_LENGTH
+        ? { id: raw.id }
+        : {}),
+    }
   }
+  return undefined
+}
+
+const MAX_GAMEPAD_ID_LENGTH = 200
+
+const isUsbNumber = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 0xffff
+
+/** `lighting.usb` relu de façon stricte : absent ou illisible = pas d'identité retenue. */
+function parseUsb(input: unknown, problems: string[]): UsbId | undefined {
+  if (input === undefined || input === null) {
+    return undefined
+  }
+  const { usbVendorId, usbProductId } = asRecord(input)
+  if (isUsbNumber(usbVendorId) && isUsbNumber(usbProductId)) {
+    return { usbVendorId, usbProductId }
+  }
+  problems.push('Interface USB-DMX mémorisée illisible (ignorée)')
   return undefined
 }
 
@@ -198,6 +239,34 @@ export function withBuzzerLayout(
   layout: BuzzerLayout
 ): RoomHardwareConfig {
   return { ...config, buzzers: { ...config.buzzers, layout: cloneBuzzerLayout(layout) } }
+}
+
+/**
+ * `config` (un instantané pris plus tôt, par exemple celui d'un assistant) avec l'identité des
+ * périphériques de `latest`, la config enregistrée la plus récente : `lighting.usb` (posé à la
+ * connexion de l'interface) et `buzzers.source.id` (appris pendant l'assistant). Sans cela,
+ * enregistrer l'instantané effacerait l'identité, ou remettrait celle d'une interface débranchée.
+ * L'`id` ne suit que si `config` garde une manette ; il part si la source a changé de manette.
+ */
+export function withDeviceIdentity(
+  config: RoomHardwareConfig,
+  latest: RoomHardwareConfig
+): RoomHardwareConfig {
+  const { usb: _usb, ...lighting } = config.lighting
+  const { source } = config.buzzers
+  const learned = latest.buzzers.source
+  let { buzzers } = config
+  if (source?.kind === 'gamepad') {
+    const { id: _id, ...rest } = source
+    const id =
+      learned?.kind === 'gamepad' && learned.match === source.match ? learned.id : undefined
+    buzzers = { ...buzzers, source: { ...rest, ...(id ? { id } : {}) } }
+  }
+  return {
+    ...config,
+    lighting: { ...lighting, ...(latest.lighting.usb ? { usb: latest.lighting.usb } : {}) },
+    buzzers,
+  }
 }
 
 /** Enregistre la position d'un élément du plan de salle (ramenée dans [0,1]). */
@@ -240,6 +309,8 @@ export function withLearnedKeymap(
  */
 export function activeLightingConfig(config: RoomHardwareConfig): LightingConfig {
   const { desksCount } = config
+  // `usb` ne change rien au contrôleur : l'enregistrer ne doit pas relancer les lumières.
+  const { usb: _usb, ...lightingRest } = config.lighting
   const fixtures = config.lighting.fixtures.map((fixture) => {
     const { desk, deskPositions, ...rest } = fixture
     const kept = Object.fromEntries(
@@ -251,13 +322,17 @@ export function activeLightingConfig(config: RoomHardwareConfig): LightingConfig
       ...(kept && Object.keys(kept).length > 0 ? { deskPositions: kept } : {}),
     }
   })
-  return { ...config.lighting, fixtures }
+  return { ...lightingRest, fixtures }
 }
 
 /** Filtre `match` de `createGamepadBuzzerInput` correspondant à la source enregistrée. */
 export function gamepadMatcher(
   source: BuzzerSource | undefined
 ): ((id: string) => boolean) | undefined {
+  if (source?.kind === 'gamepad' && source.id) {
+    const { id: wanted } = source
+    return (id) => id === wanted
+  }
   if (source?.kind !== 'gamepad' || !source.match) {
     return undefined
   }
@@ -285,6 +360,7 @@ const LIGHTING_KEYS = [
   'driver',
   'bridgeUrl',
   'artnet',
+  'usb',
   'refreshHz',
   'fixtures',
   'customProfiles',
@@ -402,6 +478,7 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
   }
 
   const artnet = parseArtnet(lighting.artnet, problems)
+  const usb = parseUsb(lighting.usb, problems)
 
   const refreshHz =
     typeof lighting.refreshHz === 'number' && Number.isFinite(lighting.refreshHz)
@@ -418,6 +495,17 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
     problems.push(
       'Fumée désactivée : la machine à fumée n’est pas sur relais (profil « tout ou rien »). ' +
         'Choisir un profil à relais, ou cocher « la machine coupe toute seule sur perte de signal DMX ».'
+    )
+  }
+
+  // Une carte illisible ne fait pas retomber la fumée sur le seul DMX, sans le chien de garde de la
+  // carte : `normalizeSmokeSafety` la désactive et garde la valeur brute (une version plus récente
+  // la relit), jusqu'à ce que la carte soit choisie de nouveau.
+  const rawBoard = asRecord(lighting.smoke).board
+  if (rawBoard !== undefined && !parseSmokeBoard(rawBoard)) {
+    problems.push(
+      'Fumée désactivée : la carte de la fumée est illisible dans la configuration. ' +
+        'La choisir de nouveau dans l’écran Matériel.'
     )
   }
 
@@ -441,6 +529,7 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
       driver,
       ...(bridgeUrl ? { bridgeUrl } : {}),
       ...(artnet ? { artnet } : {}),
+      ...(usb ? { usb } : {}),
       refreshHz,
       fixtures: rig.fixtures.map(({ profile: _profile, ...fixture }) => fixture),
       customProfiles: rig.customProfiles,
@@ -483,6 +572,9 @@ export function withoutSmokeEscalation(
     maxLevel: Math.min(before.maxLevel, after.maxLevel),
     requireConfirmation: before.requireConfirmation || after.requireConfirmation,
     cutsOnSignalLoss: before.cutsOnSignalLoss === true && after.cutsOnSignalLoss === true,
+    // Toujours celle de la salle en place, jamais celle de `next` : la retirer ou la changer
+    // supprimerait le chien de garde de la carte.
+    board: before.board,
   })
   return { ...next, lighting: { ...asRecord(next?.lighting), smoke } as LightingConfig }
 }
@@ -494,12 +586,23 @@ export const ROOM_CONFIG_IMPORT_MAX_BYTES = 64 * 1024
 
 /**
  * Config telle qu'on l'exporte et l'importe : clés étrangères écartées, fumée jamais activée ni
- * dispensée du relais (elle se réarme dans l'assistant, avec ses vérifications), assistant à refaire.
+ * dispensée du relais (elle se réarme dans l'assistant, avec ses vérifications), carte de fumée
+ * retirée (elle est propre au PC de la salle), assistant à refaire.
  */
 function portableConfig(config: RoomHardwareConfig): RoomHardwareConfig {
   const { setupDone: _setupDone, ...rest } = withoutUnknownKeys(config)
-  const { cutsOnSignalLoss: _cuts, ...smoke } = rest.lighting.smoke
-  return { ...rest, lighting: { ...rest.lighting, smoke: { ...smoke, enabled: false } } }
+  // `board` désigne une carte branchée sur ce PC : jamais exportée.
+  const { cutsOnSignalLoss: _cuts, board: _board, ...smoke } = rest.lighting.smoke
+  // `id` désigne la carte manette branchée sur ce PC : jamais exporté, la carte se réapprend.
+  const { source } = rest.buzzers
+  const buzzers =
+    source?.kind === 'gamepad'
+      ? {
+          ...rest.buzzers,
+          source: { kind: source.kind, ...(source.match ? { match: source.match } : {}) },
+        }
+      : rest.buzzers
+  return { ...rest, buzzers, lighting: { ...rest.lighting, smoke: { ...smoke, enabled: false } } }
 }
 
 /** `<nom>` du fichier d'export : minuscules, sans accent, lettres, chiffres et tirets. */

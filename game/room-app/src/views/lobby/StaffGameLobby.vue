@@ -175,6 +175,7 @@ import { GameSetupError } from '@quizzup/game-engine'
 import {
   estimateGameDurationMs,
   GAME_FORMAT_CUSTOM,
+  GAME_FORMATS,
   GAME_STATE_RUNNING,
   ROOM_DEFAULT_TIMEZONE,
   SESSION_OPEN_EARLY_MINUTES,
@@ -294,7 +295,10 @@ const formatLabel = computed(() => {
     miniGames: current.miniGames ?? undefined,
   })
   return t('room.staffLobby.format', {
-    name: t(`room.lobby.formats.${current.format ?? GAME_FORMAT_CUSTOM}`),
+    // Un format que cet écran ne connaît pas (serveur plus récent) se lit « Personnalisé ».
+    name: t(
+      `room.lobby.formats.${GAME_FORMATS.find((format) => format === current.format) ?? GAME_FORMAT_CUSTOM}`
+    ),
     min: Math.round(typicalMs / MS_PER_MINUTE),
     max: Math.ceil(highMs / MS_PER_MINUTE),
   })
@@ -506,6 +510,7 @@ async function launch(first: RoomGame | null, opening = false): Promise<void> {
       seed: current.seed,
       roundsCount: current.roundsCount,
       questionsPerRound: current.questionsPerRound,
+      avoidQuestionIds: current.avoidQuestionIds,
       // Le choix du backoffice prime ; sans lui, le réglage local de la salle, sinon tous.
       miniGames: sanitizeMiniGames(current.miniGames),
     }

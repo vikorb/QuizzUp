@@ -3534,7 +3534,7 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Partie en attente ou en cours de la salle du compte connecté, ou `null`. Les emails des participants ne sont pas renvoyés. Pour une partie en attente, `game.join` donne le lien d'inscription à afficher en QR code et `game.pendingRegistrationsCount` le nombre de demandes à valider ; les noms des demandes ne sont jamais envoyés à la salle.
+        Partie en attente ou en cours de la salle du compte connecté, ou `null`. Les emails des participants ne sont pas renvoyés. Pour une partie en attente, `game.join` donne le lien d'inscription à afficher en QR code et `game.pendingRegistrationsCount` le nombre de demandes à valider ; les noms des demandes ne sont jamais envoyés à la salle. `game.avoidQuestionIds` liste les questions que les joueurs de la partie, reconnus par leur e-mail, ont déjà vues dans une partie terminée de la compagnie (jamais celles d'une autre compagnie).
 
         `next` : la session `scheduled` la plus proche de la salle dont la fin prévue (`scheduledEndAt`) est dans le futur, au même format que `game` (noms seulement, aucun email), ou `null`. Une session en retard mais dont le créneau n'est pas fini reste renvoyée.
 
@@ -4094,7 +4094,7 @@ paths:
         - `replaced` : un autre poste de la salle a ouvert son flux ; celui-ci est fermé juste après.
         - `session_ended` : la session n'est plus valable (`{ error }`) ; le flux est fermé juste après.
         - `command` : une commande du personnel à proposer au moteur, `{ commandId, command }` (`pause`, `resume`), `{ commandId, command: skip, round, questionIndex }` ou `{ commandId, command: abort, gameId }`. La salle répond par `POST /room/commands/{commandId}/result` dans les 10 s.
-        - `game_updated` : une partie de la salle a changé (demande d'inscription, joueur ajouté ou retiré, lien, ouverture, lancement, annulation…), `{ gameId }` seulement, sans donnée de joueur. La salle relit la partie par `GET /room/games/current` ; sans flux ouvert, elle relit toutes les 15 s.
+        - `game_updated` : une partie de la salle a changé (demande d'inscription, joueur ajouté ou retiré, lien, ouverture, lancement, fin de partie, annulation…), `{ gameId }` seulement, sans donnée de joueur. La salle relit la partie par `GET /room/games/current` ; sans flux ouvert, elle relit toutes les 15 s.
 
         Une ligne de commentaire `: ping` est écrite toutes les 15 s. La session est revérifiée toutes les 60 s sans être prolongée.
 
@@ -6783,7 +6783,7 @@ paths:
 
         Route publique de la page `/rejoindre/#<jeton>` : aucune authentification. Le jeton du lien (celui du QR code) circule dans le corps, jamais dans l'URL : il n'entre pas dans les journaux.
 
-        La réponse donne le centre, la salle, son logo et la fin de validité du lien : jamais un identifiant, ni le nom d'une demande en attente. Un jeton mal formé, inconnu, ou remplacé par un nouveau QR code répond le même `404 join_link_invalid`. Un jeton reconnu mais fermé (délai dépassé, partie lancée ou terminée, salle ou compagnie inactive) répond `410 join_link_closed`. Le corps est limité à 4 Ko ; la limite par adresse est celle de tout `/public/v1` (120 requêtes par minute).
+        La réponse donne le centre, la salle, son logo, la fin de validité du lien et `kidsMode` (partie en mode enfants : aucun e-mail n'est demandé) : jamais un identifiant, ni le nom d'une demande en attente. Un jeton mal formé, inconnu, ou remplacé par un nouveau QR code répond le même `404 join_link_invalid`. Un jeton reconnu mais fermé (délai dépassé, partie lancée ou terminée, salle ou compagnie inactive) répond `410 join_link_closed`. Le corps est limité à 4 Ko ; la limite par adresse est celle de tout `/public/v1` (120 requêtes par minute).
       operationId: lookupPublicJoinLink
       x-availability: disponible
       security: []
@@ -6859,6 +6859,8 @@ paths:
         Dépose la demande d'un pupitre (un ou deux joueurs) sur la partie du jeton. Rien n'est joué tant que le personnel n'a pas validé la demande dans le backoffice, au pupitre de son choix. Le jeton et les données du joueur circulent dans le corps, jamais dans l'URL.
 
         Les consentements sont recueillis case par case et horodatés par le serveur à la réception. Un e-mail n'est gardé que si `emailConsent` vaut vrai ; `marketingConsent` (offres du centre) suppose un e-mail ; l'e-mail suppose `ageConfirmed` (15 ans ou plus). La même règle vaut pour le 2e joueur. La réponse est la même quel que soit l'e-mail : on ne dit jamais s'il était déjà connu.
+
+        Pour une partie en mode enfants (`kidsMode` de `join/lookup`), aucun e-mail n'est enregistré, même reçu avec ses consentements : la demande est créée sans e-mail et sans date de consentement, la réponse reste `201`.
 
         Au plus 12 demandes en attente par partie (`409 join_full`). Limite : 30 envois par minute et par adresse, valides ou non (`429` `too_many_requests`, en-tête `Retry-After`). Le corps est limité à 4 Ko.
       operationId: createPublicJoinRegistration
@@ -7157,7 +7159,7 @@ components:
 
     PublicJoinLink:
       type: object
-      required: [companyName, roomName, logoUrl, expiresAt]
+      required: [companyName, roomName, logoUrl, expiresAt, kidsMode]
       properties:
         companyName:
           type: string
@@ -7171,6 +7173,9 @@ components:
           type: string
           format: date-time
           description: Fin de validité du lien
+        kidsMode:
+          type: boolean
+          description: Partie en mode enfants. La page du téléphone ne demande alors aucun e-mail (ni consentement lié à l'e-mail), et le serveur n'enregistre aucun e-mail reçu pour cette partie.
 
     JoinPlayerFields:
       type: object
@@ -8817,6 +8822,18 @@ components:
             pendingRegistrationsCount:
               type: integer
               description: Demandes d'inscription à valider (0 si la partie n'est plus en attente)
+            avoidQuestionIds:
+              type: array
+              maxItems: 2000
+              items:
+                type: integer
+              description: >-
+                Renvoyé par `GET /room/games/current` seulement. Identifiants des questions déjà
+                vues par les joueurs de la partie (même e-mail, premier ou second joueur) dans une
+                partie terminée de la compagnie, les plus récentes d'abord, 2 000 au plus. Vide si
+                aucun joueur n'est connu par son e-mail. La salle les passe au moteur
+                (`GameSetup.avoidQuestionIds`), qui les pose en dernier : elles ne sont jamais
+                écartées.
             participants:
               type: array
               items:

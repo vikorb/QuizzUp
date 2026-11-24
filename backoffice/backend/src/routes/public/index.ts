@@ -6,6 +6,7 @@ import publicAvailabilityRoutes from './availability'
 import publicBookingRoutes from './bookings'
 import publicJoinRoutes from './join'
 import publicLogoRoutes from './logos'
+import publicOpenApiRoutes from './openapi'
 import demoRequestsPublicRoutes from './demoRequests'
 import publicRoomRoutes from './rooms'
 import publicVoucherRoutes from './vouchers'
@@ -16,6 +17,7 @@ const publicRoutes: FastifyPluginAsync = async (app) => {
   applyPublicDefaults(app)
 
   await app.register(publicLogoRoutes)
+  await app.register(publicOpenApiRoutes)
   await app.register(demoRequestsPublicRoutes)
   await app.register(publicVoucherRoutes)
   await app.register(publicJoinRoutes)
