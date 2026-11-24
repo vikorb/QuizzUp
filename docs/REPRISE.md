@@ -24,38 +24,50 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
 
 ## 2. Travail en cours au moment de l'arrêt
 
-### 2.0 Point de reprise du 2026-11-24 (soir) : V1 menée en parallèle
+### 2.0 Point de reprise du 2026-11-24 (nuit) : V1 codée, recette navigateur faite
 
 Consigne d'Enzo : mener de front tous les lots indépendants (coordinateur Fable 5.2, sous-agents
-selon `CLAUDE.md` §4.1), sans laisser un agent tourner pour rien. Avancement estimé de la V1 :
-environ la moitié. **Rien n'a été validé sur du vrai matériel, aucun écran neuf n'a été regardé
-dans un navigateur.**
+selon `CLAUDE.md` §4.1), sans laisser un agent tourner pour rien.
 
-**Pour reprendre** : `gh pr list -R vikorb/QuizzUp` donne les PR ouvertes ; chaque PR ouverte a sa
-copie de travail sous `.claude/worktrees/<nom>` (tableau ci-dessous). Merger d'abord les PR
-relues et corrigées, une à la fois, puis lancer les lots que ces merges débloquent.
+**Avancement estimé de la V1** : code environ 94 % ; vérification dans un vrai navigateur sur la
+pile réelle environ 75 % (liste plus bas) ; **vrai matériel 0 %** (rien n'a été branché : buzzers,
+lumières, fumée, nœud Art-Net) ; pile de production jamais montée. Ensemble : environ 85 %.
+
+**Pour reprendre** : `gh pr list -R vikorb/QuizzUp` (aucune PR ouverte à la date de ce point, hors
+la PR de corrections de recette décrite plus bas). Les copies de travail sous
+`.claude/worktrees/` appartiennent à des PR mergées, sauf mention contraire.
 
 **Références** : conceptions par lot dans `docs/cadrage/conception-*.md` ;
 `docs/cadrage/conceptions-arbitrages.md` prévaut (ordre des lots, horodatages de migration
-réservés, identifiants `US-…`).
+réservés, identifiants `US-…`). Banc matériel : `docs/recette/banc-materiel.md` (cas F20 à F30
+pour la carte de la fumée). Guide de la carte : `docs/guides/fumee-carte-usb.md`.
 
 **Décisions d'Enzo du 24 novembre** :
 
 - Le PC de la salle n'affiche qu'une page de navigateur en plein écran. **Rien n'y est installé,
-  rien n'est acheté** : le matériel de la salle est déjà en place.
-- Lumières Art-Net : un relais PowerShell (présent sur tout Windows) parle le protocole du pont
-  existant, à la place de l'exécutable (issue #203, lot en cours).
-- Fumée : par la carte déjà en salle (compatible Arduino Uno R3, d'après la liste de matériel),
-  en USB et Web Serial. Conception : `docs/cadrage/conception-fumee-carte-usb.md` (issue #215),
-  lots L1 à L6. À voir sur place : modèle réel de la carte, câble USB, distance jusqu'au PC.
-- Buzzers : carte de la salle lue par l'API Gamepad du navigateur (apprentissage déjà livré).
+  rien n'est acheté** : le matériel de la salle est déjà en place. **Pas d'exécutable** à
+  maintenir ; une extension de navigateur serait acceptable. Tout accès au matériel passe par une
+  autorisation explicite demandée à l'utilisateur.
+- Lumières Art-Net : le relais PowerShell (présent sur tout Windows, issue #203) est **gardé**. On
+  cherche une évolution plus propre, sans rouvrir le débat tant qu'il n'y a pas de fait nouveau.
+- Fumée : par la carte déjà en salle (compatible Arduino Uno R3), en USB et Web Serial (issue
+  #215). Le programme de la carte est compilé par notre CI et installé depuis l'écran Matériel. À
+  voir sur place : modèle réel de la carte, câble USB (5 m au plus), distance jusqu'au PC.
+- Buzzers : carte de la salle lue par l'API Gamepad du navigateur (apprentissage livré).
 - Catalogue de jeux : refaire les anciens jeux, en plus propre.
-- Blind test : playlists par genre, un titre tiré au hasard (issue #204) ; les extraits viennent
-  du fournisseur d'extraits déjà branché (#186).
+- Blind test : playlists par genre, un titre tiré au hasard (issue #204). Enzo doit fournir les
+  liens des playlists par genre.
+- Mode enfants : passer une partie existante en mode enfants efface les e-mails des joueurs,
+  après confirmation (#257).
 - Reportés : e-mails, textes légaux, SonarQube et Lighthouse.
 
-Les notes non publiques (hébergement, prix, paiement, droits) sont hors du dépôt, dans
-`docs/prive/` (ignoré par git).
+Les notes non publiques (hébergement, prix, paiement, droits, recherches sur les lumières) sont
+hors du dépôt, dans `docs/prive/` (ignoré par git).
+
+**Organisation retenue** (pour aller vite sans casser) : lots regroupés par zone dans une même
+PR quand ils touchent les mêmes fichiers ; branches empilées quand un lot dépend d'un autre non
+mergé ; un seul relecteur par PR ; merges en train, une PR à la fois (fusion de `origin/main`,
+attente de la CI GitHub, merge), jamais de rebase ni de push forcé.
 
 **Mergé sur `main` depuis le 23 novembre** :
 
@@ -70,117 +82,127 @@ Les notes non publiques (hébergement, prix, paiement, droits) sont hors du dép
 | Jeu                   | #148 mini-jeux tirés sans remise, #151 effets sur les extraits et voix d'annonces, #162 boutons et mises en page de l'écran de salle, #186 extraits de blind test fournis, #191 catalogue des annonces vocales, #192 formats partagés et durée estimée, #193 compte à rebours, transitions, scores animés et confettis |
 | Production, outillage | #137 pile de production (`deploy/prod/`), #138 guides, #147 conceptions, #149 dépendances, #172 tests PostgreSQL de la CI pris par motif, #200 tests de l'écran de jeu stables sous charge                                                                                                                             |
 
-**PR ouvertes** (toutes relues par un relecteur indépendant) :
+**Mergé le 24 novembre** (#197 à #261) :
 
-| PR   | Lot                                               | Copie de travail    | État et reste à faire                                                                                                                  |
-| ---- | ------------------------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| #197 | Show lumière réglable par salle, modèles (#145)   | `show-salle`        | relue, corrigée, à merger                                                                                                              |
-| #206 | A.2 effet audio stocké et distribué (#144)        | `import-csv`        | relue, prête, à merger                                                                                                                 |
-| #205 | 13.4 routes de salle des sessions (#142)          | `sessions-backend`  | relue, corrigée, à merger                                                                                                              |
-| #207 | A.3 effet audio joué au blind test (#144)         | `audio-effets`      | relue, corrigée, à merger                                                                                                              |
-| #208 | 12g écran des demandes de démonstration (#161)    | `demandes-demo`     | relue, corrigée, à merger. Tableau jamais vu à 768 px dans un navigateur                                                               |
-| #202 | 2a accueil des joueurs, API et personnel (#166)   | `accueil-api`       | relue, corrigée, à merger **après #205** (conflit attendu dans `routes/room.ts`, à résoudre à la main)                                 |
-| #198 | 6b bons de fidélisation, API (#156)               | `bons-api`          | relue, corrigée, à merger                                                                                                              |
-| #209 | Playlists L1, playlist portée par un thème (#204) | `reservation-socle` | relue, corrigée (i18n des codes, course à la mise à jour, appel au fournisseur évité si la référence ne change pas, OpenAPI), à merger |
-| #210 | 14.1 clés d'API et journal des appels (#188)      | `formats-partages`  | relue, corrections en cours (curseur du journal sur l'index, `revokedAt`, `limit`, `createdBy` masqué hors compagnie)                  |
+| Domaine                    | PR                                                                                                                                                                                                                                                                                            |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pilotage en direct         | #212 et #214 commandes à distance (backoffice, écran de salle), #248 événement `game_updated` à la place de l'interrogation du lobby, #259 scénario Playwright des commandes vues du backoffice                                                                                               |
+| Sessions, accueil, joueurs | #205 routes de salle des sessions, #253 prochaine session au lobby, #257 événement `schedule_changed`, #202 accueil (API, personnel), #224 page d'inscription sur téléphone, #226 accueil sur la fiche d'une partie, #227 et #229 QR code (serveur, lobby), #225 et #238 joueurs (API, écran) |
+| Formats, contenu           | #234 et #243 format de partie (serveur, backoffice et lobby), #232 et #252 mode enfants (serveur, formulaire et téléphone), #250 questions déjà vues évitées, #223 manches jouées enregistrées                                                                                                |
+| Audio, playlists           | #206, #207 et #216 effet audio d'une question (stockage, lecture, formulaire), #209, #230, #241 et #249 playlists (thème, formulaire, tirage côté salle, reprise d'une partie)                                                                                                                |
+| Bons de fidélisation       | #198 API, #228 backoffice, fiche et feuille, #239 page publique du bon                                                                                                                                                                                                                        |
+| API de réservation         | #210 et #247 clés d'API et journal des appels (serveur, fiche client), #231 salles et créneaux, #240 réservations, #245 bac à sable, #254 contrat servi par `GET /public/v1/openapi.yaml`                                                                                                     |
+| Lumières, spectacle        | #197 show réglable et modèles de salle, #217 scène de sortie, #233 lumières de pause et de reprise, #236 et #244 export et import de la configuration, #237 modèles de salle et proposition d'univers, #213, #235 et #251 relais PowerShell Art-Net, #246 identité retenue des périphériques  |
+| Fumée par la carte USB     | #218 programme de la carte compilé en CI, #221 lien série, #220 installation par Web Serial, #242 fumée par la carte depuis le contrôleur, #255 carte dans l'écran Matériel, #258 test de coupure par la carte, reprise seule du lien, guide                                                  |
+| Console, salle             | #208 écran des demandes de démonstration, #222 logo du centre sur l'écran de salle                                                                                                                                                                                                            |
+| Tests, outillage           | #219 endurance sur trois parties, #256 inscription par QR et impression de la feuille, #261 ESLint sur le TypeScript du backend et référence de média partagée, #211 point de reprise précédent                                                                                               |
 
-**PR ouvertes depuis** : #212 commandes à distance, backoffice (relue, corrigée : l'arrêt reste
-le bouton de l'en-tête) ; #213 relais PowerShell Art-Net (en relecture) ; #214 commandes à
-distance, écran de salle (relue, corrigée) ; #216 A.4 effet audio dans le formulaire de question
-(en relecture). Lot H3 (scène de sortie) en cours dans `show-salle`.
+**En cours** : branche `fix/agenda-champ-date` (copie de travail `import-ecran`), corrections
+trouvées pendant la recette navigateur : champ de date de l'Agenda écrasé (29 px de large),
+boutons des pages publiques en police système, libellé « Demandée le … », accords au singulier
+(« 1 manche × 1 question », « 1 min »).
 
-**Branches sans PR, développement en cours** :
+**Vérifié dans un vrai navigateur, sur la pile Docker réelle** (sans erreur de console) :
 
-| Branche                | Lot                                    | Copie de travail |
-| ---------------------- | -------------------------------------- | ---------------- |
-| `feat/scene-de-sortie` | H3 scène lumière de sortie (#145)      | `show-salle`     |
-| `test/endurance-e2e`   | E1 endurance de bout en bout, en cours | `habillage`      |
+- _Backoffice_ : programmation d'une session, modification, ajout d'un joueur avec e-mail et
+  consentement, passage en mode enfants (annulation et confirmation) ; fiche client (clé d'API
+  créée, secret montré une fois, révocation avec confirmation, journal des appels, réglages des
+  créneaux) ; agenda ; thèmes (thèmes globaux en lecture seule, thème audio avec lien de
+  playlist) ; suivi en direct, pause et reprise à distance, arrêt d'une partie ; fiche d'une
+  partie terminée, émission d'un bon, feuille de résultats imprimable avec QR code ; liste des
+  bons, recherche par code, bon marqué comme utilisé ; liste des joueurs.
+- _API publique_ (par `curl`) : salles, disponibilités, réservation, rejeu idempotent, créneau
+  pris, créneau fermé, corps invalide, clé absente ou invalide, contrat servi. La réservation
+  apparaît dans l'agenda.
+- _Écran de salle_ : connexion, accueil, lobby avec la prochaine session, partie reçue du
+  backoffice sans rechargement, QR code d'inscription, partie complète jouée aux buzzers clavier,
+  pause et reprise appliquées, arrêt à distance, fin de partie et scores renvoyés.
+- _Téléphone_ (375 px) : page d'inscription (cibles de 48 px, consentement, âge), validation par
+  le personnel, joueur affiché sur la salle en direct ; page publique du bon.
 
-Après chaque merge, les autres PR sont en conflit sur `backoffice/CHANGELOG.md` côté GitHub
-(l'attribut `merge=union` ne vaut qu'en local) : fusionner `origin/main` dans la branche, pousser
-(`git push origin HEAD:refs/heads/<branche>`, car les branches des copies de travail suivent
-`origin/main`), attendre la CI, merger. Une PR à la fois. Après une fusion de `main`, relancer
-`npx prettier --check` sur `backoffice/docs/api/openapi.yaml` : la fusion peut le déformer (cas
-de #198).
+**Jamais vérifié** : tout le vrai matériel (buzzers, DMX, Art-Net, carte de la fumée, relais
+PowerShell face au vrai nœud) ; panneau de la carte de fumée et `/setup` dans un navigateur ;
+lecture d'un vrai QR code par un téléphone ; blind test par playlist avec de vraies playlists
+(liens attendus) ; console de l'éditeur et TOTP avec une vraie application ; `caddy validate`,
+images de production, SSE et `TRUST_PROXY` derrière Caddy ; plan d'exécution du journal des
+appels sur une base remplie ; SonarQube et Lighthouse (reportés).
 
-**Lots suivants, par dépendance** (chacun : issue, branche, PR, une relecture, merge) :
+**Démonstration locale** : `npm run demo` sert la copie de travail principale. Ouvrir
+`http://localhost:4173` (et non `127.0.0.1`, refusé par le CORS). L'écran de salle (`:4174`) se
+lance avec `docker compose -f backoffice/docker-compose.yml up -d room-app` s'il n'est pas
+démarré. Une salle n'apparaît dans l'API publique qu'après l'enregistrement de ses créneaux avec
+la réservation publique cochée.
 
-| Débloqué par                 | Lots                                                                                                                                                |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| rien (à lancer)              | E1 endurance e2e ; fin du polling et cases de l'issue #129 à mettre à jour                                                                          |
-| #206                         | A.4 écran backoffice de l'effet audio (type `audioEffect` du frontend), avec les suivis de #206                                                     |
-| #210                         | 14.2 socle public (authentification par clé, débit, journal, salles, disponibilités), puis 14.4 réservations, 14.6 écran des clés, 14.7 bac à sable |
-| #209                         | Playlists L2 (tirage côté serveur au chargement du contenu) et L4 (formulaire du thème) ; L3 (écran de salle) après L2                              |
-| #202                         | 2b à 2f (accueil par QR code), P1, 3.3 et 3.4 (formats ; 3.3 passe `format` à `custom` au PATCH), 7b, 8c-1, 8d                                      |
-| #197                         | H3, RA5, HB1, HB3, RA8 (spectacle, habillage)                                                                                                       |
-| #198                         | 6d à 6f (bons côté joueur et personnel, e-mail de résultats reporté)                                                                                |
-| #205                         | 13.8 écran de salle des sessions, 13.9 événement `schedule_changed`                                                                                 |
-| commandes à distance (salle) | scénario Playwright complet commande, accusé, état dans le backoffice                                                                               |
-| rien (à lancer)              | fumée par la carte USB : L1 programme de la carte, L2 lien série, L4 installation par Web Serial ; puis L3, L5, L6 (#215)                           |
+Prochain horodatage de migration libre : `20261124190000`.
 
-Ordre des modifications de `routes/room.ts` : 2a, 6a, 8c-1, 8d, 8e. Prochain horodatage de
-migration libre : `20261124140000`.
+**Lots restants** :
 
-**Jamais vérifié** : aucun écran neuf n'a été regardé dans un navigateur (agenda, créneaux, import,
-historique, feuille de résultats, logo, cases de consentement, alerte fumée, journaux,
-statistiques, connexion en deux temps, formulaire de la vitrine, suivi en direct, diagnostic,
-demandes de démonstration, lobby du personnel, compte à rebours et confettis) ; réponses réelles du
-fournisseur d'extraits pour une playlist (forme, champ `readable`, code d'erreur d'une playlist
-privée) ; relais PowerShell face à un vrai nœud Art-Net ; TOTP jamais essayé avec une vraie
-application d'authentification ; `caddy validate` et `docker compose config` des fichiers
-`deploy/` ; CORS de la vitrine avec une vraie origine ; rien sur du vrai matériel ; pile de
-production jamais montée sur une machine ; SSE derrière Caddy ; plan d'exécution du journal des
-appels sur une base remplie ; SonarQube et Lighthouse non lus (CI GitLab hors de portée de ce
-poste).
+| Priorité | Lot                                                                                                                              |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 1        | Banc matériel sur place (`docs/recette/banc-materiel.md`) : buzzers, lumières par le relais, carte de la fumée (F20 à F30)       |
+| 1        | Blind test par playlist de bout en bout dès que les liens des playlists sont fournis                                             |
+| 2        | Scénario Playwright du test de coupure par la carte ; `schedule_changed` à la suppression ou à la désactivation d'une salle      |
+| 2        | Montage de la pile de production sur une machine (`deploy/prod/`), `caddy validate`, SSE derrière Caddy                          |
+| 3        | Suivis ci-dessous, regroupés par zone ; règles ESLint lourdes du backend ; `knip`                                                |
+| 3        | Reportés par Enzo : e-mails, textes légaux, SonarQube, Lighthouse                                                                |
+| 3        | Ménage : copies de travail des PR mergées, copie `live-salle` cassée (à élaguer), copie `show-salle` (modifications non rangées) |
 
 **Choix par défaut pris sans Enzo, à confirmer** : plafond des éclairs (3 par seconde, 400 ms) ;
 fumée coupée à la pause ; chaque poste refait le test de coupure une fois (#176) ; strobe du
 Diagnostic plafonné à la valeur 30 pendant 3 s, canal brut compris (#179) ; le backoffice ne
-modifie plus `lighting` ; fuseaux en noms IANA seulement ; ouvrir une session programmée pendant
-une partie renvoie 409 `room_busy` (jusqu'au merge du lot 2a) ; journaux de salle gardés 30 jours
-et 5 000 lignes, sans accès pour le rôle `user` ; demandes de démonstration gardées 12 mois, 5 par
+modifie plus `lighting` ; fuseaux en noms IANA seulement ; journaux de salle gardés 30 jours et
+5 000 lignes, sans accès pour le rôle `user` ; demandes de démonstration gardées 12 mois, 5 par
 heure et par adresse, sans envoi d'e-mail ; logo de 512 Ko au plus, sans SVG ; TOTP sans QR code,
 tentative comptée avant la comparaison, clé de démonstration refusée en production ; statistiques
 sur 30 jours par défaut et 366 au plus, réservées aux administrateurs ; mini-jeux du lot 4 hors
 V1 ; playlists : réponses « titre – artiste », pas de genre imposé par l'opérateur, pas de mémoire
 des titres entre deux parties, 4 titres lisibles au moins, lecture limitée aux 500 premiers
-titres ; clés d'API : 10 clés actives par compagnie, journal gardé 90 jours ; lancement d'une
-partie : 409 `game_participants_changed` si les pupitres ont changé depuis le relevé de la salle.
+titres, délai de 12 s ; clés d'API : 10 clés actives par compagnie, journal gardé 90 jours ;
+lancement d'une partie : 409 `game_participants_changed` si les pupitres ont changé depuis le
+relevé de la salle ; reprise du lien de la carte de fumée : 5 essais, 3 s d'écart, compteur remis
+à zéro après 60 s de lien stable ; une carte en défaut n'est jamais reprise seule.
 
-**Suivis relevés en relecture** (à regrouper par zone dans des PR de suivi) :
+**Suivis relevés en relecture et en recette** (à regrouper par zone dans des PR de suivi) :
 
-- _Sessions et accueil_ : `room_busy` pendant une partie à lever avec 2a ; pas de test PostgreSQL
-  du 23505 vers `room_busy` ; `schedule_changed` jamais émis (13.9) ; l'API simulée des tests e2e
-  doit renvoyer `next` (13.8) ; purge des demandes d'inscription au lancement, à la fin et à
-  l'abandon ; `openJoin` avec `scheduledAt` ; pas de scénario Playwright du 409
-  `game_participants_changed`.
-- _Audio et playlists_ : test de contrat entre `EXTRACT_EFFECTS` et `QUESTION_AUDIO_EFFECTS` côté
-  écran de salle ; forcer `none` quand `type_media` n'est pas `audio` (`routes/room/_content.ts`) ;
-  `audio_effect` inutilisé dans `lockQuestionMediaRow` ; README de `game/audio` (exemple
-  `round.1`) ; délai de 5 s par lot d'appels au fournisseur ; `game_answers.question_id` devra
-  devenir nullable pour les titres tirés d'une playlist ; mesure de la mémoire sur le banc.
-- _Pilotage et exploitation_ : aucun test e2e du suivi en direct, des commandes à distance ni du
-  diagnostic ; éclair de rechargement et course au montage du suivi (#190) ; `too_many_streams`
-  s'écarte de l'arbitrage 1 ; l'annonceur dit « la partie commence » sans contenu ; cases de
-  l'issue #129 à mettre à jour.
-- _Spectacle_ (#197) : `createSixDeskRoomRig` face au modèle de salle ; tour de plus de 65 pas ;
-  scène de 16 pas sur 10 minutes ; `options.scenes` non relu ; décisions D8 et D11 à voir sur le
-  banc ; bouton « Lumière de sortie » et tests par écran du tic d'horloge absents de #193.
-- _API de réservation_ : clé étrangère composite, expression régulière du jeton ; idempotence :
-  supprimer la ligne expirée (plus de 24 h) dans la transaction avant d'insérer (14.2) ; refuser
-  les clés d'une compagnie supprimée (14.2) ; texte de `errors.api_key_invalid` à neutraliser ;
-  purge non découpée en lots ; `GET /api-keys` non paginé.
-- _Bons_ (#198) : `qrSvg` arrive avec 6d ; `migrate:latest` sur une base déjà migrée.
-- _Console et frontend_ : cibles de 48 px (`SwitchField`, `BaseToolBar`, actions de ligne) ; clés
-  i18n `invalid_query`, `payload_too_large`, `bad_request` et codes `schedule_*` ; `knip` en échec
-  avant cette vague ; colonnes du modèle CSV à déplacer dans `@quizzup/shared`.
-- _Documentation et outillage_ : `openapi.yaml` référence des schémas absents de `components`
-  (dont `CreateQuestionRequest`) ; guide de test sans `console.<DOMAIN>` ; format Courte face au
-  créneau de 30 minutes et écart « +6,5 min » dans la conception des formats ; §1.8 du guide de
-  sécurité ; identifiant `US-APRES-01` à remplacer par `US-RESULTS-01` ; issue #132 à fermer ;
-  copies de travail des PR mergées à supprimer ; `CLAUDE.md` §2 à compléter (`vitrine/`) ;
-  `periodBoundSchema` dupliqué entre `routes/games` et `routes/stats` ; `emergencyStop` ne termine
-  pas le Diagnostic.
+- _Sessions et accueil_ : `schedule_changed` non émis à la suppression ou à la désactivation
+  d'une salle ; `email_consent_required` passe avant la règle du mode enfants ; QR code jamais
+  décodé par un test (#256) ; export des joueurs sans confirmation ; bon marqué comme utilisé sans
+  confirmation ; `company_inactive` et `room_inactive` non traduits sur l'écran de salle ; CSS
+  dupliqué entre `JoinPage.vue` et `VoucherPage.vue` ; police Exo 2 non chargée sur les pages
+  publiques (à héberger nous-mêmes, CSP de Caddy à accorder) ; `/bon` sans barre finale côté
+  Caddy.
+- _Audio et playlists_ : un seul flux par page de partie (2f) ; coût de la requête des questions
+  déjà vues non mesuré (8e) ; `game_answers.question_id` pour les titres tirés d'une playlist ;
+  mesure de la mémoire sur le banc.
+- _Pilotage et exploitation_ : accusés `refused` et `expired` et réponses 401, 403, 429 des
+  commandes à distance non couverts de bout en bout (#259) ; la liste des parties ne montre pas
+  l'origine d'une partie (API, agenda) ; « Actualiser le journal » ne rafraîchit pas « Dernier
+  appel » du tableau des clés ; confirmation visible après l'enregistrement de la fiche client et
+  des créneaux à vérifier.
+- _API de réservation_ : colonne « Session » vide sur un 201 du journal (`api_request_logs` n'a ni
+  `game_id` ni indicateur de rejeu) ; code d'erreur inconnu affiché brut dans le journal ;
+  `OPENAPI_PATH` à régler au déploiement ; chemins `/maps`, `/shop/items`, `/assets/upload-url` de
+  `openapi.yaml` à vérifier (ils ne semblent pas appartenir au produit).
+- _Matériel_ : pas de scénario Playwright du test de coupure par la carte ; une salle équipée de
+  la carte seule ne peut pas lancer le test de coupure ; « moins d'une seconde » à mesurer sur le
+  banc ; `.hex` embarqué dans le paquet principal ; gardes `inProgress()` non testées ; même
+  identifiant USB pour une interface DMX à CH340 et un clone de Uno (banc) ; réaction de l'ancien
+  programme de la carte aux octets `H` et `0` (banc) ; chargeur pendant une sauvegarde (banc) ;
+  stratégie Chrome `SerialAllowUsbDevicesForUrls` ; le formulaire de salle du backoffice peut
+  envoyer une configuration `lighting` périmée (403) ; libellé i18n de la scène `pause` ; test
+  instable du relais à surveiller.
+- _Console et frontend_ : cibles de 48 px (`SwitchField`, `BaseToolBar`, actions de ligne) ; noms
+  accessibles des liens du menu et des cases de mini-jeux à vérifier ; attributs ARIA de
+  `SelectField.vue` ; défaut de `getApiErrorKey` dans `GamesView` ; arrondi des minutes dupliqué ;
+  `fetchCurrentGame` sans appelant ; constats de `knip` ; zone de statut vide de 20 px dans le
+  lobby.
+- _Backend et outillage_ : règles ESLint lourdes laissées de côté pour le backend (#261 :
+  `naming-convention`, `no-restricted-imports`, `consistent-return`, `id-length`,
+  `consistent-function-scoping`, `no-param-reassign`) ; borne de la référence de média répétée
+  dans la contrainte de base et l'OpenAPI ; `periodBoundSchema` dupliqué entre `routes/games` et
+  `routes/stats` ; images de production jamais construites ; attribut `merge=union` valable en
+  local seulement (`backoffice/CHANGELOG.md`, `docs/recette/banc-materiel.md`) ; issues #129,
+  #132, #203, #204 et #215 à mettre à jour ou à fermer.
 
 ### 2.1 Sessions précédentes
 
