@@ -86,8 +86,8 @@ SOS en morse, carillon…).
 
 1. Ouvrir <http://localhost:4174>, cliquer **« Essayer en mode démo (sans compte) »**.
 2. Cliquer **« Lancer la salle »** (plein écran ; `Échap` pour en sortir).
-3. Lobby : saisir un pseudo sur les pupitres 1 et 2. Le format **« Partie courte · 3 manches
-   × 3 questions »** est déjà choisi. Cliquer **« Démarrer la partie »**.
+3. Lobby : saisir un pseudo sur les pupitres 1 et 2. Le format **« Découverte · 3 manches
+   × 3 questions · 3 à 5 min »** est déjà choisi. Cliquer **« Démarrer la partie »**.
 4. Jouer au clavier (tableau ci-dessous). Le joueur désigné choisit le thème avec A-D ;
    pendant un palier, le premier qui buzze répond seul avec A-D.
 
