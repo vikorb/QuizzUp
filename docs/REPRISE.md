@@ -24,95 +24,163 @@ Comptes démo : `demo-admin` / `salle1-demo`, mot de passe `Demo1234!` (voir `do
 
 ## 2. Travail en cours au moment de l'arrêt
 
-### 2.0 Point de reprise du 2026-11-24 : V1 menée en parallèle
+### 2.0 Point de reprise du 2026-11-24 (soir) : V1 menée en parallèle
 
 Consigne d'Enzo : mener de front tous les lots indépendants (coordinateur Fable 5.2, sous-agents
-selon `CLAUDE.md` §4.1). La session s'est arrêtée volontairement : plus aucun lot ni aucune
-relecture n'ont été lancés, les développements en cours ont été mis en PR tels quels.
+selon `CLAUDE.md` §4.1), sans laisser un agent tourner pour rien. Avancement estimé de la V1 :
+environ la moitié. **Rien n'a été validé sur du vrai matériel, aucun écran neuf n'a été regardé
+dans un navigateur.**
 
 **Pour reprendre** : `gh pr list -R vikorb/QuizzUp` donne les PR ouvertes ; chaque PR ouverte a sa
-copie de travail sous `.claude/worktrees/<nom>`. **Première chose à faire** : faire relire les
-PR non relues du tableau ci-dessous (un relecteur par PR), corriger, merger. Ensuite seulement,
-lancer un nouveau lot.
+copie de travail sous `.claude/worktrees/<nom>` (tableau ci-dessous). Merger d'abord les PR
+relues et corrigées, une à la fois, puis lancer les lots que ces merges débloquent.
 
 **Références** : conceptions par lot dans `docs/cadrage/conception-*.md` ;
 `docs/cadrage/conceptions-arbitrages.md` prévaut (ordre des lots, horodatages de migration
 réservés, identifiants `US-…`).
 
+**Décisions d'Enzo du 24 novembre** :
+
+- Le PC de la salle n'affiche qu'une page de navigateur en plein écran. **Rien n'y est installé,
+  rien n'est acheté** : le matériel de la salle est déjà en place.
+- Lumières Art-Net : un relais PowerShell (présent sur tout Windows) parle le protocole du pont
+  existant, à la place de l'exécutable (issue #203, lot en cours).
+- Fumée : par la carte déjà en salle (compatible Arduino Uno R3, d'après la liste de matériel),
+  en USB et Web Serial. Conception : `docs/cadrage/conception-fumee-carte-usb.md` (issue #215),
+  lots L1 à L6. À voir sur place : modèle réel de la carte, câble USB, distance jusqu'au PC.
+- Buzzers : carte de la salle lue par l'API Gamepad du navigateur (apprentissage déjà livré).
+- Catalogue de jeux : refaire les anciens jeux, en plus propre.
+- Blind test : playlists par genre, un titre tiré au hasard (issue #204) ; les extraits viennent
+  du fournisseur d'extraits déjà branché (#186).
+- Reportés : e-mails, textes légaux, SonarQube et Lighthouse.
+
+Les notes non publiques (hébergement, prix, paiement, droits) sont hors du dépôt, dans
+`docs/prive/` (ignoré par git).
+
 **Mergé sur `main` depuis le 23 novembre** :
 
-| Domaine               | PR                                                                                                                                                                                                                                   |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Pilotage en direct    | #130 flux SSE, #136 et #140 présence (backoffice, salle), #131 passer et pause                                                                                                                                                       |
-| Sécurité de salle     | #153 fumée non activable par le backoffice, #155 plafond de 3 éclairs par seconde, #159 fumée coupée à la pause, #176 fumée armée après un test de coupure local, #179 stroboscope autonome signalé et strobe du Diagnostic plafonné |
-| Sessions programmées  | #154 socle (statut `scheduled`, contrainte d'exclusion), #171 et #173 réglages de créneaux d'une salle (serveur, écran), #177 programmer, modifier, ouvrir, annuler, #175 écran Agenda                                               |
-| Exploitation, contenu | #160 feuille de résultats, #163 et #174 import CSV (serveur, écran), #164 historique filtré et paginé, #169 consentement aux offres séparé, #167 journaux d'erreurs des salles (serveur, écran de salle), #170 logo du centre        |
-| Console de l'éditeur  | #165 garde réseau du superadmin, #168 demandes de démonstration (serveur)                                                                                                                                                            |
-| Public                | #139 site vitrine (`vitrine/`), #150 socle `/public/v1` et limiteur de débit, #181 formulaire de démonstration de la vitrine branché sur la route publique                                                                           |
-| Jeu                   | #148 mini-jeux tirés sans remise, #151 effets sur les extraits et voix d'annonces, #162 boutons et mises en page de l'écran de salle                                                                                                 |
-| Production, outillage | #137 pile de production (`deploy/prod/`), #138 guides, #147 conceptions, #149 dépendances, #172 tests PostgreSQL de la CI pris par motif                                                                                             |
+| Domaine               | PR                                                                                                                                                                                                                                                                                                                     |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pilotage en direct    | #130 flux SSE, #136 et #140 présence (backoffice, salle), #131 passer et pause, #190 suivi en direct sur le détail d'une partie, #196 commandes à distance côté serveur                                                                                                                                                |
+| Sécurité de salle     | #153 fumée non activable par le backoffice, #155 plafond de 3 éclairs par seconde, #159 fumée coupée à la pause, #176 fumée armée après un test de coupure local, #179 stroboscope autonome signalé et strobe du Diagnostic plafonné                                                                                   |
+| Sessions programmées  | #154 socle (statut `scheduled`, contrainte d'exclusion), #171 et #173 réglages de créneaux d'une salle (serveur, écran), #177 programmer, modifier, ouvrir, annuler, #175 écran Agenda, #189 formulaire de programmation                                                                                               |
+| Exploitation, contenu | #160 feuille de résultats, #163 et #174 import CSV (serveur, écran), #164 historique filtré et paginé, #169 consentement aux offres séparé, #167 et #182 journaux d'erreurs des salles, #170 logo du centre, #183 statistiques, #199 diagnostic à distance                                                             |
+| Console de l'éditeur  | #165 garde réseau du superadmin, #168 demandes de démonstration (serveur), #178 et #184 double authentification du superadmin (serveur, connexion en deux temps), #187 deux constructions du frontend (centre, console)                                                                                                |
+| Public                | #139 site vitrine (`vitrine/`), #150 socle `/public/v1` et limiteur de débit, #181 formulaire de démonstration de la vitrine, #194 socle de l'API de réservation                                                                                                                                                       |
+| Jeu                   | #148 mini-jeux tirés sans remise, #151 effets sur les extraits et voix d'annonces, #162 boutons et mises en page de l'écran de salle, #186 extraits de blind test fournis, #191 catalogue des annonces vocales, #192 formats partagés et durée estimée, #193 compte à rebours, transitions, scores animés et confettis |
+| Production, outillage | #137 pile de production (`deploy/prod/`), #138 guides, #147 conceptions, #149 dépendances, #172 tests PostgreSQL de la CI pris par motif, #200 tests de l'écran de jeu stables sous charge                                                                                                                             |
 
-**PR ouvertes au moment de l'arrêt** :
+**PR ouvertes** (toutes relues par un relecteur indépendant) :
 
-| PR   | Lot                                       | Copie de travail | État et reste à faire                                                                                                                               |
-| ---- | ----------------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| #178 | 12d TOTP du superadmin (serveur)          | `totp-serveur`   | relue et corrigée. **Ne pas merger seule** : sans l'écran 12f, le superadmin ne se connecte plus au backoffice. Merger #178 puis 12f dans la foulée |
-| #184 | 12f connexion en deux temps et enrôlement | `connexion-totp` | **non relue**. Branche empilée sur celle de #178 : son diff contient #178 tant que #178 n'est pas mergée                                            |
-| #183 | 7d statistiques d'exploitation            | `stats`          | **non relue**, écran jamais ouvert dans un navigateur                                                                                               |
-| #182 | 7f écran des journaux d'une salle         | `journaux-ecran` | **non relue** (brouillon), écran jamais ouvert dans un navigateur                                                                                   |
+| PR   | Lot                                               | Copie de travail    | État et reste à faire                                                                                                                  |
+| ---- | ------------------------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| #197 | Show lumière réglable par salle, modèles (#145)   | `show-salle`        | relue, corrigée, à merger                                                                                                              |
+| #206 | A.2 effet audio stocké et distribué (#144)        | `import-csv`        | relue, prête, à merger                                                                                                                 |
+| #205 | 13.4 routes de salle des sessions (#142)          | `sessions-backend`  | relue, corrigée, à merger                                                                                                              |
+| #207 | A.3 effet audio joué au blind test (#144)         | `audio-effets`      | relue, corrigée, à merger                                                                                                              |
+| #208 | 12g écran des demandes de démonstration (#161)    | `demandes-demo`     | relue, corrigée, à merger. Tableau jamais vu à 768 px dans un navigateur                                                               |
+| #202 | 2a accueil des joueurs, API et personnel (#166)   | `accueil-api`       | relue, corrigée, à merger **après #205** (conflit attendu dans `routes/room.ts`, à résoudre à la main)                                 |
+| #198 | 6b bons de fidélisation, API (#156)               | `bons-api`          | relue, corrigée, à merger                                                                                                              |
+| #209 | Playlists L1, playlist portée par un thème (#204) | `reservation-socle` | relue, corrigée (i18n des codes, course à la mise à jour, appel au fournisseur évité si la référence ne change pas, OpenAPI), à merger |
+| #210 | 14.1 clés d'API et journal des appels (#188)      | `formats-partages`  | relue, corrections en cours (curseur du journal sur l'index, `revokedAt`, `limit`, `createdBy` masqué hors compagnie)                  |
+
+**PR ouvertes depuis** : #212 commandes à distance, backoffice (relue, corrigée : l'arrêt reste
+le bouton de l'en-tête) ; #213 relais PowerShell Art-Net (en relecture) ; #214 commandes à
+distance, écran de salle (relue, corrigée) ; #216 A.4 effet audio dans le formulaire de question
+(en relecture). Lot H3 (scène de sortie) en cours dans `show-salle`.
+
+**Branches sans PR, développement en cours** :
+
+| Branche                | Lot                                    | Copie de travail |
+| ---------------------- | -------------------------------------- | ---------------- |
+| `feat/scene-de-sortie` | H3 scène lumière de sortie (#145)      | `show-salle`     |
+| `test/endurance-e2e`   | E1 endurance de bout en bout, en cours | `habillage`      |
 
 Après chaque merge, les autres PR sont en conflit sur `backoffice/CHANGELOG.md` côté GitHub
 (l'attribut `merge=union` ne vaut qu'en local) : fusionner `origin/main` dans la branche, pousser
 (`git push origin HEAD:refs/heads/<branche>`, car les branches des copies de travail suivent
-`origin/main`), attendre la CI, merger. Une PR à la fois.
+`origin/main`), attendre la CI, merger. Une PR à la fois. Après une fusion de `main`, relancer
+`npx prettier --check` sur `backoffice/docs/api/openapi.yaml` : la fusion peut le déformer (cas
+de #198).
 
-**Ordre des lots suivants** (chacun : issue, branche, PR, une relecture, merge) :
+**Lots suivants, par dépendance** (chacun : issue, branche, PR, une relecture, merge) :
 
-1. Console (#161) : relire puis merger #178 et 12f ; 12e deux builds du frontend ; 12g écran des
-   demandes de démonstration (après 12e).
-2. Sessions (#142) : 13.4 routes de salle (ajouter le filtre de salle à `openScheduledGame`) et
-   14.0 socle de réservation ; 13.6 formulaire de programmation (`CreateGameView.vue` lit
-   `?roomId=` et `?scheduledAt=`) ; 13.8 écran de salle ; 13.9 événement `schedule_changed`.
-3. Accueil par QR code (#166) : 2a (mêmes fichiers `routes/games*` ; lève l'index
-   `games_room_id_active_unique`, donc le 409 `room_busy` à l'ouverture d'une session pendant une
-   partie), puis 2b à 2f.
-4. Exploitation (#157) : relire puis merger #183 et #182 ; 7b, 7c, 7g.
-5. Après-partie (#156) : 6b à 6g (bons, e-mail de résultats). Contenu (#158) : 8c à 8e.
-6. Pilotage (#129) : fin du polling, suivi en direct, commandes à distance. Formats (#143 ; le
-   lot 3.3 doit passer `format` à `custom` au PATCH), spectacle (#145), audio (#144), API de
-   réservation (lot 14, issue à créer).
-7. Ordre des modifications de `routes/room.ts` : 2a, 6a, 8c-1, 8d, 8e.
+| Débloqué par                 | Lots                                                                                                                                                |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| rien (à lancer)              | E1 endurance e2e ; fin du polling et cases de l'issue #129 à mettre à jour                                                                          |
+| #206                         | A.4 écran backoffice de l'effet audio (type `audioEffect` du frontend), avec les suivis de #206                                                     |
+| #210                         | 14.2 socle public (authentification par clé, débit, journal, salles, disponibilités), puis 14.4 réservations, 14.6 écran des clés, 14.7 bac à sable |
+| #209                         | Playlists L2 (tirage côté serveur au chargement du contenu) et L4 (formulaire du thème) ; L3 (écran de salle) après L2                              |
+| #202                         | 2b à 2f (accueil par QR code), P1, 3.3 et 3.4 (formats ; 3.3 passe `format` à `custom` au PATCH), 7b, 8c-1, 8d                                      |
+| #197                         | H3, RA5, HB1, HB3, RA8 (spectacle, habillage)                                                                                                       |
+| #198                         | 6d à 6f (bons côté joueur et personnel, e-mail de résultats reporté)                                                                                |
+| #205                         | 13.8 écran de salle des sessions, 13.9 événement `schedule_changed`                                                                                 |
+| commandes à distance (salle) | scénario Playwright complet commande, accusé, état dans le backoffice                                                                               |
+| rien (à lancer)              | fumée par la carte USB : L1 programme de la carte, L2 lien série, L4 installation par Web Serial ; puis L3, L5, L6 (#215)                           |
+
+Ordre des modifications de `routes/room.ts` : 2a, 6a, 8c-1, 8d, 8e. Prochain horodatage de
+migration libre : `20261124140000`.
 
 **Jamais vérifié** : aucun écran neuf n'a été regardé dans un navigateur (agenda, créneaux, import,
 historique, feuille de résultats, logo, cases de consentement, alerte fumée, journaux,
-statistiques, connexion en deux temps, formulaire de la vitrine) ; TOTP jamais essayé avec une
-vraie application d'authentification ; `docker compose config` des fichiers `deploy/` avec
-`TOTP_ENCRYPTION_KEY` ; CORS de la vitrine avec une vraie origine ; rien sur du vrai matériel ;
-pile de production jamais montée sur une machine ; SSE derrière Caddy ; SonarQube et Lighthouse du
-backoffice non lus (CI GitLab hors de portée de ce poste).
+statistiques, connexion en deux temps, formulaire de la vitrine, suivi en direct, diagnostic,
+demandes de démonstration, lobby du personnel, compte à rebours et confettis) ; réponses réelles du
+fournisseur d'extraits pour une playlist (forme, champ `readable`, code d'erreur d'une playlist
+privée) ; relais PowerShell face à un vrai nœud Art-Net ; TOTP jamais essayé avec une vraie
+application d'authentification ; `caddy validate` et `docker compose config` des fichiers
+`deploy/` ; CORS de la vitrine avec une vraie origine ; rien sur du vrai matériel ; pile de
+production jamais montée sur une machine ; SSE derrière Caddy ; plan d'exécution du journal des
+appels sur une base remplie ; SonarQube et Lighthouse non lus (CI GitLab hors de portée de ce
+poste).
 
 **Choix par défaut pris sans Enzo, à confirmer** : plafond des éclairs (3 par seconde, 400 ms) ;
 fumée coupée à la pause ; chaque poste refait le test de coupure une fois (#176) ; strobe du
 Diagnostic plafonné à la valeur 30 pendant 3 s, canal brut compris (#179) ; le backoffice ne
 modifie plus `lighting` ; fuseaux en noms IANA seulement ; ouvrir une session programmée pendant
-une partie renvoie 409 `room_busy` (jusqu'au lot 2a) ; journaux de salle gardés 30 jours et
-5 000 lignes, consultés dans un panneau du tableau des salles, sans accès pour le rôle `user` ;
-demandes de démonstration gardées 12 mois, 5 par heure et par adresse, sans envoi d'e-mail ; logo
-de 512 Ko au plus, sans SVG ; TOTP sans QR code, tentative comptée avant la comparaison, clé de
-démonstration refusée en production ; statistiques sur 30 jours par défaut et 366 au plus,
-réservées aux administrateurs ; mini-jeux du lot 4 hors V1.
+une partie renvoie 409 `room_busy` (jusqu'au merge du lot 2a) ; journaux de salle gardés 30 jours
+et 5 000 lignes, sans accès pour le rôle `user` ; demandes de démonstration gardées 12 mois, 5 par
+heure et par adresse, sans envoi d'e-mail ; logo de 512 Ko au plus, sans SVG ; TOTP sans QR code,
+tentative comptée avant la comparaison, clé de démonstration refusée en production ; statistiques
+sur 30 jours par défaut et 366 au plus, réservées aux administrateurs ; mini-jeux du lot 4 hors
+V1 ; playlists : réponses « titre – artiste », pas de genre imposé par l'opérateur, pas de mémoire
+des titres entre deux parties, 4 titres lisibles au moins, lecture limitée aux 500 premiers
+titres ; clés d'API : 10 clés actives par compagnie, journal gardé 90 jours ; lancement d'une
+partie : 409 `game_participants_changed` si les pupitres ont changé depuis le relevé de la salle.
 
-**Suivis mineurs relevés en relecture** (à regrouper dans une PR) : clés i18n `invalid_query`,
-`payload_too_large`, `bad_request` et codes `schedule_*` ; cibles de 48 px de `SwitchField`,
-`BaseToolBar` et des boutons d'action de ligne des salles (38 px) ; colonnes du modèle CSV à
-déplacer dans `@quizzup/shared` ; grille de créneaux vide à refuser ou signaler ; `emergencyStop`
-ne termine pas le Diagnostic et ne vide pas `manualChannels` ; §1.8 du guide de sécurité à mettre à
-jour (le plafond des éclairs existe) ; cas F9 du banc : test relancé puis page rechargée ;
-`openapi.yaml` référence des schémas absents de `components` ; texte `rooms.errors` imprécis pour
-les journaux ; pot de miel du formulaire de la vitrine côté client seulement ; `periodBoundSchema`
-dupliqué entre `routes/games` et `routes/stats` ; identifiant `US-APRES-01` à remplacer par
-`US-RESULTS-01` ; issues des lots 4 et 14 à créer, #132 à fermer ; copies de travail des PR
-mergées à supprimer ; `CLAUDE.md` §2 à compléter (`vitrine/`) ; `knip` à relancer.
+**Suivis relevés en relecture** (à regrouper par zone dans des PR de suivi) :
+
+- _Sessions et accueil_ : `room_busy` pendant une partie à lever avec 2a ; pas de test PostgreSQL
+  du 23505 vers `room_busy` ; `schedule_changed` jamais émis (13.9) ; l'API simulée des tests e2e
+  doit renvoyer `next` (13.8) ; purge des demandes d'inscription au lancement, à la fin et à
+  l'abandon ; `openJoin` avec `scheduledAt` ; pas de scénario Playwright du 409
+  `game_participants_changed`.
+- _Audio et playlists_ : test de contrat entre `EXTRACT_EFFECTS` et `QUESTION_AUDIO_EFFECTS` côté
+  écran de salle ; forcer `none` quand `type_media` n'est pas `audio` (`routes/room/_content.ts`) ;
+  `audio_effect` inutilisé dans `lockQuestionMediaRow` ; README de `game/audio` (exemple
+  `round.1`) ; délai de 5 s par lot d'appels au fournisseur ; `game_answers.question_id` devra
+  devenir nullable pour les titres tirés d'une playlist ; mesure de la mémoire sur le banc.
+- _Pilotage et exploitation_ : aucun test e2e du suivi en direct, des commandes à distance ni du
+  diagnostic ; éclair de rechargement et course au montage du suivi (#190) ; `too_many_streams`
+  s'écarte de l'arbitrage 1 ; l'annonceur dit « la partie commence » sans contenu ; cases de
+  l'issue #129 à mettre à jour.
+- _Spectacle_ (#197) : `createSixDeskRoomRig` face au modèle de salle ; tour de plus de 65 pas ;
+  scène de 16 pas sur 10 minutes ; `options.scenes` non relu ; décisions D8 et D11 à voir sur le
+  banc ; bouton « Lumière de sortie » et tests par écran du tic d'horloge absents de #193.
+- _API de réservation_ : clé étrangère composite, expression régulière du jeton ; idempotence :
+  supprimer la ligne expirée (plus de 24 h) dans la transaction avant d'insérer (14.2) ; refuser
+  les clés d'une compagnie supprimée (14.2) ; texte de `errors.api_key_invalid` à neutraliser ;
+  purge non découpée en lots ; `GET /api-keys` non paginé.
+- _Bons_ (#198) : `qrSvg` arrive avec 6d ; `migrate:latest` sur une base déjà migrée.
+- _Console et frontend_ : cibles de 48 px (`SwitchField`, `BaseToolBar`, actions de ligne) ; clés
+  i18n `invalid_query`, `payload_too_large`, `bad_request` et codes `schedule_*` ; `knip` en échec
+  avant cette vague ; colonnes du modèle CSV à déplacer dans `@quizzup/shared`.
+- _Documentation et outillage_ : `openapi.yaml` référence des schémas absents de `components`
+  (dont `CreateQuestionRequest`) ; guide de test sans `console.<DOMAIN>` ; format Courte face au
+  créneau de 30 minutes et écart « +6,5 min » dans la conception des formats ; §1.8 du guide de
+  sécurité ; identifiant `US-APRES-01` à remplacer par `US-RESULTS-01` ; issue #132 à fermer ;
+  copies de travail des PR mergées à supprimer ; `CLAUDE.md` §2 à compléter (`vitrine/`) ;
+  `periodBoundSchema` dupliqué entre `routes/games` et `routes/stats` ; `emergencyStop` ne termine
+  pas le Diagnostic.
 
 ### 2.1 Sessions précédentes
 

@@ -8,6 +8,15 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Console éditeur : écran des demandes de démonstration (filtre « À traiter », « Traitées », « Toutes » ; marquer une demande traitée ; supprimer), réservé au superadmin.
+  US: US-CONSOLE-01 (#161)
+
+- Effet audio joué en salle : le blind test lit l'extrait avec l'effet de la question (court, inversé, ralenti), avec des paliers raccourcis pour `short` et une reprise fidèle après rechargement.
+  US: US-AUDIO-02 (#144)
+
+- Sessions programmées, routes de la salle : `GET /room/games/current` renvoie aussi la prochaine session de la salle (`next`), et `POST /room/games/:gameId/open` ouvre une session programmée depuis la salle (409 `game_not_scheduled`, `session_not_open_yet`, `room_busy`, `room_inactive`, `company_inactive`).
+  US: US-SCHED-01 (#142)
+
 - Effet audio d'une question (`audioEffect` : `none`, `short`, `reverse`, `slowed`) : stocké sur la question, validé (400 `question_audio_effect_invalid`, `audio_effect_requires_audio`) et distribué à la salle avec le contenu de la partie.
   US: US-AUDIO-02 (#144)
 
