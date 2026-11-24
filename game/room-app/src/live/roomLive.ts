@@ -3,15 +3,22 @@ import {
   LIVE_EVENT,
   LIVE_HEARTBEAT_MS,
   LIVE_STATUS_EVERY_MS,
+  ROOM_COMMAND_TIMEOUT_MS,
   ROOM_DIAGNOSTICS_MAX_GAMEPADS,
   type SseMessage,
 } from '@quizzup/shared'
 import { computed, ref, watch } from 'vue'
 
-import { getLastErrorAt } from '@/diagnostics/errorReporter'
+import { errorText, getLastErrorAt, reportRoomError } from '@/diagnostics/errorReporter'
 import { readSavedBackofficeGame } from '@/game/backofficeGameMemory'
 import { useRoomGame } from '@/game/useRoomGame'
 import { getLighting, getRoomHardwareConfig } from '@/hardware/roomHardware'
+import {
+  answerRoomCommand,
+  parseRoomCommand,
+  resetRoomCommands,
+  type RoomCommandAck,
+} from '@/live/roomCommands'
 import { buildRoomDiagnostics, buildRoomStatusReport } from '@/live/statusReport'
 import { expireRoomSession } from '@/state/roomAuth'
 import { authHeaders, getApiBase, getRoomToken, isDemoMode } from '@/utils/auth'
@@ -261,7 +268,72 @@ function armWatchdog(): void {
   watchdogTimer = setTimeout(() => streamAbort?.abort(), heartbeatMs * SILENT_BEATS + 1000)
 }
 
+/** Rend l'accusé d'une commande. Un échec est sans suite : le personnel verra `expired`. */
+async function sendCommandAck(commandId: string, ack: RoomCommandAck): Promise<void> {
+  const token = getRoomToken()
+
+  if (!token) {
+    return
+  }
+
+  const myGen = gen
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), ROOM_COMMAND_TIMEOUT_MS)
+  const headers = authHeaders(token)
+
+  headers.set('Content-Type', 'application/json')
+  postAborts.set(controller, timeout)
+
+  try {
+    const res = await fetch(
+      `${getApiBase()}/room/commands/${encodeURIComponent(commandId)}/result`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(ack),
+        signal: controller.signal,
+      }
+    )
+
+    if (gen === myGen && res.status === 401) {
+      endSession()
+    }
+  } catch {
+    // Réseau coupé ou serveur lent : la partie et le flux n'en savent rien.
+  } finally {
+    clearTimeout(timeout)
+    postAborts.delete(controller)
+  }
+}
+
+/** Une commande du personnel : seulement sur un flux confirmé par son `hello`, jamais ailleurs. */
+function onCommand(data: string): void {
+  const command = parseRoomCommand(data)
+
+  if (!command || streamId === undefined) {
+    return
+  }
+
+  let ack: RoomCommandAck
+
+  try {
+    ack = answerRoomCommand(command)
+  } catch (error) {
+    // Une commande qui plante n'est pas une coupure réseau : le flux reste ouvert, pas d'accusé
+    // (le personnel verra `expired`).
+    reportRoomError('room_command_failed', errorText(error))
+    return
+  }
+
+  void sendCommandAck(command.commandId, ack)
+}
+
 function onMessage(message: SseMessage): void {
+  if (message.event === LIVE_EVENT.COMMAND) {
+    onCommand(message.data)
+    return
+  }
+
   if (message.event === LIVE_EVENT.REPLACED) {
     markReplaced()
     return
@@ -426,6 +498,7 @@ export function startRoomLive(getRouteName?: () => string | symbol | null | unde
 /** Arrête la présence en direct (déconnexion de la salle). L'avis de fin de session reste affiché. */
 export function stopRoomLive(): void {
   halt()
+  resetRoomCommands()
   stopWatchingExpiry?.()
   stopWatchingExpiry = null
   replaced.value = false
