@@ -78,6 +78,11 @@ export type Player = { desk: Desk; name: string; email?: string }
 /** Lance la salle, inscrit les joueurs et démarre une partie courte (3 × 3). */
 export async function startShortGame(page: Page, players: Player[]): Promise<void> {
   await page.getByRole('button', { name: 'Lancer la salle' }).click()
+  await registerAndStartShortGame(page, players)
+}
+
+/** Depuis le lobby : inscrit les joueurs et démarre une partie courte (3 × 3). */
+export async function registerAndStartShortGame(page: Page, players: Player[]): Promise<void> {
   await expect(page.getByText('Inscription des joueurs')).toBeVisible()
 
   for (const player of players) {
