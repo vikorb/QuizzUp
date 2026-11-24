@@ -9,7 +9,8 @@
         :label="$t('login.mfa.code.label')"
         name="code"
         autocomplete="one-time-code"
-        inputmode="numeric"
+        autocapitalize="none"
+        spellcheck="false"
         :disabled="loading"
         :error="fieldError ? $t(fieldError.key, fieldError.params) : undefined"
         required

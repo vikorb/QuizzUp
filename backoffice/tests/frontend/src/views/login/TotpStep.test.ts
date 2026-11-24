@@ -37,7 +37,10 @@ describe('views/login/TotpStep.vue', () => {
     const step = mountStep()
     const input = step.find('input[name="code"]')
 
-    expect(input.attributes('inputmode')).toBe('numeric')
+    // Code à 6 chiffres ou code de secours « xxxxx-xxxxx » : pas de clavier numérique.
+    expect(input.attributes('inputmode')).toBeUndefined()
+    expect(input.attributes('autocapitalize')).toBe('none')
+    expect(input.attributes('spellcheck')).toBe('false')
     expect(input.attributes('autocomplete')).toBe('one-time-code')
     expect(step.find(`label[for="${input.attributes('id')}"]`).text()).toContain(
       'login.mfa.code.label'

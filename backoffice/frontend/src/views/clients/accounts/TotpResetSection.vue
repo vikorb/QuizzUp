@@ -14,14 +14,15 @@
           :label="$t('login.mfa.code.label')"
           name="code"
           autocomplete="one-time-code"
-          inputmode="numeric"
+          autocapitalize="none"
+          spellcheck="false"
           :disabled="loading"
           :error="fieldError ? $t(fieldError.key, fieldError.params) : undefined"
           required
         />
       </div>
 
-      <p v-if="formError" class="reset__error" role="alert">
+      <p v-if="formError" class="form-error" role="alert">
         {{ $t(formError.key, formError.params) }}
       </p>
 
@@ -77,8 +78,9 @@ async function onSubmit() {
   loading.value = true
   const result = await resetTotpApi({ code: code.value.trim() })
 
-  if (result.ok) {
-    // Le serveur a révoqué toutes les sessions : la prochaine connexion repasse par l'enrôlement.
+  if (result.ok || result.reason === 'session_ended') {
+    // Succès : le serveur a révoqué toutes les sessions, la prochaine connexion repasse par
+    // l'enrôlement. Session déjà finie : même sortie, sans afficher un faux « code incorrect ».
     await logout()
     router.replace({ name: 'login' })
     return
@@ -134,15 +136,5 @@ async function onSubmit() {
 .reset :deep(.ui-btn:focus-visible) {
   outline: 2px solid var(--border-hover);
   outline-offset: 2px;
-}
-
-.reset__error {
-  margin: 0;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid var(--danger);
-  background: var(--danger-bg);
-  color: var(--text-1);
-  font-size: 13px;
 }
 </style>

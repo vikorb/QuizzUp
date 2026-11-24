@@ -33,6 +33,7 @@
     />
 
     <FormField
+      ref="passwordField"
       v-model="password"
       :label="$t('auth.fields.password.label')"
       name="password"
@@ -70,7 +71,7 @@
 
 <script setup lang="ts">
 import { mdiEyeOffOutline, mdiEyeOutline } from '@mdi/js'
-import { computed, reactive, ref } from 'vue'
+import { computed, nextTick, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -95,6 +96,7 @@ const showPassword = ref(false)
 const loading = ref(false)
 const formError = ref<string | null>(null)
 const fieldErrors = reactive<{ identifier?: string; password?: string }>({})
+const passwordField = ref<InstanceType<typeof FormField> | null>(null)
 
 // Superadmin : deuxième étape. Le jeton de défi et les codes de secours restent dans cette vue
 // (mémoire seulement : ni URL, ni stockage) et sont effacés en quittant l'étape.
@@ -108,11 +110,15 @@ const displayedError = computed(
   () => formError.value ?? (roomAccountRejected.value ? t('auth.errors.roomAccount') : null)
 )
 
-function backToCredentials(message: MfaMessage | null) {
+async function backToCredentials(message: MfaMessage | null) {
   step.value = 'credentials'
   challengeToken.value = ''
   enrolled.value = null
   formError.value = message ? t(message.key, message.params) : null
+
+  // Le mot de passe a été vidé : le curseur y revient, sinon le focus se perd avec l'étape quittée.
+  await nextTick()
+  passwordField.value?.$el.querySelector('input')?.focus()
 }
 
 function onEnrolled(session: { token: string; recoveryCodes: string[] }) {
@@ -180,16 +186,6 @@ async function onSubmit() {
 .form {
   display: grid;
   gap: 14px;
-}
-
-.form-error {
-  margin: 0;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid var(--danger);
-  background: var(--danger-bg);
-  color: var(--text-1);
-  font-size: 13px;
 }
 
 .submit {

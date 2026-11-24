@@ -7,12 +7,12 @@
     <template v-else-if="secret">
       <p class="step-text">{{ $t('login.mfa.enroll.intro') }}</p>
 
-      <div class="secret-block">
-        <span id="enroll-secret-label" class="step-text">
-          {{ $t('login.mfa.enroll.secretLabel') }}
-        </span>
-        <code class="secret" aria-labelledby="enroll-secret-label">{{ groupedSecret }}</code>
-      </div>
+      <dl class="secret-block">
+        <dt class="step-text">{{ $t('login.mfa.enroll.secretLabel') }}</dt>
+        <dd class="secret-value">
+          <code class="secret">{{ groupedSecret }}</code>
+        </dd>
+      </dl>
 
       <a v-if="otpauthHref" class="link" :href="otpauthHref">
         {{ $t('login.mfa.enroll.openLink') }}
@@ -162,7 +162,8 @@ async function onConfirm() {
   }
 
   code.value = ''
-  const message = mfaFailureMessage(result)
+  const message =
+    result.reason === 'invalid_form' ? INVALID_CODE_MESSAGE : mfaFailureMessage(result)
   if (result.reason === 'totp_invalid' || result.reason === 'invalid_form') {
     fieldError.value = message
   } else {
@@ -181,6 +182,11 @@ async function onConfirm() {
 .secret-block {
   display: grid;
   gap: 8px;
+  margin: 0;
+}
+
+.secret-value {
+  margin: 0;
 }
 
 .secret {
@@ -189,6 +195,7 @@ async function onConfirm() {
   border-radius: var(--radius);
   background: var(--surface-inset);
   color: var(--text-0);
+  display: block;
   font-family: inherit;
   font-size: 16px;
   font-weight: 700;

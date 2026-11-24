@@ -7,6 +7,7 @@ import type {
   MfaFailure,
   TotpEnrollConfirmResult,
   TotpEnrollStartResult,
+  TotpResetResult,
   TotpSignInResult,
 } from '@/types/auth'
 
@@ -59,7 +60,9 @@ export async function loginApi(args: {
       if (res.status === 401) return { ok: false, reason: 'invalid_credentials' }
       if (res.status === 400) return { ok: false, reason: 'invalid_form' }
       if (res.status === 429) return { ok: false, reason: 'too_many_requests' }
-      if (res.status === 503) return { ok: false, reason: 'totp_unavailable' }
+      if (res.status === 503 && data?.error === 'totp_unavailable') {
+        return { ok: false, reason: 'totp_unavailable' }
+      }
       return { ok: false, reason: 'server_error' }
     }
 
@@ -105,7 +108,10 @@ function mfaFailure(res: Response, data: { error?: unknown } | null): MfaFailure
   if (status === 429) return { ok: false, reason: 'too_many_requests' }
   if (status === 400) return { ok: false, reason: 'invalid_form' }
   if (status === 403) return { ok: false, reason: 'forbidden' }
-  if (status === 503) return { ok: false, reason: 'totp_unavailable' }
+  // Un 503 sans le code du serveur (proxy, maintenance) n'est pas « deuxième facteur indisponible ».
+  if (status === 503 && data?.error === 'totp_unavailable') {
+    return { ok: false, reason: 'totp_unavailable' }
+  }
   return { ok: false, reason: 'server_error' }
 }
 
@@ -175,8 +181,12 @@ export function confirmTotpEnrollApi(args: {
   })
 }
 
-/** Profil du superadmin : retire le deuxième facteur (code requis) ; le serveur révoque toutes les sessions. */
-export async function resetTotpApi(args: { code: string }): Promise<{ ok: true } | MfaFailure> {
+/**
+ * Profil du superadmin : retire le deuxième facteur (code requis) ; le serveur révoque toutes les sessions.
+ * Un 401 qui n'est pas `totp_invalid` vient de l'authentification (session révoquée, expirée, compte
+ * désactivé) : `session_ended`, à traiter comme une fin de session.
+ */
+export async function resetTotpApi(args: { code: string }): Promise<TotpResetResult> {
   const headers = new Headers({ 'Content-Type': 'application/json' })
   headers.set('Authorization', `Bearer ${getToken() ?? ''}`)
 
@@ -190,7 +200,12 @@ export async function resetTotpApi(args: { code: string }): Promise<{ ok: true }
 
     if (res.ok) return { ok: true }
 
-    return mfaFailure(res, await res.json().catch(() => null))
+    const data = await res.json().catch(() => null)
+    if (res.status === 401 && data?.error !== 'totp_invalid') {
+      return { ok: false, reason: 'session_ended' }
+    }
+
+    return mfaFailure(res, data)
   } catch {
     return { ok: false, reason: 'api_unreachable' }
   }

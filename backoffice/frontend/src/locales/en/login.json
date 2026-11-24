@@ -23,7 +23,7 @@
       },
       "recovery": {
         "title": "Recovery codes",
-        "hint": "Write down these {count} codes and keep them somewhere safe. Each one works only once and they will never be shown again.",
+        "hint": "Write down these {count} codes and keep them somewhere safe. Each one works only once and they will never be shown again, not even after reloading the page.",
         "noted": "I have written them down",
         "continue": "Continue"
       },
@@ -32,7 +32,7 @@
       "unreachable": "Cannot reach the server. Check your connection.",
       "retryIn": "Too many attempts: try again in {minutes} min.",
       "forbidden": "The superadmin can only sign in from the console network.",
-      "enrollmentChanged": "The setup was changed in the meantime: the secret shown is no longer valid. Start the setup again.",
+      "enrollmentChanged": "The setup was changed in the meantime: the secret shown is no longer valid. Start again, then enter the new secret in the app.",
       "reset": {
         "title": "Two-factor authentication",
         "hint": "Removes the authenticator app and the recovery codes from this account. You will be signed out, and the next sign-in will ask you to set it up again.",

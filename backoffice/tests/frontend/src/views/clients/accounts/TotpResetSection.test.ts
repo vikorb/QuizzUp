@@ -53,7 +53,10 @@ describe('views/clients/accounts/TotpResetSection.vue', () => {
 
     const input = section.find('input[name="code"]')
     expect(input.attributes('autocomplete')).toBe('one-time-code')
-    expect(input.attributes('inputmode')).toBe('numeric')
+    // Code à 6 chiffres ou code de secours « xxxxx-xxxxx » : pas de clavier numérique.
+    expect(input.attributes('inputmode')).toBeUndefined()
+    expect(input.attributes('autocapitalize')).toBe('none')
+    expect(input.attributes('spellcheck')).toBe('false')
     expect(document.activeElement).toBe(input.element)
   })
 
@@ -101,6 +104,18 @@ describe('views/clients/accounts/TotpResetSection.vue', () => {
     expect(input.attributes('aria-describedby')).toBe(section.find('.ff__error').attributes('id'))
     expect(logoutMock).not.toHaveBeenCalled()
     expect(replaceMock).not.toHaveBeenCalled()
+  })
+
+  it('signs out like any ended session, with no wrong-code message, when the token is refused', async () => {
+    resetTotpApiMock.mockResolvedValue({ ok: false, reason: 'session_ended' })
+    const section = mountSection()
+
+    await openForm(section)
+    await submitCode(section, '123456')
+
+    expect(logoutMock).toHaveBeenCalledTimes(1)
+    expect(replaceMock).toHaveBeenCalledWith({ name: 'login' })
+    expect(section.text()).not.toContain('errors.totp_invalid')
   })
 
   it('shows the lock-out delay in an alert and stays signed in', async () => {

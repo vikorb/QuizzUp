@@ -274,6 +274,29 @@ describe('views/login/LoginForm.vue — superadmin en deux temps', () => {
     expect(setTokenMock).not.toHaveBeenCalled()
   })
 
+  it.each([
+    ['the user goes back', false],
+    ['the challenge expired', true],
+  ])('puts the focus back on the password field when %s', async (_label, expired) => {
+    mockLoginChallenge('totp')
+    loginTotpApiMock.mockResolvedValue({ ok: false, reason: 'mfa_challenge_invalid' })
+    const wrapper = mountWithFrontendMocks(LoginForm, { attachTo: document.body })
+
+    try {
+      await submitCredentials(wrapper)
+      if (expired) {
+        await submitCode(wrapper, '123456')
+      } else {
+        await wrapper.find('button.secondary').trigger('click')
+      }
+      await flushPromises()
+
+      expect(document.activeElement).toBe(findInput(wrapper, 'password').element)
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
   it('returns to the password step without a message when the user goes back', async () => {
     mockLoginChallenge('totp')
     const wrapper = mountWithFrontendMocks(LoginForm)

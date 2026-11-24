@@ -21,8 +21,14 @@ describe('utils/mfaMessage', () => {
     expect(mfaFailureMessage({ ok: false, reason })).toEqual({ key, params: {} })
   })
 
-  it('asks for the shared code length when the form is invalid', () => {
-    expect(mfaFailureMessage({ ok: false, reason: 'invalid_form' })).toEqual(INVALID_CODE_MESSAGE)
+  it('asks for a code, not for 6 digits, when the form is invalid (a recovery code is valid too)', () => {
+    expect(mfaFailureMessage({ ok: false, reason: 'invalid_form' })).toEqual({
+      key: 'login.mfa.codeRequired',
+      params: {},
+    })
+  })
+
+  it('keeps the shared code length for the enrollment confirmation', () => {
     expect(INVALID_CODE_MESSAGE.params).toEqual({ length: TOTP_CODE_LENGTH })
   })
 

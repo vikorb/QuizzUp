@@ -42,7 +42,10 @@ describe('views/login/TotpEnrollStep.vue', () => {
     expect(startTotpEnrollApiMock).toHaveBeenCalledWith({ challengeToken: 'challenge-jwt' })
     expect(step.find('.secret').text()).toBe('JBSW Y3DP EHPK 3PXP')
     expect(step.find('.secret').element.tagName).toBe('CODE')
-    expect(step.find('.secret').attributes('aria-labelledby')).toBe('enroll-secret-label')
+    // Le libellé et le secret sont reliés par la structure (dt / dd), pas par un aria-labelledby.
+    expect(step.find('dt').text()).toBe('login.mfa.enroll.secretLabel')
+    expect(step.find('dd .secret').exists()).toBe(true)
+    expect(step.find('.secret').attributes('aria-labelledby')).toBeUndefined()
   })
 
   it('offers the otpauth link when the server gives one, and no QR code', async () => {
@@ -136,6 +139,21 @@ describe('views/login/TotpEnrollStep.vue', () => {
     await submitCode(step, 'abcdef')
 
     expect(confirmTotpEnrollApiMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps the numeric keyboard: only 6 digits are accepted here', async () => {
+    const step = await mountStep()
+
+    expect(step.find('input[name="code"]').attributes('inputmode')).toBe('numeric')
+  })
+
+  it('shows the 6-digit text when the server rejects the form', async () => {
+    confirmTotpEnrollApiMock.mockResolvedValue({ ok: false, reason: 'invalid_form' })
+    const step = await mountStep()
+
+    await submitCode(step, '123456')
+
+    expect(step.find('.ff__error').text()).toBe('login.mfa.invalidCode:{"length":6}')
   })
 
   it('confirms with the digits (spaces removed) and hands over the session and the codes', async () => {

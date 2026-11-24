@@ -47,7 +47,8 @@ export function mfaFailureMessage(failure: MfaFailure): MfaMessage {
     }
   }
 
-  if (failure.reason === 'invalid_form') return INVALID_CODE_MESSAGE
+  // Hors confirmation d'enrôlement, le champ accepte aussi un code de secours : pas de « 6 chiffres ».
+  if (failure.reason === 'invalid_form') return { key: 'login.mfa.codeRequired', params: {} }
 
   return { key: mfaErrorKey(failure.reason), params: {} }
 }

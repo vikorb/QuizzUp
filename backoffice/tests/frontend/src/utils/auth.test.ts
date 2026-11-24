@@ -38,13 +38,34 @@ describe('utils/auth — connexion', () => {
     [400, 'invalid_form'],
     [429, 'too_many_requests'],
     [500, 'server_error'],
-    [503, 'totp_unavailable'],
   ])('translates a %i response into %s', async (status, reason) => {
     fetchMock.mockResolvedValueOnce(jsonResponse(status, {}))
 
     await expect(loginApi({ identifier: 'a', password: 'b' })).resolves.toEqual({
       ok: false,
       reason,
+    })
+  })
+
+  it('reports the second factor as unavailable only when a 503 carries that code', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(503, { error: 'totp_unavailable' }))
+
+    await expect(loginApi({ identifier: 'a', password: 'b' })).resolves.toEqual({
+      ok: false,
+      reason: 'totp_unavailable',
+    })
+  })
+
+  it.each([
+    ['an empty JSON body', () => jsonResponse(503, {})],
+    ['another code', () => jsonResponse(503, { error: 'maintenance' })],
+    ['a body that is not JSON', () => new Response('<html>Bad gateway</html>', { status: 503 })],
+  ])('treats a 503 with %s as a server error', async (_label, response) => {
+    fetchMock.mockResolvedValueOnce(response())
+
+    await expect(loginApi({ identifier: 'a', password: 'b' })).resolves.toEqual({
+      ok: false,
+      reason: 'server_error',
     })
   })
 
@@ -179,6 +200,8 @@ describe('utils/auth — deuxième facteur du superadmin', () => {
     [429, { error: 'too_many_requests' }, 'too_many_requests'],
     [429, {}, 'too_many_requests'],
     [503, { error: 'totp_unavailable' }, 'totp_unavailable'],
+    [503, {}, 'server_error'],
+    [503, { error: 'maintenance' }, 'server_error'],
     [500, { error: 'server_error' }, 'server_error'],
   ])('translates %i %j into %s', async (status, body, reason) => {
     fetchMock.mockResolvedValueOnce(jsonResponse(status, body))
@@ -186,6 +209,15 @@ describe('utils/auth — deuxième facteur du superadmin', () => {
     await expect(loginTotpApi({ challengeToken: 'c', code: '123456' })).resolves.toEqual({
       ok: false,
       reason,
+    })
+  })
+
+  it('treats a 503 whose body is not JSON as a server error', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('<html>Bad gateway</html>', { status: 503 }))
+
+    await expect(loginTotpApi({ challengeToken: 'c', code: '123456' })).resolves.toEqual({
+      ok: false,
+      reason: 'server_error',
     })
   })
 
@@ -245,11 +277,35 @@ describe('utils/auth — deuxième facteur du superadmin', () => {
       [409, { error: 'totp_not_enrolled' }, 'totp_not_enrolled'],
       [403, { error: 'forbidden' }, 'forbidden'],
       [503, { error: 'totp_unavailable' }, 'totp_unavailable'],
+      [503, {}, 'server_error'],
       [500, null, 'server_error'],
-    ])('maps %i to %s', async (status, body, reason) => {
+    ])('maps %i %j to %s', async (status, body, reason) => {
       fetchMock.mockResolvedValueOnce(jsonResponse(status, body))
 
       await expect(resetTotpApi({ code: '123456' })).resolves.toEqual({ ok: false, reason })
+    })
+
+    it.each([
+      ['unauthorized'],
+      ['session_invalid'],
+      ['session_expired_inactive'],
+      ['account_inactive'],
+    ])('reports a 401 %s as the end of the session, not as a wrong code', async (error) => {
+      fetchMock.mockResolvedValueOnce(jsonResponse(401, { error }))
+
+      await expect(resetTotpApi({ code: '123456' })).resolves.toEqual({
+        ok: false,
+        reason: 'session_ended',
+      })
+    })
+
+    it('reports a 401 without a readable body as the end of the session', async () => {
+      fetchMock.mockResolvedValueOnce(new Response('', { status: 401 }))
+
+      await expect(resetTotpApi({ code: '123456' })).resolves.toEqual({
+        ok: false,
+        reason: 'session_ended',
+      })
     })
 
     it('keeps the lock-out delay', async () => {

@@ -44,7 +44,6 @@
     "totp_invalid": "Code incorrect ou déjà utilisé.",
     "totp_not_enrolled": "La double authentification n’est pas configurée pour ce compte.",
     "totp_already_enrolled": "La double authentification est déjà configurée pour ce compte.",
-    "totp_enrollment_changed": "La configuration a été relancée dans une autre fenêtre : scannez la nouvelle clé, puis saisissez un nouveau code.",
     "too_many_attempts": "Trop d’essais : réessayez dans quelques minutes."
   },
   "success": {

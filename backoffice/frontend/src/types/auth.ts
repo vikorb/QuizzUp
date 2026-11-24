@@ -32,6 +32,9 @@ export type MfaFailReason =
 
 export type MfaFailure = { ok: false; reason: MfaFailReason; retryAfterSeconds?: number }
 
+/** Retrait du deuxième facteur : `session_ended` = le jeton de session n'est plus accepté (401 d'authentification). */
+export type TotpResetResult = { ok: true } | MfaFailure | { ok: false; reason: 'session_ended' }
+
 export type TotpSignInResult = { ok: true; token: string } | MfaFailure
 
 export type TotpEnrollStartResult = { ok: true; secret: string; otpauthUrl: string } | MfaFailure
