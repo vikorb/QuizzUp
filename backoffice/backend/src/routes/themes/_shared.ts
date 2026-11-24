@@ -38,6 +38,7 @@ export type ThemeBody = {
   scope?: ThemeScope
   companyId?: number | null
   playlistRef?: string | null
+  kidsFriendly?: boolean
 }
 
 export type ThemeStatusBody = {
@@ -72,6 +73,7 @@ export const themeSelect = [
   'themes.name',
   'themes.mode',
   'themes.playlist_ref as playlistRef',
+  'themes.kids_friendly as kidsFriendly',
   'themes.status',
   'themes.created_at as createdAt',
   'themes.updated_at as updatedAt',
@@ -106,6 +108,11 @@ export function isValidThemeScope(value: unknown): value is ThemeScope {
 
 export function isValidThemeStatus(value: unknown): value is ThemeStatus {
   return typeof value === 'number' && THEME_STATUSES.includes(value as ThemeStatus)
+}
+
+/** `kidsFriendly` est facultatif ; s'il est présent, c'est un booléen. */
+export function isValidKidsFriendly(value: unknown): value is boolean | undefined {
+  return value === undefined || typeof value === 'boolean'
 }
 
 export function getCreateThemeStatus(req: FastifyRequest): ThemeStatus {

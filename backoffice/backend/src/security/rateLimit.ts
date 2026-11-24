@@ -22,11 +22,15 @@ export type RateLimitResult = {
   allowed: boolean
   /** Secondes avant la fin de la fenêtre en cours, au moins 1 (valeur de `Retry-After`). */
   retryAfterSeconds: number
+  /** Passages encore acceptés dans la fenêtre en cours, après celui-ci (valeur de `RateLimit-Remaining`). */
+  remaining: number
 }
 
 export type RateLimiter = {
   /** Compte un passage pour cette adresse (et ce suffixe) et dit s'il est accepté. */
   hit: (ip: string, suffix?: string) => RateLimitResult
+  /** Dit si un passage serait accepté, sans le compter (lecture seule). */
+  peek: (ip: string, suffix?: string) => RateLimitResult
   /** Rend un passage compté par `hit` (ex. connexion réussie : seuls les échecs comptent). */
   refund: (ip: string, suffix?: string) => void
   /** Nombre de clés suivies, pour vérifier que le ménage vide bien la mémoire. */
@@ -110,10 +114,27 @@ export function createRateLimiter({
 
       // Un passage refusé n'est pas compté : le compteur reste borné par `max`, et `refund`
       // ne peut pas faire descendre sous la réalité.
-      if (entry.count >= max) return { allowed: false, retryAfterSeconds }
+      if (entry.count >= max) return { allowed: false, retryAfterSeconds, remaining: 0 }
 
       entry.count += 1
-      return { allowed: true, retryAfterSeconds }
+      return { allowed: true, retryAfterSeconds, remaining: max - entry.count }
+    },
+
+    peek(ip, suffix) {
+      const at = now()
+      sweep(at)
+
+      const entry = entries.get(keyOf(ip, suffix))
+
+      if (!entry) {
+        return { allowed: true, retryAfterSeconds: Math.ceil(windowMs / 1000), remaining: max }
+      }
+
+      return {
+        allowed: entry.count < max,
+        retryAfterSeconds: Math.max(1, Math.ceil((entry.resetAt - at) / 1000)),
+        remaining: Math.max(0, max - entry.count),
+      }
     },
 
     refund(ip, suffix) {
