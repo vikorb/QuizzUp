@@ -9,7 +9,12 @@
   >
     <p class="game-join__note">{{ $t('gameJoin.subtitle') }}</p>
 
-    <section class="game-join__link" data-test="game-join-link-section">
+    <section
+      ref="linkSectionRef"
+      class="game-join__link"
+      tabindex="-1"
+      data-test="game-join-link-section"
+    >
       <template v-if="isJoinOpen && join">
         <label class="game-join__label" for="game-join-url">{{ $t('gameJoin.linkLabel') }}</label>
 
@@ -55,13 +60,22 @@
           {{ $t('gameJoin.qrUnavailable') }}
         </p>
 
+        <p
+          v-if="copyFailed"
+          class="game-join__note"
+          role="status"
+          data-test="game-join-copy-failed"
+        >
+          {{ $t('gameJoin.copyFailed') }}
+        </p>
+
         <div class="game-join__actions">
           <UiButton
             type="button"
             data-test="game-join-regenerate"
             :disabled="busy"
             :title="$t('gameJoin.regenerateHint')"
-            @click="openJoin"
+            @click="regenerate"
           >
             {{ $t('gameJoin.regenerate') }}
           </UiButton>
@@ -73,7 +87,12 @@
       </template>
 
       <template v-else>
-        <p class="game-join__note" data-test="game-join-closed">{{ $t('gameJoin.linkClosed') }}</p>
+        <p v-if="join" class="game-join__note" data-test="game-join-expired">
+          {{ $t('gameJoin.linkExpired') }}
+        </p>
+        <p v-else class="game-join__note" data-test="game-join-closed">
+          {{ $t('gameJoin.linkClosed') }}
+        </p>
 
         <div class="game-join__actions">
           <UiButton type="button" data-test="game-join-open" :disabled="busy" @click="openJoin">
@@ -90,7 +109,7 @@
     <div v-if="loadError" class="game-join__error" role="alert" data-test="game-join-load-error">
       <p>{{ $t(getGameErrorKey(loadError)) }}</p>
 
-      <UiButton type="button" data-test="game-join-retry" @click="refresh">
+      <UiButton type="button" data-test="game-join-retry" @click="refresh()">
         {{ $t('gameJoin.retry') }}
       </UiButton>
     </div>
@@ -100,7 +119,12 @@
     </p>
 
     <template v-else>
-      <p class="game-join__count" aria-live="polite" data-test="game-join-count">
+      <p
+        v-if="!loadError || registrations.length > 0"
+        class="game-join__count"
+        aria-live="polite"
+        data-test="game-join-count"
+      >
         {{ $t('gameJoin.count', { count: registrations.length }, registrations.length) }}
       </p>
 
@@ -186,6 +210,7 @@
         @click.self="fullscreen = false"
       >
         <div
+          ref="dialogRef"
           class="game-join-screen__dialog"
           role="dialog"
           aria-modal="true"
@@ -230,6 +255,7 @@ import { useI18n } from 'vue-i18n'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import SelectField from '@/components/ui/form/SelectField.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import { useConfirm } from '@/composables/useConfirm'
 import {
   acceptGameRegistrationService,
   closeGameJoinService,
@@ -240,12 +266,22 @@ import {
 } from '@/services/gamesService'
 import type { SelectFieldOption } from '@/types/form'
 import type { Game, GameRegistration } from '@/types/game'
+import { trapTabKey } from '@/utils/focusTrap'
 import { getGameErrorKey } from '@/utils/game/errors'
 import { getGamePodiums, getGameRoomDesksCount } from '@/utils/game/form'
 import { formatGameDate, getGameRoomName } from '@/utils/game/format'
 
 /** Interrogation provisoire : elle laissera place au flux du personnel (lot 1). */
 const POLL_INTERVAL_MS = 5000
+/** « Lien copié » redevient « Copier le lien » après ce délai. */
+const COPIED_RESET_MS = 2000
+/** Erreurs qui disent que la fiche (état, pupitres, participants) a changé sous nos pieds. */
+const STALE_GAME_ERRORS = new Set([
+  'podium_taken',
+  'room_full',
+  'game_not_pending',
+  'registration_not_found',
+])
 const SCREEN_TITLE_ID = 'game-join-screen-title'
 /** Valeur du choix « premier pupitre libre » : le serveur prend le plus petit pupitre libre. */
 const PODIUM_AUTO = ''
@@ -255,11 +291,12 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  /** Une demande a été validée : la liste des participants de la fiche doit être relue. */
+  /** La fiche (état de la partie, participants) doit être relue : demande validée, conflit, ou interrogation. */
   changed: []
 }>()
 
 const { t, locale } = useI18n()
+const { confirm } = useConfirm()
 
 const registrations = ref<GameRegistration[]>([])
 const loaded = ref(false)
@@ -267,17 +304,23 @@ const loadError = ref<string | null>(null)
 const actionError = ref<string | null>(null)
 const busy = ref(false)
 const copied = ref(false)
+const copyFailed = ref(false)
 const join = ref(props.game.join ?? null)
 const now = ref(Date.now())
 const fullscreen = ref(false)
 const fullscreenTriggerRef = ref<InstanceType<typeof UiButton> | null>(null)
 const screenCloseRef = ref<InstanceType<typeof UiButton> | null>(null)
+const dialogRef = ref<HTMLElement | null>(null)
+const linkSectionRef = ref<HTMLElement | null>(null)
 const desksCount = ref(getGameRoomDesksCount([], ''))
 // Pupitre choisi par demande ; absent ou vide = premier libre.
 const podiums = reactive<Record<number, string>>({})
 
 let timer: ReturnType<typeof setInterval> | undefined
+let copiedTimer: ReturnType<typeof setTimeout> | undefined
 let refreshing = false
+// Incrémenté à chaque action réussie : une lecture partie avant ne dit plus la vérité.
+let generation = 0
 
 const isPending = computed(() => props.game.state === GAME_STATE_PENDING)
 const isJoinOpen = computed(
@@ -319,18 +362,26 @@ const podiumOptions = computed<SelectFieldOption[]>(() => [
 watch(
   () => props.game.join,
   (value) => {
-    join.value = value ?? null
+    // Le serveur ne renvoie plus un lien expiré : on garde l'ancien pour dire « expiré » et non « fermé ».
+    if (value || !join.value || isJoinOpen.value) {
+      join.value = value ?? null
+    }
   }
 )
 
-// Échap ferme le plein écran où que soit le focus ; le focus passe au bouton Fermer puis revient au déclencheur.
+// Échap ferme le plein écran et Tab reste dans le dialogue, où que soit le focus.
 function onScreenKeydown(event: KeyboardEvent): void {
   if (event.key === 'Escape') {
     event.preventDefault()
     fullscreen.value = false
+    return
   }
+
+  trapTabKey(event, dialogRef.value)
 }
 
+// Le focus passe au bouton Fermer à l'ouverture, puis revient au bouton d'ouverture ; si celui-ci a disparu
+// (lien fermé ou expiré), il se replie sur la zone du lien.
 watch(fullscreenOpen, async (open) => {
   if (open) {
     document.addEventListener('keydown', onScreenKeydown)
@@ -341,22 +392,37 @@ watch(fullscreenOpen, async (open) => {
 
   document.removeEventListener('keydown', onScreenKeydown)
   fullscreen.value = false
-  fullscreenTriggerRef.value?.$el?.focus?.()
+  await nextTick()
+  const target: HTMLElement | null = fullscreenTriggerRef.value?.$el ?? linkSectionRef.value
+
+  target?.focus?.()
 })
 
-async function refresh(): Promise<void> {
+/** `notify` : après une lecture réussie, demande la relecture de la fiche (partie lancée ailleurs, pupitre pris). */
+async function refresh(notify = false): Promise<void> {
   if (refreshing) {
     return
   }
 
   refreshing = true
 
+  const startedAt = generation
+
   try {
     const result = await listGameRegistrationsService(props.game.companyId, props.game.id)
+
+    // Une action a réussi pendant la lecture : sa réponse est déjà périmée, la prochaine sera la bonne.
+    if (startedAt !== generation) {
+      return
+    }
 
     if (result.ok) {
       registrations.value = result.data.registrations
       loadError.value = null
+
+      if (notify) {
+        emit('changed')
+      }
     } else {
       loadError.value = result.error
     }
@@ -381,7 +447,7 @@ function stopPolling(): void {
 // Un onglet masqué n'interroge pas le serveur ; au retour, on relit tout de suite.
 function onVisibilityChange(): void {
   if (document.visibilityState === 'visible') {
-    void refresh()
+    void refresh(true)
   }
 }
 
@@ -390,7 +456,7 @@ function startPolling(): void {
   void refresh()
   timer = setInterval(() => {
     if (document.visibilityState === 'visible') {
-      void refresh()
+      void refresh(true)
     }
   }, POLL_INTERVAL_MS)
   document.addEventListener('visibilitychange', onVisibilityChange)
@@ -430,6 +496,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   stopPolling()
+  clearTimeout(copiedTimer)
   document.removeEventListener('keydown', onScreenKeydown)
 })
 
@@ -443,9 +510,15 @@ async function copyLink(): Promise<void> {
   try {
     await navigator.clipboard.writeText(fullUrl.value)
     copied.value = true
+    copyFailed.value = false
+    clearTimeout(copiedTimer)
+    copiedTimer = setTimeout(() => {
+      copied.value = false
+    }, COPIED_RESET_MS)
   } catch {
     // Presse-papiers refusé : le lien reste sélectionnable dans le champ.
     copied.value = false
+    copyFailed.value = true
   }
 }
 
@@ -463,8 +536,14 @@ async function runAction(
   try {
     const result = await action()
 
-    if (!result.ok) {
+    if (result.ok) {
+      generation += 1
+    } else {
       actionError.value = result.error
+
+      if (STALE_GAME_ERRORS.has(result.error)) {
+        emit('changed')
+      }
     }
 
     return result.ok
@@ -485,10 +564,25 @@ async function openJoin(): Promise<void> {
       join.value = result.data.join
       now.value = Date.now()
       copied.value = false
+      copyFailed.value = false
     }
 
     return result
   })
+}
+
+// Un nouveau lien invalide l'ancien et son QR code déjà montrés aux joueurs : on demande confirmation.
+async function regenerate(): Promise<void> {
+  const confirmed = await confirm({
+    title: t('gameJoin.regenerateTitle'),
+    message: t('gameJoin.regenerateConfirm'),
+    confirmLabel: t('gameJoin.regenerate'),
+    cancelLabel: t('confirm.cancel'),
+  })
+
+  if (confirmed) {
+    await openJoin()
+  }
 }
 
 async function closeJoin(): Promise<void> {
@@ -529,6 +623,18 @@ async function accept(registration: GameRegistration): Promise<void> {
 }
 
 async function refuse(registration: GameRegistration): Promise<void> {
+  const confirmed = await confirm({
+    title: t('gameJoin.refuseTitle'),
+    message: t('gameJoin.refuseConfirm', { name: registration.displayName }),
+    confirmLabel: t('gameJoin.refuse'),
+    cancelLabel: t('confirm.cancel'),
+    variant: 'danger',
+  })
+
+  if (!confirmed) {
+    return
+  }
+
   const refused = await runAction(() =>
     refuseGameRegistrationService(props.game.companyId, props.game.id, registration.id)
   )
@@ -556,6 +662,10 @@ async function refuse(registration: GameRegistration): Promise<void> {
   display: grid;
   gap: 10px;
   margin-top: 14px;
+}
+
+.game-join__link:focus {
+  outline: none;
 }
 
 .game-join__label {

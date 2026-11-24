@@ -107,6 +107,45 @@ describe('views/games/GameDetailView.vue', () => {
     expect(loadGameServiceMock).toHaveBeenCalledTimes(2)
   })
 
+  it('reads the game again without a loading screen when the panel asks, and drops the panel once launched', async () => {
+    const wrapper = await mountView()
+
+    loadGameServiceMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: { game: createGameFixture({ id: 4, state: GAME_STATE_RUNNING }) },
+    })
+    wrapper.getComponent({ name: 'GameJoinPanel' }).vm.$emit('changed')
+    await nextTick()
+
+    expect(loadGameServiceMock).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).not.toContain('games.detail.loading')
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('games.state.running')
+    expect(wrapper.find('[data-test="game-join-panel"]').exists()).toBe(false)
+  })
+
+  it('keeps the game and the panel on screen when that quiet reading fails', async () => {
+    const wrapper = await mountView()
+
+    mockServiceFailure(loadGameServiceMock, 'server_error', 500)
+    wrapper.getComponent({ name: 'GameJoinPanel' }).vm.$emit('changed')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Salle Néon')
+    expect(wrapper.text()).not.toContain('games.errors.serverError')
+    expect(wrapper.find('[data-test="game-join-panel"]').exists()).toBe(true)
+
+    loadGameServiceMock.mockRejectedValueOnce(new Error('offline'))
+    wrapper.getComponent({ name: 'GameJoinPanel' }).vm.$emit('changed')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Salle Néon')
+    expect(wrapper.find('[data-test="game-join-panel"]').exists()).toBe(true)
+  })
+
   it('has no sign-up panel for a game that is not pending', async () => {
     loadGameServiceMock.mockResolvedValue({
       ok: true,

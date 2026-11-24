@@ -8,12 +8,12 @@
     "linkClosed": "Le lien d'inscription est fermé : les joueurs ne peuvent plus s'inscrire.",
     "copy": "Copier le lien",
     "copied": "Lien copié",
-    "open": "Ouvrir le lien",
+    "open": "Ouvrir les inscriptions",
     "regenerate": "Régénérer",
     "regenerateHint": "Régénérer invalide le lien et le QR code déjà montrés aux joueurs.",
     "close": "Fermer le lien",
     "qrAlt": "QR code d'inscription à scanner avec le téléphone",
-    "qrUnavailable": "Le QR code demande l'adresse publique du backoffice (PUBLIC_APP_URL) : le lien reste à copier et à transmettre aux joueurs.",
+    "qrUnavailable": "QR code indisponible pour le moment : copiez le lien.",
     "fullscreen": "Afficher en plein écran",
     "screenTitle": "Inscription à la partie de {room}",
     "screenHint": "Scannez ce QR code avec votre téléphone pour vous inscrire.",
@@ -31,6 +31,12 @@
     "podiumOption": "Pupitre {podium}",
     "accept": "Valider",
     "refuse": "Refuser",
-    "retry": "Réessayer"
+    "retry": "Réessayer",
+    "linkExpired": "Le lien d'inscription a expiré : rouvrez les inscriptions pour en obtenir un nouveau.",
+    "copyFailed": "Copie impossible : sélectionnez le lien et copiez-le à la main.",
+    "regenerateTitle": "Régénérer le lien",
+    "regenerateConfirm": "L'ancien lien et son QR code cesseront de fonctionner : les joueurs devront utiliser le nouveau.",
+    "refuseTitle": "Refuser la demande",
+    "refuseConfirm": "Refuser la demande de {name} ? Le joueur devra se réinscrire."
   }
 }

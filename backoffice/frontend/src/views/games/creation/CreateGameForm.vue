@@ -198,15 +198,17 @@
 
       <div v-if="!game && !form.scheduled" class="game-form__switch">
         <SwitchField
+          id="game-form-open-join"
           :model-value="form.openJoin"
           :disabled="isBusy"
           :label="$t('games.form.openJoin')"
+          aria-describedby="game-form-open-join-hint"
           data-test="game-open-join"
           @change="onOpenJoinChange"
         />
-        <span>{{ $t('games.form.openJoin') }}</span>
+        <label for="game-form-open-join">{{ $t('games.form.openJoin') }}</label>
       </div>
-      <p v-if="!game && !form.scheduled" class="game-form__notice">
+      <p v-if="!game && !form.scheduled" id="game-form-open-join-hint" class="game-form__notice">
         {{ $t('games.form.openJoinHint') }}
       </p>
 

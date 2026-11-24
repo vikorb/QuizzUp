@@ -8,12 +8,12 @@
     "linkClosed": "The sign-up link is closed: players can no longer sign up.",
     "copy": "Copy the link",
     "copied": "Link copied",
-    "open": "Open the link",
+    "open": "Open registrations",
     "regenerate": "Regenerate",
     "regenerateHint": "Regenerating invalidates the link and the QR code already shown to players.",
     "close": "Close the link",
     "qrAlt": "Sign-up QR code to scan with a phone",
-    "qrUnavailable": "The QR code needs the public address of the backoffice (PUBLIC_APP_URL): the link can still be copied and given to the players.",
+    "qrUnavailable": "QR code unavailable for now: copy the link.",
     "fullscreen": "Show full screen",
     "screenTitle": "Sign-up for the game of {room}",
     "screenHint": "Scan this QR code with your phone to sign up.",
@@ -31,6 +31,12 @@
     "podiumOption": "Podium {podium}",
     "accept": "Validate",
     "refuse": "Refuse",
-    "retry": "Retry"
+    "retry": "Retry",
+    "linkExpired": "The sign-up link has expired: reopen registrations to get a new one.",
+    "copyFailed": "Copy failed: select the link and copy it by hand.",
+    "regenerateTitle": "Regenerate the link",
+    "regenerateConfirm": "The old link and its QR code will stop working: players will have to use the new one.",
+    "refuseTitle": "Refuse the request",
+    "refuseConfirm": "Refuse the request of {name}? The player will have to sign up again."
   }
 }

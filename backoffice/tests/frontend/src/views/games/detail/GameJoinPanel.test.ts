@@ -1,3 +1,4 @@
+import { confirmMock, setConfirmResult } from '@frontend-tests/_helpers/confirmMock'
 import {
   acceptGameRegistrationServiceMock,
   closeGameJoinServiceMock,
@@ -40,7 +41,9 @@ const POLL_MS = 5000
 beforeEach(() => {
   resetGamesServiceMock()
   // Seuls l'intervalle et l'horloge sont simulés : `flushPromises` garde ses minuteries réelles.
-  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+  vi.useFakeTimers({
+    toFake: ['setInterval', 'clearInterval', 'setTimeout', 'clearTimeout', 'Date'],
+  })
   vi.setSystemTime(new Date('2026-11-24T10:00:00.000Z'))
   setVisibility('visible')
 })
@@ -84,9 +87,11 @@ const comètes = createRegistrationFixture({
   secondPlayer: { displayName: 'Sam', email: null, hasEmail: false, marketingConsent: false },
 })
 
-async function mountPanel(game: Game = createGame()): Promise<VueWrapper> {
+// `attach` : le focus ne se déplace que dans un document réel.
+async function mountPanel(game: Game = createGame(), attach = false): Promise<VueWrapper> {
   const wrapper = mountWithFrontendMocks(GameJoinPanel, {
     props: { game },
+    ...(attach ? { attachTo: document.body } : {}),
     global: { mocks: { $t: tWithParamsMock } },
   })
 
@@ -332,21 +337,49 @@ describe('views/games/detail/GameJoinPanel.vue: validate and refuse', () => {
     ['podium_taken', 409, 'games.errors.podiumTaken'],
     ['room_full', 409, 'games.errors.roomFull'],
     ['game_not_pending', 409, 'games.errors.gameNotPending'],
-    ['podium_not_in_room', 400, 'games.errors.podiumNotInRoom'],
     ['registration_not_found', 404, 'games.errors.registrationNotFound'],
-  ])('shows the translated %s error and reads the list again', async (code, status, key) => {
+  ])(
+    'shows the translated %s error, reads the list again and asks for the game to be read again',
+    async (code, status, key) => {
+      setRegistrations([fusees])
+      mockServiceFailure(acceptGameRegistrationServiceMock, code, status)
+
+      const wrapper = await mountPanel()
+
+      await rowButton(wrapper, 5, 'game-join-accept').trigger('click')
+      await flushPromises()
+
+      expect(find(wrapper, 'game-join-action-error').text()).toBe(key)
+      expect(row(wrapper, 5).exists()).toBe(true)
+      expect(wrapper.emitted('changed')).toHaveLength(1)
+      expect(listGameRegistrationsServiceMock).toHaveBeenCalledTimes(2)
+    }
+  )
+
+  it('shows podium_not_in_room and reads the list again, without touching the game page', async () => {
     setRegistrations([fusees])
-    mockServiceFailure(acceptGameRegistrationServiceMock, code, status)
+    mockServiceFailure(acceptGameRegistrationServiceMock, 'podium_not_in_room', 400)
 
     const wrapper = await mountPanel()
 
     await rowButton(wrapper, 5, 'game-join-accept').trigger('click')
     await flushPromises()
 
-    expect(find(wrapper, 'game-join-action-error').text()).toBe(key)
-    expect(row(wrapper, 5).exists()).toBe(true)
+    expect(find(wrapper, 'game-join-action-error').text()).toBe('games.errors.podiumNotInRoom')
     expect(wrapper.emitted('changed')).toBeUndefined()
     expect(listGameRegistrationsServiceMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('asks for the game to be read again when a refusal finds the request already gone', async () => {
+    setRegistrations([fusees])
+    mockServiceFailure(refuseGameRegistrationServiceMock, 'registration_not_found', 404)
+
+    const wrapper = await mountPanel()
+
+    await rowButton(wrapper, 5, 'game-join-refuse').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.emitted('changed')).toHaveLength(1)
   })
 
   it('shows a server error when the call itself throws', async () => {
@@ -557,6 +590,26 @@ function pressEscape(): void {
   document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
 }
 
+const closeButton = () => screenPart('game-join-screen-close') as HTMLElement | null
+
+function pressTab(shiftKey = false): KeyboardEvent {
+  const event = new KeyboardEvent('keydown', {
+    key: 'Tab',
+    shiftKey,
+    bubbles: true,
+    cancelable: true,
+  })
+
+  document.dispatchEvent(event)
+
+  return event
+}
+
+async function openScreen(wrapper: VueWrapper): Promise<void> {
+  await find(wrapper, 'game-join-fullscreen').trigger('click')
+  await flushPromises()
+}
+
 describe('views/games/detail/GameJoinPanel.vue: QR code', () => {
   it('shows the QR code of the server as an image whose address is the encoded SVG', async () => {
     const wrapper = await mountPanel()
@@ -738,5 +791,380 @@ describe('views/games/detail/GameJoinPanel.vue: QR code', () => {
       expect(removeListener).toHaveBeenCalledWith('keydown', expect.any(Function))
       expect(screen()).toBeNull()
     })
+  })
+})
+
+describe('views/games/detail/GameJoinPanel.vue: game state kept up to date', () => {
+  it('asks for the game to be read again at every poll, not at the first read', async () => {
+    const wrapper = await mountPanel()
+
+    expect(wrapper.emitted('changed')).toBeUndefined()
+
+    await tick(wrapper)
+    expect(wrapper.emitted('changed')).toHaveLength(1)
+
+    await tick(wrapper)
+    expect(wrapper.emitted('changed')).toHaveLength(2)
+  })
+
+  it('learns that the room launched the game, then stops reading the requests', async () => {
+    const wrapper = await mountPanel()
+
+    await tick(wrapper)
+    expect(wrapper.emitted('changed')).toHaveLength(1)
+
+    // La page relit la fiche à cette demande et passe la nouvelle partie au panneau.
+    await wrapper.setProps({ game: createGame({ state: GAME_STATE_RUNNING }) })
+    await tick(wrapper, POLL_MS * 3)
+
+    expect(listGameRegistrationsServiceMock).toHaveBeenCalledTimes(2)
+    expect(wrapper.emitted('changed')).toHaveLength(1)
+    expect(wrapper.find('[data-test="base-card"]').exists()).toBe(false)
+  })
+
+  it('does not ask for the game when the poll fails', async () => {
+    mockServiceFailure(listGameRegistrationsServiceMock, 'server_error', 500)
+
+    const wrapper = await mountPanel()
+
+    await tick(wrapper)
+
+    expect(wrapper.emitted('changed')).toBeUndefined()
+  })
+
+  it('ignores a read started before a validation and answered after it', async () => {
+    setRegistrations([fusees, comètes])
+
+    const wrapper = await mountPanel()
+    let answerLate!: (value: Awaited<ReturnType<typeof listGameRegistrationsServiceMock>>) => void
+
+    listGameRegistrationsServiceMock.mockReturnValueOnce(
+      new Promise((resolve) => {
+        answerLate = resolve
+      })
+    )
+    await tick(wrapper)
+
+    await rowButton(wrapper, 5, 'game-join-accept').trigger('click')
+    await flushPromises()
+
+    expect(row(wrapper, 5).exists()).toBe(false)
+    expect(wrapper.emitted('changed')).toHaveLength(1)
+
+    answerLate({ ok: true, status: 200, data: { registrations: [fusees, comètes] } })
+    await flushPromises()
+
+    expect(row(wrapper, 5).exists()).toBe(false)
+    expect(find(wrapper, 'game-join-count').text()).toBe('gameJoin.count:{"count":1}')
+    expect(wrapper.emitted('changed')).toHaveLength(1)
+  })
+
+  it('takes the next read into account after the late one was dropped', async () => {
+    setRegistrations([fusees, comètes])
+
+    const wrapper = await mountPanel()
+    let answerLate!: (value: Awaited<ReturnType<typeof listGameRegistrationsServiceMock>>) => void
+
+    listGameRegistrationsServiceMock.mockReturnValueOnce(
+      new Promise((resolve) => {
+        answerLate = resolve
+      })
+    )
+    await tick(wrapper)
+    await rowButton(wrapper, 5, 'game-join-accept').trigger('click')
+    await flushPromises()
+    answerLate({ ok: true, status: 200, data: { registrations: [fusees, comètes] } })
+    await flushPromises()
+
+    setRegistrations([comètes])
+    await tick(wrapper)
+
+    expect(row(wrapper, 5).exists()).toBe(false)
+    expect(row(wrapper, 6).exists()).toBe(true)
+  })
+
+  it('keeps an expired link as « expired » when the page no longer receives it', async () => {
+    const wrapper = await mountPanel(
+      createGame({ join: createJoinFixture({ expiresAt: '2026-11-24T10:00:03.000Z' }) })
+    )
+
+    await tick(wrapper)
+    await wrapper.setProps({ game: createGame({ join: null }) })
+
+    expect(find(wrapper, 'game-join-expired').exists()).toBe(true)
+    expect(find(wrapper, 'game-join-closed').exists()).toBe(false)
+  })
+
+  it('shows « closed » when the link is closed from another station while still valid', async () => {
+    const wrapper = await mountPanel()
+
+    await wrapper.setProps({ game: createGame({ join: null }) })
+
+    expect(find(wrapper, 'game-join-closed').exists()).toBe(true)
+    expect(find(wrapper, 'game-join-expired').exists()).toBe(false)
+  })
+})
+
+describe('views/games/detail/GameJoinPanel.vue: confirmations', () => {
+  it('asks before regenerating the link, which invalidates the one already shown', async () => {
+    const wrapper = await mountPanel()
+
+    await find(wrapper, 'game-join-regenerate').trigger('click')
+    await flushPromises()
+
+    expect(confirmMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'gameJoin.regenerateTitle',
+        message: 'gameJoin.regenerateConfirm',
+      })
+    )
+    expect(openGameJoinServiceMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the link when the regeneration is not confirmed', async () => {
+    setConfirmResult(false)
+
+    const wrapper = await mountPanel()
+
+    await find(wrapper, 'game-join-regenerate').trigger('click')
+    await flushPromises()
+
+    expect(openGameJoinServiceMock).not.toHaveBeenCalled()
+    expect(wrapper.get<HTMLInputElement>('[data-test="game-join-url"]').element.value).toBe(
+      'https://quizz.example/rejoindre/#jeton'
+    )
+  })
+
+  it('asks before refusing a request, as a dangerous action', async () => {
+    setRegistrations([fusees])
+
+    const wrapper = await mountPanel()
+
+    await rowButton(wrapper, 5, 'game-join-refuse').trigger('click')
+    await flushPromises()
+
+    expect(confirmMock).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'gameJoin.refuseTitle', variant: 'danger' })
+    )
+    expect(refuseGameRegistrationServiceMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the request when the refusal is not confirmed', async () => {
+    setConfirmResult(false)
+    setRegistrations([fusees])
+
+    const wrapper = await mountPanel()
+
+    await rowButton(wrapper, 5, 'game-join-refuse').trigger('click')
+    await flushPromises()
+
+    expect(refuseGameRegistrationServiceMock).not.toHaveBeenCalled()
+    expect(row(wrapper, 5).exists()).toBe(true)
+  })
+
+  it('does not ask to open the registrations again after a closing or an expiry', async () => {
+    const wrapper = await mountPanel(createGame({ join: null }))
+
+    await find(wrapper, 'game-join-open').trigger('click')
+    await flushPromises()
+
+    expect(confirmMock).not.toHaveBeenCalled()
+    expect(openGameJoinServiceMock).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('views/games/detail/GameJoinPanel.vue: states of the link and of the list', () => {
+  it('tells an expired link apart from a closed one and offers to open the registrations', async () => {
+    const wrapper = await mountPanel(
+      createGame({ join: createJoinFixture({ expiresAt: '2026-11-24T09:59:00.000Z' }) })
+    )
+
+    expect(find(wrapper, 'game-join-expired').text()).toBe('gameJoin.linkExpired')
+    expect(find(wrapper, 'game-join-closed').exists()).toBe(false)
+    expect(find(wrapper, 'game-join-open').text()).toBe('gameJoin.open')
+  })
+
+  it('says « closed », not « expired », once the operator closed the link', async () => {
+    const wrapper = await mountPanel()
+
+    await find(wrapper, 'game-join-close').trigger('click')
+    await flushPromises()
+
+    expect(find(wrapper, 'game-join-closed').text()).toBe('gameJoin.linkClosed')
+    expect(find(wrapper, 'game-join-expired').exists()).toBe(false)
+  })
+
+  it('does not show « 0 requests » next to the error of a first load that failed', async () => {
+    mockServiceFailure(listGameRegistrationsServiceMock, 'server_error', 500)
+
+    const wrapper = await mountPanel()
+
+    expect(find(wrapper, 'game-join-load-error').exists()).toBe(true)
+    expect(find(wrapper, 'game-join-count').exists()).toBe(false)
+    expect(find(wrapper, 'game-join-empty').exists()).toBe(false)
+
+    setRegistrations([])
+    await find(wrapper, 'game-join-retry').trigger('click')
+    await flushPromises()
+
+    expect(find(wrapper, 'game-join-load-error').exists()).toBe(false)
+    expect(find(wrapper, 'game-join-count').text()).toBe('gameJoin.count:{"count":0}')
+  })
+
+  it('does not ask for the game again when the operator retries after an error', async () => {
+    mockServiceFailure(listGameRegistrationsServiceMock, 'server_error', 500)
+
+    const wrapper = await mountPanel()
+
+    setRegistrations([fusees])
+    await find(wrapper, 'game-join-retry').trigger('click')
+    await flushPromises()
+
+    expect(row(wrapper, 5).exists()).toBe(true)
+    expect(wrapper.emitted('changed')).toBeUndefined()
+  })
+})
+
+describe('views/games/detail/GameJoinPanel.vue: copy feedback', () => {
+  it('goes back to « Copy the link » after two seconds', async () => {
+    vi.stubGlobal('navigator', { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
+
+    const wrapper = await mountPanel()
+
+    await find(wrapper, 'game-join-copy').trigger('click')
+    await flushPromises()
+    expect(find(wrapper, 'game-join-copy').text()).toBe('gameJoin.copied')
+
+    await tick(wrapper, 1999)
+    expect(find(wrapper, 'game-join-copy').text()).toBe('gameJoin.copied')
+
+    await tick(wrapper, 1)
+    expect(find(wrapper, 'game-join-copy').text()).toBe('gameJoin.copy')
+  })
+
+  it('starts the two seconds again at each copy', async () => {
+    vi.stubGlobal('navigator', { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
+
+    const wrapper = await mountPanel()
+
+    await find(wrapper, 'game-join-copy').trigger('click')
+    await flushPromises()
+    await tick(wrapper, 1500)
+    await find(wrapper, 'game-join-copy').trigger('click')
+    await flushPromises()
+    await tick(wrapper, 1500)
+
+    expect(find(wrapper, 'game-join-copy').text()).toBe('gameJoin.copied')
+  })
+
+  it('shows a short message when the clipboard refuses, and drops it after a copy that works', async () => {
+    const writeText = vi.fn().mockRejectedValueOnce(new Error('denied'))
+
+    vi.stubGlobal('navigator', { clipboard: { writeText } })
+
+    const wrapper = await mountPanel()
+
+    await find(wrapper, 'game-join-copy').trigger('click')
+    await flushPromises()
+
+    expect(find(wrapper, 'game-join-copy-failed').text()).toBe('gameJoin.copyFailed')
+
+    writeText.mockResolvedValue(undefined)
+    await find(wrapper, 'game-join-copy').trigger('click')
+    await flushPromises()
+
+    expect(find(wrapper, 'game-join-copy-failed').exists()).toBe(false)
+  })
+
+  it('leaves no timer behind when the panel is destroyed right after a copy', async () => {
+    vi.stubGlobal('navigator', { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
+
+    const wrapper = await mountPanel()
+
+    await find(wrapper, 'game-join-copy').trigger('click')
+    await flushPromises()
+    wrapper.unmount()
+
+    expect(vi.getTimerCount()).toBe(0)
+  })
+})
+
+describe('views/games/detail/GameJoinPanel.vue: focus of the full screen', () => {
+  it('puts the focus on « Close » when it opens', async () => {
+    const wrapper = await mountPanel(createGame(), true)
+
+    await openScreen(wrapper)
+
+    expect(document.activeElement).toBe(closeButton())
+  })
+
+  it('keeps Tab and Shift+Tab inside the dialog', async () => {
+    const wrapper = await mountPanel(createGame(), true)
+
+    await openScreen(wrapper)
+
+    expect(pressTab().defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(closeButton())
+    expect(pressTab(true).defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(closeButton())
+  })
+
+  it('brings the focus back into the dialog when it was lost', async () => {
+    const wrapper = await mountPanel(createGame(), true)
+
+    await openScreen(wrapper)
+    closeButton()?.blur()
+    expect(document.activeElement).not.toBe(closeButton())
+
+    pressTab()
+
+    expect(document.activeElement).toBe(closeButton())
+  })
+
+  it('gives the focus back to « Show full screen » when it is closed', async () => {
+    const wrapper = await mountPanel(createGame(), true)
+
+    await openScreen(wrapper)
+    pressEscape()
+    await flushPromises()
+
+    expect(document.activeElement).toBe(find(wrapper, 'game-join-fullscreen').element)
+  })
+
+  it('gives the focus back to the same button when it is closed with its own button', async () => {
+    const wrapper = await mountPanel(createGame(), true)
+
+    await openScreen(wrapper)
+    closeButton()?.click()
+    await flushPromises()
+
+    expect(document.activeElement).toBe(find(wrapper, 'game-join-fullscreen').element)
+  })
+
+  it('closes by itself when the link expires, and the focus falls back on the link area', async () => {
+    const wrapper = await mountPanel(
+      createGame({ join: createJoinFixture({ expiresAt: '2026-11-24T10:00:03.000Z' }) }),
+      true
+    )
+
+    await openScreen(wrapper)
+    expect(screen()).not.toBeNull()
+
+    await tick(wrapper)
+
+    expect(find(wrapper, 'game-join-expired').exists()).toBe(true)
+    expect(screen()).toBeNull()
+    expect(document.activeElement).toBe(find(wrapper, 'game-join-link-section').element)
+  })
+
+  it('falls back on the link area when the link is closed from another station', async () => {
+    const wrapper = await mountPanel(createGame(), true)
+
+    await openScreen(wrapper)
+    await wrapper.setProps({ game: createGame({ join: null }) })
+    await flushPromises()
+
+    expect(screen()).toBeNull()
+    expect(document.activeElement).toBe(find(wrapper, 'game-join-link-section').element)
   })
 })

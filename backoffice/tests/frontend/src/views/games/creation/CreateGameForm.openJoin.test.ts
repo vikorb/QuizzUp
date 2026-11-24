@@ -53,6 +53,28 @@ describe('views/games/creation/CreateGameForm.vue: sign-up by QR code', () => {
     expect(wrapper.text()).toContain('games.form.participantsHint')
   })
 
+  it('has a clickable label and a hint tied to the switch', () => {
+    const wrapper = mountForm()
+    const switchId = openJoinSwitch(wrapper).attributes('id')
+    const describedBy = openJoinSwitch(wrapper).attributes('aria-describedby')
+
+    expect(switchId).toBeTruthy()
+    expect(wrapper.get(`label[for="${switchId}"]`).text()).toBe('games.form.openJoin')
+    expect(describedBy).toBeTruthy()
+    expect(wrapper.get(`#${describedBy}`).text()).toBe('games.form.openJoinHint')
+  })
+
+  it('toggles the switch when its label is clicked', async () => {
+    const wrapper = mountWithFrontendMocks(CreateGameForm, {
+      props: { companyId: 1, rooms: roomsFixture },
+      attachTo: document.body,
+    })
+
+    await wrapper.get('label[for="game-form-open-join"]').trigger('click')
+
+    expect(openJoinSwitch(wrapper).attributes('aria-checked')).toBe('true')
+  })
+
   it('makes participants optional once it is on', async () => {
     const wrapper = mountForm()
 
