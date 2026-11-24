@@ -3,6 +3,10 @@ import { fileURLToPath, URL } from 'node:url'
 import vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vite'
 
+// Pages publiques pour téléphone : un dossier à la racine du frontend avec son `index.html`, hors du
+// bundle du backoffice. Une nouvelle page (`bon/`) s'ajoute ici, en un mot.
+const PUBLIC_PAGES = ['rejoindre']
+
 // Deux constructions du même frontend (conception du lot 12, §3) :
 //   - `centre` (et `production`, le mode par défaut de `vite build`) : l'espace des centres,
 //     sans aucun écran de la console de l'éditeur ;
@@ -23,6 +27,19 @@ export default defineConfig(({ mode }) => {
       },
     },
     // La console a son propre dossier : les deux constructions se suivent sans s'écraser.
-    build: { outDir: mode === 'console' ? 'dist-console' : 'dist' },
+    build: {
+      outDir: mode === 'console' ? 'dist-console' : 'dist',
+      rollupOptions: {
+        input: {
+          main: fileURLToPath(new URL('./index.html', import.meta.url)),
+          ...Object.fromEntries(
+            PUBLIC_PAGES.map((page) => [
+              page,
+              fileURLToPath(new URL(`./${page}/index.html`, import.meta.url)),
+            ])
+          ),
+        },
+      },
+    },
   }
 })

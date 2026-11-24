@@ -100,6 +100,7 @@
 
     <GameLivePanel v-if="game" :game="game" @ended="loadPage" />
 
+    <GameJoinPanel v-if="game" :game="game" @changed="reloadGame" />
     <GameVouchersPanel v-if="game" :key="game.id" :game="game" />
 
     <GameParticipantsTable v-if="game" :participants="game.participants ?? []" />
@@ -135,6 +136,7 @@ import {
   getGameStateTone,
 } from '@/utils/game/state'
 
+import GameJoinPanel from './detail/GameJoinPanel.vue'
 import GameLivePanel from './detail/GameLivePanel.vue'
 import GameParticipantsTable from './detail/GameParticipantsTable.vue'
 import GameVouchersPanel from './detail/GameVouchersPanel.vue'
@@ -204,6 +206,23 @@ async function loadPage(): Promise<void> {
     game.value = null
   } finally {
     loading.value = false
+  }
+}
+
+// Relecture discrète demandée par le panneau d'inscription : sans écran de chargement, et un échec garde la fiche affichée.
+async function reloadGame(): Promise<void> {
+  if (companyId.value === null || gameId.value === null) {
+    return
+  }
+
+  try {
+    const result = await loadGameService(companyId.value, gameId.value)
+
+    if (result.ok) {
+      game.value = result.data.game
+    }
+  } catch {
+    // Réseau coupé : la prochaine interrogation réessaiera.
   }
 }
 
