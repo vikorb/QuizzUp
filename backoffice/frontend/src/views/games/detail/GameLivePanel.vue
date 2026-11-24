@@ -33,6 +33,14 @@
       {{ $t('live.panel.stale') }}
     </p>
 
+    <GameLiveControls
+      v-if="room"
+      :room="room"
+      :status="status"
+      :uncertain="uncertain"
+      :send="sendCommand"
+    />
+
     <dl class="game-live__steps">
       <div class="game-live__step">
         <dt>{{ $t('live.panel.phase') }}</dt>
@@ -104,6 +112,7 @@ import type { Game } from '@/types/game'
 import { getGameMiniGameLabelKey } from '@/utils/game/format'
 import { isGamePendingOrRunning } from '@/utils/game/state'
 import { formatSeenAgo, getRoomPresenceKind, getRoomPresenceLabelKey } from '@/utils/room/presence'
+import GameLiveControls from '@/views/games/detail/GameLiveControls.vue'
 
 const props = defineProps<{
   game: Game
@@ -123,6 +132,7 @@ const {
   errorKey,
   uncertain,
   now,
+  sendCommand,
 } = useLiveCompany(() => (isGamePendingOrRunning(props.game) ? props.game.companyId : null))
 
 const room = computed(() => rooms.value[props.game.roomId] ?? null)

@@ -40,12 +40,14 @@ const variantClass = computed(() => `ui-btn--${props.variant}`)
   color: var(--text-0);
 }
 
-.ui-btn:disabled {
+.ui-btn:disabled,
+.ui-btn[aria-disabled='true'] {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.ui-btn:disabled:hover {
+.ui-btn:disabled:hover,
+.ui-btn[aria-disabled='true']:hover {
   transform: none;
 }
 

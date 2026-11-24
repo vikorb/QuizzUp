@@ -4286,15 +4286,15 @@ paths:
     get:
       tags:
         - ApiKeys
-      summary: "[NON DISPONIBLE] Lister les clés d'API de la compagnie"
+      summary: "[DISPONIBLE] Lister les clés d'API de la compagnie"
       description: |
-        Statut : **Non disponible** (à venir, lot 14.1)
+        Statut : **Disponible**
 
         Clés de l'API de réservation `/public/v1` (`public-v1.yaml`), actives et révoquées. Jamais le secret ni son empreinte : seul le préfixe sert à reconnaître une clé.
 
         Accès : superadmin (toutes les compagnies) et `admin` de la compagnie ; refusé au rôle `user`.
       operationId: listApiKeys
-      x-availability: non_disponible
+      x-availability: disponible
       x-us: 'Lot 14 / API de réservation'
       parameters:
         - $ref: '#/components/parameters/CompanyIdParam'
@@ -4331,15 +4331,15 @@ paths:
     post:
       tags:
         - ApiKeys
-      summary: "[NON DISPONIBLE] Créer une clé d'API"
+      summary: "[DISPONIBLE] Créer une clé d'API"
       description: |
-        Statut : **Non disponible** (à venir, lot 14.1)
+        Statut : **Disponible**
 
-        Crée une clé au format `qzk_<8 caractères>_<secret>`. **Le secret n'est renvoyé que par cette réponse** : il n'est ni stocké (seule son empreinte SHA-256 l'est) ni relisible ensuite. Au plus 10 clés actives par compagnie.
+        Crée une clé au format `qzk_<8 caractères>_<secret>`. **Le secret n'est renvoyé que par cette réponse** : il n'est ni stocké (seule son empreinte SHA-256 l'est), ni journalisé, ni relisible ensuite ; la réponse porte `Cache-Control: no-store`. Au plus 10 clés actives par compagnie.
 
         Accès : superadmin (toutes les compagnies) et `admin` de la compagnie ; refusé au rôle `user`.
       operationId: createApiKey
-      x-availability: non_disponible
+      x-availability: disponible
       x-us: 'Lot 14 / API de réservation'
       parameters:
         - $ref: '#/components/parameters/CompanyIdParam'
@@ -4395,20 +4395,39 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: >-
+            Cinq tirages de suite ont rencontré une clé déjà existante ; rien n'est créé, réessayer.
+            Réponse d'erreur par défaut de Fastify : le code `api_key_generation_collision` est dans
+            `message`, pas dans `error`.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  statusCode:
+                    type: integer
+                    example: 500
+                  error:
+                    type: string
+                    example: Internal Server Error
+                  message:
+                    type: string
+                    example: api_key_generation_collision
 
   /companies/{companyId}/api-keys/{apiKeyId}:
     delete:
       tags:
         - ApiKeys
-      summary: "[NON DISPONIBLE] Révoquer une clé d'API"
+      summary: "[DISPONIBLE] Révoquer une clé d'API"
       description: |
-        Statut : **Non disponible** (à venir, lot 14.1)
+        Statut : **Disponible**
 
-        Révoque la clé : `status` passe à `2` et `deletedAt` est renseigné (suppression logique). Les appels qui la présentent sont refusés tout de suite (`401 api_key_invalid`). Idempotent : révoquer une clé déjà révoquée renvoie `200`. Les réservations déjà faites avec cette clé restent.
+        Révoque la clé : `status` passe à `2` et `revokedAt` reçoit la date de révocation (suppression logique ; `revokedAt` vaut `null` tant que la clé est active). Les appels qui la présentent sont refusés tout de suite (`401 api_key_invalid`). Idempotent : révoquer une clé déjà révoquée renvoie `200`. Les réservations déjà faites avec cette clé restent.
 
         Accès : superadmin (toutes les compagnies) et `admin` de la compagnie ; refusé au rôle `user`.
       operationId: revokeApiKey
-      x-availability: non_disponible
+      x-availability: disponible
       x-us: 'Lot 14 / API de réservation'
       parameters:
         - $ref: '#/components/parameters/CompanyIdParam'
@@ -4446,15 +4465,15 @@ paths:
     get:
       tags:
         - ApiKeys
-      summary: "[NON DISPONIBLE] Lister le journal des appels de l'API de réservation"
+      summary: "[DISPONIBLE] Lister le journal des appels de l'API de réservation"
       description: |
-        Statut : **Non disponible** (à venir, lot 14.1)
+        Statut : **Disponible**
 
-        Appels reçus par `/public/v1` avec une clé de la compagnie, du plus récent au plus ancien (conservés 90 jours). Pagination par curseur : `before` est l'`id` de la dernière ligne lue (les `id` décroissent) ; `nextBefore` vaut `null` à la fin. Le journal ne contient ni adresse IP, ni corps, ni paramètres de requête : la route est le motif (`/public/v1/bookings/:id`), jamais l'URL.
+        Appels reçus par `/public/v1` avec une clé de la compagnie, du plus récent au plus ancien (conservés 90 jours). Pagination par curseur : `before` est l'`id` de la dernière ligne lue (le tri suit la date, puis l'`id`, tous deux décroissants) ; si cet `id` n'est pas celui d'une ligne de la compagnie, la page est vide. `nextBefore` vaut `null` à la fin. Le journal ne contient ni adresse IP, ni corps, ni paramètres de requête : la route est le motif (`/public/v1/bookings/:id`), jamais l'URL.
 
         Accès : superadmin (toutes les compagnies) et `admin` de la compagnie ; refusé au rôle `user`.
       operationId: listApiLogs
-      x-availability: non_disponible
+      x-availability: disponible
       x-us: 'Lot 14 / API de réservation'
       parameters:
         - $ref: '#/components/parameters/CompanyIdParam'
@@ -4481,11 +4500,10 @@ paths:
         - name: limit
           in: query
           required: false
-          description: Nombre de lignes, 100 au plus
+          description: Nombre de lignes. Au-delà de 100, la valeur est ramenée à 100 (pas d'erreur).
           schema:
             type: integer
             minimum: 1
-            maximum: 100
             default: 100
       responses:
         '200':
@@ -4939,14 +4957,13 @@ paths:
     get:
       tags:
         - Themes
-      summary: '[NON DISPONIBLE] Lister les thèmes'
+      summary: '[DISPONIBLE] Lister les thèmes'
       description: |
-        Statut : **Non disponible**
+        Statut : **Disponible**
 
-        Route prévue pour la gestion des thèmes de quiz.
+        Liste les thèmes visibles : globaux, et ceux de la compagnie du compte (le superadmin voit tout).
       operationId: listThemes
-      x-availability: non_disponible
-      x-us: 'US Gestion des thèmes'
+      x-availability: disponible
       responses:
         '200':
           description: Liste des thèmes
@@ -4959,24 +4976,29 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Theme'
-        '501':
-          description: Route prévue mais pas encore implémentée
+        '401':
+          description: Token manquant ou invalide
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/NotImplementedResponse'
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
     post:
       tags:
         - Themes
-      summary: '[NON DISPONIBLE] Créer un thème'
+      summary: '[DISPONIBLE] Créer un thème'
       description: |
-        Statut : **Non disponible**
+        Statut : **Disponible**
 
-        Route prévue pour créer un thème de quiz.
+        Crée un thème de quiz.
       operationId: createTheme
-      x-availability: non_disponible
-      x-us: 'US Gestion des thèmes'
+      x-availability: disponible
       requestBody:
         required: true
         content:
@@ -4993,25 +5015,52 @@ paths:
                 properties:
                   theme:
                     $ref: '#/components/schemas/Theme'
-        '501':
-          description: Route prévue mais pas encore implémentée
+        '400':
+          description: >-
+            Corps invalide (`theme_name_required`, `theme_mode_invalid`, `theme_company_required`,
+            `theme_playlist_ref_invalid`, `theme_playlist_mode_invalid`)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/NotImplementedResponse'
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token manquant ou invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: |
+            Playlist refusée : inconnue du fournisseur (`theme_playlist_not_found`) ou moins de 4
+            titres jouables (`theme_playlist_too_small`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Fournisseur indisponible (délai, quota, réponse invalide) (`media_provider_unavailable`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /themes/{themeId}:
     get:
       tags:
         - Themes
-      summary: '[NON DISPONIBLE] Récupérer un thème'
+      summary: '[DISPONIBLE] Récupérer un thème'
       description: |
-        Statut : **Non disponible**
+        Statut : **Disponible**
 
-        Route prévue pour récupérer le détail d'un thème.
+        Récupère le détail d'un thème.
       operationId: getThemeById
-      x-availability: non_disponible
-      x-us: 'US Gestion des thèmes'
+      x-availability: disponible
       parameters:
         - $ref: '#/components/parameters/ThemeId'
       responses:
@@ -5024,24 +5073,41 @@ paths:
                 properties:
                   theme:
                     $ref: '#/components/schemas/Theme'
-        '501':
-          description: Route prévue mais pas encore implémentée
+        '400':
+          description: Identifiant invalide (`theme_id_invalid`)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/NotImplementedResponse'
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token manquant ou invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (`forbidden`), permission manquante ou thème d'une autre compagnie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Thème introuvable (`theme_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
     patch:
       tags:
         - Themes
-      summary: '[NON DISPONIBLE] Modifier un thème'
+      summary: '[DISPONIBLE] Modifier un thème'
       description: |
-        Statut : **Non disponible**
+        Statut : **Disponible**
 
-        Route prévue pour modifier un thème.
+        Modifie un thème.
       operationId: updateTheme
-      x-availability: non_disponible
-      x-us: 'US Gestion des thèmes'
+      x-availability: disponible
       parameters:
         - $ref: '#/components/parameters/ThemeId'
       requestBody:
@@ -5060,24 +5126,57 @@ paths:
                 properties:
                   theme:
                     $ref: '#/components/schemas/Theme'
-        '501':
-          description: Route prévue mais pas encore implémentée
+        '400':
+          description: >-
+            Corps invalide (`theme_id_invalid`, `theme_name_required`, `theme_mode_invalid`,
+            `theme_playlist_ref_invalid`, `theme_playlist_mode_invalid`)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/NotImplementedResponse'
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token manquant ou invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (`forbidden`), permission manquante ou thème d'une autre compagnie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Thème introuvable (`theme_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: |
+            Playlist refusée : inconnue du fournisseur (`theme_playlist_not_found`) ou moins de 4
+            titres jouables (`theme_playlist_too_small`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Fournisseur indisponible (délai, quota, réponse invalide) (`media_provider_unavailable`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
     delete:
       tags:
         - Themes
-      summary: '[NON DISPONIBLE] Supprimer un thème'
+      summary: '[DISPONIBLE] Supprimer un thème'
       description: |
-        Statut : **Non disponible**
+        Statut : **Disponible**
 
-        Route prévue pour supprimer logiquement un thème.
+        Supprime logiquement un thème.
       operationId: deleteTheme
-      x-availability: non_disponible
-      x-us: 'US Gestion des thèmes'
+      x-availability: disponible
       parameters:
         - $ref: '#/components/parameters/ThemeId'
       responses:
@@ -5090,12 +5189,30 @@ paths:
                 properties:
                   theme:
                     $ref: '#/components/schemas/Theme'
-        '501':
-          description: Route prévue mais pas encore implémentée
+        '400':
+          description: Identifiant invalide (`theme_id_invalid`)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/NotImplementedResponse'
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token manquant ou invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (`forbidden`), permission manquante ou thème d'une autre compagnie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Thème introuvable (`theme_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /questions:
     get:
@@ -6997,7 +7114,7 @@ components:
       description: >-
         Clé de l'API de réservation. Ni le secret ni son empreinte ne sont jamais renvoyés (le secret
         l'est une seule fois, à la création).
-      required: [id, name, keyPrefix, status, createdAt, lastUsedAt, createdBy]
+      required: [id, name, keyPrefix, status, createdAt, lastUsedAt, revokedAt, createdBy]
       properties:
         id:
           type: integer
@@ -7020,10 +7137,17 @@ components:
           format: date-time
           nullable: true
           description: Dernier appel (précis à la minute près) ; `null` si la clé n'a jamais servi
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Date de révocation ; `null` tant que la clé est active
         createdBy:
           type: object
           nullable: true
-          description: Compte qui a créé la clé
+          description: >-
+            Compte qui a créé la clé. `null` si ce compte n'appartient pas à la compagnie (par
+            exemple le superadmin de l'éditeur) : son nom n'est pas exposé.
           properties:
             id:
               type: integer
@@ -7213,6 +7337,90 @@ components:
       properties:
         processed:
           type: boolean
+
+    Theme:
+      type: object
+      properties:
+        id:
+          type: integer
+        adminId:
+          type: integer
+        companyId:
+          type: integer
+          nullable: true
+        scope:
+          type: string
+          enum: [global, company]
+        name:
+          type: string
+        mode:
+          type: string
+          enum: [classic, image, audio, mixed]
+        playlistRef:
+          type: string
+          nullable: true
+          pattern: '^\d{1,20}$'
+          description: >-
+            Identifiant de la playlist du fournisseur d'extraits (Deezer). `null` sans playlist.
+            Seulement en mode `audio` ; aucun titre ni lien n'est stocké.
+        status:
+          type: integer
+          enum: [0, 1, 2, 3]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        questionsCount:
+          type: integer
+          description: Présent dans la liste seulement
+
+    CreateThemeRequest:
+      type: object
+      required: [name, mode]
+      properties:
+        name:
+          type: string
+        mode:
+          type: string
+          enum: [classic, image, audio, mixed]
+        scope:
+          type: string
+          enum: [global, company]
+        companyId:
+          type: integer
+          nullable: true
+        playlistRef:
+          type: string
+          nullable: true
+          pattern: '^\d{1,20}$'
+          description: >-
+            Playlist du fournisseur d'extraits, mode `audio` seulement. Le serveur la contrôle :
+            `theme_playlist_not_found` (422), `theme_playlist_too_small` (422, moins de 4 titres
+            lisibles avec extrait), `media_provider_unavailable` (502).
+
+    UpdateThemeRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        mode:
+          type: string
+          enum: [classic, image, audio, mixed]
+        playlistRef:
+          type: string
+          nullable: true
+          pattern: '^\d{1,20}$'
+          description: >-
+            Absent : inchangé. `null` : efface la playlist. Un thème qui quitte le mode `audio`
+            perd sa playlist ; en renseigner une hors du mode `audio` est refusé
+            (`theme_playlist_mode_invalid`). Mêmes contrôles qu'à la création.
 
     MediaProviderTrack:
       type: object
