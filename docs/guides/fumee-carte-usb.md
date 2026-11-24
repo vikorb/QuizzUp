@@ -131,15 +131,15 @@ trame n'est envoyée : la page ne redit donc plus rien à la carte, qui doit cou
   physique.
 - Réponds « Elle s’est arrêtée » ou « Elle continue » à la question affichée.
 
-Deux points ne sont pas réglés dans l'écran, à valider sur le banc :
+Avec la carte, les textes du test le disent : la carte doit couper la fumée toute seule, **en moins
+d'une seconde** (et non « 10 secondes au plus » comme pour un relais temporisé). La question posée est
+« La carte a-t-elle coupé la fumée toute seule, en moins d’une seconde ? ». Ce délai vient de la
+conception : il est à valider sur le banc, sur une vraie carte.
 
-- **Les textes de l'assistant parlent du relais temporisé** (« 10 secondes au plus »). Avec la carte,
-  la coupure attendue est bien plus rapide (moins d'une seconde, d'après la conception). Les textes
-  propres à la carte prévus par la conception n'existent pas encore dans l'écran.
-- Le bouton « Lancer le plantage simulé » exige une vraie interface DMX connectée
-  (« Connecte d’abord la vraie interface DMX : en simulation, aucune fumée ne sortirait et le test ne
-  prouverait rien. »). Pour une salle qui n'a que la carte, il est **à vérifier** si le test est
-  accepté. Si ce n'est pas le cas, ne contourne pas la sécurité : préviens l'éditeur.
+Le bouton « Lancer le plantage simulé » exige toujours une vraie sortie de lumières connectée
+(« Connecte d’abord la vraie interface DMX : en simulation, aucune fumée ne sortirait et le test ne
+prouverait rien. »). Une salle qui n'a que la carte, sans lumières connectées, ne peut donc pas faire
+le test, et la fumée y reste refusée. Ne contourne pas cette sécurité : préviens l'éditeur.
 
 Le relais temporisé et l'arrêt d'urgence physique restent exigés, avec la carte comme sans elle.
 
@@ -199,10 +199,15 @@ cette carte. » est le message attendu.
 | « Prête (programme 1.0.0). »                                        | Carte prête                                                      | Rien                                                                                         |
 | « Programme 1.0.0 à mettre à jour. »                                | La carte a un autre programme QuizzUp que celui livré            | « Installer le programme »                                                                   |
 | « Programme QuizzUp absent sur cette carte. »                       | La carte ne répond pas avec le programme QuizzUp                 | Installe le programme (3.2)                                                                  |
-| « La carte ne répond plus. »                                        | La carte est restée muette plus d'une seconde. Fumée coupée      | Vérifie le câble. Recharge la page. Si ça se répète, débranche puis rebranche la carte       |
+| « La carte ne répond plus. »                                        | La carte est restée muette plus d'une seconde. Fumée coupée      | Attends : la page réessaie seule (voir sous le tableau). Sinon vérifie le câble et recharge  |
 | « Carte débranchée ou port perdu. »                                 | Le port a disparu                                                | Rebranche. La carte est reprise toute seule, **fumée désarmée**                              |
 | « La carte a redémarré ou se contredit : fumée coupée. »            | Remise à zéro en cours de partie, ou réponse incohérente         | Attends la fin de la pause de 5 s. Réarme à la main. Si ça se répète, signale-le à l'éditeur |
 | « La carte de la fumée ne répond plus : fumée coupée et désarmée. » | Avertissement du contrôleur de lumières                          | Même geste que « La carte ne répond plus. »                                                  |
+
+Carte muette, en défaut ou débranchée : la page rouvre le lien toute seule, cinq fois au plus, à
+trois secondes d'écart. La carte revient alors prête, **fumée désarmée** : il faut la réarmer à la
+main. Après cinq essais sans succès, la page n'essaie plus : rebranche la carte ou recharge la page.
+Une carte sans le programme QuizzUp n'est pas reprise. Comportement à valider sur le banc.
 
 ### Choix de la carte
 

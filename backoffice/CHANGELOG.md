@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Fumée par la carte USB : le test de coupure de l'assistant parle de la carte (elle doit couper seule en moins d'une seconde), une carte muette, en défaut ou débranchée est reprise seule (cinq essais, fumée désarmée au retour), et un guide de l'opérateur pas à pas est ajouté (`docs/guides/fumee-carte-usb.md`). À valider sur le banc.
+  US: US-DMX-01 (#215)
+
 - Fumée par la carte USB, écran de salle : section « Fumée » de l'écran Matériel pour brancher la carte (Web Serial, à la demande), voir son état, installer son programme depuis la page (signature vérifiée, sauvegarde du programme d'origine téléchargée avant d'écrire) et restaurer un `.hex`. La carte déjà autorisée se reconnecte seule au lancement, toujours désarmée ; pendant une installation aucun ordre de fumée ne part. Le programme `fumee.hex` est versionné, la CI échoue s'il manque ou s'il diffère de la compilation, et les images de recette et de production l'embarquent. À valider sur le banc.
   US: US-DMX-01 (#215)
 
