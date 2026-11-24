@@ -39,6 +39,27 @@
           required
         />
 
+        <!-- Le format se choisit à la création : le serveur refuse de le modifier ensuite. -->
+        <div v-if="game" class="game-form__format" data-test="game-format-readonly">
+          <span class="game-form__format-label">{{ $t('games.form.format') }}</span>
+          <span class="game-form__format-value">{{ gameFormatName }}</span>
+          <p v-if="gameFormatIsFixed" class="game-form__notice" data-test="game-format-edit-hint">
+            {{ $t('games.form.formatEditHint') }}
+          </p>
+        </div>
+        <SelectField
+          v-else
+          id="game-format"
+          v-model="form.format"
+          :label="$t('games.form.format')"
+          :options="formatOptions"
+          :disabled="isBusy"
+          :error="errorLabel(fieldErrors.format)"
+          required
+        />
+      </div>
+
+      <div v-if="isCustomFormat" class="game-form__grid game-form__grid--counts">
         <FormField
           id="game-rounds"
           v-model="form.roundsCount"
@@ -65,6 +86,16 @@
           required
         />
       </div>
+
+      <p
+        v-if="isCustomFormat && formPlan"
+        class="game-form__notice"
+        data-test="game-format-estimate"
+      >
+        {{
+          $t('games.form.formatEstimate', { min: formPlan.minMinutes, max: formPlan.maxMinutes })
+        }}
+      </p>
 
       <RoomPresenceBadge
         v-if="selectedRoomPresence"
@@ -251,6 +282,8 @@ import { mdiAccountPlusOutline } from '@mdi/js'
 import type { MiniGame, RoomLive } from '@quizzup/shared'
 import {
   GAME_EXTERNAL_REF_MAX_LENGTH,
+  GAME_FORMAT_CUSTOM,
+  GAME_FORMATS,
   GAME_MAX_PLAYERS,
   GAME_MAX_QUESTIONS_PER_ROUND,
   GAME_MAX_ROUNDS,
@@ -296,6 +329,7 @@ import {
   fitGameParticipantsToDesks,
   type GamePrefill,
   getActiveGameRooms,
+  getGameFormPlan,
   getGamePodiums,
   getGameRoomDesksCount,
   getGameRoomTimeZone,
@@ -400,6 +434,35 @@ const durationHint = computed(() =>
     default:
       props.rooms.find((room) => String(room.id) === form.roomId)?.schedule?.slotMinutes ??
       SESSION_DEFAULT_MINUTES,
+  })
+)
+// Format d'origine d'une session modifiée (lecture seule) ; `null` ou inconnu : personnalisé.
+const gameFormat = computed(
+  () => GAME_FORMATS.find((format) => format === props.game?.format) ?? GAME_FORMAT_CUSTOM
+)
+const gameFormatName = computed(() => t(`games.form.formats.${gameFormat.value}`))
+const gameFormatIsFixed = computed(() => gameFormat.value !== GAME_FORMAT_CUSTOM)
+const isCustomFormat = computed(() => form.format === GAME_FORMAT_CUSTOM)
+// Estimation des nombres saisis (format personnalisé) ; `null` tant qu'ils sont invalides.
+const formPlan = computed(() => getGameFormPlan(form))
+// Chaque format fixe annonce ses nombres et sa durée avec les mini-jeux cochés ; `custom` n'a que son nom.
+const formatOptions = computed<SelectFieldOption[]>(() =>
+  GAME_FORMATS.map((format) => {
+    const name = t(`games.form.formats.${format}`)
+    const plan = format === GAME_FORMAT_CUSTOM ? null : getGameFormPlan(form, format)
+
+    return {
+      label: plan
+        ? t('games.form.formatOption', {
+            name,
+            rounds: plan.roundsCount,
+            questions: plan.questionsPerRound,
+            min: plan.minMinutes,
+            max: plan.maxMinutes,
+          })
+        : name,
+      value: format,
+    }
   })
 )
 const submitLabels = computed(() => {
@@ -660,6 +723,11 @@ function updateMiniGames(miniGames: MiniGame[]): void {
 }
 
 function applyApiError(code: string): void {
+  if (code === 'format_fixes_counts') {
+    fieldErrors.format = getGameErrorKey(code)
+    return
+  }
+
   if (ROOM_ERROR_CODES.includes(code)) {
     fieldErrors.roomId = getGameErrorKey(code)
     return
@@ -769,13 +837,34 @@ async function onSubmit(): Promise<void> {
 }
 
 .game-form__grid--room {
-  grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+.game-form__grid--counts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
 }
 
 .game-form__grid--schedule {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: start;
+}
+
+.game-form__format {
+  display: grid;
+  gap: 4px;
+}
+
+.game-form__format-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.game-form__format-value {
+  font-weight: 800;
+  color: var(--text-0);
 }
 
 .game-form__check {

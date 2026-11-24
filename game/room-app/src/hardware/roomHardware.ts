@@ -438,7 +438,10 @@ async function reconnectGrantedPort(controller: LightingController): Promise<voi
     return
   }
   // On reprend la même interface (jamais un autre appareil USB autorisé, Arduino…).
-  const port = await getGrantedDmxPort(undefined, { match: dmxPort ?? undefined }).catch(() => null)
+  const port = await getGrantedDmxPort(undefined, {
+    match: dmxPort ?? undefined,
+    exclude: { usb: parsed.value.config.lighting.smoke.board ?? null },
+  }).catch(() => null)
   if (port && controller === lighting) {
     await useSerialPort(controller, port, driver)
   }
@@ -454,6 +457,7 @@ function watchReconnection(controller: LightingController): void {
   }
   stopReconnectWatch = watchDmxPortReconnection({
     match: dmxPort,
+    exclude: { usb: parsed.value.config.lighting.smoke.board ?? null },
     onReconnect: (port) => {
       const { driver } = parsed.value.config.lighting
       const state = controller.getState()

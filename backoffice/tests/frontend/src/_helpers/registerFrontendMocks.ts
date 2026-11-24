@@ -125,6 +125,17 @@ vi.mock('@/services/companyLogoService', async () => {
   }
 })
 
+vi.mock('@/services/apiKeysService', async () => {
+  const apiKeysService = await import('./apiKeysServiceMock')
+
+  return {
+    listApiKeysService: apiKeysService.listApiKeysServiceMock,
+    createApiKeyService: apiKeysService.createApiKeyServiceMock,
+    revokeApiKeyService: apiKeysService.revokeApiKeyServiceMock,
+    listApiLogsService: apiKeysService.listApiLogsServiceMock,
+  }
+})
+
 vi.mock('@/services/vouchersService', async () => {
   const vouchersService = await import('./vouchersServiceMock')
 

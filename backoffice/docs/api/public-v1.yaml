@@ -39,7 +39,8 @@ info:
     comptent pas dans la limite d'échecs. Au-delà, `429 too_many_requests` avec l'en-tête
     `Retry-After` (secondes). `RateLimit-Limit` et `RateLimit-Remaining` accompagnent toute réponse à
     une clé reconnue, `429` par clé compris ; le `429` de la limite d'échecs, qui ne repose sur aucune
-    clé, n'a que `Retry-After`.
+    clé, n'a que `Retry-After`. La route du contrat (`GET /public/v1/openapi.yaml`), servie sans clé,
+    est limitée à 120 requêtes par minute et par adresse ; son `429` n'a lui aussi que `Retry-After`.
 
     **Corps limité à 16 Ko** (`413 payload_too_large`).
 
@@ -409,7 +410,17 @@ paths:
               schema:
                 type: string
         '429':
-          $ref: '#/components/responses/TooManyRequests'
+          description: Limite par adresse dépassée (`too_many_requests`), sans en-tête `RateLimit-*`
+          headers:
+            Retry-After:
+              description: Secondes à attendre avant de réessayer
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
 
 components:
   securitySchemes:

@@ -30,6 +30,11 @@
       :can-manage-rooms="canManageRooms"
       :can-see-deleted-rooms="canSeeDeletedRoomsList"
     />
+
+    <ClientDetailApiKeysSection
+      :company-id="companyId"
+      :can-show-api-keys-section="canShowApiKeysSection"
+    />
   </SectionLayout>
 </template>
 
@@ -44,6 +49,7 @@ import { loadCompanyDetailsService } from '@/services/companiesService'
 import { me } from '@/state/authState'
 import type { Company } from '@/types/company'
 import {
+  canManageCompanyDetails,
   canShowCompanyAccountsSection,
   isSuperadminRole,
 } from '@/utils/company/details/permissions'
@@ -54,6 +60,7 @@ import {
 } from '@/utils/room/permissions'
 
 import ClientDetailAccountsSection from './details/account/ClientDetailAccountsSection.vue'
+import ClientDetailApiKeysSection from './details/apiKeys/ClientDetailApiKeysSection.vue'
 import ClientDetailForm from './details/ClientDetailForm.vue'
 import ClientDetailRoomsSection from './details/room/ClientDetailRoomsSection.vue'
 
@@ -67,6 +74,9 @@ const currentRole = computed(() => me.value?.role ?? null)
 const isSuperadmin = computed(() => isSuperadminRole(currentRole.value))
 
 const canShowAccountsSection = computed(() => canShowCompanyAccountsSection(currentRole.value))
+
+// Clés d'API et journal : admin et superadmin, comme `apiKey:*` et `apiLog:list` côté API.
+const canShowApiKeysSection = computed(() => canManageCompanyDetails(currentRole.value))
 
 const canShowRoomsSection = computed(() => canShowCompanyRoomsSection(currentRole.value))
 const canManageRooms = computed(() => canManageCompanyRooms(currentRole.value))
