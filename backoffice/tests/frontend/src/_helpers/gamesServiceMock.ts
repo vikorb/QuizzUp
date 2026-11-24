@@ -140,6 +140,14 @@ export const createGameServiceMock = vi.fn(
   })
 )
 
+export const updateGameServiceMock = vi.fn(
+  async (_companyId: number, gameId: number, _payload: unknown): Promise<GameResult> => ({
+    ok: true,
+    status: 200,
+    data: { game: createGameFixture({ id: gameId, state: GAME_STATE_SCHEDULED }) },
+  })
+)
+
 export const abortGameServiceMock = vi.fn(
   async (_companyId: number, gameId: number): Promise<GameResult> => ({
     ok: true,
@@ -181,6 +189,7 @@ export function mockServiceFailure(
     | typeof listGamesServiceMock
     | typeof loadGameServiceMock
     | typeof createGameServiceMock
+    | typeof updateGameServiceMock
     | typeof abortGameServiceMock
     | typeof openGameServiceMock
     | typeof cancelGameServiceMock
@@ -195,6 +204,7 @@ export const gamesServiceModuleMock = {
   listGamesService: listGamesServiceMock,
   loadGameService: loadGameServiceMock,
   createGameService: createGameServiceMock,
+  updateGameService: updateGameServiceMock,
   abortGameService: abortGameServiceMock,
   openGameService: openGameServiceMock,
   cancelGameService: cancelGameServiceMock,
@@ -205,6 +215,7 @@ export function resetGamesServiceMock(): void {
   listGamesServiceMock.mockReset()
   loadGameServiceMock.mockReset()
   createGameServiceMock.mockReset()
+  updateGameServiceMock.mockReset()
   abortGameServiceMock.mockReset()
   openGameServiceMock.mockReset()
   cancelGameServiceMock.mockReset()
@@ -241,6 +252,11 @@ export function resetGamesServiceMock(): void {
     status: 201,
     data: { game: createGameFixture({ id: 99 }) },
   })
+  updateGameServiceMock.mockImplementation(async (_companyId, gameId) => ({
+    ok: true,
+    status: 200,
+    data: { game: createGameFixture({ id: gameId, state: GAME_STATE_SCHEDULED }) },
+  }))
   abortGameServiceMock.mockImplementation(async (_companyId, gameId) => ({
     ok: true,
     status: 200,

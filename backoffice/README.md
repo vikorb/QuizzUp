@@ -353,6 +353,13 @@ Lancement des tests frontend :
 npm run test:frontend
 ```
 
+Contrôle des deux constructions du frontend (centre et console : aucun écran de la console dans
+la construction du centre), depuis `backoffice/` :
+
+```bash
+npm --prefix frontend run check:surface
+```
+
 Lancement avec couverture :
 
 ```bash
