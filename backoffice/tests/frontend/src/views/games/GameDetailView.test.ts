@@ -8,6 +8,8 @@ import {
   mockServiceFailure,
   resetGamesServiceMock,
 } from '@frontend-tests/_helpers/gamesServiceMock'
+import { setLiveRooms, useLiveCompanyMock } from '@frontend-tests/_helpers/liveCompanyMock'
+import { createRoomLive } from '@frontend-tests/_helpers/liveMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { currentRouteMock, pushMock } from '@frontend-tests/_helpers/routerMock'
@@ -16,9 +18,11 @@ import {
   GAME_STATE_RUNNING,
   MINI_GAME_ESTIMATE,
   MINI_GAME_FIRST_BUZZ,
+  type RoomStatusReport,
 } from '@quizzup/shared'
-import { flushPromises, type VueWrapper } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { enableAutoUnmount, flushPromises, type VueWrapper } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { nextTick } from 'vue'
 
 import GameDetailView from '@/views/games/GameDetailView.vue'
 
@@ -29,6 +33,9 @@ vi.mock('@/services/gamesService', async () => {
 })
 
 resetFrontendMocksBeforeEach()
+
+// Les vues partagent les salles simulées : une vue oubliée relirait la partie à chaque rapport.
+enableAutoUnmount(afterEach)
 
 beforeEach(() => {
   resetGamesServiceMock()
@@ -46,6 +53,22 @@ async function mountView(): Promise<VueWrapper> {
 
 function participantRows(wrapper: VueWrapper) {
   return wrapper.findAll('[data-test="base-table-row"]')
+}
+
+// Rapport de la salle 10 pour la partie 4 (celle de la route).
+function createStatus(overrides: Partial<RoomStatusReport> = {}): RoomStatusReport {
+  return {
+    screen: 'play',
+    gameId: 4,
+    phase: 'question',
+    round: 1,
+    questionIndex: 0,
+    miniGame: null,
+    paused: false,
+    scores: [{ podium: 1, score: 10 }],
+    audioReady: true,
+    ...overrides,
+  }
 }
 
 function abortButton(wrapper: VueWrapper) {
@@ -268,6 +291,55 @@ describe('views/games/GameDetailView.vue', () => {
 
     expect(loadGameServiceMock).not.toHaveBeenCalled()
     expect(wrapper.get('[data-test="base-card"]').attributes('data-error')).toBe('invalid_params')
+  })
+
+  it('inserts the live panel when the room reports this game, and not for another game', async () => {
+    const wrapper = await mountView()
+
+    expect(wrapper.find('[data-test="game-live-panel"]').exists()).toBe(false)
+
+    setLiveRooms([createRoomLive({ roomId: 10, status: createStatus({ gameId: 5 }) })])
+    await nextTick()
+
+    expect(wrapper.find('[data-test="game-live-panel"]').exists()).toBe(false)
+
+    setLiveRooms([createRoomLive({ roomId: 10, status: createStatus() })])
+    await nextTick()
+
+    expect(wrapper.find('[data-test="game-live-panel"]').exists()).toBe(true)
+  })
+
+  it('reads the game again once when the room reports it over, which closes the stream', async () => {
+    setLiveRooms([createRoomLive({ roomId: 10, status: createStatus() })])
+
+    const wrapper = await mountView()
+    const companyOf = useLiveCompanyMock.mock.calls[0]?.[0] as () => number | null
+
+    expect(loadGameServiceMock).toHaveBeenCalledTimes(1)
+    expect(companyOf()).toBe(1)
+
+    loadGameServiceMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: { game: createGameFixture({ id: 4, state: GAME_STATE_FINISHED }) },
+    })
+    setLiveRooms([createRoomLive({ roomId: 10, status: createStatus({ phase: 'finished' }) })])
+    await flushPromises()
+
+    expect(loadGameServiceMock).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('games.state.finished')
+    expect(companyOf()).toBeNull()
+
+    // Un rapport de plus dans la même phase ne relit rien.
+    setLiveRooms([
+      createRoomLive({
+        roomId: 10,
+        status: createStatus({ phase: 'finished', scores: [{ podium: 1, score: 99 }] }),
+      }),
+    ])
+    await flushPromises()
+
+    expect(loadGameServiceMock).toHaveBeenCalledTimes(2)
   })
 
   it('goes back to the list', async () => {
