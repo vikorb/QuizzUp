@@ -2,6 +2,7 @@
 .git
 **/node_modules
 **/dist
+**/dist-console
 **/.env
 **/.env.*
 !**/.env.example

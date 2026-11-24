@@ -1,5 +1,9 @@
 <template>
-  <SectionLayout :title="$t('clients.title')" :subtitle="$t('clients.subtitle')">
+  <SectionLayout
+    data-surface="console"
+    :title="$t('clients.title')"
+    :subtitle="$t('clients.subtitle')"
+  >
     <StatBar :stats="stats" />
 
     <ClientToolBar v-model="searchQuery" v-model:status-filter="statusFilter" />
