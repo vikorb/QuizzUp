@@ -149,15 +149,22 @@ describe('views/questions/import/ImportQuestionsView.vue — before the check', 
 
     const wrapper = mountView()
 
+    vi.useFakeTimers({ toFake: ['setTimeout'] })
     await wrapper.find('.import-form__template').trigger('click')
 
     const blob = (createObjectURL.mock.calls[0] as unknown as [Blob])[0]
 
     expect(blob.type).toBe('text/csv;charset=utf-8')
     expect(click).toHaveBeenCalledTimes(1)
+    // L'adresse n'est libérée qu'après le clic : le téléchargement a le temps de démarrer.
+    expect(revokeObjectURL).not.toHaveBeenCalled()
+
+    vi.advanceTimersByTime(1000)
+
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:template')
 
     click.mockRestore()
+    vi.useRealTimers()
     vi.unstubAllGlobals()
   })
 })
