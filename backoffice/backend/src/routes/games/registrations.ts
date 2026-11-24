@@ -8,6 +8,7 @@ import { requireApiPermission } from '../../security/requireApiPermission'
 import { isUniqueViolation } from '../_shared/dbErrors'
 import { acceptRegistrationSchema, gameParamsSchema, registrationParamsSchema } from './_schemas'
 import {
+  ERASED_PLAYER_PERSONAL_DATA,
   findGameState,
   getGameDesksCount,
   maskEmails,
@@ -117,7 +118,7 @@ const gamesRegistrationsRoutes: FastifyPluginAsync = async (app) => {
             .where('company_id', companyId)
             .whereNot('status', GAME_STATUS_DELETED)
             .forUpdate()
-            .first('state')
+            .first(['state', 'kids_mode as kidsMode'])
 
           if (!game) {
             return { status: 404, body: { error: 'not_found' } }
@@ -167,6 +168,10 @@ const gamesRegistrationsRoutes: FastifyPluginAsync = async (app) => {
               second_email: registration.second_email,
               second_consent_at: registration.second_consent_at,
               second_marketing_consent_at: registration.second_marketing_consent_at,
+              // Défense (Q5) : une demande n'existe que sur une partie en attente, et le mode
+              // enfants ne change que sur une session programmée, donc une demande avec e-mail
+              // ne devrait pas se trouver sur une partie en mode enfants. Sinon, rien n'est gardé.
+              ...(game.kidsMode ? ERASED_PLAYER_PERSONAL_DATA : {}),
             })
             .returning(participantSelect)) as ParticipantDbRow[]
           await trx('game_registrations').where('id', registrationId).delete()
