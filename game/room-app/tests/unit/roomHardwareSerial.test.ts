@@ -200,7 +200,11 @@ describe('interface USB DMX de la salle', () => {
     })
 
     it('ne reprend pas la carte rebranchée comme sortie DMX', async () => {
-      const port = createFakePort()
+      // L'interface DMX est d'un autre modèle que la carte : choisir la carte serait refusé.
+      const port = {
+        ...createFakePort(),
+        getInfo: () => ({ usbVendorId: 0x1a_86, usbProductId: 0x75_23 }),
+      }
       const serial = installSerial(port)
       await saveRoomHardwareConfig({ lighting: { driver: 'usbpro', smoke: { board: BOARD } } })
       await startLighting()

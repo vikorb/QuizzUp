@@ -469,6 +469,13 @@
         "save": "Enregistrer la configuration"
       }
     },
+    "devices": {
+      "dmx": {
+        "ambiguous": "Deux interfaces DMX du même modèle sont branchées : aucune n’est ouverte. Débranche-en une, ou choisis l’interface avec « Connecter l’interface DMX ».",
+        "smoke_board": "L’interface choisie est la carte de la fumée : elle n’est jamais ouverte en DMX. Choisis l’interface DMX."
+      },
+      "buzzerCards": "{count} cartes de buzzers identiques sont branchées : aucune n’est lue. Débranche-en une."
+    },
     "sync": {
       "local": "Cette configuration est enregistrée sur ce PC.",
       "saved": "Configuration enregistrée sur le compte de la salle (copie de secours sur ce PC).",

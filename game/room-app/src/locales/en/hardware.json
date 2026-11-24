@@ -469,6 +469,13 @@
         "save": "Save the configuration"
       }
     },
+    "devices": {
+      "dmx": {
+        "ambiguous": "Two DMX interfaces of the same model are plugged in: neither is opened. Unplug one, or pick the interface with \"Connect the DMX interface\".",
+        "smoke_board": "The chosen interface is the smoke board: it is never opened as DMX. Pick the DMX interface."
+      },
+      "buzzerCards": "{count} identical buzzer cards are plugged in: none is read. Unplug one."
+    },
     "sync": {
       "local": "This configuration is saved on this PC.",
       "saved": "Configuration saved on the room account (backup copy on this PC).",
