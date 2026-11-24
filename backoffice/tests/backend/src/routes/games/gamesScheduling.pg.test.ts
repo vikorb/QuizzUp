@@ -39,6 +39,9 @@ function inHours(hours: number): Date {
   return new Date(Math.ceil(Date.now() / HOUR_MS) * HOUR_MS + hours * HOUR_MS)
 }
 
+const TRUNCATE_TABLES =
+  'TRUNCATE game_participants, games, rooms, admins, companies RESTART IDENTITY CASCADE'
+
 describe.skipIf(!PG_INTEGRATION_URL)('sessions programmées sur PostgreSQL', () => {
   let db: Db
   let app: FastifyInstance
@@ -56,13 +59,13 @@ describe.skipIf(!PG_INTEGRATION_URL)('sessions programmées sur PostgreSQL', () 
 
   afterAll(async () => {
     await app?.close()
+    // La base est partagée avec les autres fichiers `.pg.test.ts` : ne rien y laisser.
+    await db?.raw(TRUNCATE_TABLES)
     await db?.destroy()
   })
 
   beforeEach(async () => {
-    await db.raw(
-      'TRUNCATE game_participants, games, rooms, admins, companies RESTART IDENTITY CASCADE'
-    )
+    await db.raw(TRUNCATE_TABLES)
 
     for (const companyId of [1, 2]) {
       await db('companies').insert({
