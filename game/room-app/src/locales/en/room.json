@@ -115,6 +115,11 @@
       "resume": "Resume the game",
       "restart": "Restart from the beginning",
       "restartConfirm": "Restart the game from the beginning? The scores already earned on this PC will be lost.",
+      "join": {
+        "title": "Scan to sign up",
+        "qrAlt": "Sign-up QR code for the game",
+        "pending": "{n} sign-up waiting for approval | {n} sign-ups waiting for approval"
+      },
       "duo": "{first} & {second}",
       "pendingResults": "{n} game result waiting to be sent to the backoffice: automatic retry. | {n} game results waiting to be sent to the backoffice: automatic retry."
     }
