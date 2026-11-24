@@ -1,6 +1,13 @@
 import { z } from 'zod'
 
-import { GAME_PHASES, MINI_GAMES, ROOM_SCREENS } from '@quizzup/shared'
+import {
+  GAME_COMMAND_REFUSALS,
+  GAME_PHASES,
+  MINI_GAMES,
+  ROOM_COMMAND_RESULT,
+  ROOM_COMMANDS,
+  ROOM_SCREENS,
+} from '@quizzup/shared'
 import { roomScoresSchema } from '../room/_shared'
 
 /** Rapport d'état de la salle (`streamId` : le flux ouvert par ce poste, s'il en a un). */
@@ -24,3 +31,38 @@ export const roomStatusBodySchema = z.object({
   ),
   audioReady: z.boolean(),
 })
+
+const commandIdSchema = z.uuid()
+
+/**
+ * Commande du personnel : `skip` vise une question précise (`round` et `questionIndex`), `abort`
+ * une partie précise (`gameId`).
+ */
+export const roomCommandBodySchema = z.discriminatedUnion('command', [
+  z.object({
+    commandId: commandIdSchema,
+    command: z.enum(ROOM_COMMANDS).extract(['pause', 'resume']),
+  }),
+  z.object({
+    commandId: commandIdSchema,
+    command: z.enum(ROOM_COMMANDS).extract(['skip']),
+    round: z.number().int().min(0).max(1000),
+    questionIndex: z.number().int().min(0).max(1000),
+  }),
+  z.object({
+    commandId: commandIdSchema,
+    command: z.enum(ROOM_COMMANDS).extract(['abort']),
+    gameId: z.number().int().positive(),
+  }),
+])
+
+export const roomCommandResultParamsSchema = z.object({ commandId: commandIdSchema })
+
+/** Accusé de la salle : `refused` dit pourquoi ; `expired` n'est décidé que par le serveur. */
+export const roomCommandResultBodySchema = z.discriminatedUnion('result', [
+  z.object({ result: z.literal(ROOM_COMMAND_RESULT.APPLIED) }),
+  z.object({
+    result: z.literal(ROOM_COMMAND_RESULT.REFUSED),
+    reason: z.enum(GAME_COMMAND_REFUSALS),
+  }),
+])

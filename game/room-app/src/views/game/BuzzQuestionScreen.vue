@@ -17,9 +17,15 @@
         v-if="view.status === 'answering'"
         class="buzz__timer"
         :value="view.answerRemainingRatio"
+        :remaining-ms="view.answerRemainingMs"
         tone="warn"
       />
-      <TimerBar v-else class="buzz__timer" :value="1 - view.progress" />
+      <TimerBar
+        v-else
+        class="buzz__timer"
+        :value="1 - view.progress"
+        :remaining-ms="view.remainingMs"
+      />
 
       <p v-if="view.pointsAtStake !== null" class="buzz__stake">
         {{ $t('game.buzz.atStake', { n: view.pointsAtStake }) }}
