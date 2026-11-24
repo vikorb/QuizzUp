@@ -8221,7 +8221,10 @@ components:
         `CreateGameRequest`, de 0 à 6 participants). `playersCount`, `externalRef` et `locale`
         acceptent `null` pour être effacés. `miniGames` : la liste complète est enregistrée comme
         `null` (tous les mini-jeux). `scheduledAt` sans `durationMinutes` garde la durée de la
-        session, `durationMinutes` sans `scheduledAt` garde son début.
+        session, `durationMinutes` sans `scheduledAt` garde son début. Modifier `roundsCount` ou
+        `questionsPerRound` à une valeur différente passe le `format` de la partie à `custom`.
+        `format` ne s'envoie pas : `400 invalid_body` (`details.fieldErrors.format` :
+        `format_not_updatable`).
       properties:
         roomId:
           type: integer
@@ -8408,6 +8411,13 @@ components:
           type: string
           format: date-time
           description: Réception par le serveur
+
+    GameFormat:
+      type: string
+      enum: [discovery, short, standard, custom]
+      description: >-
+        Format de partie (voir `GAME_FORMATS` dans `@quizzup/shared`) : `discovery` 3 × 3, `short`
+        6 × 7, `standard` 10 × 10, `custom` nombres libres.
 
     MiniGame:
       type: string
@@ -8621,6 +8631,14 @@ components:
           description: >-
             Origine de la partie : `api` si elle a été réservée avec une clé d'API (`/public/v1`),
             sinon `backoffice`. [NON DISPONIBLE] Pas encore renvoyé par la liste ni le détail (à venir).
+        format:
+          allOf:
+            - $ref: '#/components/schemas/GameFormat'
+          nullable: true
+          description: >-
+            Format choisi à la création ; `null` pour une partie d'avant les formats (à afficher
+            « Personnalisé »). `roundsCount` et `questionsPerRound` restent la seule vérité pour
+            jouer. Renvoyé aussi par `GET /room/games/current`, dans `game`.
         roundsCount:
           type: integer
           example: 10
@@ -8858,16 +8876,25 @@ components:
           description: Mode enfants (thèmes adaptés aux enfants seulement).
         roomId:
           type: integer
+        format:
+          allOf:
+            - $ref: '#/components/schemas/GameFormat'
+          description: >-
+            Facultatif. `discovery`, `short` et `standard` fixent `roundsCount` et
+            `questionsPerRound` (3 × 3, 6 × 7, 10 × 10) : les envoyer en plus est refusé
+            (`400 invalid_body`, `details.fieldErrors.format` : `format_fixes_counts`). `custom`
+            laisse les nombres libres (10 par défaut). Absent, avec des nombres : `custom` ;
+            absent, sans nombre : `standard`.
         roundsCount:
           type: integer
           minimum: 1
           maximum: 20
-          default: 10
+          description: Sans `format` ou avec `custom` seulement ; 10 par défaut.
         questionsPerRound:
           type: integer
           minimum: 1
           maximum: 20
-          default: 10
+          description: Sans `format` ou avec `custom` seulement ; 10 par défaut.
         miniGames:
           type: array
           minItems: 1
