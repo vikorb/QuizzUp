@@ -1,0 +1,308 @@
+# Vecteurs de test de la logique de la fumée (sécurité : fumée).
+# Lus par game/hardware/firmware/fumee/tests/test_fumee.c (gcc) et par les tests TypeScript de la
+# fausse carte (game/hardware) : les deux doivent donner exactement les mêmes réponses.
+#
+# Format, une ligne par événement :
+#   = nom du scénario              ouvre un scénario : carte remise à zéro (sortie coupée, prête)
+#   <t_ms> <entrée> <sortie> <état> <cause>
+#       t_ms     instant en ms, entier de 0 à 4294967295 (le compteur millis() de la carte).
+#                Il ne recule jamais, sauf au passage de 4294967295 à 0 (débordement).
+#       entrée   '-' : simple tic, rien reçu. Sinon la ligne reçue sans son '\n' (F, 0, H, X, FF...).
+#                Une ligne reçue provoque d'abord le tic du même instant, puis sa lecture.
+#       sortie   0 ou 1 : niveau de A0 après l'événement
+#       état     READY, FIRE ou COOL (pause après un jet)
+#       cause    dernière coupure : LEASE (bail), MAX (plafond), CMD (ligne 0), BAD (ligne illisible).
+#                CMD au démarrage, tant que rien n'a coupé.
+#   Les lignes vides et celles qui commencent par '#' sont ignorées.
+#
+# Valeurs de la carte : bail 500 ms, plafond d'un jet 10000 ms, pause 5000 ms. Le bail est échu
+# quand le dernier F date de 500 ms ou plus ; le plafond est atteint à 10000 ms ; la pause se
+# termine 5000 ms après l'arrêt du jet. Un F refusé (pause) n'allume jamais plus tard : il faut
+# que le flot de F s'arrête 500 ms, ou qu'une ligne 0 arrive, avant qu'un F lance un jet.
+
+= rien sans F
+0 - 0 READY CMD
+1000 - 0 READY CMD
+60000 - 0 READY CMD
+
+= F entretenu toutes les 100 ms puis arrêté : coupé 500 ms après le dernier F
+0 F 1 FIRE CMD
+100 F 1 FIRE CMD
+200 F 1 FIRE CMD
+250 - 1 FIRE CMD
+300 F 1 FIRE CMD
+400 F 1 FIRE CMD
+500 F 1 FIRE CMD
+600 F 1 FIRE CMD
+700 F 1 FIRE CMD
+800 F 1 FIRE CMD
+900 F 1 FIRE CMD
+1399 - 1 FIRE CMD
+1400 - 0 COOL LEASE
+
+= bail : un tic à 499 ms du dernier F laisse la sortie, à 500 ms la coupe
+1000 F 1 FIRE CMD
+1499 - 1 FIRE CMD
+1500 - 0 COOL LEASE
+
+= bail renouvelé juste avant l'échéance : le nouveau bail court depuis ce F
+0 F 1 FIRE CMD
+499 F 1 FIRE CMD
+998 - 1 FIRE CMD
+999 - 0 COOL LEASE
+
+= bail : un F qui arrive 500 ms après le précédent est trop tard, le jet est déjà coupé
+0 F 1 FIRE CMD
+500 F 0 COOL LEASE
+
+= bail : silence de 9999 ms, même coupure
+0 F 1 FIRE CMD
+9999 - 0 COOL LEASE
+
+= bail et plafond échus au même tic : la cause est MAX
+0 F 1 FIRE CMD
+100000 - 0 COOL MAX
+
+= plafond : 10 s malgré des F toutes les 100 ms, coupé à 10000 ms, le F suivant est refusé
+0 F 1 FIRE CMD
+100 F 1 FIRE CMD
+200 F 1 FIRE CMD
+300 F 1 FIRE CMD
+400 F 1 FIRE CMD
+500 F 1 FIRE CMD
+600 F 1 FIRE CMD
+700 F 1 FIRE CMD
+800 F 1 FIRE CMD
+900 F 1 FIRE CMD
+1000 F 1 FIRE CMD
+1100 F 1 FIRE CMD
+1200 F 1 FIRE CMD
+1300 F 1 FIRE CMD
+1400 F 1 FIRE CMD
+1500 F 1 FIRE CMD
+1600 F 1 FIRE CMD
+1700 F 1 FIRE CMD
+1800 F 1 FIRE CMD
+1900 F 1 FIRE CMD
+2000 F 1 FIRE CMD
+2100 F 1 FIRE CMD
+2200 F 1 FIRE CMD
+2300 F 1 FIRE CMD
+2400 F 1 FIRE CMD
+2500 F 1 FIRE CMD
+2600 F 1 FIRE CMD
+2700 F 1 FIRE CMD
+2800 F 1 FIRE CMD
+2900 F 1 FIRE CMD
+3000 F 1 FIRE CMD
+3100 F 1 FIRE CMD
+3200 F 1 FIRE CMD
+3300 F 1 FIRE CMD
+3400 F 1 FIRE CMD
+3500 F 1 FIRE CMD
+3600 F 1 FIRE CMD
+3700 F 1 FIRE CMD
+3800 F 1 FIRE CMD
+3900 F 1 FIRE CMD
+4000 F 1 FIRE CMD
+4100 F 1 FIRE CMD
+4200 F 1 FIRE CMD
+4300 F 1 FIRE CMD
+4400 F 1 FIRE CMD
+4500 F 1 FIRE CMD
+4600 F 1 FIRE CMD
+4700 F 1 FIRE CMD
+4800 F 1 FIRE CMD
+4900 F 1 FIRE CMD
+5000 F 1 FIRE CMD
+5100 F 1 FIRE CMD
+5200 F 1 FIRE CMD
+5300 F 1 FIRE CMD
+5400 F 1 FIRE CMD
+5500 F 1 FIRE CMD
+5600 F 1 FIRE CMD
+5700 F 1 FIRE CMD
+5800 F 1 FIRE CMD
+5900 F 1 FIRE CMD
+6000 F 1 FIRE CMD
+6100 F 1 FIRE CMD
+6200 F 1 FIRE CMD
+6300 F 1 FIRE CMD
+6400 F 1 FIRE CMD
+6500 F 1 FIRE CMD
+6600 F 1 FIRE CMD
+6700 F 1 FIRE CMD
+6800 F 1 FIRE CMD
+6900 F 1 FIRE CMD
+7000 F 1 FIRE CMD
+7100 F 1 FIRE CMD
+7200 F 1 FIRE CMD
+7300 F 1 FIRE CMD
+7400 F 1 FIRE CMD
+7500 F 1 FIRE CMD
+7600 F 1 FIRE CMD
+7700 F 1 FIRE CMD
+7800 F 1 FIRE CMD
+7900 F 1 FIRE CMD
+8000 F 1 FIRE CMD
+8100 F 1 FIRE CMD
+8200 F 1 FIRE CMD
+8300 F 1 FIRE CMD
+8400 F 1 FIRE CMD
+8500 F 1 FIRE CMD
+8600 F 1 FIRE CMD
+8700 F 1 FIRE CMD
+8800 F 1 FIRE CMD
+8900 F 1 FIRE CMD
+9000 F 1 FIRE CMD
+9100 F 1 FIRE CMD
+9200 F 1 FIRE CMD
+9300 F 1 FIRE CMD
+9400 F 1 FIRE CMD
+9500 F 1 FIRE CMD
+9600 F 1 FIRE CMD
+9700 F 1 FIRE CMD
+9800 F 1 FIRE CMD
+9900 F 1 FIRE CMD
+9999 - 1 FIRE CMD
+10000 F 0 COOL MAX
+10100 F 0 COOL MAX
+
+= seule la ligne exacte F allume : toute autre ligne est illisible
+0 FF 0 READY BAD
+10 f 0 READY BAD
+20 F1 0 READY BAD
+30 1 0 READY BAD
+40 HH 0 READY BAD
+50 00 0 READY BAD
+60 X 0 READY BAD
+100 F 1 FIRE BAD
+200 H 1 FIRE BAD
+
+= ligne illisible : coupe un jet en cours et lance la pause
+0 F 1 FIRE CMD
+100 F 1 FIRE CMD
+150 X 0 COOL BAD
+151 F 0 COOL BAD
+
+= 0 coupe tout de suite ; hors jet, une ligne illisible ne lance pas de pause
+0 X 0 READY BAD
+100 F 1 FIRE BAD
+200 F 1 FIRE BAD
+250 0 0 COOL CMD
+251 0 0 COOL CMD
+252 F 0 COOL CMD
+
+= H n'allume pas et ne prolonge pas le bail
+0 H 0 READY CMD
+100 H 0 READY CMD
+200 F 1 FIRE CMD
+300 H 1 FIRE CMD
+400 H 1 FIRE CMD
+699 H 1 FIRE CMD
+700 H 0 COOL LEASE
+
+= H pendant une pause ne change rien et ne bloque pas le jet suivant
+0 F 1 FIRE CMD
+100 X 0 COOL BAD
+200 H 0 COOL BAD
+5099 H 0 COOL BAD
+5100 H 0 READY BAD
+5100 F 1 FIRE BAD
+
+= pause de 5 s : COOL jusqu'à 5000 ms après la fin du jet, puis READY
+0 F 1 FIRE CMD
+1000 0 0 COOL CMD
+1001 - 0 COOL CMD
+5999 - 0 COOL CMD
+6000 - 0 READY CMD
+
+= pause de 5 s après une coupure par bail : un F pile à la fin de la pause est accepté
+0 F 1 FIRE CMD
+500 - 0 COOL LEASE
+5499 - 0 COOL LEASE
+5500 F 1 FIRE LEASE
+
+= pause : F refusés pendant la pause, accepté après un silence d'au moins 500 ms
+0 F 1 FIRE CMD
+1000 X 0 COOL BAD
+1500 F 0 COOL BAD
+3000 F 0 COOL BAD
+3600 - 0 COOL BAD
+5999 - 0 COOL BAD
+6000 F 1 FIRE BAD
+
+# Choix de sécurité : un F refusé n'allume jamais plus tard tout seul.
+= pause : un flot de F commencé pendant la pause ne lance PAS de jet à la fin de la pause, il faut un silence de 500 ms
+0 F 1 FIRE CMD
+1000 X 0 COOL BAD
+1400 F 0 COOL BAD
+1800 F 0 COOL BAD
+2200 F 0 COOL BAD
+2600 F 0 COOL BAD
+3000 F 0 COOL BAD
+3400 F 0 COOL BAD
+3800 F 0 COOL BAD
+4200 F 0 COOL BAD
+4600 F 0 COOL BAD
+5000 F 0 COOL BAD
+5400 F 0 COOL BAD
+5800 F 0 COOL BAD
+6200 F 0 READY BAD
+6600 F 0 READY BAD
+7099 - 0 READY BAD
+7100 F 1 FIRE BAD
+
+= pause : une ligne 0 relâche un F refusé, le F suivant après la pause est accepté
+0 F 1 FIRE CMD
+1000 X 0 COOL BAD
+5900 F 0 COOL BAD
+5950 0 0 COOL CMD
+6000 F 1 FIRE CMD
+
+= débordement du compteur au milieu d'un jet (début à 4294967196, plafond atteint après le zéro)
+4294967196 F 1 FIRE CMD
+4294967295 F 1 FIRE CMD
+299 F 1 FIRE CMD
+599 F 1 FIRE CMD
+899 F 1 FIRE CMD
+1199 F 1 FIRE CMD
+1499 F 1 FIRE CMD
+1799 F 1 FIRE CMD
+2099 F 1 FIRE CMD
+2399 F 1 FIRE CMD
+2699 F 1 FIRE CMD
+2999 F 1 FIRE CMD
+3299 F 1 FIRE CMD
+3599 F 1 FIRE CMD
+3899 F 1 FIRE CMD
+4199 F 1 FIRE CMD
+4499 F 1 FIRE CMD
+4799 F 1 FIRE CMD
+5099 F 1 FIRE CMD
+5399 F 1 FIRE CMD
+5699 F 1 FIRE CMD
+5999 F 1 FIRE CMD
+6299 F 1 FIRE CMD
+6599 F 1 FIRE CMD
+6899 F 1 FIRE CMD
+7199 F 1 FIRE CMD
+7499 F 1 FIRE CMD
+7799 F 1 FIRE CMD
+8099 F 1 FIRE CMD
+8399 F 1 FIRE CMD
+8699 F 1 FIRE CMD
+8999 F 1 FIRE CMD
+9299 F 1 FIRE CMD
+9599 F 1 FIRE CMD
+9899 - 1 FIRE CMD
+9900 - 0 COOL MAX
+10000 F 0 COOL MAX
+
+= débordement du compteur au milieu d'une pause
+4294964796 F 1 FIRE CMD
+4294964896 X 0 COOL BAD
+4294967295 - 0 COOL BAD
+0 - 0 COOL BAD
+2599 - 0 COOL BAD
+2600 F 1 FIRE BAD
