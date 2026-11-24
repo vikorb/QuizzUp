@@ -1,6 +1,7 @@
-import type { EngineTheme } from '@quizzup/game-engine'
+import type { EngineQuestion, EngineTheme } from '@quizzup/game-engine'
 import type { MiniGame, RoomLogEntryInput } from '@quizzup/shared'
 
+import type { MediaCredit } from '@/game/mediaCredits'
 import { authHeaders, getApiBase } from '@/utils/auth'
 
 /**
@@ -91,7 +92,11 @@ async function request<T>(
   return data
 }
 
-/** Chemin relatif de l'API (`/room/questions/12/media`) → URL complète ; liens externes inchangés. */
+/** Question du contenu de partie : celle du moteur, plus le crédit d'un extrait tiers (absent d'un serveur ancien). */
+export type RoomQuestion = EngineQuestion & { mediaCredit?: MediaCredit | null }
+export type RoomTheme = Omit<EngineTheme, 'questions'> & { questions: RoomQuestion[] }
+
+/** Chemin relatif de l'API (`/room/questions/12/media`) → URL complète ; URL absolue (extrait tiers) inchangée. */
 export function resolveMediaUrl(url: string | null): string | null {
   if (!url) {
     return null
@@ -110,9 +115,20 @@ export async function fetchCurrentGame(token: string): Promise<RoomGame | null> 
   return data.game
 }
 
-/** Contenu de la partie, au format du moteur, avec des URL de médias complètes. */
-export async function fetchCurrentContent(token: string): Promise<EngineTheme[]> {
-  const data = await request<{ themes: EngineTheme[] }>(token, '/room/games/current/content')
+/**
+ * Contenu de la partie, au format du moteur, avec des URL de médias complètes. `ids` limite la
+ * réponse à ces questions (le serveur n'en accepte qu'un nombre borné par appel).
+ */
+export async function fetchCurrentContent(
+  token: string,
+  options: { ids?: number[]; timeoutMs?: number } = {}
+): Promise<RoomTheme[]> {
+  const query = options.ids === undefined ? '' : `?ids=${options.ids.join(',')}`
+  const data = await request<{ themes: RoomTheme[] }>(
+    token,
+    `/room/games/current/content${query}`,
+    { timeoutMs: options.timeoutMs }
+  )
   return data.themes.map((theme) => ({
     ...theme,
     questions: theme.questions.map((question) => ({

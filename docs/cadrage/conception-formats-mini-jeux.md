@@ -3,7 +3,7 @@
 **Recommandation.**
 
 1. Les formats deviennent des constantes partagées : Découverte 3 × 3, Courte 6 × 7, Standard 10 × 10, plus Personnalisé. La durée estimée est calculée à partir des délais du moteur.
-2. D'après mon calcul, 10 × 10 donne 28 à 43 min de jeu : la décision du 3 novembre tient dans un créneau d'une heure.
+2. D'après mon calcul, 10 × 10 donne 28 à 47 min de jeu : la décision du 3 novembre tient dans un créneau d'une heure.
 3. Lot 4 : un socle d'abord (constantes, migration, contrat moteur, emplacements), puis quatre PR en fichiers séparés. Le « don de points » ferait doublon avec le vol de points ; je le remplace par « Patate chaude ». Les extraits transformés sont réglés par question et appliqués à la lecture.
 
 ---
@@ -58,39 +58,40 @@ Hypothèses du typique, à recaler sur le banc :
 - jeux de buzz : premier buzz à 40 % de la fenêtre, plus 3 s de réponse ;
 - blind test : trouvé au palier 2.
 
-Le haut correspond à toutes les échéances atteintes, sans mauvaise réponse. Ce n'est pas un maximum absolu : chaque mauvaise réponse d'un jeu de buzz ajoute jusqu'à 5 s.
+Le haut correspond à toutes les échéances atteintes, avec un buzz à la dernière seconde (les trois jeux de buzz comptent alors 5 s de réponse en plus), sans mauvaise réponse. Ce n'est pas un maximum absolu : chaque mauvaise réponse d'un jeu de buzz ajoute jusqu'à 5 s.
 
 | Mini-jeu                                                   | typique / haut (s) |
 | ---------------------------------------------------------- | ------------------ |
-| flash_blind_test                                           | 18 / 40            |
-| quick_answer, first_buzz, sudden_death, streak             | 14 / 20            |
+| flash_blind_test                                           | 18 / 45            |
+| quick_answer, sudden_death, streak                         | 14 / 20            |
+| first_buzz                                                 | 14 / 25            |
 | true_false                                                 | 6,1 / 8,5          |
 | double_or_nothing, point_steal                             | 18 / 28            |
 | estimate                                                   | 17 / 25            |
-| progressive_reveal                                         | 16 / 25            |
+| progressive_reveal                                         | 16 / 30            |
 | roue 18 / 24, course 14 / 20, patate 12 / 21, duel 17 / 21 | (lot 4)            |
 
-Moyenne sur les 10 mini-jeux actuels : 14,9 s / 23,5 s. Sur 14 mini-jeux : 15,0 s / 22,9 s.
+Moyenne sur les 10 mini-jeux actuels : 14,9 s / 24,95 s. Sur 14 mini-jeux : 15,0 s / 24,0 s.
 
 | Format           | Jeu typique | Jeu haut | Créneau visé |
 | ---------------- | ----------- | -------- | ------------ |
-| Découverte 3 × 3 | 3 min       | 5 min    | démo, essai  |
-| Courte 6 × 7     | 12 min      | 19 min   | 30 min       |
-| Standard 10 × 10 | 28 min      | 43 min   | 60 min       |
+| Découverte 3 × 3 | 3 min       | 6 min    | démo, essai  |
+| Courte 6 × 7     | 12 min      | 21 min   | 30 min       |
+| Standard 10 × 10 | 28 min      | 47 min   | 60 min       |
 
 **Lecture des chiffres.**
 
 - J'ai lu « environ 30 / 60 minutes » comme la durée d'un **créneau** : accueil, consignes et podium (~10 min) plus le jeu, dimensionné sur la borne haute pour ne jamais déborder.
-- **10 × 10 tient donc dans une heure.** La marge est faible une fois le lot 5 ajouté : 3 s de plus par question et 15 s de plus par manche font +6,5 min, soit 35 à 50 min de jeu.
+- **10 × 10 tient donc dans une heure.** La marge est faible une fois le lot 5 ajouté : 3 s de plus par question et 15 s de plus par manche font +6,5 min, soit 35 à 54 min de jeu.
 - Les valeurs du cadrage §8.3 sont démenties par le moteur : 4 × 5 dure 6 à 10 min, pas 30 ; 7 × 7 dure 14 à 22 min, pas 60.
 - Le vrai coût de 10 × 10 est le contenu : 100 questions par partie (lot 8).
 - La formule surestime pour la mort subite, la course et la patate, qui finissent leurs manches plus tôt.
 
-Le test de contrat moteur `tests/durationEstimates.test.ts` vérifie que `highMs` de chaque mini-jeu est au moins égal au calcul fait depuis ses propres constantes. C'est le même principe que `RANGE_PREFIX`.
+Le test de contrat moteur `tests/durationEstimates.test.ts` vérifie que `highMs` de chaque mini-jeu est égal au calcul fait depuis ses propres constantes. C'est le même principe que `RANGE_PREFIX`.
 
 ### Où le format se choisit, ce qui est stocké
 
-- **Création au backoffice.** Un choix Découverte / Courte / Standard / Personnalisé, Standard par défaut. Chaque option affiche « 10 × 10 · 28 à 43 min ». Personnalisé fait apparaître les deux champs actuels, avec la même estimation recalculée.
+- **Création au backoffice.** Un choix Découverte / Courte / Standard / Personnalisé, Standard par défaut. Chaque option affiche « 10 × 10 · 28 à 47 min ». Personnalisé fait apparaître les deux champs actuels, avec la même estimation recalculée.
 - **Lobby de salle (compte).** Affichage seulement (nom du format et estimation). Le format a été fixé à la création, le lancement à distance (lot 1) reprend la partie existante.
 - **Lobby démo.** Les `FORMATS` locaux sont remplacés par `GAME_FORMATS`, Découverte par défaut.
 - **Stockage.** Nouvelle colonne `games.format varchar(30) NULL`, avec un CHECK aligné sur `GAME_FORMATS`. `rounds_count` et `questions_per_round` restent la seule vérité pour le moteur.
@@ -317,7 +318,7 @@ Le test de contrat moteur `tests/durationEstimates.test.ts` vérifie que `highMs
 
 ## 5. Décisions ouvertes
 
-1. **« 30 / 60 minutes », c'est un créneau (jeu ≤ 20 et ≤ 45 min) ?** Je recommande oui : un créneau ne doit pas déborder, et 10 × 10 tient alors à 43 min au plus. **Par défaut : oui.**
+1. **« 30 / 60 minutes », c'est un créneau (jeu ≤ 20 et ≤ 50 min) ?** Je recommande oui : un créneau ne doit pas déborder, et 10 × 10 tient alors à 47 min au plus. **Par défaut : oui.**
 2. **Standard = 10 × 10 maintenu ?** Je recommande oui : le calcul le confirme, et la base comme l'API ont déjà 10 × 10 par défaut. À revoir si le lot 5 ajoute plus de 5 min. **Par défaut : oui.**
 3. **Le personnel peut-il changer le format au lobby de la salle ?** Je recommande non : la partie stockée divergerait de ce qui est joué. **Par défaut : non, affichage seulement.**
 4. **Tirage des mini-jeux sans remise ?** Je recommande oui : chaque tirage reste équiprobable et on évite « encore la mort subite ». **Par défaut : oui.**

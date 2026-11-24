@@ -129,7 +129,9 @@
     "reveal": {
       "winner": "{name} finds it at stage {stage}",
       "nobody": "Nobody found it",
-      "answer": "The right answer"
+      "answer": "The right answer",
+      "creditTrack": "{artist} — {title}",
+      "creditDeezer": "Preview provided by Deezer"
     },
     "summary": {
       "title": "End of round {position}",

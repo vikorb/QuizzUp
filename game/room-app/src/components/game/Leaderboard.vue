@@ -12,16 +12,26 @@
       <span v-if="showRoundPoints && line.roundPoints > 0" class="board__delta">
         +{{ line.roundPoints }}
       </span>
-      <span class="board__score">{{ $t('game.points', { n: line.score }) }}</span>
+      <span class="board__score">
+        <TweenedNumber v-slot="{ n }" :value="line.score" :from="startScore(line)">
+          {{ $t('game.points', { n }) }}
+        </TweenedNumber>
+      </span>
     </li>
   </ol>
 </template>
 
 <script setup lang="ts">
 import DeskBadge from '@/components/game/DeskBadge.vue'
+import TweenedNumber from '@/components/game/TweenedNumber.vue'
 import type { LeaderboardLine } from '@/game/selectors'
 
-defineProps<{ lines: LeaderboardLine[]; showRoundPoints?: boolean }>()
+const props = defineProps<{ lines: LeaderboardLine[]; showRoundPoints?: boolean }>()
+
+/** Bilan de manche : la montée repart du score d'avant la manche. Podium : de zéro. */
+function startScore(line: LeaderboardLine): number {
+  return props.showRoundPoints ? line.score - line.roundPoints : 0
+}
 </script>
 
 <style scoped>
@@ -43,7 +53,8 @@ defineProps<{ lines: LeaderboardLine[]; showRoundPoints?: boolean }>()
   border-radius: 18px;
   border: 1px solid var(--border-ui);
   background: linear-gradient(180deg, var(--bg-card-hi), var(--bg-card));
-  animation: slide-in 0.5s ease both;
+  /* `backwards` : la ligne reste cachée pendant son décalage de départ. */
+  animation: slide-in 0.5s ease backwards;
 }
 
 .board__line:nth-child(2) {

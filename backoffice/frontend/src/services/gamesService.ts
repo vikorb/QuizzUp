@@ -7,6 +7,7 @@ import type {
   GameRoomsResponse,
   GamesQuery,
   GamesResponse,
+  UpdateGamePayload,
 } from '@/types/game'
 import { apiFetch } from '@/utils/api'
 import { readGameApiError } from '@/utils/game/errors'
@@ -112,6 +113,22 @@ export async function createGameService(
   return requestGameJson<GameResponse>({
     path: `/companies/${companyId}/games`,
     method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+}
+
+/** Modifie une session programmée (seul état modifiable). */
+export async function updateGameService(
+  companyId: number,
+  gameId: number,
+  payload: UpdateGamePayload
+): Promise<GameResult> {
+  return requestGameJson<GameResponse>({
+    path: `/companies/${companyId}/games/${gameId}`,
+    method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
     },

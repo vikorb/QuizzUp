@@ -41,7 +41,8 @@ export type Game = {
   companyId: number
   roomId: number
   roomName?: string
-  adminId: number
+  /** `null` pour une réservation faite par l'API. */
+  adminId: number | null
   roundsCount: number
   questionsPerRound: number
   /** Mini-jeux autorisés pour la partie ; `null` ou absent = tous. */
@@ -116,6 +117,31 @@ export type CreateGamePayload = {
   questionsPerRound?: number
   /** Omis quand tous les mini-jeux sont autorisés (= tous, y compris les futurs). */
   miniGames?: MiniGame[]
+  /** Instant ISO 8601 de début : présent, la partie est une session programmée. */
+  scheduledAt?: string
+  /** Absent : durée du créneau de la salle. */
+  durationMinutes?: number
+  playersCount?: number
+  externalRef?: string
+}
+
+/**
+ * Corps de PATCH /companies/:companyId/games/:gameId : les champs absents sont gardés. Une liste
+ * complète de mini-jeux s'écrit `[...MINI_GAMES]` (le serveur la range en « tous »), jamais `null`.
+ * `playersCount: null` et `externalRef: null` effacent la valeur.
+ */
+export type UpdateGamePayload = {
+  roomId: number
+  roundsCount?: number
+  questionsPerRound?: number
+  /** Absent : programme inchangé. */
+  miniGames?: MiniGame[]
+  scheduledAt?: string
+  durationMinutes?: number
+  playersCount: number | null
+  externalRef?: string | null
+  /** Absent : participants gardés tels quels (emails masqués pour le rôle `user`). */
+  participants?: CreateGameParticipantPayload[]
 }
 
 /** Saisie d'un participant dans le formulaire de lancement (champs texte bruts). */
@@ -154,6 +180,17 @@ export type GameFormValues = {
   /** Mini-jeux cochés (tous par défaut). */
   miniGames: MiniGame[]
   participants: GameParticipantFormValues[]
+  /** Case « Programmer pour plus tard » : la partie devient une session à date et heure fixées. */
+  scheduled: boolean
+  /** Jour (`YYYY-MM-DD`) et heure (`HH:MM`) lus dans le fuseau de la salle choisie. */
+  scheduledDate: string
+  scheduledTime: string
+  /** Vide : durée du créneau de la salle. */
+  durationMinutes: string
+  /** Effectif annoncé, facultatif. */
+  playersCount: string
+  /** Référence du système de réservation du centre, facultative. */
+  externalRef: string
 }
 
 export type GameParticipantFieldErrors = {
@@ -171,6 +208,10 @@ export type GameFieldErrors = {
   roundsCount: string
   questionsPerRound: string
   miniGames: string
+  scheduledAt: string
+  durationMinutes: string
+  playersCount: string
+  externalRef: string
   participants: GameParticipantFieldErrors[]
 }
 
