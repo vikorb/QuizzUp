@@ -7,6 +7,7 @@ import {
   liveNowMock,
   liveRoomsMock,
   liveStateMock,
+  sendCommandMock,
   setLiveRooms,
   useLiveCompanyMock,
 } from '@frontend-tests/_helpers/liveCompanyMock'
@@ -336,5 +337,37 @@ describe('views/games/detail/GameLivePanel.vue', () => {
     await nextTick()
 
     expect(panel(wrapper).exists()).toBe(false)
+  })
+
+  it('offers the remote commands, sent through the follow-up of the company', async () => {
+    publish(createStatus())
+
+    const wrapper = mountPanel()
+
+    await wrapper.get('[data-test="game-live-skip"]').trigger('click')
+    await nextTick()
+
+    expect(sendCommandMock).toHaveBeenCalledWith(ROOM_ID, {
+      command: 'skip',
+      round: 2,
+      questionIndex: 2,
+    })
+  })
+
+  it('disables the remote commands of a room that is not controllable', () => {
+    publish(createStatus(), { presence: ROOM_PRESENCE.OFFLINE, controllable: false })
+
+    const wrapper = mountPanel()
+
+    expect(wrapper.get('[data-test="game-live-toggle-pause"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-test="game-live-controls-reason"]').text()).toBe(
+      'live.command.disabled.offline'
+    )
+  })
+
+  it('has no remote commands without a panel', () => {
+    publish(createStatus({ gameId: GAME_ID + 1 }))
+
+    expect(mountPanel().find('[data-test="game-live-controls"]').exists()).toBe(false)
   })
 })

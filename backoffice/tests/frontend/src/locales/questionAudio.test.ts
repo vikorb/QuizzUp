@@ -1,9 +1,15 @@
+import { QUESTION_AUDIO_EFFECTS } from '@quizzup/shared'
 import { describe, expect, it } from 'vitest'
 
 import type { QuestionMediaErrorCode } from '@/services/questionMediaError'
 
 type QuestionLocale = {
-  questions: { form: { audio: { apiErrors: Record<string, string> } } }
+  questions: {
+    form: {
+      audio: { apiErrors: Record<string, string> }
+      audioEffect: { options: Record<string, string>; errors: Record<string, string> }
+    }
+  }
 }
 
 const modules = import.meta.glob('/frontend/src/locales/*/question.json', {
@@ -46,6 +52,21 @@ describe('locales — questions.form.audio.apiErrors', () => {
 
     for (const code of CODES) {
       expect(apiErrors[code]?.trim(), `${locale}: ${code}`).toBeTruthy()
+    }
+  })
+})
+
+describe('locales — questions.form.audioEffect', () => {
+  it.each(['fr', 'en'])('names every effect and every API error in %s', (locale) => {
+    const { options, errors } =
+      modules[`/frontend/src/locales/${locale}/question.json`]!.default.questions.form.audioEffect
+
+    for (const effect of QUESTION_AUDIO_EFFECTS) {
+      expect(options[effect]?.trim(), `${locale}: ${effect}`).toBeTruthy()
+    }
+
+    for (const code of ['question_audio_effect_invalid', 'audio_effect_requires_audio']) {
+      expect(errors[code]?.trim(), `${locale}: ${code}`).toBeTruthy()
     }
   })
 })
