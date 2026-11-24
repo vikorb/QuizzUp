@@ -23,6 +23,7 @@ import QuestionsView from '@/views/QuestionsView.vue'
 import StatsView from '@/views/StatsView.vue'
 import ThemeDetailView from '@/views/themes/ThemeDetailView.vue'
 import ThemesView from '@/views/ThemesView.vue'
+import VouchersView from '@/views/VouchersView.vue'
 
 const getCurrentCompanyId = () => {
   return me.value?.companyId ?? null
@@ -190,6 +191,12 @@ export const router = createRouter({
           path: 'stats',
           name: 'stats',
           component: StatsView,
+          meta: { requiresAuth: true },
+        },
+        {
+          path: 'vouchers',
+          name: 'vouchers',
+          component: VouchersView,
           meta: { requiresAuth: true },
         },
       ],

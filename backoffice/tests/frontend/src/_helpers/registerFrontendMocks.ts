@@ -125,6 +125,19 @@ vi.mock('@/services/companyLogoService', async () => {
   }
 })
 
+vi.mock('@/services/vouchersService', async () => {
+  const vouchersService = await import('./vouchersServiceMock')
+
+  return {
+    listGameVouchersService: vouchersService.listGameVouchersServiceMock,
+    issueGameVoucherService: vouchersService.issueGameVoucherServiceMock,
+    listVouchersService: vouchersService.listVouchersServiceMock,
+    lookupVoucherService: vouchersService.lookupVoucherServiceMock,
+    redeemVoucherService: vouchersService.redeemVoucherServiceMock,
+    cancelVoucherService: vouchersService.cancelVoucherServiceMock,
+  }
+})
+
 vi.mock('@/services/themesService', async () => {
   const themesService = await import('./themesServiceMock')
 
