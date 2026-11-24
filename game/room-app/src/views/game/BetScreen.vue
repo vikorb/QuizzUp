@@ -22,6 +22,7 @@
     <footer class="bet__foot">
       <TimerBar
         :value="view.remainingRatio"
+        :remaining-ms="view.remainingMs"
         :tone="view.remainingRatio < 0.3 ? 'warn' : 'default'"
       />
       <p class="bet__count" role="status">

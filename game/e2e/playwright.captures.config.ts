@@ -19,6 +19,8 @@ export default defineConfig({
     locale: 'fr-FR',
     viewport: { width: 1920, height: 1080 },
     deviceScaleFactor: 1,
+    // Horloge figée : voir `playwright.config.ts` (scores directs, phases sans transition).
+    reducedMotion: 'reduce',
   },
   webServer: {
     command: 'npm --prefix ../room-app run dev -- --port 4174 --strictPort',
