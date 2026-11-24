@@ -71,6 +71,28 @@ async function seedBooking(body: Record<string, unknown> = {}, key = 'seed') {
   return bookingOf(response).id as number
 }
 
+/** Session créée au backoffice (sans clé d'API), avec un joueur et son e-mail. */
+function seedBackofficeSession() {
+  dbState.games.push({
+    id: 50,
+    company_id: 1,
+    room_id: 1,
+    admin_id: 2,
+    api_key_id: null,
+    state: GAME_STATE_SCHEDULED,
+    status: 1,
+    scheduled_at: SLOT,
+    scheduled_end_at: SLOT_END,
+  })
+  dbState.game_participants.push({
+    id: 1,
+    game_id: 50,
+    podium: 1,
+    display_name: 'Léa',
+    email: 'lea@exemple.test',
+  })
+}
+
 /** Simule la contrainte d'exclusion PostgreSQL (SQLSTATE 23P01) levée à l'écriture. */
 function failWithOverlap() {
   vi.spyOn(db, 'transaction').mockRejectedValueOnce(
@@ -487,17 +509,7 @@ describe('GET /public/v1/bookings/:id', () => {
   })
 
   it('does not show a session made at the backoffice', async () => {
-    dbState.games.push({
-      id: 50,
-      company_id: 1,
-      room_id: 1,
-      admin_id: 2,
-      api_key_id: null,
-      state: GAME_STATE_SCHEDULED,
-      status: 1,
-      scheduled_at: SLOT,
-      scheduled_end_at: SLOT_END,
-    })
+    seedBackofficeSession()
 
     expect((await call('GET', '/public/v1/bookings/50')).statusCode).toBe(404)
   })
@@ -659,6 +671,62 @@ describe('PATCH /public/v1/bookings/:id', () => {
     expect(response.json().error).toBe('invalid_body')
   })
 
+  describe('when the room has been closed to public booking since', () => {
+    const closeRoom = () => {
+      dbState.rooms[0]!.schedule = { ...OPEN_EVERY_DAY, publicBooking: false }
+    }
+
+    it('still changes the players, the headcount and the reference', async () => {
+      const id = await seedBooking({ participants: [LEA] })
+      closeRoom()
+
+      const response = await patch(id, {
+        participants: [{ podium: 2, displayName: 'Zoé' }],
+        playersCount: 2,
+        externalRef: 'RESA-9',
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(bookingOf(response)).toMatchObject({ playersCount: 2, externalRef: 'RESA-9' })
+      expect(bookingOf(response).participants).toHaveLength(1)
+    })
+
+    it('still enforces the desks of the room', async () => {
+      const id = await seedBooking()
+      closeRoom()
+
+      const response = await patch(id, { participants: [{ podium: 5, displayName: 'Léa' }] })
+
+      expect(response.statusCode).toBe(422)
+      expect(response.json()).toEqual({ error: 'too_many_players' })
+    })
+
+    it('refuses to move to a room that cannot be booked, or to another start in this one', async () => {
+      seedRoom({ id: 2, schedule: { ...OPEN_EVERY_DAY, publicBooking: false } })
+      const id = await seedBooking()
+      closeRoom()
+
+      for (const body of [{ roomId: 2 }, { startsAt: OTHER_SLOT }]) {
+        const response = await patch(id, body)
+
+        expect(response.statusCode).toBe(404)
+        expect(response.json()).toEqual({ error: 'room_not_found' })
+      }
+      expect(dbState.games[0]).toMatchObject({ room_id: 1, scheduled_at: SLOT })
+    })
+  })
+
+  it('does not touch a session made at the backoffice', async () => {
+    seedBackofficeSession()
+
+    const response = await patch(50, { externalRef: 'x', participants: [] })
+
+    expect(response.statusCode).toBe(404)
+    expect(response.json()).toEqual({ error: 'booking_not_found' })
+    expect(dbState.games[0]!.external_ref).toBeUndefined()
+    expect(dbState.game_participants).toHaveLength(1)
+  })
+
   it('answers 404 booking_not_found for an unknown id', async () => {
     const response = await patch(999, { externalRef: 'x' })
 
@@ -722,6 +790,27 @@ describe('DELETE /public/v1/bookings/:id', () => {
       expect(dbState.game_participants[0]).toMatchObject({ email: 'lea@exemple.test' })
     }
   )
+
+  it('still cancels once the room has been closed to public booking', async () => {
+    const id = await seedBooking()
+    dbState.rooms[0]!.schedule = { ...OPEN_EVERY_DAY, publicBooking: false }
+
+    const response = await cancel(id)
+
+    expect(response.statusCode).toBe(200)
+    expect(bookingOf(response).state).toBe(GAME_STATE_CANCELLED)
+  })
+
+  it('does not touch a session made at the backoffice', async () => {
+    seedBackofficeSession()
+
+    const response = await cancel(50)
+
+    expect(response.statusCode).toBe(404)
+    expect(response.json()).toEqual({ error: 'booking_not_found' })
+    expect(dbState.games[0]!.state).toBe(GAME_STATE_SCHEDULED)
+    expect(dbState.game_participants[0]).toMatchObject({ email: 'lea@exemple.test' })
+  })
 
   it('answers 404 booking_not_found for an unknown id', async () => {
     const response = await cancel(999)
