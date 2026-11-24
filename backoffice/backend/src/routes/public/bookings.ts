@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 import {
   computeRoomSlots,
+  GAME_DEFAULT_FORMAT,
   GAME_DEFAULT_QUESTIONS_PER_ROUND,
   GAME_DEFAULT_ROUNDS,
   GAME_LOCALES,
@@ -250,6 +251,7 @@ const publicBookingRoutes: FastifyPluginAsync = async (app) => {
             roomId: room.id,
             adminId: null,
             apiKeyId,
+            format: GAME_DEFAULT_FORMAT,
             roundsCount: GAME_DEFAULT_ROUNDS,
             questionsPerRound: GAME_DEFAULT_QUESTIONS_PER_ROUND,
             state: GAME_STATE_SCHEDULED,
