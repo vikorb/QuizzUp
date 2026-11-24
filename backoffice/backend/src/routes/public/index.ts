@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify'
 
 import { applyPublicDefaults } from './_shared'
+import publicJoinRoutes from './join'
 import publicLogoRoutes from './logos'
 import demoRequestsPublicRoutes from './demoRequests'
 import publicVoucherRoutes from './vouchers'
@@ -13,6 +14,7 @@ const publicRoutes: FastifyPluginAsync = async (app) => {
   await app.register(publicLogoRoutes)
   await app.register(demoRequestsPublicRoutes)
   await app.register(publicVoucherRoutes)
+  await app.register(publicJoinRoutes)
 }
 
 export default publicRoutes
