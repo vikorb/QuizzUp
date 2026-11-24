@@ -5989,7 +5989,7 @@ paths:
     post:
       tags:
         - Public
-      summary: "[DISPONIBLE] Consulter un bon à partir de son code"
+      summary: '[DISPONIBLE] Consulter un bon à partir de son code'
       description: |
         Statut : **Disponible** (lot 6b)
 
