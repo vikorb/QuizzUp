@@ -11,9 +11,11 @@ import {
   stopLighting,
   useRoomHardware,
 } from '@/hardware/roomHardware'
+import { connectSmokeBoard, resetSmokeBoard, useSmokeBoard } from '@/hardware/smokeBoard'
 import { enterDemo, syncRoomAuth } from '@/state/roomAuth'
 import HardwareView from '@/views/hardware/HardwareView.vue'
 
+import { createFakeBoardPort } from '../_helpers/fakeBoardPort'
 import { createFakeUsbPort, installFakeSerial, uninstallFakeSerial } from '../_helpers/fakeUsb'
 import { mountWithApp } from '../_helpers/mount'
 
@@ -176,6 +178,44 @@ async function confirmationTexts(wrapper: Wrapper) {
   return texts
 }
 
+/** Carte et interface DMX ensemble : le sélecteur propose d'abord la carte, puis l'interface. */
+async function openWithBoard(profile = 'smoke-relay') {
+  const board = createFakeBoardPort()
+  const dmx = createFakeUsbPort()
+  const requests = [board.port, dmx]
+  Object.defineProperty(navigator, 'serial', {
+    value: {
+      requestPort: async () => requests.shift(),
+      getPorts: async () => [dmx, board.port],
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    },
+    configurable: true,
+  })
+  await expect(connectSmokeBoard()).resolves.toBe('ready')
+  const wrapper = await openSmokeStep('usbpro', profile)
+  return { board, wrapper }
+}
+
+/** Test de coupure lancé jusqu'à la question, `beforeAnswer` agit pendant que la fumée « tourne ». */
+async function freezeUntilQuestion(wrapper: Wrapper, beforeAnswer = () => {}) {
+  await sel(wrapper, 'check-physicalStop').setValue(true)
+  if (sel(wrapper, 'check-timedRelay').exists()) {
+    await sel(wrapper, 'check-timedRelay').setValue(true)
+  }
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  const freeze = sel(wrapper, 'assistant-freeze').trigger('click')
+  await acceptConfirmations(2)
+  await freeze
+  await flushPromises()
+  expect(sel(wrapper, 'freeze-running').exists()).toBe(true)
+  beforeAnswer()
+  await vi.advanceTimersByTimeAsync(MAX_FREEZE_MS)
+  vi.useRealTimers()
+  await flushPromises()
+  expect(sel(wrapper, 'freeze-question').text()).toContain('La carte a-t-elle coupé')
+}
+
 describe('assistant : garde-fous de la fumée', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -186,6 +226,7 @@ describe('assistant : garde-fous de la fumée', () => {
     bridge.holds = []
   })
   afterEach(async () => {
+    await resetSmokeBoard()
     await stopLighting()
     vi.unstubAllGlobals()
     uninstallFakeSerial()
@@ -314,7 +355,49 @@ describe('assistant : garde-fous de la fumée', () => {
       expect(sel(wrapper, 'freeze-hint').text()).not.toContain('relais temporisé')
       expect(sel(wrapper, 'assistant-freeze').text()).toContain('plantage simulé')
       const [, second] = await confirmationTexts(wrapper)
-      expect(second).toContain('La carte doit couper la fumée en moins d’une seconde')
+      expect(second).toContain('La carte doit couper la fumée toute seule, en moins d’une seconde')
+    })
+
+    it('carte : réponse « elle s’est arrêtée » avec la carte restée prête valide le test', async () => {
+      const { wrapper } = await openWithBoard()
+      await freezeUntilQuestion(wrapper)
+
+      await click(wrapper, 'freeze-ok')
+
+      expect(localStorage.getItem(SMOKE_PROOF_STORAGE_KEY)).not.toBeNull()
+      expect((sel(wrapper, 'check-freezeTest').element as HTMLInputElement).checked).toBe(true)
+      expect(wrapper.text()).not.toContain('la carte n’a pas coupé à temps')
+    })
+
+    it.each([
+      ['fault', (board: ReturnType<typeof createFakeBoardPort>) => board.reboot()],
+      ['disconnected', (board: ReturnType<typeof createFakeBoardPort>) => board.unplug()],
+    ])(
+      'carte en %s pendant le test : « elle s’est arrêtée » ne valide rien',
+      async (view, breakBoard) => {
+        const { board, wrapper } = await openWithBoard()
+        await freezeUntilQuestion(wrapper, () => breakBoard(board))
+        await vi.waitFor(() => expect(useSmokeBoard().view.value).toBe(view))
+
+        await click(wrapper, 'freeze-ok')
+
+        expect(wrapper.text()).toContain('la carte n’a pas coupé à temps')
+        expect(localStorage.getItem(SMOKE_PROOF_STORAGE_KEY)).toBeNull()
+        expect((sel(wrapper, 'check-freezeTest').element as HTMLInputElement).checked).toBe(false)
+        expect(getLighting()?.getState().emergency).toBe(true)
+      }
+    )
+
+    it('carte : l’échec ne décoche pas « coupe sur perte de signal » (ce n’est pas ce qui a été testé)', async () => {
+      const { wrapper } = await openWithBoard('smoke-dmx')
+      await sel(wrapper, 'smoke-cuts-on-signal-loss').setValue(true)
+      await freezeUntilQuestion(wrapper)
+
+      await click(wrapper, 'freeze-ko')
+
+      expect(wrapper.text()).toContain('la carte n’a pas coupé à temps')
+      const box = sel(wrapper, 'smoke-cuts-on-signal-loss').element as HTMLInputElement
+      expect(box.checked).toBe(true)
     })
 
     it('DMX : le texte garde le relais temporisé', async () => {

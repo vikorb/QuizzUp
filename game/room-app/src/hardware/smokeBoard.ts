@@ -42,13 +42,16 @@ import {
 export const BUNDLED_PROGRAM_VERSION = '1.0.0'
 /** Arduino (2341, 2A03) et CH340 (1A86) : les puces des cartes Uno et de leurs clones. */
 export const SMOKE_BOARD_USB_VENDOR_IDS = [0x2341, 0x2a03, 0x1a86] as const
-/** Reprises seules d'une carte muette, en défaut ou débranchée pendant que la page reste ouverte. */
+/** Reprises seules d'une carte muette ou débranchée pendant que la page reste ouverte (jamais après un défaut). */
 export const SMOKE_BOARD_RETRY_MAX = 5
 export const SMOKE_BOARD_RETRY_DELAY_MS = 3000
 /** Une carte restée prête aussi longtemps repart avec tous ses essais (sinon ils s'épuisent sur la soirée). */
 export const SMOKE_BOARD_STABLE_MS = 60_000
-/** Un `no_firmware` n'est pas repris : sans notre programme, recommencer ne changerait rien. */
-const RETRYABLE: readonly SmokeBoardState['status'][] = ['silent', 'disconnected', 'fault']
+/**
+ * Ni `no_firmware` (sans notre programme, recommencer ne changerait rien) ni `fault` (la carte s'est
+ * contredite ou a redémarré : le défaut reste affiché jusqu'à un geste de l'opérateur).
+ */
+const RETRYABLE: readonly SmokeBoardState['status'][] = ['silent', 'disconnected']
 
 /** Un seul fichier, sans date : il est écrasé par le suivant dans le dossier de téléchargement. */
 export const BACKUP_FILE_NAME = 'quizzup-fumee-sauvegarde-carte.hex'
@@ -178,6 +181,7 @@ function scheduleRetry(state: SmokeBoardState): void {
 /** Ferme le lien en place (un `0` part) : plus aucune commande ne passe, le contrôleur le voit. */
 async function detach(): Promise<void> {
   cancelRetry()
+  readySince = null
   stopLink?.()
   stopLink = null
   const previous = link

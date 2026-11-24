@@ -715,6 +715,7 @@ import {
   triggerEmergencyStop,
   useRoomHardware,
 } from '@/hardware/roomHardware'
+import { useSmokeBoard } from '@/hardware/smokeBoard'
 import { useBuzzers } from '@/hardware/useBuzzers'
 import { useFreezeTest } from '@/hardware/useFreezeTest'
 import BuzzerSetup from '@/views/hardware/BuzzerSetup.vue'
@@ -789,6 +790,16 @@ const connectError = ref<SerialErrorDescription | null>(null)
 const freezeStage = ref<'idle' | 'running' | 'question'>('idle')
 let freezeTimer: ReturnType<typeof setTimeout> | null = null
 const freezeFailed = ref(false)
+// Carte de la fumée : muette, en défaut ou perdue entre le lancement du test et la réponse. En cas de
+// bail défaillant, c'est le lien (la page) qui coupe vers 0,75 s, pas la carte : le test ne prouve rien.
+const { view: boardView } = useSmokeBoard()
+const BOARD_LOST_VIEWS = new Set(['silent', 'fault', 'disconnected'])
+const boardLostDuringTest = ref(false)
+watch(boardView, (current) => {
+  if (freezeStage.value !== 'idle' && BOARD_LOST_VIEWS.has(current)) {
+    boardLostDuringTest.value = true
+  }
+})
 // Réponse « elle s'est arrêtée », mais la preuve locale n'a pas pu être posée : test à refaire.
 const proofNotRecorded = ref(false)
 // L'échec concernait le test de perte de signal (la case est ensuite décochée).
@@ -1264,6 +1275,7 @@ function onCheck(check: SmokeCheckId, event: Event): void {
 async function onFreezeTest(): Promise<void> {
   freezeFailed.value = false
   proofNotRecorded.value = false
+  boardLostDuringTest.value = false
   await apply({ forFreezeTest: true })
   if (!(await runFreezeTest())) {
     return
@@ -1278,7 +1290,11 @@ async function onFreezeTest(): Promise<void> {
   }, MAX_FREEZE_MS)
 }
 
-function onFreezeAnswer(ok: boolean): void {
+function onFreezeAnswer(answer: boolean): void {
+  // Réponse positive mais carte perdue pendant le test (ou à l'instant) : le test échoue.
+  const ok =
+    answer &&
+    !(viaBoard.value && (boardLostDuringTest.value || BOARD_LOST_VIEWS.has(boardView.value)))
   if (freezeTimer !== null) {
     clearTimeout(freezeTimer)
     freezeTimer = null
@@ -1295,8 +1311,8 @@ function onFreezeAnswer(ok: boolean): void {
     triggerEmergencyStop('freeze_test_failed')
     // Machine sans relais qui ne coupe pas sur perte de signal : la case est décochée, la fumée
     // reste désactivée (raison « relais requis ») tant que le test n'est pas réussi.
-    freezeFailedSignal.value = signalLossTest.value
-    if (signalLossTest.value) {
+    freezeFailedSignal.value = signalLossTest.value && !viaBoard.value
+    if (signalLossTest.value && !viaBoard.value) {
       run(() => wizard.setSmoke({ cutsOnSignalLoss: false }))
     }
   }

@@ -123,8 +123,8 @@ installation ratée se recommence : le chargeur de la carte n'est pas touché.
 
 Le test de coupure se fait dans l'assistant Matériel, étape « Sécuriser la fumée », comme pour une
 salle à relais DMX : voir [`installation-salle.md`](installation-salle.md), étape 7. Les vérifications
-obligatoires et le bouton « Lancer le plantage simulé » sont les mêmes. Pendant le test, plus aucune
-trame n'est envoyée : la page ne redit donc plus rien à la carte, qui doit couper d'elle-même.
+obligatoires et le bouton « Lancer le plantage simulé » sont les mêmes. Pendant le test, la page
+cesse de renouveler l'ordre envoyé à la carte, qui doit couper d'elle-même.
 
 - La fumée part vraiment. Machine allumée, salle vide, arrêt d'urgence physique à portée de main.
 - Si la fumée ne s'arrête pas : « La fumée ne s’arrête pas : tout couper » **et** l'arrêt d'urgence
@@ -136,12 +136,18 @@ d'une seconde** (et non « 10 secondes au plus » comme pour un relais temporis�
 « La carte a-t-elle coupé la fumée toute seule, en moins d’une seconde ? ». Ce délai vient de la
 conception : il est à valider sur le banc, sur une vraie carte.
 
+Si la carte passe en défaut, devient muette ou se débranche pendant le test, le test échoue, même si
+tu réponds « Elle s’est arrêtée » : dans ce cas c'est la page qui a coupé, pas la carte. Aucune preuve
+n'est enregistrée et l'arrêt d'urgence est déclenché.
+
 Le bouton « Lancer le plantage simulé » exige toujours une vraie sortie de lumières connectée
 (« Connecte d’abord la vraie interface DMX : en simulation, aucune fumée ne sortirait et le test ne
 prouverait rien. »). Une salle qui n'a que la carte, sans lumières connectées, ne peut donc pas faire
 le test, et la fumée y reste refusée. Ne contourne pas cette sécurité : préviens l'éditeur.
 
 Le relais temporisé et l'arrêt d'urgence physique restent exigés, avec la carte comme sans elle.
+Attention : avec la carte, ce test vérifie la coupure par la carte, pas le relais temporisé. La
+carte coupe avant que le relais ait eu à agir.
 
 ### 3.4 Armer la fumée
 
@@ -192,22 +198,29 @@ cette carte. » est le message attendu.
 
 ### État de la carte
 
-| Message                                                             | Ce que ça veut dire                                              | Geste                                                                                        |
-| ------------------------------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| « Aucune carte connectée. »                                         | Aucune carte n'a été choisie ou reprise                          | « Choisir la carte de la fumée »                                                             |
-| « Connexion à la carte… »                                           | La page attend le message de démarrage de la carte (3 s au plus) | Attends                                                                                      |
-| « Prête (programme 1.0.0). »                                        | Carte prête                                                      | Rien                                                                                         |
-| « Programme 1.0.0 à mettre à jour. »                                | La carte a un autre programme QuizzUp que celui livré            | « Installer le programme »                                                                   |
-| « Programme QuizzUp absent sur cette carte. »                       | La carte ne répond pas avec le programme QuizzUp                 | Installe le programme (3.2)                                                                  |
-| « La carte ne répond plus. »                                        | La carte est restée muette plus d'une seconde. Fumée coupée      | Attends : la page réessaie seule (voir sous le tableau). Sinon vérifie le câble et recharge  |
-| « Carte débranchée ou port perdu. »                                 | Le port a disparu                                                | Rebranche. La carte est reprise toute seule, **fumée désarmée**                              |
-| « La carte a redémarré ou se contredit : fumée coupée. »            | Remise à zéro en cours de partie, ou réponse incohérente         | Attends la fin de la pause de 5 s. Réarme à la main. Si ça se répète, signale-le à l'éditeur |
-| « La carte de la fumée ne répond plus : fumée coupée et désarmée. » | Avertissement du contrôleur de lumières                          | Même geste que « La carte ne répond plus. »                                                  |
+| Message                                                             | Ce que ça veut dire                                              | Geste                                                                                                                                                                         |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| « Aucune carte connectée. »                                         | Aucune carte n'a été choisie ou reprise                          | « Choisir la carte de la fumée »                                                                                                                                              |
+| « Connexion à la carte… »                                           | La page attend le message de démarrage de la carte (3 s au plus) | Attends                                                                                                                                                                       |
+| « Prête (programme 1.0.0). »                                        | Carte prête                                                      | Rien                                                                                                                                                                          |
+| « Programme x.y.z à mettre à jour. »                                | La carte a un autre programme QuizzUp que celui livré            | « Installer le programme »                                                                                                                                                    |
+| « Programme QuizzUp absent sur cette carte. »                       | La carte ne répond pas avec le programme QuizzUp                 | Installe le programme (3.2)                                                                                                                                                   |
+| « La carte ne répond plus. »                                        | La carte est restée muette plus d'une seconde. Fumée coupée      | Attends : la page réessaie seule (voir sous le tableau). Sinon vérifie le câble et recharge                                                                                   |
+| « Carte débranchée ou port perdu. »                                 | Le port a disparu                                                | Rebranche. La carte est reprise toute seule, **fumée désarmée**                                                                                                               |
+| « La carte a redémarré ou se contredit : fumée coupée. »            | Remise à zéro en cours de partie, ou réponse incohérente         | Le message reste affiché : la page ne reprend pas la carte seule. Recharge la page, puis réarme à la main. Si ça se répète, n'utilise plus la fumée et signale-le à l'éditeur |
+| « La carte de la fumée ne répond plus : fumée coupée et désarmée. » | Avertissement du contrôleur de lumières                          | Même geste que « La carte ne répond plus. »                                                                                                                                   |
 
-Carte muette, en défaut ou débranchée : la page rouvre le lien toute seule, cinq fois au plus, à
-trois secondes d'écart. La carte revient alors prête, **fumée désarmée** : il faut la réarmer à la
-main. Après cinq essais sans succès, la page n'essaie plus : rebranche la carte ou recharge la page.
-Une carte sans le programme QuizzUp n'est pas reprise. Comportement à valider sur le banc.
+Carte muette : la page rouvre le lien toute seule, cinq fois au plus, à trois secondes d'écart. La
+carte revient alors prête, **fumée désarmée** : il faut la réarmer à la main. Après cinq essais sans
+succès, la page n'essaie plus : rebranche la carte ou recharge la page.
+
+Carte débranchée : la page essaie une fois, puis c'est le rebranchement qui reprend la carte.
+
+Carte en défaut (« a redémarré ou se contredit ») : la page ne rouvre jamais le lien seule. Le
+message reste affiché jusqu'à ce que tu recharges la page ou rechoisisses la carte.
+
+Une carte sans le programme QuizzUp n'est pas reprise. À la déconnexion de la salle ou à
+l'expiration de sa session, le lien de la carte est fermé. Comportement à valider sur le banc.
 
 ### Choix de la carte
 

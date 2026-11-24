@@ -21,6 +21,7 @@ import {
   SMOKE_BOARD_STABLE_MS,
   useSmokeBoard,
 } from '@/hardware/smokeBoard'
+import { expireRoomSession, signOut } from '@/state/roomAuth'
 
 import bundledHex from '../../../hardware/firmware/fumee/fumee.hex?raw'
 import { createFakeBoardPort, type FakeBoardOptions } from '../_helpers/fakeBoardPort'
@@ -102,9 +103,12 @@ function manualClock() {
   let time = 0
   let next = 1
   const timers = new Map<number, () => void>()
+  /** Toutes les reprises programmées, même annulées ou déjà lancées. */
+  const scheduled: (() => void)[] = []
   const clock: Clock = {
     now: () => time,
     setTimeout: (callback) => {
+      scheduled.push(callback)
       timers.set(next, callback)
       return next++ as unknown as ReturnType<typeof setTimeout>
     },
@@ -115,6 +119,8 @@ function manualClock() {
   return {
     clock,
     pending: () => timers.size,
+    /** Rejoue la dernière reprise programmée, comme une minuterie qui arriverait malgré l'annulation. */
+    replayLast: () => scheduled.at(-1)!(),
     advance: (ms: number) => void (time += ms),
     /** Lance la reprise programmée (le délai est celui de la constante, sans l'attendre). */
     async fire() {
@@ -337,17 +343,68 @@ describe('carte USB de la fumée : reprise seule en cours de page', () => {
     expect(time.pending()).toBe(0)
   })
 
-  it('une installation en cours annule la reprise programmée', async () => {
+  it('une reprise qui arrive pendant l’attente de la sauvegarde n’ouvre aucun port', async () => {
     const time = manualClock()
     setSmokeBoardClock(time.clock)
     const { fake } = await readyBoard()
     fake.unplug()
     await vi.waitFor(() => expect(useSmokeBoard().view.value).toBe('disconnected'))
     expect(time.pending()).toBe(1)
+    fake.replug()
 
-    await installSmokeBoardProgram({ machineOff: true, confirmBackup: async () => true })
+    const installing = installSmokeBoardProgram({ machineOff: true, download: () => undefined })
+    await vi.waitFor(() => expect(useSmokeBoard().install.value.phase).toBe('awaiting_backup'))
+    const opens = fake.opens.length
+    // La reprise programmée est annulée par l'installation ; une minuterie qui passerait quand même
+    // (rejouée ici) attend la fin de l'installation dans la file et ne touche à aucun port.
+    expect(time.pending()).toBe(0)
+
+    time.replayLast()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(fake.opens).toHaveLength(opens)
+    expect(useSmokeBoard().install.value.phase).toBe('awaiting_backup')
+    answerBackupSaved(false)
+    await installing
+  })
+
+  it('une carte en défaut n’est jamais reprise seule : le défaut reste affiché', async () => {
+    const time = manualClock()
+    setSmokeBoardClock(time.clock)
+    const { fake } = await readyBoard()
+    lighting().smoke.arm()
+
+    fake.reboot()
+    await vi.waitFor(() => expect(useSmokeBoard().view.value).toBe('fault'))
+    time.advance(SMOKE_BOARD_STABLE_MS * 10)
+    await new Promise((resolve) => setTimeout(resolve, 0))
 
     expect(time.pending()).toBe(0)
+    expect(fake.opens).toHaveLength(1)
+    expect(useSmokeBoard().view.value).toBe('fault')
+    expect(smoke().armed).toBe(false)
+  })
+
+  it.each([
+    ['session expirée', expireRoomSession],
+    ['déconnexion', signOut],
+  ])('%s : ni la minuterie ni le rebranchement ne relancent les lumières', async (_name, end) => {
+    const time = manualClock()
+    setSmokeBoardClock(time.clock)
+    const { fake, serial } = await readyBoard()
+    fake.unplug()
+    await vi.waitFor(() => expect(useSmokeBoard().view.value).toBe('disconnected'))
+    expect(time.pending()).toBe(1)
+
+    await end()
+    expect(getLighting()).toBeNull()
+    fake.replug()
+    serial.emit('connect', fake.port)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(time.pending()).toBe(0)
+    expect(getLighting()).toBeNull()
+    expect(fake.opens).toHaveLength(1)
   })
 
   it('carte sans notre programme : aucune reprise', async () => {
