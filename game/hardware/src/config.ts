@@ -10,9 +10,9 @@ import type { DmxDriver } from './dmx/output'
 import { DMX_DRIVERS } from './dmx/output'
 import type { FixtureProfile } from './dmx/profiles'
 import { hasProgressiveSmokeChannel } from './dmx/profiles'
-import type { SceneDefinition } from './lighting/scenes'
+import type { ExitLightConfig, SceneDefinition } from './lighting/scenes'
 import { DEFAULT_DESK_COLORS } from './lighting/scenes'
-import { parseScenes } from './lighting/showConfig'
+import { parseExit, parseScenes } from './lighting/showConfig'
 import type { SmokeSafetyConfig } from './lighting/smoke'
 import { DEFAULT_SMOKE_SAFETY, normalizeSmokeSafety } from './lighting/smoke'
 import type { PlanPoint, PlanTarget, RoomPlan } from './plan'
@@ -50,6 +50,12 @@ export type LightingConfig = {
    * défaut = remplacement). Bornées par `parseScenes`. Absent = show par défaut.
    */
   scenes?: SceneDefinition[]
+  /**
+   * Lumière de sortie de fin de session (blanc chaud, sans stroboscope ni fumée) : activée,
+   * 10 s après la victoire pendant 5 min, quand le bloc est absent (`DEFAULT_EXIT`). Bornée par
+   * `parseExit`.
+   */
+  exit?: ExitLightConfig
   smoke: SmokeSafetyConfig
 }
 
@@ -277,6 +283,7 @@ const LIGHTING_KEYS = [
   'deskColors',
   'bindings',
   'scenes',
+  'exit',
   'smoke',
 ] as const
 
@@ -408,6 +415,8 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
 
   const { scenes, problems: sceneProblems } = parseScenes(lighting.scenes)
   problems.push(...sceneProblems)
+  const { exit, problems: exitProblems } = parseExit(lighting.exit)
+  problems.push(...exitProblems)
 
   const config: RoomHardwareConfig = {
     // Clés inconnues d'abord : les clés connues ci-dessous les remplacent toujours.
@@ -430,6 +439,7 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
       deskColors: parseDeskColors(lighting.deskColors),
       bindings: parseBindings(lighting.bindings),
       ...(scenes.length > 0 ? { scenes } : {}),
+      ...(exit ? { exit } : {}),
       smoke,
     },
     plan: parseRoomPlan(

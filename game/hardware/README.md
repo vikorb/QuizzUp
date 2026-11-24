@@ -289,21 +289,22 @@ enregistrée par pupitre** (`deskPositions`) : « spot sur le pupitre qui a buzz
 Les noms sont ceux du moteur `@quizzup/game-engine`. Le pupitre vient de `payload.desk` s'il
 est fourni, sinon de `payload.participantId` via `resolveDesk`.
 
-| Événement moteur                                       | Scène par défaut                       |
-| ------------------------------------------------------ | -------------------------------------- |
-| `game_started`                                         | `game-start`                           |
-| `round_started`                                        | `round-start`                          |
-| `round_started.<miniGame>` (si la salle l'a réglé)     | celle de la salle, sinon `round-start` |
-| `round_chooser_selected`                               | `chooser` (spot pupitre)               |
-| `question_started`                                     | `question`                             |
-| `blind_test_stage_started`, `blind_test_stage_resumed` | `clip-playing`                         |
-| `buzzer_pressed`                                       | `buzz` (spot pupitre)                  |
-| `answer_correct` / `answer_wrong`                      | `answer-correct` / `answer-wrong`      |
-| `question_ended` sans gagnant                          | `question-lost`                        |
-| `round_ended`                                          | `round-end`                            |
-| `game_ended` (un seul gagnant → spot sur son pupitre)  | `victory` (+ fumée si armée)           |
-| `game_ended` à égalité (clé `game_ended_tie`)          | `victory-tie` (+ fumée si armée)       |
-| `game_aborted`                                         | `idle`                                 |
+| Événement moteur                                        | Scène par défaut                       |
+| ------------------------------------------------------- | -------------------------------------- |
+| `game_started`                                          | `game-start`                           |
+| `round_started`                                         | `round-start`                          |
+| `round_started.<miniGame>` (si la salle l'a réglé)      | celle de la salle, sinon `round-start` |
+| `round_chooser_selected`                                | `chooser` (spot pupitre)               |
+| `question_started`                                      | `question`                             |
+| `blind_test_stage_started`, `blind_test_stage_resumed`  | `clip-playing`                         |
+| `buzzer_pressed`                                        | `buzz` (spot pupitre)                  |
+| `answer_correct` / `answer_wrong`                       | `answer-correct` / `answer-wrong`      |
+| `question_ended` sans gagnant                           | `question-lost`                        |
+| `round_ended`                                           | `round-end`                            |
+| `game_ended` (un seul gagnant → spot sur son pupitre)   | `victory` (+ fumée si armée)           |
+| `game_ended` à égalité (clé `game_ended_tie`)           | `victory-tie` (+ fumée si armée)       |
+| `game_ended` faute de contenu (`game_ended_incomplete`) | `exit` (lumière de sortie)             |
+| `game_aborted`                                          | `idle`                                 |
 
 Chaque salle peut surcharger une liaison (`lighting.bindings`, `null` pour la couper). Une salle qui
 a réglé `game_ended` sans régler `game_ended_tie` garde son choix à égalité. Une scène
@@ -311,7 +312,7 @@ moins prioritaire n'interrompt pas la scène en cours (un extrait qui reprend ne
 l'effet « bonne réponse »). Priorités : `idle` 0 ; `question`, `clip-playing` 10 ; `game-start`,
 `round-start`, `chooser`, `round-end` 20 ; `buzz`, `answer-correct`, `answer-wrong`,
 `question-lost` 40 (un buzz juste après une mauvaise réponse n'est donc pas refusé) ; `victory`,
-`victory-tie` 50 ; `identify` 90. Couleurs : DA néon du backoffice, une couleur par pupitre.
+`victory-tie` 50 ; `exit`, `exit-off` 15 ; `identify` 90. Couleurs : DA néon du backoffice, une couleur par pupitre.
 
 **Plafond d'éclairs (photosensibilité)** : la salle ne fait pas plus de **3 éclairs par seconde**,
 quelle que soit la scène jouée par le lecteur de scènes. Le seuil de référence est
@@ -427,8 +428,67 @@ scène enchaînée. Le contrôleur reborne lui-même `lighting.scenes` (`parseSc
 passe pas par `parseRoomHardwareConfig` ne contourne rien. Le plafond de 3 éclairs par seconde du
 lecteur vaut aussi pour ces scènes.
 
-Limite connue : les scènes par défaut n'ont pas de `next`, donc la détection de boucle ne regarde
-que les scènes de la salle (à étendre quand une scène par défaut en aura un).
+Les scènes par défaut ont maintenant des `next` (victoire → sortie → extinction) : la détection de
+boucle regarde le graphe complet. Une boucle qui passe par une scène livrée non remplacée est refusée
+(le `next` des scènes de la salle qui la forment est retiré, avec un problème), et le « un seul jet
+de fumée par chaîne » compte aussi la fumée de `victory` : une scène `exit` de la salle avec un pas
+`smoke` le perd.
+
+### Lumière de sortie (`lighting.exit`)
+
+En fin de session, la salle passe en **blanc chaud et fort**, lyres au repos (`aim: 'home'`), pour que
+les joueurs voient la sortie. La scène vise toute la salle sans stroboscope (règle des cibles
+générales) et **n'a aucun pas de fumée ni de flash** : fondus seulement.
+
+```jsonc
+"lighting": {
+  "exit": { "enabled": true, "delayMs": 10000, "holdMs": 300000, "intensity": 1,
+            "color": { "r": 255, "g": 180, "b": 107, "w": 255 } }
+}
+```
+
+| Champ       | Défaut             | Rôle                                                                             |
+| ----------- | ------------------ | -------------------------------------------------------------------------------- |
+| `enabled`   | `true`             | `false` : rien ne s'enchaîne après la victoire, rien sur `game_ended_incomplete` |
+| `delayMs`   | 10 000             | attente après la fin de la scène de victoire (0 à 10 min)                        |
+| `holdMs`    | 300 000            | durée allumée, après le fondu de 3 s (0 à 10 min)                                |
+| `intensity` | 1                  | 0 à 1                                                                            |
+| `color`     | blanc chaud (RVBW) | couleur fixe (`desk` refusé) ; le profil de chaque appareil la convertit         |
+
+Le bloc est facultatif : une configuration d'avant lui reste valide et prend ces défauts (la lumière
+de sortie est donc active par défaut). `parseExit` ramène les valeurs hors borne ou de mauvais type
+aux défauts et le dit dans `problems` ; le contrôleur reborne aussi le bloc lui-même.
+
+- **Scène `exit`** (priorité 15, générée par `exitScene(settings)`) : attente `delayMs`, fondu de 3 s
+  vers la couleur, maintien `holdMs`, puis `next: 'exit-off'`. **`exit-off`** (15) : fondu de 3 s vers
+  l'ambiance, puis la scène est finie.
+- **Quand elle part** : `victory.next` et `victory-tie.next` valent `exit` (l'attente commence à la
+  fin de la victoire) ; la liaison `game_ended_incomplete` → `exit` (pas de célébration, donc pas
+  d'attente de victoire) ; et `playScene('exit')` pour le bouton « Lumière de sortie » de l'écran de
+  fin. `game_aborted` reste sur `idle` : le personnel décide.
+- **Quand elle s'arrête** : fin du maintien (`exit-off`) ; `game_started` (20 > 15), qui ne la
+  relance pas ; `playScene('exit-off')` (bouton « Éteindre la sortie ») ; arrêt de partie (`idle`) ;
+  arrêt d'urgence (noir, et la sortie ne reprend pas au réarmement) ; arrêt des lumières. Une scène de
+  priorité 10 (`question`, `clip-playing`) ne l'interrompt pas.
+- **`enabled: false`** : le contrôleur enregistre `victory` et `victory-tie` sans `next` et met
+  `game_ended_incomplete` à `null`. `playScene('exit')` reste possible (action explicite de
+  l'opérateur), et une liaison `game_ended_incomplete` posée par la salle est respectée.
+- Une salle peut remplacer `exit` ou `exit-off` par `lighting.scenes` (mêmes bornes que les autres
+  scènes) ; les réglages `lighting.exit` ne s'appliquent alors plus à la scène remplacée. Une salle
+  qui a sa propre scène `exit` la voit jouée après chaque victoire, et `lighting.exit` ne s'y applique
+  pas. Une salle qui remplace `victory` ou `victory-tie` sans `next` n'a plus de sortie automatique.
+  Un pas `smoke` n'est jamais accepté dans `exit` ni `exit-off` : il est retiré et signalé dans
+  `problems`, quelle que soit la chaîne.
+- `lighting.exit.intensity` à 0 ou une couleur noire (rien d'allumé) sont acceptés mais signalés dans
+  `problems` : la salle resterait dans le noir.
+- **Repos et début de partie** : `playScene('idle')` (bouton de l'opérateur) arrête d'abord le lecteur,
+  scène en cours et enchaînement en attente compris : un test de victoire à l'écran Matériel ne
+  laisse pas la sortie allumée. `game_started` arrête aussi le lecteur avant sa scène (comme
+  `game_aborted`) : une victoire en cours n'enchaîne pas sa sortie pendant la partie suivante. Les
+  autres événements de jeu gardent leurs priorités.
+- Le plafond de 400 ms entre deux éclairs s'applique comme à toute scène : l'allumage de la sortie est
+  un seul fondu, un seul éclair compté. Les 3 s de fondu et la lisibilité depuis la porte sont **à
+  valider sur le banc** (D12).
 
 **Clés inconnues** : `parseRoomHardwareConfig` recopie telles quelles les clés qu'il ne connaît pas,
 à la racine et dans `lighting`, pour qu'un poste resté sur une version plus ancienne n'efface pas ce
