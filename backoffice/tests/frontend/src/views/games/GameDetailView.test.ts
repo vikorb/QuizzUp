@@ -2,8 +2,11 @@ import { setAuthenticatedUser } from '@frontend-tests/_helpers/authStateMock'
 import { confirmMock, setConfirmResult } from '@frontend-tests/_helpers/confirmMock'
 import {
   abortGameServiceMock,
+  acceptGameRegistrationServiceMock,
   createGameFixture,
   createParticipantFixture,
+  createRegistrationFixture,
+  listGameRegistrationsServiceMock,
   loadGameServiceMock,
   mockServiceFailure,
   resetGamesServiceMock,
@@ -83,6 +86,38 @@ describe('views/games/GameDetailView.vue', () => {
     expect(wrapper.text()).toContain('Salle Néon')
     expect(wrapper.text()).toContain('games.state.pending')
     expect(wrapper.text()).toContain('games.detail.fields.formatValue')
+  })
+
+  it('shows the sign-up panel of a pending game and reloads the game once a request is validated', async () => {
+    listGameRegistrationsServiceMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { registrations: [createRegistrationFixture({ id: 5 })] },
+    })
+
+    const wrapper = await mountView()
+
+    expect(listGameRegistrationsServiceMock).toHaveBeenCalledWith(1, 4)
+    expect(wrapper.find('[data-test="game-join-registration-5"]').exists()).toBe(true)
+
+    await wrapper.get('[data-test="game-join-accept"]').trigger('click')
+    await flushPromises()
+
+    expect(acceptGameRegistrationServiceMock).toHaveBeenCalledWith(1, 4, 5, undefined)
+    expect(loadGameServiceMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('has no sign-up panel for a game that is not pending', async () => {
+    loadGameServiceMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { game: createGameFixture({ id: 4, state: GAME_STATE_FINISHED }) },
+    })
+
+    const wrapper = await mountView()
+
+    expect(listGameRegistrationsServiceMock).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-test="game-join-panel"]').exists()).toBe(false)
   })
 
   it('shows « all » mini-games when the game has no restriction', async () => {

@@ -100,6 +100,8 @@
 
     <GameLivePanel v-if="game" :game="game" @ended="loadPage" />
 
+    <GameJoinPanel v-if="game" :game="game" @changed="loadPage" />
+
     <GameParticipantsTable v-if="game" :participants="game.participants ?? []" />
   </SectionLayout>
 </template>
@@ -133,6 +135,7 @@ import {
   getGameStateTone,
 } from '@/utils/game/state'
 
+import GameJoinPanel from './detail/GameJoinPanel.vue'
 import GameLivePanel from './detail/GameLivePanel.vue'
 import GameParticipantsTable from './detail/GameParticipantsTable.vue'
 

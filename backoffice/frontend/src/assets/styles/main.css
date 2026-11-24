@@ -58,6 +58,9 @@
   --row-hover: rgba(116, 88, 230, 0.08); /* survol de ligne (tables) */
   --bg-elevated: rgba(10, 12, 24, 0.98); /* menus / dropdowns opaques */
 
+  /* ---- QR code : toujours sombre sur clair, même en thème sombre, sinon les téléphones ne le lisent pas ---- */
+  --qr-paper: #ffffff;
+
   /* ---- Impression (feuille de résultats) : encre sombre sur papier blanc, sans lueur ---- */
   --print-paper: #ffffff;
   --print-ink: #14122b;
