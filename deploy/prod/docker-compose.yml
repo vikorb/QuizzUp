@@ -126,6 +126,9 @@ services:
       # par défaut : une production mal configurée reste fermée plutôt qu'ouverte.
       CONSOLE_ALLOWED_CIDRS: ${CONSOLE_ALLOWED_CIDRS:-}
       TRUST_PROXY: ${TRUST_PROXY:-}
+      # Origine des pages pour téléphone (/rejoindre/, /bon/) : base des liens et QR codes, et
+      # origine autorisée d'office sur l'API publique /public/v1.
+      PUBLIC_APP_URL: https://${HOST_APP:?HOST_APP manquant dans .env}
       CORS_ORIGIN: https://${HOST_APP:?HOST_APP manquant dans .env},https://${HOST_SALLE:?HOST_SALLE manquant dans .env},https://${HOST_CONSOLE:?HOST_CONSOLE manquant dans .env},https://${HOST_WWW:?HOST_WWW manquant dans .env}
       MEDIA_STORAGE_DIR: /data/media
       MEDIA_MAX_BYTES: ${MEDIA_MAX_BYTES:-10485760}

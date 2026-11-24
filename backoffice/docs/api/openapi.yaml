@@ -58,14 +58,17 @@ tags:
       de l'API elle-même est dans `public-v1.yaml`)
   - name: Stats
     description: Statistiques d'exploitation d'une compagnie (agrégats, aucun joueur)
+  - name: Players
+    description: Joueurs d'une compagnie déduits des parties (liste, export des offres, désinscription, effacement RGPD)
   - name: DemoRequests
     description: Demandes de démonstration reçues de la vitrine, consultées dans la console de l'éditeur
   - name: Public
     description: |
       API publique sous `/public/v1` (vitrine, réservation) : sans compte, sans jeton, sans cookie.
       Routes livrées : `POST /public/v1/demo-requests` (demande de démonstration),
-      `GET /public/v1/logos/{file}` (logo d'un centre) et `POST /public/v1/vouchers/lookup`
-      (consultation d'un bon). Toutes suivent ces conventions.
+      `GET /public/v1/logos/{file}` (logo d'un centre), `POST /public/v1/vouchers/lookup`
+      (consultation d'un bon), `POST /public/v1/join/lookup` et `POST /public/v1/join/registrations`
+      (accueil des joueurs par QR code). Toutes suivent ces conventions.
 
       L'API de réservation (`/public/v1/rooms`, `/availability`, `/bookings`) fait exception : elle
       exige une clé d'API (`Authorization: Bearer qzk_…`) et son contrat est dans `public-v1.yaml`.
@@ -79,7 +82,7 @@ tags:
         avec l'en-tête `Retry-After` (secondes).
       - Réponses jamais mises en cache (`Cache-Control: no-store`), sauf le contenu immuable d'un
         fichier (logo : `public, max-age=31536000, immutable`).
-      - CORS réservé aux sites listés dans la variable `VITRINE_ORIGINS` (aucun si elle est vide).
+      - CORS réservé aux sites listés dans la variable `VITRINE_ORIGINS` et à l'origine de `PUBLIC_APP_URL` (aucun si les deux sont vides).
 
 security:
   - bearerAuth: []
@@ -2808,7 +2811,7 @@ paths:
 
         Émet le bon de fidélisation d'un pupitre d'une partie terminée (un bon par pupitre et par partie, partagé par le duo). Le libellé du bon est copié du réglage `voucherLabel` du centre au moment de l'émission ; la fin de validité est l'émission plus `voucherValidityDays` jours. Le code (`XXXX-XXXX`) est tiré sur 40 bits.
 
-        `url` est l'adresse de la page publique du bon (`PUBLIC_APP_URL` + `/bon/#<code>`), nulle tant que `PUBLIC_APP_URL` n'est pas réglée. Le QR code (`qrSvg`) n'est pas encore fourni : il arrive avec le générateur de QR du lot 2.
+        `url` est l'adresse de la page publique du bon (`PUBLIC_APP_URL` + `/bon/#<code>`), nulle tant que `PUBLIC_APP_URL` n'est pas réglée. `qrSvg` : QR code de `url`, `null` quand `url` l'est.
 
         Ordre des contrôles : droit, paramètres et corps, compagnie, compagnie et partie existantes (`404 not_found`), bons activés (`409 vouchers_disabled`), partie terminée (`409 game_not_finished`), pupitre de cette partie (`404 participant_not_found`), bon déjà émis (`409 voucher_already_issued`, y compris pour un bon annulé).
 
@@ -2866,7 +2869,7 @@ paths:
       description: |
         Statut : **Disponible** (lot 6b)
 
-        Bons non supprimés de la partie, dans l'ordre des pupitres, avec leur `state` (un bon annulé est listé : c'est à la feuille de résultats de l'ignorer).
+        Bons non supprimés de la partie, dans l'ordre des pupitres, avec leur `state` (un bon annulé est listé : c'est à la feuille de résultats de l'ignorer). `qrSvg` : QR code de `url`, `null` quand `url` l'est.
 
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
       operationId: listGameVouchers
@@ -3222,6 +3225,214 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
           description: Accès interdit (rôle `user`, ou autre compagnie)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/players:
+    get:
+      tags:
+        - Players
+      summary: "[DISPONIBLE] Lister les joueurs d'une compagnie"
+      description: |
+        Statut : **Disponible** (lot 7b)
+
+        Il n'y a pas de table de joueurs : un joueur est une adresse e-mail normalisée (minuscules, espaces retirés) dans une compagnie, lue sur les pupitres des parties (premier et second joueur). Toutes les parties de la compagnie comptent, supprimées logiquement comprises : une adresse stockée doit pouvoir être retrouvée, exportée et effacée. Les demandes d'inscription en attente ne sont pas des joueurs.
+
+        `displayName` et `marketingConsent` sont ceux de la **dernière** apparition du joueur : s'il n'accepte plus les offres à sa dernière partie, `marketingConsent` est faux. `sessions`, `lastPlayedAt` et `bestScore` ne comptent que les parties **terminées et non supprimées** : un joueur qui n'a que d'autres parties (en cours, en attente, annulées, supprimées) reste listé, avec `sessions: 0`, `lastPlayedAt: null` et `bestScore: null`. Tri : dernière partie jouée la plus récente d'abord (les joueurs sans partie jouée en dernier), puis apparition la plus récente ; l'adresse n'entre pas dans le tri.
+
+        `anonymousPlayers` compte les joueurs sans adresse (pupitres et seconds joueurs nommés) des parties terminées : on ne peut que les compter.
+
+        `search` filtre sur le **nom** (partie du nom, sans tenir compte de la casse). Pas d'adresse e-mail dans l'URL : elle serait écrite dans les journaux d'accès.
+
+        Accès : tout le personnel de la compagnie, superadmin pour toutes. Le rôle `user` reçoit `email: null`.
+      operationId: listPlayers
+      x-availability: disponible
+      x-us: 'US-PLAYER-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - name: search
+          in: query
+          required: false
+          description: Morceau du nom d'un joueur, 100 caractères au plus.
+          schema:
+            type: string
+            maxLength: 100
+        - name: limit
+          in: query
+          required: false
+          description: Taille de page, 50 par défaut, ramenée à 200 au-delà.
+          schema:
+            type: integer
+            minimum: 1
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Une page de joueurs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayersList'
+        '400':
+          description: Paramètre invalide (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (autre compagnie)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/players/export.csv:
+    get:
+      tags:
+        - Players
+      summary: '[DISPONIBLE] Exporter les adresses qui acceptent les offres'
+      description: |
+        Statut : **Disponible** (lot 7b)
+
+        Fichier CSV UTF-8 avec BOM, séparateur `;`, fins de ligne CRLF. Seuls les joueurs dont le dernier consentement aux offres est donné y figurent. Colonnes : `email;prenom;derniere_partie;parties;consentement_offres_le` (dates ISO 8601 en UTC). `derniere_partie` et `parties` tiennent compte de **toutes** les parties où l'adresse figure, jouées ou non (contrairement à la liste).
+
+        **Injection de formule** : une cellule qui commence par `=`, `+`, `-`, `@`, une tabulation ou un retour chariot est préfixée d'une apostrophe, pour que le tableur la lise comme du texte (un nom saisi sur un téléphone ne doit pas s'exécuter). Les cellules qui contiennent `;`, `"` ou un saut de ligne sont entre guillemets.
+
+        Réponse en pièce jointe, `Cache-Control: no-store`.
+
+        Accès : superadmin et `admin` de la compagnie ; le rôle `user` est refusé.
+      operationId: exportPlayers
+      x-availability: disponible
+      x-us: 'US-PLAYER-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+      responses:
+        '200':
+          description: Fichier CSV
+          content:
+            text/csv:
+              schema:
+                type: string
+        '400':
+          description: Paramètre invalide (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (rôle `user`, ou autre compagnie)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/players/unsubscribe:
+    post:
+      tags:
+        - Players
+      summary: '[DISPONIBLE] Désinscrire une adresse des offres'
+      description: |
+        Statut : **Disponible** (lot 7b)
+
+        Retire le consentement aux offres de l'adresse partout dans la compagnie : pupitres de toutes les parties et demandes d'inscription en attente. L'adresse et le consentement à la conservation ne changent pas.
+
+        La réponse est **la même** que l'adresse soit connue ou non (`200 { ok: true }`) : la route ne dit pas si un joueur existe. L'adresse passe par le corps, jamais par l'URL.
+
+        Accès : superadmin et `admin` de la compagnie ; le rôle `user` est refusé.
+      operationId: unsubscribePlayer
+      x-availability: disponible
+      x-us: 'US-PLAYER-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlayerEmailRequest'
+      responses:
+        '200':
+          description: 'Consentement retiré (ou adresse inconnue : même réponse)'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+                    enum: [true]
+        '400':
+          description: Paramètre ou corps invalide (`invalid_params`, `invalid_body`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (rôle `user`, ou autre compagnie)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/players/erase:
+    post:
+      tags:
+        - Players
+      summary: "[DISPONIBLE] Effacer un joueur (droit à l'effacement)"
+      description: |
+        Statut : **Disponible** (lot 7b)
+
+        Dans toute la compagnie, sur chaque pupitre où l'adresse figure (premier ou second joueur) : l'adresse et ses consentements sont mis à null, et le nom du joueur est remplacé par `Joueur effacé`. Les **scores et les rangs sont conservés**, ainsi que l'autre joueur du pupitre. Une demande d'inscription en attente dont l'adresse est celle du premier joueur est supprimée ; si l'adresse n'est que celle du second joueur, la demande (qui appartient à un tiers) reste et son second joueur est retiré. Le tout dans une transaction. Les autres compagnies ne sont pas touchées.
+
+        `erased` = pupitres effacés + demandes supprimées ou modifiées. Adresse inconnue de la compagnie : `404 player_not_found`, rien n'est écrit. L'adresse passe par le corps, jamais par l'URL.
+
+        Accès : superadmin et `admin` de la compagnie ; le rôle `user` est refusé.
+      operationId: erasePlayer
+      x-availability: disponible
+      x-us: 'US-PLAYER-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlayerEmailRequest'
+      responses:
+        '200':
+          description: Joueur effacé
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [erased]
+                properties:
+                  erased:
+                    type: integer
+                    minimum: 1
+        '400':
+          description: Paramètre ou corps invalide (`invalid_params`, `invalid_body`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (rôle `user`, ou autre compagnie)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Adresse inconnue de la compagnie (`player_not_found`)
           content:
             application/json:
               schema:
@@ -4767,217 +4978,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PublicError'
-
-  /players:
-    get:
-      tags:
-        - Players
-      summary: '[NON DISPONIBLE] Lister les joueurs'
-      description: |
-        Statut : **Non disponible**
-
-        Route prévue pour la gestion des joueurs/utilisateurs finaux.
-      operationId: listPlayers
-      x-availability: non_disponible
-      x-us: 'US Gestion des joueurs'
-      parameters:
-        - name: search
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Recherche par pseudo, email ou nom
-        - name: status
-          in: query
-          required: false
-          schema:
-            $ref: '#/components/schemas/Status'
-      responses:
-        '200':
-          description: Liste des joueurs
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  players:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Player'
-        '501':
-          description: Route prévue mais pas encore implémentée
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotImplementedResponse'
-
-    post:
-      tags:
-        - Players
-      summary: '[NON DISPONIBLE] Créer un joueur'
-      description: |
-        Statut : **Non disponible**
-
-        Route prévue pour créer manuellement un joueur depuis le backoffice.
-      operationId: createPlayer
-      x-availability: non_disponible
-      x-us: 'US Gestion des joueurs'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreatePlayerRequest'
-      responses:
-        '201':
-          description: Joueur créé
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  player:
-                    $ref: '#/components/schemas/Player'
-        '501':
-          description: Route prévue mais pas encore implémentée
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotImplementedResponse'
-
-  /players/{playerId}:
-    get:
-      tags:
-        - Players
-      summary: '[NON DISPONIBLE] Récupérer un joueur'
-      description: |
-        Statut : **Non disponible**
-
-        Route prévue pour consulter le détail d'un joueur.
-      operationId: getPlayerById
-      x-availability: non_disponible
-      x-us: 'US Gestion des joueurs'
-      parameters:
-        - $ref: '#/components/parameters/PlayerId'
-      responses:
-        '200':
-          description: Joueur récupéré
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  player:
-                    $ref: '#/components/schemas/Player'
-        '501':
-          description: Route prévue mais pas encore implémentée
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotImplementedResponse'
-
-    patch:
-      tags:
-        - Players
-      summary: '[NON DISPONIBLE] Modifier un joueur'
-      description: |
-        Statut : **Non disponible**
-
-        Route prévue pour modifier les informations d'un joueur.
-      operationId: updatePlayer
-      x-availability: non_disponible
-      x-us: 'US Gestion des joueurs'
-      parameters:
-        - $ref: '#/components/parameters/PlayerId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdatePlayerRequest'
-      responses:
-        '200':
-          description: Joueur modifié
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  player:
-                    $ref: '#/components/schemas/Player'
-        '501':
-          description: Route prévue mais pas encore implémentée
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotImplementedResponse'
-
-    delete:
-      tags:
-        - Players
-      summary: '[NON DISPONIBLE] Supprimer un joueur'
-      description: |
-        Statut : **Non disponible**
-
-        Route prévue pour supprimer logiquement un joueur.
-      operationId: deletePlayer
-      x-availability: non_disponible
-      x-us: 'US Gestion des joueurs'
-      parameters:
-        - $ref: '#/components/parameters/PlayerId'
-      responses:
-        '200':
-          description: Joueur supprimé logiquement
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  player:
-                    $ref: '#/components/schemas/Player'
-        '501':
-          description: Route prévue mais pas encore implémentée
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotImplementedResponse'
-
-  /players/{playerId}/status:
-    patch:
-      tags:
-        - Players
-      summary: "[NON DISPONIBLE] Modifier le statut d'un joueur"
-      description: |
-        Statut : **Non disponible**
-
-        Route prévue pour activer, désactiver ou supprimer logiquement un joueur.
-      operationId: updatePlayerStatus
-      x-availability: non_disponible
-      x-us: 'US Gestion des joueurs'
-      parameters:
-        - $ref: '#/components/parameters/PlayerId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateStatusRequest'
-      responses:
-        '200':
-          description: Statut du joueur modifié
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  player:
-                    $ref: '#/components/schemas/Player'
-        '501':
-          description: Route prévue mais pas encore implémentée
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotImplementedResponse'
 
   /themes:
     get:
@@ -6653,6 +6653,170 @@ paths:
               schema:
                 $ref: '#/components/schemas/PublicError'
 
+  /public/v1/join/lookup:
+    post:
+      tags:
+        - Public
+      summary: "[DISPONIBLE] Lire la partie d'un lien d'inscription"
+      description: |
+        Statut : **Disponible** (lot 2c)
+
+        Route publique de la page `/rejoindre/#<jeton>` : aucune authentification. Le jeton du lien (celui du QR code) circule dans le corps, jamais dans l'URL : il n'entre pas dans les journaux.
+
+        La réponse donne le centre, la salle, son logo et la fin de validité du lien : jamais un identifiant, ni le nom d'une demande en attente. Un jeton mal formé, inconnu, ou remplacé par un nouveau QR code répond le même `404 join_link_invalid`. Un jeton reconnu mais fermé (délai dépassé, partie lancée ou terminée, salle ou compagnie inactive) répond `410 join_link_closed`. Le corps est limité à 4 Ko ; la limite par adresse est celle de tout `/public/v1` (120 requêtes par minute).
+      operationId: lookupPublicJoinLink
+      x-availability: disponible
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinLookupRequest'
+      responses:
+        '200':
+          description: Le lien est ouvert
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicJoinLink'
+        '400':
+          description: Corps invalide (`invalid_json`, `invalid_body` avec `details.fieldErrors`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '404':
+          description: Jeton inconnu ou mal formé (`join_link_invalid`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '410':
+          description: Lien fermé (`join_link_closed`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '413':
+          description: Corps de plus de 4 Ko (`payload_too_large`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '415':
+          description: Corps qui n'est pas du JSON (`unsupported_media_type`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '429':
+          description: Trop de requêtes depuis cette adresse (`too_many_requests`)
+          headers:
+            Retry-After:
+              description: Secondes avant de pouvoir réessayer
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '500':
+          description: Erreur serveur (`server_error`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+
+  /public/v1/join/registrations:
+    post:
+      tags:
+        - Public
+      summary: "[DISPONIBLE] Déposer une demande d'inscription"
+      description: |
+        Statut : **Disponible** (lot 2c)
+
+        Dépose la demande d'un pupitre (un ou deux joueurs) sur la partie du jeton. Rien n'est joué tant que le personnel n'a pas validé la demande dans le backoffice, au pupitre de son choix. Le jeton et les données du joueur circulent dans le corps, jamais dans l'URL.
+
+        Les consentements sont recueillis case par case et horodatés par le serveur à la réception. Un e-mail n'est gardé que si `emailConsent` vaut vrai ; `marketingConsent` (offres du centre) suppose un e-mail ; l'e-mail suppose `ageConfirmed` (15 ans ou plus). La même règle vaut pour le 2e joueur. La réponse est la même quel que soit l'e-mail : on ne dit jamais s'il était déjà connu.
+
+        Au plus 12 demandes en attente par partie (`409 join_full`). Limite : 30 envois par minute et par adresse, valides ou non (`429` `too_many_requests`, en-tête `Retry-After`). Le corps est limité à 4 Ko.
+      operationId: createPublicJoinRegistration
+      x-availability: disponible
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinRegistrationRequest'
+      responses:
+        '201':
+          description: Demande enregistrée, en attente de validation
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+                    enum: [true]
+        '400':
+          description: |
+            Corps invalide (`invalid_json`, `invalid_body` avec `details.fieldErrors`). Dans cette route, `fieldErrors` est indexé par chemin complet (`email`, `secondPlayer.email`...) et ses messages incluent `display_name_invalid`, `email_consent_required`, `marketing_consent_requires_email` et `age_confirmation_required`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '404':
+          description: Jeton inconnu ou mal formé (`join_link_invalid`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '409':
+          description: La partie a déjà 12 demandes en attente (`join_full`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '410':
+          description: Lien fermé (`join_link_closed`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '413':
+          description: Corps de plus de 4 Ko (`payload_too_large`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '415':
+          description: Corps qui n'est pas du JSON (`unsupported_media_type`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '429':
+          description: Trop d'envois depuis cette adresse (`too_many_requests`)
+          headers:
+            Retry-After:
+              description: Secondes avant de pouvoir réessayer
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '500':
+          description: Erreur serveur (`server_error`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -6844,6 +7008,12 @@ components:
           nullable: true
           description: Page publique du bon (`PUBLIC_APP_URL` + `/bon/#<code>`), nulle tant que `PUBLIC_APP_URL` n'est pas réglée
           example: https://bo.quizzup.fr/bon/#7K2M-9QXD
+        qrSvg:
+          type: string
+          nullable: true
+          description: >-
+            QR code de `url` en SVG complet. Présent seulement à l'émission d'un bon et dans la liste des bons
+            d'une partie (pour la feuille) ; absent des autres routes. `null` quand `url` est nulle.
 
     IssueVoucherRequest:
       type: object
@@ -6854,6 +7024,87 @@ components:
           type: integer
           minimum: 1
           description: Pupitre de la partie qui reçoit le bon
+
+    JoinLookupRequest:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token:
+          type: string
+          maxLength: 256
+          description: Jeton du lien d'inscription (fragment de l'adresse `/rejoindre/#<jeton>`)
+
+    PublicJoinLink:
+      type: object
+      required: [companyName, roomName, logoUrl, expiresAt]
+      properties:
+        companyName:
+          type: string
+        roomName:
+          type: string
+        logoUrl:
+          type: string
+          nullable: true
+          description: Chemin du logo du centre (`GET /public/v1/logos/{file}`), ou `null`
+        expiresAt:
+          type: string
+          format: date-time
+          description: Fin de validité du lien
+
+    JoinPlayerFields:
+      type: object
+      additionalProperties: false
+      required: [displayName]
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 30
+          description: 'Prénom affichable (après suppression des espaces aux extrémités) : au moins un caractère visible, aucun caractère de contrôle ni de mise en forme invisible (`display_name_invalid` sinon).'
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          nullable: true
+        emailConsent:
+          type: boolean
+          description: Requis (vrai) si `email` est renseigné
+        marketingConsent:
+          type: boolean
+          description: Offres du centre ; suppose un `email`
+        ageConfirmed:
+          type: boolean
+          description: Requis (vrai) si `email` est renseigné (15 ans ou plus)
+
+    JoinRegistrationRequest:
+      type: object
+      additionalProperties: false
+      required: [token, displayName]
+      properties:
+        token:
+          type: string
+          maxLength: 256
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 30
+          description: 'Prénom affichable (après suppression des espaces aux extrémités) : au moins un caractère visible, aucun caractère de contrôle ni de mise en forme invisible (`display_name_invalid` sinon).'
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          nullable: true
+        emailConsent:
+          type: boolean
+        marketingConsent:
+          type: boolean
+        ageConfirmed:
+          type: boolean
+        secondPlayer:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/JoinPlayerFields'
 
     VoucherCodeRequest:
       type: object
@@ -8157,6 +8408,62 @@ components:
                 type: integer
                 minimum: 1
 
+    PlayersList:
+      type: object
+      required: [players, total, anonymousPlayers]
+      properties:
+        players:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlayerSummary'
+        total:
+          type: integer
+          minimum: 0
+          description: Joueurs qui répondent à la recherche, toutes pages confondues.
+        anonymousPlayers:
+          type: integer
+          minimum: 0
+          description: Joueurs sans adresse des parties terminées (pupitres et seconds joueurs nommés), hors recherche.
+
+    PlayerSummary:
+      type: object
+      required: [email, displayName, sessions, lastPlayedAt, bestScore, marketingConsent]
+      properties:
+        email:
+          type: string
+          nullable: true
+          description: Adresse normalisée (minuscules, espaces retirés) ; `null` pour le rôle `user`.
+        displayName:
+          type: string
+          description: Nom à la dernière partie du joueur.
+        sessions:
+          type: integer
+          minimum: 0
+          description: Parties terminées et non supprimées où l'adresse figure ; 0 si le joueur n'en a pas.
+        lastPlayedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Date de sa dernière partie terminée et non supprimée ; `null` sans partie jouée.
+        bestScore:
+          type: integer
+          nullable: true
+          description: Meilleur score de ses pupitres sur les parties jouées ; `null` sans partie jouée.
+        marketingConsent:
+          type: boolean
+          description: Offres du centre acceptées à la dernière partie du joueur.
+
+    PlayerEmailRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Adresse du joueur. Espaces retirés ; la casse n'a pas d'importance.
+
     GameSummary:
       type: object
       properties:
@@ -8489,6 +8796,13 @@ components:
         url:
           type: string
           example: https://app.quizzup.example/rejoindre/#Zm9vYmFyYmF6cXV4
+        qrSvg:
+          type: string
+          nullable: true
+          description: >-
+            QR code de `url` en SVG complet (`<svg …>`), à afficher en ligne ou en
+            `<img src="data:image/svg+xml;charset=utf-8,…">` où `…` est `encodeURIComponent(qrSvg)`.
+            `null` quand `url` est relative (`PUBLIC_APP_URL` vide).
         expiresAt:
           type: string
           format: date-time

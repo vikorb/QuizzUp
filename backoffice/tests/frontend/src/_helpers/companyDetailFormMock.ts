@@ -4,6 +4,8 @@ type CompanyDetailValues = {
   name: string
   email: string
   status: number
+  voucherLabel?: string | null
+  voucherValidityDays?: number
 }
 
 // saveClientDetailCompany est la seule fonction à effet de bord (appel service) :
@@ -15,16 +17,22 @@ export const companyDetailFormModuleMock = {
   createClientDetailFieldErrors: () => ({
     name: null,
     email: null,
+    voucherLabel: null,
+    voucherValidityDays: null,
   }),
   createClientDetailFormValues: () => ({
     name: '',
     email: '',
     status: 1,
+    voucherLabel: '',
+    voucherValidityDays: '90',
   }),
   getClientDetailFormValues: (company: CompanyDetailValues) => ({
     name: company.name,
     email: company.email,
     status: company.status,
+    voucherLabel: company.voucherLabel ?? '',
+    voucherValidityDays: String(company.voucherValidityDays ?? 90),
   }),
   getClientDetailNextStatus: (status: number) => (status === 1 ? 0 : 1),
   getClientDetailPermissions: (role: string | null) => ({
@@ -38,7 +46,11 @@ export const companyDetailFormModuleMock = {
     canManageCompany: boolean
   ) =>
     canManageCompany &&
-    (form.name !== company.name || form.email !== company.email || form.status !== company.status),
+    (form.name !== company.name ||
+      form.email !== company.email ||
+      form.status !== company.status ||
+      (form.voucherLabel ?? '') !== (company.voucherLabel ?? '') ||
+      String(form.voucherValidityDays) !== String(company.voucherValidityDays ?? 90)),
   saveClientDetailCompany: saveClientDetailCompanyMock,
 }
 
