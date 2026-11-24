@@ -77,10 +77,10 @@
       },
       "audioEffect": {
         "label": "Excerpt effect",
-        "hint": "Changes how the excerpt is played in the blind test. Listen to it before choosing: a reversed or slowed excerpt is harder to recognise.",
+        "hint": "Changes how the excerpt is played in the blind test. A reversed or slowed excerpt is harder to recognise.",
         "options": {
           "none": "None",
-          "short": "Very short (0.5 s, 2 s, 10 s)",
+          "short": "Very short",
           "reverse": "Reversed",
           "slowed": "Slowed down"
         },

@@ -152,7 +152,7 @@ describe('views/questions/creation/CreateQuestionForm.vue — audio effect', () 
     )
   })
 
-  it('resets the effect to none when the question stops being audio', async () => {
+  it('sends none once the question is not audio, and keeps the choice on a round trip', async () => {
     updateQuestionServiceMock.mockResolvedValue(mediaQuestion(5, { answers, typeMedia: 'image' }))
     const wrapper = mountForm(
       mediaQuestion(5, { answers, audioEffect: QUESTION_AUDIO_EFFECT_SLOWED }),
@@ -167,6 +167,38 @@ describe('views/questions/creation/CreateQuestionForm.vue — audio effect', () 
       audioEffect: QUESTION_AUDIO_EFFECT_NONE,
     })
 
+    await choose(wrapper, 'question-type-media', QUESTION_MEDIA_TYPE_AUDIO)
+
+    expect(selectField(wrapper, 'question-audio-effect')?.props('modelValue')).toBe(
+      QUESTION_AUDIO_EFFECT_SLOWED
+    )
+  })
+
+  it('follows the question it receives: with an effect, without, then none for a creation', async () => {
+    const wrapper = mountForm(
+      mediaQuestion(5, { answers, audioEffect: QUESTION_AUDIO_EFFECT_REVERSE }),
+      'edit'
+    )
+
+    expect(selectField(wrapper, 'question-audio-effect')?.props('modelValue')).toBe(
+      QUESTION_AUDIO_EFFECT_REVERSE
+    )
+
+    await wrapper.setProps({ question: mediaQuestion(6, { answers }) })
+
+    expect(selectField(wrapper, 'question-audio-effect')?.props('modelValue')).toBe(
+      QUESTION_AUDIO_EFFECT_NONE
+    )
+
+    await wrapper.setProps({
+      question: mediaQuestion(7, { answers, audioEffect: QUESTION_AUDIO_EFFECT_SLOWED }),
+    })
+
+    expect(selectField(wrapper, 'question-audio-effect')?.props('modelValue')).toBe(
+      QUESTION_AUDIO_EFFECT_SLOWED
+    )
+
+    await wrapper.setProps({ question: null, mode: 'create' })
     await choose(wrapper, 'question-type-media', QUESTION_MEDIA_TYPE_AUDIO)
 
     expect(selectField(wrapper, 'question-audio-effect')?.props('modelValue')).toBe(
@@ -201,5 +233,20 @@ describe('views/questions/creation/CreateQuestionForm.vue — audio effect', () 
 
     expect(selectField(wrapper, 'question-audio-effect')?.attributes('error')).toBeUndefined()
     expect(wrapper.text()).toContain('questions.errors.saveFailed')
+  })
+
+  it('clears the API error as soon as another effect is chosen', async () => {
+    createQuestionServiceMock.mockRejectedValue(new Error('audio_effect_requires_audio'))
+    const wrapper = mountForm(null, 'create')
+
+    await choose(wrapper, 'question-type-media', QUESTION_MEDIA_TYPE_AUDIO)
+    await fillCreateForm(wrapper)
+    await submitForm(wrapper)
+
+    expect(selectField(wrapper, 'question-audio-effect')?.attributes('error')).toBeDefined()
+
+    await choose(wrapper, 'question-audio-effect', QUESTION_AUDIO_EFFECT_REVERSE)
+
+    expect(selectField(wrapper, 'question-audio-effect')?.attributes('error')).toBeUndefined()
   })
 })

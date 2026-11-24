@@ -170,10 +170,10 @@
       },
       "audioEffect": {
         "label": "Effet sur l'extrait",
-        "hint": "Change la façon dont l'extrait est joué au blind test. Écoutez-le avant de choisir : un extrait à l'envers ou ralenti est plus dur à reconnaître.",
+        "hint": "Change la façon dont l'extrait est joué au blind test. Un extrait à l'envers ou ralenti est plus dur à reconnaître.",
         "options": {
           "none": "Aucun",
-          "short": "Très court (0,5 s, 2 s, 10 s)",
+          "short": "Très court",
           "reverse": "À l'envers",
           "slowed": "Ralenti"
         },

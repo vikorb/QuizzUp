@@ -360,12 +360,13 @@ const typeMediaOptions = computed<SelectFieldOption[]>(() => [
   },
 ])
 
-// Un effet n'a de sens que sur une question audio : on le remet à « aucun » en la quittant.
-watch(isAudio, (audio) => {
-  if (!audio) {
-    form.audioEffect = QUESTION_AUDIO_EFFECT_NONE
+// L'erreur de l'API sur l'effet n'a plus lieu d'être dès que l'on change de choix.
+watch(
+  () => form.audioEffect,
+  () => {
+    errors.audioEffect = ''
   }
-})
+)
 
 watch(
   [() => props.question, () => props.initialThemeIds, () => props.themes],
@@ -544,7 +545,8 @@ function buildPayload(): QuestionPayload {
       form.typeMedia === QUESTION_MEDIA_TYPE_NONE || isAudio.value
         ? null
         : form.mediaUrl.trim() || null,
-    audioEffect: form.audioEffect,
+    // Un effet n'a de sens que sur une question audio : le choix reste en mémoire si l'on revient.
+    audioEffect: isAudio.value ? form.audioEffect : QUESTION_AUDIO_EFFECT_NONE,
     answers: form.answers.map((answer) => ({
       id: answer.id,
       response: answer.response.trim(),
