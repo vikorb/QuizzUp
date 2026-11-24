@@ -11,6 +11,8 @@ Format inspiré de Keep a Changelog.
 - Console éditeur : écran des demandes de démonstration (filtre « À traiter », « Traitées », « Toutes » ; marquer une demande traitée ; supprimer), réservé au superadmin.
   US: US-CONSOLE-01 (#161)
 
+- Diagnostic à distance d'une salle, en lecture seule : l'écran de salle publie son état matériel dans son rapport d'état (version, source des buzzers et manettes, pilote et état des lumières, fumée activée et armée, audio prêt, date de la dernière erreur) et la fiche de la salle l'affiche dans un bloc « Diagnostic ». Rien n'est stocké. Une valeur inconnue est lue comme « inconnu » et ne fait jamais paraître la salle hors ligne.
+  US: US-DIAG-01 (#157)
 - Commandes à distance, côté serveur : `POST /companies/{companyId}/rooms/{roomId}/commands` relaie pause, reprise, passer et arrêter à l'écran de salle connecté, qui répond par `POST /room/commands/{commandId}/result` ; le personnel reçoit le résultat (`applied`, `refused` ou `expired` après 10 s) sur le flux en direct. L'arrêt d'une partie depuis le backoffice prévient la salle quand elle est pilotable.
   US: US-LIVE-01 (#129)
 - Écran de salle, habillage : sous 3 secondes la barre de temps vire à l'orange, pulse et fait « tic » à 3, 2 et 1 s (jamais en pause, jamais pendant le blind test) ; chaque écran d'une partie apparaît en fondu ; les scores montent au lieu de sauter et des confettis saluent le vainqueur. Tout mouvement est coupé quand le système demande de réduire les animations.

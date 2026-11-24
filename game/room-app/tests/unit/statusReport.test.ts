@@ -1,7 +1,25 @@
 import { createGame, type GameState, reduceGame } from '@quizzup/game-engine'
-import { MINI_GAME_FLASH_BLIND_TEST, ROOM_SCREENS } from '@quizzup/shared'
+import {
+  defaultRoomHardwareConfig,
+  DMX_DRIVERS,
+  type DmxDriver,
+  type DmxOutputStatus,
+} from '@quizzup/hardware'
+import {
+  type BuzzerSourceKind,
+  LIGHTING_DRIVERS,
+  type LightingDriver,
+  type LightingOutputStatus,
+  MINI_GAME_FLASH_BLIND_TEST,
+  ROOM_SCREENS,
+} from '@quizzup/shared'
 
-import { buildRoomStatusReport, type RoomStatusInput } from '@/live/statusReport'
+import {
+  buildRoomDiagnostics,
+  buildRoomStatusReport,
+  type RoomDiagnosticsInput,
+  type RoomStatusInput,
+} from '@/live/statusReport'
 
 import { baseSetup } from '../_helpers/fixtures'
 
@@ -136,5 +154,84 @@ describe('buildRoomStatusReport : partie', () => {
       { podium: 3, score: -5 },
     ])
     expect(JSON.stringify(report)).not.toMatch(/Léa|Hugo|Inès|@/)
+  })
+})
+
+const DIAGNOSTICS: RoomDiagnosticsInput = {
+  appVersion: '0.1.0',
+  config: defaultRoomHardwareConfig(),
+  lighting: null,
+  gamepadCount: 0,
+  lastErrorAt: null,
+}
+
+describe('buildRoomDiagnostics', () => {
+  it('une salle neuve : clavier, simulation, lumières pas démarrées, fumée désactivée', () => {
+    expect(buildRoomDiagnostics(DIAGNOSTICS)).toEqual({
+      appVersion: '0.1.0',
+      buzzerSource: 'keyboard',
+      gamepadCount: 0,
+      lightingDriver: 'simulation',
+      lightingStatus: 'closed',
+      smokeEnabled: false,
+      smokeArmed: false,
+      lastErrorAt: null,
+    })
+  })
+
+  it('reprend la source des buzzers, le pilote, l’état de la sortie et la fumée armée', () => {
+    const config = defaultRoomHardwareConfig()
+
+    config.buzzers.source = { kind: 'gamepad', match: 'Carte 32' }
+    config.lighting.driver = 'artnet-bridge'
+    config.lighting.smoke.enabled = true
+
+    expect(
+      buildRoomDiagnostics({
+        ...DIAGNOSTICS,
+        config,
+        gamepadCount: 2,
+        lighting: { outputStatus: 'error', smoke: { armed: true } },
+        lastErrorAt: '2026-11-24T09:30:00.000Z',
+      })
+    ).toEqual({
+      appVersion: '0.1.0',
+      buzzerSource: 'gamepad',
+      gamepadCount: 2,
+      lightingDriver: 'artnet-bridge',
+      lightingStatus: 'error',
+      smokeEnabled: true,
+      smokeArmed: true,
+      lastErrorAt: '2026-11-24T09:30:00.000Z',
+    })
+  })
+
+  it('ne publie ni nom de carte ni nom de joueur', () => {
+    const config = defaultRoomHardwareConfig()
+
+    config.buzzers.source = { kind: 'gamepad', match: 'Carte 32' }
+
+    expect(JSON.stringify(buildRoomDiagnostics({ ...DIAGNOSTICS, config }))).not.toContain(
+      'Carte 32'
+    )
+  })
+
+  it('le rapport porte le diagnostic quand on le lui donne, et sinon n’a pas le champ', () => {
+    const diagnostics = buildRoomDiagnostics(DIAGNOSTICS)
+
+    expect(buildRoomStatusReport({ ...IDLE, diagnostics }).diagnostics).toEqual(diagnostics)
+    expect('diagnostics' in buildRoomStatusReport(IDLE)).toBe(false)
+  })
+})
+
+describe('contrat avec @quizzup/hardware', () => {
+  it('les pilotes de lumières et les états de sortie sont les mêmes que ceux du paquet matériel', () => {
+    // Types vérifiés par `npm run type-check` : une valeur en plus ou en moins d'un côté ne compile pas.
+    expectTypeOf<DmxDriver>().toEqualTypeOf<LightingDriver>()
+    expectTypeOf<DmxOutputStatus>().toEqualTypeOf<LightingOutputStatus>()
+    expectTypeOf<
+      NonNullable<ReturnType<typeof defaultRoomHardwareConfig>['buzzers']['source']>['kind']
+    >().toEqualTypeOf<BuzzerSourceKind>()
+    expect([...LIGHTING_DRIVERS]).toEqual([...DMX_DRIVERS])
   })
 })
