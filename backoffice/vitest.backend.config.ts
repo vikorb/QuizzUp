@@ -6,6 +6,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@backend': path.resolve(process.cwd(), 'backend/src'),
+      // Les tests relisent la bibliothèque du backend (pas de seconde copie à la racine).
+      'qrcode-generator': path.resolve(process.cwd(), 'backend/node_modules/qrcode-generator'),
       '@quizzup/shared': fileURLToPath(new URL('./shared/src/index.ts', import.meta.url)),
     },
   },
