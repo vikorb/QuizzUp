@@ -1,7 +1,9 @@
 import '../../_helpers/registerRouteMocks'
 
-import { describe, expect, it } from 'vitest'
-
+import companyAdminsRoutes from '@backend/routes/companies/admins'
+import companyRoomAccountRoutes from '@backend/routes/companies/rooms/account'
+import companyRoomIdRoutes from '@backend/routes/companies/rooms/id'
+import companyRoomIdStatusRoutes from '@backend/routes/companies/rooms/idStatus'
 import {
   ADMIN_ROLE_ROOM,
   ADMIN_STATUS_ACTIVE,
@@ -15,10 +17,8 @@ import {
   ROOM_STATUS_ACTIVE,
   ROOM_STATUS_DELETED,
 } from '@quizzup/shared'
-import companyAdminsRoutes from '@backend/routes/companies/admins'
-import companyRoomAccountRoutes from '@backend/routes/companies/rooms/account'
-import companyRoomIdRoutes from '@backend/routes/companies/rooms/id'
-import companyRoomIdStatusRoutes from '@backend/routes/companies/rooms/idStatus'
+import { describe, expect, it } from 'vitest'
+
 import { dbState, MOCK_NOW } from '../../_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from '../../_helpers/resetRouteMocks'
 import {

@@ -1,7 +1,7 @@
 import '../_helpers/registerRouteMocks'
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
+import gamesRoutes from '@backend/routes/games'
+import { qrSvg } from '@backend/utils/qrSvg'
 import {
   GAME_STATE_FINISHED,
   GAME_STATE_PENDING,
@@ -11,8 +11,8 @@ import {
   JOIN_LINK_TTL_MINUTES,
   ROOM_STATUS_ACTIVE,
 } from '@quizzup/shared'
-import gamesRoutes from '@backend/routes/games'
-import { qrSvg } from '@backend/utils/qrSvg'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { db, dbState, MOCK_NOW } from '../_helpers/mockDb'
 import { securityState } from '../_helpers/mockSecurity'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
@@ -29,6 +29,10 @@ import {
 resetRouteMocksBeforeEach()
 
 type Method = 'GET' | 'POST' | 'DELETE'
+
+// Corps de réponse lus champ par champ par les assertions : leur forme n'est pas décrite ici.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type LooseJson = Record<string, any>
 
 const NOW = new Date('2027-03-10T08:00:00.000Z')
 const TOKEN = 'b'.repeat(43)
@@ -170,7 +174,7 @@ describe('POST /companies/:companyId/games with openJoin', () => {
     const response = await launch({ participants: [], openJoin: true })
 
     expect(response.statusCode).toBe(201)
-    const { game } = parseJson<{ game: Record<string, any> }>(response)
+    const { game } = parseJson<{ game: LooseJson }>(response)
     expect(game).toMatchObject({ state: GAME_STATE_PENDING, participants: [] })
     expect(game.join.url).toMatch(/^https:\/\/bo\.quizzup\.test\/rejoindre\/#[\w-]{43}$/)
     expect(game.join.qrSvg).toBe(qrSvg(game.join.url))
@@ -391,7 +395,7 @@ describe('GET /companies/:companyId/games/:gameId/registrations', () => {
     url = '/companies/1/games/1/registrations'
   ) => call('GET', url, undefined, user)
 
-  type ListBody = { registrations: Array<Record<string, any>> }
+  type ListBody = { registrations: Array<LooseJson> }
 
   it('lists the requests, oldest first, with the e-mails for an admin', async () => {
     seedRegistration({ id: 2, display_name: 'Zoé', created_at: '2027-03-10T07:58:00.000Z' })
@@ -478,7 +482,7 @@ describe('POST /companies/:companyId/games/:gameId/registrations/:registrationId
     url = '/companies/1/games/1/registrations/1/accept'
   ) => call('POST', url, payload, user)
 
-  type AcceptBody = { participant: Record<string, any> }
+  type AcceptBody = { participant: LooseJson }
 
   beforeEach(() => {
     seedRegistration()
@@ -703,7 +707,7 @@ describe('POST /companies/:companyId/games/:gameId/participants', () => {
     url = '/companies/1/games/1/participants'
   ) => call('POST', url, payload, user)
 
-  type AddBody = { participant: Record<string, any> }
+  type AddBody = { participant: LooseJson }
 
   it('adds a player at the counter, with the consents stamped by the server', async () => {
     const response = await add({

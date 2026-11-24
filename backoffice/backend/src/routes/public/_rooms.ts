@@ -1,6 +1,6 @@
+import { getRoomDesksCount, ROOM_STATUS_ACTIVE, type RoomSchedule } from '@quizzup/shared'
 import type { Knex } from 'knex'
 
-import { getRoomDesksCount, ROOM_STATUS_ACTIVE, type RoomSchedule } from '@quizzup/shared'
 import db from '../../db'
 
 /** Salle ouverte à la réservation : active, avec des créneaux réglés et `publicBooking` vrai. */

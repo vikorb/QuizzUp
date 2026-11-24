@@ -1,12 +1,11 @@
+import { ROOM_STATUS_DELETED } from '@quizzup/shared'
 import type { FastifyPluginAsync } from 'fastify'
 
-import { ROOM_STATUS_DELETED } from '@quizzup/shared'
 import db from '../../../db'
 import { API_ACTION, API_RESOURCE } from '../../../security/permissions'
 import { requireApiPermission } from '../../../security/requireApiPermission'
 import { canManageRoomsContext } from '../../../security/roomsPolicy'
 import type { RoomRow } from '../../../types/room'
-
 import { roomParamsSchema, updateRoomScheduleSchema } from './_schemas'
 import { findRoomInCompany, isRoomCompanyDeleted, roomSelect } from './_shared'
 

@@ -1,8 +1,6 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
-import { describe, expect, it } from 'vitest'
-
 import {
   ADMIN_ROLE,
   ADMIN_ROLE_ROOM,
@@ -26,6 +24,7 @@ import {
   ROOM_STATUSES,
   ROUND_CHOOSER_REASONS,
 } from '@quizzup/shared'
+import { describe, expect, it } from 'vitest'
 
 /**
  * Garde-fou : les contraintes CHECK des migrations et les constantes de

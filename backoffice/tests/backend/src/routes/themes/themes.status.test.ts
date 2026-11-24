@@ -1,9 +1,9 @@
 import '../_helpers/registerRouteMocks'
 
+import themesRoutes from '@backend/routes/themes'
+import { THEME_STATUS_INACTIVE } from '@quizzup/shared'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { THEME_STATUS_INACTIVE } from '@quizzup/shared'
-import themesRoutes from '@backend/routes/themes'
 import { dbState } from '../_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
 import {

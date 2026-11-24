@@ -1,12 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
 import {
   DEFAULT_PLAYER_EMAIL_PURGE_INTERVAL_HOURS,
   MIN_PLAYER_EMAIL_PURGE_INTERVAL_HOURS,
-  PLAYER_EMAIL_PURGE_INITIAL_DELAY_MS,
   parsePlayerEmailPurgeIntervalHours,
+  PLAYER_EMAIL_PURGE_INITIAL_DELAY_MS,
   startPlayerEmailPurgeScheduler,
 } from '@backend/jobs/playerEmailPurgeScheduler'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const HOUR_MS = 60 * 60 * 1000
 

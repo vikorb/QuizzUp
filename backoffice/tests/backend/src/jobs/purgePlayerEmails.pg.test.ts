@@ -1,8 +1,9 @@
 import path from 'node:path'
 
+import type dbModule from '@backend/db'
+import type { purgeExpiredPlayerEmails as PurgeFn } from '@backend/jobs/purgePlayerEmails'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-import type { purgeExpiredPlayerEmails as PurgeFn } from '@backend/jobs/purgePlayerEmails'
 import { assertTestDatabase } from '../../setup/assertTestDatabase'
 
 /**
@@ -25,7 +26,7 @@ const RECENT = '2026-02-01T10:00:00.000Z'
 const JUST_BEFORE_CUTOFF = '2023-11-04T11:59:59.999Z'
 const JUST_AFTER_CUTOFF = '2023-11-04T12:00:00.001Z'
 
-type Db = typeof import('@backend/db').default
+type Db = typeof dbModule
 
 describe.skipIf(!PG_INTEGRATION_URL)('purgeExpiredPlayerEmails sur PostgreSQL', () => {
   let db: Db

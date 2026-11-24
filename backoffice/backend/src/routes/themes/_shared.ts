@@ -1,5 +1,3 @@
-import type { FastifyRequest } from 'fastify'
-
 import {
   QUESTION_MEDIA_PROVIDER_DEEZER,
   QUESTION_STATUS_DELETED,
@@ -15,6 +13,8 @@ import {
   type ThemeScope,
   type ThemeStatus,
 } from '@quizzup/shared'
+import type { FastifyRequest } from 'fastify'
+
 import db from '../../db'
 import {
   getProviderPlaylistTracks,

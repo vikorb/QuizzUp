@@ -1,23 +1,22 @@
-import type { FastifyPluginAsync } from 'fastify'
-
 import {
   COMPANY_STATUS_DELETED,
   getRoomDesksCount,
   ROOM_STATUS_ACTIVE,
   ROOM_STATUS_DELETED,
 } from '@quizzup/shared'
+import type { FastifyPluginAsync } from 'fastify'
+
 import db from '../../../db'
 import { isSuperadmin } from '../../../security/companiesPolicy'
 import { API_ACTION, API_RESOURCE } from '../../../security/permissions'
 import { requireApiPermission } from '../../../security/requireApiPermission'
 import { canManageRoomsContext, canReadRoomsContext } from '../../../security/roomsPolicy'
 import type { RoomListItem, RoomRow } from '../../../types/room'
-
 import { isUniqueViolation } from '../../_shared/dbErrors'
 import { findCompanyById } from '../_shared'
+import { isLightingConfigChangeForbidden } from './_lighting'
 import { createRoomSchema, roomsParamsSchema } from './_schemas'
 import { isRoomNameTaken, roomSelect } from './_shared'
-import { isLightingConfigChangeForbidden } from './_lighting'
 
 const companyRoomsRoutes: FastifyPluginAsync = async (app) => {
   app.get('/companies/:companyId/rooms', { preHandler: [app.authenticate] }, async (req, reply) => {

@@ -1,21 +1,21 @@
+import { ANSWER_STATUS_DELETED } from '@quizzup/shared'
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 
-import { ANSWER_STATUS_DELETED } from '@quizzup/shared'
 import db from '../../../db'
 import { API_ACTION, API_RESOURCE } from '../../../security/permissions'
 import { requireApiPermission } from '../../../security/requireApiPermission'
 import {
+  type AnswerParams,
   answerSelect,
+  type AnswerStatusBody,
   buildAnswerStatusPatch,
   canEditQuestion,
   getQuestionAccessRow,
   hasCorrectAnswerBesides,
-  lockQuestionAnswers,
   isValidAnswerStatus,
+  lockQuestionAnswers,
   parsePositiveId,
   validateLockedAnswersForKind,
-  type AnswerParams,
-  type AnswerStatusBody,
 } from '../_shared'
 
 const questionAnswerIdStatusRoutes: FastifyPluginAsync = async (app) => {

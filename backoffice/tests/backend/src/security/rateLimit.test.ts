@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'vitest'
-
 import { createRateLimiter, RATE_LIMIT_MAX_KEYS } from '@backend/security/rateLimit'
+import { describe, expect, it } from 'vitest'
 
 /** Horloge simulée : on la fait avancer à la main, aucune attente réelle. */
 function fakeClock(start = 1_000_000) {

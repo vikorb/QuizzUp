@@ -1,4 +1,10 @@
 import '../_helpers/registerRouteMocks'
+
+import companiesIdRoutes from '@backend/routes/companies/id'
+import { COMPANY_STATUS_DELETED, COMPANY_STATUS_INACTIVE } from '@quizzup/shared'
+
+import { dbState, MOCK_NOW } from '../_helpers/mockDb'
+import { securityState } from '../_helpers/mockSecurity'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
 import {
   authHeaders,
@@ -7,10 +13,6 @@ import {
   parseJson,
   superadminUser,
 } from '../_helpers/testApp'
-import { securityState } from '../_helpers/mockSecurity'
-import { dbState, MOCK_NOW } from '../_helpers/mockDb'
-import { COMPANY_STATUS_DELETED, COMPANY_STATUS_INACTIVE } from '@quizzup/shared'
-import companiesIdRoutes from '@backend/routes/companies/id'
 
 resetRouteMocksBeforeEach()
 

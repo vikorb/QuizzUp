@@ -1,13 +1,13 @@
+import jwt from '@fastify/jwt'
+import { ADMIN_ROLE_ROOM, ADMIN_ROLE_SUPERADMIN, ADMIN_STATUS_ACTIVE } from '@quizzup/shared'
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import fp from 'fastify-plugin'
-import jwt from '@fastify/jwt'
 
-import { ADMIN_ROLE_ROOM, ADMIN_ROLE_SUPERADMIN, ADMIN_STATUS_ACTIVE } from '@quizzup/shared'
 import db from '../db'
 import {
+  type ConsoleNetwork,
   consoleNetworkWarnings,
   createConsoleNetwork,
-  type ConsoleNetwork,
 } from '../security/consoleNetwork'
 import { assertJwtSecretIsSafe } from '../security/jwtSecret'
 import { isRoomAccountUsable } from '../security/roomCompany'

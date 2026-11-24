@@ -1,11 +1,10 @@
-import { z } from 'zod'
-
 import {
   VOUCHER_LIST_DEFAULT_LIMIT,
   VOUCHER_LIST_MAX_LIMIT,
   VOUCHER_STATES,
   VOUCHER_STATUS_INACTIVE,
 } from '@quizzup/shared'
+import { z } from 'zod'
 
 export const vouchersParamsSchema = z.object({
   companyId: z.coerce.number().int().positive(),

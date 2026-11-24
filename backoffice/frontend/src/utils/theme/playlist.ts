@@ -1,8 +1,11 @@
-// Même forme que `providerRefSchema` du serveur (`services/mediaProvider.ts`) : le lien saisi est
-// réduit à cet identifiant avant l'envoi, le serveur le revérifie.
-const PLAYLIST_REF_PATTERN = /^\d{1,20}$/
+import { QUESTION_MEDIA_REF_MAX_LENGTH, QUESTION_MEDIA_REF_PATTERN } from '@quizzup/shared'
+
+// Le lien saisi est réduit à un identifiant de la forme que le serveur exige (`providerRefSchema`),
+// puis le serveur le revérifie.
 // Les chiffres doivent finir le segment : `/playlist/123abc` n'est pas la playlist 123.
-const PLAYLIST_PATH_PATTERN = /\/playlist\/(\d{1,20})(?=[/?#]|$)/
+const PLAYLIST_PATH_PATTERN = new RegExp(
+  `/playlist/(\\d{1,${QUESTION_MEDIA_REF_MAX_LENGTH}})(?=[/?#]|$)`
+)
 
 // ponytail: ni la conception ni le serveur ne listent d'hôtes ; `deezer.com` et ses sous-domaines
 // couvrent `www.` et `api.`. Les liens courts de partage ne portent pas l'identifiant.
@@ -17,7 +20,7 @@ function isDeezerHost(hostname: string): boolean {
 export function extractPlaylistRef(input: string): string | null {
   const value = input.trim()
 
-  if (PLAYLIST_REF_PATTERN.test(value)) {
+  if (QUESTION_MEDIA_REF_PATTERN.test(value)) {
     return value
   }
 

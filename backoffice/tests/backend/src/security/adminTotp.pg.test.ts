@@ -3,14 +3,16 @@ import { randomBytes } from 'node:crypto'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
+import type dbModule from '@backend/db'
+import type * as securityAdminTotpModule from '@backend/security/adminTotp'
+import type * as securityTotpModule from '@backend/security/totp'
+import { TOTP_RECOVERY_CODES_COUNT } from '@quizzup/shared'
 import bcrypt from 'bcryptjs'
 import fastify, { type FastifyInstance } from 'fastify'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { TOTP_RECOVERY_CODES_COUNT } from '@quizzup/shared'
-
-import { assertTestDatabase } from '../../setup/assertTestDatabase'
 import { sealSecret } from '../../../../backend/src/security/secretBox'
+import { assertTestDatabase } from '../../setup/assertTestDatabase'
 
 /**
  * Test d'intégration sur un vrai PostgreSQL : ignoré sans `PG_INTEGRATION_URL`.
@@ -30,8 +32,8 @@ import { sealSecret } from '../../../../backend/src/security/secretBox'
  */
 const PG_INTEGRATION_URL = process.env.PG_INTEGRATION_URL
 
-type Db = typeof import('@backend/db').default
-type Store = typeof import('@backend/security/adminTotp')
+type Db = typeof dbModule
+type Store = typeof securityAdminTotpModule
 
 const MIGRATIONS_DIR = path.resolve(process.cwd(), 'backend/db/migrations')
 const MIGRATION_FILE = path.join(MIGRATIONS_DIR, '20261124060000_create_admin_totp.js')
@@ -42,7 +44,7 @@ const SECRET = 'JBSWY3DPEHPK3PXP'
 describe.skipIf(!PG_INTEGRATION_URL)('double authentification TOTP sur PostgreSQL', () => {
   let db: Db
   let store: Store
-  let totp: typeof import('@backend/security/totp')
+  let totp: typeof securityTotpModule
 
   beforeAll(async () => {
     process.env.DATABASE_URL = PG_INTEGRATION_URL

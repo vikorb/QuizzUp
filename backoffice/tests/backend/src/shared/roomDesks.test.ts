@@ -1,11 +1,10 @@
-import { describe, expect, it } from 'vitest'
-
 import {
   GAME_PODIUMS,
   getRoomDesksCount,
   ROOM_DEFAULT_DESKS,
   ROOM_MIN_DESKS,
 } from '@quizzup/shared'
+import { describe, expect, it } from 'vitest'
 
 describe("@quizzup/shared — pupitres d'une salle", () => {
   it('caps the podiums at 6 and gives a new room 4', () => {

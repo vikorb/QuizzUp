@@ -1,4 +1,5 @@
 import type { ApiKey, ApiKeyStatus } from '@quizzup/shared'
+
 import db from '../../../db'
 
 /** Colonnes lues : jamais `key_hash`, que rien dans la réponse ne doit pouvoir exposer. */

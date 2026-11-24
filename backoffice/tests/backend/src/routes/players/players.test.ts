@@ -1,9 +1,6 @@
 import '../_helpers/registerRouteMocks'
 
-import type { FastifyInstance } from 'fastify'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-import { PLAYER_LIST_MAX_LIMIT } from '@quizzup/shared'
+import playersRoutes from '@backend/routes/players'
 import {
   countAnonymousPlayers,
   erasePlayer,
@@ -11,7 +8,10 @@ import {
   listPlayers,
   withdrawMarketingConsent,
 } from '@backend/routes/players/_queries'
-import playersRoutes from '@backend/routes/players'
+import { PLAYER_LIST_MAX_LIMIT } from '@quizzup/shared'
+import type { FastifyInstance } from 'fastify'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { requireApiPermissionMock, securityState } from '../_helpers/mockSecurity'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
 import {

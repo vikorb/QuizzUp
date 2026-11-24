@@ -1,11 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
 import {
   getProviderPlaylistTracks,
   getProviderTrack,
   MediaProviderUnavailableError,
   searchProviderTracks,
 } from '@backend/services/mediaProvider'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   jsonResponse,
   PROVIDER_ERROR_NOT_FOUND,

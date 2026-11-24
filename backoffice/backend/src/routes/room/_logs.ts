@@ -1,6 +1,3 @@
-import type { Knex } from 'knex'
-import { z } from 'zod'
-
 import {
   cleanRoomLogText,
   pickRoomLogContext,
@@ -14,6 +11,8 @@ import {
   ROOM_LOG_MESSAGE_MAX_LENGTH,
   ROOM_LOG_OCCURRENCES_MAX,
 } from '@quizzup/shared'
+import type { Knex } from 'knex'
+import { z } from 'zod'
 
 /** Au plus 6 envois par minute et par salle (l'écran de salle en fait 2 par minute). */
 export const ROOM_LOG_RATE_LIMIT_MAX = 6

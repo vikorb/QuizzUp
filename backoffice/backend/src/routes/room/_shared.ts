@@ -1,7 +1,6 @@
+import { ADMIN_ROLE_ROOM, GAME_PODIUMS } from '@quizzup/shared'
 import type { FastifyRequest } from 'fastify'
 import { z } from 'zod'
-
-import { ADMIN_ROLE_ROOM, GAME_PODIUMS } from '@quizzup/shared'
 
 export function isRoomAccount(req: FastifyRequest): boolean {
   return req.user.role === ADMIN_ROLE_ROOM && Boolean(req.user.room_id)

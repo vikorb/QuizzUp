@@ -1,11 +1,10 @@
+import type { ApiLog } from '@quizzup/shared'
 import type { FastifyPluginAsync } from 'fastify'
 
-import type { ApiLog } from '@quizzup/shared'
 import db from '../../db'
 import { canAccessCompanyContext } from '../../security/companiesPolicy'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
 import { requireApiPermission } from '../../security/requireApiPermission'
-
 import { findCompanyById } from './_shared'
 import { apiKeysParamsSchema, apiLogsQuerySchema } from './apiKeys/_schemas'
 

@@ -1,15 +1,14 @@
+import { ROOM_STATUS_DELETED } from '@quizzup/shared'
 import type { FastifyPluginAsync } from 'fastify'
 
-import { ROOM_STATUS_DELETED } from '@quizzup/shared'
 import db from '../../../db'
 import { API_ACTION, API_RESOURCE } from '../../../security/permissions'
 import { requireApiPermission } from '../../../security/requireApiPermission'
 import { canManageRoomsContext } from '../../../security/roomsPolicy'
 import type { RoomRow } from '../../../types/room'
-
-import { roomParamsSchema, updateRoomStatusSchema } from './_schemas'
 import { isUniqueViolation } from '../../_shared/dbErrors'
 import { softDeleteRoom } from './_account'
+import { roomParamsSchema, updateRoomStatusSchema } from './_schemas'
 import { findRoomInCompany, isRoomCompanyDeleted, isRoomNameTaken, roomSelect } from './_shared'
 
 const companyRoomIdStatusRoutes: FastifyPluginAsync = async (app) => {

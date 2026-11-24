@@ -1,5 +1,3 @@
-import { describe, expect, it } from 'vitest'
-
 import {
   cleanRoomLogText,
   pickRoomLogContext,
@@ -9,6 +7,7 @@ import {
   ROOM_LOG_EMAIL_PLACEHOLDER,
   scrubEmails,
 } from '@quizzup/shared'
+import { describe, expect, it } from 'vitest'
 
 describe('scrubEmails', () => {
   it.each([

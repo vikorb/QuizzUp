@@ -1,6 +1,6 @@
+import { THEME_SCOPE_COMPANY, THEME_SCOPE_GLOBAL, type ThemeScope } from '@quizzup/shared'
 import type { FastifyRequest } from 'fastify'
 
-import { THEME_SCOPE_COMPANY, THEME_SCOPE_GLOBAL, type ThemeScope } from '@quizzup/shared'
 import { getCurrentCompanyId, isSuperadmin } from '../../security/companiesPolicy'
 
 /**

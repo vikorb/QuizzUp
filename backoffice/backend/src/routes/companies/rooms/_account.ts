@@ -8,7 +8,6 @@ import {
   GAME_STATE_RUNNING,
   ROOM_STATUS_DELETED,
 } from '@quizzup/shared'
-
 import type { Knex } from 'knex'
 
 import db from '../../../db'

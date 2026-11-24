@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'vitest'
-
 import { createSseParser, type SseMessage } from '@quizzup/shared'
+import { describe, expect, it } from 'vitest'
 
 function parse(...chunks: string[]): SseMessage[] {
   const messages: SseMessage[] = []

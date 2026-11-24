@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
+import type dbModule from '@backend/db'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { assertTestDatabase } from '../../setup/assertTestDatabase'
@@ -21,7 +22,7 @@ const migration = require(
 
 const PG_INTEGRATION_URL = process.env.PG_INTEGRATION_URL
 
-type Db = typeof import('@backend/db').default
+type Db = typeof dbModule
 
 const LOGO_COLUMNS = ['logo_key', 'logo_mime_type', 'logo_updated_at']
 
@@ -128,14 +129,14 @@ describe.skipIf(!PG_INTEGRATION_URL)('add_logo_to_companies sur PostgreSQL', () 
   })
 
   describe('retour arrière réel de la migration (down)', () => {
-    const migration = {
+    const migrationToRevert = {
       directory: path.resolve(process.cwd(), 'backend/db/migrations'),
       name: '20261124030000_add_logo_to_companies.js',
     }
 
     // Quoi qu'il arrive, la base de test doit retrouver le schéma à jour pour les tests suivants.
     afterEach(async () => {
-      await db.migrate.latest({ directory: migration.directory })
+      await db.migrate.latest({ directory: migrationToRevert.directory })
     })
 
     it('refuse tant qu’une compagnie a un logo, puis passe une fois le logo retiré', async () => {
@@ -146,7 +147,7 @@ describe.skipIf(!PG_INTEGRATION_URL)('add_logo_to_companies sur PostgreSQL', () 
         logo_updated_at: db.fn.now(),
       })
 
-      await expect(db.migrate.down(migration)).rejects.toThrow(
+      await expect(db.migrate.down(migrationToRevert)).rejects.toThrow(
         /Rollback impossible : des compagnies ont un logo \(companies\.logo_key\)\./
       )
       // Refus : le schéma n'a pas bougé, le logo est toujours là.
@@ -160,11 +161,11 @@ describe.skipIf(!PG_INTEGRATION_URL)('add_logo_to_companies sur PostgreSQL', () 
         logo_mime_type: null,
         logo_updated_at: null,
       })
-      await db.migrate.down(migration)
+      await db.migrate.down(migrationToRevert)
 
       expect(await logoColumns(db)).toEqual([])
 
-      await db.migrate.latest({ directory: migration.directory })
+      await db.migrate.latest({ directory: migrationToRevert.directory })
 
       expect(await logoColumns(db)).toHaveLength(3)
     })

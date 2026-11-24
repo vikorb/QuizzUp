@@ -1,11 +1,10 @@
-import { describe, expect, it, vi } from 'vitest'
-
-import { PLAYER_EMAIL_RETENTION_YEARS } from '@quizzup/shared'
 import {
-  PLAYER_EMAIL_PURGE_LOCK_KEY,
   getPlayerEmailRetentionCutoff,
+  PLAYER_EMAIL_PURGE_LOCK_KEY,
   purgeExpiredPlayerEmails,
 } from '@backend/jobs/purgePlayerEmails'
+import { PLAYER_EMAIL_RETENTION_YEARS } from '@quizzup/shared'
+import { describe, expect, it, vi } from 'vitest'
 
 // La sémantique de la purge (compagnies, casse, 2e joueur, dates) est vérifiée sur un vrai
 // PostgreSQL dans `purgePlayerEmails.pg.test.ts` ; ici, la date limite et l'enchaînement SQL.
@@ -161,11 +160,11 @@ describe('purgeExpiredPlayerEmails (enchaînement SQL)', () => {
   })
 
   it('propage une erreur SQL (la transaction est alors annulée par Knex)', async () => {
-    const { db } = fakeKnex([0, 0])
+    const { db: _db } = fakeKnex([0, 0])
     const failing = {
       transaction: async (cb: (trx: { raw: () => Promise<never> }) => unknown) =>
         cb({ raw: () => Promise.reject(new Error('boom')) }),
-    } as unknown as typeof db
+    } as unknown as typeof _db
 
     await expect(purgeExpiredPlayerEmails(failing, NOW)).rejects.toThrow('boom')
   })

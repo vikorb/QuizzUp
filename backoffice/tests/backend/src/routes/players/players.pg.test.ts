@@ -1,9 +1,10 @@
 import path from 'node:path'
 
+import type dbModule from '@backend/db'
+import { PLAYER_ERASED_NAME } from '@quizzup/shared'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-import { PLAYER_ERASED_NAME } from '@quizzup/shared'
 import { assertTestDatabase } from '../../../setup/assertTestDatabase'
 import {
   authHeaders,
@@ -31,7 +32,7 @@ import { otherCompanyAdmin, staffUser } from '../_helpers/vouchers'
  */
 const PG_INTEGRATION_URL = process.env.PG_INTEGRATION_URL
 
-type Db = typeof import('@backend/db').default
+type Db = typeof dbModule
 type Row = Record<string, unknown>
 type PlayerBody = {
   email: string | null

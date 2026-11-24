@@ -1,5 +1,3 @@
-import type { FastifyPluginAsync } from 'fastify'
-
 import {
   LIVE_EVENT,
   LIVE_HEARTBEAT_MS,
@@ -8,6 +6,8 @@ import {
   ROOM_STATUS_ACTIVE,
   ROOM_STATUS_DELETED,
 } from '@quizzup/shared'
+import type { FastifyPluginAsync } from 'fastify'
+
 import db from '../db'
 import { LIVE_MAX_STREAMS_PER_ACCOUNT } from '../live/hub'
 import { canAccessCompanyContext } from '../security/companiesPolicy'

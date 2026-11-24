@@ -1,9 +1,9 @@
 import '../_helpers/registerRouteMocks'
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
 import statsRoutes from '@backend/routes/stats'
 import { loadCompanyStats, loadTimeZoneNames } from '@backend/routes/stats/_queries'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { securityState } from '../_helpers/mockSecurity'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
 import {

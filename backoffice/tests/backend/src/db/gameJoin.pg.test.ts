@@ -1,8 +1,9 @@
 import path from 'node:path'
 
+import type dbModule from '@backend/db'
+import { purgeStaleJoinRegistrations } from '@backend/jobs/purgeJoinRegistrations'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-import { purgeStaleJoinRegistrations } from '@backend/jobs/purgeJoinRegistrations'
 import { assertTestDatabase } from '../../setup/assertTestDatabase'
 
 /**
@@ -22,7 +23,7 @@ import { assertTestDatabase } from '../../setup/assertTestDatabase'
  */
 const PG_INTEGRATION_URL = process.env.PG_INTEGRATION_URL
 
-type Db = typeof import('@backend/db').default
+type Db = typeof dbModule
 
 const TRUNCATE_TABLES =
   'TRUNCATE game_registrations, game_participants, games, rooms, admins, companies RESTART IDENTITY CASCADE'

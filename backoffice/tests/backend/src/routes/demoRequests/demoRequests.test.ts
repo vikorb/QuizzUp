@@ -1,8 +1,8 @@
 import '../_helpers/registerDbMock'
 
+import demoRequestsRoutes from '@backend/routes/demoRequests'
 import { describe, expect, it } from 'vitest'
 
-import demoRequestsRoutes from '@backend/routes/demoRequests'
 import { resetDb } from '../_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
 import {

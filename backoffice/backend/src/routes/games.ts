@@ -1,5 +1,3 @@
-import type { FastifyPluginAsync } from 'fastify'
-
 import {
   COMPANY_STATUS_ACTIVE,
   COMPANY_STATUS_DELETED,
@@ -9,6 +7,8 @@ import {
   getRoomDesksCount,
   ROOM_STATUS_ACTIVE,
 } from '@quizzup/shared'
+import type { FastifyPluginAsync } from 'fastify'
+
 import db from '../db'
 import { canAccessCompanyContext } from '../security/companiesPolicy'
 import { API_ACTION, API_RESOURCE } from '../security/permissions'

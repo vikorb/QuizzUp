@@ -1,6 +1,5 @@
-import type { Knex } from 'knex'
-
 import { GAME_STATE_FINISHED, GAME_STATUS_DELETED, PLAYER_ERASED_NAME } from '@quizzup/shared'
+import type { Knex } from 'knex'
 
 import db from '../../db'
 

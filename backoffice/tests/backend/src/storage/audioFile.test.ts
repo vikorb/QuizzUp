@@ -1,10 +1,9 @@
-import { describe, expect, it } from 'vitest'
-
 import {
   matchesAudioSignature,
   normalizeAudioMimeType,
   sanitizeOriginalName,
 } from '@backend/storage/audioFile'
+import { describe, expect, it } from 'vitest'
 
 describe('storage/audioFile — normalizeAudioMimeType', () => {
   it('normalizes accepted formats', () => {

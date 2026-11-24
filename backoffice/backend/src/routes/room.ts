@@ -1,6 +1,3 @@
-import type { FastifyPluginAsync, FastifyRequest } from 'fastify'
-import { z } from 'zod'
-
 import {
   GAME_STATE_FINISHED,
   GAME_STATE_PENDING,
@@ -12,13 +9,16 @@ import {
   ROOM_CONTENT_MAX_IDS,
   ROOM_STATUS_DELETED,
 } from '@quizzup/shared'
+import type { FastifyPluginAsync, FastifyRequest } from 'fastify'
+import { z } from 'zod'
+
 import db from '../db'
 import { createRateLimiter, replyTooManyRequests } from '../security/rateLimit'
 import { providerRefSchema } from '../services/mediaProvider'
 import { getMediaStorage, isValidMediaKey } from '../storage/mediaStorage'
 import type { RoomRow } from '../types/room'
-import { ROOM_CONFIG_MAX_LENGTH, roomConfigSchema } from './companies/rooms/_schemas'
 import { companyLogoUrl } from './companies/_shared'
+import { ROOM_CONFIG_MAX_LENGTH, roomConfigSchema } from './companies/rooms/_schemas'
 import { roomSelect } from './companies/rooms/_shared'
 import { addGameJoin, findGameInCompany, openScheduledGame } from './games/_shared'
 import { getMediaVersion } from './questions/_shared'

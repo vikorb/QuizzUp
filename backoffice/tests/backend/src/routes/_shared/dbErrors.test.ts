@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'vitest'
-
 import { isExclusionViolation, isUniqueViolation } from '@backend/routes/_shared/dbErrors'
+import { describe, expect, it } from 'vitest'
 
 describe('routes/_shared/dbErrors.ts', () => {
   it('detects PostgreSQL unique violations only', () => {

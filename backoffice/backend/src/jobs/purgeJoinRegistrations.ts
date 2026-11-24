@@ -1,10 +1,9 @@
-import type { Knex } from 'knex'
-
 import {
   GAME_STATE_PENDING,
   GAME_STATUS_DELETED,
   JOIN_REGISTRATION_MAX_AGE_HOURS,
 } from '@quizzup/shared'
+import type { Knex } from 'knex'
 
 /**
  * Purge RGPD : supprime les demandes d'inscription des joueurs qui n'ont plus d'utilité, c'est-à-

@@ -1,5 +1,3 @@
-import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
-
 import {
   DEFAULT_QUESTION_KIND,
   getQuestionKindMediaError,
@@ -7,6 +5,8 @@ import {
   QUESTION_MEDIA_TYPE_AUDIO,
   QUESTION_STATUS_DELETED,
 } from '@quizzup/shared'
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
+
 import db from '../../db'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
 import { requireApiPermission } from '../../security/requireApiPermission'
@@ -92,7 +92,7 @@ const questionMediaProviderRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(409).send({ error: 'question_media_provider_no_preview' })
       }
 
-      let replacedKey: string | null = null
+      let replacedKey: string | null
 
       try {
         replacedKey = await db.transaction(async (trx) => {

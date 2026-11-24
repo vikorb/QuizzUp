@@ -1,6 +1,9 @@
+import {
+  QUESTION_MEDIA_PROVIDER_DEEZER,
+  QUESTION_MEDIA_REF_PATTERN,
+  type QuestionMediaProvider,
+} from '@quizzup/shared'
 import { z } from 'zod'
-
-import { QUESTION_MEDIA_PROVIDER_DEEZER, type QuestionMediaProvider } from '@quizzup/shared'
 
 /**
  * Client du fournisseur d'extraits audio (Deezer, API publique sans clé). Le serveur ne télécharge
@@ -42,7 +45,7 @@ export class MediaProviderUnavailableError extends Error {
  * Référence d'un titre : chiffres seulement. Frontière de confiance, car elle est insérée dans
  * l'URL appelée.
  */
-export const providerRefSchema = z.string().regex(/^\d{1,20}$/)
+export const providerRefSchema = z.string().regex(QUESTION_MEDIA_REF_PATTERN)
 
 const trackSchema = z.object({
   id: z.number().int(),

@@ -1,20 +1,20 @@
 import '../_helpers/registerDbMock'
 
-import fastify from 'fastify'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-import {
-  COMPANY_STATUS_DELETED,
-  COMPANY_STATUS_INACTIVE,
-  VOUCHER_STATUS_DELETED,
-  VOUCHER_STATUS_INACTIVE,
-} from '@quizzup/shared'
 import publicRoutes from '@backend/routes/public'
 import { PUBLIC_API_PREFIX } from '@backend/routes/public/_shared'
 import {
   VOUCHER_LOOKUP_BODY_LIMIT,
   VOUCHER_LOOKUP_RATE_LIMIT_MAX,
 } from '@backend/routes/public/vouchers'
+import {
+  COMPANY_STATUS_DELETED,
+  COMPANY_STATUS_INACTIVE,
+  VOUCHER_STATUS_DELETED,
+  VOUCHER_STATUS_INACTIVE,
+} from '@quizzup/shared'
+import fastify from 'fastify'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { dbState, resetDb } from '../_helpers/mockDb'
 import { CODE_A, DAY_MS, seedGame, seedVoucher, VOUCHER_NOW } from '../_helpers/vouchers'
 

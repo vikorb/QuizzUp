@@ -1,5 +1,3 @@
-import type { FastifyPluginAsync } from 'fastify'
-
 import {
   formatVoucherCode,
   VOUCHER_STATE_CANCELLED,
@@ -7,6 +5,8 @@ import {
   VOUCHER_STATE_REDEEMED,
   VOUCHER_STATUS_ACTIVE,
 } from '@quizzup/shared'
+import type { FastifyPluginAsync } from 'fastify'
+
 import db from '../../db'
 import { canAccessCompanyContext } from '../../security/companiesPolicy'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'

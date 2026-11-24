@@ -1,10 +1,11 @@
 import path from 'node:path'
 
+import type dbModule from '@backend/db'
+import { VOUCHER_CODE_PATTERN } from '@quizzup/shared'
 import type { FastifyInstance } from 'fastify'
 import fastify from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-import { VOUCHER_CODE_PATTERN } from '@quizzup/shared'
 import { assertTestDatabase } from '../../../setup/assertTestDatabase'
 import { authHeaders, companyAdminUser, createRouteApp, type TestUser } from '../_helpers/testApp'
 import { otherCompanyAdmin, staffUser } from '../_helpers/vouchers'
@@ -23,7 +24,7 @@ import { otherCompanyAdmin, staffUser } from '../_helpers/vouchers'
 const PG_INTEGRATION_URL = process.env.PG_INTEGRATION_URL
 if (PG_INTEGRATION_URL) process.env.DATABASE_URL = PG_INTEGRATION_URL
 
-type Db = typeof import('@backend/db').default
+type Db = typeof dbModule
 
 const DAY_MS = 86_400_000
 const CODE = '7K2M-9QXD'

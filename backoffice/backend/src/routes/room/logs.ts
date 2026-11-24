@@ -1,6 +1,6 @@
+import { ROOM_STATUS_DELETED } from '@quizzup/shared'
 import type { FastifyPluginAsync } from 'fastify'
 
-import { ROOM_STATUS_DELETED } from '@quizzup/shared'
 import db from '../../db'
 import { createRateLimiter, replyTooManyRequests } from '../../security/rateLimit'
 import {

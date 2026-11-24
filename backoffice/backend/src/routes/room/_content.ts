@@ -1,5 +1,3 @@
-import type { FastifyBaseLogger } from 'fastify'
-
 import {
   ANSWER_STATUS_ACTIVE,
   DEFAULT_QUESTION_KIND,
@@ -10,11 +8,12 @@ import {
   QUESTION_MEDIA_TYPE_NONE,
   QUESTION_MEDIA_TYPE_VIDEO,
   QUESTION_STATUS_ACTIVE,
+  type QuestionAudioEffect,
   THEME_SCOPE_COMPANY,
   THEME_SCOPE_GLOBAL,
   THEME_STATUS_ACTIVE,
-  type QuestionAudioEffect,
 } from '@quizzup/shared'
+import type { FastifyBaseLogger } from 'fastify'
 
 import db from '../../db'
 import {

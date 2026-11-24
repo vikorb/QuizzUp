@@ -1,8 +1,6 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
-import { describe, expect, it } from 'vitest'
-
 import {
   API_IDEMPOTENCY_TTL_HOURS,
   API_KEY_MAX_ACTIVE,
@@ -14,6 +12,7 @@ import {
   GAME_PODIUMS,
   GAME_STATES,
 } from '@quizzup/shared'
+import { describe, expect, it } from 'vitest'
 
 // Le contrat de `/public/v1` est un fichier à part (`public-v1.yaml`) : ses listes de valeurs et
 // ses bornes restent alignées sur `@quizzup/shared`, comme celles d'`openapi.yaml`.

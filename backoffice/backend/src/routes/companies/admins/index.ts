@@ -1,6 +1,3 @@
-import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
-import bcrypt from 'bcryptjs'
-
 import {
   ADMIN_ROLE_ADMIN,
   ADMIN_ROLE_ROOM,
@@ -10,15 +7,17 @@ import {
   ADMIN_STATUS_DELETED,
   type AdminRole,
 } from '@quizzup/shared'
+import bcrypt from 'bcryptjs'
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
+
 import db from '../../../db'
-import { API_ACTION, API_RESOURCE } from '../../../security/permissions'
-import { requireApiPermission } from '../../../security/requireApiPermission'
 import {
   canCreateCompanyAccountContext,
   canListCompanyAccountsContext,
 } from '../../../security/companiesPolicy'
+import { API_ACTION, API_RESOURCE } from '../../../security/permissions'
+import { requireApiPermission } from '../../../security/requireApiPermission'
 import type { AdminRow } from '../../../types/admin'
-
 import { companyAdminParamsSchema, createAdminSchema } from '../_schemas'
 import { adminSelect, findCompanyById, getAdminRow, normalizeNullableString } from '../_shared'
 

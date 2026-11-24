@@ -1,6 +1,8 @@
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
+import type dbModule from '@backend/db'
+import type { findAvoidQuestionIds as findAvoidQuestionIdsType } from '@backend/routes/room/_history'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
@@ -32,7 +34,7 @@ const PG_INTEGRATION_URL = process.env.PG_INTEGRATION_URL
 const TRUNCATE_TABLES =
   'TRUNCATE game_rounds, game_participants, games, rooms, admins, companies RESTART IDENTITY CASCADE'
 
-type Db = typeof import('@backend/db').default
+type Db = typeof dbModule
 
 const require = createRequire(import.meta.url)
 const indexMigration = require(
@@ -55,7 +57,7 @@ const CURRENT_GAME = 100
 describe.skipIf(!PG_INTEGRATION_URL)('questions déjà vues par les joueurs d’une partie', () => {
   let db: Db
   let roomApp: FastifyInstance
-  let findAvoidQuestionIds: typeof import('@backend/routes/room/_history').findAvoidQuestionIds
+  let findAvoidQuestionIds: typeof findAvoidQuestionIdsType
 
   beforeAll(async () => {
     process.env.DATABASE_URL = PG_INTEGRATION_URL
@@ -123,10 +125,10 @@ describe.skipIf(!PG_INTEGRATION_URL)('questions déjà vues par les joueurs d’
       podium,
       display_name: 'Joueur',
       email: emails.email ?? null,
-      consent_at: emails.email == null ? null : consent,
-      second_display_name: emails.secondEmail == null ? null : 'Second',
+      consent_at: (emails.email ?? null) === null ? null : consent,
+      second_display_name: (emails.secondEmail ?? null) === null ? null : 'Second',
       second_email: emails.secondEmail ?? null,
-      second_consent_at: emails.secondEmail == null ? null : consent,
+      second_consent_at: (emails.secondEmail ?? null) === null ? null : consent,
     })
   }
 

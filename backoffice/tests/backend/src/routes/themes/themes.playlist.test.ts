@@ -1,14 +1,14 @@
 import '../_helpers/registerRouteMocks'
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
+import themesRoutes from '@backend/routes/themes'
 import {
   THEME_MODE_AUDIO,
   THEME_MODE_CLASSIC,
   THEME_SCOPE_COMPANY,
   THEME_SCOPE_GLOBAL,
 } from '@quizzup/shared'
-import themesRoutes from '@backend/routes/themes'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { dbState } from '../_helpers/mockDb'
 import {
   jsonResponse,

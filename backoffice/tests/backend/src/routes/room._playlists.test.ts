@@ -1,12 +1,11 @@
-import { describe, expect, it } from 'vitest'
-
+import { buildPlaylistQuestions } from '@backend/routes/room/_playlists'
+import type { ProviderPlaylistTrack } from '@backend/services/mediaProvider'
 import {
   QUESTION_AUDIO_EFFECT_NONE,
   QUESTION_KIND_QCM,
   QUESTION_MEDIA_TYPE_AUDIO,
 } from '@quizzup/shared'
-import { buildPlaylistQuestions } from '@backend/routes/room/_playlists'
-import type { ProviderPlaylistTrack } from '@backend/services/mediaProvider'
+import { describe, expect, it } from 'vitest'
 
 function track(id: number, overrides: Partial<ProviderPlaylistTrack> = {}): ProviderPlaylistTrack {
   return {

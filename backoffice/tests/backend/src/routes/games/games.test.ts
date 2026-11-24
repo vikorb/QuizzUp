@@ -1,7 +1,7 @@
 import '../_helpers/registerRouteMocks'
 
-import { describe, expect, it } from 'vitest'
-
+import gamesRoutes from '@backend/routes/games'
+import { findGameParticipants, toGameRow } from '@backend/routes/games/_shared'
 import {
   COMPANY_STATUS_DELETED,
   COMPANY_STATUS_INACTIVE,
@@ -25,8 +25,8 @@ import {
   ROOM_STATUS_INACTIVE,
   type RoomStatusReport,
 } from '@quizzup/shared'
-import gamesRoutes from '@backend/routes/games'
-import { findGameParticipants, toGameRow } from '@backend/routes/games/_shared'
+import { describe, expect, it } from 'vitest'
+
 import { dbState, MOCK_NOW, resetDb } from '../_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
 import {

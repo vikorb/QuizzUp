@@ -3,7 +3,6 @@ import type { FastifyPluginAsync } from 'fastify'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
 import { requireApiPermission } from '../../security/requireApiPermission'
 import { MediaProviderUnavailableError, searchProviderTracks } from '../../services/mediaProvider'
-
 import { mediaCatalogTracksQuerySchema } from './_schemas'
 
 /** Recherche de titres chez le fournisseur d'extraits, pour rattacher une question audio. */

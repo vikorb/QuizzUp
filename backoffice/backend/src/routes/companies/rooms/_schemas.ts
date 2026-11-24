@@ -1,5 +1,3 @@
-import { z } from 'zod'
-
 import {
   GAME_PODIUMS,
   ROOM_LOG_LEVELS,
@@ -10,14 +8,15 @@ import {
   ROOM_STATUS_ACTIVE,
   ROOM_STATUS_DELETED,
   ROOM_STATUS_INACTIVE,
+  type RoomSchedule,
+  type RoomScheduleDay,
+  type RoomScheduleDayKey,
   SESSION_MAX_BREAK_MINUTES,
   SESSION_MAX_MINUTES,
   SESSION_MIN_MINUTES,
   timeToMinutes,
-  type RoomSchedule,
-  type RoomScheduleDay,
-  type RoomScheduleDayKey,
 } from '@quizzup/shared'
+import { z } from 'zod'
 
 export const ROOM_NAME_MAX_LENGTH = 255
 /** Garde-fou sur la taille de la configuration matérielle stockée en JSON. */

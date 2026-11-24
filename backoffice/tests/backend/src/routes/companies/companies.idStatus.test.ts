@@ -1,14 +1,16 @@
 import '../_helpers/registerRouteMocks'
 
-import { describe, expect, it } from 'vitest'
-
+import companiesIdStatusRoutes from '@backend/routes/companies/idStatus'
 import {
   COMPANY_STATUS_ACTIVE,
   COMPANY_STATUS_DELETED,
   COMPANY_STATUS_INACTIVE,
 } from '@quizzup/shared'
-import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
+import { describe, expect, it } from 'vitest'
+
+import { dbState, MOCK_NOW } from '../_helpers/mockDb'
 import { securityState } from '../_helpers/mockSecurity'
+import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
 import {
   authHeaders,
   companyAdminUser,
@@ -16,8 +18,6 @@ import {
   parseJson,
   superadminUser,
 } from '../_helpers/testApp'
-import companiesIdStatusRoutes from '@backend/routes/companies/idStatus'
-import { dbState, MOCK_NOW } from '../_helpers/mockDb'
 
 resetRouteMocksBeforeEach()
 

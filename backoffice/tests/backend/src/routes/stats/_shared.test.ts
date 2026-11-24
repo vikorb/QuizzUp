@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'vitest'
-
 import { resolveStatsPeriod } from '@backend/routes/stats/_shared'
+import { describe, expect, it } from 'vitest'
 
 const NOW = new Date('2026-11-23T12:00:00.000Z')
 const DAY_MS = 24 * 60 * 60 * 1000

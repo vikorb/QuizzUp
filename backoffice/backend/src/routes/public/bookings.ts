@@ -1,8 +1,5 @@
 import { createHash } from 'node:crypto'
 
-import type { FastifyPluginAsync } from 'fastify'
-import { z } from 'zod'
-
 import {
   computeRoomSlots,
   GAME_DEFAULT_FORMAT,
@@ -14,9 +11,12 @@ import {
   GAME_STATE_SCHEDULED,
   GAME_STATUS_DELETED,
   getRoomDesksCount,
-  type RoomSlot,
   type RoomSchedule,
+  type RoomSlot,
 } from '@quizzup/shared'
+import type { FastifyPluginAsync } from 'fastify'
+import { z } from 'zod'
+
 import db from '../../db'
 import { isExclusionViolation } from '../_shared/dbErrors'
 import {

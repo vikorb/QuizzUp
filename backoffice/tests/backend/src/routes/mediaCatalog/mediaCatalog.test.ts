@@ -1,10 +1,10 @@
 import '../_helpers/registerRouteMocks'
 
+import mediaCatalogRoutes from '@backend/routes/mediaCatalog'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import mediaCatalogRoutes from '@backend/routes/mediaCatalog'
-import { securityState } from '../_helpers/mockSecurity'
 import { jsonResponse, providerTrack, stubProviderFetch } from '../_helpers/mockMediaProvider'
+import { securityState } from '../_helpers/mockSecurity'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
 import {
   authHeaders,

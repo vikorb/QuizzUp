@@ -1,7 +1,6 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-
-import { ROOM_LOG_DEFAULT_RETENTION_DAYS, ROOM_LOG_MAX_PER_ROOM } from '@quizzup/shared'
 import { getRoomLogRetentionDays, pruneRoomLogs } from '@backend/routes/room/_logs'
+import { ROOM_LOG_DEFAULT_RETENTION_DAYS, ROOM_LOG_MAX_PER_ROOM } from '@quizzup/shared'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 afterEach(() => {
   delete process.env.ROOM_LOG_RETENTION_DAYS

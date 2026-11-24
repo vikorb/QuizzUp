@@ -3,10 +3,8 @@ import './_helpers/registerRouteMocks'
 import { describe, expect, it } from 'vitest'
 
 import healthRoute from '../../../../backend/src/routes/health'
-
-import { createRouteApp, parseJson } from './_helpers/testApp'
-
 import { resetRouteMocksBeforeEach } from './_helpers/resetRouteMocks'
+import { createRouteApp, parseJson } from './_helpers/testApp'
 
 resetRouteMocksBeforeEach()
 

@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'vitest'
-
 import { CsvError, parseCsv } from '@backend/utils/csv'
+import { describe, expect, it } from 'vitest'
 
 const fields = (text: string) => parseCsv(text).map((record) => record.fields)
 

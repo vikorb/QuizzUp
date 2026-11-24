@@ -1,6 +1,5 @@
-import type { Knex } from 'knex'
-
 import { API_IDEMPOTENCY_TTL_HOURS, API_LOG_RETENTION_DAYS } from '@quizzup/shared'
+import type { Knex } from 'knex'
 
 /**
  * Purge de l'API de réservation : supprime les appels journalisés depuis plus de

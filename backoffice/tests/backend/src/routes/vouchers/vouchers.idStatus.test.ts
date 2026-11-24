@@ -1,9 +1,9 @@
 import '../_helpers/registerDbMock'
 
+import voucherStatusRoutes from '@backend/routes/vouchers/idStatus'
 import type { FastifyInstance } from 'fastify'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import voucherStatusRoutes from '@backend/routes/vouchers/idStatus'
 import { dbState, resetDb } from '../_helpers/mockDb'
 import {
   authHeaders,

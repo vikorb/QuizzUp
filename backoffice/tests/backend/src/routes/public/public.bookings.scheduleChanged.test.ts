@@ -1,8 +1,8 @@
 import '../_helpers/registerDbMock'
 
+import { COMPANY_STATUS_ACTIVE, LIVE_EVENT } from '@quizzup/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { COMPANY_STATUS_ACTIVE, LIVE_EVENT } from '@quizzup/shared'
 import { dbState, resetDb } from '../_helpers/mockDb'
 import { bearer, createPublicApp, PUBLIC_API_NOW, seedRoom, seedToken } from '../_helpers/publicApi'
 import { expectNobodyNotified, watchGameUpdates } from '../_helpers/testApp'

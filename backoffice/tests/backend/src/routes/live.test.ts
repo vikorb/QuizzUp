@@ -1,8 +1,7 @@
 import './_helpers/registerDbMock'
 
-import type { FastifyInstance } from 'fastify'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
+import { COMMAND_MAX_PER_ROOM } from '@backend/live/hub'
+import liveRoutes from '@backend/routes/live'
 import {
   ADMIN_ROLE_ROOM,
   GAME_COMMAND_REFUSAL,
@@ -21,8 +20,9 @@ import {
   type RoomLive,
   type RoomStatusReport,
 } from '@quizzup/shared'
-import { COMMAND_MAX_PER_ROOM } from '@backend/live/hub'
-import liveRoutes from '@backend/routes/live'
+import type { FastifyInstance } from 'fastify'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { dbState, MOCK_NOW, resetDb } from './_helpers/mockDb'
 import { openSse, type SseClient } from './_helpers/sse'
 import {

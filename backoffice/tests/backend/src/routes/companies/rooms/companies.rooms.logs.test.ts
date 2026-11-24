@@ -2,8 +2,7 @@
 // matrice par rôle de bout en bout. Seule la base est simulée.
 import '../../_helpers/registerDbMock'
 
-import { describe, expect, it } from 'vitest'
-
+import companyRoomLogsRoutes from '@backend/routes/companies/rooms/logs'
 import {
   ADMIN_ROLE_ROOM,
   ROOM_LOG_LIST_DEFAULT_LIMIT,
@@ -11,7 +10,8 @@ import {
   ROOM_STATUS_ACTIVE,
   ROOM_STATUS_DELETED,
 } from '@quizzup/shared'
-import companyRoomLogsRoutes from '@backend/routes/companies/rooms/logs'
+import { describe, expect, it } from 'vitest'
+
 import { dbState } from '../../_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from '../../_helpers/resetRouteMocks'
 import {

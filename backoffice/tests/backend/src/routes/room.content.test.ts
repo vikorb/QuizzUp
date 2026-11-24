@@ -2,8 +2,9 @@ import './_helpers/registerRouteMocks'
 
 import { Readable } from 'node:stream'
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
+import roomRoutes from '@backend/routes/room'
+import { loadRoomContent } from '@backend/routes/room/_content'
+import { type MediaStorage, setMediaStorage } from '@backend/storage/mediaStorage'
 import {
   ADMIN_ROLE_ROOM,
   ANSWER_STATUS_ACTIVE,
@@ -25,9 +26,8 @@ import {
   THEME_STATUS_ACTIVE,
   THEME_STATUS_INACTIVE,
 } from '@quizzup/shared'
-import roomRoutes from '@backend/routes/room'
-import { loadRoomContent } from '@backend/routes/room/_content'
-import { type MediaStorage, setMediaStorage } from '@backend/storage/mediaStorage'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { dbState } from './_helpers/mockDb'
 import {
   jsonResponse,
