@@ -348,8 +348,9 @@ function onMessage(message: SseMessage): void {
     return
   }
 
-  // Aucune donnée n'est lue : l'écran qui écoute relit la partie par `GET /room/games/current`.
-  if (message.event === LIVE_EVENT.GAME_UPDATED) {
+  // Aucune donnée n'est lue : l'écran qui écoute relit la partie et la prochaine session par
+  // `GET /room/games/current`. `schedule_changed` (programme de la salle modifié) fait de même.
+  if (message.event === LIVE_EVENT.GAME_UPDATED || message.event === LIVE_EVENT.SCHEDULE_CHANGED) {
     gameUpdatedListeners.forEach((listener) => listener())
     return
   }
@@ -517,7 +518,7 @@ export function stopRoomLive(): void {
 }
 
 /**
- * Écoute `game_updated`. Un seul abonnement par écran suffit : il survit aux reconnexions du flux.
+ * Écoute `game_updated` et `schedule_changed`. Un seul abonnement par écran suffit : il survit aux reconnexions du flux.
  * Retourne la fonction qui le retire.
  */
 export function onRoomGameUpdated(listener: () => void): () => void {

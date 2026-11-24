@@ -16,7 +16,7 @@ import {
   openGameServiceMock,
   resetGamesServiceMock,
 } from '@frontend-tests/_helpers/gamesServiceMock'
-import { liveNowMock } from '@frontend-tests/_helpers/liveCompanyMock'
+import { liveNowMock, scheduleChangedListenerMock } from '@frontend-tests/_helpers/liveCompanyMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { currentRouteMock, pushMock, replaceMock } from '@frontend-tests/_helpers/routerMock'
@@ -162,6 +162,11 @@ function roomSelectValue(wrapper: VueWrapper): string {
 
 function setVisibility(state: 'visible' | 'hidden'): void {
   Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state })
+}
+
+/** Simule un événement `schedule_changed` du direct pour cette salle. */
+function receive(roomId: number): void {
+  scheduleChangedListenerMock.current?.(roomId)
 }
 
 function bannerText(wrapper: VueWrapper): string {
@@ -910,6 +915,76 @@ describe('views/AgendaView.vue', () => {
 
       unmountAgenda(wrapper)
       document.dispatchEvent(new Event('visibilitychange'))
+      await flushPromises()
+
+      expect(listGamesServiceMock).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('schedule_changed', () => {
+    const SCHEDULE_RELOAD_MS = 300
+
+    // `flushPromises` garde les vraies minuteries : seules `Date` et `setTimeout` sont simulées.
+    beforeEach(() => {
+      vi.useRealTimers()
+      vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
+      vi.setSystemTime(JUST_AFTER_PARIS_MIDNIGHT)
+    })
+
+    it('reads the sessions of the shown room again, once for a burst, without the loading state', async () => {
+      const wrapper = await mountAgenda()
+
+      receive(10)
+      receive(10)
+      receive(10)
+      await vi.advanceTimersByTimeAsync(SCHEDULE_RELOAD_MS - 1)
+      expect(listGamesServiceMock).toHaveBeenCalledTimes(1)
+
+      await vi.advanceTimersByTimeAsync(1)
+      await flushPromises()
+
+      expect(listGamesServiceMock).toHaveBeenCalledTimes(2)
+      expect(listGameRoomsServiceMock).toHaveBeenCalledTimes(1)
+      expect(wrapper.get('[data-test="base-card"]').attributes('data-loading')).toBe('false')
+    })
+
+    it('keeps the room and the day, and shows the new session', async () => {
+      const wrapper = await mountAgenda()
+
+      await findSelect(wrapper, 'agenda.filters.room').setValue('11')
+      await flushPromises()
+      const day = dateInput(wrapper).element.value
+
+      serveGames({ games: [createScheduledGameFixture('2026-11-24T10:00:00.000Z', { id: 5 })] })
+      receive(11)
+      await vi.advanceTimersByTimeAsync(SCHEDULE_RELOAD_MS)
+      await flushPromises()
+
+      expect(roomSelectValue(wrapper)).toBe('11')
+      expect(dateInput(wrapper).element.value).toBe(day)
+      expect(listGamesServiceMock).toHaveBeenLastCalledWith(
+        1,
+        expect.objectContaining({ roomId: 11 })
+      )
+      expect(wrapper.find('[data-key="game-5"]').exists()).toBe(true)
+    })
+
+    it('ignores a change of another room', async () => {
+      await mountAgenda()
+
+      receive(11)
+      await vi.advanceTimersByTimeAsync(SCHEDULE_RELOAD_MS)
+      await flushPromises()
+
+      expect(listGamesServiceMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not read again once the screen is left', async () => {
+      const wrapper = await mountAgenda()
+
+      receive(10)
+      unmountAgenda(wrapper)
+      await vi.advanceTimersByTimeAsync(SCHEDULE_RELOAD_MS)
       await flushPromises()
 
       expect(listGamesServiceMock).toHaveBeenCalledTimes(1)

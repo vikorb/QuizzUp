@@ -24,9 +24,21 @@ export const gameUpdatedListenerMock: { current: ((gameId: number) => void) | un
   current: undefined,
 }
 
+// Idem pour `schedule_changed`.
+export const scheduleChangedListenerMock: { current: ((roomId: number) => void) | undefined } = {
+  current: undefined,
+}
+
 export const useLiveCompanyMock = vi.fn(
-  (_companyId: unknown, options?: { onGameUpdated?: (gameId: number) => void }) => {
+  (
+    _companyId: unknown,
+    options?: {
+      onGameUpdated?: (gameId: number) => void
+      onScheduleChanged?: (roomId: number) => void
+    }
+  ) => {
     gameUpdatedListenerMock.current = options?.onGameUpdated
+    scheduleChangedListenerMock.current = options?.onScheduleChanged
 
     return {
       rooms: liveRoomsMock,
@@ -51,6 +63,7 @@ export function resetLiveCompanyMock(): void {
   liveNowMock.value = LIVE_NOW_MOCK
   useLiveCompanyMock.mockClear()
   gameUpdatedListenerMock.current = undefined
+  scheduleChangedListenerMock.current = undefined
   sendCommandMock.mockReset()
   sendCommandMock.mockResolvedValue({ result: 'applied' })
 }

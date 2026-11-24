@@ -98,8 +98,14 @@ function isRoomLive(value: unknown): value is RoomLive {
  */
 export function useLiveCompany(
   companyId: MaybeRefOrGetter<number | null>,
-  /** `onGameUpdated` : une partie de la compagnie a changé (`game_updated`), à relire par la route habituelle. */
-  options: { onGameUpdated?: (gameId: number) => void } = {}
+  /**
+   * `onGameUpdated` : une partie de la compagnie a changé (`game_updated`), à relire par la route habituelle.
+   * `onScheduleChanged` : le programme d'une salle a changé (`schedule_changed`), à relire de même.
+   */
+  options: {
+    onGameUpdated?: (gameId: number) => void
+    onScheduleChanged?: (roomId: number) => void
+  } = {}
 ) {
   const rooms = ref<Record<number, RoomLive>>({})
   const state = ref<LiveConnectionState>('connecting')
@@ -208,6 +214,12 @@ export function useLiveCompany(
 
       if (typeof gameId === 'number') {
         options.onGameUpdated?.(gameId)
+      }
+    } else if (event === LIVE_EVENT.SCHEDULE_CHANGED) {
+      const changedRoomId = (parseJson(data) as { roomId?: unknown } | null)?.roomId
+
+      if (typeof changedRoomId === 'number') {
+        options.onScheduleChanged?.(changedRoomId)
       }
     } else if (event === LIVE_EVENT.SESSION_ENDED) {
       void sessionLost('session_ended')

@@ -301,6 +301,43 @@ describe('live hub game_updated', () => {
   })
 })
 
+describe('live hub schedule_changed', () => {
+  const scheduleChanged = (sink: ReturnType<typeof makeSink>) =>
+    sink.events.filter(({ event }) => event === LIVE_EVENT.SCHEDULE_CHANGED)
+
+  it('tells the room stream and the staff of the company, with the room id only', () => {
+    const { hub } = newHub()
+    const room = makeSink()
+    const staff = makeSink()
+
+    hub.openRoomStream(1, 10, room)
+    hub.subscribeStaff(10, 1, staff)
+    hub.scheduleChanged(10, 1)
+
+    const expected = [{ event: LIVE_EVENT.SCHEDULE_CHANGED, data: { roomId: 1 } }]
+
+    expect(scheduleChanged(room)).toEqual(expected)
+    expect(scheduleChanged(staff)).toEqual(expected)
+  })
+
+  it('tells nobody of another company, nor another room, nor a foreign room id', () => {
+    const { hub } = newHub()
+    const otherRoom = makeSink()
+    const foreignRoom = makeSink()
+    const foreignStaff = makeSink()
+
+    hub.openRoomStream(2, 10, otherRoom)
+    hub.openRoomStream(3, 20, foreignRoom)
+    hub.subscribeStaff(20, 2, foreignStaff)
+    hub.scheduleChanged(10, 1)
+    hub.scheduleChanged(10, 3)
+
+    expect(scheduleChanged(otherRoom)).toEqual([])
+    expect(scheduleChanged(foreignRoom)).toEqual([])
+    expect(scheduleChanged(foreignStaff)).toEqual([])
+  })
+})
+
 describe('live hub memory of offline rooms', () => {
   it('keeps the last report and the last seen date of a room that went offline', () => {
     const { hub, clock } = newHub()

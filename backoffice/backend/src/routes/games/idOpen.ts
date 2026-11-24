@@ -40,6 +40,7 @@ const gamesIdOpenRoutes: FastifyPluginAsync = async (app) => {
 
       if (game) {
         app.liveHub.gameUpdated(companyId, game.roomId, gameId)
+        app.liveHub.scheduleChanged(companyId, game.roomId)
       }
 
       return { game }

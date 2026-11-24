@@ -36,6 +36,7 @@ import { mountWithApp, PRELOAD_TIMEOUT_MS, preloadRoutes } from '../_helpers/mou
 /** Lecture lente du lobby tant que le flux de la salle est fermé (`StaffGameLobby.vue`). */
 const FALLBACK_POLL_MS = 15_000
 const GAME_UPDATED = 'event: game_updated\ndata: {"gameId":42}\n\n'
+const SCHEDULE_CHANGED = 'event: schedule_changed\ndata: {"roomId":1}\n\n'
 
 const GAME: roomApi.RoomGame = {
   id: 42,
@@ -1259,6 +1260,18 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
 
         fetchState.mockResolvedValue({ game: null, next: SESSION })
         server.streams.at(-1)?.push(GAME_UPDATED)
+        await vi.advanceTimersByTimeAsync(0)
+        await flushPromises()
+        expect(wrapper.find('[data-test="next-session"]').exists()).toBe(true)
+        expect(fetchState).toHaveBeenCalledTimes(2)
+      })
+
+      it('schedule_changed relit next ; flux ouvert : aucune lecture périodique', async () => {
+        const { server, wrapper } = await mountOnLiveStream(null, '2026-11-24T10:00:00Z')
+        expect(wrapper.find('[data-test="next-session"]').exists()).toBe(false)
+
+        fetchState.mockResolvedValue({ game: null, next: SESSION })
+        server.streams.at(-1)?.push(SCHEDULE_CHANGED)
         await vi.advanceTimersByTimeAsync(0)
         await flushPromises()
         expect(wrapper.find('[data-test="next-session"]').exists()).toBe(true)
