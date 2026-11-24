@@ -95,13 +95,30 @@ describe('public/join/joinApi — sendJoinRegistration', () => {
 
   it.each([
     [409, { error: 'join_full' }, 'full'],
-    [400, { error: 'invalid_body', details: {} }, 'invalid_body'],
     [404, { error: 'join_link_invalid' }, 'invalid'],
     [410, { error: 'join_link_closed' }, 'closed'],
   ])('maps %s to the reason %s', async (status, body, reason) => {
     fetchMock.mockResolvedValue(reply(status, body))
 
     expect(await sendJoinRegistration(TOKEN, { displayName: 'A' })).toEqual({ ok: false, reason })
+  })
+
+  it('gives the fields refused by the server on a 400 invalid_body, or none when absent', async () => {
+    const fieldErrors = { email: ['Invalid email address'], 'secondPlayer.displayName': ['x'] }
+
+    fetchMock.mockResolvedValueOnce(reply(400, { error: 'invalid_body', details: { fieldErrors } }))
+    fetchMock.mockResolvedValueOnce(reply(400, { error: 'invalid_body' }))
+
+    expect(await sendJoinRegistration(TOKEN, { displayName: 'A' })).toEqual({
+      ok: false,
+      reason: 'invalid_body',
+      fieldErrors,
+    })
+    expect(await sendJoinRegistration(TOKEN, { displayName: 'A' })).toEqual({
+      ok: false,
+      reason: 'invalid_body',
+      fieldErrors: {},
+    })
   })
 
   it('gives the delay of a 429 from Retry-After, with a default when it is missing', async () => {

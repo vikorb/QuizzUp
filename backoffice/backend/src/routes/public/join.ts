@@ -5,6 +5,7 @@ import {
   COMPANY_STATUS_ACTIVE,
   GAME_STATE_PENDING,
   GAME_STATUS_ACTIVE,
+  isJoinDisplayName,
   JOIN_DISPLAY_NAME_MAX_LENGTH,
   JOIN_MAX_PENDING_REGISTRATIONS,
   JOIN_TOKEN_BYTES,
@@ -70,7 +71,12 @@ function checkPlayer(player: PlayerChecks, ctx: z.RefinementCtx, path: string[] 
 }
 
 const playerFields = {
-  displayName: z.string().trim().min(1).max(JOIN_DISPLAY_NAME_MAX_LENGTH),
+  displayName: z
+    .string()
+    .trim()
+    .min(1)
+    .max(JOIN_DISPLAY_NAME_MAX_LENGTH)
+    .refine(isJoinDisplayName, { message: 'display_name_invalid' }),
   email: emailSchema,
   emailConsent: z.boolean().optional(),
   marketingConsent: z.boolean().optional(),
@@ -92,6 +98,20 @@ const registrationBodySchema = z
   })
 
 type RegistrationBody = z.infer<typeof registrationBodySchema>
+
+// Contrairement à `flatten()`, garde le chemin complet (`secondPlayer.email`) : la page sait ainsi
+// quel champ de quel joueur est refusé.
+function fieldErrorsOf(error: z.ZodError) {
+  const fieldErrors: Record<string, string[]> = {}
+
+  for (const issue of error.issues) {
+    const key = issue.path.join('.')
+
+    fieldErrors[key] = [...(fieldErrors[key] ?? []), issue.message]
+  }
+
+  return fieldErrors
+}
 
 type OpenableGame = {
   state: unknown
@@ -226,7 +246,7 @@ const publicJoinRoutes: FastifyPluginAsync = async (app) => {
 
       if (!parsed.success) {
         return sendPublicError(reply, 400, 'invalid_body', {
-          fieldErrors: parsed.error.flatten().fieldErrors,
+          fieldErrors: fieldErrorsOf(parsed.error),
         })
       }
 

@@ -2,10 +2,11 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import JoinPage from '@/public/join/JoinPage.vue'
-import { joinMessages } from '@/public/join/messages'
+import { joinMessages, NOTICE_PARAMS } from '@/public/join/messages'
 
 const fr = joinMessages.fr
 const TOKEN = 'a'.repeat(43)
+const OTHER_TOKEN = 'b'.repeat(43)
 
 const LINK = {
   companyName: 'Escape Néon',
@@ -21,8 +22,13 @@ function reply(status: number, body: unknown, headers: Record<string, string> = 
   return new Response(JSON.stringify(body), { status, headers })
 }
 
+// `replaceState` change le fragment sans déclencher `hashchange` : seuls les tests qui simulent un
+// second scan envoient l'événement, à la main.
+const setHash = (hash: string) =>
+  window.history.replaceState(null, '', `#${hash.replace(/^#/, '')}`)
+
 async function openPage(hash: string | null = `#${TOKEN}`) {
-  window.location.hash = hash ?? ''
+  setHash(hash ?? '')
   wrapper = mount(JoinPage, { attachTo: document.body })
   await flushPromises()
 
@@ -60,7 +66,7 @@ afterEach(() => {
   wrapper?.unmount()
   wrapper = undefined
   document.body.innerHTML = ''
-  window.location.hash = ''
+  setHash('')
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
 })
@@ -76,6 +82,37 @@ async function submitWith(response: Response | Error) {
   })
 
   await typeInto('#name-0', 'Camille')
+  await page.get('form').trigger('submit')
+  await flushPromises()
+
+  return page
+}
+
+// Un second QR code scanné dans le même onglet ne change que le fragment.
+async function switchTo(hash: string) {
+  setHash(hash)
+  window.dispatchEvent(new HashChangeEvent('hashchange'))
+  await flushPromises()
+}
+
+async function fillTwoPlayersThenRefuse(fieldErrors: Record<string, string[]> | undefined) {
+  const page = await openPage()
+
+  await typeInto('#name-0', 'Camille')
+  await typeInto('#email-0', 'camille@example.test')
+  await page.get('#consent-0').setValue(true)
+  await page.get('#age-0').setValue(true)
+  await page
+    .findAll('button')
+    .find((button) => button.text() === fr.addSecond)!
+    .trigger('click')
+  await typeInto('#name-1', 'Léa')
+
+  fetchMock.mockImplementation(async (url: string) =>
+    url.endsWith('/lookup')
+      ? reply(200, LINK)
+      : reply(400, { error: 'invalid_body', details: fieldErrors ? { fieldErrors } : {} })
+  )
   await page.get('form').trigger('submit')
   await flushPromises()
 
@@ -98,7 +135,7 @@ describe('public/join/JoinPage — opening the link', () => {
     const pending = deferred()
     fetchMock.mockImplementation(() => pending.promise)
 
-    window.location.hash = `#${TOKEN}`
+    setHash(TOKEN)
     wrapper = mount(JoinPage, { attachTo: document.body })
     await flushPromises()
 
@@ -125,6 +162,32 @@ describe('public/join/JoinPage — opening the link', () => {
 
     expect(page.text()).toContain(fr.invalidTitle)
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['an address with no token', null, fr.invalidTitle],
+    ['an unknown token', reply(404, { error: 'join_link_invalid' }), fr.invalidTitle],
+    ['a closed link', reply(410, { error: 'join_link_closed' }), fr.closedTitle],
+    ['a failed connection', reply(500, { error: 'server_error' }), fr.lookupFailedTitle],
+  ])(
+    'moves the focus to the title of the screen for %s, so it is read aloud',
+    async (_label, answer, title) => {
+      if (answer) fetchMock.mockResolvedValue(answer)
+
+      const page = await openPage(answer ? `#${TOKEN}` : '')
+      const heading = page.get('#state-title')
+
+      expect(heading.text()).toBe(title)
+      expect(heading.element.tagName).toBe('H2')
+      expect(document.activeElement).toBe(heading.element)
+    }
+  )
+
+  it('moves the focus to the title when the link is closed while the form is being sent', async () => {
+    const page = await submitWith(reply(410, { error: 'join_link_closed' }))
+
+    expect(document.activeElement).toBe(page.get('#state-title').element)
+    expect(page.get('#state-title').text()).toBe(fr.closedTitle)
   })
 
   it('shows "invalid link" for an unknown token', async () => {
@@ -207,6 +270,22 @@ describe('public/join/JoinPage — the form', () => {
     expect(error.text()).toBe(fr.errorNameRequired)
     expect(error.attributes('role')).toBe('alert')
     expect(page.get('#name-0').attributes('aria-invalid')).toBe('true')
+    expect(document.activeElement).toBe(page.get('#name-0').element)
+    expect(calls('/registrations')).toHaveLength(0)
+  })
+
+  it.each([
+    ['a zero-width space only', '\u200B'],
+    ['a right-to-left override', '\u202Eabc'],
+    ['a control character', '\u0000x'],
+  ])('refuses a name with %s, like the server does', async (_label, name) => {
+    const page = await openPage()
+
+    await typeInto('#name-0', name)
+    await page.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(page.get('#name-error-0').text()).toBe(fr.errorNameInvalid)
     expect(document.activeElement).toBe(page.get('#name-0').element)
     expect(calls('/registrations')).toHaveLength(0)
   })
@@ -335,11 +414,119 @@ describe('public/join/JoinPage — the form', () => {
     const page = await openPage()
 
     expect(page.get('details summary').text()).toBe(fr.noticeTitle)
-    expect(page.get('details').text()).toContain('3')
+    // Le texte entier, durées comprises : les mêmes constantes que la purge du serveur.
+    expect(page.get('details p').text()).toBe(
+      fr.noticeText
+        .replace('{years}', String(NOTICE_PARAMS.years))
+        .replace('{hours}', String(NOTICE_PARAMS.hours))
+    )
+    expect(page.get('details p').text()).not.toContain('{')
+  })
+})
+
+describe('public/join/JoinPage — when the address fragment changes', () => {
+  const OTHER_LINK = { ...LINK, companyName: 'Laser Arena' }
+
+  const lookupOf = (token: string) => (token === OTHER_TOKEN ? OTHER_LINK : LINK)
+
+  beforeEach(() => {
+    fetchMock.mockImplementation(async (url: string, init: { body: string }) =>
+      url.endsWith('/lookup')
+        ? reply(200, lookupOf(JSON.parse(init.body).token))
+        : reply(201, { ok: true })
+    )
+  })
+
+  it('looks the new token up again and shows the other centre', async () => {
+    const page = await openPage()
+
+    expect(page.text()).toContain('Escape Néon')
+
+    await typeInto('#name-0', 'Camille')
+    await switchTo(`#${OTHER_TOKEN}`)
+
+    expect(bodyOf(calls('/lookup').at(-1)!)).toEqual({ token: OTHER_TOKEN })
+    expect(page.text()).toContain('Laser Arena')
+    expect(page.text()).not.toContain('Escape Néon')
+    // Rien de ce qui était tapé pour le premier lien n'est gardé.
+    expect((page.get('#name-0').element as HTMLInputElement).value).toBe('')
+
+    await typeInto('#name-0', 'Léa')
+    await page.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(bodyOf(calls('/registrations')[0]!)).toMatchObject({ token: OTHER_TOKEN })
+  })
+
+  it('shows "invalid link" when the fragment is emptied', async () => {
+    const page = await openPage()
+
+    await switchTo('')
+
+    expect(page.text()).toContain(fr.invalidTitle)
+    expect(page.find('form').exists()).toBe(false)
+  })
+
+  it('ignores the answer of the previous link when it arrives late', async () => {
+    const slow = deferred()
+
+    fetchMock.mockImplementation(async (_url: string, init: { body: string }) =>
+      JSON.parse(init.body).token === TOKEN ? slow.promise : reply(200, OTHER_LINK)
+    )
+
+    setHash(TOKEN)
+    wrapper = mount(JoinPage, { attachTo: document.body })
+    await flushPromises()
+    await switchTo(`#${OTHER_TOKEN}`)
+
+    slow.resolve(reply(200, LINK))
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Laser Arena')
+    expect(wrapper.text()).not.toContain('Escape Néon')
+  })
+
+  it('stops listening once the page is unmounted', async () => {
+    const page = await openPage()
+    const before = fetchMock.mock.calls.length
+
+    page.unmount()
+    wrapper = undefined
+    await switchTo(`#${OTHER_TOKEN}`)
+
+    expect(fetchMock.mock.calls).toHaveLength(before)
   })
 })
 
 describe('public/join/JoinPage — when the registration is refused', () => {
+  it('puts the error the server names on the e-mail of the first player', async () => {
+    const page = await fillTwoPlayersThenRefuse({ email: ['Invalid email address'] })
+
+    expect(page.get('#email-error-0').text()).toBe(fr.errorEmailInvalid)
+    expect(page.get('#email-0').attributes('aria-invalid')).toBe('true')
+    expect(document.activeElement).toBe(page.get('#email-0').element)
+    expect(page.find('#name-error-0').exists()).toBe(false)
+    expect(page.text()).not.toContain(fr.errorInvalidBody)
+  })
+
+  it('puts the error the server names on the field of the second player', async () => {
+    const page = await fillTwoPlayersThenRefuse({
+      'secondPlayer.displayName': ['display_name_invalid'],
+    })
+
+    expect(page.get('#name-error-1').text()).toBe(fr.errorNameInvalid)
+    expect(document.activeElement).toBe(page.get('#name-1').element)
+    expect(page.find('#name-error-0').exists()).toBe(false)
+    expect(page.find('#email-error-0').exists()).toBe(false)
+  })
+
+  it('falls back to the general message when the server names no field of the page', async () => {
+    const page = await fillTwoPlayersThenRefuse(undefined)
+
+    expect(page.text()).toContain(fr.errorInvalidBody)
+    expect(page.find('.join__error[role="alert"]').exists()).toBe(false)
+  })
+
   it('says the room is full and keeps what was typed', async () => {
     const page = await submitWith(reply(409, { error: 'join_full' }))
 

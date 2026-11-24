@@ -20,19 +20,22 @@ type JoinRegistrationInput = JoinPlayerInput & {
   secondPlayer?: JoinPlayerInput
 }
 
+/** Champs refusés par le serveur, par chemin (`displayName`, `secondPlayer.email`…). */
+export type JoinFieldErrors = Record<string, string[]>
+
 export type JoinFailure =
-  | { ok: false; reason: 'invalid' | 'closed' | 'full' | 'invalid_body' | 'network' | 'server' }
+  | { ok: false; reason: 'invalid' | 'closed' | 'full' | 'network' | 'server' }
+  | { ok: false; reason: 'invalid_body'; fieldErrors: JoinFieldErrors }
   | { ok: false; reason: 'too_many_requests'; retryAfterSeconds: number }
 
 type JoinResult<T> = { ok: true; data: T } | JoinFailure
 
 const DEFAULT_RETRY_AFTER_SECONDS = 60
 
-const REASONS = new Map<unknown, 'invalid' | 'closed' | 'full' | 'invalid_body'>([
+const REASONS = new Map<unknown, 'invalid' | 'closed' | 'full'>([
   ['join_link_invalid', 'invalid'],
   ['join_link_closed', 'closed'],
   ['join_full', 'full'],
-  ['invalid_body', 'invalid_body'],
 ])
 
 // Le jeton et les données du joueur voyagent dans le corps : jamais dans l'adresse.
@@ -49,7 +52,8 @@ async function postJoin<T>(path: string, body: unknown): Promise<JoinResult<T>> 
     return { ok: false, reason: 'network' }
   }
 
-  const payload = (await response.json().catch(() => null)) as (T & { error?: unknown }) | null
+  const payload = (await response.json().catch(() => null)) as
+    (T & { error?: unknown; details?: { fieldErrors?: JoinFieldErrors } }) | null
 
   if (response.ok && payload) {
     return { ok: true, data: payload }
@@ -63,6 +67,10 @@ async function postJoin<T>(path: string, body: unknown): Promise<JoinResult<T>> 
       reason: 'too_many_requests',
       retryAfterSeconds: retryAfter > 0 ? Math.ceil(retryAfter) : DEFAULT_RETRY_AFTER_SECONDS,
     }
+  }
+
+  if (payload?.error === 'invalid_body') {
+    return { ok: false, reason: 'invalid_body', fieldErrors: payload.details?.fieldErrors ?? {} }
   }
 
   return { ok: false, reason: REASONS.get(payload?.error) ?? 'server' }

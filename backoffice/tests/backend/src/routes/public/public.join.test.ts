@@ -6,6 +6,7 @@ import fastify from 'fastify'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  COMPANY_STATUS_ACTIVE,
   COMPANY_STATUS_DELETED,
   COMPANY_STATUS_INACTIVE,
   GAME_STATE_FINISHED,
@@ -21,7 +22,7 @@ import {
 import publicRoutes from '@backend/routes/public'
 import { PUBLIC_API_PREFIX } from '@backend/routes/public/_shared'
 import { JOIN_BODY_LIMIT, JOIN_REGISTRATION_RATE_LIMIT_MAX } from '@backend/routes/public/join'
-import { dbState, resetDb } from '../_helpers/mockDb'
+import { db, dbState, resetDb } from '../_helpers/mockDb'
 
 const LOOKUP = `${PUBLIC_API_PREFIX}/join/lookup`
 const REGISTRATIONS = `${PUBLIC_API_PREFIX}/join/registrations`
@@ -174,14 +175,31 @@ describe('routes/public/join — POST /public/v1/join/lookup', () => {
     )
   })
 
-  it('does not let the token of one game open another game', async () => {
-    seedGame({ id: 2, company_id: 1, join_token: OTHER_TOKEN, join_expires_at: null })
-    dbState.game_registrations.push({ game_id: 2, display_name: 'Autre partie' })
+  it('keeps two open games apart: each token shows its own centre and room, and only its own requests count', async () => {
+    // Une seconde partie ouverte, dans une autre compagnie et une autre salle, avec ses demandes.
+    Object.assign(dbState.companies[1]!, { status: COMPANY_STATUS_ACTIVE })
+    seedRoom({ id: 2, company_id: 2, name: 'Salle Rivale' })
+    seedGame({ id: 2, company_id: 2, room_id: 2, join_token: OTHER_TOKEN })
+    seedRegistrations(JOIN_MAX_PENDING_REGISTRATIONS, 2)
 
-    const response = await lookup(OTHER_TOKEN)
+    const first = await lookup(TOKEN)
 
-    expect(response.statusCode).toBe(410)
-    expect(response.body).not.toContain('Autre partie')
+    expect(first.statusCode).toBe(200)
+    expect(first.json()).toMatchObject({ companyName: 'QuizzUp', roomName: 'Salle Néon' })
+    for (const foreign of ['Client Deux', 'Salle Rivale', 'Joueur 0']) {
+      expect(first.body).not.toContain(foreign)
+    }
+
+    // Contrôle : l'autre jeton, lui, montre bien l'autre partie.
+    expect((await lookup(OTHER_TOKEN)).json()).toMatchObject({
+      companyName: 'Client Deux',
+      roomName: 'Salle Rivale',
+    })
+
+    // La partie 2 est pleine, pas la partie 1 : l'inscription par le premier jeton va dans la 1.
+    expect((await register({})).statusCode).toBe(201)
+    expect(registrationsOf(1)).toHaveLength(1)
+    expect(registrationsOf(2)).toHaveLength(JOIN_MAX_PENDING_REGISTRATIONS)
   })
 
   it.each([
@@ -425,11 +443,44 @@ describe('routes/public/join — POST /public/v1/join/registrations', () => {
 
     expect(response.statusCode).toBe(400)
 
-    const messages = JSON.stringify(response.json().details.fieldErrors.secondPlayer)
-
-    expect(messages).toContain('email_consent_required')
-    expect(messages).toContain('age_confirmation_required')
+    // Le chemin complet nomme le joueur et le champ : la page place chaque erreur au bon endroit.
+    expect(response.json().details.fieldErrors).toEqual({
+      'secondPlayer.emailConsent': ['email_consent_required'],
+      'secondPlayer.ageConfirmed': ['age_confirmation_required'],
+    })
     expect(dbState.game_registrations).toHaveLength(0)
+  })
+
+  it('names the refused field of the second player by its full path', async () => {
+    const response = await register({ secondPlayer: { displayName: '   ' } })
+
+    expect(response.statusCode).toBe(400)
+    expect(Object.keys(response.json().details.fieldErrors)).toEqual(['secondPlayer.displayName'])
+  })
+
+  it.each([
+    ['a control character', '\u0000x'],
+    ['a right-to-left override', '\u202Eabc'],
+    ['only a zero-width space', '\u200B'],
+  ])('refuses a first name with %s, for either player', async (_label, displayName) => {
+    const first = await register({ displayName })
+
+    expect(first.statusCode).toBe(400)
+    expect(first.json().details.fieldErrors).toEqual({ displayName: ['display_name_invalid'] })
+
+    const second = await register({ secondPlayer: { displayName } })
+
+    expect(second.statusCode).toBe(400)
+    expect(second.json().details.fieldErrors).toEqual({
+      'secondPlayer.displayName': ['display_name_invalid'],
+    })
+    expect(dbState.game_registrations).toHaveLength(0)
+  })
+
+  it('keeps accepting accented, hyphenated and non-latin first names', async () => {
+    for (const displayName of ['Anne-Sophie', 'Zoë', 'José', '李雷', 'D’Artagnan']) {
+      expect((await register({ displayName })).statusCode).toBe(201)
+    }
   })
 
   it.each([
@@ -492,6 +543,45 @@ describe('routes/public/join — POST /public/v1/join/registrations', () => {
 
     expect(logs).not.toBe('')
     for (const secret of [TOKEN, 'Prénom secret', 'secret@example.test']) {
+      expect(logs).not.toContain(secret)
+    }
+  })
+
+  it('logs a failed registration without the row values PostgreSQL puts in the error detail', async () => {
+    const lines: string[] = []
+    const stream = new Writable({
+      write(chunk, _encoding, callback) {
+        lines.push(String(chunk))
+        callback()
+      },
+    })
+    await app.close()
+    app = await createApp(stream)
+    // Une erreur PostgreSQL réelle : `detail` recopie la ligne refusée, e-mail compris.
+    vi.spyOn(db, 'transaction').mockRejectedValueOnce(
+      Object.assign(new Error('insert into "game_registrations" (...) values ($1, $2) - boom'), {
+        code: '23514',
+        detail: 'Failing row contains (secret@example.test, Prénom secret).',
+      })
+    )
+
+    const response = await register({
+      displayName: 'Prénom secret',
+      email: 'secret@example.test',
+      emailConsent: true,
+      ageConfirmed: true,
+    })
+
+    expect(response.statusCode).toBe(500)
+    expect(response.json()).toEqual({ error: 'server_error' })
+
+    const logs = lines.join('')
+
+    // L'incident reste diagnostiquable : message, code PostgreSQL et pile y sont.
+    expect(logs).toContain('public API error')
+    expect(logs).toContain('23514')
+    expect(logs).toContain('boom')
+    for (const secret of [TOKEN, 'Prénom secret', 'secret@example.test', 'Failing row']) {
       expect(logs).not.toContain(secret)
     }
   })

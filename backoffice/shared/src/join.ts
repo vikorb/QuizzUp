@@ -17,3 +17,13 @@ export const JOIN_MAX_PENDING_REGISTRATIONS = 12 as const
 
 /** Longueur maximale du prénom saisi sur le téléphone (le backoffice accepte jusqu'à 100). */
 export const JOIN_DISPLAY_NAME_MAX_LENGTH = 30 as const
+
+/**
+ * Un prénom affichable : aucun caractère de contrôle (`\p{Cc}`, dont NUL et les retours à la ligne)
+ * ni de mise en forme invisible (`\p{Cf}`, dont l'espace de largeur nulle et l'inversion du sens
+ * d'écriture), et au moins un caractère visible. Sans cela un prénom renverserait ou masquerait le
+ * texte autour de lui sur l'écran de la salle. Le serveur et la page appliquent cette même règle.
+ */
+export function isJoinDisplayName(name: string): boolean {
+  return !/[\p{Cc}\p{Cf}]/u.test(name) && /[^\s]/u.test(name)
+}

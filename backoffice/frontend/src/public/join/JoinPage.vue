@@ -11,17 +11,17 @@
     <p v-if="screen === 'loading'" class="join__text" role="status">{{ t('loading') }}</p>
 
     <section v-else-if="screen === 'invalid'" class="join__state">
-      <h2>{{ t('invalidTitle') }}</h2>
+      <h2 id="state-title" tabindex="-1">{{ t('invalidTitle') }}</h2>
       <p class="join__text">{{ t('invalidText') }}</p>
     </section>
 
     <section v-else-if="screen === 'closed'" class="join__state">
-      <h2>{{ t('closedTitle') }}</h2>
+      <h2 id="state-title" tabindex="-1">{{ t('closedTitle') }}</h2>
       <p class="join__text">{{ t('closedText') }}</p>
     </section>
 
     <section v-else-if="screen === 'lookupFailed'" class="join__state">
-      <h2>{{ t('lookupFailedTitle') }}</h2>
+      <h2 id="state-title" tabindex="-1">{{ t('lookupFailedTitle') }}</h2>
       <p class="join__text">{{ t('lookupFailedText') }}</p>
       <UiButton class="join__btn" variant="primary" @click="load">{{ t('retry') }}</UiButton>
     </section>
@@ -153,14 +153,15 @@
 </template>
 
 <script setup lang="ts">
-import { JOIN_DISPLAY_NAME_MAX_LENGTH } from '@quizzup/shared'
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { isJoinDisplayName, JOIN_DISPLAY_NAME_MAX_LENGTH } from '@quizzup/shared'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import UiButton from '@/components/ui/UiButton.vue'
 import { createTranslator, detectLocale } from '@/public/i18n'
 
 import {
   type JoinFailure,
+  type JoinFieldErrors,
   type JoinLookup,
   type JoinPlayerInput,
   lookupJoinLink,
@@ -191,7 +192,8 @@ const locale = detectLocale()
 const t = createTranslator(joinMessages, locale)
 
 // Le jeton est dans le fragment : il ne part jamais dans une requête de page ni dans un journal.
-const token = window.location.hash.slice(1)
+const readToken = () => window.location.hash.slice(1)
+let token = readToken()
 
 const screen = ref<Screen>('loading')
 const link = ref<JoinLookup | null>(null)
@@ -225,23 +227,36 @@ const submitError = computed(() =>
 document.documentElement.lang = locale
 document.title = t('pageTitle')
 
+// Un écran d'état (lien invalide, clos, connexion impossible) remplace le formulaire : le focus
+// va sur son titre, ce qui le fait lire par un lecteur d'écran.
+async function showState(state: 'invalid' | 'closed' | 'lookupFailed') {
+  screen.value = state
+  await nextTick()
+  document.getElementById('state-title')?.focus()
+}
+
 async function load() {
   if (!token) {
-    screen.value = 'invalid'
+    await showState('invalid')
     return
   }
 
+  const requested = token
+
   screen.value = 'loading'
 
-  const result = await lookupJoinLink(token)
+  const result = await lookupJoinLink(requested)
+
+  // Le fragment a changé pendant la lecture : cette réponse concerne un autre lien.
+  if (requested !== token) return
 
   if (result.ok) {
     link.value = result.data
     screen.value = 'form'
   } else if (result.reason === 'invalid' || result.reason === 'closed') {
-    screen.value = result.reason
+    await showState(result.reason)
   } else {
-    screen.value = 'lookupFailed'
+    await showState('lookupFailed')
   }
 }
 
@@ -249,7 +264,10 @@ function validate(player: PlayerDraft): PlayerErrors {
   const found: PlayerErrors = {}
   const email = player.email.trim()
 
-  if (player.displayName.trim() === '') found.displayName = 'errorNameRequired'
+  const name = player.displayName.trim()
+
+  if (name === '') found.displayName = 'errorNameRequired'
+  else if (!isJoinDisplayName(name)) found.displayName = 'errorNameInvalid'
 
   if (email !== '') {
     if (!EMAIL_PATTERN.test(email)) found.email = 'errorEmailInvalid'
@@ -284,6 +302,28 @@ const FIELD_IDS = {
   emailConsent: 'consent',
   ageConfirmed: 'age',
 } as const
+
+// Message à montrer pour un champ que le serveur refuse (sa règle peut être plus fine que la page).
+const SERVER_FIELD_MESSAGES: Record<keyof typeof FIELD_IDS, MessageKey> = {
+  displayName: 'errorNameInvalid',
+  email: 'errorEmailInvalid',
+  emailConsent: 'errorEmailConsent',
+  ageConfirmed: 'errorAge',
+}
+
+// `fieldErrors` est indexé par chemin : `email` pour le 1er joueur, `secondPlayer.email` pour le 2e.
+function errorsFromServer(fieldErrors: JoinFieldErrors): PlayerErrors[] {
+  return players.value.map((_player, index) => {
+    const prefix = index === 0 ? '' : 'secondPlayer.'
+    const found: PlayerErrors = {}
+
+    for (const [field, message] of Object.entries(SERVER_FIELD_MESSAGES)) {
+      if (`${prefix}${field}` in fieldErrors) found[field as keyof PlayerErrors] = message
+    }
+
+    return found
+  })
+}
 
 async function focusFirstError() {
   await nextTick()
@@ -325,11 +365,24 @@ async function submit() {
     screen.value = 'sent'
   } else if (result.reason === 'invalid' || result.reason === 'closed') {
     // Le lien a été fermé ou régénéré pendant la saisie.
-    screen.value = result.reason
+    await showState(result.reason)
+  } else if (result.reason === 'invalid_body' && applyServerErrors(result.fieldErrors)) {
+    await focusFirstError()
   } else {
     failed.value = result.reason
     retryAfterSeconds.value = result.reason === 'too_many_requests' ? result.retryAfterSeconds : 0
   }
+}
+
+// Vrai si le serveur a nommé au moins un champ que la page sait montrer.
+function applyServerErrors(fieldErrors: JoinFieldErrors) {
+  const found = errorsFromServer(fieldErrors)
+
+  if (!found.some((playerErrors) => Object.keys(playerErrors).length > 0)) return false
+
+  errors.value = found
+
+  return true
 }
 
 function restart() {
@@ -339,7 +392,22 @@ function restart() {
   screen.value = 'form'
 }
 
-onMounted(load)
+// Un autre QR code scanné dans le même onglet ne recharge pas la page : seul le fragment change.
+function onHashChange() {
+  token = readToken()
+  link.value = null
+  players.value = [emptyPlayer()]
+  errors.value = []
+  failed.value = null
+  void load()
+}
+
+onMounted(() => {
+  window.addEventListener('hashchange', onHashChange)
+  void load()
+})
+
+onBeforeUnmount(() => window.removeEventListener('hashchange', onHashChange))
 </script>
 
 <style>
@@ -406,6 +474,11 @@ body {
 .join__state h2 {
   margin: 0;
   font-size: 20px;
+}
+
+/* Le titre reçoit le focus par programme, il n'est pas interactif : pas d'anneau. */
+.join__state h2:focus {
+  outline: none;
 }
 
 .join__form {
