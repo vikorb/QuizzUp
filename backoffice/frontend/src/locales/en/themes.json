@@ -1,5 +1,13 @@
 {
   "themes": {
+    "form": {
+      "playlistLink": "Playlist link",
+      "playlistLinkPlaceholder": "https://www.deezer.com/en/playlist/…",
+      "playlistLinkHint": "Deezer playlist: page link or identifier. It provides the blind test tracks; at least {min} playable tracks. Leave empty to link none.",
+      "errors": {
+        "playlistLinkInvalid": "This is neither a Deezer playlist link (https://www.deezer.com/en/playlist/123456) nor an identifier."
+      }
+    },
     "errors": {
       "apiErrors": {
         "theme_playlist_ref_invalid": "The playlist link is invalid.",
