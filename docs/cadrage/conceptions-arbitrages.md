@@ -99,6 +99,15 @@ conceptions restent à dérouler (`docs/recette/banc-materiel.md`).
 18. **Liste d'adresses de la console.** Une seule variable, `CONSOLE_ALLOWED_CIDRS`, séparée par
     des espaces (format attendu par Caddy) ; le backend accepte espaces et virgules. Raison :
     avec des virgules, Caddy refuserait de démarrer.
+19. **QR code, suite.** `qrSvg.ts` n'est pas arrivé avec 2a ni 6b (aucune de ces routes ne rend
+    de QR code). Il arrive avec le premier écran qui en affiche un : 2b ou 2d (accueil), sinon 6d
+    (bons).
+20. **Playlists du blind test.** Réponses proposées au format « titre – artiste » ; l'opérateur
+    n'impose pas de genre ; aucune mémoire des titres entre deux parties ; une playlist doit
+    compter au moins 4 titres lisibles ; la lecture se limite aux 500 premiers titres.
+21. **Lancement et pupitres.** `POST /room/games/:id/start` accepte les pupitres relevés par la
+    salle et répond 409 `game_participants_changed` si la liste a changé, sous le même verrou que
+    l'inscription.
 
 ### Lots de sécurité à part
 
@@ -129,10 +138,13 @@ l'ordre d'application ne dépende pas de l'ordre des merges. Dernière migration
 | `20261124061000` | 12   | `create_demo_requests`                              |
 | `2026112407xxxx` | 14   | `create_public_booking_api`                         |
 | `20261124080000` | 3.3  | `add_format_to_games`                               |
-| `20261124090000` | A.2  | `add_audio_effect_to_questions`                     |
 | `20261124100000` | 4.1  | mini-jeux de la V1.1 (contrainte CHECK)             |
+| `20261124110000` | AU   | `add_media_provider_to_questions`                   |
+| `20261124120000` | A.2  | `add_audio_effect_to_questions`                     |
+| `20261124130000` | L1   | `add_playlist_to_themes`                            |
 
 Une migration qui dépend d'une autre prend un horodatage plus grand que celle dont elle dépend.
+Prochain horodatage libre : `20261124140000`.
 
 ## Décisions qui restent ouvertes
 
