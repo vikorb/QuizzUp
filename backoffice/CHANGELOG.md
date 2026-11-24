@@ -8,6 +8,8 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Lumières à la pause : quand la partie est mise en pause, la salle passe sur une ambiance basse (scène `pause`, sans éclair ni fumée) ; à la reprise elle retrouve la lumière de la phase en cours. Les liaisons `game_paused` et `game_resumed` restent réglables par salle.
+  US: US-SHOW-01 (#145)
 - Mode enfants, serveur : un thème peut être marqué adapté aux enfants (`kidsFriendly` sur `POST` / `PATCH` / `GET /themes`, 400 `theme_kids_friendly_invalid`) et une partie peut être en mode enfants (`kidsMode` à la création et à la modification d'une session programmée). Le contenu servi à la salle d'une partie en mode enfants ne contient que les thèmes adaptés.
   US: US-KIDS-01 (#158)
 - Format de partie côté serveur : `games.format` stocke le format (`discovery`, `short`, `standard`, `custom`). À la création, un format fixe ses nombres de manches et de questions (les envoyer ensemble donne 400 `invalid_body`, `format_fixes_counts`) ; des nombres sans format donnent `custom`. Modifier les nombres d'une session programmée la passe en `custom`. Le format est renvoyé par les parties et par `GET /room/games/current`.
