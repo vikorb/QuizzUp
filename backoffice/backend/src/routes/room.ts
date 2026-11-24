@@ -13,6 +13,7 @@ import {
   ROOM_STATUS_DELETED,
 } from '@quizzup/shared'
 import db from '../db'
+import { providerRefSchema } from '../services/mediaProvider'
 import { getMediaStorage, isValidMediaKey } from '../storage/mediaStorage'
 import type { RoomRow } from '../types/room'
 import { ROOM_CONFIG_MAX_LENGTH, roomConfigSchema } from './companies/rooms/_schemas'
@@ -20,9 +21,15 @@ import { companyLogoUrl } from './companies/_shared'
 import { roomSelect } from './companies/rooms/_shared'
 import { addGameJoin, findGameInCompany, openScheduledGame } from './games/_shared'
 import { getMediaVersion } from './questions/_shared'
-import { isInPlayableTheme, isReadableByCompany, loadRoomContent } from './room/_content'
+import {
+  isInPlayableTheme,
+  isReadableByCompany,
+  loadPlaylistThemes,
+  loadRoomContent,
+} from './room/_content'
 import { areRoundsAcceptable, roomRoundsSchema, saveGameRounds } from './room/_history'
 import { findCurrentGameId } from './room/_join'
+import { findPlaylistTracks } from './room/_playlists'
 import { isRoomAccount, roomPodiumsSchema, roomScoresSchema } from './room/_shared'
 
 const roomGameParamsSchema = z.object({
@@ -59,6 +66,15 @@ const roomContentQuerySchema = z.object({
     .optional(),
 })
 
+// `refs` : références de titres d'une playlist (chiffres) séparées par des virgules, dédupliquées.
+const roomTracksQuerySchema = z.object({
+  refs: z
+    .string()
+    .transform((value) => value.split(','))
+    .pipe(z.array(providerRefSchema).max(ROOM_CONTENT_MAX_IDS))
+    .transform((refs) => [...new Set(refs)]),
+})
+
 const roomQuestionParamsSchema = z.object({
   questionId: z.coerce.number().int().positive(),
 })
@@ -67,9 +83,7 @@ const roomQuestionParamsSchema = z.object({
 const MEDIA_CACHE_CONTROL = 'private, no-cache'
 
 /** Partie en cours, sinon en attente, de la salle. Les emails restent côté backoffice. */
-function findCurrentRoomGameId(
-  req: FastifyRequest
-): Promise<{ id: number; kidsMode: boolean } | null> {
+function findCurrentRoomGameId(req: FastifyRequest) {
   return findCurrentGameId(req.user.company_id, Number(req.user.room_id))
 }
 
@@ -270,9 +284,45 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
         req.user.company_id,
         req.log,
         parsedQuery.data.ids,
-        current.kidsMode
+        current.kidsMode,
+        current.questionsPerRound
       ),
     }
+  })
+
+  // Reprise après rechargement : liens d'extrait à jour des titres de playlist (identifiants de
+  // question négatifs). Seuls les titres des playlists que la partie peut recevoir sont rendus
+  // (mode enfants compris) ; un titre inconnu, sans extrait ou d'une autre compagnie est absent.
+  app.get('/room/games/current/tracks', { preHandler: [app.authenticate] }, async (req, reply) => {
+    if (!isRoomAccount(req)) {
+      return reply.code(403).send({ error: 'forbidden' })
+    }
+
+    const parsedQuery = roomTracksQuerySchema.safeParse(req.query)
+
+    if (!parsedQuery.success) {
+      return reply.code(400).send({ error: 'invalid_query', details: parsedQuery.error.flatten() })
+    }
+
+    const current = await findCurrentRoomGameId(req)
+
+    if (current === null) {
+      return reply.code(404).send({ error: 'game_not_found' })
+    }
+
+    const { refs } = parsedQuery.data
+    const { items, unavailable } = await findPlaylistTracks(
+      await loadPlaylistThemes(req.user.company_id, current.kidsMode),
+      refs
+    )
+
+    if (unavailable && items.length < refs.length) {
+      req.log.warn({ company_id: req.user.company_id }, 'media provider unavailable')
+
+      return reply.code(502).send({ error: 'media_provider_unavailable' })
+    }
+
+    return { items }
   })
 
   // Extrait audio d'une question jouable, lisible seulement pendant une partie de la salle.
