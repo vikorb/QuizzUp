@@ -8,6 +8,8 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Tests de bout en bout de l'accueil : Playwright démarre aussi le frontend du backoffice (port 4176, API interceptée). Nouveaux scénarios : inscription d'un joueur par le lien du QR depuis un téléphone jusqu'au lobby de la salle, refus de la page téléphone (code inconnu, inscription fermée), feuille de résultats en mode impression avec son bon.
+  US: US-JOIN-01 (#166)
 - Fumée par la carte USB, écran de salle : section « Fumée » de l'écran Matériel pour brancher la carte (Web Serial, à la demande), voir son état, installer son programme depuis la page (signature vérifiée, sauvegarde du programme d'origine téléchargée avant d'écrire) et restaurer un `.hex`. La carte déjà autorisée se reconnecte seule au lancement, toujours désarmée ; pendant une installation aucun ordre de fumée ne part. Le programme `fumee.hex` est versionné, la CI échoue s'il manque ou s'il diffère de la compilation, et les images de recette et de production l'embarquent. À valider sur le banc.
   US: US-DMX-01 (#215)
 
