@@ -10,6 +10,8 @@ Format inspiré de Keep a Changelog.
 
 - Programme de la carte de la fumée (Uno), écrit de zéro : la sortie du relais n'est au niveau haut que tant que la page redit « fumée » (bail de 500 ms), jamais plus de 10 s par jet, avec 5 s de pause entre deux jets, et un chien de garde matériel de 250 ms. Logique en C testée par gcc sur des vecteurs partagés ; la CI compile le programme pour `arduino:avr:uno` et publie le `.hex`. Rien n'est encore branché à l'écran de salle ni essayé sur une vraie carte.
   US: US-DMX-01 (#215)
+- Console éditeur : écran des demandes de démonstration (filtre « À traiter », « Traitées », « Toutes » ; marquer une demande traitée ; supprimer), réservé au superadmin.
+  US: US-CONSOLE-01 (#161)
 
 - Effet audio joué en salle : le blind test lit l'extrait avec l'effet de la question (court, inversé, ralenti), avec des paliers raccourcis pour `short` et une reprise fidèle après rechargement.
   US: US-AUDIO-02 (#144)
