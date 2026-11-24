@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-type ThemeLocale = { themes: { errors: { apiErrors: Record<string, string> } } }
+type ThemeLocale = {
+  themes: {
+    errors: { apiErrors: Record<string, string> }
+    form?: Record<string, unknown> & { errors?: Record<string, string> }
+  }
+}
 
 const modules = import.meta.glob('/frontend/src/locales/*/themes.json', {
   eager: true,
@@ -24,5 +29,17 @@ describe('locales — themes.errors.apiErrors', () => {
     for (const code of CODES) {
       expect(apiErrors[code]?.trim(), `${locale}: ${code}`).toBeTruthy()
     }
+  })
+})
+
+describe('locales — themes.form (playlist field)', () => {
+  it.each(['fr', 'en'])('has the label, placeholder, hint and error in %s', (locale) => {
+    const form = modules[`/frontend/src/locales/${locale}/themes.json`]!.default.themes.form
+
+    for (const key of ['playlistLink', 'playlistLinkPlaceholder', 'playlistLinkHint']) {
+      expect((form?.[key] as string | undefined)?.trim(), `${locale}: ${key}`).toBeTruthy()
+    }
+
+    expect(form?.errors?.playlistLinkInvalid?.trim(), `${locale}: playlistLinkInvalid`).toBeTruthy()
   })
 })

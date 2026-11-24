@@ -118,6 +118,9 @@
       "scope": "Portée",
       "companyId": "ID entreprise",
       "companyIdPlaceholder": "Ex : 1",
+      "playlistLink": "Lien de playlist",
+      "playlistLinkPlaceholder": "https://www.deezer.com/fr/playlist/…",
+      "playlistLinkHint": "Playlist Deezer : lien de la page ou identifiant. Elle fournit les titres du blind test ; 4 titres jouables au minimum. Laisser vide pour ne pas en associer.",
       "create": "Créer",
       "save": "Enregistrer",
       "saving": "Enregistrement...",
@@ -131,7 +134,8 @@
       "errors": {
         "nameRequired": "Le nom du thème est obligatoire.",
         "modeRequired": "Le mode est obligatoire.",
-        "companyIdInvalid": "L'ID entreprise doit être un nombre valide."
+        "companyIdInvalid": "L'ID entreprise doit être un nombre valide.",
+        "playlistLinkInvalid": "Ce n'est ni un lien de playlist Deezer (https://www.deezer.com/fr/playlist/123456) ni un identifiant."
       }
     },
     "errors": {

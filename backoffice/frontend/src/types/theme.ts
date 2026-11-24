@@ -7,6 +7,7 @@ export type Theme = {
   scope: ThemeScope
   name: string
   mode: ThemeMode
+  playlistRef?: string | null
   status: ThemeStatus
   questionsCount?: number
   createdAt?: string
@@ -19,6 +20,8 @@ export type ThemePayload = {
   mode: ThemeMode
   scope?: ThemeScope
   companyId?: number | null
+  /** Absent : inchangé ; `null` : efface la playlist. */
+  playlistRef?: string | null
 }
 
 export type ThemeFilters = {
