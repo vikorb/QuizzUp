@@ -8,6 +8,8 @@ import { createRoomLive } from '@frontend-tests/_helpers/liveMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import {
+  GAME_DEFAULT_FORMAT,
+  GAME_FORMAT_CUSTOM,
   GAME_PODIUMS,
   MINI_GAME_FIRST_BUZZ,
   MINI_GAME_FLASH_BLIND_TEST,
@@ -123,10 +125,10 @@ describe('views/games/creation/CreateGameForm.vue', () => {
     const wrapper = mountForm()
 
     expect(participants(wrapper)).toHaveLength(1)
-    expect(wrapper.get<HTMLInputElement>('input[name="roundsCount"]').element.value).toBe('10')
-    expect(wrapper.get<HTMLInputElement>('input[name="questionsPerRound"]').element.value).toBe(
-      '10'
+    expect(wrapper.get<HTMLSelectElement>('#game-format select').element.value).toBe(
+      GAME_DEFAULT_FORMAT
     )
+    expect(wrapper.find('input[name="roundsCount"]').exists()).toBe(false)
     expect(
       roomSelect(wrapper)
         .findAll('option')
@@ -499,11 +501,13 @@ describe('views/games/creation/CreateGameForm.vue', () => {
     await wrapper.get('[data-test="game-participant-consent"]').setValue(true)
     await wrapper.get('[data-test="game-add-participant"]').trigger('click')
     await fillParticipant(wrapper, 1, { displayName: 'Team B' })
+    await wrapper.get('#game-format select').setValue(GAME_FORMAT_CUSTOM)
     await wrapper.get('input[name="roundsCount"]').setValue('5')
     await submit(wrapper)
 
     expect(createGameServiceMock).toHaveBeenCalledWith(1, {
       roomId: 11,
+      format: GAME_FORMAT_CUSTOM,
       roundsCount: 5,
       questionsPerRound: 10,
       participants: [
@@ -622,8 +626,7 @@ describe('views/games/creation/CreateGameForm.vue', () => {
 
     expect(createGameServiceMock).toHaveBeenCalledWith(1, {
       roomId: 10,
-      roundsCount: 10,
-      questionsPerRound: 10,
+      format: GAME_DEFAULT_FORMAT,
       participants: [
         {
           podium: 1,

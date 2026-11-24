@@ -35,6 +35,8 @@ const fr = {
   noticeTitle: 'Comment vos données sont utilisées',
   noticeText:
     'Votre prénom sert à vous placer à un pupitre. Votre e-mail, s’il est saisi, est conservé {years} ans au plus. Une demande non validée est supprimée au bout de {hours} h. Aucune adresse IP n’est conservée. Pour retirer votre accord ou effacer vos données, demandez-le au centre.',
+  noticeTextKids:
+    'Votre prénom sert à vous placer à un pupitre. Aucun e-mail n’est demandé. Une demande non validée est supprimée au bout de {hours} h. Aucune adresse IP n’est conservée. Pour effacer vos données, demandez-le au centre.',
   successTitle: 'C’est noté.',
   successText: 'Le personnel va vous placer à un pupitre.',
   another: 'Inscrire un autre pupitre',
@@ -76,6 +78,8 @@ const en: Record<keyof typeof fr, string> = {
   noticeTitle: 'How your data is used',
   noticeText:
     'Your first name is used to place you at a desk. Your e-mail, if you enter one, is kept for {years} years at most. A request that is not approved is deleted after {hours} h. No IP address is kept. To withdraw your consent or erase your data, ask the venue.',
+  noticeTextKids:
+    'Your first name is used to place you at a desk. No e-mail is asked. A request that is not approved is deleted after {hours} h. No IP address is kept. To erase your data, ask the venue.',
   successTitle: 'Got it.',
   successText: 'The staff will place you at a desk.',
   another: 'Sign up another desk',

@@ -49,6 +49,9 @@ const REPLACED_ERROR = 'room_instance_replaced'
 
 const replaced = ref(false)
 const sessionEnded = ref(false)
+/** Flux ouvert et confirmé par son `hello` : tant qu'il l'est, les événements remplacent les lectures. */
+const connected = ref(false)
+const gameUpdatedListeners = new Set<() => void>()
 
 const { session, state, paused } = useRoomGame()
 
@@ -131,6 +134,7 @@ function halt(): void {
   gen += 1
   running = false
   streamId = undefined
+  connected.value = false
   inFlight = false
   dirty = false
   streamAbort?.abort()
@@ -344,6 +348,12 @@ function onMessage(message: SseMessage): void {
     return
   }
 
+  // Aucune donnée n'est lue : l'écran qui écoute relit la partie par `GET /room/games/current`.
+  if (message.event === LIVE_EVENT.GAME_UPDATED) {
+    gameUpdatedListeners.forEach((listener) => listener())
+    return
+  }
+
   if (message.event !== LIVE_EVENT.HELLO) {
     return
   }
@@ -360,6 +370,7 @@ function onMessage(message: SseMessage): void {
     }
 
     streamId = hello.streamId
+    connected.value = true
     heartbeatMs = Number(hello.heartbeatMs) > 0 ? Number(hello.heartbeatMs) : LIVE_HEARTBEAT_MS
     statusEveryMs =
       Number(hello.statusEveryMs) > 0 ? Number(hello.statusEveryMs) : LIVE_STATUS_EVERY_MS
@@ -446,6 +457,7 @@ async function connect(): Promise<void> {
   // la seule à publier (un autre poste a pu prendre la place sans qu'on le sache).
   controller.abort()
   streamId = undefined
+  connected.value = false
 
   if (helloAt !== null && Date.now() - helloAt >= heartbeatMs) {
     attempt = 0
@@ -504,8 +516,20 @@ export function stopRoomLive(): void {
   replaced.value = false
 }
 
+/**
+ * Écoute `game_updated`. Un seul abonnement par écran suffit : il survit aux reconnexions du flux.
+ * Retourne la fonction qui le retire.
+ */
+export function onRoomGameUpdated(listener: () => void): () => void {
+  gameUpdatedListeners.add(listener)
+
+  return () => gameUpdatedListeners.delete(listener)
+}
+
 export function useRoomLive() {
   return {
+    /** Le flux de la salle est ouvert : sinon les écrans se rattrapent par une lecture lente. */
+    connected: computed(() => connected.value),
     /** Un autre poste de la salle a pris la main : cet écran ne publie plus. */
     replaced: computed(() => replaced.value),
     /** La session de salle a pris fin : l'écran de connexion le dit. */

@@ -61,7 +61,7 @@
           </p>
         </div>
 
-        <div class="join__field">
+        <div v-if="!kidsMode" class="join__field">
           <label :for="`email-${index}`">{{ t('email') }}</label>
           <input
             :id="`email-${index}`"
@@ -138,7 +138,7 @@
 
       <details class="join__notice">
         <summary>{{ t('noticeTitle') }}</summary>
-        <p class="join__text">{{ t('noticeText', NOTICE_PARAMS) }}</p>
+        <p class="join__text">{{ t(kidsMode ? 'noticeTextKids' : 'noticeText', NOTICE_PARAMS) }}</p>
       </details>
 
       <div aria-live="polite">
@@ -197,6 +197,8 @@ let token = readToken()
 
 const screen = ref<Screen>('loading')
 const link = ref<JoinLookup | null>(null)
+// Mode enfants : le champ e-mail est absent ; sans e-mail saisi, ni consentement ni e-mail ne partent.
+const kidsMode = computed(() => link.value?.kidsMode === true)
 const emptyPlayer = (): PlayerDraft => ({
   displayName: '',
   email: '',

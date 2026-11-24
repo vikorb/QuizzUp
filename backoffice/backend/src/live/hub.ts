@@ -199,6 +199,21 @@ export function createLiveHub({ now = Date.now }: { now?: () => number } = {}) {
       broadcast(roomId, entry)
     },
 
+    /**
+     * Prévient de la modification d'une partie : le flux de la salle (si elle est de cette
+     * compagnie) et le personnel de cette compagnie, personne d'autre. Rien de plus que l'identifiant :
+     * les clients relisent la partie par la route habituelle.
+     */
+    gameUpdated(companyId: number, roomId: number, gameId: number): void {
+      const entry = rooms.get(roomId)
+
+      if (entry?.companyId === companyId) {
+        entry.stream?.sink.send(LIVE_EVENT.GAME_UPDATED, { gameId })
+      }
+
+      staff.get(companyId)?.forEach(({ sink }) => sink.send(LIVE_EVENT.GAME_UPDATED, { gameId }))
+    },
+
     /** Abonne le flux d'un membre du personnel aux salles de sa compagnie. */
     subscribeStaff(companyId: number, accountId: number, sink: LiveSink): () => void {
       const subscription = { accountId, sink }

@@ -697,6 +697,7 @@ import {
   type SetupStepId,
   SMOKE_CHECKS,
   type SmokeCheckId,
+  withDeviceIdentity,
 } from '@quizzup/hardware'
 import {
   computed,
@@ -912,12 +913,21 @@ watch(
   (layout) => run(() => wizard.setBuzzerLayout(layout))
 )
 
+/**
+ * Config de l'assistant, avec l'identité des périphériques de la config enregistrée la plus récente :
+ * l'interface connectée et la manette apprise pendant l'assistant ne sont pas dans son instantané
+ * de départ (voir `withDeviceIdentity`).
+ */
+function summaryConfig(options: { forFreezeTest?: boolean } = {}) {
+  return withDeviceIdentity(wizard.summary(options).config, hardware.value.config)
+}
+
 /** Applique la config en cours au contrôleur de lumières (nécessaire pour tester). */
 async function apply(options: { forFreezeTest?: boolean } = {}): Promise<void> {
   savedForFreezeTest = options.forFreezeTest === true
   // La variante « test de gel » (fumée active avant toutes les vérifications) n'est jamais
   // enregistrée : un rechargement de page repart de la dernière config sûre.
-  await saveRoomHardwareConfig(wizard.summary(options).config, {
+  await saveRoomHardwareConfig(summaryConfig(options), {
     persist: !savedForFreezeTest,
     smokeTest: savedForFreezeTest,
   })
@@ -1342,7 +1352,7 @@ async function onSave(): Promise<void> {
   try {
     getLighting()?.diagnostics.end()
     savedForFreezeTest = false
-    await saveRoomHardwareConfig(wizard.summary().config)
+    await saveRoomHardwareConfig(summaryConfig())
     saved.value = syncStatus.value !== 'conflict'
   } finally {
     saving.value = false
@@ -1357,7 +1367,7 @@ onBeforeUnmount(() => {
   getLighting()?.diagnostics.end()
   // Jamais de fumée laissée active sans toutes les vérifications.
   if (savedForFreezeTest) {
-    void saveRoomHardwareConfig(wizard.summary().config)
+    void saveRoomHardwareConfig(summaryConfig())
   }
 })
 </script>
@@ -1427,37 +1437,6 @@ onBeforeUnmount(() => {
   color: var(--text-2);
 }
 
-/* Bouton de fichier : même apparence qu'un bouton par défaut (UiButton est à portée limitée). */
-.file-btn {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: var(--tap-min);
-  padding: 0 18px;
-  border: 1px solid var(--border-ui);
-  border-radius: var(--radius-ctl);
-  background: var(--surface-1);
-  color: var(--text-1);
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.2;
-  text-align: center;
-  cursor: pointer;
-  transition: var(--tr);
-}
-
-.file-btn:hover {
-  background: var(--surface-2);
-  border-color: var(--border-hover);
-  color: var(--text-0);
-}
-
-.file-btn:has(input:focus-visible) {
-  outline: 2px solid var(--accent-purple);
-  outline-offset: 2px;
-}
-
 /* Test d'appareil validé : bouton mat enfoncé, la couleur de statut reste sur la pastille. */
 .list [aria-pressed='true'] {
   background: var(--surface-3);
@@ -1472,13 +1451,6 @@ onBeforeUnmount(() => {
   margin-right: 8px;
   border-radius: 50%;
   background: var(--ok);
-}
-
-.file-btn input {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
 }
 
 .list {

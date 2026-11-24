@@ -1,3 +1,5 @@
+import type { Knex } from 'knex'
+
 import { getRoomDesksCount, ROOM_STATUS_ACTIVE, type RoomSchedule } from '@quizzup/shared'
 import db from '../../db'
 
@@ -13,12 +15,15 @@ export type BookableRoom = {
  * Salles réservables de la compagnie, par id. Une salle d'une autre compagnie, inactive, supprimée,
  * sans créneaux ou fermée à la réservation n'y figure pas : l'appelant ne peut pas les distinguer.
  * Avec `roomId`, au plus une salle.
+ * Dans une transaction, passer `conn` (la transaction) : une lecture par `db` prendrait une seconde
+ * connexion du pool, et des appels simultanés se bloqueraient les uns les autres.
  */
 export async function findBookableRooms(
   companyId: number,
-  roomId?: number
+  roomId?: number,
+  conn: Knex | Knex.Transaction = db
 ): Promise<BookableRoom[]> {
-  const query = db('rooms')
+  const query = conn('rooms')
     .where('company_id', companyId)
     .where('status', ROOM_STATUS_ACTIVE)
     .whereNotNull('schedule')

@@ -1,4 +1,5 @@
 import type {
+  GameFormat,
   GameLocale,
   GameState,
   GameStatus,
@@ -43,6 +44,8 @@ export type Game = {
   roomName?: string
   /** `null` pour une réservation faite par l'API. */
   adminId: number | null
+  /** Fixé à la création ; `null` pour une partie d'avant les formats (lue comme personnalisée). */
+  format?: GameFormat | null
   roundsCount: number
   questionsPerRound: number
   /** Mini-jeux autorisés pour la partie ; `null` ou absent = tous. */
@@ -71,6 +74,8 @@ export type Game = {
   /** Référence du système de réservation du client. */
   externalRef?: string | null
   locale?: GameLocale | null
+  /** Mode enfants : thèmes adaptés seulement, aucun e-mail demandé sur le téléphone. */
+  kidsMode?: boolean
   /** Origine de la session (lot 14) : absent tant que l'API publique n'est pas livrée. */
   source?: GameSource
   /** Lien d'inscription ouvert (partie en attente seulement), sinon `null` ; fiche d'une partie. */
@@ -142,6 +147,8 @@ export type CreateGameParticipantPayload = {
 export type CreateGamePayload = {
   roomId: number
   participants: CreateGameParticipantPayload[]
+  /** Absent : standard. Un format fixe porte ses nombres : ils ne s'envoient qu'en `custom`. */
+  format?: GameFormat
   roundsCount?: number
   questionsPerRound?: number
   /** Ouvre le lien d'inscription par QR code : les participants deviennent facultatifs. */
@@ -154,6 +161,8 @@ export type CreateGamePayload = {
   durationMinutes?: number
   playersCount?: number
   externalRef?: string
+  /** Absent : partie normale. */
+  kidsMode?: boolean
 }
 
 /**
@@ -171,6 +180,8 @@ export type UpdateGamePayload = {
   durationMinutes?: number
   playersCount: number | null
   externalRef?: string | null
+  /** Absent : mode inchangé. */
+  kidsMode?: boolean
   /** Absent : participants gardés tels quels (emails masqués pour le rôle `user`). */
   participants?: CreateGameParticipantPayload[]
 }
@@ -206,6 +217,8 @@ export type GameParticipantField =
 
 export type GameFormValues = {
   roomId: string
+  /** Choisi à la création ; une session modifiée est toujours `custom` (ses nombres se saisissent). */
+  format: GameFormat
   roundsCount: string
   questionsPerRound: string
   /** Mini-jeux cochés (tous par défaut). */
@@ -213,6 +226,8 @@ export type GameFormValues = {
   participants: GameParticipantFormValues[]
   /** Interrupteur « Inscription des joueurs par QR code » : la partie peut n'avoir aucun participant. */
   openJoin: boolean
+  /** Interrupteur « Mode enfants », éteint par défaut. */
+  kidsMode: boolean
   /** Case « Programmer pour plus tard » : la partie devient une session à date et heure fixées. */
   scheduled: boolean
   /** Jour (`YYYY-MM-DD`) et heure (`HH:MM`) lus dans le fuseau de la salle choisie. */
@@ -238,6 +253,7 @@ export type GameParticipantFieldErrors = {
 
 export type GameFieldErrors = {
   roomId: string
+  format: string
   roundsCount: string
   questionsPerRound: string
   miniGames: string
@@ -271,6 +287,8 @@ export type GameApiErrorCode =
   | 'game_already_over'
   | 'email_consent_required'
   | 'marketing_consent_requires_email'
+  | 'format_fixes_counts'
+  | 'format_not_updatable'
   | 'conflict'
   | 'session_in_past'
   | 'session_too_far'

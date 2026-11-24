@@ -60,6 +60,8 @@ const gamesIdCancelRoutes: FastifyPluginAsync = async (app) => {
         }
       }
 
+      app.liveHub.gameUpdated(companyId, game.roomId, gameId)
+
       return { game: await findStaffGame(req, companyId, gameId) }
     }
   )

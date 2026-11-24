@@ -181,7 +181,31 @@
       "invalidJson": "JSON invalide : {message}",
       "saved": "Configuration enregistrée.",
       "problems": "Points à corriger",
-      "profiles": "Profils d’appareils disponibles"
+      "profiles": "Profils d’appareils disponibles",
+      "export": "Exporter",
+      "import": "Importer",
+      "transferHint": "Le fichier exporté ne contient jamais la fumée activée : elle se réarme dans l’assistant, test de coupure compris. À l’import, la fumée de la salle ne devient jamais plus permissive.",
+      "exported": "Fichier {name} téléchargé.",
+      "exportFailed": "Le téléchargement a échoué. Réessaie.",
+      "refusal": {
+        "type": "Ce fichier n’est pas un fichier JSON.",
+        "too_large": "Fichier trop gros (64 Ko au plus).",
+        "invalid_json": "Fichier illisible : ce n’est pas du JSON valide.",
+        "wrong_format": "Ce fichier n’est pas une configuration de salle QuizzUp.",
+        "invalid_schema": "La version du fichier est invalide.",
+        "newer_schema": "Fichier d’une version plus récente : mets l’écran à jour.",
+        "invalid_config": "Le fichier ne contient pas de configuration de salle exploitable.",
+        "unreadable": "Le fichier n’a pas pu être lu. Rien n’a été importé."
+      },
+      "importing": {
+        "title": "Remplacer la configuration de cette salle ?",
+        "message": "Le fichier contient {desks} pupitres, {fixtures} appareils, pilote {driver}, univers {universes} ; {problems} point(s) à corriger. {smoke} L’assistant de configuration sera à refaire.",
+        "smokeKept": "La fumée de la salle sera désactivée : elle devra être réactivée par l’assistant, test de coupure et armement compris. Ses réglages ne sont jamais plus permissifs que ceux de la salle.",
+        "smokeArmed": "Le fichier armait la fumée : elle est ignorée. La fumée de la salle sera désactivée : elle devra être réactivée par l’assistant, test de coupure et armement compris.",
+        "done": "Configuration importée.",
+        "todo": "À refaire : l’assistant de configuration, le test de coupure de la fumée et son armement.",
+        "appliedNotRestarted": "La configuration est appliquée, mais les lumières n’ont pas redémarré. Recharge la page, puis refais l’assistant, le test de coupure de la fumée et son armement."
+      }
     },
     "diagnostic": {
       "title": "Diagnostic matériel",
@@ -444,6 +468,13 @@
         "ready": "Tout est prêt.",
         "save": "Enregistrer la configuration"
       }
+    },
+    "devices": {
+      "dmx": {
+        "ambiguous": "Deux interfaces DMX du même modèle sont branchées : aucune n’est ouverte. Débranche-en une, ou choisis l’interface avec « Connecter l’interface DMX ».",
+        "smoke_board": "L’interface choisie est la carte de la fumée : elle n’est jamais ouverte en DMX. Choisis l’interface DMX."
+      },
+      "buzzerCards": "{count} cartes de buzzers identiques sont branchées : aucune n’est lue. Débranche-en une."
     },
     "sync": {
       "local": "Cette configuration est enregistrée sur ce PC.",

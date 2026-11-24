@@ -14,6 +14,7 @@ import {
 } from '@/game/useRoomGame'
 import {
   MIN_PUBLISH_GAP_MS,
+  onRoomGameUpdated,
   RECONNECT_DELAYS_MS,
   startRoomLive,
   STATUS_TIMEOUT_MS,
@@ -28,6 +29,7 @@ import { createFakeLiveServer, helloMessage } from '../_helpers/fakeLiveServer'
 import { createManualClock, getPlayableThemes, REGISTRATIONS } from '../_helpers/fixtures'
 
 const REPLACED = 'event: replaced\ndata: {}\n\n'
+const GAME_UPDATED = 'event: game_updated\ndata: {"gameId":42}\n\n'
 const SESSION_ENDED = 'event: session_ended\ndata: {"error":"session_expired"}\n\n'
 
 let server: ReturnType<typeof createFakeLiveServer>
@@ -768,5 +770,66 @@ describe('roomLive : mode démo, arrêt et pannes réseau', () => {
     expect(session.isOver).toBe(false)
     expect(useRoomGame().state.value?.phase.name).not.toBe('round_intro')
     expect(useRoomGame().session.value).toBe(session)
+  })
+})
+
+describe('roomLive : game_updated', () => {
+  it('prévient les écouteurs, un par un, jusqu’à ce qu’ils se retirent', async () => {
+    const first = vi.fn()
+    const second = vi.fn()
+    const stopFirst = onRoomGameUpdated(first)
+    const stopSecond = onRoomGameUpdated(second)
+
+    await connect()
+    server.streams.at(-1)?.push(GAME_UPDATED)
+    await settle()
+    expect([first.mock.calls.length, second.mock.calls.length]).toEqual([1, 1])
+
+    stopFirst()
+    server.streams.at(-1)?.push(GAME_UPDATED)
+    await settle()
+    expect([first.mock.calls.length, second.mock.calls.length]).toEqual([1, 2])
+    stopSecond()
+  })
+
+  it('l’abonnement survit à une reconnexion, sans doublon', async () => {
+    const listener = vi.fn()
+    const stop = onRoomGameUpdated(listener)
+
+    await connect()
+    server.streams.at(-1)?.end()
+    await settle(RECONNECT_DELAYS_MS[0])
+    server.streams.at(-1)?.push(helloMessage('stream-2'))
+    await settle()
+    server.streams.at(-1)?.push(GAME_UPDATED)
+    await settle()
+
+    expect(listener).toHaveBeenCalledTimes(1)
+    stop()
+  })
+
+  it('connected : vrai après le hello, faux flux perdu et après l’arrêt', async () => {
+    const { connected } = useRoomLive()
+
+    expect(connected.value).toBe(false)
+    startRoomLive(() => routeName.value)
+    await settle()
+    expect(connected.value).toBe(false)
+
+    server.streams.at(-1)?.push(helloMessage())
+    await settle()
+    expect(connected.value).toBe(true)
+
+    server.streams.at(-1)?.end()
+    await settle()
+    expect(connected.value).toBe(false)
+
+    await settle(RECONNECT_DELAYS_MS[0])
+    server.streams.at(-1)?.push(helloMessage('stream-2'))
+    await settle()
+    expect(connected.value).toBe(true)
+
+    stopRoomLive()
+    expect(connected.value).toBe(false)
   })
 })

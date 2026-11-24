@@ -1,5 +1,5 @@
 import type { EngineQuestion, EngineTheme } from '@quizzup/game-engine'
-import type { MiniGame, RoomLogEntryInput } from '@quizzup/shared'
+import type { GameFormat, MiniGame, RoomLogEntryInput } from '@quizzup/shared'
 
 import { toExtractEffect } from '@/audio/extractEffect'
 import type { MediaCredit } from '@/game/mediaCredits'
@@ -29,6 +29,8 @@ export type RoomGameJoin = {
 export type RoomGame = {
   id: number
   seed: number
+  /** Format choisi à la création ; `null` ou absent (partie ancienne) : personnalisé. */
+  format?: GameFormat | null
   roundsCount: number
   questionsPerRound: number
   /** Mini-jeux choisis au lancement ; `null` : aucun choix, tous peuvent être tirés. */
