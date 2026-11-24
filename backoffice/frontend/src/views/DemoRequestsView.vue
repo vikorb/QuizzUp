@@ -44,7 +44,7 @@
         </UiButton>
       </template>
 
-      <BaseTable :columns="columns" :items="tableItems" row-key="id">
+      <BaseTable class="demo-requests-table" :columns="columns" :items="tableItems" row-key="id">
         <template #cell-createdAt="{ value }">
           <span class="num">{{ formatDate(value) }}</span>
         </template>
@@ -84,7 +84,7 @@
               type="button"
               :disabled="busyId === item.id"
               :title="$t('demoRequests.actions.markProcessed')"
-              :aria-label="$t('demoRequests.actions.markProcessed')"
+              :aria-label="$t('demoRequests.actions.markProcessedFor', { name: item.name })"
               @click="markProcessed(toDemoRequest(item))"
             >
               <MdIcon :path="mdiCheckCircleOutline" :size="18" />
@@ -96,7 +96,7 @@
               type="button"
               :disabled="busyId === item.id"
               :title="$t('demoRequests.actions.delete')"
-              :aria-label="$t('demoRequests.actions.delete')"
+              :aria-label="$t('demoRequests.actions.deleteFor', { name: item.name })"
               @click="deleteRequest(toDemoRequest(item))"
             >
               <MdIcon :path="mdiDeleteOutline" :size="18" />
@@ -216,6 +216,11 @@ async function loadDemoRequests(): Promise<void> {
   }
 }
 
+// Demande déjà supprimée depuis un autre poste : la ligne n'a plus lieu d'être affichée.
+function removeRequest(id: number): void {
+  demoRequests.value = demoRequests.value.filter((current) => current.id !== id)
+}
+
 async function markProcessed(request: DemoRequest): Promise<void> {
   if (busyId.value !== null) {
     return
@@ -228,6 +233,10 @@ async function markProcessed(request: DemoRequest): Promise<void> {
     const result = await updateDemoRequestService(request.id, true)
 
     if (!result.ok) {
+      if (result.error === 'not_found') {
+        removeRequest(request.id)
+      }
+
       actionBanner.value = createErrorBanner(result.error)
       return
     }
@@ -264,12 +273,13 @@ async function deleteRequest(request: DemoRequest): Promise<void> {
   try {
     const result = await deleteDemoRequestService(request.id)
 
-    if (!result.ok) {
+    // Déjà supprimée ailleurs : le résultat voulu est atteint.
+    if (!result.ok && result.error !== 'not_found') {
       actionBanner.value = createErrorBanner(result.error)
       return
     }
 
-    demoRequests.value = demoRequests.value.filter((current) => current.id !== request.id)
+    removeRequest(request.id)
     actionBanner.value = createSuccessBanner('demoRequestDeleted')
   } finally {
     busyId.value = null
@@ -287,6 +297,15 @@ onMounted(() => {
   margin-top: 10px;
 }
 
+/* BaseTable coupe en `overflow-x: hidden` : ici le tableau défile plutôt que de masquer Actions. */
+.demo-requests-table.base-table-wrap {
+  overflow-x: auto;
+}
+
+.demo-requests-table :deep(.base-table) {
+  min-width: 760px;
+}
+
 .name {
   display: block;
   font-weight: 800;
@@ -296,6 +315,7 @@ onMounted(() => {
 .email {
   display: block;
   color: var(--text-1);
+  overflow-wrap: anywhere;
 }
 
 .sub {

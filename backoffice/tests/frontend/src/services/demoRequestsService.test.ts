@@ -6,10 +6,13 @@ import {
   updateDemoRequestService,
 } from '@/services/demoRequestsService'
 
-const { apiFetchMock, apiRequestJsonMock } = vi.hoisted(() => ({
+const { apiFetchMock, apiRequestJsonMock, tokenMock } = vi.hoisted(() => ({
   apiFetchMock: vi.fn(),
   apiRequestJsonMock: vi.fn(),
+  tokenMock: { value: null as string | null },
 }))
+
+vi.mock('@/state/authState', () => ({ token: tokenMock }))
 
 vi.mock('@/utils/api', () => ({
   apiFetch: apiFetchMock,
@@ -20,6 +23,7 @@ describe('services/demoRequestsService', () => {
   beforeEach(() => {
     apiFetchMock.mockReset()
     apiRequestJsonMock.mockReset()
+    tokenMock.value = 'jwt'
   })
 
   it('lists the requests with the session token', async () => {
@@ -70,6 +74,13 @@ describe('services/demoRequestsService', () => {
     apiFetchMock.mockResolvedValue(new Response('boom', { status: 500 }))
 
     expect(await deleteDemoRequestService(4)).toEqual({ ok: false, error: 'server_error' })
+  })
+
+  it('answers missing_token without calling the API when there is no session', async () => {
+    tokenMock.value = null
+
+    expect(await deleteDemoRequestService(4)).toEqual({ ok: false, error: 'missing_token' })
+    expect(apiFetchMock).not.toHaveBeenCalled()
   })
 
   it('answers api_unreachable when the request does not go through', async () => {

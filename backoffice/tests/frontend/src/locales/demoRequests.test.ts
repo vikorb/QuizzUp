@@ -62,13 +62,24 @@ describe('locales — demoRequests', () => {
   })
 
   // La bannière lit `errors.<code>` et `success.<code>` de index.json.
-  it.each(['not_found', 'forbidden', 'unauthorized', 'api_unreachable', 'server_error'])(
-    'has a banner error text for the code %s in both languages',
-    (code) => {
-      expect(frIndex[`errors.${code}`], `fr ${code}`).toBeTruthy()
-      expect(enIndex[`errors.${code}`], `en ${code}`).toBeTruthy()
-    }
-  )
+  it.each([
+    'not_found',
+    'forbidden',
+    'unauthorized',
+    'api_unreachable',
+    'server_error',
+    'invalid_body',
+    'missing_token',
+    'invalid_json',
+  ])('has a banner error text for the code %s in both languages', (code) => {
+    expect(frIndex[`errors.${code}`], `fr ${code}`).toBeTruthy()
+    expect(enIndex[`errors.${code}`], `en ${code}`).toBeTruthy()
+  })
+
+  it('has a default banner error text in both languages', () => {
+    expect(frIndex['errors.default']).toBeTruthy()
+    expect(enIndex['errors.default']).toBeTruthy()
+  })
 
   it.each(['demoRequestProcessed', 'demoRequestDeleted'])(
     'has the banner success text %s in both languages',

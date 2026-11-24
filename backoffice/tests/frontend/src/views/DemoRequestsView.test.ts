@@ -27,8 +27,8 @@ beforeEach(() => {
   resetDemoRequestsServiceMock()
 })
 
-const MARK_PROCESSED = 'button[aria-label="demoRequests.actions.markProcessed"]'
-const DELETE = 'button[aria-label="demoRequests.actions.delete"]'
+const MARK_PROCESSED = 'button[aria-label="demoRequests.actions.markProcessedFor"]'
+const DELETE = 'button[aria-label="demoRequests.actions.deleteFor"]'
 
 async function mountView(): Promise<VueWrapper> {
   const wrapper = mountWithFrontendMocks(DemoRequestsView)
@@ -149,13 +149,30 @@ describe('views/DemoRequestsView.vue', () => {
   })
 
   it('keeps the request and shows the error code when marking fails', async () => {
-    updateDemoRequestServiceMock.mockResolvedValue({ ok: false, status: 404, error: 'not_found' })
+    updateDemoRequestServiceMock.mockResolvedValue({
+      ok: false,
+      status: 500,
+      error: 'server_error',
+    })
 
     const wrapper = await mountView()
     await wrapper.find(MARK_PROCESSED).trigger('click')
     await flushPromises()
 
     expect(rowKeys(wrapper)).toEqual(['1'])
+    expect(wrapper.find('[data-test="base-banner"]').text()).toContain('server_error')
+  })
+
+  it('drops the row but keeps the error message when marking a request deleted elsewhere', async () => {
+    updateDemoRequestServiceMock.mockResolvedValue({ ok: false, status: 404, error: 'not_found' })
+
+    const wrapper = await mountView()
+    await wrapper.find(MARK_PROCESSED).trigger('click')
+    await flushPromises()
+
+    expect(rowKeys(wrapper)).toEqual([])
+    await chooseFilter(wrapper, 'all')
+    expect(rowKeys(wrapper)).toEqual(['2'])
     expect(wrapper.find('[data-test="base-banner"]').text()).toContain('not_found')
   })
 
@@ -196,6 +213,77 @@ describe('views/DemoRequestsView.vue', () => {
 
     expect(rowKeys(wrapper)).toEqual(['1'])
     expect(wrapper.find('[data-test="base-banner"]').text()).toContain('forbidden')
+  })
+
+  it('treats a request already deleted elsewhere as a successful deletion', async () => {
+    deleteDemoRequestServiceMock.mockResolvedValue({ ok: false, error: 'not_found' })
+
+    const wrapper = await mountView()
+    await wrapper.find(DELETE).trigger('click')
+    await flushPromises()
+
+    expect(rowKeys(wrapper)).toEqual([])
+    const banner = wrapper.find('[data-test="base-banner"]')
+    expect(banner.text()).toContain('demoRequestDeleted')
+    expect(banner.text()).not.toContain('not_found')
+    await chooseFilter(wrapper, 'all')
+    expect(rowKeys(wrapper)).toEqual(['2'])
+  })
+
+  describe('while an action is running', () => {
+    const second = demoRequestFixture({ id: 3, name: 'Chloé Durand' })
+
+    it('disables the buttons and runs a single update', async () => {
+      let release: ((value: unknown) => void) | undefined
+      updateDemoRequestServiceMock.mockReturnValue(
+        new Promise((resolve) => {
+          release = resolve
+        })
+      )
+      mockLoadDemoRequests([pendingDemoRequest, second])
+
+      const wrapper = await mountView()
+      const buttons = wrapper.findAll(MARK_PROCESSED)
+      await buttons[0]!.trigger('click')
+      await flushPromises()
+
+      expect(buttons[0]!.attributes('disabled')).toBeDefined()
+      await buttons[0]!.trigger('click')
+      // L'autre ligne n'est pas désactivée : seul le garde-fou de la fonction l'arrête.
+      await buttons[1]!.trigger('click')
+      await flushPromises()
+
+      expect(updateDemoRequestServiceMock).toHaveBeenCalledTimes(1)
+
+      release?.({ ok: true, status: 200, data: { demoRequest: demoRequestFixture() } })
+      await flushPromises()
+    })
+
+    it('disables the buttons and runs a single deletion', async () => {
+      let release: ((value: unknown) => void) | undefined
+      deleteDemoRequestServiceMock.mockReturnValue(
+        new Promise((resolve) => {
+          release = resolve
+        })
+      )
+      mockLoadDemoRequests([pendingDemoRequest, second])
+
+      const wrapper = await mountView()
+      const buttons = wrapper.findAll(DELETE)
+      await buttons[0]!.trigger('click')
+      await flushPromises()
+
+      expect(buttons[0]!.attributes('disabled')).toBeDefined()
+      await buttons[0]!.trigger('click')
+      await buttons[1]!.trigger('click')
+      await flushPromises()
+
+      expect(confirmMock).toHaveBeenCalledTimes(1)
+      expect(deleteDemoRequestServiceMock).toHaveBeenCalledTimes(1)
+
+      release?.({ ok: true })
+      await flushPromises()
+    })
   })
 
   it('shows a dash for a missing message and omits a missing phone', async () => {

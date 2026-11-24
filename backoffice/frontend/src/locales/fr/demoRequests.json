@@ -30,7 +30,9 @@
     },
     "actions": {
       "markProcessed": "Marquer comme traitée",
+      "markProcessedFor": "Marquer la demande de {name} comme traitée",
       "delete": "Supprimer",
+      "deleteFor": "Supprimer la demande de {name}",
       "deleteConfirm": "Supprimer définitivement la demande de {name} ? Cette action est irréversible."
     },
     "errors": {

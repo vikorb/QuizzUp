@@ -1,3 +1,4 @@
+import { token } from '@/state/authState'
 import type {
   DeleteDemoRequestResult,
   DemoRequest,
@@ -29,6 +30,10 @@ export function updateDemoRequestService(demoRequestId: number, processed: boole
 export async function deleteDemoRequestService(
   demoRequestId: number
 ): Promise<DeleteDemoRequestResult> {
+  if (!token.value) {
+    return { ok: false, error: 'missing_token' }
+  }
+
   const response = await apiFetch({
     path: `/demo-requests/${demoRequestId}`,
     method: 'DELETE',
