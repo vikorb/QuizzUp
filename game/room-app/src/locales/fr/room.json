@@ -34,7 +34,8 @@
       "formats": {
         "discovery": "Découverte",
         "short": "Courte",
-        "standard": "Standard"
+        "standard": "Standard",
+        "custom": "Personnalisé"
       },
       "formatSummary": "{name} · {rounds} manches × {questions} questions · {min} à {max} min",
       "start": "Démarrer la partie",
@@ -96,6 +97,7 @@
       "offlineTitle": "Backoffice injoignable",
       "offlineText": "Vérifie la connexion Internet du PC de la salle. Une connexion est nécessaire pour lancer la partie.",
       "retry": "Réessayer",
+      "format": "Format {name} · {min} à {max} min",
       "ready": "Partie prête : {rounds} manches × {questions} questions",
       "readyText": "Chaque joueur peut appuyer sur un buzzer pour vérifier son pupitre.",
       "starting": "Préparation des extraits…",
@@ -185,7 +187,24 @@
       "later": "Je configurerai plus tard",
       "laterHint": "Tu pourras le faire depuis Matériel.",
       "smokeConflict": "Le modèle chevauche l’adresse de ta machine à fumée. Garde tes appareils, ou change l’adresse de la fumée dans Matériel.",
-      "replaceConfirm": "Tes appareils actuels seront remplacés par ceux du modèle 6 pupitres. Continuer ?"
+      "replaceConfirm": "Tes appareils actuels seront remplacés par ceux du modèle 6 pupitres. Continuer ?",
+      "templateRefused": "Ce modèle n’a pas pu être appliqué. Tes appareils n’ont pas changé.",
+      "universesRefused": "Les appareils n’ont pas pu être placés sur les sorties du boîtier sans recouvrir un autre appareil ou la machine à fumée : ils gardent leurs univers actuels. Tu pourras les régler depuis Matériel.",
+      "replaceModelConfirm": "Tes appareils actuels seront remplacés par ceux du modèle « {name} ». Continuer ?",
+      "universesConfirm": "Ton boîtier réseau annonce les sorties {outputs}. Placer tes appareils sur ces univers ? {n} appareil(s) changent d’univers."
+    },
+    "models": {
+      "title": "Ou pars d’un modèle de salle",
+      "hint": "{desks} pupitres, {n} appareils",
+      "needsArtnet": "Demande un boîtier réseau (plusieurs univers)",
+      "needsOutputs": "Demande {need} sorties, ton boîtier en annonce {have}",
+      "desksDiffer": "tu as réglé {n} pupitres : ce nombre est gardé",
+      "names": {
+        "six-desks-eight-heads": "6 pupitres, 8 lyres et rubans LED",
+        "four-desks-four-par-rgbw": "4 pupitres, 4 PAR RVBW",
+        "four-desks-four-par-two-heads": "4 pupitres, 4 PAR + 2 lyres",
+        "six-desks-six-par-two-heads": "6 pupitres, 6 PAR RVB + 2 lyres"
+      }
     },
     "test": {
       "progress": "Appareil {n} sur {total}",

@@ -26,6 +26,8 @@ import { DMX_CHANNELS, MAX_UNIVERSES } from '../dmx/universe'
 import type { SmokeSafetyConfig } from '../lighting/smoke'
 import { normalizeSmokeSafety } from '../lighting/smoke'
 import type { PlanPoint, PlanTarget } from '../plan'
+import type { RoomTemplate } from '../presets/roomTemplates'
+import { createRigFromTemplate } from '../presets/roomTemplates'
 import type { PanTiltCalibration, SixDeskRigOptions } from '../presets/sixDeskRoom'
 import { createSixDeskRoomRig } from '../presets/sixDeskRoom'
 import type { Desk } from '../types'
@@ -254,6 +256,12 @@ export type SetupWizard = {
   removeFixture: (id: string) => void
   /** Remplace les appareils par ceux d'une salle 6 pupitres (positions reprises si fournies). */
   importSixDeskPreset: (options?: SixDeskRigOptions) => void
+  /**
+   * Remplace les appareils par ceux d'un modèle de salle (`createRigFromTemplate`). Le nombre de
+   * pupitres et les réglages de fumée ne changent pas (un modèle n'y touche jamais). En cas de
+   * refus du modèle, rien ne change et la raison est renvoyée.
+   */
+  importRoomTemplate: (template: RoomTemplate) => WizardResult
   /** Première adresse libre pour un appareil de `footprint` canaux, `null` si l'univers (0 par défaut) est plein. */
   suggestAddress: (footprint: number, universe?: number) => number | null
 
@@ -808,6 +816,27 @@ export function createSetupWizard(initial?: RoomHardwareConfig): SetupWizard {
       config = { ...config, desksCount: DESKS.length }
       fixtureTests = {}
       smokeChecks = { ...smokeChecks, freezeTest: false }
+    },
+    importRoomTemplate: (template) => {
+      const rig = createRigFromTemplate(template)
+      if (!rig.ok) {
+        return { ok: false, reason: rig.reason }
+      }
+      const rigIds = new Set(rig.customProfiles.map((profile) => profile.id))
+      config = {
+        ...config,
+        lighting: {
+          ...config.lighting,
+          fixtures: rig.fixtures,
+          customProfiles: [
+            ...config.lighting.customProfiles.filter((profile) => !rigIds.has(profile.id)),
+            ...rig.customProfiles,
+          ],
+        },
+      }
+      fixtureTests = {}
+      smokeChecks = { ...smokeChecks, freezeTest: false }
+      return { ok: true }
     },
     suggestAddress,
 

@@ -1,4 +1,5 @@
 import type {
+  GameFormat,
   GameLocale,
   GameState,
   GameStatus,
@@ -43,6 +44,8 @@ export type Game = {
   roomName?: string
   /** `null` pour une réservation faite par l'API. */
   adminId: number | null
+  /** Fixé à la création ; `null` pour une partie d'avant les formats (lue comme personnalisée). */
+  format?: GameFormat | null
   roundsCount: number
   questionsPerRound: number
   /** Mini-jeux autorisés pour la partie ; `null` ou absent = tous. */
@@ -142,6 +145,8 @@ export type CreateGameParticipantPayload = {
 export type CreateGamePayload = {
   roomId: number
   participants: CreateGameParticipantPayload[]
+  /** Absent : standard. Un format fixe porte ses nombres : ils ne s'envoient qu'en `custom`. */
+  format?: GameFormat
   roundsCount?: number
   questionsPerRound?: number
   /** Ouvre le lien d'inscription par QR code : les participants deviennent facultatifs. */
@@ -206,6 +211,8 @@ export type GameParticipantField =
 
 export type GameFormValues = {
   roomId: string
+  /** Choisi à la création ; une session modifiée est toujours `custom` (ses nombres se saisissent). */
+  format: GameFormat
   roundsCount: string
   questionsPerRound: string
   /** Mini-jeux cochés (tous par défaut). */
@@ -238,6 +245,7 @@ export type GameParticipantFieldErrors = {
 
 export type GameFieldErrors = {
   roomId: string
+  format: string
   roundsCount: string
   questionsPerRound: string
   miniGames: string
@@ -271,6 +279,8 @@ export type GameApiErrorCode =
   | 'game_already_over'
   | 'email_consent_required'
   | 'marketing_consent_requires_email'
+  | 'format_fixes_counts'
+  | 'format_not_updatable'
   | 'conflict'
   | 'session_in_past'
   | 'session_too_far'

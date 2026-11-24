@@ -12,8 +12,34 @@ Format inspiré de Keep a Changelog.
   US: US-DMX-01 (#215)
 
 - Lumières à la pause : quand la partie est mise en pause, la salle passe sur une ambiance basse (scène `pause`, sans éclair ni fumée) ; à la reprise elle retrouve la lumière de la phase en cours. Les liaisons `game_paused` et `game_resumed` restent réglables par salle.
+- Écran Matériel : boutons Exporter et Importer la configuration de la salle (onglet Configuration avancée). L'import vérifie le type et la taille du fichier, affiche un résumé et demande confirmation. Il ne relève aucun réglage de fumée : activation, niveau, jet, pause et confirmation restent ceux de la salle ou plus stricts, et l'assistant, le test de coupure et l'armement sont à refaire. À valider sur le banc.
+  US: US-SHOW-01 (#145)
+
+- Clés d'API au backoffice : la fiche client liste les clés de la compagnie, en crée une, en révoque une (avec confirmation) et affiche le journal des appels. Le secret ne s'affiche qu'une fois, à la création, et n'est jamais enregistré dans le navigateur. Réservé aux rôles admin et superadmin.
+  US: US-BOOKING-01 (#188)
+
+- Format de partie au backoffice et au lobby : à la création, le formulaire propose Découverte, Courte, Standard (par défaut) et Personnalisé, avec les nombres et la durée estimée de chaque format. Les champs manches et questions n'apparaissent qu'en Personnalisé. Le lobby du staff affiche le format et sa durée.
+  US: US-FORMAT-01 (#143)
+
+- Blind test par playlist, côté salle : `GET /room/games/current/content` tire les titres d'un thème de playlist chez le fournisseur d'extraits et en fait des questions « Quel est ce titre ? » (quatre réponses, identifiants négatifs, crédit du titre). Nouvelle route `GET /room/games/current/tracks` qui rend les liens d'extrait à jour pour reprendre une partie après rechargement. En mode enfants, seuls les thèmes adaptés sont lus.
+  US: US-PLAYLIST-01 (#204)
+
+- API publique, bac à sable : la salle de démonstration naît avec des créneaux réservables (tous les jours de 10 h à 20 h, créneaux d'une heure, 4 pupitres), et un guide pas à pas (`docs/api/essayer-l-api-publique.md`) montre comment créer une clé puis réserver. Aucune clé n'est créée par le seed.
+  US: US-BOOKING-01 (#188)
+
+- API publique : réservations (`POST`, `GET`, `PATCH`, `DELETE` sur `/public/v1/bookings`). Une réservation crée une partie programmée dans la compagnie de la clé d'API ; une clé ne voit et ne modifie que ses propres réservations. La clé d'idempotence rejoue la même réponse au lieu de créer un doublon, et un créneau déjà pris est refusé (`slot_taken`).
+- API publique : réservations (`POST`, `GET`, `PATCH`, `DELETE` sur `/public/v1/bookings`). Une réservation crée une partie programmée dans la compagnie de la clé d'API ; les clés d'une compagnie voient et modifient les réservations créées par l'API de cette compagnie, jamais les sessions créées au backoffice. La clé d'idempotence rejoue la même réponse au lieu de créer un doublon, et un créneau déjà pris est refusé (`slot_taken`).
+  US: US-BOOKING-01 (#188)
+
+- Bons : page publique `/bon/#<code>` pour le téléphone du joueur, sur la même infrastructure que `/rejoindre/`. Elle affiche l'état du bon (valide, utilisé, expiré, annulé, introuvable) ; le code reste dans le fragment de l'adresse et part dans le corps de la requête, jamais dans une URL.
+  US: US-VOUCHER-01 (#156)
+- Écran « Joueurs » du backoffice : liste paginée avec recherche sur le nom, nombre de parties, dernière venue et meilleur score ; désinscription des offres et effacement définitif d'un joueur (admins) ; export CSV des joueurs qui acceptent les offres. Un membre du staff voit la liste sans adresse, sans action et sans export.
+  US: US-PLAYERS-01 (#157)
+- Écran de salle, réglage des lumières : les modèles de salle (`ROOM_TEMPLATES`) se choisissent dans l'assistant, avec une confirmation avant de remplacer des appareils déjà réglés, et une répartition des univers est proposée en Art-Net avant le test. Un modèle ne touche jamais aux réglages de fumée ; un modèle à plusieurs univers n'est pas proposé avec une interface USB.
   US: US-SHOW-01 (#145)
 - Matériel, configuration de salle : export et import (`exportRoomConfig`, `parseRoomConfigImport`), avec un garde-fou fumée (`withoutSmokeEscalation`). Un import ou le JSON de la configuration avancée ne peut jamais rendre la fumée plus permissive que celle de la salle : ni l'activer, ni dispenser du relais, ni allonger un jet, ni rapprocher deux jets, ni retirer la confirmation. Un fichier invalide, trop gros ou d'une version plus récente est refusé avec une raison lisible. Les boutons Exporter et Importer viendront avec le lot suivant.
+  US: US-SHOW-01 (#145)
+- Lumières à la pause : quand la partie est mise en pause, la salle passe sur une ambiance basse (scène `pause`, sans éclair ni fumée) ; à la reprise elle retrouve la lumière de la phase en cours. Les liaisons `game_paused` et `game_resumed` restent réglables par salle.
   US: US-SHOW-01 (#145)
 - Mode enfants, serveur : un thème peut être marqué adapté aux enfants (`kidsFriendly` sur `POST` / `PATCH` / `GET /themes`, 400 `theme_kids_friendly_invalid`) et une partie peut être en mode enfants (`kidsMode` à la création et à la modification d'une session programmée). Le contenu servi à la salle d'une partie en mode enfants ne contient que les thèmes adaptés.
   US: US-KIDS-01 (#158)
