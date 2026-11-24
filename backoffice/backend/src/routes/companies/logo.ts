@@ -1,18 +1,17 @@
-import type { FastifyError, FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
-
 import {
   COMPANY_LOGO_EXTENSIONS,
   COMPANY_LOGO_MAX_BYTES,
   COMPANY_STATUS_DELETED,
 } from '@quizzup/shared'
+import type { FastifyError, FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
+
 import db from '../../db'
+import { canUpdateCompanyContext } from '../../security/companiesPolicy'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
 import { requireApiPermission } from '../../security/requireApiPermission'
-import { canUpdateCompanyContext } from '../../security/companiesPolicy'
 import { detectLogoMimeType } from '../../storage/logoFile'
 import { buildCompanyLogoKey, getMediaStorage } from '../../storage/mediaStorage'
 import { removeStoredMediaFile } from '../_shared/storedMedia'
-
 import { companyAdminParamsSchema } from './_schemas'
 import { companyLogoUrl, findCompanyById } from './_shared'
 

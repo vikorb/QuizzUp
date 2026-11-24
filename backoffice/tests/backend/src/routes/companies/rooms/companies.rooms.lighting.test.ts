@@ -1,11 +1,11 @@
 import '../../_helpers/registerRouteMocks'
 
+import companyRoomsRoutes from '@backend/routes/companies/rooms'
+import { isLightingConfigChangeForbidden } from '@backend/routes/companies/rooms/_lighting'
+import companyRoomIdRoutes from '@backend/routes/companies/rooms/id'
+import { ROOM_STATUS_ACTIVE } from '@quizzup/shared'
 import { describe, expect, it } from 'vitest'
 
-import { ROOM_STATUS_ACTIVE } from '@quizzup/shared'
-import companyRoomsRoutes from '@backend/routes/companies/rooms'
-import companyRoomIdRoutes from '@backend/routes/companies/rooms/id'
-import { isLightingConfigChangeForbidden } from '@backend/routes/companies/rooms/_lighting'
 import { db, dbState, MOCK_NOW, resetDb } from '../../_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from '../../_helpers/resetRouteMocks'
 import {

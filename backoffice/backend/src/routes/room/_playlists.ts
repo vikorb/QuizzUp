@@ -1,10 +1,9 @@
-import type { FastifyBaseLogger } from 'fastify'
-
 import {
   DEFAULT_QUESTION_KIND,
   QUESTION_AUDIO_EFFECT_NONE,
   QUESTION_MEDIA_TYPE_AUDIO,
 } from '@quizzup/shared'
+import type { FastifyBaseLogger } from 'fastify'
 
 import {
   getProviderPlaylistTracks,

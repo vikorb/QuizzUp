@@ -2,9 +2,9 @@ import '../_helpers/registerDbMock'
 
 import { Writable } from 'node:stream'
 
-import fastify from 'fastify'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
+import publicRoutes from '@backend/routes/public'
+import { PUBLIC_API_PREFIX } from '@backend/routes/public/_shared'
+import { JOIN_BODY_LIMIT, JOIN_REGISTRATION_RATE_LIMIT_MAX } from '@backend/routes/public/join'
 import {
   COMPANY_STATUS_ACTIVE,
   COMPANY_STATUS_DELETED,
@@ -19,9 +19,9 @@ import {
   ROOM_STATUS_ACTIVE,
   ROOM_STATUS_INACTIVE,
 } from '@quizzup/shared'
-import publicRoutes from '@backend/routes/public'
-import { PUBLIC_API_PREFIX } from '@backend/routes/public/_shared'
-import { JOIN_BODY_LIMIT, JOIN_REGISTRATION_RATE_LIMIT_MAX } from '@backend/routes/public/join'
+import fastify from 'fastify'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { db, dbState, resetDb } from '../_helpers/mockDb'
 
 const LOOKUP = `${PUBLIC_API_PREFIX}/join/lookup`

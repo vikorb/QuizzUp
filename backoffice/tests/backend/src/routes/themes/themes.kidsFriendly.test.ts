@@ -1,8 +1,8 @@
 import '../_helpers/registerRouteMocks'
 
+import themesRoutes from '@backend/routes/themes'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import themesRoutes from '@backend/routes/themes'
 import { dbState } from '../_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
 import {

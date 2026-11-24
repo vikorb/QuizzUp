@@ -1,11 +1,11 @@
+import { QUESTION_STATUS_DELETED, THEME_SCOPE_COMPANY, THEME_SCOPE_GLOBAL } from '@quizzup/shared'
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import type { Knex } from 'knex'
 
-import { QUESTION_STATUS_DELETED, THEME_SCOPE_COMPANY, THEME_SCOPE_GLOBAL } from '@quizzup/shared'
 import db from '../db'
+import { getCurrentCompanyId, isSuperadmin } from '../security/companiesPolicy'
 import { API_ACTION, API_RESOURCE } from '../security/permissions'
 import { requireApiPermission } from '../security/requireApiPermission'
-import { getCurrentCompanyId, isSuperadmin } from '../security/companiesPolicy'
 import {
   attachThemesToQuestions,
   ensureThemesAreUsable,
@@ -20,10 +20,10 @@ import {
   isValidQuestionScope,
   isValidQuestionStatus,
   parseOptionalNumber,
-  questionSelect,
-  validateQuestionInput,
   type QuestionBody,
   type QuestionQuery,
+  questionSelect,
+  validateQuestionInput,
 } from './questions/_shared'
 import questionAnswersRoutes from './questions/answers'
 import questionAnswerIdRoutes from './questions/answers/id'

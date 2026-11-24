@@ -1,11 +1,12 @@
 import '../_helpers/registerDbMock'
 
+import { TOTP_RECOVERY_CODES_COUNT } from '@quizzup/shared'
 import fastify, { type FastifyInstance } from 'fastify'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { TOTP_RECOVERY_CODES_COUNT } from '@quizzup/shared'
-
 import authPlugin from '../../../../../backend/src/plugins/auth'
+import authRoutes from '../../../../../backend/src/routes/auth'
+import loginRoutes from '../../../../../backend/src/routes/login'
 import {
   confirmEnrollment,
   countUnusedRecoveryCodes,
@@ -20,8 +21,6 @@ import {
   stepAt,
   totpCode,
 } from '../../../../../backend/src/security/totp'
-import authRoutes from '../../../../../backend/src/routes/auth'
-import loginRoutes from '../../../../../backend/src/routes/login'
 import { dbState, MOCK_NOW, resetDb } from '../_helpers/mockDb'
 
 // Le magasin PostgreSQL (UPDATE atomiques, verrou, anti-rejeu) est prouvé sur la vraie base par

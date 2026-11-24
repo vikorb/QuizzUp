@@ -1,5 +1,14 @@
 import '../routes/_helpers/registerDbMock'
 
+import {
+  ADMIN_ROLE_ROOM,
+  ADMIN_ROLE_SUPERADMIN,
+  ADMIN_STATUS_ACTIVE,
+  ADMIN_STATUS_DELETED,
+  COMPANY_STATUS_DELETED,
+  ROOM_STATUS_ACTIVE,
+  ROOM_STATUS_DELETED,
+} from '@quizzup/shared'
 import fastify, {
   type FastifyInstance,
   type FastifyPluginAsync,
@@ -7,16 +16,6 @@ import fastify, {
   type FastifyRequest,
 } from 'fastify'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-import {
-  ADMIN_ROLE_ROOM,
-  COMPANY_STATUS_DELETED,
-  ROOM_STATUS_ACTIVE,
-  ROOM_STATUS_DELETED,
-  ADMIN_ROLE_SUPERADMIN,
-  ADMIN_STATUS_ACTIVE,
-  ADMIN_STATUS_DELETED,
-} from '@quizzup/shared'
 
 import authPlugin, { checkSession } from '../../../../backend/src/plugins/auth'
 import { DEV_TOTP_ENCRYPTION_KEY } from '../../../../backend/src/security/secretBox'

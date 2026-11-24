@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+
 import type { FastifyPluginAsync } from 'fastify'
 
 import { PUBLIC_OPENAPI_FILE, resolveApiDocPath } from '../../utils/apiDocPath'

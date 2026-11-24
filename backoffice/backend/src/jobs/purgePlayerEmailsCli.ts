@@ -1,5 +1,6 @@
 // Purge manuelle des emails joueurs expirés : `npm run purge:emails` (depuis backoffice/backend).
 import 'dotenv/config'
+
 import db from '../db'
 import { purgeStaleJoinRegistrations } from './purgeJoinRegistrations'
 import { purgeExpiredPlayerEmails } from './purgePlayerEmails'

@@ -1,12 +1,13 @@
 import '../_helpers/registerRouteMocks'
+
+import companiesIdPermanentRoutes from '@backend/routes/companies/idPermanent'
+import { COMPANY_STATUS_DELETED } from '@quizzup/shared'
 import { describe, expect, it } from 'vitest'
 
-import { COMPANY_STATUS_DELETED } from '@quizzup/shared'
-import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
-import { securityState } from '../_helpers/mockSecurity'
-import { authHeaders, createRouteApp, parseJson, superadminUser } from '../_helpers/testApp'
-import companiesIdPermanentRoutes from '@backend/routes/companies/idPermanent'
 import { dbState, MOCK_NOW } from '../_helpers/mockDb'
+import { securityState } from '../_helpers/mockSecurity'
+import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
+import { authHeaders, createRouteApp, parseJson, superadminUser } from '../_helpers/testApp'
 
 resetRouteMocksBeforeEach()
 

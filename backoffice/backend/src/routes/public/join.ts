@@ -1,6 +1,3 @@
-import type { FastifyPluginAsync } from 'fastify'
-import { z } from 'zod'
-
 import {
   COMPANY_STATUS_ACTIVE,
   GAME_STATE_PENDING,
@@ -11,6 +8,9 @@ import {
   JOIN_TOKEN_BYTES,
   ROOM_STATUS_ACTIVE,
 } from '@quizzup/shared'
+import type { FastifyPluginAsync } from 'fastify'
+import { z } from 'zod'
+
 import db from '../../db'
 import { createRateLimiter, replyTooManyRequests } from '../../security/rateLimit'
 import { companyLogoUrl } from '../companies/_shared'

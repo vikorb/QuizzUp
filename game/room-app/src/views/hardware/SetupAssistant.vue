@@ -522,13 +522,7 @@
         <span>{{ $t(`hardware.assistant.smoke.checks.${check}`) }}</span>
       </label>
       <p class="hw-hint" data-test="freeze-hint">
-        {{
-          $t(
-            signalLossTest
-              ? 'hardware.diagnostic.freezeHintSignal'
-              : 'hardware.diagnostic.freezeHint'
-          )
-        }}
+        {{ $t(`hardware.diagnostic.freezeHint${freezeVariant}`) }}
       </p>
       <p v-if="freezeRefusal" class="hw-alert" role="status">{{ freezeRefusal }}</p>
       <div class="hw-actions">
@@ -539,7 +533,11 @@
           @click="onFreezeTest"
         >
           {{
-            $t(signalLossTest ? 'hardware.diagnostic.freezeSignal' : 'hardware.diagnostic.freeze')
+            $t(
+              signalLossTest && !viaBoard
+                ? 'hardware.diagnostic.freezeSignal'
+                : 'hardware.diagnostic.freeze'
+            )
           }}
         </UiButton>
       </div>
@@ -549,13 +547,7 @@
         role="status"
         data-test="freeze-running"
       >
-        {{
-          $t(
-            signalLossTest
-              ? 'hardware.assistant.smoke.freezeRunningSignal'
-              : 'hardware.assistant.smoke.freezeRunning'
-          )
-        }}
+        {{ $t(`hardware.assistant.smoke.freezeRunning${freezeVariant}`) }}
         <div class="hw-actions">
           <UiButton variant="danger" data-test="freeze-abort" @click="onFreezeAnswer(false)">
             {{ $t('hardware.assistant.smoke.freezeAbort') }}
@@ -568,13 +560,7 @@
         role="status"
         data-test="freeze-question"
       >
-        {{
-          $t(
-            signalLossTest
-              ? 'hardware.assistant.smoke.freezeQuestionSignal'
-              : 'hardware.assistant.smoke.freezeQuestion'
-          )
-        }}
+        {{ $t(`hardware.assistant.smoke.freezeQuestion${freezeVariant}`) }}
         <div class="hw-actions">
           <UiButton data-test="freeze-ok" @click="onFreezeAnswer(true)">
             {{ $t('hardware.assistant.smoke.freezeYes') }}
@@ -587,9 +573,11 @@
       <p v-if="freezeFailed" class="hw-alert hw-alert--danger" role="alert">
         {{
           $t(
-            freezeFailedSignal
-              ? 'hardware.assistant.smoke.freezeFailedSignal'
-              : 'hardware.assistant.smoke.freezeFailed'
+            viaBoard
+              ? 'hardware.assistant.smoke.freezeFailedBoard'
+              : freezeFailedSignal
+                ? 'hardware.assistant.smoke.freezeFailedSignal'
+                : 'hardware.assistant.smoke.freezeFailed'
           )
         }}
       </p>
@@ -727,6 +715,7 @@ import {
   triggerEmergencyStop,
   useRoomHardware,
 } from '@/hardware/roomHardware'
+import { useSmokeBoard } from '@/hardware/smokeBoard'
 import { useBuzzers } from '@/hardware/useBuzzers'
 import { useFreezeTest } from '@/hardware/useFreezeTest'
 import BuzzerSetup from '@/views/hardware/BuzzerSetup.vue'
@@ -771,7 +760,7 @@ const ARROWS = new Map<string, [PanTiltAxis, 1 | -1]>([
 const { t } = useI18n()
 const { hardware, lightingState, bridgeArtnet, bridgeFeatures, syncStatus, conflictCount } =
   useRoomHardware()
-const { run: runFreezeTest, refusal: freezeRefusal } = useFreezeTest()
+const { run: runFreezeTest, refusal: freezeRefusal, viaBoard } = useFreezeTest()
 
 function newWizard() {
   const created = createSetupWizard(hardware.value.config)
@@ -801,6 +790,16 @@ const connectError = ref<SerialErrorDescription | null>(null)
 const freezeStage = ref<'idle' | 'running' | 'question'>('idle')
 let freezeTimer: ReturnType<typeof setTimeout> | null = null
 const freezeFailed = ref(false)
+// Carte de la fumée : muette, en défaut ou perdue entre le lancement du test et la réponse. En cas de
+// bail défaillant, c'est le lien (la page) qui coupe vers 0,75 s, pas la carte : le test ne prouve rien.
+const { view: boardView } = useSmokeBoard()
+const BOARD_LOST_VIEWS = new Set(['silent', 'fault', 'disconnected'])
+const boardLostDuringTest = ref(false)
+watch(boardView, (current) => {
+  if (freezeStage.value !== 'idle' && BOARD_LOST_VIEWS.has(current)) {
+    boardLostDuringTest.value = true
+  }
+})
 // Réponse « elle s'est arrêtée », mais la preuve locale n'a pas pu être posée : test à refaire.
 const proofNotRecorded = ref(false)
 // L'échec concernait le test de perte de signal (la case est ensuite décochée).
@@ -883,6 +882,10 @@ const canFreezeTest = computed(
 // un test guidé de vraie perte de signal (câble DMX débranché).
 const signalLossTest = computed(
   () => view.value.smokeLacksRelay && view.value.config.lighting.smoke.cutsOnSignalLoss === true
+)
+// Suffixe des textes du test de coupure : la carte USB (elle coupe seule), la perte de signal, ou le relais.
+const freezeVariant = computed(() =>
+  viaBoard.value ? 'Board' : signalLossTest.value ? 'Signal' : ''
 )
 // Sans relais, « relais temporisé » n'a pas de sens : seules les vérifications exigées sont listées.
 const requiredSmokeChecks = computed(() =>
@@ -1272,6 +1275,7 @@ function onCheck(check: SmokeCheckId, event: Event): void {
 async function onFreezeTest(): Promise<void> {
   freezeFailed.value = false
   proofNotRecorded.value = false
+  boardLostDuringTest.value = false
   await apply({ forFreezeTest: true })
   if (!(await runFreezeTest())) {
     return
@@ -1286,7 +1290,11 @@ async function onFreezeTest(): Promise<void> {
   }, MAX_FREEZE_MS)
 }
 
-function onFreezeAnswer(ok: boolean): void {
+function onFreezeAnswer(answer: boolean): void {
+  // Réponse positive mais carte perdue pendant le test (ou à l'instant) : le test échoue.
+  const ok =
+    answer &&
+    !(viaBoard.value && (boardLostDuringTest.value || BOARD_LOST_VIEWS.has(boardView.value)))
   if (freezeTimer !== null) {
     clearTimeout(freezeTimer)
     freezeTimer = null
@@ -1303,8 +1311,8 @@ function onFreezeAnswer(ok: boolean): void {
     triggerEmergencyStop('freeze_test_failed')
     // Machine sans relais qui ne coupe pas sur perte de signal : la case est décochée, la fumée
     // reste désactivée (raison « relais requis ») tant que le test n'est pas réussi.
-    freezeFailedSignal.value = signalLossTest.value
-    if (signalLossTest.value) {
+    freezeFailedSignal.value = signalLossTest.value && !viaBoard.value
+    if (signalLossTest.value && !viaBoard.value) {
       run(() => wizard.setSmoke({ cutsOnSignalLoss: false }))
     }
   }

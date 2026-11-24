@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import type dbModule from '@backend/db'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { assertTestDatabase } from '../../setup/assertTestDatabase'
@@ -14,7 +15,7 @@ const PG_INTEGRATION_URL = process.env.PG_INTEGRATION_URL
 const MIGRATION = '20261124010000_add_marketing_consent_to_game_participants.js'
 const CONSENT_DATE = '2026-11-20T10:00:00.000Z'
 
-type Db = typeof import('@backend/db').default
+type Db = typeof dbModule
 
 describe.skipIf(!PG_INTEGRATION_URL)('consentement aux offres sur PostgreSQL', () => {
   let db: Db

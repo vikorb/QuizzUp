@@ -1,6 +1,8 @@
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
+import type dbModule from '@backend/db'
+import type { loadRoomContent as loadRoomContentType } from '@backend/routes/room/_content'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { assertTestDatabase } from '../../setup/assertTestDatabase'
@@ -21,14 +23,14 @@ const migration = require(
 
 const PG_INTEGRATION_URL = process.env.PG_INTEGRATION_URL
 
-type Db = typeof import('@backend/db').default
+type Db = typeof dbModule
 
 const KIDS_COLUMNS = ['kids_friendly', 'kids_mode']
 const MIGRATIONS = path.resolve(process.cwd(), 'backend/db/migrations')
 
 describe.skipIf(!PG_INTEGRATION_URL)('add_kids_flags sur PostgreSQL', () => {
   let db: Db
-  let loadRoomContent: typeof import('@backend/routes/room/_content').loadRoomContent
+  let loadRoomContent: typeof loadRoomContentType
 
   beforeAll(async () => {
     process.env.DATABASE_URL = PG_INTEGRATION_URL

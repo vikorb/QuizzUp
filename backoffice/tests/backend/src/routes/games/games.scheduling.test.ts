@@ -1,7 +1,6 @@
 import '../_helpers/registerRouteMocks'
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
+import gamesRoutes from '@backend/routes/games'
 import {
   COMPANY_STATUS_INACTIVE,
   GAME_MAX_PLAYERS,
@@ -20,7 +19,8 @@ import {
   SESSION_HORIZON_DAYS,
   SESSION_OPEN_EARLY_MINUTES,
 } from '@quizzup/shared'
-import gamesRoutes from '@backend/routes/games'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { db, dbState, MOCK_NOW } from '../_helpers/mockDb'
 import { securityState } from '../_helpers/mockSecurity'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'

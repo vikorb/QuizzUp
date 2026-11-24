@@ -1,20 +1,20 @@
 import '../_helpers/registerRouteMocks'
 
-import { describe, expect, it } from 'vitest'
-
+import {
+  getAdminRow,
+  getCompanyAdminsCount,
+  normalizeNullableString,
+} from '@backend/routes/companies/_shared'
 import {
   ADMIN_ROLE_ADMIN,
   ADMIN_ROLE_USER,
   ADMIN_STATUS_ACTIVE,
   ADMIN_STATUS_DELETED,
 } from '@quizzup/shared'
-import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
-import {
-  getAdminRow,
-  getCompanyAdminsCount,
-  normalizeNullableString,
-} from '@backend/routes/companies/_shared'
+import { describe, expect, it } from 'vitest'
+
 import { dbState, MOCK_NOW } from '../_helpers/mockDb'
+import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
 
 resetRouteMocksBeforeEach()
 

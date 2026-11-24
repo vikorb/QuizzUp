@@ -1,12 +1,12 @@
-import type { FastifyPluginAsync } from 'fastify'
-import { z } from 'zod'
-
 import {
   computeRoomSlots,
   GAME_SLOT_STATES,
   GAME_STATUS_DELETED,
   SESSION_HORIZON_DAYS,
 } from '@quizzup/shared'
+import type { FastifyPluginAsync } from 'fastify'
+import { z } from 'zod'
+
 import db from '../../db'
 import { findBookableRooms } from './_rooms'
 import { sendPublicError } from './_shared'

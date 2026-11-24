@@ -692,6 +692,15 @@ export const QUESTION_MEDIA_PROVIDERS = [QUESTION_MEDIA_PROVIDER_DEEZER] as cons
 export type QuestionMediaProvider = (typeof QUESTION_MEDIA_PROVIDERS)[number]
 
 /**
+ * Référence d'un titre ou d'une playlist du fournisseur : 1 à 20 chiffres. Le serveur la valide
+ * (elle est insérée dans l'URL appelée), le formulaire de thème en réduit un lien saisi.
+ * La borne de 20 est aussi écrite dans la contrainte `themes_playlist_ref_check` de la base et dans
+ * `docs/api/openapi.yaml` : la changer demande une migration et la mise à jour du contrat.
+ */
+export const QUESTION_MEDIA_REF_MAX_LENGTH = 20
+export const QUESTION_MEDIA_REF_PATTERN = new RegExp(`^\\d{1,${QUESTION_MEDIA_REF_MAX_LENGTH}}$`)
+
+/**
  * Effet joué sur l'extrait d'une question audio (blind test) : choisi par question, car la
  * reconnaissance d'un extrait transformé dépend de l'extrait. Même liste que `EXTRACT_EFFECTS`
  * de `@quizzup/audio` (`short` est appliqué par le moteur, les autres par le lecteur).

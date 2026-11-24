@@ -1,5 +1,3 @@
-import type { FastifyPluginAsync } from 'fastify'
-
 import {
   VOUCHER_STATE_CANCELLED,
   VOUCHER_STATE_EXPIRED,
@@ -8,6 +6,8 @@ import {
   VOUCHER_STATUS_ACTIVE,
   VOUCHER_STATUS_INACTIVE,
 } from '@quizzup/shared'
+import type { FastifyPluginAsync } from 'fastify'
+
 import { canAccessCompanyContext } from '../security/companiesPolicy'
 import { API_ACTION, API_RESOURCE } from '../security/permissions'
 import { requireApiPermission } from '../security/requireApiPermission'

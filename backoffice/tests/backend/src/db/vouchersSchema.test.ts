@@ -1,8 +1,6 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
-import { describe, expect, it } from 'vitest'
-
 import {
   VOUCHER_CODE_PATTERN,
   VOUCHER_LABEL_MAX_LENGTH,
@@ -11,12 +9,14 @@ import {
   VOUCHER_VALIDITY_MAX_DAYS,
   VOUCHER_VALIDITY_MIN_DAYS,
 } from '@quizzup/shared'
+import { describe, expect, it } from 'vitest'
 
 /** Les contraintes de la migration `vouchers` restent alignées sur les constantes partagées. */
 const migration = readFileSync(
   path.resolve(process.cwd(), 'backend/db/migrations/20261124030100_create_vouchers.js'),
   'utf8'
-)
+  // Sous Windows, git peut rendre le fichier en CRLF : le test compare des lignes en LF.
+).replaceAll('\r\n', '\n')
 
 describe('vouchers migration', () => {
   it('aligns the validity bounds and the default with the shared constants', () => {

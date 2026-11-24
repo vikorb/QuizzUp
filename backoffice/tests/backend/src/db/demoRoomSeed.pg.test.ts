@@ -3,11 +3,11 @@ import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
+import type dbModule from '@backend/db'
+import { roomScheduleSchema } from '@backend/routes/companies/rooms/_schemas'
+import { computeRoomSlots, type RoomSchedule } from '@quizzup/shared'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-import { computeRoomSlots, type RoomSchedule } from '@quizzup/shared'
-
-import { roomScheduleSchema } from '@backend/routes/companies/rooms/_schemas'
 import { assertTestDatabase } from '../../setup/assertTestDatabase'
 
 /**
@@ -59,7 +59,7 @@ describe('réglages de créneaux de la salle de démo', () => {
 
 const PG_INTEGRATION_URL = process.env.PG_INTEGRATION_URL
 
-type Db = typeof import('@backend/db').default
+type Db = typeof dbModule
 
 describe.skipIf(!PG_INTEGRATION_URL)('seed de démo sur PostgreSQL', () => {
   let db: Db

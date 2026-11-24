@@ -1,6 +1,3 @@
-import { vi } from 'vitest'
-import bcrypt from 'bcryptjs'
-
 import {
   ADMIN_ROLE_ADMIN,
   ADMIN_ROLE_SUPERADMIN,
@@ -12,6 +9,8 @@ import {
   COMPANY_STATUS_INACTIVE,
   QUESTION_STATUS_DELETED,
 } from '@quizzup/shared'
+import bcrypt from 'bcryptjs'
+import { vi } from 'vitest'
 
 export const MOCK_NOW = '2026-05-20T12:00:00.000Z'
 
@@ -551,9 +550,11 @@ class QueryBuilder {
       const isLowerBound = period[2] === '>='
 
       this.filters.push((row) => {
-        const value = columns.map((column) => getRowValue(row, column)).find((v) => v != null)
+        const value = columns
+          .map((column) => getRowValue(row, column))
+          .find((v) => v !== null && v !== undefined)
 
-        if (value == null) {
+        if (value === null || value === undefined) {
           return false
         }
 
@@ -989,7 +990,9 @@ class QueryBuilder {
         return getRowValue(row, column) as string | number
       }
 
-      const value = coalesce.map((name) => getRowValue(row, name)).find((v) => v != null)
+      const value = coalesce
+        .map((name) => getRowValue(row, name))
+        .find((v) => v !== null && v !== undefined)
 
       return new Date(value as string).getTime()
     }

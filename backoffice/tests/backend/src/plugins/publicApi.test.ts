@@ -1,15 +1,15 @@
 import '../routes/_helpers/registerDbMock'
 
-import fastify from 'fastify'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
+import publicApiPlugin from '@backend/plugins/publicApi'
+import { sendPublicError } from '@backend/routes/public/_shared'
 import {
   COMPANY_STATUS_ACTIVE,
   COMPANY_STATUS_DELETED,
   COMPANY_STATUS_INACTIVE,
 } from '@quizzup/shared'
-import publicApiPlugin from '@backend/plugins/publicApi'
-import { sendPublicError } from '@backend/routes/public/_shared'
+import fastify from 'fastify'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { dbState, resetDb } from '../routes/_helpers/mockDb'
 import { bearer, PUBLIC_API_NOW, seedRevokedToken, seedToken } from '../routes/_helpers/publicApi'
 

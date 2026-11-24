@@ -3,8 +3,6 @@ import './_helpers/registerRouteMocks'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
 import {
   ADMIN_ROLE_ADMIN,
   ADMIN_ROLE_ROOM,
@@ -13,11 +11,11 @@ import {
   ROOM_STATUS_ACTIVE,
 } from '@quizzup/shared'
 import bcrypt from 'bcryptjs'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import authRoutes from '../../../../backend/src/routes/auth'
-
 import { dbState, MOCK_NOW } from './_helpers/mockDb'
-
+import { resetRouteMocksBeforeEach } from './_helpers/resetRouteMocks'
 import {
   authHeaders,
   createRouteApp,
@@ -26,8 +24,6 @@ import {
   parseJson,
   superadminUser,
 } from './_helpers/testApp'
-
-import { resetRouteMocksBeforeEach } from './_helpers/resetRouteMocks'
 
 resetRouteMocksBeforeEach()
 

@@ -1,9 +1,8 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
-import { describe, expect, it } from 'vitest'
-
 import { API_KEY_STATUSES, API_KEY_TOKEN_PREFIX } from '@quizzup/shared'
+import { describe, expect, it } from 'vitest'
 
 /** Les contraintes de la migration de l'API de réservation restent alignées sur `@quizzup/shared`. */
 const migration = readFileSync(

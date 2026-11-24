@@ -2,11 +2,12 @@ import '../_helpers/registerDbMock'
 
 import fs from 'node:fs'
 import path from 'node:path'
+
+import { resolveApiDocPath } from '@backend/utils/apiDocPath'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { dbState, resetDb } from '../_helpers/mockDb'
 import { createPublicApp } from '../_helpers/publicApi'
-import { resolveApiDocPath } from '@backend/utils/apiDocPath'
 
 type App = Awaited<ReturnType<typeof createPublicApp>>
 

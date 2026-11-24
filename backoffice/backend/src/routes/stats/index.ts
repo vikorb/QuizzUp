@@ -3,7 +3,6 @@ import type { FastifyPluginAsync } from 'fastify'
 import { canAccessCompanyContext } from '../../security/companiesPolicy'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
 import { requireApiPermission } from '../../security/requireApiPermission'
-
 import { loadCompanyStats, loadTimeZoneNames } from './_queries'
 import { statsParamsSchema, statsQuerySchema } from './_schemas'
 import { resolveStatsPeriod, STATS_DEFAULT_TIME_ZONE } from './_shared'

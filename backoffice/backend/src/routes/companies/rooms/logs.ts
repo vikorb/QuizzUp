@@ -1,12 +1,11 @@
+import { ROOM_STATUS_DELETED, type RoomLog } from '@quizzup/shared'
 import type { FastifyPluginAsync } from 'fastify'
 
-import { ROOM_STATUS_DELETED, type RoomLog } from '@quizzup/shared'
 import db from '../../../db'
 import { isSuperadmin } from '../../../security/companiesPolicy'
 import { API_ACTION, API_RESOURCE } from '../../../security/permissions'
 import { requireApiPermission } from '../../../security/requireApiPermission'
 import { canReadRoomsContext } from '../../../security/roomsPolicy'
-
 import { roomLogsQuerySchema, roomParamsSchema } from './_schemas'
 import { findRoomInCompany, roomLogSelect } from './_shared'
 

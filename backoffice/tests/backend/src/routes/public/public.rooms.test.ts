@@ -1,8 +1,8 @@
 import '../_helpers/registerDbMock'
 
+import { COMPANY_STATUS_ACTIVE, ROOM_STATUS_DELETED, ROOM_STATUS_INACTIVE } from '@quizzup/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { COMPANY_STATUS_ACTIVE, ROOM_STATUS_DELETED, ROOM_STATUS_INACTIVE } from '@quizzup/shared'
 import { dbState, resetDb } from '../_helpers/mockDb'
 import {
   bearer,

@@ -1,6 +1,5 @@
-import type { Knex } from 'knex'
-
 import { PLAYER_EMAIL_RETENTION_YEARS } from '@quizzup/shared'
+import type { Knex } from 'knex'
 
 /** Clé du verrou consultatif PostgreSQL : empêche deux purges (deux backends, purge manuelle) de se chevaucher. */
 export const PLAYER_EMAIL_PURGE_LOCK_KEY = 7_424_001

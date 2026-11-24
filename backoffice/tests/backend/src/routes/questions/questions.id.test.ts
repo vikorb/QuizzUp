@@ -1,7 +1,6 @@
 import '../_helpers/registerRouteMocks'
 
-import { beforeEach, describe, expect, it } from 'vitest'
-
+import questionsRoutes from '@backend/routes/questions'
 import {
   ANSWER_STATUS_ACTIVE,
   ANSWER_STATUS_DELETED,
@@ -12,7 +11,8 @@ import {
   QUESTION_MEDIA_TYPE_IMAGE,
   QUESTION_MEDIA_TYPE_VIDEO,
 } from '@quizzup/shared'
-import questionsRoutes from '@backend/routes/questions'
+import { beforeEach, describe, expect, it } from 'vitest'
+
 import { dbState, lockedTables } from '../_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
 import { authHeaders, companyAdminUser, createRouteApp, parseJson } from '../_helpers/testApp'

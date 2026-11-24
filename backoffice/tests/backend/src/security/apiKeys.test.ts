@@ -1,10 +1,8 @@
 import { createHash } from 'node:crypto'
 
-import { describe, expect, it } from 'vitest'
-
-import { API_KEY_TOKEN_PATTERN, API_KEY_TOKEN_PREFIX } from '@quizzup/shared'
-
 import { generateApiKey, hashApiKey } from '@backend/security/apiKeys'
+import { API_KEY_TOKEN_PATTERN, API_KEY_TOKEN_PREFIX } from '@quizzup/shared'
+import { describe, expect, it } from 'vitest'
 
 describe('security/apiKeys', () => {
   it('builds a qzk_<8 hex>_<43 base64url> token whose prefix is its first 12 characters', () => {

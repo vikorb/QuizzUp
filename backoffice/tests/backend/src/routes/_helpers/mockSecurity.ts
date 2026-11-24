@@ -1,12 +1,11 @@
-import type { FastifyReply, FastifyRequest } from 'fastify'
-import { vi } from 'vitest'
-
 import {
   ADMIN_ROLE_ADMIN,
   ADMIN_ROLE_SUPERADMIN,
   ADMIN_ROLE_USER,
   type AdminRole,
 } from '@quizzup/shared'
+import type { FastifyReply, FastifyRequest } from 'fastify'
+import { vi } from 'vitest'
 
 type RequestWithUser = FastifyRequest & {
   user?: {

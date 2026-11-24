@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import type dbModule from '@backend/db'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { assertTestDatabase } from '../../../setup/assertTestDatabase'
@@ -14,7 +15,7 @@ import { authHeaders, createRouteApp, type TestUser } from '../_helpers/testApp'
 const PG_INTEGRATION_URL = process.env.PG_INTEGRATION_URL
 if (PG_INTEGRATION_URL) process.env.DATABASE_URL = PG_INTEGRATION_URL
 
-type Db = typeof import('@backend/db').default
+type Db = typeof dbModule
 
 const HEADER = 'theme;question;answer_1;answer_2;correct'
 const COMPANY_ADMIN: TestUser = {

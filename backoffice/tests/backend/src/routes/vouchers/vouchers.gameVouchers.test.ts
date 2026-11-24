@@ -1,8 +1,9 @@
 import '../_helpers/registerDbMock'
 
-import type { FastifyInstance } from 'fastify'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
+import type * as routesVouchersSharedModule from '@backend/routes/vouchers/_shared'
+import { generateVoucherCode } from '@backend/routes/vouchers/_shared'
+import gameVouchersRoutes from '@backend/routes/vouchers/gameVouchers'
+import { qrSvg } from '@backend/utils/qrSvg'
 import {
   COMPANY_STATUS_DELETED,
   GAME_STATE_RUNNING,
@@ -10,9 +11,9 @@ import {
   VOUCHER_STATUS_DELETED,
   VOUCHER_STATUS_INACTIVE,
 } from '@quizzup/shared'
-import gameVouchersRoutes from '@backend/routes/vouchers/gameVouchers'
-import { generateVoucherCode } from '@backend/routes/vouchers/_shared'
-import { qrSvg } from '@backend/utils/qrSvg'
+import type { FastifyInstance } from 'fastify'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { dbState, resetDb } from '../_helpers/mockDb'
 import {
   authHeaders,
@@ -36,7 +37,7 @@ import {
 
 // Seul le tirage du code est surveillé : le reste du module est le vrai.
 vi.mock('@backend/routes/vouchers/_shared', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@backend/routes/vouchers/_shared')>()
+  const actual = await importOriginal<typeof routesVouchersSharedModule>()
 
   return { ...actual, generateVoucherCode: vi.fn(actual.generateVoucherCode) }
 })

@@ -1,11 +1,11 @@
+import { THEME_SCOPE_COMPANY, THEME_SCOPE_GLOBAL, THEME_STATUS_DELETED } from '@quizzup/shared'
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import type { Knex } from 'knex'
 
-import { THEME_SCOPE_COMPANY, THEME_SCOPE_GLOBAL, THEME_STATUS_DELETED } from '@quizzup/shared'
 import db from '../db'
+import { getCurrentCompanyId, isSuperadmin } from '../security/companiesPolicy'
 import { API_ACTION, API_RESOURCE } from '../security/permissions'
 import { requireApiPermission } from '../security/requireApiPermission'
-import { getCurrentCompanyId, isSuperadmin } from '../security/companiesPolicy'
 import {
   buildThemePlaylistPatch,
   checkThemePlaylist,
@@ -18,10 +18,10 @@ import {
   isValidThemeScope,
   isValidThemeStatus,
   parseOptionalNumber,
-  themeListSelect,
-  themeSelect,
   type ThemeBody,
+  themeListSelect,
   type ThemeQuery,
+  themeSelect,
 } from './themes/_shared'
 import themeIdRoutes from './themes/id'
 import themeIdStatusRoutes from './themes/idStatus'

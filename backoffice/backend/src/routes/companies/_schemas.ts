@@ -1,5 +1,3 @@
-import { z } from 'zod'
-
 import {
   ADMIN_ROLE_ADMIN,
   ADMIN_ROLE_SUPERADMIN,
@@ -14,6 +12,7 @@ import {
   VOUCHER_VALIDITY_MAX_DAYS,
   VOUCHER_VALIDITY_MIN_DAYS,
 } from '@quizzup/shared'
+import { z } from 'zod'
 
 export const paramsSchema = z.object({
   id: z.coerce.number().int().positive(),

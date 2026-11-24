@@ -5,13 +5,13 @@ import { randomUUID } from 'node:crypto'
 
 import {
   GAME_IDLE_PHASES,
+  type GameCommandRefusal,
   LIVE_EVENT,
   LIVE_OFFLINE_AFTER_MS,
+  type LiveEvent,
   ROOM_COMMAND_RESULT,
   ROOM_COMMAND_TIMEOUT_MS,
   ROOM_PRESENCE,
-  type GameCommandRefusal,
-  type LiveEvent,
   type RoomCommand,
   type RoomCommandName,
   type RoomCommandResultMessage,
@@ -291,7 +291,7 @@ export function createLiveHub({ now = Date.now }: { now?: () => number } = {}) {
         return 'too_many'
       }
 
-      const timer = setTimeout(() => {
+      const expiryTimer = setTimeout(() => {
         const pending = commands.get(key)
 
         commands.delete(key)
@@ -306,14 +306,14 @@ export function createLiveHub({ now = Date.now }: { now?: () => number } = {}) {
         }
       }, ROOM_COMMAND_TIMEOUT_MS)
 
-      timer.unref()
+      expiryTimer.unref()
       commands.set(key, {
         companyId,
         roomId,
         command: command.command,
         fingerprint,
         settled: false,
-        timer,
+        timer: expiryTimer,
       })
       entry.stream.sink.send(LIVE_EVENT.COMMAND, { commandId, ...command })
 

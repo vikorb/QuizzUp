@@ -1,10 +1,13 @@
 import '../../_helpers/registerRouteMocks'
-import { describe, expect, it } from 'vitest'
-import bcrypt from 'bcryptjs'
 
+import companyAdminsRoutes from '@backend/routes/companies/admins'
 import { ADMIN_ROLE_SUPERADMIN, ADMIN_ROLE_USER, ADMIN_STATUS_ACTIVE } from '@quizzup/shared'
-import { resetRouteMocksBeforeEach } from '../../_helpers/resetRouteMocks'
+import bcrypt from 'bcryptjs'
+import { describe, expect, it } from 'vitest'
+
+import { dbState } from '../../_helpers/mockDb'
 import { securityState } from '../../_helpers/mockSecurity'
+import { resetRouteMocksBeforeEach } from '../../_helpers/resetRouteMocks'
 import {
   authHeaders,
   companyAdminUser,
@@ -13,8 +16,6 @@ import {
   parseJson,
   superadminUser,
 } from '../../_helpers/testApp'
-import companyAdminsRoutes from '@backend/routes/companies/admins'
-import { dbState } from '../../_helpers/mockDb'
 
 resetRouteMocksBeforeEach()
 

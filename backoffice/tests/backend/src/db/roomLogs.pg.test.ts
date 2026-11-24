@@ -1,8 +1,12 @@
 import path from 'node:path'
 
+import type dbModule from '@backend/db'
+import type routesCompaniesRoomsLogsModule from '@backend/routes/companies/rooms/logs'
+import type { pruneRoomLogs as pruneRoomLogsType } from '@backend/routes/room/_logs'
+import type routesRoomLogsModule from '@backend/routes/room/logs'
+import { ROOM_LOG_MAX_PER_ROOM } from '@quizzup/shared'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-import { ROOM_LOG_MAX_PER_ROOM } from '@quizzup/shared'
 import { assertTestDatabase } from '../../setup/assertTestDatabase'
 import { authHeaders, createRouteApp, type TestUser } from '../routes/_helpers/testApp'
 
@@ -18,7 +22,7 @@ import { authHeaders, createRouteApp, type TestUser } from '../routes/_helpers/t
 const PG_INTEGRATION_URL = process.env.PG_INTEGRATION_URL
 if (PG_INTEGRATION_URL) process.env.DATABASE_URL = PG_INTEGRATION_URL
 
-type Db = typeof import('@backend/db').default
+type Db = typeof dbModule
 
 const DAY_MS = 86_400_000
 
@@ -43,9 +47,9 @@ const admin = (companyId: number) =>
 
 describe.skipIf(!PG_INTEGRATION_URL)('journaux des salles sur PostgreSQL', () => {
   let db: Db
-  let pruneRoomLogs: typeof import('@backend/routes/room/_logs').pruneRoomLogs
-  let roomLogsRoutes: typeof import('@backend/routes/room/logs').default
-  let companyRoomLogsRoutes: typeof import('@backend/routes/companies/rooms/logs').default
+  let pruneRoomLogs: typeof pruneRoomLogsType
+  let roomLogsRoutes: typeof routesRoomLogsModule
+  let companyRoomLogsRoutes: typeof routesCompaniesRoomsLogsModule
 
   beforeAll(async () => {
     db = (await import('@backend/db')).default

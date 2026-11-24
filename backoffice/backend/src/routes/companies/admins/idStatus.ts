@@ -1,12 +1,11 @@
+import { ADMIN_STATUS_ACTIVE, ADMIN_STATUS_DELETED } from '@quizzup/shared'
 import type { FastifyPluginAsync } from 'fastify'
 
-import { ADMIN_STATUS_ACTIVE, ADMIN_STATUS_DELETED } from '@quizzup/shared'
 import db from '../../../db'
+import { canUpdateCompanyAccountStatusContext } from '../../../security/companiesPolicy'
 import { API_ACTION, API_RESOURCE } from '../../../security/permissions'
 import { requireApiPermission } from '../../../security/requireApiPermission'
-import { canUpdateCompanyAccountStatusContext } from '../../../security/companiesPolicy'
 import type { AdminStatusUpdateBody } from '../../../types/admin'
-
 import { adminParamsSchema, updateAdminStatusSchema } from '../_schemas'
 import { findAdminInCompany, findCompanyById, getAdminRow, revokeAdminSessions } from '../_shared'
 

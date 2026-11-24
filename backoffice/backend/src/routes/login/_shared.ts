@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { ADMIN_ROLE_ROOM, ADMIN_ROLE_SUPERADMIN, ADMIN_STATUS_ACTIVE } from '@quizzup/shared'
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 
 import db from '../../db'
 

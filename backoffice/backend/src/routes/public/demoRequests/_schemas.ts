@@ -1,5 +1,3 @@
-import { z } from 'zod'
-
 import {
   DEMO_REQUEST_CENTER_NAME_MAX,
   DEMO_REQUEST_EMAIL_MAX,
@@ -8,6 +6,7 @@ import {
   DEMO_REQUEST_PHONE_PATTERN,
   DEMO_REQUEST_ROOMS_MAX,
 } from '@quizzup/shared'
+import { z } from 'zod'
 
 /**
  * Corps de `POST /public/v1/demo-requests`. `website` est le champ piège : invisible pour une

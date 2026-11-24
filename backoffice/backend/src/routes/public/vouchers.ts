@@ -1,11 +1,11 @@
-import type { FastifyPluginAsync } from 'fastify'
-
 import {
   COMPANY_STATUS_DELETED,
   formatVoucherCode,
   getVoucherState,
   VOUCHER_STATUS_DELETED,
 } from '@quizzup/shared'
+import type { FastifyPluginAsync } from 'fastify'
+
 import db from '../../db'
 import { createRateLimiter, replyTooManyRequests } from '../../security/rateLimit'
 import { companyLogoUrl } from '../companies/_shared'

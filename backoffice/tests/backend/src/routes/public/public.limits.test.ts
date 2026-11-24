@@ -1,9 +1,9 @@
 import '../_helpers/registerDbMock'
 
+import { PUBLIC_RATE_LIMIT_MAX } from '@backend/routes/public/_shared'
+import { COMPANY_STATUS_ACTIVE } from '@quizzup/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { COMPANY_STATUS_ACTIVE } from '@quizzup/shared'
-import { PUBLIC_RATE_LIMIT_MAX } from '@backend/routes/public/_shared'
 import { dbState, resetDb } from '../_helpers/mockDb'
 import { bearer, createPublicApp, PUBLIC_API_NOW, seedRoom, seedToken } from '../_helpers/publicApi'
 

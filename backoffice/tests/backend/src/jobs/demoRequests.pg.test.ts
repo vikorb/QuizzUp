@@ -1,10 +1,11 @@
 import path from 'node:path'
 
+import type dbModule from '@backend/db'
+import type { purgeExpiredDemoRequests as PurgeFn } from '@backend/jobs/purgeDemoRequests'
+import { DEMO_REQUEST_ROOMS_MAX } from '@quizzup/shared'
 import fastify from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-import { DEMO_REQUEST_ROOMS_MAX } from '@quizzup/shared'
-import type { purgeExpiredDemoRequests as PurgeFn } from '@backend/jobs/purgeDemoRequests'
 import { assertTestDatabase } from '../../setup/assertTestDatabase'
 
 /**
@@ -30,7 +31,7 @@ const ELEVEN_MONTHS_AGO = '2025-12-23T12:00:00.000Z'
 const JUST_BEFORE_CUTOFF = '2025-11-23T11:59:59.999Z'
 const AT_CUTOFF = '2025-11-23T12:00:00.000Z'
 
-type Db = typeof import('@backend/db').default
+type Db = typeof dbModule
 
 describe.skipIf(!PG_INTEGRATION_URL)('demo_requests sur PostgreSQL', () => {
   let db: Db

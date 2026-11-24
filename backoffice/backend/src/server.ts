@@ -1,15 +1,16 @@
 // src/server.ts
 import 'dotenv/config'
+
 import { buildApp } from './app'
 import db from './db'
-import { purgeExpiredApiRecords } from './jobs/purgeApiRecords'
-import { purgeExpiredDemoRequests } from './jobs/purgeDemoRequests'
-import { purgeExpiredPlayerEmails } from './jobs/purgePlayerEmails'
-import { purgeStaleJoinRegistrations } from './jobs/purgeJoinRegistrations'
 import {
   parsePlayerEmailPurgeIntervalHours,
   startPlayerEmailPurgeScheduler,
 } from './jobs/playerEmailPurgeScheduler'
+import { purgeExpiredApiRecords } from './jobs/purgeApiRecords'
+import { purgeExpiredDemoRequests } from './jobs/purgeDemoRequests'
+import { purgeStaleJoinRegistrations } from './jobs/purgeJoinRegistrations'
+import { purgeExpiredPlayerEmails } from './jobs/purgePlayerEmails'
 
 const app = buildApp()
 const port = Number(process.env.API_PORT || 3001)

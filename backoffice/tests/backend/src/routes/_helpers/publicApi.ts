@@ -1,9 +1,9 @@
-import fastify from 'fastify'
-
-import { API_KEY_STATUS_REVOKED, ROOM_STATUS_ACTIVE, type RoomSchedule } from '@quizzup/shared'
 import liveHubPlugin from '@backend/plugins/liveHub'
 import { PUBLIC_API_PREFIX } from '@backend/routes/public/_shared'
 import { generateApiKey } from '@backend/security/apiKeys'
+import { API_KEY_STATUS_REVOKED, ROOM_STATUS_ACTIVE, type RoomSchedule } from '@quizzup/shared'
+import fastify from 'fastify'
+
 import { seedApiKey } from './apiKeys'
 import { dbState } from './mockDb'
 

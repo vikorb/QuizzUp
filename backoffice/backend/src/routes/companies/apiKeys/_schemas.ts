@@ -1,11 +1,10 @@
-import { z } from 'zod'
-
 import {
   API_KEY_NAME_MAX_LENGTH,
   API_LOG_LIST_DEFAULT_LIMIT,
   API_LOG_LIST_MAX_LIMIT,
   API_LOG_STATUS_CLASSES,
 } from '@quizzup/shared'
+import { z } from 'zod'
 
 export const apiKeysParamsSchema = z.object({
   companyId: z.coerce.number().int().positive(),

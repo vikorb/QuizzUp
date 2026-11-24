@@ -1,14 +1,14 @@
 import '../_helpers/registerDbMock'
 
+import type * as nodeCryptoModule from 'node:crypto'
 import { randomBytes } from 'node:crypto'
 
+import { generateVoucherCode, toVoucherRow, voucherUrl } from '@backend/routes/vouchers/_shared'
+import { VOUCHER_CODE_ALPHABET, VOUCHER_CODE_PATTERN } from '@quizzup/shared'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { VOUCHER_CODE_ALPHABET, VOUCHER_CODE_PATTERN } from '@quizzup/shared'
-import { generateVoucherCode, toVoucherRow, voucherUrl } from '@backend/routes/vouchers/_shared'
-
 vi.mock('node:crypto', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:crypto')>()
+  const actual = await importOriginal<typeof nodeCryptoModule>()
 
   return { ...actual, randomBytes: vi.fn(actual.randomBytes) }
 })

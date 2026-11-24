@@ -1,5 +1,3 @@
-import { describe, expect, it } from 'vitest'
-
 import {
   formatVoucherCode,
   getVoucherState,
@@ -11,6 +9,7 @@ import {
   VOUCHER_STATUS_DELETED,
   VOUCHER_STATUS_INACTIVE,
 } from '@quizzup/shared'
+import { describe, expect, it } from 'vitest'
 
 describe('normalizeVoucherCode', () => {
   it.each([

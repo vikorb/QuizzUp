@@ -3,7 +3,6 @@ import type { FastifyPluginAsync } from 'fastify'
 import db from '../../../db'
 import { createRateLimiter, replyTooManyRequests } from '../../../security/rateLimit'
 import { sendPublicError } from '../_shared'
-
 import { createDemoRequestSchema } from './_schemas'
 
 /** Corps maximal d'une demande : 16 Ko suffisent largement (message de 2000 caractères au plus). */

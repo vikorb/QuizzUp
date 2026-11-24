@@ -1,7 +1,7 @@
 import './_helpers/registerRouteMocks'
 
-import { afterEach, describe, expect, it, vi } from 'vitest'
-
+import roomRoutes from '@backend/routes/room'
+import { qrSvg } from '@backend/utils/qrSvg'
 import {
   ADMIN_ROLE_ROOM,
   GAME_STATE_ABORTED,
@@ -13,8 +13,8 @@ import {
   ROOM_STATUS_DELETED,
   type RoomSchedule,
 } from '@quizzup/shared'
-import roomRoutes from '@backend/routes/room'
-import { qrSvg } from '@backend/utils/qrSvg'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
 import { db, dbState, lockedTables, MOCK_NOW } from './_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from './_helpers/resetRouteMocks'
 import {

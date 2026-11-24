@@ -1,19 +1,18 @@
-import type { FastifyPluginAsync } from 'fastify'
-import bcrypt from 'bcryptjs'
-
 import { ADMIN_ROLE_ROOM, ADMIN_STATUS_ACTIVE, ROOM_STATUS_DELETED } from '@quizzup/shared'
+import bcrypt from 'bcryptjs'
+import type { FastifyPluginAsync } from 'fastify'
+
 import db from '../../../db'
 import { API_ACTION, API_RESOURCE } from '../../../security/permissions'
 import { requireApiPermission } from '../../../security/requireApiPermission'
 import { canManageRoomsContext } from '../../../security/roomsPolicy'
 import { isUniqueViolation } from '../../_shared/dbErrors'
-
 import {
   buildRoomAccountEmail,
   deleteRoomAccount,
   findRoomAccount,
-  roomAccountSelect,
   type RoomAccountRow,
+  roomAccountSelect,
 } from './_account'
 import { createRoomAccountSchema, roomParamsSchema } from './_schemas'
 import { findRoomInCompany, isRoomCompanyDeleted } from './_shared'

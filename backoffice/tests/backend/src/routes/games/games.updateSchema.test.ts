@@ -1,7 +1,6 @@
+import { updateGameSchema } from '@backend/routes/games/_schemas'
 import { MINI_GAME_FIRST_BUZZ, MINI_GAMES } from '@quizzup/shared'
 import { describe, expect, it } from 'vitest'
-
-import { updateGameSchema } from '@backend/routes/games/_schemas'
 
 /**
  * Corps de PATCH écrits à la main, identiques à ceux que produit `buildUpdateGamePayload` du

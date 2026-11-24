@@ -1,13 +1,13 @@
 import '../_helpers/registerRouteMocks'
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-
-import { COMPANY_LOGO_MAX_BYTES, COMPANY_STATUS_DELETED } from '@quizzup/shared'
 import companyLogoRoutes from '@backend/routes/companies/logo'
 import { canRoleAccessApi } from '@backend/security/permissions'
 import { setMediaStorage } from '@backend/storage/mediaStorage'
-import { dbState, lockedTables } from '../_helpers/mockDb'
+import { COMPANY_LOGO_MAX_BYTES, COMPANY_STATUS_DELETED } from '@quizzup/shared'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+
 import { createMemoryMediaStorage, type MemoryMediaStorage } from '../_helpers/memoryMediaStorage'
+import { dbState, lockedTables } from '../_helpers/mockDb'
 import { securityState } from '../_helpers/mockSecurity'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
 import {

@@ -1,6 +1,5 @@
-import type { FastifyRequest } from 'fastify'
-
 import { ADMIN_ROLE_USER, type AdminRole } from '@quizzup/shared'
+import type { FastifyRequest } from 'fastify'
 
 type AuthPayload = {
   id?: number | string

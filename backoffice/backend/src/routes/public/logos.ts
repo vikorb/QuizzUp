@@ -1,7 +1,7 @@
+import { COMPANY_STATUS_DELETED } from '@quizzup/shared'
 import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 
-import { COMPANY_STATUS_DELETED } from '@quizzup/shared'
 import db from '../../db'
 import { getMediaStorage, isValidMediaKey } from '../../storage/mediaStorage'
 import { sendPublicError } from './_shared'

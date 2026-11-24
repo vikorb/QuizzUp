@@ -1,10 +1,11 @@
+import { ANSWER_STATUS_DELETED } from '@quizzup/shared'
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 
-import { ANSWER_STATUS_DELETED } from '@quizzup/shared'
 import db from '../../../db'
 import { API_ACTION, API_RESOURCE } from '../../../security/permissions'
 import { requireApiPermission } from '../../../security/requireApiPermission'
 import {
+  type AnswerBody,
   answerSelect,
   canEditQuestion,
   canReadQuestion,
@@ -13,9 +14,8 @@ import {
   getQuestionAccessRow,
   lockQuestionAnswers,
   parsePositiveId,
-  validateLockedAnswersForKind,
-  type AnswerBody,
   type QuestionParams,
+  validateLockedAnswersForKind,
 } from '../_shared'
 
 const questionAnswersRoutes: FastifyPluginAsync = async (app) => {

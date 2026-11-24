@@ -3,6 +3,7 @@
 // Efface le secret et les codes de secours, révoque les sessions : le prochain login repasse par
 // l'enrôlement. Demande un accès au serveur, voulu : aucune réinitialisation par l'API.
 import 'dotenv/config'
+
 import { parseArgs } from 'node:util'
 
 import { ADMIN_ROLE_SUPERADMIN } from '@quizzup/shared'

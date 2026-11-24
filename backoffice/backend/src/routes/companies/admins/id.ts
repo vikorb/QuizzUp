@@ -1,6 +1,3 @@
-import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
-import bcrypt from 'bcryptjs'
-
 import {
   ADMIN_ROLE_ADMIN,
   ADMIN_ROLE_SUPERADMIN,
@@ -9,15 +6,17 @@ import {
   ADMIN_STATUS_DELETED,
   type AdminRole,
 } from '@quizzup/shared'
+import bcrypt from 'bcryptjs'
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
+
 import db from '../../../db'
-import { API_ACTION, API_RESOURCE } from '../../../security/permissions'
-import { requireApiPermission } from '../../../security/requireApiPermission'
 import {
   canDeleteCompanyAccountContext,
   canReadCompanyAccountContext,
   canUpdateCompanyAccountContext,
 } from '../../../security/companiesPolicy'
-
+import { API_ACTION, API_RESOURCE } from '../../../security/permissions'
+import { requireApiPermission } from '../../../security/requireApiPermission'
 import { adminParamsSchema, updateAdminSchema } from '../_schemas'
 import {
   findAdminInCompany,

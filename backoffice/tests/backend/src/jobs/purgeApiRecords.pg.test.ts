@@ -1,5 +1,7 @@
 import path from 'node:path'
 
+import type dbModule from '@backend/db'
+import type { purgeExpiredApiRecords as purgeExpiredApiRecordsType } from '@backend/jobs/purgeApiRecords'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { assertTestDatabase } from '../../setup/assertTestDatabase'
@@ -23,11 +25,11 @@ const AT_LOG_CUTOFF = '2026-08-26T12:00:00.000Z'
 const JUST_BEFORE_IDEMPOTENCY_CUTOFF = '2026-11-23T11:59:59.999Z'
 const AT_IDEMPOTENCY_CUTOFF = '2026-11-23T12:00:00.000Z'
 
-type Db = typeof import('@backend/db').default
+type Db = typeof dbModule
 
 describe.skipIf(!PG_INTEGRATION_URL)("purge de l'API de réservation sur PostgreSQL", () => {
   let db: Db
-  let purge: typeof import('@backend/jobs/purgeApiRecords').purgeExpiredApiRecords
+  let purge: typeof purgeExpiredApiRecordsType
 
   beforeAll(async () => {
     process.env.DATABASE_URL = PG_INTEGRATION_URL

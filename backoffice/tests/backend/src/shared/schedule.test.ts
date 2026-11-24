@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest'
-
 import {
-  computeRoomSlots,
   type BusyInterval,
+  computeRoomSlots,
   GAME_MAX_PLAYERS,
+  type RoomSchedule,
+  type RoomScheduleDay,
+  type RoomScheduleDayKey,
   SESSION_DEFAULT_MINUTES,
   SESSION_HORIZON_DAYS,
   SESSION_MAX_BREAK_MINUTES,
@@ -11,10 +12,8 @@ import {
   SESSION_MIN_MINUTES,
   SESSION_OPEN_EARLY_MINUTES,
   zonedLocalToUtc,
-  type RoomSchedule,
-  type RoomScheduleDay,
-  type RoomScheduleDayKey,
 } from '@quizzup/shared'
+import { describe, expect, it } from 'vitest'
 
 const ALL_DAYS: RoomScheduleDayKey[] = ['1', '2', '3', '4', '5', '6', '7']
 // Loin avant toutes les dates testées : aucun créneau n'est « passé ».

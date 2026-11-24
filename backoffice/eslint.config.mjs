@@ -8,6 +8,15 @@ import globals from 'globals'
 import tseslint from 'typescript-eslint'
 import vueParser from 'vue-eslint-parser'
 
+// Règles typescript-eslint communes au frontend et au TypeScript du backend.
+const TS_SHARED_RULES = {
+  '@typescript-eslint/no-explicit-any': 'warn',
+  '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
+  '@typescript-eslint/no-shadow': 'error',
+}
+
+const BACKEND_TS_FILES = ['**/backend/**/*.ts', '**/tests/backend/**/*.ts']
+
 export default [
   {
     ignores: [
@@ -101,10 +110,8 @@ export default [
     files: ['**/frontend/**/*.{ts,tsx}'],
     rules: {
       ...(config.rules ?? {}),
-      '@typescript-eslint/no-explicit-any': 'warn',
+      ...TS_SHARED_RULES,
       '@typescript-eslint/ban-ts-comment': ['error', { 'ts-ignore': 'allow-with-description' }],
-      '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
-      '@typescript-eslint/no-shadow': 'error',
       '@typescript-eslint/no-unused-vars': 'off',
       'no-restricted-imports': [
         'error',
@@ -141,6 +148,32 @@ export default [
       ],
     },
   })),
+
+  // TypeScript du backend et de ses tests : jeu de règles volontairement réduit (défauts réels,
+  // coût de correction faible). Les règles globales ci-dessus (tri des imports, imports et
+  // variables inutilisés, eqeqeq, no-useless-assignment) s'y appliquent aussi.
+  // Hors périmètre pour l'instant, avec le nombre de constats mesuré sur backend/ et tests/backend :
+  // - @typescript-eslint/naming-convention : 3138 (colonnes de base en snake_case)
+  // - no-restricted-imports : 664
+  // - consistent-return : 477
+  // - id-length : 124
+  // - unicorn/consistent-function-scoping : 94
+  // - no-param-reassign : 12 (mutation voulue de req, route, accumulateurs et lignes de test)
+  ...[tseslint.configs.base, tseslint.configs.eslintRecommended].map((config) => ({
+    ...config,
+    files: BACKEND_TS_FILES,
+  })),
+  {
+    files: BACKEND_TS_FILES,
+    rules: {
+      ...TS_SHARED_RULES,
+      'no-shadow': 'off',
+      'consistent-return': 'off',
+      'id-length': 'off',
+      'unicorn/consistent-function-scoping': 'off',
+      'no-param-reassign': 'off',
+    },
+  },
 
   {
     files: ['**/frontend/**/*.vue'],

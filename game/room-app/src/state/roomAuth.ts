@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { flushPendingFinishes } from '@/game/pendingFinishes'
 import { createLocalSessionStorage } from '@/game/session'
 import { setHardwareRemoteSaver, stopLighting } from '@/hardware/roomHardware'
+import { resetSmokeBoard } from '@/hardware/smokeBoard'
 import {
   fetchRoomAccount,
   getRoomToken,
@@ -77,6 +78,8 @@ export async function refreshRoomAccount(): Promise<void> {
 export async function expireRoomSession(): Promise<void> {
   clearLocalSession({ keepSavedGame: true })
   // Plus personne aux commandes : lumières éteintes et fumée coupée, comme à la déconnexion.
+  // Le lien de la carte se ferme d'abord : sa reprise seule ne doit pas relancer les lumières.
+  await resetSmokeBoard().catch(() => undefined)
   await stopLighting().catch(() => undefined)
 }
 
@@ -100,6 +103,7 @@ export async function signOut(): Promise<void> {
   const current = token.value
   clearLocalSession()
   // Plus personne aux commandes : noir complet, fumée coupée, interface DMX libérée.
+  await resetSmokeBoard().catch(() => undefined)
   await stopLighting().catch(() => undefined)
   if (current) {
     await logoutApi(current)
