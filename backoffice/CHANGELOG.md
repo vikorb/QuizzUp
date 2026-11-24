@@ -10,6 +10,8 @@ Format inspiré de Keep a Changelog.
 
 - Bons : page publique `/bon/#<code>` pour le téléphone du joueur, sur la même infrastructure que `/rejoindre/`. Elle affiche l'état du bon (valide, utilisé, expiré, annulé, introuvable) ; le code reste dans le fragment de l'adresse et part dans le corps de la requête, jamais dans une URL.
   US: US-VOUCHER-01 (#156)
+- Accueil des joueurs dans le backoffice : sur la fiche d'une partie en attente, un panneau « Accueil » ouvre ou ferme le lien d'inscription, l'affiche avec son QR code (plein écran possible), liste les demandes et permet de les valider sur un pupitre ou de les refuser. La création d'une partie peut ouvrir l'accueil d'emblée et mène alors à la fiche.
+  US: US-JOIN-01 (#166)
 
 - Accueil des joueurs, page du téléphone : `/rejoindre/` (lien ou QR code d'une partie en attente) où le joueur saisit son nom, un second joueur et, s'il le veut, son e-mail avec ses accords. Routes publiques `POST /public/v1/join/lookup` et `POST /public/v1/join/registrations` : le jeton voyage dans le corps, jamais dans l'adresse ; 404 `join_link_invalid`, 410 `join_link_closed`, 409 `join_full` au-delà de 12 demandes en attente, 30 inscriptions par minute et par adresse.
   US: US-JOIN-01 (#166)

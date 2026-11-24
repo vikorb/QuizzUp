@@ -56,7 +56,7 @@ import BaseCard from '@/components/ui/BaseCard.vue'
 import LiveConnectionNote from '@/components/ui/LiveConnectionNote.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { useLiveCompany } from '@/composables/useLiveCompany'
-import { getAgendaRoute, getGamesRoute } from '@/router/games'
+import { getAgendaRoute, getGameDetailRoute, getGamesRoute } from '@/router/games'
 import { listGameRoomsService, loadGameService } from '@/services/gamesService'
 import { authState } from '@/state/authState'
 import type { Game, GameRoom } from '@/types/game'
@@ -199,6 +199,12 @@ function goBack(): void {
 function handleCreated(game: Game): void {
   if (game.scheduledAt) {
     goToAgendaOf(game, 'scheduled')
+    return
+  }
+
+  // Inscription par QR code ouverte : le lien et le QR code sont sur la fiche, pas dans la liste.
+  if (game.join) {
+    void router.push(getGameDetailRoute(game.id, companyContext.value))
     return
   }
 
