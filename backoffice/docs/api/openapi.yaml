@@ -2808,7 +2808,7 @@ paths:
 
         Émet le bon de fidélisation d'un pupitre d'une partie terminée (un bon par pupitre et par partie, partagé par le duo). Le libellé du bon est copié du réglage `voucherLabel` du centre au moment de l'émission ; la fin de validité est l'émission plus `voucherValidityDays` jours. Le code (`XXXX-XXXX`) est tiré sur 40 bits.
 
-        `url` est l'adresse de la page publique du bon (`PUBLIC_APP_URL` + `/bon/#<code>`), nulle tant que `PUBLIC_APP_URL` n'est pas réglée. Le QR code (`qrSvg`) n'est pas encore fourni : il arrive avec le générateur de QR du lot 2.
+        `url` est l'adresse de la page publique du bon (`PUBLIC_APP_URL` + `/bon/#<code>`), nulle tant que `PUBLIC_APP_URL` n'est pas réglée. `qrSvg` : QR code de `url`, `null` quand `url` l'est.
 
         Ordre des contrôles : droit, paramètres et corps, compagnie, compagnie et partie existantes (`404 not_found`), bons activés (`409 vouchers_disabled`), partie terminée (`409 game_not_finished`), pupitre de cette partie (`404 participant_not_found`), bon déjà émis (`409 voucher_already_issued`, y compris pour un bon annulé).
 
@@ -2866,7 +2866,7 @@ paths:
       description: |
         Statut : **Disponible** (lot 6b)
 
-        Bons non supprimés de la partie, dans l'ordre des pupitres, avec leur `state` (un bon annulé est listé : c'est à la feuille de résultats de l'ignorer).
+        Bons non supprimés de la partie, dans l'ordre des pupitres, avec leur `state` (un bon annulé est listé : c'est à la feuille de résultats de l'ignorer). `qrSvg` : QR code de `url`, `null` quand `url` l'est.
 
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
       operationId: listGameVouchers
@@ -8472,8 +8472,9 @@ components:
           type: string
           nullable: true
           description: >-
-            QR code de `url` en SVG complet (`<svg …>`, à afficher en `<img src="data:image/svg+xml,…">`
-            ou en ligne). `null` quand `url` est relative (`PUBLIC_APP_URL` vide).
+            QR code de `url` en SVG complet (`<svg …>`), à afficher en ligne ou en
+            `<img src="data:image/svg+xml;charset=utf-8,…">` où `…` est `encodeURIComponent(qrSvg)`.
+            `null` quand `url` est relative (`PUBLIC_APP_URL` vide).
         expiresAt:
           type: string
           format: date-time

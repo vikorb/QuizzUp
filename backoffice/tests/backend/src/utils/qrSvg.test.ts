@@ -50,8 +50,10 @@ describe('utils/qrSvg.ts', () => {
     expect(svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ')).toBe(true)
     expect(svg.endsWith('</svg>')).toBe(true)
     expect(svg).toContain('shape-rendering="crispEdges"')
-    expect(svg).toContain(`<rect width="${size}" height="${size}" fill="#fff"/>`)
-    expect(svg).toContain('<path fill="#000" d="M')
+    expect(svg).toContain(`<rect width="${size}" height="${size}" fill="white"/>`)
+    expect(svg).toContain('<path fill="black" d="M')
+    // Un `#` ouvrirait le fragment d'une adresse `data:` non encodée et casserait l'image.
+    expect(svg).not.toContain('#')
     expect(svg).not.toMatch(/<script|href|http:\/\/(?!www\.w3\.org)|https:|url\(|<image/)
     expect((svg.match(/</g) ?? []).length).toBe(4)
     // Version 1 = 21 modules ; 29 avec la marge au minimum.

@@ -7,6 +7,9 @@ const QUIET_ZONE_MODULES = 4
  * QR code en SVG autonome (sans script ni ressource externe) : modules noirs sur fond blanc,
  * marge de 4 modules, correction d'erreur M. Une seule unité par module (`viewBox`) : l'appelant
  * fixe la taille par CSS. Chaque suite de modules noirs d'une ligne est un trait de `<path>`.
+ * Couleurs en toutes lettres, jamais `#fff` : le SVG ne contient aucun `#`, qui ouvrirait le
+ * fragment d'une adresse `data:` non encodée. Pour une image :
+ * `data:image/svg+xml;charset=utf-8,` + `encodeURIComponent(svg)`.
  */
 export function qrSvg(text: string): string {
   const code = qrcode(0, 'M')
@@ -40,6 +43,6 @@ export function qrSvg(text: string): string {
 
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges">` +
-    `<rect width="${size}" height="${size}" fill="#fff"/><path fill="#000" d="${path}"/></svg>`
+    `<rect width="${size}" height="${size}" fill="white"/><path fill="black" d="${path}"/></svg>`
   )
 }
