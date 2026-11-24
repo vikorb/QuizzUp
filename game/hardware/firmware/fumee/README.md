@@ -5,8 +5,9 @@ machine à fumée, est au niveau haut. Conception : `docs/cadrage/conception-fum
 (issue #215). **Rien n'a été essayé sur une vraie carte** : tout ce qui touche au matériel est à
 valider sur le banc (cas F11 à F20 de `docs/recette/banc-materiel.md`).
 
-Ce dossier ne contient pas de mode d'emploi d'installation (lots suivants). Le `.hex` n'est pas
-encore versionné : la CI le compile et le publie en artefact.
+Le mode d'emploi de l'opérateur (installation, sauvegarde, restauration, dépannage) est dans
+`docs/guides/fumee-carte-usb.md`. Le `fumee.hex` de ce dossier est versionné ; la CI le recompile,
+le publie en artefact et échoue s'il diffère.
 
 ## Fichiers
 

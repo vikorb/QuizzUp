@@ -214,5 +214,18 @@ export function createFakeBoardPort(options: FakeBoardOptions = {}) {
       lost = true
       controller?.error(domError('NetworkError'))
     },
+    /** Câble rebranché : le port peut de nouveau s'ouvrir. */
+    replug: () => {
+      lost = false
+    },
+    /** La carte redémarre en cours de partie : sa bannière arrive une seconde fois. */
+    reboot: () => {
+      if (banner !== null) {
+        emit(
+          ascii(`${banner}
+`)
+        )
+      }
+    },
   }
 }
