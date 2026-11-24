@@ -66,6 +66,25 @@ describe('interface DMX retrouvée par son identité USB (lighting.usb)', () => 
     }
   })
 
+  it('le port déjà ouvert l’emporte sur son jumeau, jamais sur un autre modèle', async () => {
+    const open = portWith(FTDI)
+    const twin = portWith(FTDI)
+    for (const ports of orders([open, twin, portWith(UNO)])) {
+      expect(await findDmxPortByUsb(createFakeSerial(ports), FTDI, { prefer: open })).toEqual({
+        status: 'found',
+        port: open,
+      })
+    }
+    // Un port préféré d'un autre modèle ne change rien : le modèle retenu reste seul à compter.
+    const ch340 = portWith(CH340)
+    expect(
+      await findDmxPortByUsb(createFakeSerial([ch340, twin, open]), CH340, { prefer: open })
+    ).toEqual({ status: 'found', port: ch340 })
+    expect(await findDmxPortByUsb(createFakeSerial([twin, open]), CH340, { prefer: open })).toEqual(
+      { status: 'absent' }
+    )
+  })
+
   describe('la carte de la fumée n’est jamais ouverte en DMX', () => {
     it('est écartée du choix : un autre port du même modèle n’est pas ambigu avec elle', async () => {
       const board = portWith(UNO)

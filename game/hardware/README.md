@@ -706,19 +706,27 @@ appareils identiques ne se distinguent donc pas : le cas est **signalé, jamais 
   connecte l'interface (`connectDmxInterface`) et qu'elle s'ouvre. Il est **exporté** (point de départ
   à confirmer), mais **ne passe pas au contrôleur** (`activeLightingConfig` le retire : l'enregistrer
   ne relance pas les lumières).
-- **`findDmxPortByUsb(serial, usb, { exclude })`** retrouve l'interface après un rechargement :
+- **`findDmxPortByUsb(serial, usb, { exclude, prefer })`** retrouve l'interface après un rechargement :
   `found` (un seul port du modèle), `ambiguous` (deux ports du même modèle : aucun n'est ouvert, il
   faut en débrancher un), `absent` (jamais un autre modèle, même une puce DMX connue) ou `excluded`
   (le modèle retenu est celui de la carte de la fumée). Le résultat ne dépend pas de l'ordre de
-  `getPorts()`. **La carte de la fumée (`lighting.smoke.board`) est écartée avant tout choix** et
+  `getPorts()` ; `prefer` (le port déjà ouvert par la page) l'emporte sur son jumeau. **La carte de la fumée (`lighting.smoke.board`) est écartée avant tout choix** et
   n'est jamais retenue comme interface DMX. Sans `lighting.usb` (ancienne configuration),
-  `getGrantedDmxPort` choisit comme avant.
+  `getGrantedDmxPort` choisit comme avant. Avec `lighting.usb`, jamais un autre modèle : même quand
+  un port est déjà ouvert, seul le modèle retenu est repris.
+  `connectDmxInterface` rend `false` (rien n'ouvert, `dmxPortProblem = 'smoke_board'`) si l'opérateur
+  choisit la carte de la fumée dans la fenêtre du navigateur.
 - **`buzzers.source.id`** (`Gamepad.id` complet de la carte, facultatif) : retenu quand les buzzers
   sont appris (`saveLearnedBuzzers`, `saveRoomSetup`) avec la carte lue à ce moment. Une fois présent,
   `gamepadMatcher` ne laisse lire que les cartes de cet `id` exact (il prime sur `match`). Il désigne
   la carte de ce PC : **jamais exporté ni importé**, la carte se réapprend. Si le navigateur change
-  l'`id` de la carte (pilote), plus rien n'est lu jusqu'au nouvel apprentissage.
-- **Deux cartes identiques** : `createGamepadBuzzerInput` n'en lit aucune, `getAmbiguousGamepads()` les
+  l'`id` de la carte (pilote), plus rien n'est lu : il faut refaire l'apprentissage dans l'assistant
+  (clavier, puis manette) pour retenir le nouvel `id`.
+- **`withDeviceIdentity(config, latest)`** : l'assistant enregistre un instantané pris à son ouverture ;
+  elle y remet le `lighting.usb` et le `buzzers.source.id` de la config enregistrée la plus récente
+  (connexion de l'interface, apprentissage), sinon l'enregistrement les effacerait.
+- **Deux cartes identiques** (n'importe quelle paire parmi les cartes qui correspondent) :
+  `createGamepadBuzzerInput` n'en lit aucune, `getAmbiguousGamepads()` les
   liste et `onChange` annonce le changement. `useRoomHardware()` expose `dmxPortProblem`
   (`'ambiguous'`, `'smoke_board'` ou `null`) et `buzzerCardAmbiguous` (nombre de cartes) pour que
   l'écran Matériel et `/setup` affichent « débranchez-en une ».

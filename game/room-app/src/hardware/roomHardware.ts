@@ -467,11 +467,13 @@ async function reconnectGrantedPort(controller: LightingController): Promise<voi
   const config = parsed.value.config
   const { usb } = config.lighting
   let port: SerialPortLike | null
-  if (usb && !dmxPort) {
-    // Après un rechargement : le modèle retenu dans la config, jamais un autre. Deux ports du même
-    // modèle ne sont pas départagés : aucun n'est ouvert, le problème est signalé.
+  if (usb) {
+    // Le modèle retenu dans la config, jamais un autre (même avec un port déjà ouvert par cette
+    // page : il reste préféré à son jumeau). Deux ports du même modèle ne sont pas départagés :
+    // aucun n'est ouvert, le problème est signalé.
     const choice = await findDmxPortByUsb(undefined, usb, {
       exclude: { usb: config.lighting.smoke.board },
+      prefer: dmxPort ?? undefined,
     }).catch(() => null)
     dmxPortProblem.value =
       choice?.status === 'ambiguous'
@@ -711,6 +713,18 @@ async function restartLighting(): Promise<void> {
   })
 }
 
+/** Le port est de même modèle USB que la carte de la fumée enregistrée (`lighting.smoke.board`). */
+function isSmokeBoardPort(port: SerialPortLike): boolean {
+  const usb = portUsbId(port)
+  const { board } = parsed.value.config.lighting.smoke
+  return (
+    usb !== null &&
+    board !== undefined &&
+    usb.usbVendorId === board.usbVendorId &&
+    usb.usbProductId === board.usbProductId
+  )
+}
+
 /**
  * Retient le modèle USB de l'interface qui vient de s'ouvrir (`lighting.usb`), pour la retrouver
  * après un redémarrage. Rien n'est écrit si c'est déjà le même, ni si le port est celui de la carte
@@ -722,7 +736,9 @@ async function rememberDmxPort(port: SerialPortLike): Promise<void> {
   const { board } = config.lighting.smoke
   const same = (left?: { usbVendorId?: number; usbProductId?: number }) =>
     left?.usbVendorId === usb?.usbVendorId && left?.usbProductId === usb?.usbProductId
-  if (!usb || same(config.lighting.usb) || same(board)) {
+  // Pendant le test de coupure de la fumée (assistant), enregistrer la config ferait retomber la
+  // fumée et relancerait les lumières : l'identité sera retenue à la prochaine connexion.
+  if (smokeTestActive || !usb || same(config.lighting.usb) || same(board)) {
     return
   }
   await saveRoomHardwareConfig({ ...config, lighting: { ...config.lighting, usb } })
@@ -734,7 +750,7 @@ async function rememberDmxPort(port: SerialPortLike): Promise<void> {
  */
 export async function connectDmxInterface(
   driver: DmxDriver = parsed.value.config.lighting.driver
-): Promise<void> {
+): Promise<boolean> {
   if (driver === 'simulation') {
     throw new Error('simulation_driver')
   }
@@ -743,15 +759,23 @@ export async function connectDmxInterface(
     preferSimulation = false
     // Même file que l'essai automatique : pas de course, et un échec repose le nouvel essai.
     await serializeLighting(() => autoConnectBridge(controller))
-    return
+    return true
   }
   // La fenêtre de choix doit s'ouvrir dans le clic, avant toute autre attente.
   const port = await requestDmxPort()
+  // La carte de la fumée n'est jamais ouverte en DMX, même choisie dans la fenêtre du navigateur :
+  // rien n'est ouvert, `dmxPortProblem` le signale, et la fonction rend `false`.
+  if (isSmokeBoardPort(port)) {
+    dmxPortProblem.value = 'smoke_board'
+    return false
+  }
   const controller = await startLighting()
   preferSimulation = false
   await useSerialPort(controller, port, driver)
+  dmxPortProblem.value = null
   watchReconnection(controller)
   await rememberDmxPort(port)
+  return true
 }
 
 /** Revient à la salle simulée (débranchement volontaire de l'interface). */

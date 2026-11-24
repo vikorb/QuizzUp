@@ -3,6 +3,7 @@ import {
   exportRoomConfig,
   parseRoomConfigImport,
   parseRoomHardwareConfig,
+  withDeviceIdentity,
   withoutUnknownKeys,
 } from '@hardware/config'
 
@@ -100,6 +101,59 @@ describe('identité des périphériques dans la configuration de la salle', () =
     expect(activeLightingConfig(config)).not.toHaveProperty('usb')
     expect(activeLightingConfig(config)).toEqual(
       activeLightingConfig({ ...config, lighting: { ...config.lighting, usb: undefined } })
+    )
+  })
+})
+
+describe('withDeviceIdentity : un instantané ne doit pas effacer l’identité retenue depuis', () => {
+  const OTHER = { usbVendorId: 0x1a86, usbProductId: 0x7523 }
+  const gamepad = (extra: Record<string, unknown> = {}) =>
+    parseRoomHardwareConfig({
+      desksCount: 2,
+      buzzers: { source: { kind: 'gamepad', match: 'BBI', ...extra } },
+      lighting: { driver: 'usbpro' },
+    }).config
+
+  it('reprend lighting.usb et l’id appris, absents de l’instantané', () => {
+    const snapshot = gamepad()
+    const merged = withDeviceIdentity(snapshot, room().config)
+    expect(merged.lighting.usb).toEqual(FTDI)
+    expect(merged.buzzers.source).toEqual({ kind: 'gamepad', match: 'BBI', id: BOARD_ID })
+    expect(merged.desksCount).toBe(2)
+  })
+
+  it('remplace un usb périmé par le plus récent, et l’efface s’il n’y en a plus', () => {
+    const stale = parseRoomHardwareConfig({ lighting: { driver: 'usbpro', usb: OTHER } }).config
+    expect(withDeviceIdentity(stale, room().config).lighting.usb).toEqual(FTDI)
+    expect(withDeviceIdentity(stale, gamepad()).lighting.usb).toBeUndefined()
+  })
+
+  it('l’id ne suit pas une manette changée, ni une source passée au clavier', () => {
+    const changed = gamepad()
+    const other = parseRoomHardwareConfig({
+      buzzers: { source: { kind: 'gamepad', match: 'Autre' } },
+    }).config
+    expect(withDeviceIdentity(other, room().config).buzzers.source).toEqual({
+      kind: 'gamepad',
+      match: 'Autre',
+    })
+    const keyboard = parseRoomHardwareConfig({ buzzers: { source: { kind: 'keyboard' } } }).config
+    expect(withDeviceIdentity(keyboard, room().config).buzzers.source).toEqual({ kind: 'keyboard' })
+    expect(withDeviceIdentity(changed, gamepad()).buzzers.source).toEqual({
+      kind: 'gamepad',
+      match: 'BBI',
+    })
+  })
+
+  it('ne touche pas la fumée', () => {
+    const snapshot = parseRoomHardwareConfig({
+      lighting: {
+        driver: 'usbpro',
+        smoke: { enabled: true, board: { kind: 'uno-serial', ...OTHER } },
+      },
+    }).config
+    expect(withDeviceIdentity(snapshot, room().config).lighting.smoke).toEqual(
+      snapshot.lighting.smoke
     )
   })
 })

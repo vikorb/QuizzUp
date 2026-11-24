@@ -102,6 +102,22 @@ describe('manette retrouvée par son id, ambiguïté signalée', () => {
     }
   })
 
+  it('sans `match` ni id, une paire identique parmi les cartes est signalée, où qu’elle soit', () => {
+    const lone = pad(0, 'Xbox 360 Controller')
+    const first = pad(1, BOARD)
+    const second = pad(2, BOARD)
+    for (const pads of [
+      [lone, first, second],
+      [first, lone, second],
+      [first, second, lone],
+    ]) {
+      const input = open(pads, { kind: 'gamepad' } as never)
+      expect(input.getGamepad()).toBeNull()
+      expect(input.getState().active).toBe(false)
+      expect(input.getAmbiguousGamepads().map((twin) => twin.index)).toEqual([1, 2])
+    }
+  })
+
   it('l’ambiguïté se lève dès qu’une carte est débranchée, et le changement est annoncé', () => {
     const first = pad(0, BOARD)
     const second = pad(1, BOARD)

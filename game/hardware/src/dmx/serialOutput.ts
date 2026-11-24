@@ -164,18 +164,23 @@ export type DmxPortChoice =
  * Retrouve après un rechargement l'interface DMX retenue dans la configuration (`lighting.usb`) :
  * seulement le même modèle USB, jamais une autre puce. Deux ports du même modèle ne se distinguent
  * pas : aucun n'est pris, l'opérateur débranche l'un des deux. `exclude` (la carte de la fumée) est
- * écarté avant le choix. Le résultat ne dépend pas de l'ordre de `getPorts()`.
+ * écarté avant le choix. Le résultat ne dépend pas de l'ordre de `getPorts()`. `prefer` (le port
+ * déjà ouvert par cette page) l'emporte sur son jumeau du même modèle : lui seul est sans ambiguïté.
  */
 export async function findDmxPortByUsb(
   serial: SerialLike | null = getWebSerial(),
   usb: UsbId,
-  options: { exclude?: DmxPortExclusion } = {}
+  options: { exclude?: DmxPortExclusion; prefer?: SerialPortLike } = {}
 ): Promise<DmxPortChoice> {
   const sameModel = (await serial?.getPorts())?.filter((port) => {
     const id = portUsbId(port)
     return id?.usbVendorId === usb.usbVendorId && id.usbProductId === usb.usbProductId
   })
   const ports = sameModel?.filter((port) => !isExcluded(port, options.exclude)) ?? []
+  const preferred = ports.find((port) => port === options.prefer)
+  if (preferred) {
+    return { status: 'found', port: preferred }
+  }
   if (ports.length === 1 && ports[0]) {
     return { status: 'found', port: ports[0] }
   }

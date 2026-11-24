@@ -241,6 +241,34 @@ export function withBuzzerLayout(
   return { ...config, buzzers: { ...config.buzzers, layout: cloneBuzzerLayout(layout) } }
 }
 
+/**
+ * `config` (un instantané pris plus tôt, par exemple celui d'un assistant) avec l'identité des
+ * périphériques de `latest`, la config enregistrée la plus récente : `lighting.usb` (posé à la
+ * connexion de l'interface) et `buzzers.source.id` (appris pendant l'assistant). Sans cela,
+ * enregistrer l'instantané effacerait l'identité, ou remettrait celle d'une interface débranchée.
+ * L'`id` ne suit que si `config` garde une manette ; il part si la source a changé de manette.
+ */
+export function withDeviceIdentity(
+  config: RoomHardwareConfig,
+  latest: RoomHardwareConfig
+): RoomHardwareConfig {
+  const { usb: _usb, ...lighting } = config.lighting
+  const { source } = config.buzzers
+  const learned = latest.buzzers.source
+  let { buzzers } = config
+  if (source?.kind === 'gamepad') {
+    const { id: _id, ...rest } = source
+    const id =
+      learned?.kind === 'gamepad' && learned.match === source.match ? learned.id : undefined
+    buzzers = { ...buzzers, source: { ...rest, ...(id ? { id } : {}) } }
+  }
+  return {
+    ...config,
+    lighting: { ...lighting, ...(latest.lighting.usb ? { usb: latest.lighting.usb } : {}) },
+    buzzers,
+  }
+}
+
 /** Enregistre la position d'un élément du plan de salle (ramenée dans [0,1]). */
 export function withPlanPoint(
   config: RoomHardwareConfig,

@@ -72,6 +72,7 @@ export {
   withArtnetTarget,
   withBuzzerLayout,
   withDesksCount,
+  withDeviceIdentity,
   withLearnedKeymap,
   withoutSmokeEscalation,
   withoutUnknownKeys,

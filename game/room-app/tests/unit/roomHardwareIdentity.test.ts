@@ -11,6 +11,7 @@ import {
   saveRoomHardwareConfig,
   saveRoomSetup,
   startLighting,
+  stopLighting,
   useRoomHardware,
 } from '@/hardware/roomHardware'
 
@@ -96,6 +97,23 @@ describe('interface USB DMX : identité retenue et retrouvée après un redémar
     expect(useRoomHardware().dmxPortProblem.value).toBeNull()
   })
 
+  it('au redémarrage des lumières, un autre modèle autorisé n’est pas pris à la place du retenu', async () => {
+    const dmx = createFakePort(CH340)
+    installSerial([dmx])
+    await saveRoomHardwareConfig({ lighting: { driver: 'usbpro', usb: CH340 } })
+    await startLighting()
+    await vi.waitFor(() => expect(getDmxPort()).toBe(dmx))
+
+    // L'interface retenue n'est plus autorisée ; une autre puce DMX connue l'est.
+    const other = createFakePort(FTDI)
+    installSerial([other])
+    await stopLighting()
+    await startLighting()
+
+    expect(other.frames).toBe(0)
+    expect(getDmxPort()).toBeNull()
+  })
+
   it('deux interfaces identiques : aucune n’est ouverte et l’ambiguïté est signalée', async () => {
     const first = createFakePort(FTDI)
     const second = createFakePort(FTDI)
@@ -150,17 +168,41 @@ describe('interface USB DMX : identité retenue et retrouvée après un redémar
       expect(board.frames).toBe(0)
     })
 
-    it('ne retient pas comme interface DMX la carte choisie par erreur', async () => {
+    it('refuse la carte choisie dans la fenêtre du navigateur : rien n’est ouvert ni retenu', async () => {
       const board = createFakePort(UNO)
+      const open = vi.spyOn(board, 'open')
       installSerial([board], board)
       await saveRoomHardwareConfig({
         lighting: { driver: 'usbpro', smoke: { board: boardConfig } },
       })
       await startLighting()
 
-      await connectDmxInterface()
+      const connected = await connectDmxInterface()
 
+      expect(connected).toBe(false)
+      expect(open).not.toHaveBeenCalled()
+      expect(board.frames).toBe(0)
       expect(usbOf()).toBeUndefined()
+      expect(getLighting()?.getState().simulation).toBe(true)
+      expect(useRoomHardware().dmxPortProblem.value).toBe('smoke_board')
+    })
+
+    it('un bon choix levé après un refus : l’interface s’ouvre et le signal disparaît', async () => {
+      const board = createFakePort(UNO)
+      const dmx = createFakePort(CH340)
+      installSerial([board, dmx], board)
+      await saveRoomHardwareConfig({
+        lighting: { driver: 'usbpro', smoke: { board: boardConfig } },
+      })
+      await startLighting()
+      expect(await connectDmxInterface()).toBe(false)
+
+      installSerial([board, dmx], dmx)
+
+      expect(await connectDmxInterface()).toBe(true)
+      expect(useRoomHardware().dmxPortProblem.value).toBeNull()
+      expect(usbOf()).toEqual(CH340)
+      expect(board.frames).toBe(0)
     })
   })
 })

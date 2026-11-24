@@ -697,6 +697,7 @@ import {
   type SetupStepId,
   SMOKE_CHECKS,
   type SmokeCheckId,
+  withDeviceIdentity,
 } from '@quizzup/hardware'
 import {
   computed,
@@ -912,12 +913,21 @@ watch(
   (layout) => run(() => wizard.setBuzzerLayout(layout))
 )
 
+/**
+ * Config de l'assistant, avec l'identité des périphériques de la config enregistrée la plus récente :
+ * l'interface connectée et la manette apprise pendant l'assistant ne sont pas dans son instantané
+ * de départ (voir `withDeviceIdentity`).
+ */
+function summaryConfig(options: { forFreezeTest?: boolean } = {}) {
+  return withDeviceIdentity(wizard.summary(options).config, hardware.value.config)
+}
+
 /** Applique la config en cours au contrôleur de lumières (nécessaire pour tester). */
 async function apply(options: { forFreezeTest?: boolean } = {}): Promise<void> {
   savedForFreezeTest = options.forFreezeTest === true
   // La variante « test de gel » (fumée active avant toutes les vérifications) n'est jamais
   // enregistrée : un rechargement de page repart de la dernière config sûre.
-  await saveRoomHardwareConfig(wizard.summary(options).config, {
+  await saveRoomHardwareConfig(summaryConfig(options), {
     persist: !savedForFreezeTest,
     smokeTest: savedForFreezeTest,
   })
@@ -1342,7 +1352,7 @@ async function onSave(): Promise<void> {
   try {
     getLighting()?.diagnostics.end()
     savedForFreezeTest = false
-    await saveRoomHardwareConfig(wizard.summary().config)
+    await saveRoomHardwareConfig(summaryConfig())
     saved.value = syncStatus.value !== 'conflict'
   } finally {
     saving.value = false
@@ -1357,7 +1367,7 @@ onBeforeUnmount(() => {
   getLighting()?.diagnostics.end()
   // Jamais de fumée laissée active sans toutes les vérifications.
   if (savedForFreezeTest) {
-    void saveRoomHardwareConfig(wizard.summary().config)
+    void saveRoomHardwareConfig(summaryConfig())
   }
 })
 </script>

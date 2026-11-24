@@ -124,6 +124,14 @@
           />
           {{ feedback.text }}
         </p>
+        <p
+          v-if="buzzerCardAmbiguous > 0"
+          class="feedback feedback--error"
+          role="alert"
+          data-test="setup-card-ambiguous"
+        >
+          {{ $t('hardware.devices.buzzerCards', { count: buzzerCardAmbiguous }) }}
+        </p>
       </section>
 
       <section v-else key="done" class="setup__stage">
@@ -280,7 +288,7 @@ type Step = (typeof STEPS)[number]
 const { t } = useI18n()
 const router = useRouter()
 const { confirm } = useConfirm()
-const { hardware } = useRoomHardware()
+const { hardware, buzzerCardAmbiguous } = useRoomHardware()
 
 const step = ref<Step>('welcome')
 const draft = ref(cloneBuzzerLayout(hardware.value.config.buzzers.layout))

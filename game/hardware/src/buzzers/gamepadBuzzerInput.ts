@@ -142,8 +142,8 @@ export function createGamepadBuzzerInput(options: GamepadBuzzerInputOptions): Ga
     )
     // Deux cartes du même `id` ne se distinguent pas : on n'en lit aucune plutôt que d'en prendre
     // une au hasard (l'ordre de branchement n'est pas une identité).
-    const twins = found.filter((pad) => pad.id === found[0]?.id)
-    ambiguous = twins.length > 1 ? twins.map(describePad) : []
+    const twins = found.filter((pad) => found.some((other) => other !== pad && other.id === pad.id))
+    ambiguous = twins.map(describePad)
     return ambiguous.length > 0 ? null : (found[0] ?? null)
   }
 
