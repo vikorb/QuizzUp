@@ -23,12 +23,13 @@ import { createScenePlayer } from './scenePlayer'
 import type { SceneContext, SceneDefinition } from './scenes'
 import {
   DEFAULT_BINDINGS,
-  DEFAULT_SCENES,
+  DEFAULT_EXIT,
+  defaultScenesFor,
   identifyScene,
   MAX_FLASHES_PER_SECOND,
   SCENE_IDS,
 } from './scenes'
-import { parseScenes } from './showConfig'
+import { parseExit, parseScenes } from './showConfig'
 import type { SmokeController, SmokeFireResult, SmokeState } from './smoke'
 import { createSmokeController } from './smoke'
 
@@ -236,10 +237,16 @@ export function createLightingController(options: LightingControllerOptions): Li
   // Les scènes de la salle sont rebornées ici : une config qui n'est pas passée par
   // `parseRoomHardwareConfig` ne contourne ni les plafonds d'éclairs ni la règle de la fumée.
   const roomScenes = parseScenes(config.scenes).scenes
-  for (const scene of [...DEFAULT_SCENES, ...roomScenes, ...(options.scenes ?? [])]) {
+  // Idem pour la lumière de sortie : valeurs bornées, jamais celles d'une config non relue.
+  const exit = parseExit(config.exit).exit ?? DEFAULT_EXIT
+  for (const scene of [...defaultScenesFor(exit), ...roomScenes, ...(options.scenes ?? [])]) {
     scenes.set(scene.id, scene)
   }
   const bindings: Record<string, string | null> = { ...DEFAULT_BINDINGS, ...config.bindings }
+  // Lumière de sortie coupée : rien ne part seul, le bouton de l'écran de fin reste possible.
+  if (!exit.enabled && !Object.hasOwn(config.bindings, 'game_ended_incomplete')) {
+    bindings.game_ended_incomplete = null
+  }
 
   const changeEmitter = createEmitter<LightingState>()
   const warningEmitter = createEmitter<LightingWarning>()
