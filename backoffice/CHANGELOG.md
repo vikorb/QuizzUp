@@ -21,6 +21,15 @@ Format inspiré de Keep a Changelog.
   US: US-FORMAT-01 (#143)
 - Écran de salle, accueil des joueurs : le lobby d'une partie en attente affiche le QR code d'inscription fourni par le serveur (dans un `<img>`, jamais en `v-html`), l'adresse en clair et le nombre d'inscriptions en attente de validation. Sans QR code, l'adresse seule ; un lien expiré est signalé ; rien en partie en cours.
   US: US-JOIN-01 (#166)
+- Blind test par playlist, côté salle : `GET /room/games/current/content` tire les titres d'un thème de playlist chez le fournisseur d'extraits et en fait des questions « Quel est ce titre ? » (quatre réponses, identifiants négatifs, crédit du titre). Nouvelle route `GET /room/games/current/tracks` qui rend les liens d'extrait à jour pour reprendre une partie après rechargement. En mode enfants, seuls les thèmes adaptés sont lus.
+  US: US-PLAYLIST-01 (#204)
+
+- API publique, bac à sable : la salle de démonstration naît avec des créneaux réservables (tous les jours de 10 h à 20 h, créneaux d'une heure, 4 pupitres), et un guide pas à pas (`docs/api/essayer-l-api-publique.md`) montre comment créer une clé puis réserver. Aucune clé n'est créée par le seed.
+  US: US-BOOKING-01 (#188)
+
+- API publique : réservations (`POST`, `GET`, `PATCH`, `DELETE` sur `/public/v1/bookings`). Une réservation crée une partie programmée dans la compagnie de la clé d'API ; une clé ne voit et ne modifie que ses propres réservations. La clé d'idempotence rejoue la même réponse au lieu de créer un doublon, et un créneau déjà pris est refusé (`slot_taken`).
+- API publique : réservations (`POST`, `GET`, `PATCH`, `DELETE` sur `/public/v1/bookings`). Une réservation crée une partie programmée dans la compagnie de la clé d'API ; les clés d'une compagnie voient et modifient les réservations créées par l'API de cette compagnie, jamais les sessions créées au backoffice. La clé d'idempotence rejoue la même réponse au lieu de créer un doublon, et un créneau déjà pris est refusé (`slot_taken`).
+  US: US-BOOKING-01 (#188)
 
 - Bons : page publique `/bon/#<code>` pour le téléphone du joueur, sur la même infrastructure que `/rejoindre/`. Elle affiche l'état du bon (valide, utilisé, expiré, annulé, introuvable) ; le code reste dans le fragment de l'adresse et part dans le corps de la requête, jamais dans une URL.
   US: US-VOUCHER-01 (#156)
