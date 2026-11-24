@@ -3,6 +3,7 @@ import {
   createParticipantFixture,
 } from '@frontend-tests/_helpers/gamesServiceMock'
 import {
+  liveErrorKeyMock,
   liveNowMock,
   liveRoomsMock,
   liveStateMock,
@@ -13,7 +14,11 @@ import { createRoomLive } from '@frontend-tests/_helpers/liveMock'
 import { mountWithFrontendMocks, tWithParamsMock } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import {
+  GAME_PHASE_ABORTED,
+  GAME_PHASE_FINISHED,
+  GAME_STATE_ABORTED,
   GAME_STATE_FINISHED,
+  GAME_STATE_PENDING,
   GAME_STATE_RUNNING,
   MINI_GAME_FIRST_BUZZ,
   ROOM_PRESENCE,
@@ -111,10 +116,13 @@ describe('views/games/detail/GameLivePanel.vue', () => {
     )
     expect(wrapper.get('[data-test="game-live-phase"]').text()).toBe('live.phase.question')
     expect(wrapper.get('[data-test="game-live-round"]').text()).toContain('"round":2,"total":5')
-    // L'indice de la salle part de 0 : la 3e question s'affiche « 3 ».
-    expect(wrapper.get('[data-test="game-live-question"]').text()).toContain(
-      '"question":3,"total":8'
+    // L'indice de la salle part de 0 : la 3e question s'affiche « 3 », sans total (la manche
+    // peut compter moins de questions que le format de la partie).
+    expect(wrapper.get('[data-test="game-live-question"]').text()).toBe(
+      'live.panel.questionValue:{"question":3}'
     )
+    // Le numéro de pupitre est nommé pour les lecteurs d'écran, pas seulement par une infobulle.
+    expect(wrapper.get('[data-test="game-live-score-1"] .sr-only').text()).toBe('live.panel.desk')
     expect(wrapper.get('[data-test="game-live-mini-game"]').text()).toBe(
       `games.miniGames.${MINI_GAME_FIRST_BUZZ}`
     )
@@ -138,6 +146,89 @@ describe('views/games/detail/GameLivePanel.vue', () => {
     mountPanel(createGame({ state: GAME_STATE_FINISHED }))
 
     expect((useLiveCompanyMock.mock.calls[0]?.[0] as () => number | null)()).toBeNull()
+  })
+
+  it('closes the stream when the game goes from running to stopped on a mounted panel', async () => {
+    publish(createStatus())
+
+    const wrapper = mountPanel()
+    const companyOf = useLiveCompanyMock.mock.calls[0]?.[0] as () => number | null
+
+    expect(companyOf()).toBe(1)
+
+    await wrapper.setProps({ game: createGame({ state: GAME_STATE_ABORTED }) })
+
+    expect(companyOf()).toBeNull()
+  })
+
+  it('tells the failure when the stream fails before any report', () => {
+    liveStateMock.value = 'error'
+    liveErrorKeyMock.value = 'errors.forbidden'
+
+    const wrapper = mountPanel()
+
+    expect(panel(wrapper).exists()).toBe(false)
+    expect(wrapper.get('[data-test="live-connection-note"]').text()).toBe('errors.forbidden')
+  })
+
+  it('tells the failure while reconnecting with an error, as for too many streams', () => {
+    liveStateMock.value = 'reconnecting'
+    liveErrorKeyMock.value = 'errors.too_many_streams'
+
+    const wrapper = mountPanel(createGame({ state: GAME_STATE_PENDING }))
+
+    expect(wrapper.get('[data-test="live-connection-note"]').text()).toBe('errors.too_many_streams')
+  })
+
+  it('stays silent while connecting, on a plain reconnection or when the game is over', () => {
+    liveStateMock.value = 'connecting'
+    expect(mountPanel().find('[data-test="live-connection-note"]').exists()).toBe(false)
+
+    liveStateMock.value = 'reconnecting'
+    expect(mountPanel().find('[data-test="live-connection-note"]').exists()).toBe(false)
+
+    liveStateMock.value = 'error'
+    liveErrorKeyMock.value = 'errors.forbidden'
+    expect(
+      mountPanel(createGame({ state: GAME_STATE_FINISHED }))
+        .find('[data-test="live-connection-note"]')
+        .exists()
+    ).toBe(false)
+  })
+
+  it.each([[GAME_PHASE_FINISHED], [GAME_PHASE_ABORTED]])(
+    'emits « ended » once when the room reports the phase %s',
+    async (phase) => {
+      publish(createStatus())
+
+      const wrapper = mountPanel()
+
+      expect(wrapper.emitted('ended')).toBeUndefined()
+
+      publish(createStatus({ phase }))
+      await nextTick()
+
+      expect(wrapper.emitted('ended')).toHaveLength(1)
+
+      // Nouveau rapport dans la même phase (scores) : pas de seconde relecture.
+      publish(createStatus({ phase, scores: [{ podium: 1, score: 50 }] }))
+      await nextTick()
+
+      expect(wrapper.emitted('ended')).toHaveLength(1)
+    }
+  )
+
+  it('does not emit « ended » for the other phases', async () => {
+    publish(createStatus({ phase: 'lobby' }))
+
+    const wrapper = mountPanel()
+
+    publish(createStatus({ phase: 'reveal' }))
+    await nextTick()
+    publish(createStatus({ phase: 'round_summary' }))
+    await nextTick()
+
+    expect(wrapper.emitted('ended')).toBeUndefined()
   })
 
   it('is absent when the room plays another game', () => {

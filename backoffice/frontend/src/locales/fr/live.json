@@ -32,7 +32,7 @@
       "round": "Manche",
       "roundValue": "{round} sur {total}",
       "question": "Question",
-      "questionValue": "{question} sur {total}",
+      "questionValue": "{question}",
       "miniGame": "Mini-jeu",
       "scoresTitle": "Scores par pupitre",
       "noScores": "Aucun score pour l'instant.",

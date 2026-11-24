@@ -32,7 +32,7 @@
       "round": "Round",
       "roundValue": "{round} of {total}",
       "question": "Question",
-      "questionValue": "{question} of {total}",
+      "questionValue": "{question}",
       "miniGame": "Mini-game",
       "scoresTitle": "Scores by desk",
       "noScores": "No score yet.",

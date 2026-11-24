@@ -55,7 +55,7 @@
       </div>
     </dl>
 
-    <h3 class="game-live__subtitle">{{ $t('live.panel.scoresTitle') }}</h3>
+    <p class="game-live__subtitle">{{ $t('live.panel.scoresTitle') }}</p>
 
     <p v-if="scoreLines.length === 0" class="game-live__note" data-test="game-live-no-scores">
       {{ $t('live.panel.noScores') }}
@@ -68,8 +68,9 @@
         class="game-live__score-line"
         :data-test="`game-live-score-${line.podium}`"
       >
-        <span class="game-live__podium" :title="$t('live.panel.desk', { podium: line.podium })">
-          {{ line.podium }}
+        <span class="game-live__podium">
+          <span class="sr-only">{{ $t('live.panel.desk', { podium: line.podium }) }}</span>
+          <span aria-hidden="true">{{ line.podium }}</span>
         </span>
         <span class="game-live__names">{{ line.names }}</span>
         <span class="game-live__score">{{ line.score }}</span>
@@ -78,11 +79,21 @@
 
     <LiveConnectionNote v-if="uncertain" :state="connection" :error-key="errorKey" />
   </BaseCard>
+
+  <!-- Flux refusé ou coupé avant le premier instantané : sans cela, l'écran resterait muet. -->
+  <div v-else-if="connectionFailed" class="game-live-card" data-test="game-live-failure">
+    <LiveConnectionNote :state="connection" :error-key="errorKey" />
+  </div>
 </template>
 
 <script setup lang="ts">
-import { GAME_PHASES, type GamePhaseName } from '@quizzup/shared'
-import { computed } from 'vue'
+import {
+  GAME_PHASE_ABORTED,
+  GAME_PHASE_FINISHED,
+  GAME_PHASES,
+  type GamePhaseName,
+} from '@quizzup/shared'
+import { computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import BaseCard from '@/components/ui/BaseCard.vue'
@@ -96,6 +107,11 @@ import { formatSeenAgo, getRoomPresenceKind, getRoomPresenceLabelKey } from '@/u
 
 const props = defineProps<{
   game: Game
+}>()
+
+const emit = defineEmits<{
+  /** La salle annonce la fin ou l'arrêt de la partie : l'écran doit la relire. */
+  ended: []
 }>()
 
 const { t, locale } = useI18n()
@@ -114,6 +130,24 @@ const room = computed(() => rooms.value[props.game.roomId] ?? null)
 // Le panneau n'existe que si la salle joue bien cette partie.
 const status = computed(() =>
   room.value?.status?.gameId === props.game.id ? room.value.status : null
+)
+
+// Le watch ne réagit qu'à un changement de phase : une seule relecture par passage.
+watch(
+  () => status.value?.phase,
+  (phase) => {
+    if (phase === GAME_PHASE_FINISHED || phase === GAME_PHASE_ABORTED) {
+      emit('ended')
+    }
+  }
+)
+
+// Pas de rapport à montrer, mais un flux en échec sur une partie à suivre : on le dit.
+const connectionFailed = computed(
+  () =>
+    isGamePendingOrRunning(props.game) &&
+    (connection.value === 'error' ||
+      (connection.value === 'reconnecting' && errorKey.value !== null))
 )
 
 const kind = computed(() => getRoomPresenceKind(room.value, uncertain.value))
@@ -154,9 +188,7 @@ const roundLabel = computed(() =>
 const questionLabel = computed(() => {
   const index = status.value?.questionIndex
 
-  return typeof index === 'number'
-    ? t('live.panel.questionValue', { question: index + 1, total: props.game.questionsPerRound })
-    : NONE
+  return typeof index === 'number' ? t('live.panel.questionValue', { question: index + 1 }) : NONE
 })
 
 const miniGameLabel = computed(() =>
@@ -240,10 +272,6 @@ const scoreLines = computed(() =>
   display: grid;
   gap: 6px;
   min-width: 0;
-  padding: 12px 14px;
-  border: 1px solid var(--border-ui);
-  border-radius: 14px;
-  background: var(--surface-0);
 }
 
 .game-live__step dt {
@@ -283,11 +311,12 @@ const scoreLines = computed(() =>
   min-height: 48px;
   padding: 8px 14px;
   border: 1px solid var(--border-ui);
-  border-radius: 14px;
+  border-radius: var(--radius);
   background: var(--surface-0);
 }
 
 .game-live__podium {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -310,6 +339,19 @@ const scoreLines = computed(() =>
   color: var(--accent-cyan);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
+}
+
+/* Texte lu par les lecteurs d'écran seulement (même motif que le plan de salle). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 @media (max-width: 900px) {

@@ -98,7 +98,7 @@
       </dl>
     </BaseCard>
 
-    <GameLivePanel v-if="game" :game="game" />
+    <GameLivePanel v-if="game" :game="game" @ended="loadPage" />
 
     <GameParticipantsTable v-if="game" :participants="game.participants ?? []" />
   </SectionLayout>
