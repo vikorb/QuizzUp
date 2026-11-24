@@ -16,6 +16,11 @@ import type { MiniGameDefinition, QuestionStep } from './miniGame'
  * Personne au bout du palier 3 : perdu pour tout le monde.
  */
 export const FLASH_BLIND_TEST_STAGE_DURATIONS_MS = [1000, 5000, 20_000] as const
+/**
+ * Paliers d'une question à l'effet « très court » (`audioEffect: 'short'`). Fenêtres de buzz et
+ * points inchangés.
+ */
+export const FLASH_BLIND_TEST_SHORT_STAGE_DURATIONS_MS = [500, 2000, 10_000] as const
 export const FLASH_BLIND_TEST_STAGE_POINTS = [100, 50, 20] as const
 /** Temps laissé pour buzzer une fois l'extrait du palier terminé. */
 export const FLASH_BLIND_TEST_BUZZ_WINDOW_MS = 3000
@@ -23,6 +28,15 @@ export const FLASH_BLIND_TEST_BUZZ_WINDOW_MS = 3000
 export const FLASH_BLIND_TEST_ANSWER_TIMEOUT_MS = 5000
 
 const LAST_STAGE_INDEX = FLASH_BLIND_TEST_STAGE_DURATIONS_MS.length - 1
+
+/** Durées des paliers de la question : seul `short` les raccourcit, les autres effets ne les touchent pas. */
+export function getFlashBlindTestStageDurationsMs(
+  question: Pick<EngineQuestion, 'audioEffect'>
+): readonly number[] {
+  return question.audioEffect === 'short'
+    ? FLASH_BLIND_TEST_SHORT_STAGE_DURATIONS_MS
+    : FLASH_BLIND_TEST_STAGE_DURATIONS_MS
+}
 
 export type FlashBlindTestState = {
   kind: typeof MINI_GAME_FLASH_BLIND_TEST
@@ -43,8 +57,11 @@ export type FlashBlindTestState = {
 
 type Step = QuestionStep<FlashBlindTestState>
 
-function getStageTotalMs(stageIndex: number): number {
-  return (FLASH_BLIND_TEST_STAGE_DURATIONS_MS[stageIndex] ?? 0) + FLASH_BLIND_TEST_BUZZ_WINDOW_MS
+function getStageTotalMs(state: FlashBlindTestState): number {
+  return (
+    (getFlashBlindTestStageDurationsMs(state.question)[state.stageIndex] ?? 0) +
+    FLASH_BLIND_TEST_BUZZ_WINDOW_MS
+  )
 }
 
 /**
@@ -66,10 +83,11 @@ function stageStartedEvent(state: FlashBlindTestState, at: number): PendingEvent
     payload: {
       questionId: state.question.id,
       stage: getStageNumber(state),
-      extractMs: FLASH_BLIND_TEST_STAGE_DURATIONS_MS[state.stageIndex],
+      extractMs: getFlashBlindTestStageDurationsMs(state.question)[state.stageIndex],
       buzzWindowMs: FLASH_BLIND_TEST_BUZZ_WINDOW_MS,
       mediaUrl: state.question.mediaUrl,
       mediaStartMs: state.question.mediaStartMs,
+      audioEffect: state.question.audioEffect ?? 'none',
     },
   }
 }
@@ -151,7 +169,7 @@ function resumeAfterWrongAnswer(
       questionId: state.question.id,
       stage: getStageNumber(state),
       elapsedMs,
-      remainingMs: getStageTotalMs(state.stageIndex) - elapsedMs,
+      remainingMs: getStageTotalMs(state) - elapsedMs,
     },
   })
 
@@ -204,11 +222,8 @@ export const flashBlindTest: MiniGameDefinition<FlashBlindTestState> = {
       return { state, events: [] }
     }
 
-    if (
-      state.status === 'playing' &&
-      at >= state.stageStartedAt + getStageTotalMs(state.stageIndex)
-    ) {
-      return startNextStageOrFinish(state, state.stageStartedAt + getStageTotalMs(state.stageIndex))
+    if (state.status === 'playing' && at >= state.stageStartedAt + getStageTotalMs(state)) {
+      return startNextStageOrFinish(state, state.stageStartedAt + getStageTotalMs(state))
     }
 
     return { state, events: [] }

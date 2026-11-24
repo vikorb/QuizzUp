@@ -2,7 +2,7 @@
   <section class="blind" :class="`blind--${view.status}`">
     <ol class="blind__stages" :aria-label="$t('game.blindTest.stage', { stage: view.stage })">
       <li
-        v-for="stage in BLIND_TEST_STAGES"
+        v-for="stage in view.stages"
         :key="stage.stage"
         class="blind__stage"
         :class="{
@@ -76,7 +76,7 @@ import { type EngineParticipant, FLASH_BLIND_TEST_ANSWER_TIMEOUT_MS } from '@qui
 import AnswerGrid from '@/components/game/AnswerGrid.vue'
 import DeskBadge from '@/components/game/DeskBadge.vue'
 import TimerBar from '@/components/game/TimerBar.vue'
-import { BLIND_TEST_STAGES, type BlindTestView } from '@/game/selectors'
+import type { BlindTestView } from '@/game/selectors'
 
 defineProps<{
   view: BlindTestView

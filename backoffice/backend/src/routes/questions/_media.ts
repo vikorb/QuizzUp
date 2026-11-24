@@ -29,6 +29,7 @@ export type QuestionMediaRow = {
   media_start_ms: number | string | null
   media_duration_ms: number | string | null
   media_provider?: string | null
+  audio_effect?: string | null
 }
 
 export type AccessResult =
@@ -98,7 +99,8 @@ export async function lockQuestionMediaRow(
       'media_mime_type',
       'media_start_ms',
       'media_duration_ms',
-      'media_provider'
+      'media_provider',
+      'audio_effect'
     )
     .where({ id: questionId })
     .forUpdate()

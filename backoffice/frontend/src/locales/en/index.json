@@ -17,6 +17,12 @@
     "unauthorized": "You must be signed in to do this.",
     "forbidden": "You do not have the rights to do this.",
     "server_error": "Server error.",
+    "api_unreachable": "API unreachable.",
+    "not_found": "The requested item was not found.",
+    "invalid_body": "The request sent is invalid. Check the information and try again.",
+    "missing_token": "Your session has expired: sign in again.",
+    "invalid_json": "The server response is unreadable.",
+    "default": "An error occurred.",
     "too_many_streams": "Too many live tracking streams are open with this account (5 at most). Close another tab, then reload the page.",
     "room_instance_replaced": "Another computer signed in to this room: this connection was closed.",
     "session_ended": "Your session is no longer valid: sign in again to resume live tracking.",
@@ -51,6 +57,8 @@
     "roomDisabled": "The room {name} has been disabled.",
     "roomDeleted": "The room {name} has been deleted.",
     "roomAccountCreated": "The room account {username} has been created for the room {name}.",
-    "roomAccountDeleted": "The room account {username} has been deleted: the PC of the room {name} is signed out."
+    "roomAccountDeleted": "The room account {username} has been deleted: the PC of the room {name} is signed out.",
+    "demoRequestProcessed": "The request has been marked as handled.",
+    "demoRequestDeleted": "The request has been deleted."
   }
 }

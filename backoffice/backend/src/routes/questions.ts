@@ -143,7 +143,8 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(400).send({ error: validation.error })
       }
 
-      const { questionText, themeIds, typeMedia, kind, mediaUrl, answers } = validation.input
+      const { questionText, themeIds, typeMedia, kind, mediaUrl, audioEffect, answers } =
+        validation.input
 
       const requestedScope = isValidQuestionScope(req.body.scope) ? req.body.scope : undefined
       const scope = getQuestionScope(req, requestedScope)
@@ -174,6 +175,7 @@ const questionsRoutes: FastifyPluginAsync = async (app) => {
             type_media: typeMedia,
             kind,
             media_url: mediaUrl,
+            audio_effect: audioEffect,
             status: questionStatus,
             deleted_at: null,
           })
