@@ -9,6 +9,7 @@ import {
   GAME_DEFAULT_QUESTIONS_PER_ROUND,
   GAME_DEFAULT_ROUNDS,
   GAME_EXTERNAL_REF_MAX_LENGTH,
+  GAME_FORMATS,
   GAME_LOCALES,
   GAME_MAX_PLAYERS,
   GAME_MAX_QUESTIONS_PER_ROUND,
@@ -55,6 +56,7 @@ const miniGamesMigration = readMigration('20261104010000_add_mini_games_to_game_
 const podiumsMigration = readMigration('20261104040000_raise_game_podiums_to_six.js')
 const mediaProviderMigration = readMigration('20261124110000_add_media_provider_to_questions.js')
 const audioEffectMigration = readMigration('20261124120000_add_audio_effect_to_questions.js')
+const formatMigration = readMigration('20261124170000_add_format_to_games.js')
 const playlistMigration = readMigration('20261124130000_add_playlist_to_themes.js')
 const schedulingMigration = readMigration('20261124000000_add_game_scheduling.js')
 const schedulingUp = schedulingMigration.slice(0, schedulingMigration.indexOf('exports.down'))
@@ -174,5 +176,9 @@ describe('game schema migrations', () => {
     expect(getCheckValues(audioEffectMigration, 'audio_effect')).toEqual([
       ...QUESTION_AUDIO_EFFECTS,
     ])
+  })
+
+  it('aligns the game formats with shared constants', () => {
+    expect(getCheckValues(formatMigration, 'format')).toEqual([...GAME_FORMATS])
   })
 })
