@@ -4,8 +4,8 @@ import vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vite'
 
 // Pages publiques pour téléphone : un dossier à la racine du frontend avec son `index.html`, hors du
-// bundle du backoffice. Une nouvelle page (`bon/`) s'ajoute ici, en un mot.
-const PUBLIC_PAGES = ['rejoindre']
+// bundle du backoffice. Une nouvelle page s'ajoute ici, en un mot.
+const PUBLIC_PAGES = ['rejoindre', 'bon']
 
 // Deux constructions du même frontend (conception du lot 12, §3) :
 //   - `centre` (et `production`, le mode par défaut de `vite build`) : l'espace des centres,

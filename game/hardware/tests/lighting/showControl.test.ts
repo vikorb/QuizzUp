@@ -279,15 +279,13 @@ describe('show réglable : clés d’événement', () => {
     expect(controller.getState().currentSceneId).toBe(SCENE_IDS.ROUND_START)
   })
 
-  it('SHOW_CUES : trois signaux de l’écran de salle, sans liaison par défaut', async () => {
+  it('SHOW_CUES : trois signaux de l’écran de salle, seule la sortie sans liaison par défaut', async () => {
     expect([...SHOW_CUES]).toEqual(['game_paused', 'game_resumed', 'session_exit'])
     current = setup()
     const { controller } = current
     await controller.start()
-    for (const cue of SHOW_CUES) {
-      controller.handleGameEvent({ type: cue })
-      expect(controller.getState().currentSceneId).toBe(SCENE_IDS.IDLE)
-    }
+    controller.handleGameEvent({ type: 'session_exit' })
+    expect(controller.getState().currentSceneId).toBe(SCENE_IDS.IDLE)
   })
 
   it('SHOW_CUES : une liaison de la salle lance sa scène', async () => {

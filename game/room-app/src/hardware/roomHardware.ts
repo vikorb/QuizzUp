@@ -1,4 +1,4 @@
-import type { GameEvent } from '@quizzup/game-engine'
+import type { GameEvent, GameState } from '@quizzup/game-engine'
 import {
   activeKeymap,
   activeLightingConfig,
@@ -52,7 +52,7 @@ import {
   withoutUnknownKeys,
   withPlanPoint,
 } from '@quizzup/hardware'
-import { ROOM_LOG_LEVEL_WARN } from '@quizzup/shared'
+import { MINI_GAME_FLASH_BLIND_TEST, ROOM_LOG_LEVEL_WARN } from '@quizzup/shared'
 import { computed, shallowRef, watch } from 'vue'
 
 import { reportRoomError } from '@/diagnostics/errorReporter'
@@ -472,6 +472,41 @@ function watchReconnection(controller: LightingController): void {
   })
 }
 
+/**
+ * Événement qui a lancé la scène de la phase en cours, rejoué à la reprise : la scène `question` de
+ * `game_resumed` est l'ambiance de base, pas celle de l'intro de manche, du choix de thème ni d'un
+ * extrait en cours. Rejoué par `handleGameEvent` : les liaisons de la salle (`lighting.bindings`)
+ * restent respectées. `null` : la phase n'a pas de scène propre à reprendre.
+ */
+function phaseEvent(game: GameState): { type: string; payload: Record<string, unknown> } | null {
+  const { phase } = game
+  const round = game.rounds.at(-1)
+  if (phase.name === 'round_intro' && round) {
+    return {
+      type: 'round_started',
+      payload: { position: round.position, miniGame: round.miniGame },
+    }
+  }
+  if (
+    phase.name === 'theme_choice' &&
+    round?.chooserParticipantId !== null &&
+    round?.chooserParticipantId !== undefined
+  ) {
+    return {
+      type: 'round_chooser_selected',
+      payload: { participantId: round.chooserParticipantId },
+    }
+  }
+  if (phase.name === 'question' && phase.miniGameState.kind === MINI_GAME_FLASH_BLIND_TEST) {
+    const mini = phase.miniGameState
+    if (mini.status === 'answering' && mini.answeringParticipantId !== null) {
+      return { type: 'buzzer_pressed', payload: { participantId: mini.answeringParticipantId } }
+    }
+    return mini.status === 'playing' ? { type: 'blind_test_stage_resumed', payload: {} } : null
+  }
+  return null
+}
+
 async function createLighting(
   options: { emergencyReason?: string | null; disarmSmoke?: boolean } = {}
 ) {
@@ -509,7 +544,7 @@ async function createLighting(
   // événement de jeu. Lu tout de suite (`immediate`) : des lumières créées ou recréées pendant une
   // pause naissent en pause. Aucun événement de jeu ne pilote les lumières pendant la pause,
   // sauf l'arrêt de la partie, qui les remet au repos.
-  const { paused } = useRoomGame()
+  const { paused, state } = useRoomGame()
   const stopEvents = onGameEvents((events: GameEvent[]) => {
     for (const event of events) {
       if (!paused.value || event.type === 'game_aborted') {
@@ -517,10 +552,36 @@ async function createLighting(
       }
     }
   })
-  const stopPauseWatch = watch(paused, (isPaused) => controller.setGamePaused(isPaused), {
-    flush: 'sync',
-    immediate: true,
-  })
+  // Signaux de l'écran de salle (`game_paused`, `game_resumed`) : après la coupure de la fumée, hors
+  // du filtre ci-dessus. La reprise rejoue la scène de la phase en cours ; sans pause préalable, ou
+  // sans partie en cours (partie fermée pendant la pause), aucun signal.
+  let signalledPause = false
+  const stopPauseWatch = watch(
+    paused,
+    (isPaused) => {
+      controller.setGamePaused(isPaused)
+      if (isPaused === signalledPause) {
+        return
+      }
+      const game = state.value
+      if (isPaused) {
+        signalledPause = true
+        controller.handleGameEvent({ type: 'game_paused' })
+      } else {
+        signalledPause = false
+        // Rejeu de reprise : la fumée n'est plus bloquée par la pause, donc `restore` (couleurs
+        // seulement, ni jet ni éclair), même pour la scène de salle liée à ces événements.
+        if (game) {
+          controller.handleGameEvent({ type: 'game_resumed' }, { restore: true })
+          const replay = phaseEvent(game)
+          if (replay) {
+            controller.handleGameEvent(replay, { restore: true })
+          }
+        }
+      }
+    },
+    { flush: 'sync', immediate: true }
+  )
   stopLightingEvents = () => {
     stopEvents()
     stopPauseWatch()

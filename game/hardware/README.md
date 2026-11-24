@@ -305,6 +305,8 @@ est fourni, sinon de `payload.participantId` via `resolveDesk`.
 | `game_ended` à égalité (clé `game_ended_tie`)           | `victory-tie` (+ fumée si armée)       |
 | `game_ended` faute de contenu (`game_ended_incomplete`) | `exit` (lumière de sortie)             |
 | `game_aborted`                                          | `idle`                                 |
+| `game_paused` (signal de l'écran de salle)              | `pause`                                |
+| `game_resumed` (signal de l'écran de salle)             | `question`                             |
 
 Chaque salle peut surcharger une liaison (`lighting.bindings`, `null` pour la couper). Une salle qui
 a réglé `game_ended` sans régler `game_ended_tie` garde son choix à égalité. Une scène
@@ -312,7 +314,7 @@ moins prioritaire n'interrompt pas la scène en cours (un extrait qui reprend ne
 l'effet « bonne réponse »). Priorités : `idle` 0 ; `question`, `clip-playing` 10 ; `game-start`,
 `round-start`, `chooser`, `round-end` 20 ; `buzz`, `answer-correct`, `answer-wrong`,
 `question-lost` 40 (un buzz juste après une mauvaise réponse n'est donc pas refusé) ; `victory`,
-`victory-tie` 50 ; `exit`, `exit-off` 15 ; `identify` 90. Couleurs : DA néon du backoffice, une couleur par pupitre.
+`victory-tie` 50 ; `exit`, `exit-off` 15 ; `pause` 60 ; `identify` 90. Couleurs : DA néon du backoffice, une couleur par pupitre.
 
 **Plafond d'éclairs (photosensibilité)** : la salle ne fait pas plus de **3 éclairs par seconde**,
 quelle que soit la scène jouée par le lecteur de scènes. Le seuil de référence est
@@ -399,9 +401,19 @@ est limitée à 20 000 caractères côté serveur). Même `id` qu'une scène par
 - **Clés d'événement** : `round_started.<miniGame>` (code du mini-jeu, ex. `sudden_death`) l'emporte
   sur `round_started`, y compris à `null` (aucune scène pour ce mini-jeu). Les **signaux de l'écran
   de salle** `SHOW_CUES` (`game_paused`, `game_resumed`, `session_exit`) passent par
-  `handleGameEvent` comme un événement, sans jamais entrer dans le moteur : ils n'ont **aucune
-  liaison par défaut** (les scènes `pause` / `question` de reprise et la scène de sortie arrivent
-  avec l'écran de salle).
+  `handleGameEvent` comme un événement, sans jamais entrer dans le moteur. `game_paused` joue
+  `pause` et `game_resumed` joue `question` ; `session_exit` n'a aucune liaison par défaut. La scène
+  `pause` (priorité 60) est un fondu de 400 ms vers une ambiance basse, sans flash ni fumée : la
+  coupure du jet reste celle de `setGamePaused`. `game_resumed` arrête toujours le lecteur avant sa
+  scène (`player.stop()`, comme `game_aborted` et `game_started`) : une reprise en moins de 400 ms
+  n'est pas refusée par la scène `pause` encore en cours, et tout ce qui tournait pendant la pause
+  est coupé aussi (`identify`, scène de test, victoire forcée, avec son enchaînement vers la
+  sortie). Une salle qui a retiré la liaison (`game_resumed: null`) retrouve quand même
+  l'ambiance `question`. **Rejeu de reprise** : la fumée étant de nouveau permise à la reprise,
+  `game_resumed` et les événements de phase rejoués par l'écran de salle passent par
+  `handleGameEvent(event, { restore: true })`. Le lecteur retire alors les pas `smoke` et `flash`
+  de la scène et de celles qu'elle enchaîne (`next`) : seul l'état lumineux (couleurs, attentes)
+  revient, jamais un jet ni un éclair. Le jeu normal n'est pas touché (`restore` absent).
 - **Bornes** (`parseScenes`, constantes `SCENE_LIMITS`). Une scène ou une étape illisible est
   écartée, une valeur hors borne est ramenée, et chaque écart est dans les `problems` de
   `parseRoomHardwareConfig` :
@@ -772,6 +784,42 @@ Avec la case et sans relais, le relais temporisé n'est pas exigé (`getState().
 `parseRoomHardwareConfig(room.config)` relit tout de façon tolérante (une config vide `{}` donne
 une salle en simulation) et renvoie la config normalisée, les appareils résolus et la liste des
 problèmes à afficher (touche en double, adresses qui se chevauchent, profil inconnu…).
+
+### Export et import d'une configuration de salle
+
+```ts
+import { exportRoomConfig, parseRoomConfigImport, withoutSmokeEscalation } from '@quizzup/hardware'
+
+const { fileName, content } = exportRoomConfig(config, { roomName: 'Salle 1', now: new Date() })
+// fileName : quizzup-salle-salle-1-2026-11-24.json ; content : { format, schema, exportedAt, config }
+
+const result = parseRoomConfigImport(text) // ne lève jamais
+if (result.ok) {
+  // result.summary (pupitres, appareils, pilote, univers), result.problems, result.smokeDisabled
+  save(withoutSmokeEscalation(current, result.config)) // après confirmation de l'opérateur
+} else {
+  // result.reason : too_large | invalid_json | wrong_format | invalid_schema | newer_schema |
+  // invalid_config ; result.message : texte lisible
+}
+```
+
+- Le fichier est `{ format: "quizzup-room-config", schema, exportedAt, config }`. `schema` vaut
+  `ROOM_HARDWARE_CONFIG_VERSION` ; un fichier plus récent est refusé. 64 Ko au plus (octets).
+- **Jamais exporté ni importé** : `lighting.smoke.enabled` (forcé à faux), `cutsOnSignalLoss`
+  (retiré), `setupDone` (retiré : l'assistant se relance), toute clé que la relecture ne connaît pas
+  (aucun identifiant de compte, aucun secret), l'état local (arrêt d'urgence, révision, parties).
+- Repris comme point de départ à confirmer : cible Art-Net, buzzers appris, plan de salle.
+- `withoutSmokeEscalation(previous, next)` ne laisse la fumée de `next` jamais plus permissive que
+  celle de `previous` : activation, dispense de relais, jet plus long, pause plus courte, niveau plus
+  haut, confirmation retirée. Elle sert à l'import et à l'éditeur JSON de l'écran de salle ; seul
+  l'assistant assouplit la fumée. Conséquence : le JSON ne peut plus ni allonger un jet ni rapprocher
+  deux jets, même sur une salle où la fumée est désactivée.
+- **Limite connue : le niveau maximal (`maxLevel`) ne peut que baisser.** Aucun écran ne permet de le
+  remonter (l'assistant règle `enabled`, `cutsOnSignalLoss`, `maxDurationMs` et `cooldownMs`) : le
+  relever demandera un réglage dédié de l'assistant, à ajouter dans un lot à part.
+- **Nouvelle clé de configuration** : l'export écarte toute clé absente de `ROOT_KEYS` et de
+  `LIGHTING_KEYS` (`config.ts`). Une nouvelle clé (ex. `lighting.usb`) s'y ajoute avec un test
+  d'aller-retour export → import, sinon l'export la perd sans rien dire.
 
 ## Installer un programme sur une carte Uno (`firmware/`)
 

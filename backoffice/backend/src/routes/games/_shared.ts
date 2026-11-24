@@ -16,6 +16,7 @@ import {
   GAME_STATUS_ACTIVE,
   GAME_STATUS_DELETED,
   getRoomDesksCount,
+  type GameFormat,
   type GameLocale,
   type GameState,
   JOIN_LINK_TTL_MINUTES,
@@ -45,6 +46,7 @@ export const gameSelect = [
   'games.room_id as roomId',
   'rooms.name as roomName',
   'games.admin_id as adminId',
+  'games.format',
   'games.rounds_count as roundsCount',
   'games.questions_per_round as questionsPerRound',
   'games.mini_games as miniGames',
@@ -172,6 +174,7 @@ export function toGameRow(row: Record<string, unknown>): GameRow {
     roomId: Number(row.roomId),
     adminId: toOptionalNumber(row.adminId) ?? null,
     seed: Number(row.seed),
+    format: game.format ?? null,
     miniGames: toMiniGames(row.miniGames),
     scheduledAt: game.scheduledAt ?? null,
     scheduledEndAt: game.scheduledEndAt ?? null,
@@ -364,6 +367,9 @@ export type NewGame = {
   companyId: number
   roomId: number
   adminId: number | null
+  /** Clé d'API qui a créé la partie (réservation par l'API publique), sinon `null`. */
+  apiKeyId?: number
+  format: GameFormat
   roundsCount: number
   questionsPerRound: number
   /** `undefined` = tous les mini-jeux. */
@@ -391,6 +397,8 @@ export async function insertGameWithParticipants(
       company_id: game.companyId,
       room_id: game.roomId,
       admin_id: game.adminId,
+      api_key_id: game.apiKeyId ?? null,
+      format: game.format,
       rounds_count: game.roundsCount,
       questions_per_round: game.questionsPerRound,
       mini_games: game.miniGames ? JSON.stringify(game.miniGames) : null,
