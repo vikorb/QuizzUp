@@ -58,7 +58,7 @@ describe('views/navbar/SideBar.vue', () => {
       expect.arrayContaining([
         { to: '/', labelKey: 'navbar.home' },
         { to: '/clients/42', labelKey: 'navbar.myCompany' },
-        { to: '/players', labelKey: 'navbar.players' },
+        { to: '/players', labelKey: 'players.menu' },
         { to: '/themes', labelKey: 'navbar.themes' },
         { to: '/questions', labelKey: 'navbar.questionsAnswers' },
         { to: '/games', labelKey: 'navbar.games' },
@@ -96,7 +96,7 @@ describe('views/navbar/SideBar.vue', () => {
     expect(items).toEqual(
       expect.arrayContaining([
         { to: '/clients', labelKey: 'navbar.clients' },
-        { to: '/players', labelKey: 'navbar.players' },
+        { to: '/players', labelKey: 'players.menu' },
         { to: '/themes', labelKey: 'navbar.themes' },
         { to: '/questions', labelKey: 'navbar.questionsAnswers' },
       ])

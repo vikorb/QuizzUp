@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Écran « Joueurs » du backoffice : liste paginée avec recherche sur le nom, nombre de parties, dernière venue et meilleur score ; désinscription des offres et effacement définitif d'un joueur (admins) ; export CSV des joueurs qui acceptent les offres. Un membre du staff voit la liste sans adresse, sans action et sans export.
+  US: US-PLAYERS-01 (#157)
+
 - Joueurs d'une compagnie (API) : `GET /companies/:companyId/players` (liste paginée, recherche par nom, e-mail masqué pour le rôle `user`), `GET …/players/export.csv` (joueurs ayant accepté les offres, cellules protégées contre les formules), `POST …/players/unsubscribe` (retire le consentement aux offres, réponse identique que l'adresse soit connue ou non) et `POST …/players/erase` (efface l'e-mail, les consentements et le nom sur chaque pupitre, supprime les demandes d'inscription en attente ; scores conservés). Export, désinscription et effacement réservés aux admins.
   US: US-PLAYERS-01 (#157)
 

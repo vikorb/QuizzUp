@@ -7,3 +7,15 @@ export function waitForPaint(): Promise<void> {
     })
   })
 }
+
+/** Propose un fichier au téléchargement (réponse d'une route authentifiée, hors d'un simple lien). */
+export function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+
+  link.href = url
+  link.download = filename
+  link.click()
+
+  URL.revokeObjectURL(url)
+}

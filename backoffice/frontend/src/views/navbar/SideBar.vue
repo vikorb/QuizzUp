@@ -81,7 +81,7 @@ const navManage = computed(() => {
       to: '/players',
       icon: mdiAccountGroupOutline,
       iconType: 'mdi' as const,
-      labelKey: 'navbar.players',
+      labelKey: 'players.menu',
     },
     {
       to: '/themes',
