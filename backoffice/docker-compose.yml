@@ -25,6 +25,9 @@ services:
       DATABASE_URL: postgresql://quizzup:quizzup@postgres:5432/quizzup_backoffice
       API_PORT: '3001'
       CORS_ORIGIN: 'http://localhost:4173,http://localhost:4174'
+      # Origine des pages pour téléphone (/rejoindre/, /bon/) : base des liens et QR codes, et
+      # origine autorisée sur l'API publique.
+      PUBLIC_APP_URL: 'http://localhost:4173'
       JWT_SECRET: 'change_me_super_secret'
       JWT_EXPIRES_IN: '2h'
       # Console éditeur ouverte à toute adresse : acceptable ici seulement parce que les ports sont

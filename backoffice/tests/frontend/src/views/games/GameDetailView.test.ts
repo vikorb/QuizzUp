@@ -16,6 +16,7 @@ import { createRoomLive } from '@frontend-tests/_helpers/liveMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { currentRouteMock, pushMock } from '@frontend-tests/_helpers/routerMock'
+import { listGameVouchersServiceMock } from '@frontend-tests/_helpers/vouchersServiceMock'
 import {
   GAME_STATE_FINISHED,
   GAME_STATE_RUNNING,
@@ -314,6 +315,24 @@ describe('views/games/GameDetailView.vue', () => {
     })
 
     expect(abortButton(await mountView()).exists()).toBe(false)
+  })
+
+  it('shows the vouchers panel of a finished game only', async () => {
+    const pending = await mountView()
+
+    expect(pending.find('[data-test="game-vouchers-panel"]').exists()).toBe(false)
+    expect(listGameVouchersServiceMock).not.toHaveBeenCalled()
+
+    loadGameServiceMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: { game: createGameFixture({ id: 4, state: GAME_STATE_FINISHED, participants: [] }) },
+    })
+
+    const finished = await mountView()
+
+    expect(finished.find('[data-test="game-vouchers-panel"]').exists()).toBe(true)
+    expect(listGameVouchersServiceMock).toHaveBeenCalledWith(1, 4)
   })
 
   it('links to the results sheet of a finished game only', async () => {

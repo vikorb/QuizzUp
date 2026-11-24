@@ -101,6 +101,7 @@
     <GameLivePanel v-if="game" :game="game" @ended="loadPage" />
 
     <GameJoinPanel v-if="game" :game="game" @changed="reloadGame" />
+    <GameVouchersPanel v-if="game" :key="game.id" :game="game" />
 
     <GameParticipantsTable v-if="game" :participants="game.participants ?? []" />
   </SectionLayout>
@@ -138,6 +139,7 @@ import {
 import GameJoinPanel from './detail/GameJoinPanel.vue'
 import GameLivePanel from './detail/GameLivePanel.vue'
 import GameParticipantsTable from './detail/GameParticipantsTable.vue'
+import GameVouchersPanel from './detail/GameVouchersPanel.vue'
 
 const route = useRoute()
 const router = useRouter()
