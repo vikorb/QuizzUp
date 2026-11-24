@@ -1,6 +1,7 @@
 import { vi } from 'vitest'
 
-import type { Question } from '@/types/question'
+import type { attachQuestionMediaProviderService } from '@/services/questionMediaService'
+import type { MediaCatalogTrack, Question } from '@/types/question'
 
 export const uploadQuestionMediaServiceMock = vi.fn(async (questionId: number): Promise<Question> =>
   mediaQuestion(questionId)
@@ -9,6 +10,14 @@ export const uploadQuestionMediaServiceMock = vi.fn(async (questionId: number): 
 export const deleteQuestionMediaServiceMock = vi.fn(async (questionId: number): Promise<Question> =>
   mediaQuestion(questionId, { mediaFile: null })
 )
+
+export const attachQuestionMediaProviderServiceMock = vi.fn<
+  typeof attachQuestionMediaProviderService
+>(async (questionId) => providerQuestion(questionId))
+
+export const searchMediaCatalogTracksServiceMock = vi.fn<
+  (query: string) => Promise<MediaCatalogTrack[]>
+>(async () => [])
 
 export const fetchQuestionMediaBlobServiceMock = vi.fn(
   async (): Promise<Blob> => new Blob(['ID3'], { type: 'audio/mpeg' })
@@ -40,10 +49,36 @@ export function mediaQuestion(questionId: number, overrides: Partial<Question> =
   }
 }
 
+export function providerQuestion(questionId: number, overrides: Partial<Question> = {}): Question {
+  return mediaQuestion(questionId, {
+    mediaFile: null,
+    mediaProvider: 'deezer',
+    mediaProviderRef: '3135556',
+    mediaProviderLabel: 'Queen — Bohemian Rhapsody',
+    ...overrides,
+  })
+}
+
+export function mediaTrack(overrides: Partial<MediaCatalogTrack> = {}): MediaCatalogTrack {
+  return {
+    provider: 'deezer',
+    ref: '3135556',
+    title: 'Bohemian Rhapsody',
+    artist: 'Queen',
+    album: 'A Night at the Opera',
+    coverUrl: 'https://cdn.example/cover.jpg',
+    previewUrl: 'https://cdn.example/preview.mp3',
+    link: 'https://www.deezer.com/track/3135556',
+    ...overrides,
+  }
+}
+
 export function resetQuestionMediaServiceMock(): void {
   uploadQuestionMediaServiceMock.mockReset()
   deleteQuestionMediaServiceMock.mockReset()
   fetchQuestionMediaBlobServiceMock.mockReset()
+  attachQuestionMediaProviderServiceMock.mockReset()
+  searchMediaCatalogTracksServiceMock.mockReset()
 
   uploadQuestionMediaServiceMock.mockImplementation(async (questionId: number) =>
     mediaQuestion(questionId)
@@ -54,4 +89,8 @@ export function resetQuestionMediaServiceMock(): void {
   fetchQuestionMediaBlobServiceMock.mockImplementation(
     async () => new Blob(['ID3'], { type: 'audio/mpeg' })
   )
+  attachQuestionMediaProviderServiceMock.mockImplementation(async (questionId: number) =>
+    providerQuestion(questionId)
+  )
+  searchMediaCatalogTracksServiceMock.mockImplementation(async () => [])
 }

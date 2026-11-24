@@ -28,17 +28,13 @@ import {
   buildClearedMediaPatch,
   lockQuestionMediaRow,
   QuestionRuleError,
+  resolveQuestionAccess,
   type QuestionMediaRow,
 } from './_media'
 import {
-  canEditQuestion,
-  canReadQuestion,
   getCurrentAdminId,
-  getQuestionAccessRow,
   getMediaVersion,
   getQuestionWithAnswers,
-  parsePositiveId,
-  type QuestionAccessRow,
   type QuestionParams,
 } from './_shared'
 
@@ -48,42 +44,12 @@ type MediaUploadQuery = {
   rightsAttested?: string
 }
 
-type AccessResult =
-  | { ok: true; questionId: number; question: QuestionAccessRow }
-  | { ok: false; status: number; error: string }
-
 const MAX_DURATION_MS = 60 * 60 * 1000
 
 // Cache navigateur privé mais toujours revalidé (ETag = version du fichier) : après un
 // remplacement ou un changement de compte sur le PC de salle, le serveur recontrôle la requête
 // et renvoie 304 seulement si c'est bien le même fichier.
 const MEDIA_CACHE_CONTROL = 'private, no-cache'
-
-async function resolveQuestionAccess(
-  req: FastifyRequest<{ Params: QuestionParams }>,
-  mode: 'read' | 'edit'
-): Promise<AccessResult> {
-  const questionId = parsePositiveId(req.params.questionId)
-
-  if (questionId === null) {
-    return { ok: false, status: 400, error: 'question_id_invalid' }
-  }
-
-  const question = await getQuestionAccessRow(questionId)
-
-  // Une question supprimée ne sert plus son fichier (US-MEDIA-01).
-  if (!question || question.status === QUESTION_STATUS_DELETED) {
-    return { ok: false, status: 404, error: 'question_not_found' }
-  }
-
-  const allowed = mode === 'read' ? canReadQuestion(question, req) : canEditQuestion(question, req)
-
-  if (!allowed) {
-    return { ok: false, status: 403, error: 'forbidden' }
-  }
-
-  return { ok: true, questionId, question }
-}
 
 async function getQuestionMediaRow(questionId: number): Promise<QuestionMediaRow | null> {
   const row = await db('questions')
@@ -298,6 +264,9 @@ const questionMediaRoutes: FastifyPluginAsync = async (app) => {
               media_uploaded_by: adminId,
               media_uploaded_at: trx.fn.now(),
               media_rights_attested_at: trx.fn.now(),
+              // Le fichier remplace un éventuel extrait de fournisseur (les deux s'excluent).
+              media_provider: null,
+              media_provider_ref: null,
               updated_at: trx.fn.now(),
             })
 
@@ -346,23 +315,24 @@ const questionMediaRoutes: FastifyPluginAsync = async (app) => {
       }
 
       // Le type média reste `audio` : la question attend simplement un nouveau fichier.
-      const removedKey = await db.transaction(async (trx) => {
+      const removal = await db.transaction(async (trx) => {
         const previous = await lockQuestionMediaRow(trx, access.questionId)
 
-        if (!previous?.media_key) {
+        // Un fichier importé ou un extrait de fournisseur : l'un ou l'autre peut être retiré.
+        if (!previous?.media_key && !previous?.media_provider) {
           return null
         }
 
         await trx('questions').where({ id: access.questionId }).update(buildClearedMediaPatch(trx))
 
-        return previous.media_key
+        return { key: previous.media_key }
       })
 
-      if (!removedKey) {
+      if (!removal) {
         return reply.code(404).send({ error: 'question_media_not_found' })
       }
 
-      await removeStoredMediaFile(req, removedKey)
+      await removeStoredMediaFile(req, removal.key)
 
       const question = await getQuestionWithAnswers(access.questionId, req)
 

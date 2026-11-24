@@ -1,7 +1,11 @@
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import {
+  attachQuestionMediaProviderServiceMock,
   deleteQuestionMediaServiceMock,
   mediaQuestion,
+  mediaTrack,
+  providerQuestion,
+  searchMediaCatalogTracksServiceMock,
   uploadQuestionMediaServiceMock,
 } from '@frontend-tests/_helpers/questionMediaServiceMock'
 import {
@@ -227,5 +231,133 @@ describe('views/questions/creation/CreateQuestionForm.vue — audio', () => {
     expect(updateQuestionServiceMock.mock.calls[0]?.[0]).toBe(42)
     expect(uploadQuestionMediaServiceMock).toHaveBeenCalledTimes(2)
     expect(wrapper.emitted('saved')?.[0]?.[0]).toMatchObject({ id: 42 })
+  })
+
+  describe('with a track from the catalog', () => {
+    const track = mediaTrack()
+
+    async function chooseTrack(wrapper: VueWrapper): Promise<void> {
+      searchMediaCatalogTracksServiceMock.mockResolvedValue([track])
+
+      await wrapper.find('[data-test="audio-search-toggle"]').trigger('click')
+      await findInput(wrapper, 'audio-search').setValue('queen')
+      await wrapper.find('[data-test="track-search-submit"]').trigger('click')
+      await flushPromises()
+      await wrapper.find('[data-test="track-choose"]').trigger('click')
+    }
+
+    it('shows the name of the track already attached to the question', () => {
+      const wrapper = mountForm(providerQuestion(5, { answers }), 'edit')
+
+      expect(wrapper.find('[data-test="audio-track-name"]').text()).toBe(
+        'Queen — Bohemian Rhapsody'
+      )
+      expect(wrapper.find('[data-test="audio-file-name"]').exists()).toBe(false)
+    })
+
+    it('falls back to a generic name when the API sends no label', () => {
+      const wrapper = mountForm(providerQuestion(5, { answers, mediaProviderLabel: null }), 'edit')
+
+      expect(wrapper.find('[data-test="audio-track-name"]').text()).toBe(
+        'questions.form.audio.search.unnamed'
+      )
+    })
+
+    it('attaches the chosen track after saving the question, without rights statement', async () => {
+      updateQuestionServiceMock.mockResolvedValue(mediaQuestion(5, { answers }))
+      const wrapper = mountForm(mediaQuestion(5, { answers }), 'edit')
+
+      await chooseTrack(wrapper)
+      await submitForm(wrapper)
+
+      expect(attachQuestionMediaProviderServiceMock).toHaveBeenCalledWith(5, {
+        provider: 'deezer',
+        ref: '3135556',
+      })
+      expect(uploadQuestionMediaServiceMock).not.toHaveBeenCalled()
+      expect(updateQuestionServiceMock).toHaveBeenCalledTimes(1)
+      expect(wrapper.emitted('saved')?.[0]?.[0]).toMatchObject({
+        id: 5,
+        mediaProvider: 'deezer',
+        mediaProviderRef: '3135556',
+      })
+    })
+
+    it('keeps showing the attached track name once saved', async () => {
+      updateQuestionServiceMock.mockResolvedValue(mediaQuestion(5, { answers }))
+      const wrapper = mountForm(mediaQuestion(5, { answers }), 'edit')
+
+      await chooseTrack(wrapper)
+      await submitForm(wrapper)
+
+      expect(wrapper.find('[data-test="audio-track-name"]').text()).toBe(
+        'Queen — Bohemian Rhapsody'
+      )
+      expect(wrapper.find('[data-test="audio-track-meta"]').text()).not.toContain(
+        'questions.form.audio.pending'
+      )
+    })
+
+    it('removes the attached track when asked', async () => {
+      updateQuestionServiceMock.mockResolvedValue(providerQuestion(5, { answers }))
+      const wrapper = mountForm(providerQuestion(5, { answers }), 'edit')
+
+      await wrapper.find('[data-test="audio-remove"]').trigger('click')
+      await submitForm(wrapper)
+
+      expect(deleteQuestionMediaServiceMock).toHaveBeenCalledWith(5)
+      expect(attachQuestionMediaProviderServiceMock).not.toHaveBeenCalled()
+      expect(wrapper.emitted('saved')).toHaveLength(1)
+    })
+
+    it('replaces an imported file by the chosen track', async () => {
+      updateQuestionServiceMock.mockResolvedValue(mediaQuestion(5, { answers }))
+      const wrapper = mountForm(mediaQuestion(5, { answers }), 'edit')
+
+      await chooseTrack(wrapper)
+      await submitForm(wrapper)
+
+      expect(deleteQuestionMediaServiceMock).not.toHaveBeenCalled()
+      expect(attachQuestionMediaProviderServiceMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('replaces the attached track by an imported file', async () => {
+      updateQuestionServiceMock.mockResolvedValue(providerQuestion(5, { answers }))
+      const wrapper = mountForm(providerQuestion(5, { answers }), 'edit')
+
+      const file = await chooseFile(wrapper)
+      await wrapper.find('[data-test="audio-rights"]').setValue(true)
+      await submitForm(wrapper)
+
+      expect(uploadQuestionMediaServiceMock).toHaveBeenCalledWith(5, {
+        file,
+        durationMs: 60_000,
+        rightsAttested: true,
+      })
+      expect(attachQuestionMediaProviderServiceMock).not.toHaveBeenCalled()
+      expect(deleteQuestionMediaServiceMock).not.toHaveBeenCalled()
+    })
+
+    it('keeps the form open on a refused track and lets the user retry', async () => {
+      updateQuestionServiceMock.mockResolvedValue(mediaQuestion(5, { answers }))
+      attachQuestionMediaProviderServiceMock.mockRejectedValueOnce(
+        new QuestionMediaError('question_media_provider_no_preview')
+      )
+      const wrapper = mountForm(mediaQuestion(5, { answers }), 'edit')
+
+      await chooseTrack(wrapper)
+      await submitForm(wrapper)
+
+      expect(wrapper.emitted('saved')).toBeUndefined()
+      expect(wrapper.text()).toContain('questions.form.audio.errors.uploadFailed')
+      expect(wrapper.find('[data-test="audio-track-name"]').text()).toBe(
+        'Queen — Bohemian Rhapsody'
+      )
+
+      await submitForm(wrapper)
+
+      expect(attachQuestionMediaProviderServiceMock).toHaveBeenCalledTimes(2)
+      expect(wrapper.emitted('saved')).toHaveLength(1)
+    })
   })
 })

@@ -5,7 +5,12 @@ import {
   getPlayableMiniGames,
   MAX_SEED,
 } from '@quizzup/game-engine'
-import { GAME_COMMAND_REFUSAL, MINI_GAME_FLASH_BLIND_TEST, type MiniGame } from '@quizzup/shared'
+import {
+  GAME_COMMAND_REFUSAL,
+  MINI_GAME_FLASH_BLIND_TEST,
+  type MiniGame,
+  ROOM_CONTENT_MAX_IDS,
+} from '@quizzup/shared'
 import { computed, ref, shallowRef } from 'vue'
 
 import { createAudioBridge } from '@/audio/audioBridge'
@@ -17,6 +22,7 @@ import {
   readSavedBackofficeGame,
 } from '@/game/backofficeGameMemory'
 import { collectMediaUrls } from '@/game/content'
+import { setMediaCredits } from '@/game/mediaCredits'
 import { readMiniGamesSetting } from '@/game/miniGamesSetting'
 import {
   finalizeRegistrations,
@@ -32,7 +38,8 @@ import {
   type SessionStorage,
 } from '@/game/session'
 import type { BuzzerPress } from '@/hardware/buzzers'
-import { isDemoMode } from '@/utils/auth'
+import { getRoomToken, isDemoMode } from '@/utils/auth'
+import { fetchCurrentContent, type RoomQuestion } from '@/utils/roomApi'
 
 /**
  * État de jeu partagé par les écrans de la salle (une seule partie à la fois).
@@ -40,6 +47,8 @@ import { isDemoMode } from '@/utils/auth'
  * relayés au lecteur audio et aux écouteurs d'effets (sons, lumières).
  */
 const TICK_INTERVAL_MS = 50
+/** Délai du contenu redemandé à la reprise : au-delà, la sauvegarde est reprise telle quelle. */
+const RESUME_CONTENT_TIMEOUT_MS = 5000
 
 const session = shallowRef<GameSession | null>(null)
 const state = shallowRef<GameState | null>(null)
@@ -246,6 +255,7 @@ export function startNewGame(options: NewGameOptions): GameSession {
     demo: isDemoMode(),
   })
 
+  setMediaCredits(options.themes)
   attach(next)
   next.start()
   return next
@@ -303,6 +313,71 @@ export function discardStaleSavedGame(): void {
 }
 
 /**
+ * Redemande au backoffice les questions de la partie qui ont un extrait de fournisseur et met à
+ * jour la sauvegarde : les liens signés qu'elle garde ont expiré. Seuls le lien et le crédit d'une
+ * question de ce genre, que le serveur sert encore avec un crédit, changent (le tirage du moteur
+ * ne bouge pas). Sans question de ce genre, le serveur n'est pas appelé. Hors ligne ou sans
+ * réponse à temps, la sauvegarde reste telle quelle : l'extrait en échec sera muet, la partie
+ * continue.
+ */
+async function refreshSavedMedia(): Promise<void> {
+  const snapshot = storage.load()
+  const token = getRoomToken()
+  if (!snapshot || snapshot.demo === true || !token) {
+    return
+  }
+  const ids = new Set<number>()
+  for (const theme of snapshot.setup.themes) {
+    for (const question of theme.questions as RoomQuestion[]) {
+      if (question.mediaCredit) {
+        ids.add(question.id)
+      }
+    }
+  }
+  if (ids.size === 0) {
+    return
+  }
+  try {
+    const fresh = new Map<number, RoomQuestion>()
+    const asked = [...ids]
+    for (let from = 0; from < asked.length; from += ROOM_CONTENT_MAX_IDS) {
+      const themes = await fetchCurrentContent(token, {
+        ids: asked.slice(from, from + ROOM_CONTENT_MAX_IDS),
+        timeoutMs: RESUME_CONTENT_TIMEOUT_MS,
+      })
+      for (const theme of themes) {
+        for (const question of theme.questions) {
+          fresh.set(question.id, question)
+        }
+      }
+    }
+    storage.save({
+      ...snapshot,
+      setup: {
+        ...snapshot.setup,
+        themes: snapshot.setup.themes.map((theme) => ({
+          ...theme,
+          questions: theme.questions.map((question) => {
+            const next = fresh.get(question.id)
+            if (!ids.has(question.id) || !next?.mediaUrl || !next.mediaCredit) {
+              return question
+            }
+            const updated: RoomQuestion = {
+              ...question,
+              mediaUrl: next.mediaUrl,
+              mediaCredit: next.mediaCredit,
+            }
+            return updated
+          }),
+        })),
+      },
+    })
+  } catch {
+    // Contenu indisponible : la sauvegarde sert telle quelle.
+  }
+}
+
+/**
  * Reprend la partie sauvegardée dans le navigateur (après un rechargement) : les
  * extraits sont rechargés avant que l'horloge ne reparte.
  */
@@ -312,12 +387,14 @@ export async function resumeSavedGame(): Promise<boolean> {
     return false
   }
 
+  await refreshSavedMedia()
   const resumed = GameSession.resume({ storage, now: clock })
 
   if (!resumed) {
     return false
   }
 
+  setMediaCredits(resumed.state.setup.themes)
   await preloadExtracts(resumed.state.setup.themes)
   attach(resumed)
   restoreAudio(resumed)
