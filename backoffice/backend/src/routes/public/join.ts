@@ -129,10 +129,12 @@ function isGameOpen(game: OpenableGame, now: Date): boolean {
   )
 }
 
-function toRegistrationRow(gameId: number, body: RegistrationBody) {
+function toRegistrationRow(gameId: number, body: RegistrationBody, kidsMode: boolean) {
   const second = body.secondPlayer ?? null
-  const email = body.email ?? null
-  const secondEmail = second?.email ?? null
+  // Partie en mode enfants : aucun e-mail n'est gardé, même si le client en envoie un (Q5). Sans
+  // e-mail, les dates de consentement restent vides.
+  const email = kidsMode ? null : (body.email ?? null)
+  const secondEmail = kidsMode ? null : (second?.email ?? null)
 
   // Les consentements sont horodatés par le serveur à la réception, jamais par le client.
   return {
@@ -181,6 +183,7 @@ const publicJoinRoutes: FastifyPluginAsync = async (app) => {
         'games.state as state',
         'games.status as status',
         'games.join_expires_at as expiresAt',
+        'games.kids_mode as kidsMode',
         'rooms.name as roomName',
         'rooms.status as roomStatus',
         'companies.name as companyName',
@@ -195,6 +198,7 @@ const publicJoinRoutes: FastifyPluginAsync = async (app) => {
     return {
       ...game,
       id: Number(game.id),
+      kidsMode: Boolean(game.kidsMode),
       isOpen:
         isGameOpen(game, new Date()) &&
         game.roomStatus === ROOM_STATUS_ACTIVE &&
@@ -227,6 +231,7 @@ const publicJoinRoutes: FastifyPluginAsync = async (app) => {
       roomName: game.roomName,
       logoUrl: companyLogoUrl(game.logoKey),
       expiresAt: new Date(game.expiresAt as string).toISOString(),
+      kidsMode: game.kidsMode,
     }
   })
 
@@ -281,7 +286,7 @@ const publicJoinRoutes: FastifyPluginAsync = async (app) => {
           return 'full'
         }
 
-        await trx('game_registrations').insert(toRegistrationRow(game.id, body))
+        await trx('game_registrations').insert(toRegistrationRow(game.id, body, game.kidsMode))
 
         return 'created'
       })

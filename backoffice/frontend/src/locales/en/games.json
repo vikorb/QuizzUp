@@ -157,6 +157,8 @@
       "participantsHintOpenJoin": "Optional with QR code sign-up: players register from their phone and you assign their podium from the game page.",
       "openJoin": "Player sign-up by QR code",
       "openJoinHint": "A link and a QR code are opened at creation; requests are validated on the game page.",
+      "kidsMode": "Kids mode",
+      "kidsModeHint": "Only themes suitable for children are played, and players are not asked for an e-mail on their phone.",
       "participantsLocked": "Players' email addresses are hidden for your role: their list cannot be edited here.",
       "submitScheduled": "Schedule the session",
       "submittingScheduled": "Scheduling...",

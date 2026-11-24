@@ -159,6 +159,7 @@ export function createDefaultGameFormValues(): GameFormValues {
     miniGames: [...MINI_GAMES],
     participants: [createGameParticipantFormValues(1)],
     openJoin: false,
+    kidsMode: false,
     scheduled: false,
     scheduledDate: '',
     scheduledTime: '',
@@ -604,6 +605,10 @@ export function buildCreateGamePayload(
     payload.miniGames = miniGames
   }
 
+  if (form.kidsMode) {
+    payload.kidsMode = true
+  }
+
   const startsAt = form.scheduled ? resolveScheduledInstant(form, timeZone, instantOrigin) : null
 
   if (startsAt) {
@@ -674,6 +679,10 @@ export function buildUpdateGamePayload(
 
   if (externalRef !== (original.externalRef ?? '')) {
     payload.externalRef = externalRef || null
+  }
+
+  if (form.kidsMode !== Boolean(original.kidsMode)) {
+    payload.kidsMode = form.kidsMode
   }
 
   if (options.includeParticipants) {
@@ -866,6 +875,7 @@ export function createGameFormValuesFromGame(game: Game, timeZone: string): Game
     participants: [...(game.participants ?? [])]
       .sort((left, right) => left.podium - right.podium)
       .map(createParticipantValuesFromGame),
+    kidsMode: Boolean(game.kidsMode),
     scheduled: true,
     durationMinutes: String(getGameDurationMinutes(game) ?? ''),
     playersCount: game.playersCount ? String(game.playersCount) : '',

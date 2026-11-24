@@ -6783,7 +6783,7 @@ paths:
 
         Route publique de la page `/rejoindre/#<jeton>` : aucune authentification. Le jeton du lien (celui du QR code) circule dans le corps, jamais dans l'URL : il n'entre pas dans les journaux.
 
-        La réponse donne le centre, la salle, son logo et la fin de validité du lien : jamais un identifiant, ni le nom d'une demande en attente. Un jeton mal formé, inconnu, ou remplacé par un nouveau QR code répond le même `404 join_link_invalid`. Un jeton reconnu mais fermé (délai dépassé, partie lancée ou terminée, salle ou compagnie inactive) répond `410 join_link_closed`. Le corps est limité à 4 Ko ; la limite par adresse est celle de tout `/public/v1` (120 requêtes par minute).
+        La réponse donne le centre, la salle, son logo, la fin de validité du lien et `kidsMode` (partie en mode enfants : aucun e-mail n'est demandé) : jamais un identifiant, ni le nom d'une demande en attente. Un jeton mal formé, inconnu, ou remplacé par un nouveau QR code répond le même `404 join_link_invalid`. Un jeton reconnu mais fermé (délai dépassé, partie lancée ou terminée, salle ou compagnie inactive) répond `410 join_link_closed`. Le corps est limité à 4 Ko ; la limite par adresse est celle de tout `/public/v1` (120 requêtes par minute).
       operationId: lookupPublicJoinLink
       x-availability: disponible
       security: []
@@ -6859,6 +6859,8 @@ paths:
         Dépose la demande d'un pupitre (un ou deux joueurs) sur la partie du jeton. Rien n'est joué tant que le personnel n'a pas validé la demande dans le backoffice, au pupitre de son choix. Le jeton et les données du joueur circulent dans le corps, jamais dans l'URL.
 
         Les consentements sont recueillis case par case et horodatés par le serveur à la réception. Un e-mail n'est gardé que si `emailConsent` vaut vrai ; `marketingConsent` (offres du centre) suppose un e-mail ; l'e-mail suppose `ageConfirmed` (15 ans ou plus). La même règle vaut pour le 2e joueur. La réponse est la même quel que soit l'e-mail : on ne dit jamais s'il était déjà connu.
+
+        Pour une partie en mode enfants (`kidsMode` de `join/lookup`), aucun e-mail n'est enregistré, même reçu avec ses consentements : la demande est créée sans e-mail et sans date de consentement, la réponse reste `201`.
 
         Au plus 12 demandes en attente par partie (`409 join_full`). Limite : 30 envois par minute et par adresse, valides ou non (`429` `too_many_requests`, en-tête `Retry-After`). Le corps est limité à 4 Ko.
       operationId: createPublicJoinRegistration
@@ -7157,7 +7159,7 @@ components:
 
     PublicJoinLink:
       type: object
-      required: [companyName, roomName, logoUrl, expiresAt]
+      required: [companyName, roomName, logoUrl, expiresAt, kidsMode]
       properties:
         companyName:
           type: string
@@ -7171,6 +7173,9 @@ components:
           type: string
           format: date-time
           description: Fin de validité du lien
+        kidsMode:
+          type: boolean
+          description: Partie en mode enfants. La page du téléphone ne demande alors aucun e-mail (ni consentement lié à l'e-mail), et le serveur n'enregistre aucun e-mail reçu pour cette partie.
 
     JoinPlayerFields:
       type: object
