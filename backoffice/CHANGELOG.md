@@ -8,6 +8,8 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Écran de salle, réglage des lumières : les modèles de salle (`ROOM_TEMPLATES`) se choisissent dans l'assistant, avec une confirmation avant de remplacer des appareils déjà réglés, et une répartition des univers est proposée en Art-Net avant le test. Un modèle ne touche jamais aux réglages de fumée ; un modèle à plusieurs univers n'est pas proposé avec une interface USB.
+  US: US-SHOW-01 (#145)
 - Matériel, configuration de salle : export et import (`exportRoomConfig`, `parseRoomConfigImport`), avec un garde-fou fumée (`withoutSmokeEscalation`). Un import ou le JSON de la configuration avancée ne peut jamais rendre la fumée plus permissive que celle de la salle : ni l'activer, ni dispenser du relais, ni allonger un jet, ni rapprocher deux jets, ni retirer la confirmation. Un fichier invalide, trop gros ou d'une version plus récente est refusé avec une raison lisible. Les boutons Exporter et Importer viendront avec le lot suivant.
   US: US-SHOW-01 (#145)
 - Lumières à la pause : quand la partie est mise en pause, la salle passe sur une ambiance basse (scène `pause`, sans éclair ni fumée) ; à la reprise elle retrouve la lumière de la phase en cours. Les liaisons `game_paused` et `game_resumed` restent réglables par salle.
