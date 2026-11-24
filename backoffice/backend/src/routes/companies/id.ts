@@ -90,7 +90,7 @@ const companiesIdRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const { id } = parsedParams.data
-      const { name, email, status } = parsedBody.data
+      const { name, email, status, voucherLabel, voucherValidityDays } = parsedBody.data
 
       if (!canUpdateCompanyContext(req, id)) {
         return reply.code(403).send({ error: 'forbidden' })
@@ -140,6 +140,14 @@ const companiesIdRoutes: FastifyPluginAsync = async (app) => {
         updatePayload.email = email
       }
 
+      if (voucherLabel !== undefined) {
+        updatePayload.voucher_label = voucherLabel
+      }
+
+      if (voucherValidityDays !== undefined) {
+        updatePayload.voucher_validity_days = voucherValidityDays
+      }
+
       if (status !== undefined && isSuperadmin(req)) {
         updatePayload.status = status
         updatePayload.deleted_at = status === COMPANY_STATUS_DELETED ? db.fn.now() : null
@@ -157,6 +165,8 @@ const companiesIdRoutes: FastifyPluginAsync = async (app) => {
           'updated_at as updatedAt',
           'deleted_at as deletedAt',
           'logo_key as logoKey',
+          'voucher_label as voucherLabel',
+          'voucher_validity_days as voucherValidityDays',
         ])
 
       const updatedCompanyBase = Array.isArray(updated) ? updated[0] : updated

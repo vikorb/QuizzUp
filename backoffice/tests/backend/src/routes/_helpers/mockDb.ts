@@ -38,6 +38,7 @@ type DbState = {
   rooms: Row[]
   games: Row[]
   game_participants: Row[]
+  vouchers: Row[]
   room_logs: Row[]
   demo_requests: Row[]
 }
@@ -62,6 +63,7 @@ export const dbState: DbState = {
   rooms: [],
   games: [],
   game_participants: [],
+  vouchers: [],
   room_logs: [],
   demo_requests: [],
 }
@@ -149,6 +151,7 @@ export function resetDb(seed?: Partial<DbState>): void {
   dbState.rooms = structuredClone(seed?.rooms ?? [])
   dbState.games = structuredClone(seed?.games ?? [])
   dbState.game_participants = structuredClone(seed?.game_participants ?? [])
+  dbState.vouchers = structuredClone(seed?.vouchers ?? [])
   dbState.room_logs = structuredClone(seed?.room_logs ?? [])
   dbState.demo_requests = structuredClone(seed?.demo_requests ?? [])
   db.fn.now.mockClear()
@@ -743,6 +746,8 @@ class QueryBuilder {
           row.id = nextNumericId(this.table)
         }
 
+        this.assertVoucherIndexes(row)
+
         getTableRows(this.table).push(row)
         insertedRows.push(row)
       })
@@ -778,6 +783,36 @@ class QueryBuilder {
       throw Object.assign(new Error('duplicate key value violates unique constraint'), {
         code: '23505',
       })
+    }
+  }
+
+  // Index uniques des bons : le code (`vouchers_code_unique`) et un bon non supprimé par pupitre et
+  // par partie (`vouchers_game_id_participant_id_active_unique`).
+  private assertVoucherIndexes(row: Row): void {
+    if (this.table !== 'vouchers') {
+      return
+    }
+
+    const violated = (constraint: string): never => {
+      throw Object.assign(new Error('duplicate key value violates unique constraint'), {
+        code: '23505',
+        constraint,
+      })
+    }
+
+    for (const other of dbState.vouchers) {
+      if (other.code === row.code) {
+        violated('vouchers_code_unique')
+      }
+
+      if (
+        other.game_id === row.game_id &&
+        other.participant_id === row.participant_id &&
+        other.status !== 2 &&
+        row.status !== 2
+      ) {
+        violated('vouchers_game_id_participant_id_active_unique')
+      }
     }
   }
 

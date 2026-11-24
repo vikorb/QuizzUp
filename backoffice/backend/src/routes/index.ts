@@ -9,6 +9,7 @@ import questionsRoutes from './questions'
 import roomRoutes from './room'
 import roomLogsRoutes from './room/logs'
 import gamesRoutes from './games'
+import vouchersRoutes from './vouchers'
 import demoRequestsRoutes from './demoRequests'
 import liveRoutes from './live'
 import publicRoutes from './public'
@@ -25,6 +26,7 @@ const routes: FastifyPluginAsync = async (app) => {
   await app.register(roomRoutes)
   await app.register(roomLogsRoutes)
   await app.register(gamesRoutes)
+  await app.register(vouchersRoutes)
   await app.register(demoRequestsRoutes)
   await app.register(liveRoutes)
   await app.register(publicRoutes, { prefix: PUBLIC_API_PREFIX })

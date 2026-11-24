@@ -50,13 +50,16 @@ tags:
     description: Salles de jeu d'une compagnie et leur configuration matérielle
   - name: Games
     description: Parties lancées par l'opérateur dans une salle
+  - name: Vouchers
+    description: Bons de fidélisation remis aux joueurs d'une partie terminée, émis et utilisés par le personnel
   - name: DemoRequests
     description: Demandes de démonstration reçues de la vitrine, consultées dans la console de l'éditeur
   - name: Public
     description: |
       API publique sous `/public/v1` (vitrine, réservation) : sans compte, sans jeton, sans cookie.
-      Routes livrées : `POST /public/v1/demo-requests` (demande de démonstration) et
-      `GET /public/v1/logos/{file}` (logo d'un centre). Toutes suivent ces conventions.
+      Routes livrées : `POST /public/v1/demo-requests` (demande de démonstration),
+      `GET /public/v1/logos/{file}` (logo d'un centre) et `POST /public/v1/vouchers/lookup`
+      (consultation d'un bon). Toutes suivent ces conventions.
 
       - Erreurs au format `PublicError` : statut HTTP et `{ "error": "<code_snake_case>" }`, avec
         `details.fieldErrors` pour `invalid_body` seulement. Codes communs : `invalid_json` (400),
@@ -2367,6 +2370,363 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: Partie déjà terminée (`game_already_over`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/games/{gameId}/vouchers:
+    post:
+      tags:
+        - Vouchers
+      summary: '[DISPONIBLE] Émettre un bon pour un pupitre'
+      description: |
+        Statut : **Disponible** (lot 6b)
+
+        Émet le bon de fidélisation d'un pupitre d'une partie terminée (un bon par pupitre et par partie, partagé par le duo). Le libellé du bon est copié du réglage `voucherLabel` du centre au moment de l'émission ; la fin de validité est l'émission plus `voucherValidityDays` jours. Le code (`XXXX-XXXX`) est tiré sur 40 bits.
+
+        `url` est l'adresse de la page publique du bon (`PUBLIC_APP_URL` + `/bon/#<code>`), nulle tant que `PUBLIC_APP_URL` n'est pas réglée. Le QR code (`qrSvg`) n'est pas encore fourni : il arrive avec le générateur de QR du lot 2.
+
+        Ordre des contrôles : droit, paramètres et corps, compagnie, compagnie et partie existantes (`404 not_found`), bons activés (`409 vouchers_disabled`), partie terminée (`409 game_not_finished`), pupitre de cette partie (`404 participant_not_found`), bon déjà émis (`409 voucher_already_issued`, y compris pour un bon annulé).
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: createGameVoucher
+      x-availability: disponible
+      x-us: 'US-VOUCHER-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/GameIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueVoucherRequest'
+      responses:
+        '201':
+          description: Bon émis
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  voucher:
+                    $ref: '#/components/schemas/Voucher'
+        '400':
+          description: Identifiants ou corps invalides (`invalid_params`, `invalid_body`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Compagnie ou partie introuvable (`not_found`), pupitre qui n'est pas de cette partie (`participant_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Bons désactivés pour ce centre (`vouchers_disabled`), partie pas terminée (`game_not_finished`), bon déjà émis pour ce pupitre (`voucher_already_issued`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      tags:
+        - Vouchers
+      summary: "[DISPONIBLE] Lister les bons d'une partie"
+      description: |
+        Statut : **Disponible** (lot 6b)
+
+        Bons non supprimés de la partie, dans l'ordre des pupitres, avec leur `state` (un bon annulé est listé : c'est à la feuille de résultats de l'ignorer).
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: listGameVouchers
+      x-availability: disponible
+      x-us: 'US-VOUCHER-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/GameIdParam'
+      responses:
+        '200':
+          description: Bons de la partie
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vouchers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Voucher'
+        '400':
+          description: Identifiants invalides (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Partie introuvable (`not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/vouchers:
+    get:
+      tags:
+        - Vouchers
+      summary: "[DISPONIBLE] Lister les bons d'une compagnie"
+      description: |
+        Statut : **Disponible** (lot 6b)
+
+        Bons non supprimés de la compagnie, du plus récent au plus ancien (l'identifiant décroissant départage les égalités). Les filtres sont facultatifs et se cumulent ; `total` est le nombre de bons qui passent les filtres, quelle que soit la page. `limit` au-delà de 200 est ramené à 200.
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: listCompanyVouchers
+      x-availability: disponible
+      x-us: 'US-VOUCHER-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - name: state
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/VoucherState'
+        - name: gameId
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Page de bons
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vouchers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Voucher'
+                  total:
+                    type: integer
+        '400':
+          description: Identifiant ou filtres invalides (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/vouchers/lookup:
+    post:
+      tags:
+        - Vouchers
+      summary: '[DISPONIBLE] Retrouver un bon par son code'
+      description: |
+        Statut : **Disponible** (lot 6b)
+
+        Le code est une valeur au porteur : il circule dans le corps, jamais dans l'URL. La saisie est normalisée (majuscules, sans espace ni tiret, `O` lu `0`, `I` et `L` lus `1`), donc `abcd 1234` et `ABCD-1234` désignent le même bon. Un code mal formé, inconnu ou d'une autre compagnie répond le même `404 voucher_not_found`.
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: lookupCompanyVoucher
+      x-availability: disponible
+      x-us: 'US-VOUCHER-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoucherCodeRequest'
+      responses:
+        '200':
+          description: Détail du bon
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  voucher:
+                    $ref: '#/components/schemas/Voucher'
+        '400':
+          description: Identifiant ou corps invalides (`invalid_params`, `invalid_body`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Aucun bon pour ce code dans la compagnie (`voucher_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/vouchers/redeem:
+    post:
+      tags:
+        - Vouchers
+      summary: '[DISPONIBLE] Marquer un bon comme utilisé'
+      description: |
+        Statut : **Disponible** (lot 6b)
+
+        Usage unique, valable dans toutes les salles de la compagnie, par n'importe quel membre du personnel. La décision tient en une seule instruction SQL (`UPDATE … WHERE redeemed_at IS NULL AND status = 1 AND expires_at > now`) : si deux comptoirs valident le même bon en même temps, un seul reçoit `200`, l'autre `409 voucher_already_redeemed`. Il n'y a pas de retour en arrière sur un bon utilisé.
+
+        Refus, selon l'état du bon : annulé `409 voucher_cancelled`, déjà utilisé `409 voucher_already_redeemed`, périmé `410 voucher_expired`. Un code mal formé, inconnu ou d'une autre compagnie répond `404 voucher_not_found`.
+
+        Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
+      operationId: redeemCompanyVoucher
+      x-availability: disponible
+      x-us: 'US-VOUCHER-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoucherCodeRequest'
+      responses:
+        '200':
+          description: Bon utilisé (`state` vaut `redeemed`)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  voucher:
+                    $ref: '#/components/schemas/Voucher'
+        '400':
+          description: Identifiant ou corps invalides (`invalid_params`, `invalid_body`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Aucun bon pour ce code dans la compagnie (`voucher_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Bon annulé (`voucher_cancelled`) ou déjà utilisé (`voucher_already_redeemed`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '410':
+          description: Bon périmé (`voucher_expired`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/vouchers/{voucherId}/status:
+    patch:
+      tags:
+        - Vouchers
+      summary: '[DISPONIBLE] Annuler un bon'
+      description: |
+        Statut : **Disponible** (lot 6b)
+
+        Seule l'annulation existe (`status: 0`). Idempotent : annuler un bon déjà annulé renvoie `200`. Un bon périmé peut être annulé ; un bon utilisé non (`409 voucher_already_redeemed`). Le bon annulé bloque une nouvelle émission pour le même pupitre.
+
+        Accès : superadmin (toutes les compagnies) et `admin` de la compagnie ; refusé au rôle `user`.
+      operationId: cancelCompanyVoucher
+      x-availability: disponible
+      x-us: 'US-VOUCHER-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/VoucherIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: integer
+                  enum: [0]
+                  description: Annulation
+      responses:
+        '200':
+          description: Bon annulé
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  voucher:
+                    $ref: '#/components/schemas/Voucher'
+        '400':
+          description: Identifiants ou corps invalides (`invalid_params`, `invalid_body`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Bon introuvable dans la compagnie (`voucher_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Bon déjà utilisé (`voucher_already_redeemed`)
           content:
             application/json:
               schema:
@@ -4874,6 +5234,75 @@ paths:
               schema:
                 $ref: '#/components/schemas/PublicError'
 
+  /public/v1/vouchers/lookup:
+    post:
+      tags:
+        - Public
+      summary: "[DISPONIBLE] Consulter un bon à partir de son code"
+      description: |
+        Statut : **Disponible** (lot 6b)
+
+        Route publique de la page `/bon/#<code>` : aucune authentification. Le code est une valeur au porteur : il circule dans le corps, jamais dans l'URL. Il est normalisé comme pour le personnel (majuscules, sans espace ni tiret, `O` lu `0`, `I` et `L` lus `1`).
+
+        La réponse ne contient ni le nom du joueur ni la partie : le libellé, le centre, son logo, la fin de validité et l'état. Un code mal formé, inconnu, supprimé ou d'une compagnie supprimée répond le même `404 voucher_not_found`. Limite : 20 recherches par minute et par adresse, trouvées ou non (`429` `too_many_requests`, en-tête `Retry-After`). Le corps est limité à 1 Ko.
+      operationId: lookupPublicVoucher
+      x-availability: disponible
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoucherCodeRequest'
+      responses:
+        '200':
+          description: Le bon
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicVoucher'
+        '400':
+          description: Corps invalide (`invalid_json`, `invalid_body` avec `details.fieldErrors`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '404':
+          description: Aucun bon pour ce code (`voucher_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '413':
+          description: Corps de plus de 1 Ko (`payload_too_large`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '415':
+          description: Corps qui n'est pas du JSON (`unsupported_media_type`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '429':
+          description: Trop de recherches depuis cette adresse (`too_many_requests`)
+          headers:
+            Retry-After:
+              description: Secondes avant de pouvoir réessayer
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '500':
+          description: Erreur serveur (`server_error`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -4908,6 +5337,15 @@ components:
       schema:
         type: integer
         example: 1
+
+    VoucherIdParam:
+      name: voucherId
+      in: path
+      required: true
+      description: Identifiant du bon
+      schema:
+        type: integer
+        example: 12
 
     DemoRequestId:
       name: demoRequestId
@@ -4987,6 +5425,113 @@ components:
             `question_type_media_invalid`, `question_kind_media_invalid`,
             `question_answers_min_required`, `question_correct_answer_required`,
             `question_true_false_answers_invalid`, `question_estimate_answers_invalid`)
+
+    VoucherState:
+      type: string
+      enum: [valid, redeemed, expired, cancelled]
+      description: |
+        État calculé, jamais stocké : `cancelled` (annulé, même s'il était utilisé ou périmé), `redeemed` (utilisé), `expired` (non utilisé, fin de validité passée), `valid` sinon.
+
+    Voucher:
+      type: object
+      description: Bon de fidélisation vu par le personnel. Le bénéficiaire est un pupitre (nom seulement, jamais d'e-mail).
+      properties:
+        id:
+          type: integer
+          example: 12
+        gameId:
+          type: integer
+          example: 7
+        participantId:
+          type: integer
+          example: 31
+        podium:
+          type: integer
+          description: Numéro du pupitre bénéficiaire
+          example: 1
+        displayName:
+          type: string
+          example: Camille
+        secondDisplayName:
+          type: string
+          nullable: true
+          description: Second joueur du pupitre, qui partage le bon
+        code:
+          type: string
+          description: Valeur au porteur, `XXXX-XXXX` (alphabet de Crockford sans I, L, O ni U)
+          example: 7K2M-9QXD
+        label:
+          type: string
+          description: Libellé du centre au moment de l'émission
+          example: Une partie offerte
+        state:
+          $ref: '#/components/schemas/VoucherState'
+        expiresAt:
+          type: string
+          format: date-time
+        redeemedAt:
+          type: string
+          format: date-time
+          nullable: true
+        redeemedBy:
+          type: integer
+          nullable: true
+          description: Compte qui a enregistré l'utilisation (nul si ce compte a été supprimé)
+        createdAt:
+          type: string
+          format: date-time
+        url:
+          type: string
+          nullable: true
+          description: Page publique du bon (`PUBLIC_APP_URL` + `/bon/#<code>`), nulle tant que `PUBLIC_APP_URL` n'est pas réglée
+          example: https://bo.quizzup.fr/bon/#7K2M-9QXD
+
+    IssueVoucherRequest:
+      type: object
+      required:
+        - participantId
+      properties:
+        participantId:
+          type: integer
+          minimum: 1
+          description: Pupitre de la partie qui reçoit le bon
+
+    VoucherCodeRequest:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          maxLength: 64
+          description: Code saisi ou lu sur le bon, avec ou sans tiret, en majuscules ou non
+          example: 7k2m 9qxd
+
+    PublicVoucher:
+      type: object
+      description: Ce qu'un porteur voit de son bon, sans nom de joueur ni partie
+      required:
+        - label
+        - companyName
+        - logoUrl
+        - expiresAt
+        - state
+      properties:
+        label:
+          type: string
+          example: Une partie offerte
+        companyName:
+          type: string
+          example: Escape Lab
+        logoUrl:
+          type: string
+          nullable: true
+          example: /public/v1/logos/6f1c2a9e-3b7d-4c55-9a10-0d2f5b8e7a41.png
+        expiresAt:
+          type: string
+          format: date-time
+        state:
+          $ref: '#/components/schemas/VoucherState'
 
     PublicError:
       type: object
@@ -5464,6 +6009,17 @@ components:
           nullable: true
           description: URL publique du logo (`GET /public/v1/logos/{file}`), ou `null` sans logo
           example: /public/v1/logos/6f1c2a9e-3b7d-4c55-9a10-0d2f5b8e7a41.png
+        voucherLabel:
+          type: string
+          nullable: true
+          description: Libellé des bons de fidélisation du centre ; `null` = bons désactivés
+          example: Une partie offerte
+        voucherValidityDays:
+          type: integer
+          minimum: 1
+          maximum: 730
+          description: Durée de validité d'un bon, en jours
+          example: 90
 
     CreateCompanyRequest:
       type: object
@@ -5498,6 +6054,17 @@ components:
           example: contact@quizzup.fr
         status:
           $ref: '#/components/schemas/Status'
+        voucherLabel:
+          type: string
+          nullable: true
+          maxLength: 120
+          description: Libellé des bons de fidélisation ; vide ou `null` désactive les bons (les bons déjà émis gardent leur libellé)
+          example: Une partie offerte
+        voucherValidityDays:
+          type: integer
+          minimum: 1
+          maximum: 730
+          description: Durée de validité des bons émis ensuite, en jours
 
     UpdateStatusRequest:
       type: object

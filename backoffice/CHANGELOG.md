@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Bons de fidélisation, API : émission d'un bon pour un participant d'une partie terminée, liste par partie et par compagnie, recherche et utilisation par code (le code voyage dans le corps, jamais dans l'adresse), annulation réservée aux administrateurs. Recherche publique `POST /public/v1/vouchers/lookup`, limitée à 20 requêtes par minute, qui ne révèle ni le joueur ni la partie. Réglages par compagnie : libellé du bon (vide : bons désactivés) et durée de validité (1 à 730 jours, 90 par défaut).
+  US: US-VOUCHER-01 (#156)
+
 - Connexion du superadmin en deux temps : code de l'application d'authentification ou code de secours, enrôlement avec secret à recopier (sans QR code), codes de secours affichés une seule fois, réinitialisation depuis le profil. Les autres rôles se connectent comme avant.
   US: US-CONSOLE-03 (#161)
 
