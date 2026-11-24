@@ -196,6 +196,13 @@ const gamesIdRoutes: FastifyPluginAsync = async (app) => {
         throw error
       }
 
+      // Une session déplacée change la « prochaine partie » des deux salles.
+      app.liveHub.gameUpdated(companyId, game.roomId, gameId)
+
+      if (body.roomId !== undefined && isRoomChanged) {
+        app.liveHub.gameUpdated(companyId, body.roomId, gameId)
+      }
+
       return { game: await findStaffGame(req, companyId, gameId) }
     }
   )
@@ -245,6 +252,10 @@ const gamesIdRoutes: FastifyPluginAsync = async (app) => {
       // La base fait foi : l'écran de la salle est prévenu pour clore sa partie, seulement si cet
       // arrêt a changé la partie et si la salle joue bien celle-ci (sinon on tuerait une autre partie
       // ou la démo). Sinon rien n'est relayé, l'arrêt reste celui d'avant.
+      if (updated > 0) {
+        app.liveHub.gameUpdated(companyId, game.roomId, gameId)
+      }
+
       const commandId = randomUUID()
       const isRelayed =
         updated > 0 &&

@@ -2,6 +2,7 @@
   "game": {
     "round": "Round {current} / {total}",
     "question": "Question {current} / {total}",
+    "playlistQuestion": "What is this track?",
     "points": "{n} pts",
     "miniGames": {
       "flash_blind_test": {

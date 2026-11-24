@@ -50,6 +50,7 @@
               : $t('room.staffLobby.readyText')
           }}
         </p>
+        <p class="staff-lobby__subtitle" data-test="game-format">{{ formatLabel }}</p>
 
         <section
           v-if="joinOffer"
@@ -145,8 +146,13 @@
 <script setup lang="ts">
 import { mdiPlay, mdiRestart, mdiTimerSandEmpty } from '@mdi/js'
 import { GameSetupError } from '@quizzup/game-engine'
-import { GAME_STATE_RUNNING } from '@quizzup/shared'
-import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from 'vue'
+import {
+  estimateGameDurationMs,
+  GAME_FORMAT_CUSTOM,
+  GAME_FORMATS,
+  GAME_STATE_RUNNING,
+} from '@quizzup/shared'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
@@ -169,6 +175,7 @@ import {
 } from '@/game/useRoomGame'
 import { type DeskNumber, isDeskNumber } from '@/hardware/buzzers'
 import { useBuzzers } from '@/hardware/useBuzzers'
+import { onRoomGameUpdated, useRoomLive } from '@/live/roomLive'
 import { getRoomToken } from '@/utils/auth'
 import {
   fetchCurrentContent,
@@ -179,8 +186,11 @@ import {
   startRoomGame,
 } from '@/utils/roomApi'
 
-/** Le staff lance la partie au backoffice : la salle vérifie régulièrement. */
-const POLL_INTERVAL_MS = 3000
+/**
+ * Le staff prépare et lance la partie au backoffice : le serveur prévient la salle (`game_updated`).
+ * Flux coupé, la salle relit lentement la partie jusqu'à son retour.
+ */
+const FALLBACK_POLL_INTERVAL_MS = 15_000
 const PING_DURATION_MS = 1200
 /** Une partie affichée ne disparaît qu'après plusieurs échecs de suite (micro-coupure). */
 const OFFLINE_AFTER_FAILURES = 3
@@ -217,11 +227,35 @@ const pinged = reactive(new Set<DeskNumber>())
 const timers = new Set<ReturnType<typeof setTimeout>>()
 let poller: ReturnType<typeof setInterval> | null = null
 let polling = false
+/** Un événement est arrivé pendant une lecture : elle est refaite dès qu'elle finit. */
+let reloadAfter = false
 let failures = 0
 /** L'écran a été quitté : un démarrage en cours s'arrête là, sans naviguer. */
 let disposed = false
 
 const isRunning = computed(() => game.value?.state === GAME_STATE_RUNNING)
+
+const MS_PER_MINUTE = 60_000
+/** Nom du format et durée estimée, avec les mini-jeux de la partie (affichage seulement). */
+const formatLabel = computed(() => {
+  const current = game.value
+  if (!current) {
+    return ''
+  }
+  const { typicalMs, highMs } = estimateGameDurationMs({
+    roundsCount: current.roundsCount,
+    questionsPerRound: current.questionsPerRound,
+    miniGames: current.miniGames ?? undefined,
+  })
+  return t('room.staffLobby.format', {
+    // Un format que cet écran ne connaît pas (serveur plus récent) se lit « Personnalisé ».
+    name: t(
+      `room.lobby.formats.${GAME_FORMATS.find((format) => format === current.format) ?? GAME_FORMAT_CUSTOM}`
+    ),
+    min: Math.round(typicalMs / MS_PER_MINUTE),
+    max: Math.ceil(highMs / MS_PER_MINUTE),
+  })
+})
 
 /**
  * Le serveur renvoie `join: null` dès que le lien est fermé ou expiré : on s'y fie. Sans QR, une
@@ -276,7 +310,11 @@ function toRegistrations(current: RoomGame): Registration[] | StartError {
 }
 
 async function refresh(): Promise<void> {
-  if (starting.value || polling) {
+  if (starting.value) {
+    return
+  }
+  if (polling) {
+    reloadAfter = true
     return
   }
   const token = getRoomToken()
@@ -301,6 +339,10 @@ async function refresh(): Promise<void> {
     }
   } finally {
     polling = false
+    if (reloadAfter && !disposed) {
+      reloadAfter = false
+      void refresh()
+    }
   }
 }
 
@@ -422,17 +464,40 @@ async function onResume(): Promise<void> {
   }
 }
 
-onMounted(() => {
-  void refresh()
-  poller = setInterval(() => void refresh(), POLL_INTERVAL_MS)
-})
+const { connected } = useRoomLive()
+let stopListening: (() => void) | null = null
 
-onBeforeUnmount(() => {
-  disposed = true
+function stopPoller(): void {
   if (poller !== null) {
     clearInterval(poller)
     poller = null
   }
+}
+
+// Flux ouvert : plus de lecture périodique, mais une lecture pour rattraper ce qui a pu passer
+// pendant la coupure. Flux fermé : lecture lente.
+watch(connected, (isConnected) => {
+  stopPoller()
+  if (isConnected) {
+    void refresh()
+  } else {
+    poller = setInterval(() => void refresh(), FALLBACK_POLL_INTERVAL_MS)
+  }
+})
+
+onMounted(() => {
+  void refresh()
+  stopListening = onRoomGameUpdated(() => void refresh())
+  if (!connected.value) {
+    poller = setInterval(() => void refresh(), FALLBACK_POLL_INTERVAL_MS)
+  }
+})
+
+onBeforeUnmount(() => {
+  disposed = true
+  stopPoller()
+  stopListening?.()
+  stopListening = null
   for (const timer of timers) {
     clearTimeout(timer)
   }

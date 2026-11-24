@@ -24,6 +24,7 @@ import {
   desksForCount,
   type DmxDriver,
   type DmxOutput,
+  findDmxPortByUsb,
   type GamepadBuzzerInput,
   gamepadMatcher,
   getGrantedDmxPort,
@@ -40,6 +41,7 @@ import {
   parseRoomHardwareConfig,
   type PlanPoint,
   type PlanTarget,
+  portUsbId,
   type RawKeyPress,
   requestDmxPort,
   type RoomHardwareConfig,
@@ -157,6 +159,17 @@ function watchBuzzers(input: BuzzerInput): void {
  */
 type BuzzerDevice = KeyboardBuzzerInput | GamepadBuzzerInput
 
+/**
+ * Nombre de cartes manettes identiques qui correspondent au choix (0 : aucune ambiguïté). Aucune
+ * n'est lue tant que l'opérateur n'en a pas débranché une (l'API Gamepad ne les distingue pas).
+ */
+const buzzerCardAmbiguous = shallowRef(0)
+
+function syncCardAmbiguity(input: BuzzerDevice | null): void {
+  buzzerCardAmbiguous.value =
+    input && 'getAmbiguousGamepads' in input ? input.getAmbiguousGamepads().length : 0
+}
+
 let device: BuzzerDevice | null = null
 let deviceKey = ''
 let detachDevice: (() => void) | null = null
@@ -166,7 +179,9 @@ const changeListeners = new Set<(state: BuzzerInputState) => void>()
 
 function buzzerSourceKey(config: RoomHardwareConfig): string {
   const source = config.buzzers.source
-  return source?.kind === 'gamepad' ? `gamepad:${source.match ?? ''}` : 'keyboard'
+  return source?.kind === 'gamepad'
+    ? `gamepad:${source.match ?? ''}:${source.id ?? ''}`
+    : 'keyboard'
 }
 
 function emitTo<T>(listeners: Set<(value: T) => void>, value: T): void {
@@ -181,6 +196,7 @@ function releaseDevice(): void {
   device?.dispose()
   device = null
   deviceKey = ''
+  syncCardAmbiguity(null)
 }
 
 /** (Re)crée le lecteur pour la source de la config ; les abonnés de la page sont gardés. */
@@ -197,7 +213,10 @@ function attachDevice(config: RoomHardwareConfig): BuzzerDevice {
   const offs = [
     next.onPress((press) => emitTo(pressListeners, press)),
     next.onKey((key) => emitTo(keyListeners, key)),
-    next.onChange((state) => emitTo(changeListeners, state)),
+    next.onChange((state) => {
+      syncCardAmbiguity(next)
+      emitTo(changeListeners, state)
+    }),
   ]
   detachDevice = () => {
     for (const off of offs) {
@@ -206,6 +225,7 @@ function attachDevice(config: RoomHardwareConfig): BuzzerDevice {
   }
   device = next
   deviceKey = buzzerSourceKey(config)
+  syncCardAmbiguity(next)
   emitTo(changeListeners, next.getState())
   if (wasLocked) {
     void next.lockSystemKeys()
@@ -313,6 +333,12 @@ function resolveDesk(participantId: number) {
 /** Sortie USB réellement branchée, mesurée pour l'écran de diagnostic. */
 let meteredOutput: MeteredOutput | null = null
 let dmxPort: SerialPortLike | null = null
+/**
+ * Pourquoi l'interface retenue (`lighting.usb`) n'a pas été reprise : `ambiguous` (deux ports du même
+ * modèle, aucun n'est pris : en débrancher un) ou `smoke_board` (le modèle retenu est celui de la
+ * carte de la fumée, jamais ouverte en DMX). `null` sinon.
+ */
+const dmxPortProblem = shallowRef<'ambiguous' | 'smoke_board' | null>(null)
 let stopReconnectWatch: (() => void) | null = null
 /** Délai entre deux essais automatiques du pont Art-Net tant qu'il est injoignable. */
 export const BRIDGE_RETRY_MS = 10_000
@@ -438,7 +464,30 @@ async function reconnectGrantedPort(controller: LightingController): Promise<voi
     return
   }
   // On reprend la même interface (jamais un autre appareil USB autorisé, Arduino…).
-  const port = await getGrantedDmxPort(undefined, { match: dmxPort ?? undefined }).catch(() => null)
+  const config = parsed.value.config
+  const { usb } = config.lighting
+  let port: SerialPortLike | null
+  if (usb) {
+    // Le modèle retenu dans la config, jamais un autre (même avec un port déjà ouvert par cette
+    // page : il reste préféré à son jumeau). Deux ports du même modèle ne sont pas départagés :
+    // aucun n'est ouvert, le problème est signalé.
+    const choice = await findDmxPortByUsb(undefined, usb, {
+      exclude: { usb: config.lighting.smoke.board },
+      prefer: dmxPort ?? undefined,
+    }).catch(() => null)
+    dmxPortProblem.value =
+      choice?.status === 'ambiguous'
+        ? 'ambiguous'
+        : choice?.status === 'excluded'
+          ? 'smoke_board'
+          : null
+    port = choice?.status === 'found' ? choice.port : null
+  } else {
+    port = await getGrantedDmxPort(undefined, {
+      match: dmxPort ?? undefined,
+      exclude: { usb: config.lighting.smoke.board },
+    }).catch(() => null)
+  }
   if (port && controller === lighting) {
     await useSerialPort(controller, port, driver)
   }
@@ -452,8 +501,10 @@ function watchReconnection(controller: LightingController): void {
   if (!isWebSerialSupported() || !dmxPort) {
     return
   }
+  const config = parsed.value.config
   stopReconnectWatch = watchDmxPortReconnection({
     match: dmxPort,
+    exclude: { usb: config.lighting.smoke.board },
     onReconnect: (port) => {
       const { driver } = parsed.value.config.lighting
       const state = controller.getState()
@@ -662,13 +713,44 @@ async function restartLighting(): Promise<void> {
   })
 }
 
+/** Le port est de même modèle USB que la carte de la fumée enregistrée (`lighting.smoke.board`). */
+function isSmokeBoardPort(port: SerialPortLike): boolean {
+  const usb = portUsbId(port)
+  const { board } = parsed.value.config.lighting.smoke
+  return (
+    usb !== null &&
+    board !== undefined &&
+    usb.usbVendorId === board.usbVendorId &&
+    usb.usbProductId === board.usbProductId
+  )
+}
+
+/**
+ * Retient le modèle USB de l'interface qui vient de s'ouvrir (`lighting.usb`), pour la retrouver
+ * après un redémarrage. Rien n'est écrit si c'est déjà le même, ni si le port est celui de la carte
+ * de la fumée : elle ne devient jamais « l'interface DMX » de la salle.
+ */
+async function rememberDmxPort(port: SerialPortLike): Promise<void> {
+  const usb = portUsbId(port)
+  const { config } = parsed.value
+  const { board } = config.lighting.smoke
+  const same = (left?: { usbVendorId?: number; usbProductId?: number }) =>
+    left?.usbVendorId === usb?.usbVendorId && left?.usbProductId === usb?.usbProductId
+  // Pendant le test de coupure de la fumée (assistant), enregistrer la config ferait retomber la
+  // fumée et relancerait les lumières : l'identité sera retenue à la prochaine connexion.
+  if (smokeTestActive || !usb || same(config.lighting.usb) || same(board)) {
+    return
+  }
+  await saveRoomHardwareConfig({ ...config, lighting: { ...config.lighting, usb } })
+}
+
 /**
  * Bouton « Connecter l'interface DMX » : doit être appelé dans un clic (le
  * navigateur demande quelle interface USB utiliser).
  */
 export async function connectDmxInterface(
   driver: DmxDriver = parsed.value.config.lighting.driver
-): Promise<void> {
+): Promise<boolean> {
   if (driver === 'simulation') {
     throw new Error('simulation_driver')
   }
@@ -677,14 +759,23 @@ export async function connectDmxInterface(
     preferSimulation = false
     // Même file que l'essai automatique : pas de course, et un échec repose le nouvel essai.
     await serializeLighting(() => autoConnectBridge(controller))
-    return
+    return true
   }
   // La fenêtre de choix doit s'ouvrir dans le clic, avant toute autre attente.
   const port = await requestDmxPort()
+  // La carte de la fumée n'est jamais ouverte en DMX, même choisie dans la fenêtre du navigateur :
+  // rien n'est ouvert, `dmxPortProblem` le signale, et la fonction rend `false`.
+  if (isSmokeBoardPort(port)) {
+    dmxPortProblem.value = 'smoke_board'
+    return false
+  }
   const controller = await startLighting()
   preferSimulation = false
   await useSerialPort(controller, port, driver)
+  dmxPortProblem.value = null
   watchReconnection(controller)
+  await rememberDmxPort(port)
+  return true
 }
 
 /** Revient à la salle simulée (débranchement volontaire de l'interface). */
@@ -1175,9 +1266,25 @@ export async function saveBuzzerKeymap(keymap: BuzzerKeymap): Promise<ParsedRoom
   })
 }
 
+/**
+ * Source des buzzers avec l'`id` de la carte manette lue en ce moment (apprise à l'instant : son
+ * identité est retenue pour la retrouver après un redémarrage). Sans carte lue, ou si plusieurs
+ * cartes identiques sont branchées, la config est rendue telle quelle : on ne retient pas une carte
+ * au hasard.
+ */
+function withLearnedGamepadId(config: RoomHardwareConfig): RoomHardwareConfig {
+  const { source } = config.buzzers
+  const pad = device && 'getGamepad' in device ? device.getGamepad() : null
+  return source?.kind === 'gamepad' && pad
+    ? { ...config, buzzers: { ...config.buzzers, source: { ...source, id: pad.id } } }
+    : config
+}
+
 /** Enregistre les buzzers appris sur les pupitres de la salle (la réserve est gardée, cf. `withLearnedKeymap`). */
 export async function saveLearnedBuzzers(learned: BuzzerKeymap): Promise<ParsedRoomHardwareConfig> {
-  return saveRoomHardwareConfig(withLearnedKeymap(parsed.value.config, learned))
+  return saveRoomHardwareConfig(
+    withLearnedGamepadId(withLearnedKeymap(parsed.value.config, learned))
+  )
 }
 
 /**
@@ -1209,7 +1316,10 @@ export async function saveRoomSetup(setup: {
     ([code, slot]) => !Object.hasOwn(setup.keymap, code) && !taken.has(`${slot.desk}${slot.button}`)
   )
   const keymap = { ...Object.fromEntries(kept), ...setup.keymap }
-  return saveRoomHardwareConfig({ ...withLearnedKeymap(sized, keymap), setupDone: true })
+  return saveRoomHardwareConfig({
+    ...withLearnedGamepadId(withLearnedKeymap(sized, keymap)),
+    setupDone: true,
+  })
 }
 
 /** Enregistre la couleur et la place des buzzers (écran de jeu, apprentissage et plan suivent). */
@@ -1232,6 +1342,7 @@ export async function resetRoomHardware(options: { storage?: HardwareStorage | n
   preferSimulation = false
   pendingEmergency = null
   dmxPort = null
+  dmxPortProblem.value = null
   bridgeError.value = null
   bridgeArtnet.value = null
   activeBridge.value = null
@@ -1264,6 +1375,10 @@ export function useRoomHardware() {
         !parsed.value.config.setupDone
     ),
     keymap: computed(() => effectiveKeymap(parsed.value.config)),
+    /** Interface DMX retenue non reprise après un redémarrage (voir `dmxPortProblem`). */
+    dmxPortProblem: computed(() => dmxPortProblem.value),
+    /** Nombre de cartes manettes identiques qui correspondent au choix ; 0 : pas d'ambiguïté. */
+    buzzerCardAmbiguous: computed(() => buzzerCardAmbiguous.value),
     usesGamepad: computed(() => parsed.value.config.buzzers.source?.kind === 'gamepad'),
     // La carte manette ne lit pas le clavier : pas de touches de simulation avec elle.
     usesSimulationKeys: computed(

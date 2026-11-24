@@ -43,6 +43,23 @@
         </button>
       </div>
 
+      <p
+        v-if="dmxPortProblem"
+        class="hw-alert hw-alert--danger"
+        role="alert"
+        data-test="dmx-port-problem"
+      >
+        {{ $t(`hardware.devices.dmx.${dmxPortProblem}`) }}
+      </p>
+      <p
+        v-if="buzzerCardAmbiguous > 0"
+        class="hw-alert hw-alert--danger"
+        role="alert"
+        data-test="buzzer-card-ambiguous"
+      >
+        {{ $t('hardware.devices.buzzerCards', { count: buzzerCardAmbiguous }) }}
+      </p>
+
       <div
         id="hardware-panel"
         role="tabpanel"
@@ -90,7 +107,7 @@ import SetupAssistant from '@/views/hardware/SetupAssistant.vue'
 const TABS = ['assistant', 'buzzers', 'plan', 'lights', 'diagnostic', 'advanced'] as const
 
 const router = useRouter()
-const { syncStatus } = useRoomHardware()
+const { syncStatus, dmxPortProblem, buzzerCardAmbiguous } = useRoomHardware()
 const route = useRoute()
 const requestedTab = TABS.find((tab) => tab === route.query.tab)
 const current = ref<(typeof TABS)[number]>(requestedTab ?? 'buzzers')

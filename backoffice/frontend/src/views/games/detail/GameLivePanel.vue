@@ -107,7 +107,7 @@ import { useI18n } from 'vue-i18n'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import LiveConnectionNote from '@/components/ui/LiveConnectionNote.vue'
 import StatusPill from '@/components/ui/StatusPill.vue'
-import { useLiveCompany } from '@/composables/useLiveCompany'
+import { type LiveConnectionState, useLiveCompany } from '@/composables/useLiveCompany'
 import type { Game } from '@/types/game'
 import { getGameMiniGameLabelKey } from '@/utils/game/format'
 import { isGamePendingOrRunning } from '@/utils/game/state'
@@ -121,6 +121,10 @@ const props = defineProps<{
 const emit = defineEmits<{
   /** La salle annonce la fin ou l'arrêt de la partie : l'écran doit la relire. */
   ended: []
+  /** `game_updated` reçu : le flux est ouvert une seule fois par fiche, ici, et relayé aux autres panneaux. */
+  gameUpdated: [gameId: number]
+  /** État du flux, pour le panneau d'inscription (lecture lente tant qu'il n'est pas `live`). */
+  connection: [state: LiveConnectionState]
 }>()
 
 const { t, locale } = useI18n()
@@ -133,7 +137,11 @@ const {
   uncertain,
   now,
   sendCommand,
-} = useLiveCompany(() => (isGamePendingOrRunning(props.game) ? props.game.companyId : null))
+} = useLiveCompany(() => (isGamePendingOrRunning(props.game) ? props.game.companyId : null), {
+  onGameUpdated: (gameId) => emit('gameUpdated', gameId),
+})
+
+watch(connection, (state) => emit('connection', state), { immediate: true })
 
 const room = computed(() => rooms.value[props.game.roomId] ?? null)
 

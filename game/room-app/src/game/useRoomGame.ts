@@ -10,12 +10,14 @@ import {
   MINI_GAME_FLASH_BLIND_TEST,
   type MiniGame,
   ROOM_CONTENT_MAX_IDS,
+  ROOM_LOG_LEVEL_WARN,
 } from '@quizzup/shared'
 import { computed, ref, shallowRef } from 'vue'
 
 import { createAudioBridge } from '@/audio/audioBridge'
 import { createSilentExtractPlayer, type ExtractPlayer } from '@/audio/player'
 import { createUiSoundBridge, type UiSoundOutput } from '@/audio/uiSoundBridge'
+import { errorText, reportRoomError } from '@/diagnostics/errorReporter'
 import {
   isRememberedBackofficeSeed,
   isRememberedForCurrentAccount,
@@ -39,7 +41,7 @@ import {
 } from '@/game/session'
 import type { BuzzerPress } from '@/hardware/buzzers'
 import { getRoomToken, isDemoMode } from '@/utils/auth'
-import { fetchCurrentContent, type RoomQuestion } from '@/utils/roomApi'
+import { fetchCurrentContent, fetchCurrentTracks, type RoomQuestion } from '@/utils/roomApi'
 
 /**
  * État de jeu partagé par les écrans de la salle (une seule partie à la fois).
@@ -49,6 +51,12 @@ import { fetchCurrentContent, type RoomQuestion } from '@/utils/roomApi'
 const TICK_INTERVAL_MS = 50
 /** Délai du contenu redemandé à la reprise : au-delà, la sauvegarde est reprise telle quelle. */
 const RESUME_CONTENT_TIMEOUT_MS = 5000
+/**
+ * Délai des titres de playlist redemandés à la reprise : le serveur lit 5 playlists à la fois, avec
+ * 5 s par appel au fournisseur, donc deux vagues pour 6 thèmes. L'horloge de la partie ne repart
+ * qu'après la reprise : attendre ne coûte rien, abandonner trop tôt rend tous les extraits muets.
+ */
+const RESUME_TRACKS_TIMEOUT_MS = 12_000
 
 const session = shallowRef<GameSession | null>(null)
 const state = shallowRef<GameState | null>(null)
@@ -317,37 +325,18 @@ export function discardStaleSavedGame(): void {
   }
 }
 
-/**
- * Redemande au backoffice les questions de la partie qui ont un extrait de fournisseur et met à
- * jour la sauvegarde : les liens signés qu'elle garde ont expiré. Seuls le lien et le crédit d'une
- * question de ce genre, que le serveur sert encore avec un crédit, changent (le tirage du moteur
- * ne bouge pas). Sans question de ce genre, le serveur n'est pas appelé. Hors ligne ou sans
- * réponse à temps, la sauvegarde reste telle quelle : l'extrait en échec sera muet, la partie
- * continue.
- */
-async function refreshSavedMedia(): Promise<void> {
-  const snapshot = storage.load()
-  const token = getRoomToken()
-  if (!snapshot || snapshot.demo === true || !token) {
-    return
-  }
-  const ids = new Set<number>()
-  for (const theme of snapshot.setup.themes) {
-    for (const question of theme.questions as RoomQuestion[]) {
-      if (question.mediaCredit) {
-        ids.add(question.id)
-      }
-    }
-  }
-  if (ids.size === 0) {
-    return
-  }
+type FreshMedia = Pick<RoomQuestion, 'mediaUrl' | 'mediaCredit'>
+
+/** Questions classiques (identifiants positifs) : `content?ids=`. Échec : rien ne change, sans bruit. */
+async function fetchFreshContent(
+  token: string,
+  ids: number[],
+  fresh: Map<number, FreshMedia>
+): Promise<void> {
   try {
-    const fresh = new Map<number, RoomQuestion>()
-    const asked = [...ids]
-    for (let from = 0; from < asked.length; from += ROOM_CONTENT_MAX_IDS) {
+    for (let from = 0; from < ids.length; from += ROOM_CONTENT_MAX_IDS) {
       const themes = await fetchCurrentContent(token, {
-        ids: asked.slice(from, from + ROOM_CONTENT_MAX_IDS),
+        ids: ids.slice(from, from + ROOM_CONTENT_MAX_IDS),
         timeoutMs: RESUME_CONTENT_TIMEOUT_MS,
       })
       for (const theme of themes) {
@@ -356,30 +345,112 @@ async function refreshSavedMedia(): Promise<void> {
         }
       }
     }
-    storage.save({
-      ...snapshot,
-      setup: {
-        ...snapshot.setup,
-        themes: snapshot.setup.themes.map((theme) => ({
-          ...theme,
-          questions: theme.questions.map((question) => {
-            const next = fresh.get(question.id)
-            if (!ids.has(question.id) || !next?.mediaUrl || !next.mediaCredit) {
-              return question
-            }
-            const updated: RoomQuestion = {
-              ...question,
-              mediaUrl: next.mediaUrl,
-              mediaCredit: next.mediaCredit,
-            }
-            return updated
-          }),
-        })),
-      },
-    })
   } catch {
     // Contenu indisponible : la sauvegarde sert telle quelle.
   }
+}
+
+/**
+ * Titres de playlist (identifiants négatifs, `ref` = valeur absolue) : `tracks`. Un quota dépassé
+ * (429), un fournisseur indisponible (502), une panne de réseau ou un titre absent de la réponse
+ * ne bloquent pas la reprise : les liens de la sauvegarde servent, et l'écart est noté pour le
+ * personnel (journal de la salle).
+ */
+async function fetchFreshTracks(
+  token: string,
+  themeIds: number[],
+  ids: number[],
+  fresh: Map<number, FreshMedia>
+): Promise<void> {
+  const refs = ids.map((id) => String(-id))
+  const wanted = new Set(refs)
+  try {
+    for (let from = 0; from < refs.length; from += ROOM_CONTENT_MAX_IDS) {
+      const items = await fetchCurrentTracks(token, {
+        themeIds,
+        refs: refs.slice(from, from + ROOM_CONTENT_MAX_IDS),
+        timeoutMs: RESUME_TRACKS_TIMEOUT_MS,
+      })
+      for (const item of items) {
+        // Un titre que la salle n'a pas demandé ne rafraîchit rien.
+        if (wanted.has(item.ref)) {
+          fresh.set(-Number(item.ref), item)
+        }
+      }
+    }
+    if (refs.some((trackRef) => !fresh.has(-Number(trackRef)))) {
+      throw new Error('tracks_missing')
+    }
+  } catch (error) {
+    reportRoomError('resume_tracks_failed', errorText(error), { level: ROOM_LOG_LEVEL_WARN })
+  }
+}
+
+/**
+ * Redemande au backoffice les questions de la partie qui ont un extrait de fournisseur et met à
+ * jour la sauvegarde : les liens signés qu'elle garde ont expiré. Seuls le lien et le crédit d'une
+ * question de ce genre, que le serveur sert encore avec un crédit, changent (le tirage du moteur
+ * ne bouge pas). Les questions classiques passent par `content`, les titres d'une playlist
+ * (identifiant négatif) par `tracks`, avec les thèmes de playlist de la sauvegarde. Sans question
+ * de ce genre, le serveur n'est pas appelé. Hors ligne ou sans réponse à temps, la sauvegarde
+ * reste telle quelle : l'extrait en échec sera muet, la partie continue.
+ */
+async function refreshSavedMedia(): Promise<void> {
+  const snapshot = storage.load()
+  const token = getRoomToken()
+  if (!snapshot || snapshot.demo === true || !token) {
+    return
+  }
+  const ids = new Set<number>()
+  const playlistThemeIds = new Set<number>()
+  for (const theme of snapshot.setup.themes) {
+    for (const question of theme.questions as RoomQuestion[]) {
+      if (question.id < 0) {
+        ids.add(question.id)
+        playlistThemeIds.add(theme.id)
+      } else if (question.mediaCredit) {
+        ids.add(question.id)
+      }
+    }
+  }
+  if (ids.size === 0) {
+    return
+  }
+  const fresh = new Map<number, FreshMedia>()
+  const asked = [...ids]
+  const tracks = asked.filter((id) => id < 0)
+  await Promise.all([
+    fetchFreshContent(
+      token,
+      asked.filter((id) => id > 0),
+      fresh
+    ),
+    tracks.length > 0 ? fetchFreshTracks(token, [...playlistThemeIds], tracks, fresh) : undefined,
+  ])
+  if (fresh.size === 0) {
+    return
+  }
+  storage.save({
+    ...snapshot,
+    setup: {
+      ...snapshot.setup,
+      themes: snapshot.setup.themes.map((theme) => ({
+        ...theme,
+        questions: theme.questions.map((question) => {
+          const next = fresh.get(question.id)
+          if (!ids.has(question.id) || !next?.mediaUrl || !next.mediaCredit) {
+            return question
+          }
+          const updated: RoomQuestion = {
+            ...question,
+            mediaUrl: next.mediaUrl,
+            mediaCredit: next.mediaCredit,
+          }
+          return updated
+        }),
+      })),
+    },
+  })
 }
 
 /**

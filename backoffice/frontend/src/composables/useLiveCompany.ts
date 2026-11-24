@@ -96,7 +96,11 @@ function isRoomLive(value: unknown): value is RoomLive {
  * `GET /companies/:id/live`, lu avec `fetch` (l'en-tête `Authorization` interdit `EventSource`).
  * Tant que le flux n'est pas `live`, les présences connues sont incertaines (`uncertain`).
  */
-export function useLiveCompany(companyId: MaybeRefOrGetter<number | null>) {
+export function useLiveCompany(
+  companyId: MaybeRefOrGetter<number | null>,
+  /** `onGameUpdated` : une partie de la compagnie a changé (`game_updated`), à relire par la route habituelle. */
+  options: { onGameUpdated?: (gameId: number) => void } = {}
+) {
   const rooms = ref<Record<number, RoomLive>>({})
   const state = ref<LiveConnectionState>('connecting')
   /** Clé i18n de l'erreur quand `state` vaut `error`. */
@@ -198,6 +202,12 @@ export function useLiveCompany(companyId: MaybeRefOrGetter<number | null>) {
       // Le flux porte les résultats de tout le personnel : on ne garde que les commandes d'ici.
       if (typeof message?.commandId === 'string' && result) {
         pendingCommands.get(message.commandId)?.({ result, reason })
+      }
+    } else if (event === LIVE_EVENT.GAME_UPDATED) {
+      const gameId = (parseJson(data) as { gameId?: unknown } | null)?.gameId
+
+      if (typeof gameId === 'number') {
+        options.onGameUpdated?.(gameId)
       }
     } else if (event === LIVE_EVENT.SESSION_ENDED) {
       void sessionLost('session_ended')

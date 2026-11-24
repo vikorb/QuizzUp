@@ -119,7 +119,10 @@ src/
   un extrait en échec reste muet, la partie continue. À la reprise après un rechargement, seules les
   questions de la sauvegarde qui ont un crédit sont redemandées (`refreshSavedMedia` :
   `GET /room/games/current/content?ids=…`, 200 identifiants au plus par appel, aucun appel s'il n'y
-  en a aucune) pour remplacer leurs liens expirés ; hors ligne, la sauvegarde sert telle quelle. Le
+  en a aucune) pour remplacer leurs liens expirés. Les titres d'une playlist (identifiant de question
+  négatif) passent par `GET /room/games/current/tracks?themeIds=…&refs=…` ; un quota dépassé, un
+  fournisseur indisponible ou une panne de réseau ne bloquent pas la reprise (avertissement
+  `resume_tracks_failed` au journal de la salle) ; hors ligne, la sauvegarde sert telle quelle. Le
   crédit (`game/mediaCredits.ts`, table `id de question → crédit`) s'affiche à la révélation
   seulement : pochette, « artiste — titre », « Extrait fourni par Deezer ». La pochette est chargée
   à la révélation et masquée si le réseau manque ; l'extrait, lui, est préchargé. **Domaine à autoriser** :

@@ -31,8 +31,12 @@ export type SerialLike = {
   removeEventListener?: (type: 'connect' | 'disconnect', listener: (event: Event) => void) => void
 }
 
-/** Puces USB-série les plus courantes sur les interfaces DMX (FTDI, CH340, CP210x, Arduino). */
-export const DMX_USB_VENDOR_IDS = [0x0403, 0x1a86, 0x10c4, 0x2341] as const
+/**
+ * Puces USB-série les plus courantes sur les interfaces DMX (FTDI, CH340, CP210x, Arduino, dont
+ * l'identifiant 0x2a03 des cartes d'une autre époque). Les cartes Arduino sont aussi celles de la
+ * fumée : le choix automatique du port DMX exclut le port de la fumée (`exclude`).
+ */
+export const DMX_USB_VENDOR_IDS = [0x0403, 0x1a86, 0x10c4, 0x2341, 0x2a03] as const
 
 export function getWebSerial(nav: Navigator | undefined = globalThis.navigator): SerialLike | null {
   return (nav as (Navigator & { serial?: SerialLike }) | undefined)?.serial ?? null
@@ -62,33 +66,128 @@ const isDmxVendor = (port: SerialPortLike) => {
   return vendorId !== undefined && (DMX_USB_VENDOR_IDS as readonly number[]).includes(vendorId)
 }
 
+/** Fabricants des cartes Arduino : celles de la fumée (et des buzzers), jamais choisies seules. */
+const ARDUINO_VENDOR_IDS: readonly number[] = [0x2341, 0x2a03]
+
+const isArduino = (port: SerialPortLike) => {
+  const vendorId = port.getInfo?.().usbVendorId
+  return vendorId !== undefined && ARDUINO_VENDOR_IDS.includes(vendorId)
+}
+
+/**
+ * Port à ne jamais prendre pour la sortie DMX : la carte de la fumée. Exclu par l'objet port, ou par
+ * l'identifiant USB (fabricant + produit) : après un rechargement le navigateur rend d'autres objets.
+ * Deux appareils du même modèle que la carte sont donc exclus aussi : le choix le plus restrictif.
+ */
+export type DmxPortExclusion = {
+  port?: SerialPortLike | null
+  usb?: { usbVendorId?: number; usbProductId?: number } | null
+}
+
+const isExcluded = (port: SerialPortLike, exclude: DmxPortExclusion | undefined) => {
+  if (!exclude) {
+    return false
+  }
+  if (exclude.port && port === exclude.port) {
+    return true
+  }
+  const info = port.getInfo?.() ?? {}
+  return (
+    exclude.usb?.usbVendorId !== undefined &&
+    info.usbVendorId === exclude.usb.usbVendorId &&
+    info.usbProductId === exclude.usb.usbProductId
+  )
+}
+
 /**
  * Interface déjà autorisée lors d'une visite précédente : reconnexion sans clic après rechargement.
  * Le navigateur peut avoir autorisé plusieurs ports (adaptateur série, Arduino des buzzers…) :
  *
  * - avec `match` (l'interface utilisée jusqu'ici), on préfère le même objet port, puis une
- *   interface du même modèle (fabricant + produit USB), puis une puce USB-série DMX connue, sinon
- *   rien : on ne rouvre jamais un port quelconque à la place de l'interface DMX ;
- * - sans `match`, on préfère une puce USB-série DMX connue, sinon le premier port autorisé.
+ *   interface du même modèle (fabricant + produit USB), puis une puce USB-série DMX connue hors
+ *   Arduino, sinon rien : on ne rouvre jamais un port quelconque à la place de l'interface DMX ;
+ * - sans `match`, on préfère une puce USB-série DMX connue, sinon le premier port autorisé : dans
+ *   les deux cas hors cartes Arduino (0x2341, 0x2A03), jamais ouvertes automatiquement.
+ *
+ * `exclude` (le port de la carte de la fumée) est écarté avant tout choix, `match` compris.
  */
 export async function getGrantedDmxPort(
   serial: SerialLike | null = getWebSerial(),
-  options: { match?: SerialPortLike } = {}
+  options: { match?: SerialPortLike; exclude?: DmxPortExclusion } = {}
 ): Promise<SerialPortLike | null> {
   if (!serial) {
     return null
   }
-  const ports = await serial.getPorts()
-  const { match } = options
+  const { match, exclude } = options
+  const ports = (await serial.getPorts()).filter((port) => !isExcluded(port, exclude))
+  // Choix automatique : jamais une carte Arduino, même si aucune carte de fumée n'est enregistrée
+  // (une carte non déclarée ne doit pas être prise pour l'interface DMX). Seul `match`, l'interface
+  // que l'opérateur a lui-même choisie, peut désigner un Arduino.
+  const automatic = ports.filter((port) => !isArduino(port))
   if (!match) {
-    return ports.find(isDmxVendor) ?? ports[0] ?? null
+    return automatic.find(isDmxVendor) ?? automatic[0] ?? null
   }
   return (
     ports.find((port) => port === match) ??
     ports.find((port) => samePort(port, match)) ??
-    ports.find(isDmxVendor) ??
+    automatic.find(isDmxVendor) ??
     null
   )
+}
+
+/**
+ * Identité USB d'une interface, la plus fine que Web Serial donne : fabricant + produit, pas de
+ * numéro de série. Deux interfaces du même modèle ont donc la même identité.
+ */
+export type UsbId = { usbVendorId: number; usbProductId: number }
+
+/** Identité USB d'un port, `null` si le navigateur n'en donne pas. */
+export function portUsbId(port: SerialPortLike): UsbId | null {
+  const { usbVendorId, usbProductId } = port.getInfo?.() ?? {}
+  return usbVendorId !== undefined && usbProductId !== undefined
+    ? { usbVendorId, usbProductId }
+    : null
+}
+
+/**
+ * Résultat de `findDmxPortByUsb` : un seul port du modèle retenu (`found`), plusieurs du même modèle
+ * (`ambiguous`, rien n'est choisi), aucun (`absent`), ou seulement des ports exclus (`excluded` :
+ * l'identité retenue est celle de la carte de la fumée, jamais ouverte en DMX).
+ */
+export type DmxPortChoice =
+  | { status: 'found'; port: SerialPortLike }
+  | { status: 'ambiguous'; ports: SerialPortLike[] }
+  | { status: 'absent' }
+  | { status: 'excluded' }
+
+/**
+ * Retrouve après un rechargement l'interface DMX retenue dans la configuration (`lighting.usb`) :
+ * seulement le même modèle USB, jamais une autre puce. Deux ports du même modèle ne se distinguent
+ * pas : aucun n'est pris, l'opérateur débranche l'un des deux. `exclude` (la carte de la fumée) est
+ * écarté avant le choix. Le résultat ne dépend pas de l'ordre de `getPorts()`. `prefer` (le port
+ * déjà ouvert par cette page) l'emporte sur son jumeau du même modèle : lui seul est sans ambiguïté.
+ */
+export async function findDmxPortByUsb(
+  serial: SerialLike | null = getWebSerial(),
+  usb: UsbId,
+  options: { exclude?: DmxPortExclusion; prefer?: SerialPortLike } = {}
+): Promise<DmxPortChoice> {
+  const sameModel = (await serial?.getPorts())?.filter((port) => {
+    const id = portUsbId(port)
+    return id?.usbVendorId === usb.usbVendorId && id.usbProductId === usb.usbProductId
+  })
+  const ports = sameModel?.filter((port) => !isExcluded(port, options.exclude)) ?? []
+  const preferred = ports.find((port) => port === options.prefer)
+  if (preferred) {
+    return { status: 'found', port: preferred }
+  }
+  if (ports.length === 1 && ports[0]) {
+    return { status: 'found', port: ports[0] }
+  }
+  if (ports.length > 1) {
+    return { status: 'ambiguous', ports }
+  }
+  return { status: sameModel?.length ? 'excluded' : 'absent' }
 }
 
 type SerialOutputOptions = {
@@ -358,6 +457,7 @@ const KNOWN_VENDORS: Record<number, string> = {
   0x1a86: 'CH340',
   0x10c4: 'Silicon Labs CP210x',
   0x2341: 'Arduino',
+  0x2a03: 'Arduino',
 }
 
 const hex = (value: number | undefined) => (value ?? 0).toString(16).padStart(4, '0')
@@ -386,11 +486,13 @@ const samePort = (left: SerialPortLike, right: SerialPortLike) => {
 /**
  * Reconnexion à chaud : prévient quand une interface déjà autorisée est rebranchée (événement
  * `connect` de Web Serial), pour la rouvrir sans clic. Avec `match`, seule une interface du
- * même modèle (fabricant + produit USB) est reprise.
+ * même modèle (fabricant + produit USB) est reprise. `exclude` : jamais le port de la carte de la
+ * fumée, qui se rebranche aussi.
  */
 export function watchDmxPortReconnection(options: {
   serial?: SerialLike | null
   match?: SerialPortLike
+  exclude?: DmxPortExclusion
   onReconnect: (port: SerialPortLike) => void
 }): () => void {
   const serial = options.serial === undefined ? getWebSerial() : options.serial
@@ -399,7 +501,11 @@ export function watchDmxPortReconnection(options: {
   }
   const onConnect = (event: Event) => {
     const port = event.target as unknown as SerialPortLike | null
-    if (port && (!options.match || samePort(port, options.match))) {
+    if (
+      port &&
+      !isExcluded(port, options.exclude) &&
+      (options.match ? samePort(port, options.match) : !isArduino(port))
+    ) {
       options.onReconnect(port)
     }
   }

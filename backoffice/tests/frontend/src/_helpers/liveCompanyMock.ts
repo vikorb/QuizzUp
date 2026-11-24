@@ -19,15 +19,26 @@ export const sendCommandMock = vi.fn(
   })
 )
 
-export const useLiveCompanyMock = vi.fn((_companyId: unknown) => ({
-  rooms: liveRoomsMock,
-  state: liveStateMock,
-  errorKey: liveErrorKeyMock,
-  uncertain: computed(() => liveStateMock.value !== 'live'),
-  now: liveNowMock,
-  sendCommand: sendCommandMock,
-  stop: vi.fn(),
-}))
+// Dernière écoute de `game_updated` demandée par une vue : un test l'appelle pour simuler l'événement.
+export const gameUpdatedListenerMock: { current: ((gameId: number) => void) | undefined } = {
+  current: undefined,
+}
+
+export const useLiveCompanyMock = vi.fn(
+  (_companyId: unknown, options?: { onGameUpdated?: (gameId: number) => void }) => {
+    gameUpdatedListenerMock.current = options?.onGameUpdated
+
+    return {
+      rooms: liveRoomsMock,
+      state: liveStateMock,
+      errorKey: liveErrorKeyMock,
+      uncertain: computed(() => liveStateMock.value !== 'live'),
+      now: liveNowMock,
+      sendCommand: sendCommandMock,
+      stop: vi.fn(),
+    }
+  }
+)
 
 export function setLiveRooms(rooms: RoomLive[]): void {
   liveRoomsMock.value = Object.fromEntries(rooms.map((room) => [room.roomId, room]))
@@ -39,6 +50,7 @@ export function resetLiveCompanyMock(): void {
   liveErrorKeyMock.value = null
   liveNowMock.value = LIVE_NOW_MOCK
   useLiveCompanyMock.mockClear()
+  gameUpdatedListenerMock.current = undefined
   sendCommandMock.mockReset()
   sendCommandMock.mockResolvedValue({ result: 'applied' })
 }

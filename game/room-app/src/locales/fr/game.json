@@ -2,6 +2,7 @@
   "game": {
     "round": "Manche {current} / {total}",
     "question": "Question {current} / {total}",
+    "playlistQuestion": "Quel est ce titre ?",
     "points": "{n} pts",
     "miniGames": {
       "flash_blind_test": {

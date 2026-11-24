@@ -48,11 +48,11 @@ function createFakePort(): SerialPortLike & { frames: number; written: Uint8Arra
 /** Paquet USB Pro : 4 octets d'en-tête + start code, données DMX, 0xE7 : tout le reste est à 0. */
 const dmxIsBlack = (packet: Uint8Array) => packet.subarray(5, -1).every((value) => value === 0)
 
-function installSerial(port: SerialPortLike) {
+function installSerial(port: SerialPortLike, granted: SerialPortLike[] = []) {
   const listeners = new Map<string, Set<Listener>>()
   const serial = {
     requestPort: vi.fn(async () => port),
-    getPorts: async () => [] as SerialPortLike[],
+    getPorts: async () => granted,
     addEventListener: (type: string, listener: Listener) => {
       const set = listeners.get(type) ?? new Set<Listener>()
       set.add(listener)
@@ -175,6 +175,50 @@ describe('interface USB DMX de la salle', () => {
     serial.emit('connect', arduino)
     await Promise.resolve()
     expect(controller.getState().outputStatus).toBe('error')
+  })
+
+  describe('carte de la fumée (lighting.smoke.board)', () => {
+    // Même identifiant USB que l'interface factice : le seul moyen de la reconnaître est la config.
+    const BOARD = { kind: 'uno-serial', usbVendorId: 0x04_03, usbProductId: 0x60_01 }
+
+    it('après un rechargement, rouvre l’interface autorisée tant qu’aucune carte n’est enregistrée', async () => {
+      const port = createFakePort()
+      installSerial(port, [port])
+      await saveRoomHardwareConfig({ lighting: { driver: 'usbpro' } })
+      await startLighting()
+      await vi.waitFor(() => expect(getLighting()?.getState().simulation).toBe(false))
+    })
+
+    it('après un rechargement, n’ouvre pas comme sortie DMX le port de la carte enregistrée', async () => {
+      const port = createFakePort()
+      installSerial(port, [port])
+      await saveRoomHardwareConfig({ lighting: { driver: 'usbpro', smoke: { board: BOARD } } })
+      await startLighting()
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(getLighting()?.getState().simulation).toBe(true)
+      expect(port.frames).toBe(0)
+    })
+
+    it('ne reprend pas la carte rebranchée comme sortie DMX', async () => {
+      // L'interface DMX est d'un autre modèle que la carte : choisir la carte serait refusé.
+      const port = {
+        ...createFakePort(),
+        getInfo: () => ({ usbVendorId: 0x1a_86, usbProductId: 0x75_23 }),
+      }
+      const serial = installSerial(port)
+      await saveRoomHardwareConfig({ lighting: { driver: 'usbpro', smoke: { board: BOARD } } })
+      await startLighting()
+      await connectDmxInterface()
+      const controller = getLighting()!
+      serial.emit('disconnect', port)
+      await vi.waitFor(() => expect(controller.getState().outputStatus).toBe('error'))
+
+      const replugged = createFakePort()
+      serial.emit('connect', replugged)
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(controller.getState().outputStatus).toBe('error')
+      expect(replugged.frames).toBe(0)
+    })
   })
 })
 
