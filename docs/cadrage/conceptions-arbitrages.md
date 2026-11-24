@@ -17,6 +17,7 @@ conceptions.**
 | 12                         | `conception-console-editeur.md`                                           | à créer |
 | 13                         | `conception-sessions-api.md`                                              | #142    |
 | 14                         | `conception-sessions-api.md`                                              | à créer |
+| Fumée par la carte USB     | `conception-fumee-carte-usb.md`                                           | #215    |
 
 Rien de ce qui touche au matériel n'a été validé sur une vraie salle : les protocoles de banc des
 conceptions restent à dérouler (`docs/recette/banc-materiel.md`).

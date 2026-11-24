@@ -45,9 +45,9 @@ réservés, identifiants `US-…`).
   rien n'est acheté** : le matériel de la salle est déjà en place.
 - Lumières Art-Net : un relais PowerShell (présent sur tout Windows) parle le protocole du pont
   existant, à la place de l'exécutable (issue #203, lot en cours).
-- Fumée : par l'Arduino déjà en salle, en USB et Web Serial. **En attente de deux réponses
-  d'Enzo** : l'Arduino est-il relié au PC par USB, et quel modèle est-ce. Ne pas lancer ce lot
-  avant.
+- Fumée : par la carte déjà en salle (compatible Arduino Uno R3, d'après la liste de matériel),
+  en USB et Web Serial. Conception : `docs/cadrage/conception-fumee-carte-usb.md` (issue #215),
+  lots L1 à L6. À voir sur place : modèle réel de la carte, câble USB, distance jusqu'au PC.
 - Buzzers : carte de la salle lue par l'API Gamepad du navigateur (apprentissage déjà livré).
 - Catalogue de jeux : refaire les anciens jeux, en plus propre.
 - Blind test : playlists par genre, un titre tiré au hasard (issue #204) ; les extraits viennent
@@ -84,14 +84,17 @@ Les notes non publiques (hébergement, prix, paiement, droits) sont hors du dép
 | #209 | Playlists L1, playlist portée par un thème (#204) | `reservation-socle` | relue, corrigée (i18n des codes, course à la mise à jour, appel au fournisseur évité si la référence ne change pas, OpenAPI), à merger |
 | #210 | 14.1 clés d'API et journal des appels (#188)      | `formats-partages`  | relue, corrections en cours (curseur du journal sur l'index, `revokedAt`, `limit`, `createdBy` masqué hors compagnie)                  |
 
+**PR ouvertes depuis** : #212 commandes à distance, backoffice (relue, corrigée : l'arrêt reste
+le bouton de l'en-tête) ; #213 relais PowerShell Art-Net (en relecture) ; #214 commandes à
+distance, écran de salle (relue, corrigée) ; #216 A.4 effet audio dans le formulaire de question
+(en relecture). Lot H3 (scène de sortie) en cours dans `show-salle`.
+
 **Branches sans PR, développement en cours** :
 
-| Branche                              | Lot                                                  | Copie de travail    |
-| ------------------------------------ | ---------------------------------------------------- | ------------------- |
-| `feat/pont-artnet-powershell`        | relais PowerShell pour l'Art-Net (#203)              | `fumee-garde`       |
-| `feat/commandes-distance-salle`      | commandes à distance appliquées par la salle (#129)  | `commandes-serveur` |
-| `feat/commandes-distance-backoffice` | boutons de commande dans le panneau en direct (#129) | `diagnostic`        |
-| `test/endurance-e2e`                 | E1 endurance de bout en bout, **pas commencé**       | `habillage`         |
+| Branche                | Lot                                    | Copie de travail |
+| ---------------------- | -------------------------------------- | ---------------- |
+| `feat/scene-de-sortie` | H3 scène lumière de sortie (#145)      | `show-salle`     |
+| `test/endurance-e2e`   | E1 endurance de bout en bout, en cours | `habillage`      |
 
 Après chaque merge, les autres PR sont en conflit sur `backoffice/CHANGELOG.md` côté GitHub
 (l'attribut `merge=union` ne vaut qu'en local) : fusionner `origin/main` dans la branche, pousser
@@ -102,18 +105,18 @@ de #198).
 
 **Lots suivants, par dépendance** (chacun : issue, branche, PR, une relecture, merge) :
 
-| Débloqué par                  | Lots                                                                                                                                                |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| rien (à lancer)               | E1 endurance e2e ; fin du polling et cases de l'issue #129 à mettre à jour                                                                          |
-| #206                          | A.4 écran backoffice de l'effet audio (type `audioEffect` du frontend), avec les suivis de #206                                                     |
-| #210                          | 14.2 socle public (authentification par clé, débit, journal, salles, disponibilités), puis 14.4 réservations, 14.6 écran des clés, 14.7 bac à sable |
-| #209                          | Playlists L2 (tirage côté serveur au chargement du contenu) et L4 (formulaire du thème) ; L3 (écran de salle) après L2                              |
-| #202                          | 2b à 2f (accueil par QR code), P1, 3.3 et 3.4 (formats ; 3.3 passe `format` à `custom` au PATCH), 7b, 8c-1, 8d                                      |
-| #197                          | H3, RA5, HB1, HB3, RA8 (spectacle, habillage)                                                                                                       |
-| #198                          | 6d à 6f (bons côté joueur et personnel, e-mail de résultats reporté)                                                                                |
-| #205                          | 13.8 écran de salle des sessions, 13.9 événement `schedule_changed`                                                                                 |
-| commandes à distance (salle)  | scénario Playwright complet commande, accusé, état dans le backoffice                                                                               |
-| réponses d'Enzo sur l'Arduino | fumée par Web Serial                                                                                                                                |
+| Débloqué par                 | Lots                                                                                                                                                |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| rien (à lancer)              | E1 endurance e2e ; fin du polling et cases de l'issue #129 à mettre à jour                                                                          |
+| #206                         | A.4 écran backoffice de l'effet audio (type `audioEffect` du frontend), avec les suivis de #206                                                     |
+| #210                         | 14.2 socle public (authentification par clé, débit, journal, salles, disponibilités), puis 14.4 réservations, 14.6 écran des clés, 14.7 bac à sable |
+| #209                         | Playlists L2 (tirage côté serveur au chargement du contenu) et L4 (formulaire du thème) ; L3 (écran de salle) après L2                              |
+| #202                         | 2b à 2f (accueil par QR code), P1, 3.3 et 3.4 (formats ; 3.3 passe `format` à `custom` au PATCH), 7b, 8c-1, 8d                                      |
+| #197                         | H3, RA5, HB1, HB3, RA8 (spectacle, habillage)                                                                                                       |
+| #198                         | 6d à 6f (bons côté joueur et personnel, e-mail de résultats reporté)                                                                                |
+| #205                         | 13.8 écran de salle des sessions, 13.9 événement `schedule_changed`                                                                                 |
+| commandes à distance (salle) | scénario Playwright complet commande, accusé, état dans le backoffice                                                                               |
+| rien (à lancer)              | fumée par la carte USB : L1 programme de la carte, L2 lien série, L4 installation par Web Serial ; puis L3, L5, L6 (#215)                           |
 
 Ordre des modifications de `routes/room.ts` : 2a, 6a, 8c-1, 8d, 8e. Prochain horodatage de
 migration libre : `20261124140000`.
