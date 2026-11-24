@@ -48,7 +48,17 @@ function cors(route: Route, status: number, body?: unknown): Promise<void> {
 
 export async function mockBackofficeApi(
   page: Page,
-  options: { password: string; account: FakeAccount; live?: FakeLive }
+  options: {
+    password: string
+    account: FakeAccount
+    /**
+     * Limite du bouchon : le flux `GET /room/stream` n'est pas tenu ouvert, il est rendu d'un bloc
+     * puis fermé (`hello` et commandes en attente). Chaque commande force donc une reconnexion de la
+     * salle, dont le délai grandit : les tests qui suivent un `sendCommand` attendent plus longtemps
+     * que le délai par défaut de Playwright.
+     */
+    live?: FakeLive
+  }
 ): Promise<FakeApi> {
   const pendingCommands: string[] = []
   let wakeStream: (() => void) | null = null

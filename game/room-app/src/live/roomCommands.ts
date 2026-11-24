@@ -59,10 +59,12 @@ export function parseRoomCommand(data: string): RoomCommandMessage | null {
       return isIndex(raw.round) && isIndex(raw.questionIndex)
         ? { commandId, command, round: raw.round, questionIndex: raw.questionIndex }
         : null
-    default:
+    case 'abort':
       return Number.isInteger(raw.gameId) && Number(raw.gameId) > 0
         ? { commandId, command: 'abort', gameId: Number(raw.gameId) }
         : null
+    default:
+      return null
   }
 }
 

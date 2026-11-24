@@ -3,12 +3,13 @@ import {
   LIVE_EVENT,
   LIVE_HEARTBEAT_MS,
   LIVE_STATUS_EVERY_MS,
+  ROOM_COMMAND_TIMEOUT_MS,
   ROOM_DIAGNOSTICS_MAX_GAMEPADS,
   type SseMessage,
 } from '@quizzup/shared'
 import { computed, ref, watch } from 'vue'
 
-import { getLastErrorAt } from '@/diagnostics/errorReporter'
+import { errorText, getLastErrorAt, reportRoomError } from '@/diagnostics/errorReporter'
 import { readSavedBackofficeGame } from '@/game/backofficeGameMemory'
 import { useRoomGame } from '@/game/useRoomGame'
 import { getLighting, getRoomHardwareConfig } from '@/hardware/roomHardware'
@@ -277,7 +278,7 @@ async function sendCommandAck(commandId: string, ack: RoomCommandAck): Promise<v
 
   const myGen = gen
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), STATUS_TIMEOUT_MS)
+  const timeout = setTimeout(() => controller.abort(), ROOM_COMMAND_TIMEOUT_MS)
   const headers = authHeaders(token)
 
   headers.set('Content-Type', 'application/json')
@@ -309,9 +310,22 @@ async function sendCommandAck(commandId: string, ack: RoomCommandAck): Promise<v
 function onCommand(data: string): void {
   const command = parseRoomCommand(data)
 
-  if (command && streamId !== undefined) {
-    void sendCommandAck(command.commandId, answerRoomCommand(command))
+  if (!command || streamId === undefined) {
+    return
   }
+
+  let ack: RoomCommandAck
+
+  try {
+    ack = answerRoomCommand(command)
+  } catch (error) {
+    // Une commande qui plante n'est pas une coupure réseau : le flux reste ouvert, pas d'accusé
+    // (le personnel verra `expired`).
+    reportRoomError('room_command_failed', errorText(error))
+    return
+  }
+
+  void sendCommandAck(command.commandId, ack)
 }
 
 function onMessage(message: SseMessage): void {

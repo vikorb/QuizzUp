@@ -13,6 +13,12 @@ import { chooseFirstTheme, expectScreen } from '../support/roomApp'
  */
 const ROOM_ACCOUNT = { id: 7, companyId: 3, role: 'room', username: 'salle-1' }
 const PASSWORD = 'Mot-de-passe-salle-1'
+/**
+ * Le bouchon rend le flux d'un bloc puis le ferme : chaque commande force une reconnexion de la
+ * salle, dont le délai grandit (1, 2, 5, 10 s...). Les attentes qui suivent un envoi sont donc plus
+ * larges que le délai par défaut de Playwright.
+ */
+const AFTER_COMMAND = { timeout: 30_000 }
 const GAME = {
   id: 42,
   seed: 7,
@@ -50,16 +56,17 @@ test.describe('Écran de salle — commandes à distance', () => {
 
     const pause = randomUUID()
     api.sendCommand({ commandId: pause, command: 'pause' })
-    await expect(overlay).toBeVisible()
+    await expect(overlay).toBeVisible(AFTER_COMMAND)
     await expect
-      .poll(() => api.commandResults)
+      .poll(() => api.commandResults, AFTER_COMMAND)
       .toEqual([{ commandId: pause, body: { result: 'applied' } }])
 
-    // Une question périmée n'est pas passée : la partie reste en pause, refus accusé.
+    // Une question périmée (la 2e de la 1re manche, alors que la 1re est en cours) n'est pas
+    // passée : la partie reste en pause, refus accusé.
     const stale = randomUUID()
-    api.sendCommand({ commandId: stale, command: 'skip', round: 99, questionIndex: 0 })
+    api.sendCommand({ commandId: stale, command: 'skip', round: 1, questionIndex: 1 })
     await expect
-      .poll(() => api.commandResults.at(-1))
+      .poll(() => api.commandResults.at(-1), AFTER_COMMAND)
       .toEqual({
         commandId: stale,
         body: { result: 'refused', reason: 'not_in_question' },
@@ -68,9 +75,9 @@ test.describe('Écran de salle — commandes à distance', () => {
 
     const resume = randomUUID()
     api.sendCommand({ commandId: resume, command: 'resume' })
-    await expect(overlay).toBeHidden()
+    await expect(overlay).toBeHidden(AFTER_COMMAND)
     await expect
-      .poll(() => api.commandResults.at(-1))
+      .poll(() => api.commandResults.at(-1), AFTER_COMMAND)
       .toEqual({
         commandId: resume,
         body: { result: 'applied' },

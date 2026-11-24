@@ -3,6 +3,7 @@ import { GAME_COMMAND_REFUSAL, MINI_GAME_FLASH_BLIND_TEST } from '@quizzup/share
 import { nextTick } from 'vue'
 
 import { createSilentExtractPlayer, type ExtractPlayer } from '@/audio/player'
+import { getLastErrorAt, PENDING_LOGS_KEY } from '@/diagnostics/errorReporter'
 import { rememberBackofficeGameId } from '@/game/backofficeGameMemory'
 import { createMemorySessionStorage } from '@/game/session'
 import {
@@ -18,7 +19,7 @@ import {
   REMEMBERED_COMMANDS,
   resetRoomCommands,
 } from '@/live/roomCommands'
-import { startRoomLive, stopRoomLive, useRoomLive } from '@/live/roomLive'
+import { RECONNECT_DELAYS_MS, startRoomLive, stopRoomLive, useRoomLive } from '@/live/roomLive'
 import { syncRoomAuth } from '@/state/roomAuth'
 import { setDemoMode, setRoomToken } from '@/utils/auth'
 
@@ -315,6 +316,79 @@ describe('commandes à distance : réception', () => {
 
     expect(paused.value).toBe(false)
     expect(server.acks).toHaveLength(0)
+  })
+
+  it('ignore une commande de type inconnu même avec un gameId : la partie continue, aucun accusé', async () => {
+    const { state } = useRoomGame()
+
+    await connect()
+    startQuestion()
+
+    await send({ commandId: 'x', command: 'explode', gameId: GAME_ID })
+
+    expect(server.acks).toHaveLength(0)
+    expect(state.value?.phase.name).toBe('question')
+  })
+
+  it('après une reconnexion, une commande rejouée n’est pas réappliquée : même accusé', async () => {
+    const { paused } = useRoomGame()
+
+    await connect()
+    startQuestion()
+    await send({ commandId: 'c1', command: 'pause' })
+    expect(paused.value).toBe(true)
+
+    // Flux coupé : la salle rouvre un flux, le serveur y rejoue la commande sans accusé reçu.
+    server.streams[0]?.end()
+    await settle(RECONNECT_DELAYS_MS[0])
+    expect(server.streams).toHaveLength(2)
+    server.streams[1]?.push(helloMessage('stream-2'))
+    await settle()
+    await send({ commandId: 'c1', command: 'pause' })
+
+    expect(paused.value).toBe(true)
+    expect(player.pause).toHaveBeenCalledTimes(1)
+    expect(server.acks).toHaveLength(2)
+    expect(server.acks[1]).toEqual({ commandId: 'c1', body: { result: 'applied' } })
+  })
+
+  it('n’applique rien une fois la salle remplacée par un autre poste', async () => {
+    const { paused } = useRoomGame()
+
+    await connect()
+    startQuestion()
+
+    server.streams[0]?.push(
+      'event: replaced\ndata: {}\n\nevent: command\ndata: {"commandId":"c1","command":"pause"}\n\n'
+    )
+    await settle()
+
+    expect(useRoomLive().replaced.value).toBe(true)
+    expect(paused.value).toBe(false)
+    expect(server.acks).toHaveLength(0)
+  })
+
+  it('une commande qui lève une exception est signalée, sans accusé ni coupure du flux', async () => {
+    const { paused } = useRoomGame()
+
+    await connect()
+    startQuestion()
+    vi.mocked(player.pause).mockImplementationOnce(() => {
+      throw new Error('boom')
+    })
+
+    await send({ commandId: 'c1', command: 'pause' })
+
+    expect(server.acks).toHaveLength(0)
+    expect(server.streams).toHaveLength(1)
+    expect(server.streams[0]?.aborted).toBe(false)
+    expect(getLastErrorAt()).not.toBeNull()
+    expect(localStorage.getItem(PENDING_LOGS_KEY)).toContain('room_command_failed')
+
+    // Le flux est toujours à l'écoute : la commande suivante est traitée.
+    await send({ commandId: 'c2', command: 'resume' })
+    expect(paused.value).toBe(false)
+    expect(lastAck()?.commandId).toBe('c2')
   })
 
   it('n’applique rien une fois la session de salle terminée', async () => {
