@@ -2808,7 +2808,7 @@ paths:
 
         Émet le bon de fidélisation d'un pupitre d'une partie terminée (un bon par pupitre et par partie, partagé par le duo). Le libellé du bon est copié du réglage `voucherLabel` du centre au moment de l'émission ; la fin de validité est l'émission plus `voucherValidityDays` jours. Le code (`XXXX-XXXX`) est tiré sur 40 bits.
 
-        `url` est l'adresse de la page publique du bon (`PUBLIC_APP_URL` + `/bon/#<code>`), nulle tant que `PUBLIC_APP_URL` n'est pas réglée. Le QR code (`qrSvg`) n'est pas encore fourni : il arrive avec le générateur de QR du lot 2.
+        `url` est l'adresse de la page publique du bon (`PUBLIC_APP_URL` + `/bon/#<code>`), nulle tant que `PUBLIC_APP_URL` n'est pas réglée. `qrSvg` : QR code de `url`, `null` quand `url` l'est.
 
         Ordre des contrôles : droit, paramètres et corps, compagnie, compagnie et partie existantes (`404 not_found`), bons activés (`409 vouchers_disabled`), partie terminée (`409 game_not_finished`), pupitre de cette partie (`404 participant_not_found`), bon déjà émis (`409 voucher_already_issued`, y compris pour un bon annulé).
 
@@ -2866,7 +2866,7 @@ paths:
       description: |
         Statut : **Disponible** (lot 6b)
 
-        Bons non supprimés de la partie, dans l'ordre des pupitres, avec leur `state` (un bon annulé est listé : c'est à la feuille de résultats de l'ignorer).
+        Bons non supprimés de la partie, dans l'ordre des pupitres, avec leur `state` (un bon annulé est listé : c'est à la feuille de résultats de l'ignorer). `qrSvg` : QR code de `url`, `null` quand `url` l'est.
 
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
       operationId: listGameVouchers
@@ -3657,7 +3657,9 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Envoyé par l'écran de salle au podium : la partie passe `finished` (`finishedAt` renseigné) et le score de chaque pupitre est enregistré (une ligne par pupitre inscrit, ni plus ni moins). Idempotent : une partie déjà terminée est renvoyée telle quelle, sans toucher aux scores.
+        Envoyé par l'écran de salle au podium : la partie passe `finished` (`finishedAt` renseigné) et le score de chaque pupitre est enregistré (une ligne par pupitre inscrit, ni plus ni moins). Idempotent : une partie déjà terminée est renvoyée telle quelle, sans toucher aux scores ni aux manches.
+
+        `rounds` (facultatif : un écran de salle pas encore à jour n'en envoie pas) liste les manches jouées. Elles sont écrites dans `game_rounds` dans la même transaction que les scores, une seule fois : le renvoi d'une fin de partie n'écrit rien de plus. Les thèmes et les questions doivent appartenir à la compagnie ou au contenu global et leurs `position` ne dépassent pas le nombre de manches de la partie (`400 game_rounds_invalid` sinon, rien n'est enregistré).
 
         Accès : réservé au rôle `room`, partie de sa salle uniquement.
       operationId: finishRoomGame
@@ -3689,6 +3691,31 @@ paths:
                         type: integer
                         minimum: -1000000
                         maximum: 1000000
+                rounds:
+                  type: array
+                  maxItems: 20
+                  description: Manches jouées. Deux manches de même `position` sont refusées (`400 invalid_body`)
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [position, miniGame, themeId, questionIds]
+                    properties:
+                      position:
+                        type: integer
+                        minimum: 1
+                        maximum: 20
+                      miniGame:
+                        $ref: '#/components/schemas/MiniGame'
+                      themeId:
+                        type: integer
+                        nullable: true
+                      questionIds:
+                        type: array
+                        maxItems: 20
+                        description: Questions effectivement posées, sans doublon dans la manche
+                        items:
+                          type: integer
+                          minimum: 1
       responses:
         '200':
           description: Partie terminée
@@ -3701,7 +3728,7 @@ paths:
                     allOf:
                       - $ref: '#/components/schemas/RoomGame'
         '400':
-          description: Corps invalide (`invalid_body`) ou scores ne couvrant pas exactement les pupitres inscrits (`game_scores_invalid`)
+          description: Corps invalide (`invalid_body`) ou scores ne couvrant pas exactement les pupitres inscrits (`game_scores_invalid`), ou manche citant un thème ou une question d'une autre compagnie ou inconnu (`game_rounds_invalid`)
           content:
             application/json:
               schema:
@@ -6817,6 +6844,12 @@ components:
           nullable: true
           description: Page publique du bon (`PUBLIC_APP_URL` + `/bon/#<code>`), nulle tant que `PUBLIC_APP_URL` n'est pas réglée
           example: https://bo.quizzup.fr/bon/#7K2M-9QXD
+        qrSvg:
+          type: string
+          nullable: true
+          description: >-
+            QR code de `url` en SVG complet. Présent seulement à l'émission d'un bon et dans la liste des bons
+            d'une partie (pour la feuille) ; absent des autres routes. `null` quand `url` est nulle.
 
     IssueVoucherRequest:
       type: object
@@ -8489,6 +8522,13 @@ components:
         url:
           type: string
           example: https://app.quizzup.example/rejoindre/#Zm9vYmFyYmF6cXV4
+        qrSvg:
+          type: string
+          nullable: true
+          description: >-
+            QR code de `url` en SVG complet (`<svg …>`), à afficher en ligne ou en
+            `<img src="data:image/svg+xml;charset=utf-8,…">` où `…` est `encodeURIComponent(qrSvg)`.
+            `null` quand `url` est relative (`PUBLIC_APP_URL` vide).
         expiresAt:
           type: string
           format: date-time
