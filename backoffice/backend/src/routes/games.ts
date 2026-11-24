@@ -266,6 +266,7 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
       const game = await findStaffGameWithJoin(req, companyId, gameId)
 
       app.liveHub.gameUpdated(companyId, roomId, gameId)
+      app.liveHub.scheduleChanged(companyId, roomId)
 
       return reply.code(201).send({ game })
     }

@@ -8,6 +8,13 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Programme d'une salle en temps réel : l'événement `schedule_changed` part à chaque création, déplacement, annulation ou ouverture d'une session (backoffice, écran de salle, API publique de réservation). L'agenda du backoffice et le lobby de la salle se mettent à jour seuls, sans recharger la page.
+  US: US-SCHED-01 (#142)
+- Tests de bout en bout de l'accueil : Playwright démarre aussi le frontend du backoffice (port 4176, API interceptée). Nouveaux scénarios : inscription d'un joueur par le lien du QR depuis un téléphone jusqu'au lobby de la salle, refus de la page téléphone (code inconnu, inscription fermée), feuille de résultats en mode impression avec son bon.
+  US: US-JOIN-01 (#166)
+- Fumée par la carte USB, écran de salle : section « Fumée » de l'écran Matériel pour brancher la carte (Web Serial, à la demande), voir son état, installer son programme depuis la page (signature vérifiée, sauvegarde du programme d'origine téléchargée avant d'écrire) et restaurer un `.hex`. La carte déjà autorisée se reconnecte seule au lancement, toujours désarmée ; pendant une installation aucun ordre de fumée ne part. Le programme `fumee.hex` est versionné, la CI échoue s'il manque ou s'il diffère de la compilation, et les images de recette et de production l'embarquent. À valider sur le banc.
+  US: US-DMX-01 (#215)
+
 - Écran de salle : la prochaine session programmée s'affiche au lobby quand aucune partie n'attend, avec son heure dans le fuseau de la salle et l'action « Lancer ».
   US: US-SCHED-01 (#142)
 
@@ -456,6 +463,9 @@ Format inspiré de Keep a Changelog.
   US: US-MEDIA-01 (#59)
 
 ### Changed
+
+- Mode enfants : aucun e-mail de joueur n'est gardé sur une partie en mode enfants, quel que soit le chemin (création, modification des participants, ajout d'un participant, validation d'une demande par le personnel, modification d'une réservation de l'API publique). Le formulaire de partie ne propose plus les champs e-mail ni les consentements dans ce mode. Passer une partie existante en mode enfants efface les e-mails et les consentements déjà enregistrés de ses joueurs, après une confirmation dans le formulaire.
+  US: US-KIDS-01 (#158)
 
 - Écran de salle : boutons et mises en page recalés sur l'accueil, les assistants de configuration, l'écran Matériel, le lobby, l'inscription et la connexion. Un seul bouton principal par écran, cibles d'au moins 48 px (plan de salle compris), barres d'actions alignées, rien ne déborde à 1280 px ni à 768 px.
   US: US-UX-01 (#132)

@@ -153,6 +153,22 @@ export function createLiveHub({ now = Date.now }: { now?: () => number } = {}) {
     staff.get(companyId)?.forEach(({ sink }) => sink.send(LIVE_EVENT.COMMAND_RESULT, message))
   }
 
+  /** Le flux de la salle (si elle est de cette compagnie) et le personnel de cette compagnie. */
+  function notifyCompanyAndRoom(
+    event: LiveEvent,
+    companyId: number,
+    roomId: number,
+    data: unknown
+  ): void {
+    const entry = rooms.get(roomId)
+
+    if (entry?.companyId === companyId) {
+      entry.stream?.sink.send(event, data)
+    }
+
+    staff.get(companyId)?.forEach(({ sink }) => sink.send(event, data))
+  }
+
   const timer = setInterval(sweep, SWEEP_EVERY_MS)
   timer.unref()
 
@@ -205,13 +221,15 @@ export function createLiveHub({ now = Date.now }: { now?: () => number } = {}) {
      * les clients relisent la partie par la route habituelle.
      */
     gameUpdated(companyId: number, roomId: number, gameId: number): void {
-      const entry = rooms.get(roomId)
+      notifyCompanyAndRoom(LIVE_EVENT.GAME_UPDATED, companyId, roomId, { gameId })
+    },
 
-      if (entry?.companyId === companyId) {
-        entry.stream?.sink.send(LIVE_EVENT.GAME_UPDATED, { gameId })
-      }
-
-      staff.get(companyId)?.forEach(({ sink }) => sink.send(LIVE_EVENT.GAME_UPDATED, { gameId }))
+    /**
+     * Prévient du changement du programme d'une salle (création, déplacement, annulation ou
+     * ouverture d'une session) : mêmes destinataires que `gameUpdated`, et seulement la salle.
+     */
+    scheduleChanged(companyId: number, roomId: number): void {
+      notifyCompanyAndRoom(LIVE_EVENT.SCHEDULE_CHANGED, companyId, roomId, { roomId })
     },
 
     /** Abonne le flux d'un membre du personnel aux salles de sa compagnie. */

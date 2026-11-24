@@ -537,6 +537,7 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
     }
 
     app.liveHub.gameUpdated(Number(req.user.company_id), Number(req.user.room_id), gameId)
+    app.liveHub.scheduleChanged(Number(req.user.company_id), Number(req.user.room_id))
 
     return { game: await findRoomGame(req, gameId) }
   })

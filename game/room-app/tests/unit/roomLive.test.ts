@@ -30,6 +30,7 @@ import { createManualClock, getPlayableThemes, REGISTRATIONS } from '../_helpers
 
 const REPLACED = 'event: replaced\ndata: {}\n\n'
 const GAME_UPDATED = 'event: game_updated\ndata: {"gameId":42}\n\n'
+const SCHEDULE_CHANGED = 'event: schedule_changed\ndata: {"roomId":1}\n\n'
 const SESSION_ENDED = 'event: session_ended\ndata: {"error":"session_expired"}\n\n'
 
 let server: ReturnType<typeof createFakeLiveServer>
@@ -790,6 +791,18 @@ describe('roomLive : game_updated', () => {
     await settle()
     expect([first.mock.calls.length, second.mock.calls.length]).toEqual([1, 2])
     stopSecond()
+  })
+
+  it('schedule_changed prévient les mêmes écouteurs', async () => {
+    const listener = vi.fn()
+    const stop = onRoomGameUpdated(listener)
+
+    await connect()
+    server.streams.at(-1)?.push(SCHEDULE_CHANGED)
+    await settle()
+
+    expect(listener).toHaveBeenCalledTimes(1)
+    stop()
   })
 
   it('l’abonnement survit à une reconnexion, sans doublon', async () => {

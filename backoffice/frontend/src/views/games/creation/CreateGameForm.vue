@@ -112,7 +112,7 @@
           :label="$t('games.form.kidsMode')"
           aria-describedby="game-form-kids-mode-hint"
           data-test="game-kids-mode"
-          @change="form.kidsMode = $event"
+          @change="setKidsMode($event)"
         />
         <label for="game-form-kids-mode">{{ $t('games.form.kidsMode') }}</label>
       </div>
@@ -259,11 +259,16 @@
         {{ $t('games.form.openJoinHint') }}
       </p>
 
+      <p v-if="form.kidsMode" class="game-form__notice" data-test="game-kids-no-email">
+        {{ $t('games.form.kidsNoEmail') }}
+      </p>
+
       <div class="game-form__participants">
         <GameParticipantFields
           v-for="(participant, index) in form.participants"
           :key="participant.key"
           :participant="participant"
+          :kids-mode="form.kidsMode"
           :index="index"
           :errors="getParticipantErrors(index)"
           :podium-options="getPodiumOptions(index)"
@@ -318,6 +323,7 @@ import SwitchField from '@/components/ui/form/SwitchField.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import RoomPresenceBadge from '@/components/ui/RoomPresenceBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import { useConfirm } from '@/composables/useConfirm'
 import { createGameService, updateGameService } from '@/services/gamesService'
 import type { SelectFieldOption } from '@/types/form'
 import type {
@@ -400,6 +406,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { confirm } = useConfirm()
 
 const form = reactive<GameFormValues>(
   props.game
@@ -729,6 +736,54 @@ function updateParticipant(
     } else if (field === 'secondEmail') {
       errors.secondEmailConsent = ''
     }
+  }
+}
+
+/**
+ * Mode enfants : aucun e-mail n'est gardé, ceux déjà saisis sont donc retirés du formulaire. En
+ * modification, passer au mode enfants efface aussi, à l'enregistrement, les e-mails déjà
+ * enregistrés de la session (même pour un compte dont la liste des joueurs est verrouillée) : une
+ * confirmation précède tout. Refus : la case reste décochée, rien n'est vidé.
+ */
+async function setKidsMode(value: boolean): Promise<void> {
+  if (value && !form.kidsMode && props.game) {
+    const confirmed = await confirm({
+      title: t('games.form.kidsConfirmTitle'),
+      message: t('games.form.kidsConfirmMessage'),
+      confirmLabel: t('games.form.kidsConfirmLabel'),
+      cancelLabel: t('confirm.cancel'),
+      variant: 'danger',
+    })
+
+    if (!confirmed) {
+      return
+    }
+  }
+
+  form.kidsMode = value
+
+  if (!value) {
+    return
+  }
+
+  for (const participant of form.participants) {
+    Object.assign(participant, {
+      email: '',
+      emailConsent: false,
+      marketingConsent: false,
+      secondEmail: '',
+      secondEmailConsent: false,
+      secondMarketingConsent: false,
+    })
+  }
+
+  for (const errors of fieldErrors.participants) {
+    Object.assign(errors, {
+      email: '',
+      emailConsent: '',
+      secondEmail: '',
+      secondEmailConsent: '',
+    })
   }
 }
 

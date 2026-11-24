@@ -110,12 +110,18 @@ export type GameUpdates = {
   room3: unknown[]
 }
 
-/** Abonne des faux flux et relève les `game_updated` reçus (ni nom ni e-mail : l'identifiant seul). */
-export function watchGameUpdates(app: FastifyInstance): GameUpdates {
+/**
+ * Abonne des faux flux et relève les `game_updated` reçus (ni nom ni e-mail : l'identifiant seul),
+ * ou ceux de l'événement demandé (`schedule_changed`).
+ */
+export function watchGameUpdates(
+  app: FastifyInstance,
+  watched: string = LIVE_EVENT.GAME_UPDATED
+): GameUpdates {
   const hub = liveHubOf(app)
   const sinkInto = (received: unknown[]) => ({
     send: (event: string, data: unknown) => {
-      if (event === LIVE_EVENT.GAME_UPDATED) {
+      if (event === watched) {
         received.push(data)
       }
     },

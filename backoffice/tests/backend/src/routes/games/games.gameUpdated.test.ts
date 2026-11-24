@@ -5,6 +5,7 @@ import {
   GAME_STATE_PENDING,
   GAME_STATE_SCHEDULED,
   GAME_STATUS_ACTIVE,
+  LIVE_EVENT,
   ROOM_STATUS_ACTIVE,
 } from '@quizzup/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -122,10 +123,11 @@ async function call(
   method: 'POST' | 'PATCH' | 'DELETE',
   url: string,
   payload?: unknown,
-  user: TestUser = companyAdminUser
+  user: TestUser = companyAdminUser,
+  watched: string = LIVE_EVENT.GAME_UPDATED
 ) {
   const app = await createRouteApp(gamesRoutes)
-  const updates = watchGameUpdates(app)
+  const updates = watchGameUpdates(app, watched)
   const response = await app.inject({
     method,
     url,
@@ -276,6 +278,80 @@ describe.each(cases)('game_updated : $name', (testCase) => {
       expectNobodyNotified(updates)
     })
   }
+})
+
+// `schedule_changed` : le programme d'une salle change (création, déplacement, ouverture, annulation).
+// Mêmes destinataires que `game_updated`, par l'identifiant de la salle seulement.
+const SCHEDULE_ROUTES = ['POST /games (création)', 'PATCH /games/:id (session programmée)']
+const scheduleCases = cases.filter(
+  ({ name }) => SCHEDULE_ROUTES.includes(name) || name.endsWith('/open') || name.endsWith('/cancel')
+)
+
+describe.each(scheduleCases)('schedule_changed : $name', (testCase) => {
+  const { method, url, payload, seed, failing } = testCase
+  const watched = LIVE_EVENT.SCHEDULE_CHANGED
+
+  it('prévient la salle et le personnel de la compagnie, par l’identifiant de la salle seul', async () => {
+    seed()
+
+    const { response, updates } = await call(method, url, payload, companyAdminUser, watched)
+
+    expect(response.statusCode).toBeLessThan(300)
+    expect(updates.staff1).toEqual([{ roomId: 1 }])
+    expect(updates.room1).toEqual([{ roomId: 1 }])
+    expect(updates.staff2).toEqual([])
+    expect(updates.room2).toEqual([])
+    expect(updates.room3).toEqual([])
+    expect(JSON.stringify(updates)).not.toMatch(/Léa|Hugo|Noé|@/)
+  })
+
+  it('ne prévient personne quand le compte est d’une autre compagnie', async () => {
+    seed()
+
+    const { response, updates } = await call(method, url, payload, otherCompanyAdmin, watched)
+
+    expect(response.statusCode).toBe(403)
+    expectNobodyNotified(updates)
+  })
+
+  if (failing) {
+    it('ne prévient personne quand l’appel échoue', async () => {
+      seed()
+
+      const { response, updates } = await call(
+        method,
+        failing.url,
+        payload,
+        companyAdminUser,
+        watched
+      )
+
+      expect(response.statusCode).toBe(failing.status)
+      expectNobodyNotified(updates)
+    })
+  }
+})
+
+describe('schedule_changed : déplacement d’une session', () => {
+  it('prévient les deux salles, et pas la salle d’une autre compagnie', async () => {
+    dbState.rooms.push({ ...dbState.rooms[0]!, id: 2 })
+    seedScheduled()
+
+    const { response, updates } = await call(
+      'PATCH',
+      '/companies/1/games/1',
+      { roomId: 2 },
+      companyAdminUser,
+      LIVE_EVENT.SCHEDULE_CHANGED
+    )
+
+    expect(response.statusCode).toBe(200)
+    expect(updates.room1).toEqual([{ roomId: 1 }])
+    expect(updates.room2).toEqual([{ roomId: 2 }])
+    expect(updates.staff1).toEqual([{ roomId: 1 }, { roomId: 2 }])
+    expect(updates.room3).toEqual([])
+    expect(updates.staff2).toEqual([])
+  })
 })
 
 describe('game_updated : déplacement d’une session', () => {

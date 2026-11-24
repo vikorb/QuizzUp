@@ -86,6 +86,7 @@ import type { ActionBanner } from '@/types/banner'
 import type { Company } from '@/types/company'
 import type { SelectFieldOption } from '@/types/form'
 import type { Game, GameRoom } from '@/types/game'
+import type { TimerHandle } from '@/types/timer'
 import { createErrorBanner, createSuccessBanner, getBannerVariant } from '@/utils/banner'
 import { canManageCompanyDetails, isSuperadminRole } from '@/utils/company/details/permissions'
 import {
@@ -101,12 +102,15 @@ import {
 import { resolveGameCompanyId } from '@/utils/game/company'
 import { getGameErrorKey } from '@/utils/game/errors'
 import { getGameRoomName } from '@/utils/game/format'
+import { clearTimer, scheduleTimer } from '@/utils/timer'
 
 import AgendaList from './agenda/AgendaList.vue'
 import AgendaToolbar from './agenda/AgendaToolbar.vue'
 
 /** Une salle ne programme pas plus de sessions par jour ; au-delà, un avertissement le signale. */
 const AGENDA_PAGE_LIMIT = 200
+/** Attente avant de relire l'agenda après `schedule_changed` : une rafale d'événements, une lecture. */
+const SCHEDULE_RELOAD_DELAY_MS = 300
 
 const { t, locale } = useI18n()
 const { confirm } = useConfirm()
@@ -144,7 +148,7 @@ const {
   errorKey: liveErrorKey,
   uncertain: liveUncertain,
   now: liveNow,
-} = useLiveCompany(companyId)
+} = useLiveCompany(companyId, { onScheduleChanged: handleScheduleChanged })
 
 const activeRooms = computed(() => rooms.value.filter((room) => room.status === ROOM_STATUS_ACTIVE))
 
@@ -206,6 +210,7 @@ const companyContext = computed(() => ({
 
 // Une réponse lente ne doit pas écraser celle d'un jour demandé après elle.
 let loadSequence = 0
+let reloadTimer: TimerHandle | null = null
 
 // Salle, jour et succès demandés par l'adresse (retour du formulaire de session) : lus une fois.
 let request = parseAgendaRequest(route.query)
@@ -458,7 +463,18 @@ async function handleCancel(game: Game): Promise<void> {
   }
 }
 
-// En attendant l'événement `schedule_changed` du direct : un onglet qui reprend le focus relit l'agenda.
+// `schedule_changed` : le programme d'une salle a changé. Seule la salle affichée est relue, en
+// silence (ni écran de chargement, ni changement de salle ou de jour) ; plusieurs événements
+// rapprochés donnent une seule lecture.
+function handleScheduleChanged(changedRoomId: number): void {
+  if (String(changedRoomId) !== roomId.value) {
+    return
+  }
+
+  reloadTimer = scheduleTimer(reloadTimer, () => void load(false, true), SCHEDULE_RELOAD_DELAY_MS)
+}
+
+// Un onglet qui reprend le focus relit l'agenda : il a pu manquer des événements en veille.
 function handleVisibilityChange(): void {
   if (document.visibilityState === 'visible' && !loading.value) {
     void load(false, true)
@@ -473,6 +489,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', handleVisibilityChange)
+  reloadTimer = clearTimer(reloadTimer)
 })
 </script>
 

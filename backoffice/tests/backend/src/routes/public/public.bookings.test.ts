@@ -564,6 +564,37 @@ describe('PATCH /public/v1/bookings/:id', () => {
     expect(response.body).not.toContain('@')
   })
 
+  it('keeps no e-mail nor consent when the game is in kids mode', async () => {
+    const id = await seedBooking()
+
+    dbState.games.find((game) => game.id === id)!.kids_mode = true
+
+    const response = await patch(id, { participants: [LEA] })
+
+    expect(response.statusCode).toBe(200)
+    expect(dbState.game_participants).toHaveLength(1)
+    expect(dbState.game_participants[0]).toMatchObject({
+      display_name: 'Léa',
+      second_display_name: 'Noé',
+      email: null,
+      consent_at: null,
+      second_email: null,
+      second_consent_at: null,
+    })
+  })
+
+  it('keeps the e-mail outside kids mode', async () => {
+    const id = await seedBooking()
+
+    const response = await patch(id, { participants: [LEA] })
+
+    expect(response.statusCode).toBe(200)
+    expect(dbState.game_participants[0]).toMatchObject({
+      email: 'lea@exemple.test',
+      second_email: 'noe@exemple.test',
+    })
+  })
+
   it('moves the booking to another slot of the grid', async () => {
     const id = await seedBooking()
 

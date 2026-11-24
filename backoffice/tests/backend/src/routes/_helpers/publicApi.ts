@@ -1,3 +1,4 @@
+import liveHubPlugin from '@backend/plugins/liveHub'
 import { PUBLIC_API_PREFIX } from '@backend/routes/public/_shared'
 import { generateApiKey } from '@backend/security/apiKeys'
 import { API_KEY_STATUS_REVOKED, ROOM_STATUS_ACTIVE, type RoomSchedule } from '@quizzup/shared'
@@ -28,6 +29,8 @@ export async function createPublicApp() {
   const app = fastify({ logger: false })
 
   // Le projet de tests ne charge pas les augmentations de types du backend.
+  // Le hub du direct, comme dans `buildApp` : les réservations préviennent l'agenda et la salle.
+  await app.register(liveHubPlugin as never)
   await app.register(publicRoutes as never, { prefix: PUBLIC_API_PREFIX })
   await app.ready()
 

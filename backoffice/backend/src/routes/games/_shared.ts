@@ -318,7 +318,7 @@ export async function findStaffGameWithJoin(
 }
 
 /** Efface l'email et les consentements des deux joueurs, noms et scores gardés. */
-const ERASED_PLAYER_PERSONAL_DATA = {
+export const ERASED_PLAYER_PERSONAL_DATA = {
   email: null,
   consent_at: null,
   marketing_consent_at: null,
@@ -327,10 +327,14 @@ const ERASED_PLAYER_PERSONAL_DATA = {
   second_marketing_consent_at: null,
 }
 
-function toParticipantRow(gameId: number, participant: GameParticipantInput) {
-  const email = participant.email ?? null
+/**
+ * Partie en mode enfants : aucun e-mail n'est gardé, même si le client en envoie un, et sans
+ * erreur (Q5, même règle que la page téléphone). Consentements effacés avec l'e-mail.
+ */
+function toParticipantRow(gameId: number, participant: GameParticipantInput, kidsMode: boolean) {
+  const email = kidsMode ? null : (participant.email ?? null)
   const second = participant.secondPlayer ?? null
-  const secondEmail = second?.email ?? null
+  const secondEmail = kidsMode ? null : (second?.email ?? null)
 
   return {
     game_id: gameId,
@@ -350,14 +354,15 @@ function toParticipantRow(gameId: number, participant: GameParticipantInput) {
 export async function insertParticipants(
   trx: Knex.Transaction,
   gameId: number,
-  participants: GameParticipantInput[]
+  participants: GameParticipantInput[],
+  kidsMode: boolean
 ): Promise<ParticipantDbRow[]> {
   if (participants.length === 0) {
     return []
   }
 
   return (await trx('game_participants')
-    .insert(participants.map((participant) => toParticipantRow(gameId, participant)))
+    .insert(participants.map((participant) => toParticipantRow(gameId, participant, kidsMode)))
     .returning(participantSelect)) as ParticipantDbRow[]
 }
 
@@ -416,7 +421,7 @@ export async function insertGameWithParticipants(
     .returning(['id'])
   const gameId = Number((Array.isArray(inserted) ? inserted[0] : inserted)?.id)
 
-  await insertParticipants(trx, gameId, participants)
+  await insertParticipants(trx, gameId, participants, game.kidsMode ?? false)
 
   return gameId
 }

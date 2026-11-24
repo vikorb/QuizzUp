@@ -76,13 +76,21 @@ const gamesParticipantsRoutes: FastifyPluginAsync = async (app) => {
         // Le participant est lu par l'INSERT lui-même : une relecture après le commit pourrait
         // tomber sur un retrait simultané.
         const created = await db.transaction(async (trx): Promise<ParticipantDbRow | null> => {
-          const locked = await trx('games').where('id', gameId).forUpdate().first('state')
+          const locked = await trx('games')
+            .where('id', gameId)
+            .forUpdate()
+            .first(['state', 'kids_mode as kidsMode'])
 
           if (locked?.state !== GAME_STATE_PENDING) {
             return null
           }
 
-          const [row] = await insertParticipants(trx, gameId, [participant])
+          const [row] = await insertParticipants(
+            trx,
+            gameId,
+            [participant],
+            Boolean(locked.kidsMode)
+          )
 
           return row!
         })

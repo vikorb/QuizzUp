@@ -46,7 +46,7 @@ function createStubLink() {
       listener(state)
     }
   }
-  return { link, orders, behaviour, announce }
+  return { link, orders, behaviour, announce, listenerCount: () => listeners.size }
 }
 
 async function setup() {
@@ -111,6 +111,19 @@ describe('coupures de la fumée avec la carte', () => {
 
     expect(controller.getState().smoke).toMatchObject({ status: 'ready', armed: true })
     expect(stub.orders.slice(before).every((order) => order === false)).toBe(true)
+  })
+
+  it('contrôleur arrêté : le lien (qui lui survit) ne lui parle plus', async () => {
+    context = await setup()
+    const { stub, controller, warnings } = context
+    expect(stub.listenerCount()).toBe(1)
+
+    await controller.stop()
+    expect(stub.listenerCount()).toBe(0)
+    stub.announce({ status: 'disconnected', phase: null })
+    await flushPromises()
+
+    expect(warnings.some((warning) => warning.kind === 'board_lost')).toBe(false)
   })
 
   it('désarmer pendant un jet : ordre d’arrêt à la carte et trame à 0 tout de suite', async () => {
