@@ -11,6 +11,11 @@ Format inspiré de Keep a Changelog.
 - Format de partie côté serveur : `games.format` stocke le format (`discovery`, `short`, `standard`, `custom`). À la création, un format fixe ses nombres de manches et de questions (les envoyer ensemble donne 400 `invalid_body`, `format_fixes_counts`) ; des nombres sans format donnent `custom`. Modifier les nombres d'une session programmée la passe en `custom`. Le format est renvoyé par les parties et par `GET /room/games/current`.
   US: US-FORMAT-01 (#143)
 
+- Logo du centre sur l'écran de salle : affiché dans la barre du haut et au-dessus du podium, lu avec `/room/me` (aucun appel de plus). Rien n'est affiché sans logo, si l'image ne charge pas, ou en mode démo.
+  US: US-RESULTS-01 (#156)
+
+- Programme de la carte de la fumée (Uno), écrit de zéro : la sortie du relais n'est au niveau haut que tant que la page redit « fumée » (bail de 500 ms), jamais plus de 10 s par jet, avec 5 s de pause entre deux jets, et un chien de garde matériel de 250 ms. Logique en C testée par gcc sur des vecteurs partagés ; la CI compile le programme pour `arduino:avr:uno` et publie le `.hex`. Rien n'est encore branché à l'écran de salle ni essayé sur une vraie carte.
+  US: US-DMX-01 (#215)
 - Lumières Art-Net sans exécutable (`game/artnet-bridge/powershell`) : `quizzup-lumieres.ps1` (PowerShell 5.1, présent sur tout Windows) parle le même protocole WebSocket que le pont et envoie les trames Art-Net ; lanceur `Lancer les lumieres.cmd`. Pas de découverte de nœuds : l'adresse du nœud se saisit à la main. Jamais essayé face à un vrai nœud Art-Net.
   US: US-DMX-01 (#203)
 - Formulaire de question : sélecteur « Effet sur l'extrait » (aucun, très court, à l'envers, ralenti), visible seulement pour une question audio. L'effet est relu à la modification, remis à « aucun » quand la question cesse d'être audio, et les erreurs de l'API (`question_audio_effect_invalid`, `audio_effect_requires_audio`) s'affichent sous le champ.
