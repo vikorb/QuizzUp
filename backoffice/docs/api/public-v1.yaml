@@ -17,13 +17,21 @@ info:
     suite. **Ne mettez jamais la clé dans un navigateur ni dans une application distribuée** :
     appelez l'API depuis votre serveur.
 
+    **Règle de refus.** En-tête `Authorization` absent, ou qui ne commence pas par
+    `Bearer qzk_` : `401 api_key_missing`. Format faux après `qzk_`, clé inconnue, clé révoquée ou
+    clé d'une compagnie supprimée : `401 api_key_invalid`, sans distinction (une compagnie
+    supprimée ne renvoie jamais `403 company_inactive`, pour ne pas confirmer qu'une clé est
+    valide). Clé valide d'une compagnie inactive (non supprimée) : `403 company_inactive`. Tous
+    les refus `401` comptent dans la limite d'échecs par adresse.
+
     **Format des erreurs.** Statut HTTP et corps `{ "error": "<code_snake_case>" }`, avec
     `details.fieldErrors` pour `invalid_body` seulement. Les codes sont stables ;
     traitez un code inconnu de façon générique selon son statut HTTP.
     Codes communs : `invalid_json` (400), `invalid_body` (400), `api_key_missing` (401),
     `api_key_invalid` (401), `company_inactive` (403), `payload_too_large` (413),
     `too_many_requests` (429), `server_error` (500).
-    `api_key_invalid` répond de la même façon pour une clé inconnue et pour une clé révoquée.
+    `api_key_invalid` répond de la même façon pour une clé de format faux, inconnue, révoquée ou
+    d'une compagnie supprimée.
 
     **Limite de débit.** Fenêtre fixe d'une minute : 120 requêtes par clé par défaut, et 20
     échecs d'authentification par adresse. Au-delà, `429 too_many_requests` avec l'en-tête
@@ -425,13 +433,16 @@ components:
 
   responses:
     Unauthorized:
-      description: Clé absente (`api_key_missing`) ou inconnue ou révoquée (`api_key_invalid`)
+      description: >-
+        En-tête `Authorization` absent ou qui ne commence pas par `Bearer qzk_` (`api_key_missing`) ;
+        format faux, clé inconnue, révoquée ou d'une compagnie supprimée (`api_key_invalid`).
+        Compte dans la limite d'échecs par adresse.
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/PublicError'
     CompanyInactive:
-      description: La compagnie de la clé est inactive (`company_inactive`)
+      description: La clé est valide mais sa compagnie est inactive, non supprimée (`company_inactive`)
       content:
         application/json:
           schema:

@@ -3174,15 +3174,15 @@ paths:
     get:
       tags:
         - ApiKeys
-      summary: "[DISPONIBLE] Lister les clés d'API de la compagnie"
+      summary: "[NON DISPONIBLE] Lister les clés d'API de la compagnie"
       description: |
-        Statut : **Disponible**
+        Statut : **Non disponible** (à venir, lot 14.1)
 
         Clés de l'API de réservation `/public/v1` (`public-v1.yaml`), actives et révoquées. Jamais le secret ni son empreinte : seul le préfixe sert à reconnaître une clé.
 
         Accès : superadmin (toutes les compagnies) et `admin` de la compagnie ; refusé au rôle `user`.
       operationId: listApiKeys
-      x-availability: disponible
+      x-availability: non_disponible
       x-us: 'Lot 14 / API de réservation'
       parameters:
         - $ref: '#/components/parameters/CompanyIdParam'
@@ -3219,15 +3219,15 @@ paths:
     post:
       tags:
         - ApiKeys
-      summary: "[DISPONIBLE] Créer une clé d'API"
+      summary: "[NON DISPONIBLE] Créer une clé d'API"
       description: |
-        Statut : **Disponible**
+        Statut : **Non disponible** (à venir, lot 14.1)
 
         Crée une clé au format `qzk_<8 caractères>_<secret>`. **Le secret n'est renvoyé que par cette réponse** : il n'est ni stocké (seule son empreinte SHA-256 l'est) ni relisible ensuite. Au plus 10 clés actives par compagnie.
 
         Accès : superadmin (toutes les compagnies) et `admin` de la compagnie ; refusé au rôle `user`.
       operationId: createApiKey
-      x-availability: disponible
+      x-availability: non_disponible
       x-us: 'Lot 14 / API de réservation'
       parameters:
         - $ref: '#/components/parameters/CompanyIdParam'
@@ -3288,15 +3288,15 @@ paths:
     delete:
       tags:
         - ApiKeys
-      summary: "[DISPONIBLE] Révoquer une clé d'API"
+      summary: "[NON DISPONIBLE] Révoquer une clé d'API"
       description: |
-        Statut : **Disponible**
+        Statut : **Non disponible** (à venir, lot 14.1)
 
         Révoque la clé : `status` passe à `2` et `deletedAt` est renseigné (suppression logique). Les appels qui la présentent sont refusés tout de suite (`401 api_key_invalid`). Idempotent : révoquer une clé déjà révoquée renvoie `200`. Les réservations déjà faites avec cette clé restent.
 
         Accès : superadmin (toutes les compagnies) et `admin` de la compagnie ; refusé au rôle `user`.
       operationId: revokeApiKey
-      x-availability: disponible
+      x-availability: non_disponible
       x-us: 'Lot 14 / API de réservation'
       parameters:
         - $ref: '#/components/parameters/CompanyIdParam'
@@ -3334,15 +3334,15 @@ paths:
     get:
       tags:
         - ApiKeys
-      summary: "[DISPONIBLE] Lister le journal des appels de l'API de réservation"
+      summary: "[NON DISPONIBLE] Lister le journal des appels de l'API de réservation"
       description: |
-        Statut : **Disponible**
+        Statut : **Non disponible** (à venir, lot 14.1)
 
         Appels reçus par `/public/v1` avec une clé de la compagnie, du plus récent au plus ancien (conservés 90 jours). Pagination par curseur : `before` est l'`id` de la dernière ligne lue (les `id` décroissent) ; `nextBefore` vaut `null` à la fin. Le journal ne contient ni adresse IP, ni corps, ni paramètres de requête : la route est le motif (`/public/v1/bookings/:id`), jamais l'URL.
 
         Accès : superadmin (toutes les compagnies) et `admin` de la compagnie ; refusé au rôle `user`.
       operationId: listApiLogs
-      x-availability: disponible
+      x-availability: non_disponible
       x-us: 'Lot 14 / API de réservation'
       parameters:
         - $ref: '#/components/parameters/CompanyIdParam'
@@ -6394,7 +6394,7 @@ components:
           enum: [backoffice, api]
           description: >-
             Origine de la partie : `api` si elle a été réservée avec une clé d'API (`/public/v1`),
-            sinon `backoffice`. Renvoyé par la liste et le détail avec le lot 14.
+            sinon `backoffice`. [NON DISPONIBLE] Pas encore renvoyé par la liste ni le détail (à venir).
         roundsCount:
           type: integer
           example: 10

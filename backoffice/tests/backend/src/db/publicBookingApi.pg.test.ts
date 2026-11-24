@@ -37,7 +37,7 @@ describe.skipIf(!PG_INTEGRATION_URL)('API de réservation sur PostgreSQL', () =>
 
   afterAll(async () => {
     await db?.destroy()
-  })
+  }, 30_000)
 
   beforeEach(async () => {
     await db.raw(
@@ -57,7 +57,7 @@ describe.skipIf(!PG_INTEGRATION_URL)('API de réservation sur PostgreSQL', () =>
       mdp_hash: 'x',
     })
     await db('rooms').insert({ id: 1, company_id: 1, name: 'Salle 1' })
-  })
+  }, 30_000)
 
   async function addKey(companyId = 1, overrides: Record<string, unknown> = {}) {
     const key = generateApiKey()
@@ -249,7 +249,7 @@ describe.skipIf(!PG_INTEGRATION_URL)('API de réservation sur PostgreSQL', () =>
     // Quoi qu'il arrive, la base de test doit retrouver le schéma à jour pour les tests suivants.
     afterEach(async () => {
       await db.migrate.latest({ directory: migration.directory })
-    })
+    }, 30_000)
 
     it('refuses while a booking was made by the API, then passes and replays on a clean base', async () => {
       const key = await addKey()
@@ -261,6 +261,7 @@ describe.skipIf(!PG_INTEGRATION_URL)('API de réservation sur PostgreSQL', () =>
       expect(await db('games').whereNull('admin_id')).toHaveLength(1)
 
       await db('games').delete()
+      await db('api_keys').delete()
       await db.migrate.down(migration)
 
       expect(await db.schema.hasTable('api_keys')).toBe(false)
@@ -280,6 +281,21 @@ describe.skipIf(!PG_INTEGRATION_URL)('API de réservation sur PostgreSQL', () =>
       await addGame({ admin_id: 1, api_key_id: key.id })
 
       await expect(db.migrate.down(migration)).rejects.toThrow(/Rollback impossible/)
+    })
+
+    it('refuses while api_keys holds a key, even with no game, and drops nothing', async () => {
+      await addKey()
+      await addKey(1, { status: API_KEY_STATUS_REVOKED, deleted_at: new Date() })
+
+      await expect(db.migrate.down(migration)).rejects.toThrow(/api_keys contient des clés/)
+      expect(await db.schema.hasTable('api_keys')).toBe(true)
+      expect(await db.schema.hasTable('api_request_logs')).toBe(true)
+      expect(await db.schema.hasColumn('games', 'api_key_id')).toBe(true)
+
+      await db('api_keys').delete()
+      await db.migrate.down(migration)
+
+      expect(await db.schema.hasTable('api_keys')).toBe(false)
     })
   })
 })

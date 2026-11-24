@@ -122,8 +122,8 @@ exports.up = async function (knex) {
 /**
  * Retour arrière refusé tant qu'une partie n'a pas de compte créateur (réservation faite par
  * l'API) ou porte une clé d'API : `admin_id` redeviendrait obligatoire et le lien serait perdu.
- * Les clés, l'idempotence et le journal sont supprimés avec leurs tables : une clé se recrée, le
- * journal et l'idempotence sont temporaires.
+ * Refusé aussi tant que `api_keys` contient une ligne, active ou révoquée : une clé perdue ne se
+ * retrouve pas. L'idempotence et le journal sont supprimés avec leurs tables : ils sont temporaires.
  *
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
@@ -134,6 +134,14 @@ exports.down = async function (knex) {
   if (apiGame) {
     throw new Error(
       'Rollback impossible : des parties ont été réservées par l\'API (games.admin_id nul ou games.api_key_id renseigné).'
+    )
+  }
+
+  const apiKey = await knex('api_keys').first('id')
+
+  if (apiKey) {
+    throw new Error(
+      "Rollback impossible : la table api_keys contient des clés d'API. Les supprimer d'abord, sinon elles seraient perdues."
     )
   }
 
