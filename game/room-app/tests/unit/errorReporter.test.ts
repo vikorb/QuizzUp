@@ -4,6 +4,7 @@ import {
   errorText,
   FLUSH_EVERY_MS,
   flushRoomErrors,
+  getLastErrorAt,
   MAX_BUFFERED_ENTRIES,
   PENDING_LOGS_KEY,
   reportRoomError,
@@ -93,6 +94,20 @@ describe("journaux d'erreurs de la salle", () => {
         },
       ],
     })
+  })
+
+  it('retient la date de la dernière erreur, même regroupée, jusqu’à la remise à zéro', () => {
+    expect(getLastErrorAt()).toBeNull()
+
+    reportRoomError('dmx_output_error', 'sortie perdue')
+    expect(getLastErrorAt()).toBe('2026-11-23T10:00:00.000Z')
+
+    vi.setSystemTime(new Date('2026-11-23T10:05:00.000Z'))
+    reportRoomError('dmx_output_error', 'sortie perdue')
+    expect(getLastErrorAt()).toBe('2026-11-23T10:05:00.000Z')
+
+    resetErrorReporter()
+    expect(getLastErrorAt()).toBeNull()
   })
 
   it('n’envoie qu’une fois : la mémoire est vidée après un envoi réussi', async () => {

@@ -3,15 +3,20 @@ import {
   LIVE_EVENT,
   LIVE_HEARTBEAT_MS,
   LIVE_STATUS_EVERY_MS,
+  ROOM_DIAGNOSTICS_MAX_GAMEPADS,
   type SseMessage,
 } from '@quizzup/shared'
 import { computed, ref, watch } from 'vue'
 
+import { getLastErrorAt } from '@/diagnostics/errorReporter'
 import { readSavedBackofficeGame } from '@/game/backofficeGameMemory'
 import { useRoomGame } from '@/game/useRoomGame'
-import { buildRoomStatusReport } from '@/live/statusReport'
+import { getLighting, getRoomHardwareConfig } from '@/hardware/roomHardware'
+import { buildRoomDiagnostics, buildRoomStatusReport } from '@/live/statusReport'
 import { expireRoomSession } from '@/state/roomAuth'
 import { authHeaders, getApiBase, getRoomToken, isDemoMode } from '@/utils/auth'
+
+import { version as APP_VERSION } from '../../package.json'
 
 /**
  * Présence en direct (US-LIVE-01) : l'écran de salle ouvre un flux `GET /room/stream` et publie son
@@ -79,7 +84,22 @@ function isAudioReady(): boolean {
   )
 }
 
-function currentReport(backofficeGame: ReturnType<typeof readSavedBackofficeGame>) {
+/** Manettes que le navigateur voit (aucune sans l'API Gamepad). */
+function countGamepads(): number {
+  return Math.min(
+    Array.from(navigator.getGamepads?.() ?? []).filter(Boolean).length,
+    ROOM_DIAGNOSTICS_MAX_GAMEPADS
+  )
+}
+
+/**
+ * `withDiagnostics` faux pour la surveillance de l'état : l'état matériel n'est lu qu'à l'envoi, et
+ * son évolution ne provoque pas de rapport en plus (le rythme de publication reste le même).
+ */
+function currentReport(
+  backofficeGame: ReturnType<typeof readSavedBackofficeGame>,
+  withDiagnostics = true
+) {
   return buildRoomStatusReport({
     routeName: routeName(),
     state: state.value,
@@ -87,6 +107,15 @@ function currentReport(backofficeGame: ReturnType<typeof readSavedBackofficeGame
     paused: paused.value,
     // Pas réactif : « son prêt » n'est publié qu'au prochain rapport (15 s au plus).
     audioReady: isAudioReady(),
+    diagnostics: withDiagnostics
+      ? buildRoomDiagnostics({
+          appVersion: APP_VERSION,
+          config: getRoomHardwareConfig(),
+          lighting: getLighting()?.getState() ?? null,
+          gamepadCount: countGamepads(),
+          lastErrorAt: getLastErrorAt(),
+        })
+      : undefined,
   })
 }
 
@@ -381,7 +410,7 @@ export function startRoomLive(getRouteName?: () => string | symbol | null | unde
   // calcul surveillé tourne à chaque tick du moteur : aucune lecture de la mémoire locale ici. La
   // graine fait changer la clé quand une autre partie remplace la précédente.
   stopWatchingState = watch(
-    () => JSON.stringify([currentReport(null), state.value?.setup.seed]),
+    () => JSON.stringify([currentReport(null, false), state.value?.setup.seed]),
     (key) => {
       if (key !== lastKey) {
         lastKey = key

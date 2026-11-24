@@ -8,6 +8,7 @@ import fs from 'node:fs'
 import routes from './routes'
 import { isPublicPath, sendPublicError } from './routes/public/_shared'
 import authPlugin from './plugins/auth'
+import liveHubPlugin from './plugins/liveHub'
 import { parseCorsOrigin, parseOriginList } from './utils/cors'
 import { parseTrustProxy } from './utils/trustProxy'
 
@@ -99,6 +100,7 @@ export function buildApp() {
   })
 
   app.register(authPlugin)
+  app.register(liveHubPlugin)
   app.register(routes)
 
   return app
