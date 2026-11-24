@@ -138,6 +138,9 @@ test.describe('Écran de salle — carte USB de la fumée simulée', () => {
     const download = page.waitForEvent('download')
     await page.locator('[data-test="board-install"]').click()
     expect((await download).suggestedFilename()).toBe('quizzup-fumee-sauvegarde-carte.hex')
+    // Rien n'est écrit tant que l'opérateur n'a pas confirmé que la sauvegarde est enregistrée.
+    await expect(page.locator('[data-test="board-backup-confirm"]')).toBeVisible()
+    await page.locator('[data-test="board-backup-yes"]').click()
     await expect(page.locator('[data-test="board-install-done"]')).toContainText(
       'Programme installé'
     )
