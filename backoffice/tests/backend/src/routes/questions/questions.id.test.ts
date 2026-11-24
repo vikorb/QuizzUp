@@ -157,6 +157,108 @@ describe('routes/questions/id.ts', () => {
     await app.close()
   })
 
+  describe('audio effect', () => {
+    const patch = async (
+      payload: Record<string, unknown>,
+      url = '/questions/2',
+      user = companyAdminUser
+    ) => {
+      const app = await createRouteApp(questionsRoutes)
+      const response = await app.inject({
+        method: 'PATCH',
+        url,
+        headers: authHeaders(user),
+        payload,
+      })
+
+      await app.close()
+
+      return response
+    }
+    const question = (id = 2) => dbState.questions.find((row) => row.id === id)!
+
+    it('sets, changes and clears the effect of an audio question', async () => {
+      question().type_media = QUESTION_MEDIA_TYPE_AUDIO
+
+      const set = await patch({ audioEffect: 'slowed' })
+
+      expect(set.statusCode).toBe(200)
+      expect(parseJson<{ question: { audioEffect: string } }>(set).question.audioEffect).toBe(
+        'slowed'
+      )
+      expect(question().audio_effect).toBe('slowed')
+
+      const unrelated = await patch({ question: 'Renamed ?' })
+
+      expect(unrelated.statusCode).toBe(200)
+      expect(question().audio_effect).toBe('slowed')
+
+      const cleared = await patch({ audioEffect: null })
+
+      expect(cleared.statusCode).toBe(200)
+      expect(question().audio_effect).toBe('none')
+    })
+
+    it('refuses an unknown effect and leaves the question unchanged', async () => {
+      question().type_media = QUESTION_MEDIA_TYPE_AUDIO
+      question().audio_effect = 'reverse'
+
+      const response = await patch({ audioEffect: 'echo' })
+
+      expect(response.statusCode).toBe(400)
+      expect(parseJson(response)).toEqual({ error: 'question_audio_effect_invalid' })
+      expect(question().audio_effect).toBe('reverse')
+    })
+
+    it('refuses an effect on a question that is not audio, unless it becomes audio', async () => {
+      const refused = await patch({ audioEffect: 'reverse' })
+
+      expect(refused.statusCode).toBe(400)
+      expect(parseJson(refused)).toEqual({ error: 'audio_effect_requires_audio' })
+      expect(question().audio_effect).toBeUndefined()
+
+      const together = await patch({ typeMedia: QUESTION_MEDIA_TYPE_AUDIO, audioEffect: 'reverse' })
+
+      expect(together.statusCode).toBe(200)
+      expect(question()).toMatchObject({
+        type_media: QUESTION_MEDIA_TYPE_AUDIO,
+        audio_effect: 'reverse',
+      })
+    })
+
+    it('resets the effect when the question leaves the audio type, and refuses a new one', async () => {
+      question().type_media = QUESTION_MEDIA_TYPE_AUDIO
+      question().audio_effect = 'reverse'
+
+      const refused = await patch({ typeMedia: QUESTION_MEDIA_TYPE_IMAGE, audioEffect: 'slowed' })
+
+      expect(refused.statusCode).toBe(400)
+      expect(parseJson(refused)).toEqual({ error: 'audio_effect_requires_audio' })
+      expect(question()).toMatchObject({
+        type_media: QUESTION_MEDIA_TYPE_AUDIO,
+        audio_effect: 'reverse',
+      })
+
+      const left = await patch({ typeMedia: QUESTION_MEDIA_TYPE_IMAGE })
+
+      expect(left.statusCode).toBe(200)
+      expect(question()).toMatchObject({
+        type_media: QUESTION_MEDIA_TYPE_IMAGE,
+        audio_effect: 'none',
+      })
+    })
+
+    it('does not let a company admin change the effect of another company question', async () => {
+      question(3).type_media = QUESTION_MEDIA_TYPE_AUDIO
+
+      const response = await patch({ audioEffect: 'reverse' }, '/questions/3')
+
+      expect(response.statusCode).toBe(403)
+      expect(parseJson(response)).toEqual({ error: 'forbidden' })
+      expect(question(3).audio_effect).toBeUndefined()
+    })
+  })
+
   it('ignores inactive answers when only the kind changes', async () => {
     const app = await createRouteApp(questionsRoutes)
     dbState.answers.find((row) => row.id === 10)!.response = 'Vrai'
