@@ -9,6 +9,13 @@ Format inspiré de Keep a Changelog.
 ### Added
 
 - Installation d'un programme sur une carte Arduino Uno depuis le navigateur (bibliothèque `game/hardware`, pas encore d'écran) : lecture et écriture de fichiers Intel HEX, client du chargeur Optiboot par Web Serial (protocole STK500v1, 115200 puis 57600 bauds), sauvegarde de la flash relue avant toute écriture, écriture par pages suivie d'une relecture complète, restauration d'un `.hex`, erreurs nommées (`no_sync`, `wrong_signature`, `too_large`, `verify_failed`, `port_lost`, `port_busy`, `backup_failed`, `timeout`, `cancelled`). Testé contre un émulateur d'Optiboot ; rien n'a été essayé sur une vraie carte.
+- Manches enregistrées : à la fin d'une partie, l'écran de salle envoie les manches jouées (mini-jeu, thème, questions posées) avec les scores ; `POST /room/games/:id/finish` les écrit dans `game_rounds` dans la même transaction (400 `game_rounds_invalid` si un thème ou une question n'est pas lisible par la compagnie). Sans manches, la partie se termine comme avant ; hors ligne, elles attendent avec les scores.
+  US: US-CONTENT-01 (#158)
+
+- Logo du centre sur l'écran de salle : affiché dans la barre du haut et au-dessus du podium, lu avec `/room/me` (aucun appel de plus). Rien n'est affiché sans logo, si l'image ne charge pas, ou en mode démo.
+  US: US-RESULTS-01 (#156)
+
+- Programme de la carte de la fumée (Uno), écrit de zéro : la sortie du relais n'est au niveau haut que tant que la page redit « fumée » (bail de 500 ms), jamais plus de 10 s par jet, avec 5 s de pause entre deux jets, et un chien de garde matériel de 250 ms. Logique en C testée par gcc sur des vecteurs partagés ; la CI compile le programme pour `arduino:avr:uno` et publie le `.hex`. Rien n'est encore branché à l'écran de salle ni essayé sur une vraie carte.
   US: US-DMX-01 (#215)
 - Lumières Art-Net sans exécutable (`game/artnet-bridge/powershell`) : `quizzup-lumieres.ps1` (PowerShell 5.1, présent sur tout Windows) parle le même protocole WebSocket que le pont et envoie les trames Art-Net ; lanceur `Lancer les lumieres.cmd`. Pas de découverte de nœuds : l'adresse du nœud se saisit à la main. Jamais essayé face à un vrai nœud Art-Net.
   US: US-DMX-01 (#203)

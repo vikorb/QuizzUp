@@ -1,5 +1,7 @@
 <template>
   <section class="finished">
+    <CompanyLogo class="finished__company" />
+
     <h1 class="finished__title">
       {{ aborted ? $t('game.aborted.title') : $t('game.finished.title') }}
     </h1>
@@ -45,6 +47,7 @@
 import { mdiReplay, mdiTrophy } from '@mdi/js'
 import { computed } from 'vue'
 
+import CompanyLogo from '@/components/game/CompanyLogo.vue'
 import Confetti from '@/components/game/Confetti.vue'
 import Leaderboard from '@/components/game/Leaderboard.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
@@ -76,6 +79,12 @@ const winners = computed(() => props.lines.filter((line) => line.rank === 1 && l
   justify-items: center;
   gap: var(--stage-gap);
   text-align: center;
+}
+
+.finished__company {
+  /* Plafond 96 px, réduit sur les écrans bas pour que les boutons restent visibles. */
+  --company-logo-h: clamp(40px, 10vh, 96px);
+  --company-logo-w: 320px;
 }
 
 .finished__title {
