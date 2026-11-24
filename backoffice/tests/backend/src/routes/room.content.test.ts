@@ -171,6 +171,7 @@ type ContentBody = {
       id: number
       mediaUrl: string | null
       mediaStartMs: number
+      audioEffect: string
       mediaCredit: Record<string, unknown> | null
       answers: unknown[]
     }[]
@@ -224,6 +225,7 @@ describe('routes/room.ts — content of the current game', () => {
       mediaType: QUESTION_MEDIA_TYPE_AUDIO,
       mediaUrl: '/room/questions/11/media',
       mediaStartMs: 1500,
+      audioEffect: 'none',
       mediaCredit: null,
       answers: [
         { id: 110, text: 'Bonne', isCorrect: true },
@@ -242,6 +244,38 @@ describe('routes/room.ts — content of the current game', () => {
     })
     expect(JSON.stringify(body)).not.toContain('questions/11/0b6f')
     expect(body.themes[1].questions.map((item) => item.id)).toEqual([21])
+
+    await app.close()
+  })
+
+  it('sends the audio effect of each question, none when the question has no effect', async () => {
+    seedRoomAndGame()
+    theme(1)
+    question(11, 1, { audio_effect: 'reverse' })
+    question(12, 1, { audio_effect: 'slowed' })
+    question(13, 1, { audio_effect: 'short' })
+    question(14, 1)
+    question(15, 1, { audio_effect: 'none' })
+    question(16, 1, { type_media: QUESTION_MEDIA_TYPE_NONE, media_key: null, audio_effect: null })
+    question(17, 1, { scope: THEME_SCOPE_COMPANY, company_id: 2, audio_effect: 'reverse' })
+    const app = await createRouteApp(roomRoutes)
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/room/games/current/content',
+      headers: authHeaders(roomUser),
+    })
+
+    expect(response.statusCode).toBe(200)
+    const questions = parseJson<ContentBody>(response).themes[0].questions
+    expect(questions.map((item) => [item.id, item.audioEffect])).toEqual([
+      [11, 'reverse'],
+      [12, 'slowed'],
+      [13, 'short'],
+      [14, 'none'],
+      [15, 'none'],
+      [16, 'none'],
+    ])
 
     await app.close()
   })
@@ -328,6 +362,7 @@ describe('routes/room.ts — content with provider extracts', () => {
       mediaType: QUESTION_MEDIA_TYPE_AUDIO,
       mediaUrl: 'https://cdn.test/preview/3135556.mp3?hdnea=exp=1',
       mediaStartMs: 4000,
+      audioEffect: 'none',
       mediaCredit: {
         provider: 'deezer',
         title: 'Titre 3135556',

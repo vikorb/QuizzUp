@@ -3,6 +3,7 @@ import type { FastifyBaseLogger } from 'fastify'
 import {
   ANSWER_STATUS_ACTIVE,
   DEFAULT_QUESTION_KIND,
+  QUESTION_AUDIO_EFFECT_NONE,
   QUESTION_MEDIA_TYPE_AUDIO,
   QUESTION_MEDIA_TYPE_IMAGE,
   QUESTION_MEDIA_TYPE_NONE,
@@ -11,6 +12,7 @@ import {
   THEME_SCOPE_COMPANY,
   THEME_SCOPE_GLOBAL,
   THEME_STATUS_ACTIVE,
+  type QuestionAudioEffect,
 } from '@quizzup/shared'
 
 import db from '../../db'
@@ -41,6 +43,8 @@ export type RoomContentQuestion = {
    */
   mediaUrl: string | null
   mediaStartMs: number
+  /** Effet joué sur l'extrait (`none` hors question audio). */
+  audioEffect: QuestionAudioEffect
   /** Renseigné pour un extrait de fournisseur, `null` pour toutes les autres questions. */
   mediaCredit: RoomContentMediaCredit | null
   answers: RoomContentAnswer[]
@@ -230,7 +234,8 @@ export async function loadRoomContent(
         'media_url',
         'media_start_ms',
         'media_provider',
-        'media_provider_ref'
+        'media_provider_ref',
+        'audio_effect'
       )
       .orderBy('id', 'asc')
   ).filter((question) => isReadableByCompany(question as ScopedRow, companyId))
@@ -312,6 +317,8 @@ export async function loadRoomContent(
           mediaType: question.type_media,
           mediaUrl: question.mediaUrl ?? null,
           mediaStartMs: Number(question.media_start_ms ?? 0),
+          audioEffect:
+            (question.audio_effect as QuestionAudioEffect | null) ?? QUESTION_AUDIO_EFFECT_NONE,
           mediaCredit: question.mediaCredit,
           answers: answersByQuestion.get(id) ?? [],
         },

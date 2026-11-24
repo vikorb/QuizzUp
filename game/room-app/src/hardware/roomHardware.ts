@@ -49,6 +49,7 @@ import {
   withBuzzerLayout,
   withDesksCount,
   withLearnedKeymap,
+  withoutUnknownKeys,
   withPlanPoint,
 } from '@quizzup/hardware'
 import { ROOM_LOG_LEVEL_WARN } from '@quizzup/shared'
@@ -703,7 +704,10 @@ const DEFAULT_CONFIG_JSON = stableStringify(defaultRoomHardwareConfig())
 
 /** Config de salle neuve (rien d'associé, aucun appareil) : rien à transmettre ni à garder. */
 export function isDefaultHardwareConfig(input: unknown): boolean {
-  return stableStringify(parseRoomHardwareConfig(input).config) === DEFAULT_CONFIG_JSON
+  return (
+    stableStringify(withoutUnknownKeys(parseRoomHardwareConfig(input).config)) ===
+    DEFAULT_CONFIG_JSON
+  )
 }
 
 export function getHardwareSyncMeta(): HardwareSyncMeta {

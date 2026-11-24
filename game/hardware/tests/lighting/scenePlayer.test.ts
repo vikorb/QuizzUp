@@ -25,12 +25,13 @@ const STROBES: FixtureConfig[] = [
   { id: 'strobe-desk1', name: 'Strobe pupitre 1', profileId: 'strobe', address: 42, desk: 1 },
 ]
 
-const setup = (rig: FixtureConfig[] = RIG) => {
+const setup = (rig: FixtureConfig[] = RIG, scenes: SceneDefinition[] = []) => {
   const onSmoke = vi.fn()
   const player = createScenePlayer({
     fixtures: parseRig(rig, []).fixtures,
     deskColors: DEFAULT_DESK_COLORS,
     onSmoke,
+    resolveScene: (id) => scenes.find((entry) => entry.id === id),
   })
   const state = (id: string) => player.states().get(id)
   return { player, onSmoke, state }
@@ -83,7 +84,7 @@ describe('lecteur de scènes', () => {
     expect(state('par1')?.color).toMatchObject(BLUE)
     expect(state('wash')?.color).toMatchObject(BLUE)
 
-    player.play(scene([{ type: 'color', target: ['par1'], color: RED }]), { desk: null }, 10)
+    player.play(scene([{ type: 'color', target: ['par1'], color: RED }]), { desk: null }, 1_000)
     expect(state('par1')?.color).toMatchObject(RED)
     expect(state('wash')?.color).toMatchObject(BLUE)
   })
@@ -125,7 +126,7 @@ describe('lecteur de scènes', () => {
     const { player, state } = setup()
     player.play(
       scene([
-        { type: 'color', color: BLUE, intensity: 0.3 },
+        { type: 'color', color: RED, intensity: 0.3 },
         // Période de 400 ms : le plafond d’éclairs de la salle.
         { type: 'flash', target: ['par1'], color: RED, count: 2, onMs: 100, offMs: 300 },
       ]),
@@ -134,12 +135,30 @@ describe('lecteur de scènes', () => {
     )
     expect(state('par1')).toMatchObject({ color: RED, intensity: 1 })
     player.update(120)
-    expect(state('par1')).toMatchObject({ color: BLUE, intensity: 0.3 })
+    expect(state('par1')).toMatchObject({ color: RED, intensity: 0.3 })
     player.update(410)
-    expect(state('par1')?.color).toMatchObject(RED)
+    expect(state('par1')).toMatchObject({ color: RED, intensity: 1 })
     player.update(800)
-    expect(state('par1')).toMatchObject({ color: BLUE, intensity: 0.3 })
+    expect(state('par1')).toMatchObject({ color: RED, intensity: 0.3 })
     expect(player.currentSceneId()).toBeNull()
+  })
+
+  it('retient le retour à une autre couleur vive tant que le plafond d’éclairs court', () => {
+    const { player, state } = setup()
+    player.play(
+      scene([
+        { type: 'color', color: BLUE, intensity: 0.3 },
+        { type: 'flash', target: ['par1'], color: RED, count: 1, onMs: 100, offMs: 0 },
+      ]),
+      { desk: null },
+      0
+    )
+    expect(state('par1')?.color).toMatchObject(RED)
+    // Le retour au bleu est une montée de composante : il attend la fin des 400 ms.
+    player.update(120)
+    expect(state('par1')?.color).toMatchObject(RED)
+    player.update(400)
+    expect(state('par1')).toMatchObject({ color: BLUE, intensity: 0.3 })
   })
 
   it('fait un fondu au noir', () => {
@@ -342,23 +361,29 @@ describe('pupitre inconnu (participant sans pupitre)', () => {
 describe('plafond d’éclairs de la salle (photosensibilité)', () => {
   type Play = { at: number; scene: SceneDefinition; desk?: Desk | null }
 
-  // Mesure indépendante de la garde : niveau réellement émis (intensité × plus forte composante de
-  // couleur). Un éclair est vu quand le niveau dépasse de 0,1 le minimum des 1 000 dernières ms ;
-  // un fondu ou un palier prolongé ne compte qu'une fois.
+  // Mesure indépendante de la garde : niveau réellement émis, composante par composante (r, g, b, w,
+  // chacune × intensité). Un éclair est vu quand une composante dépasse de 0,1 son minimum des
+  // 1 000 dernières ms ; un fondu ou un palier prolongé ne compte qu'une fois (par appareil).
   const RISE = 0.1
   const WINDOW_MS = 1_000
-  const emittedLevel = ({ intensity, color }: FixtureState) =>
-    (intensity * Math.max(color.r, color.g, color.b, color.w ?? 0)) / 255
+  const emittedLevels = ({ intensity, color }: FixtureState) =>
+    [color.r, color.g, color.b, color.w ?? 0].map((component) => (intensity * component) / 255)
 
   /**
    * Joue les scènes en échantillonnant chaque milliseconde. Renvoie les instants d'éclair par
    * appareil et pour la salle (appareils qui s'allument ensemble : un seul instant). Seuls les
    * éclairs à partir de `since` sont gardés ; tout est éteint au départ.
    */
-  const measure = (plays: Play[], until: number, since = 0, rig: FixtureConfig[] = RIG) => {
-    const { player } = setup(rig)
+  const measure = (
+    plays: Play[],
+    until: number,
+    since = 0,
+    rig: FixtureConfig[] = RIG,
+    scenes: SceneDefinition[] = []
+  ) => {
+    const { player } = setup(rig, scenes)
     const windows = new Map<string, { at: number; level: number }[]>()
-    const high = new Map<string, boolean>()
+    const before = new Map<string, { levels: number[]; top: number; high: boolean }>()
     const perDevice = new Map<string, number[]>()
     for (let now = 0; now <= until; now += 1) {
       const start = plays.find((entry) => entry.at === now)
@@ -368,21 +393,37 @@ describe('plafond d’éclairs de la salle (photosensibilité)', () => {
         player.update(now)
       }
       for (const [id, state] of player.states()) {
-        const level = emittedLevel(state)
-        const window = windows.get(id) ?? [{ at: -1, level: 0 }]
-        while (window.length > 0 && window[window.length - 1]!.level >= level) {
-          window.pop()
+        const levels = emittedLevels(state)
+        const rises = levels.map((level, component) => {
+          const key = `${id}:${component}`
+          const window = windows.get(key) ?? [{ at: -1, level: 0 }]
+          while (window.length > 0 && window[window.length - 1]!.level >= level) {
+            window.pop()
+          }
+          window.push({ at: now, level })
+          while (window[0]!.at <= now - WINDOW_MS) {
+            window.shift()
+          }
+          windows.set(key, window)
+          return level - window[0]!.level
+        })
+        // Composante qui monte le plus : un fondu qui allume plusieurs composantes l'une après
+        // l'autre reste un seul éclair ; un changement de couleur compte quand la composante qui
+        // dominait la montée tombe d'au moins 0,1 pendant qu'une autre prend la tête.
+        const top = rises.indexOf(Math.max(...rises))
+        const isHigh = rises[top]! >= RISE
+        const last = before.get(id)
+        const swapped =
+          isHigh &&
+          last?.high === true &&
+          top !== last.top &&
+          last.levels[last.top]! - levels[last.top]! >= RISE
+        if ((isHigh && !last?.high) || swapped) {
+          if (now >= since) {
+            perDevice.set(id, [...(perDevice.get(id) ?? []), now])
+          }
         }
-        window.push({ at: now, level })
-        while (window[0]!.at <= now - WINDOW_MS) {
-          window.shift()
-        }
-        windows.set(id, window)
-        const isHigh = level - window[0]!.level >= RISE
-        if (isHigh && !high.get(id) && now >= since) {
-          perDevice.set(id, [...(perDevice.get(id) ?? []), now])
-        }
-        high.set(id, isHigh)
+        before.set(id, { levels, top, high: isHigh })
       }
     }
     const room = [...new Set([...perDevice.values()].flat())].sort(
@@ -502,6 +543,68 @@ describe('plafond d’éclairs de la salle (photosensibilité)', () => {
     expectCapped(run, 'noir / blanc')
   })
 
+  describe('scènes enchaînées par `next`', () => {
+    const blink = (id: string, repeat: number, over: Partial<SceneDefinition> = {}) => ({
+      ...scene(
+        Array.from({ length: repeat }, () => [
+          { type: 'color' as const, target: ['par1'], color: NEON.white, holdMs: 50 },
+          { type: 'color' as const, target: ['par1'], color: { r: 0, g: 0, b: 0 }, holdMs: 50 },
+        ]).flat()
+      ),
+      id,
+      ...over,
+    })
+
+    it('garde 400 ms entre deux éclairs à travers `next`', () => {
+      const first = blink('premier', 3, { next: 'second' })
+      const second = blink('second', 3)
+      const run = measure([{ at: 0, scene: first }], 3_000, 0, RIG, [first, second])
+      // 6 clignotements demandés en 0,6 s : le plafond en retient deux (à 0 et à 400 ms, ce
+      // dernier dans la scène enchaînée, qui démarre à 300 ms).
+      expect(run.perDevice.get('par1')).toEqual([0, MIN_FLASH_INTERVAL_MS])
+      expectCapped(run, 'scènes enchaînées')
+    })
+
+    it('garde 400 ms entre deux éclairs dans une boucle', () => {
+      const loop = blink('boucle', 2, { next: 'boucle' })
+      const run = measure([{ at: 0, scene: loop }], 4_000, 0, RIG, [loop])
+      expect(run.perDevice.get('par1')?.length).toBeGreaterThanOrEqual(8)
+      expectCapped(run, 'boucle')
+      expect(run.player.currentSceneId()).toBe('boucle')
+    })
+
+    it('un changement de couleur à même niveau compte comme un éclair : boucle rouge / bleu', () => {
+      const red = {
+        ...scene([{ type: 'color', target: ['par1'], color: RED, holdMs: 150 }]),
+        id: 'a',
+        next: 'b',
+      }
+      const blue = {
+        ...scene([{ type: 'color', target: ['par1'], color: BLUE, holdMs: 150 }]),
+        id: 'b',
+        next: 'a',
+      }
+      const { player, state } = setup(RIG, [red, blue])
+      player.play(red, { desk: null }, 0)
+      const changes: number[] = []
+      let seen = JSON.stringify(state('par1')?.color)
+      for (let now = 1; now <= 3_000; now += 1) {
+        player.update(now)
+        const color = JSON.stringify(state('par1')?.color)
+        if (color !== seen) {
+          changes.push(now)
+          seen = color
+        }
+      }
+      // Sans la garde par composante, la couleur changerait toutes les 150 ms (20 fois en 3 s).
+      expect(changes.length).toBeGreaterThanOrEqual(5)
+      expect(gaps(changes).every((gap) => gap >= MIN_FLASH_INTERVAL_MS)).toBe(true)
+
+      const run = measure([{ at: 0, scene: red }], 3_000, 0, RIG, [red, blue])
+      expectCapped(run, 'rouge / bleu')
+    })
+  })
+
   it('compte des montées de 0,55 à 1 : le fond déjà allumé ne cache pas les éclairs', () => {
     const blink = scene(
       Array.from({ length: 6 }, () => [
@@ -523,8 +626,23 @@ describe('plafond d’éclairs de la salle (photosensibilité)', () => {
       BEFORE + 2_000,
       BEFORE
     )
-    expect(run.perDevice.get('par1')?.length).toBeGreaterThanOrEqual(2)
     expectCapped(run, 'montées de 0,55 à 1')
+
+    // Le fond de l'extrait peut encore monter dans la fenêtre de `measure` : on lit donc l'état
+    // du lecteur. Éclair à BEFORE, retour à 0,55, la remontée suivante attend les 400 ms.
+    const { player, state } = setup()
+    player.play(clip, { desk: null }, 0)
+    for (let now = 10; now < BEFORE; now += 10) {
+      player.update(now)
+    }
+    player.play(blink, { desk: null }, BEFORE)
+    expect(state('par1')?.intensity).toBe(1)
+    player.update(BEFORE + 60)
+    expect(state('par1')?.intensity).toBeCloseTo(0.55)
+    player.update(BEFORE + 200)
+    expect(state('par1')?.intensity).toBeCloseTo(0.55)
+    player.update(BEFORE + MIN_FLASH_INTERVAL_MS)
+    expect(state('par1')?.intensity).toBe(1)
   })
 
   it('ramène au plafond un flash parti d’un fond à 0,55 (extrait en cours)', () => {
@@ -669,6 +787,72 @@ describe('plafond d’éclairs de la salle (photosensibilité)', () => {
         expect(state(id)?.intensity, id).toBe(0)
       }
     })
+  })
+})
+
+describe('rattrapage d’une boucle après un gel de la page', () => {
+  // Trois paliers d'intensité qui montent de moins de 0,1 en tout : le plafond d'éclairs ne retient
+  // rien, l'état affiché est donc exactement celui du pas en cours.
+  const tour = [0.5, 0.54, 0.58]
+  const loop: SceneDefinition = {
+    ...scene(
+      tour.map((intensity) => ({
+        type: 'color' as const,
+        target: ['par1'],
+        color: RED,
+        intensity,
+        holdMs: 100,
+      }))
+    ),
+    id: 'tour',
+    next: 'tour',
+  }
+  const levelAt = (offset: number) => tour[Math.floor((offset % 300) / 100)]
+
+  const frozen = (freezeMs: number) => {
+    const { player, state } = setup(RIG, [loop])
+    player.play(loop, { desk: null }, 0)
+    for (let now = 10; now <= 1_000; now += 10) {
+      player.update(now)
+    }
+    return { player, state, resumeAt: 1_000 + freezeMs }
+  }
+
+  it.each([10 * 60_000, 60 * 60_000])(
+    'après %i ms de gel, le pas affiché est le bon dès la première trame',
+    (freezeMs) => {
+      const { player, state, resumeAt } = frozen(freezeMs)
+      // Un instant à 150 ms du début d'un tour : le deuxième palier (le pas du milieu).
+      const now = resumeAt - (resumeAt % 300) + 300 + 150
+      player.update(now)
+      expect(state('par1')?.intensity).toBeCloseTo(levelAt(now) as number)
+      player.update(now + 16)
+      expect(state('par1')?.intensity).toBeCloseTo(levelAt(now + 16) as number)
+      player.update(now + 100)
+      expect(state('par1')?.intensity).toBeCloseTo(levelAt(now + 100) as number)
+      expect(player.currentSceneId()).toBe('tour')
+    }
+  )
+
+  it('rattrape aussi une boucle de plusieurs scènes', () => {
+    const premiere: SceneDefinition = {
+      ...scene([{ type: 'color', target: ['par1'], color: RED, intensity: 0.5, holdMs: 100 }]),
+      id: 'premiere',
+      next: 'seconde',
+    }
+    const seconde: SceneDefinition = {
+      ...scene([{ type: 'color', target: ['par1'], color: RED, intensity: 0.56, holdMs: 150 }]),
+      id: 'seconde',
+      next: 'premiere',
+    }
+    const { player, state } = setup(RIG, [premiere, seconde])
+    player.play(premiere, { desk: null }, 0)
+    player.update(100)
+    // Tour de 250 ms : 3 600 050 ms = 14 400 tours + 50 ms, donc la première ; 3 600 150 ms : la seconde.
+    player.update(3_600_050)
+    expect(state('par1')?.intensity).toBeCloseTo(0.5)
+    player.update(3_600_150)
+    expect(state('par1')?.intensity).toBeCloseTo(0.56)
   })
 })
 
