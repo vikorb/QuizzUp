@@ -10,6 +10,7 @@ import type {
 } from '@/types/company'
 import { getApiErrorKey } from '@/utils/api'
 import { isBlank } from '@/utils/validation'
+import { buildVoucherSettingsPayload } from '@/utils/voucher/settings'
 
 export type CompanyFormMode = 'create' | 'edit'
 
@@ -56,7 +57,7 @@ export function validateCompanyForm(
 }
 
 export function hasCompanyFormErrors(errors: CompanyFieldErrors): boolean {
-  return Boolean(errors.name || errors.email)
+  return Object.values(errors).some(Boolean)
 }
 
 export function buildCreateCompanyPayload(values: CreateCompanyFormValues): CreateCompanyPayload {
@@ -71,6 +72,7 @@ export function buildUpdateCompanyPayload(values: EditCompanyFormValues): Update
     name: values.name.trim(),
     email: values.email.trim().toLowerCase(),
     status: values.status,
+    ...buildVoucherSettingsPayload(values),
   }
 }
 
