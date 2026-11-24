@@ -9,6 +9,7 @@ import { saveRoomHardwareConfig, startLighting, useRoomHardware } from '@/hardwa
 import { enterDemo, syncRoomAuth } from '@/state/roomAuth'
 import GameView from '@/views/GameView.vue'
 
+import { stubReducedMotion } from '../_helpers/animation'
 import { createManualClock, REGISTRATIONS } from '../_helpers/fixtures'
 import { pressKey } from '../_helpers/keyboard'
 import { mountWithApp, PRELOAD_TIMEOUT_MS, preloadRoutes } from '../_helpers/mount'
@@ -34,11 +35,43 @@ describe('GameView', () => {
     configureRoomGame({ storage: createMemorySessionStorage(), now: clock.now })
   })
 
-  afterEach(() => closeGame())
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    closeGame()
+  })
 
   it('sans partie en mémoire (rechargement), renvoie au lancement pour reprendre d’un clic', async () => {
     const { router } = await mountWithApp(GameView, { route: '/play' })
     await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('launch'))
+  })
+
+  it('enveloppe l’écran de phase dans une transition en sortie puis entrée', async () => {
+    startNewGame({
+      registrations: REGISTRATIONS,
+      themes: getDemoThemes(),
+      seed: 11,
+      miniGames: BLIND_TEST_ONLY,
+    })
+    const { wrapper } = await mountWithApp(GameView, { route: '/play' })
+
+    const transition = wrapper.find('.game__stage > transition-stub')
+    expect(transition.attributes('name')).toBe('phase')
+    expect(transition.attributes('mode')).toBe('out-in')
+    expect(transition.attributes('css')).toBe('true')
+    expect(transition.find('.intro').exists()).toBe(true)
+  })
+
+  it('sans animation quand l’opérateur demande moins de mouvement : phase changée sans transition', async () => {
+    stubReducedMotion(true)
+    startNewGame({
+      registrations: REGISTRATIONS,
+      themes: getDemoThemes(),
+      seed: 11,
+      miniGames: BLIND_TEST_ONLY,
+    })
+    const { wrapper } = await mountWithApp(GameView, { route: '/play' })
+
+    expect(wrapper.find('.game__stage > transition-stub').attributes('css')).toBe('false')
   })
 
   it('demande confirmation avant de quitter une partie en cours', async () => {

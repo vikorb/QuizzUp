@@ -65,61 +65,63 @@
 
     <div class="game__body">
       <div class="game__stage">
-        <RoundIntroScreen
-          v-if="phase.name === 'round_intro' && round"
-          :position="round.position"
-          :total="state.setup.roundsCount"
-          :mini-game="round.miniGame"
-        />
-        <ThemeChoiceScreen
-          v-else-if="phase.name === 'theme_choice' && round"
-          :themes="offeredThemes"
-          :chooser="getParticipant(state, round.chooserParticipantId)"
-          :reason="round.chooserReason"
-          :remaining-ratio="getRemaining(phase.deadline, now) / state.setup.timings.themeChoiceMs"
-        />
-        <BlindTestScreen
-          v-else-if="blindTest"
-          :view="blindTest"
-          :answering="getParticipant(state, blindTest.answeringParticipantId)"
-        />
-        <AnswerAllScreen v-else-if="miniView?.mode === 'answer_all'" :view="miniView" />
-        <BuzzQuestionScreen
-          v-else-if="miniView?.mode === 'buzz'"
-          :view="miniView"
-          :answering="getParticipant(state, miniView.answeringParticipantId)"
-        />
-        <BetScreen
-          v-else-if="miniView?.mode === 'bet'"
-          :view="miniView"
-          :players-count="state.setup.participants.length"
-        />
-        <StealScreen
-          v-else-if="miniView?.mode === 'steal'"
-          :view="miniView"
-          :participants="state.setup.participants"
-        />
-        <RevealScreen
-          v-else-if="reveal"
-          :view="reveal"
-          :winner="getParticipant(state, reveal.winnerId)"
-          :participants="state.setup.participants"
-        />
-        <RoundSummaryScreen
-          v-else-if="phase.name === 'round_summary' && round"
-          :position="round.position"
-          :is-last="round.position >= state.setup.roundsCount"
-          :lines="leaderboard"
-        />
-        <FinishedScreen
-          v-else-if="isOver"
-          :lines="leaderboard"
-          :aborted="phase.name === 'aborted'"
-          :no-content="phase.name === 'finished' && phase.reason === 'no_content'"
-          :sync="finishSync"
-          @new-game="onNewGame"
-          @home="onHome"
-        />
+        <Transition name="phase" mode="out-in" :css="!prefersReducedMotion()">
+          <RoundIntroScreen
+            v-if="phase.name === 'round_intro' && round"
+            :position="round.position"
+            :total="state.setup.roundsCount"
+            :mini-game="round.miniGame"
+          />
+          <ThemeChoiceScreen
+            v-else-if="phase.name === 'theme_choice' && round"
+            :themes="offeredThemes"
+            :chooser="getParticipant(state, round.chooserParticipantId)"
+            :reason="round.chooserReason"
+            :remaining-ratio="getRemaining(phase.deadline, now) / state.setup.timings.themeChoiceMs"
+          />
+          <BlindTestScreen
+            v-else-if="blindTest"
+            :view="blindTest"
+            :answering="getParticipant(state, blindTest.answeringParticipantId)"
+          />
+          <AnswerAllScreen v-else-if="miniView?.mode === 'answer_all'" :view="miniView" />
+          <BuzzQuestionScreen
+            v-else-if="miniView?.mode === 'buzz'"
+            :view="miniView"
+            :answering="getParticipant(state, miniView.answeringParticipantId)"
+          />
+          <BetScreen
+            v-else-if="miniView?.mode === 'bet'"
+            :view="miniView"
+            :players-count="state.setup.participants.length"
+          />
+          <StealScreen
+            v-else-if="miniView?.mode === 'steal'"
+            :view="miniView"
+            :participants="state.setup.participants"
+          />
+          <RevealScreen
+            v-else-if="reveal"
+            :view="reveal"
+            :winner="getParticipant(state, reveal.winnerId)"
+            :participants="state.setup.participants"
+          />
+          <RoundSummaryScreen
+            v-else-if="phase.name === 'round_summary' && round"
+            :position="round.position"
+            :is-last="round.position >= state.setup.roundsCount"
+            :lines="leaderboard"
+          />
+          <FinishedScreen
+            v-else-if="isOver"
+            :lines="leaderboard"
+            :aborted="phase.name === 'aborted'"
+            :no-content="phase.name === 'finished' && phase.reason === 'no_content'"
+            :sync="finishSync"
+            @new-game="onNewGame"
+            @home="onHome"
+          />
+        </Transition>
       </div>
 
       <ScoreBoard
@@ -184,6 +186,7 @@ import {
 import { useRoomHardware } from '@/hardware/roomHardware'
 import { useBuzzers } from '@/hardware/useBuzzers'
 import { useEmergencyStop } from '@/hardware/useEmergencyStop'
+import { prefersReducedMotion } from '@/utils/reducedMotion'
 import AnswerAllScreen from '@/views/game/AnswerAllScreen.vue'
 import BetScreen from '@/views/game/BetScreen.vue'
 import BlindTestScreen from '@/views/game/BlindTestScreen.vue'
@@ -373,6 +376,31 @@ async function onHome(): Promise<void> {
   min-height: 0;
   padding: 0 clamp(16px, 3vw, 48px);
   overflow-y: auto;
+}
+
+/* Changement de phase : fondu et glissé (opacity et transform seulement). */
+.phase-enter-active,
+.phase-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.phase-enter-from {
+  opacity: 0;
+  transform: translateY(16px);
+}
+
+.phase-leave-to {
+  opacity: 0;
+  transform: translateY(-16px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phase-enter-active,
+  .phase-leave-active {
+    transition: none;
+  }
 }
 
 .game__body {

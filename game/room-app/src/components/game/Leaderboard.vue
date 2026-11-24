@@ -1,5 +1,5 @@
 <template>
-  <ol class="board">
+  <TransitionGroup tag="ol" name="board" class="board">
     <li
       v-for="line in lines"
       :key="line.participantId"
@@ -12,13 +12,18 @@
       <span v-if="showRoundPoints && line.roundPoints > 0" class="board__delta">
         +{{ line.roundPoints }}
       </span>
-      <span class="board__score">{{ $t('game.points', { n: line.score }) }}</span>
+      <span class="board__score">
+        <TweenedNumber v-slot="{ n }" :value="line.score" from-zero>
+          {{ $t('game.points', { n }) }}
+        </TweenedNumber>
+      </span>
     </li>
-  </ol>
+  </TransitionGroup>
 </template>
 
 <script setup lang="ts">
 import DeskBadge from '@/components/game/DeskBadge.vue'
+import TweenedNumber from '@/components/game/TweenedNumber.vue'
 import type { LeaderboardLine } from '@/game/selectors'
 
 defineProps<{ lines: LeaderboardLine[]; showRoundPoints?: boolean }>()
@@ -43,7 +48,13 @@ defineProps<{ lines: LeaderboardLine[]; showRoundPoints?: boolean }>()
   border-radius: 18px;
   border: 1px solid var(--border-ui);
   background: linear-gradient(180deg, var(--bg-card-hi), var(--bg-card));
-  animation: slide-in 0.5s ease both;
+  /* `backwards` : une fois jouée, l'animation ne fige pas `transform` (le reclassement le déplace). */
+  animation: slide-in 0.5s ease backwards;
+}
+
+/* Reclassement : les lignes glissent à leur nouvelle place (transform seulement). */
+.board-move {
+  transition: transform 0.4s ease;
 }
 
 .board__line:nth-child(2) {
@@ -95,6 +106,12 @@ defineProps<{ lines: LeaderboardLine[]; showRoundPoints?: boolean }>()
   font-size: var(--stage-text);
   font-weight: 900;
   font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-move {
+    transition: none;
+  }
 }
 
 @keyframes slide-in {

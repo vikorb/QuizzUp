@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Écran de salle, habillage : sous 3 secondes la barre de temps vire à l'orange, pulse et fait « tic » à 3, 2 et 1 s (jamais en pause, jamais pendant un palier de blind test) ; les écrans d'une partie s'enchaînent en fondu ; les scores montent au lieu de sauter, le classement se réordonne en glissant et des confettis saluent le vainqueur. Tout mouvement est coupé quand le système demande de réduire les animations.
+  US: US-SHOW-01 (#145)
+
 - Journaux d'erreurs d'une salle consultables depuis le tableau des salles d'un client : panneau en ligne avec filtre par niveau, actualisation et « charger plus », réservé aux administrateurs.
   US: US-LOG-01 (#157)
 - Statistiques d'exploitation d'une compagnie : route `GET /companies/:companyId/stats` et écran « Statistiques » (séances terminées et arrêtées, taux d'abandon, durée médiane, répartition par salle, joueurs, créneaux les plus chargés), réservés aux administrateurs. Aucune donnée individuelle ne sort.

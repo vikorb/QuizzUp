@@ -17,6 +17,8 @@
 
     <Leaderboard :lines="lines" />
 
+    <Confetti v-if="!aborted && winners.length > 0" />
+
     <p
       v-if="sync"
       class="finished__sync"
@@ -43,6 +45,7 @@
 import { mdiReplay, mdiTrophy } from '@mdi/js'
 import { computed } from 'vue'
 
+import Confetti from '@/components/game/Confetti.vue'
 import Leaderboard from '@/components/game/Leaderboard.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
