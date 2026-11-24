@@ -36,7 +36,13 @@ const gamesIdOpenRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(error === 'not_found' ? 404 : 409).send({ error })
       }
 
-      return { game: await findStaffGame(req, companyId, gameId) }
+      const game = await findStaffGame(req, companyId, gameId)
+
+      if (game) {
+        app.liveHub.gameUpdated(companyId, game.roomId, gameId)
+      }
+
+      return { game }
     }
   )
 }

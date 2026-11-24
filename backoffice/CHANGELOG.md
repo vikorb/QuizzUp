@@ -11,6 +11,12 @@ Format inspiré de Keep a Changelog.
 - Fumée par la carte USB, écran de salle : section « Fumée » de l'écran Matériel pour brancher la carte (Web Serial, à la demande), voir son état, installer son programme depuis la page (signature vérifiée, sauvegarde du programme d'origine téléchargée avant d'écrire) et restaurer un `.hex`. La carte déjà autorisée se reconnecte seule au lancement, toujours désarmée ; pendant une installation aucun ordre de fumée ne part. Le programme `fumee.hex` est versionné, la CI échoue s'il manque ou s'il diffère de la compilation, et les images de recette et de production l'embarquent. À valider sur le banc.
   US: US-DMX-01 (#215)
 
+- Playlists à l'écran de salle : à la reprise d'une partie, les extraits des titres de playlist sont relus auprès du serveur (route `tracks`) à part des questions du catalogue ; une panne du fournisseur ne bloque pas la reprise. Le texte « Quel est ce titre ? » est traduit.
+  US: US-PLAYLIST-01 (#204)
+- Mode enfants : option à la création et à la modification d'une partie dans le backoffice. Sur la page du téléphone, aucun e-mail n'est demandé ni enregistré pour une partie en mode enfants (`kidsMode` dans `POST /public/v1/join/lookup`).
+  US: US-KIDS-01 (#158)
+- Suivi en direct des inscriptions : le lobby de la salle et le panneau d'inscription du backoffice se mettent à jour dès qu'une partie change (événement `game_updated` sur les flux existants), au lieu d'interroger le serveur toutes les 3 à 5 secondes. Flux coupé : une interrogation lente (15 s) prend le relais.
+  US: US-LIVE-01 (#129)
 - Identité des périphériques : l'interface DMX USB et la carte de buzzers sont retenues par leur identité (modèle USB, identifiant de manette). Après un redémarrage, seul l'appareil appris est repris ; deux appareils identiques ne sont jamais départagés au hasard, l'ambiguïté est signalée. La carte de fumée est exclue du choix du port DMX. À valider sur le banc.
   US: US-SHOW-01 (#145)
 

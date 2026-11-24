@@ -120,7 +120,21 @@ describe('routes/public/join — POST /public/v1/join/lookup', () => {
       roomName: 'Salle Néon',
       logoUrl: null,
       expiresAt: new Date(NOW.getTime() + HOUR_MS).toISOString(),
+      kidsMode: false,
     })
+  })
+
+  it('tells a phone that the game is in kids mode', async () => {
+    dbState.games[0]!.kids_mode = true
+
+    expect((await lookup(TOKEN)).json()).toMatchObject({ kidsMode: true })
+  })
+
+  it('gives kidsMode of the game of the token only', async () => {
+    seedGame({ id: 2, join_token: OTHER_TOKEN, kids_mode: true })
+
+    expect((await lookup(TOKEN)).json()).toMatchObject({ kidsMode: false })
+    expect((await lookup(OTHER_TOKEN)).json()).toMatchObject({ kidsMode: true })
   })
 
   it('gives the logo url of a company that has one', async () => {
@@ -155,6 +169,7 @@ describe('routes/public/join — POST /public/v1/join/lookup', () => {
     expect(Object.keys(response.json()).sort()).toEqual([
       'companyName',
       'expiresAt',
+      'kidsMode',
       'logoUrl',
       'roomName',
     ])
@@ -290,6 +305,36 @@ describe('routes/public/join — POST /public/v1/join/registrations', () => {
     expect(row.marketing_consent_at).not.toBeNull()
     expect(row.second_consent_at).not.toBeNull()
     expect(row.second_marketing_consent_at).toBeNull()
+  })
+
+  it('keeps no e-mail, nor any consent date, for a game in kids mode', async () => {
+    dbState.games[0]!.kids_mode = true
+
+    const response = await register({
+      email: 'camille@example.test',
+      emailConsent: true,
+      marketingConsent: true,
+      ageConfirmed: true,
+      secondPlayer: {
+        displayName: 'Léa',
+        email: 'lea@example.test',
+        emailConsent: true,
+        marketingConsent: true,
+        ageConfirmed: true,
+      },
+    })
+
+    expect(response.statusCode).toBe(201)
+    expect(registrationsOf(1)[0]).toMatchObject({
+      display_name: 'Camille',
+      email: null,
+      consent_at: null,
+      marketing_consent_at: null,
+      second_display_name: 'Léa',
+      second_email: null,
+      second_consent_at: null,
+      second_marketing_consent_at: null,
+    })
   })
 
   it('answers the same for a known and an unknown e-mail (no "welcome back")', async () => {

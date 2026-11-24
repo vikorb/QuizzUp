@@ -61,6 +61,8 @@ const gamesJoinRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(409).send({ error: 'game_not_pending' })
       }
 
+      app.liveHub.gameUpdated(companyId, game.roomId, gameId)
+
       return { join: toGameJoin(token, expiresAt) }
     }
   )
@@ -88,13 +90,16 @@ const gamesJoinRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(403).send({ error: 'forbidden' })
       }
 
-      if (!(await findGameState(companyId, gameId))) {
+      const game = await findGameState(companyId, gameId)
+
+      if (!game) {
         return reply.code(404).send({ error: 'not_found' })
       }
 
       await db('games')
         .where('id', gameId)
         .update({ join_token: null, join_expires_at: null, updated_at: db.fn.now() })
+      app.liveHub.gameUpdated(companyId, game.roomId, gameId)
 
       return reply.code(204).send()
     }

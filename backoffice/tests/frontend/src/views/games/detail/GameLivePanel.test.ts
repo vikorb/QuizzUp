@@ -3,6 +3,7 @@ import {
   createParticipantFixture,
 } from '@frontend-tests/_helpers/gamesServiceMock'
 import {
+  gameUpdatedListenerMock,
   liveErrorKeyMock,
   liveNowMock,
   liveRoomsMock,
@@ -230,6 +231,19 @@ describe('views/games/detail/GameLivePanel.vue', () => {
     await nextTick()
 
     expect(wrapper.emitted('ended')).toBeUndefined()
+  })
+
+  it('relays game_updated and the state of its stream, for the sign-up panel of the page', async () => {
+    const wrapper = mountPanel(createGame({ state: GAME_STATE_PENDING }))
+
+    expect(wrapper.emitted('connection')).toEqual([['live']])
+
+    gameUpdatedListenerMock.current?.(GAME_ID)
+    expect(wrapper.emitted('gameUpdated')).toEqual([[GAME_ID]])
+
+    liveStateMock.value = 'reconnecting'
+    await nextTick()
+    expect(wrapper.emitted('connection')).toEqual([['live'], ['reconnecting']])
   })
 
   it('is absent when the room plays another game', () => {

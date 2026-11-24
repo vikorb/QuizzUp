@@ -256,6 +256,7 @@ import BaseCard from '@/components/ui/BaseCard.vue'
 import SelectField from '@/components/ui/form/SelectField.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { useConfirm } from '@/composables/useConfirm'
+import type { LiveConnectionState } from '@/composables/useLiveCompany'
 import {
   acceptGameRegistrationService,
   closeGameJoinService,
@@ -271,8 +272,11 @@ import { getGameErrorKey } from '@/utils/game/errors'
 import { getGamePodiums, getGameRoomDesksCount } from '@/utils/game/form'
 import { formatGameDate, getGameRoomName } from '@/utils/game/format'
 
-/** Interrogation provisoire : elle laissera place au flux du personnel (lot 1). */
-const POLL_INTERVAL_MS = 5000
+/**
+ * Le serveur prévient du changement (`game_updated`, flux du personnel). Flux coupé ou pas encore
+ * ouvert, on relit lentement jusqu'à son retour.
+ */
+const FALLBACK_POLL_INTERVAL_MS = 15_000
 /** « Lien copié » redevient « Copier le lien » après ce délai. */
 const COPIED_RESET_MS = 2000
 /** Erreurs qui disent que la fiche (état, pupitres, participants) a changé sous nos pieds. */
@@ -288,6 +292,10 @@ const PODIUM_AUTO = ''
 
 const props = defineProps<{
   game: Game
+  /** État du flux du personnel, ouvert par `GameLivePanel` (un seul flux par fiche). */
+  liveState: LiveConnectionState
+  /** Dernier `game_updated` reçu (nouvel objet à chaque événement) : la partie visée est relue. */
+  gameUpdate: { gameId: number } | null
 }>()
 
 const emit = defineEmits<{
@@ -319,6 +327,12 @@ const podiums = reactive<Record<number, string>>({})
 let timer: ReturnType<typeof setInterval> | undefined
 let copiedTimer: ReturnType<typeof setTimeout> | undefined
 let refreshing = false
+// Une relecture demandée pendant une lecture en cours (événement, action) : refaite dès qu'elle finit.
+let refreshAgain = false
+// Démonté : plus aucune lecture ne doit partir.
+let disposed = false
+// Le flux a déjà été ouvert une fois : chaque `live` suivant est un retour après coupure.
+let wasLive = false
 // Incrémenté à chaque action réussie : une lecture partie avant ne dit plus la vérité.
 let generation = 0
 
@@ -401,6 +415,7 @@ watch(fullscreenOpen, async (open) => {
 /** `notify` : après une lecture réussie, demande la relecture de la fiche (partie lancée ailleurs, pupitre pris). */
 async function refresh(notify = false): Promise<void> {
   if (refreshing) {
+    refreshAgain = true
     return
   }
 
@@ -432,6 +447,14 @@ async function refresh(notify = false): Promise<void> {
     refreshing = false
     loaded.value = true
     now.value = Date.now()
+
+    if (refreshAgain) {
+      refreshAgain = false
+
+      if (!disposed) {
+        void refresh(true)
+      }
+    }
   }
 }
 
@@ -451,28 +474,61 @@ function onVisibilityChange(): void {
   }
 }
 
-function startPolling(): void {
-  stopPolling()
-  void refresh()
-  timer = setInterval(() => {
-    if (document.visibilityState === 'visible') {
-      void refresh(true)
-    }
-  }, POLL_INTERVAL_MS)
-  document.addEventListener('visibilitychange', onVisibilityChange)
-}
-
-// Partie lancée ou arrêtée : plus d'inscription, plus d'interrogation.
+// Partie en attente : première lecture, et relecture au retour de l'onglet. Lancée ou arrêtée :
+// plus d'inscription, plus de lecture.
 watch(
   isPending,
   (pending) => {
+    stopPolling()
+
     if (pending) {
-      startPolling()
-    } else {
-      stopPolling()
+      void refresh()
+      document.addEventListener('visibilitychange', onVisibilityChange)
     }
   },
   { immediate: true }
+)
+
+// Lecture lente seulement tant que le flux du personnel n'est pas ouvert.
+watch(
+  () => isPending.value && props.liveState !== 'live',
+  (needsFallback) => {
+    clearInterval(timer)
+    timer = undefined
+
+    if (needsFallback) {
+      timer = setInterval(() => {
+        if (document.visibilityState === 'visible') {
+          void refresh(true)
+        }
+      }, FALLBACK_POLL_INTERVAL_MS)
+    }
+  },
+  { immediate: true }
+)
+
+// Flux rétabli après une coupure : ce qui a changé pendant ce temps n'a pas été annoncé.
+watch(
+  () => props.liveState,
+  (state) => {
+    if (state === 'live') {
+      if (wasLive && isPending.value) {
+        void refresh(true)
+      }
+
+      wasLive = true
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () => props.gameUpdate,
+  (update) => {
+    if (update?.gameId === props.game.id) {
+      void refresh(true)
+    }
+  }
 )
 
 // Le nombre de pupitres vient de la salle ; sans réponse, ceux d'une salle neuve.
@@ -495,6 +551,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  disposed = true
   stopPolling()
   clearTimeout(copiedTimer)
   document.removeEventListener('keydown', onScreenKeydown)

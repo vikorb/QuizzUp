@@ -103,6 +103,22 @@
         :uncertain="liveUncertain"
         :now="now"
       />
+
+      <div class="game-form__switch">
+        <SwitchField
+          id="game-form-kids-mode"
+          :model-value="form.kidsMode"
+          :disabled="isBusy"
+          :label="$t('games.form.kidsMode')"
+          aria-describedby="game-form-kids-mode-hint"
+          data-test="game-kids-mode"
+          @change="form.kidsMode = $event"
+        />
+        <label for="game-form-kids-mode">{{ $t('games.form.kidsMode') }}</label>
+      </div>
+      <p id="game-form-kids-mode-hint" class="game-form__notice">
+        {{ $t('games.form.kidsModeHint') }}
+      </p>
     </section>
 
     <section class="game-form__section" data-test="game-schedule-section">

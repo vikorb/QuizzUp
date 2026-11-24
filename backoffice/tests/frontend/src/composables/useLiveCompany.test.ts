@@ -38,10 +38,10 @@ type FetchOptions = { path: string; authenticated: boolean; signal: AbortSignal 
 
 const scopes: EffectScope[] = []
 
-function mountLive(companyId: number | null = 1) {
+function mountLive(companyId: number | null = 1, options?: Parameters<typeof useLiveCompany>[1]) {
   const id = ref<number | null>(companyId)
   const scope = effectScope()
-  const live = scope.run(() => useLiveCompany(() => id.value))
+  const live = scope.run(() => useLiveCompany(() => id.value, options))
 
   if (!live) {
     throw new Error('composable not created')
@@ -188,6 +188,31 @@ describe('composables/useLiveCompany', () => {
 
     expect(live.state.value).toBe('live')
     expect(live.rooms.value[10].lastSeenAt).toBe(lastSeenAt)
+  })
+
+  it('tells the caller which game changed on game_updated, and ignores a malformed one', async () => {
+    const onGameUpdated = vi.fn()
+    const stream = nextStream()
+
+    mountLive(7, { onGameUpdated })
+    stream.push(snapshotEvent([createRoomLive({ roomId: 10 })]))
+    stream.push(sseEvent(LIVE_EVENT.GAME_UPDATED, { gameId: 42 }))
+    stream.push(sseEvent(LIVE_EVENT.GAME_UPDATED, { gameId: 'x' }))
+    stream.push('event: game_updated\ndata: {oops\n\n')
+    await settle()
+
+    expect(onGameUpdated.mock.calls).toEqual([[42]])
+  })
+
+  it('does not fail on game_updated when nobody listens', async () => {
+    const stream = nextStream()
+    const { live } = mountLive(7)
+
+    stream.push(snapshotEvent([]))
+    stream.push(sseEvent(LIVE_EVENT.GAME_UPDATED, { gameId: 42 }))
+    await settle()
+
+    expect(live.state.value).toBe('live')
   })
 
   it('ignores a room_status for a room it does not know', async () => {

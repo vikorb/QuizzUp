@@ -74,6 +74,8 @@ export type Game = {
   /** Référence du système de réservation du client. */
   externalRef?: string | null
   locale?: GameLocale | null
+  /** Mode enfants : thèmes adaptés seulement, aucun e-mail demandé sur le téléphone. */
+  kidsMode?: boolean
   /** Origine de la session (lot 14) : absent tant que l'API publique n'est pas livrée. */
   source?: GameSource
   /** Lien d'inscription ouvert (partie en attente seulement), sinon `null` ; fiche d'une partie. */
@@ -159,6 +161,8 @@ export type CreateGamePayload = {
   durationMinutes?: number
   playersCount?: number
   externalRef?: string
+  /** Absent : partie normale. */
+  kidsMode?: boolean
 }
 
 /**
@@ -176,6 +180,8 @@ export type UpdateGamePayload = {
   durationMinutes?: number
   playersCount: number | null
   externalRef?: string | null
+  /** Absent : mode inchangé. */
+  kidsMode?: boolean
   /** Absent : participants gardés tels quels (emails masqués pour le rôle `user`). */
   participants?: CreateGameParticipantPayload[]
 }
@@ -220,6 +226,8 @@ export type GameFormValues = {
   participants: GameParticipantFormValues[]
   /** Interrupteur « Inscription des joueurs par QR code » : la partie peut n'avoir aucun participant. */
   openJoin: boolean
+  /** Interrupteur « Mode enfants », éteint par défaut. */
+  kidsMode: boolean
   /** Case « Programmer pour plus tard » : la partie devient une session à date et heure fixées. */
   scheduled: boolean
   /** Jour (`YYYY-MM-DD`) et heure (`HH:MM`) lus dans le fuseau de la salle choisie. */
