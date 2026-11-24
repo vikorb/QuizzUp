@@ -2561,7 +2561,7 @@ paths:
 
         Partie en attente ou en cours de la salle du compte connecté, ou `null`. Les emails des participants ne sont pas renvoyés.
 
-        **À venir (lot 13)** : la réponse gagnera `next`, la session `scheduled` la plus proche de la salle dont la fin prévue (`scheduledEndAt`) est dans le futur, au même format que `game` (noms seulement, aucun email), ou `null`.
+        `next` : la session `scheduled` la plus proche de la salle dont la fin prévue (`scheduledEndAt`) est dans le futur, au même format que `game` (noms seulement, aucun email), ou `null`. Une session en retard mais dont le créneau n'est pas fini reste renvoyée.
 
         Accès : réservé au rôle `room`.
       operationId: getCurrentRoomGame
@@ -2583,7 +2583,7 @@ paths:
                     allOf:
                       - $ref: '#/components/schemas/RoomGame'
                     nullable: true
-                    description: '**À venir (lot 13).** Prochaine session programmée de la salle.'
+                    description: Prochaine session programmée de la salle.
         '403':
           description: Compte qui n'est pas un compte de salle
           content:
@@ -2763,15 +2763,15 @@ paths:
     post:
       tags:
         - Rooms
-      summary: '[NON DISPONIBLE] Ouvrir une session programmée de la salle'
+      summary: '[DISPONIBLE] Ouvrir une session programmée de la salle'
       description: |
-        Statut : **Non disponible** (à venir, lot 13)
+        Statut : **Disponible**
 
-        Passe une session `scheduled` de la salle à l'état `pending` (bouton « Lancer » de l'écran de salle). Mêmes règles et mêmes codes que `POST /companies/{companyId}/games/{gameId}/open`, avec le même traitement côté serveur.
+        Passe une session `scheduled` de la salle à l'état `pending` (bouton « Lancer » de l'écran de salle). Mêmes règles que `POST /companies/{companyId}/games/{gameId}/open`, avec le même traitement côté serveur ; les codes d'erreur sont listés ci-dessous (le `404` est `game_not_found`, là où le backoffice répond `not_found`).
 
         Accès : réservé au rôle `room`, limité à sa propre salle (une autre salle : `404`).
       operationId: openRoomGame
-      x-availability: non_disponible
+      x-availability: disponible
       x-us: 'Lot 13 / sessions programmées'
       parameters:
         - $ref: '#/components/parameters/GameIdParam'
@@ -2785,14 +2785,26 @@ paths:
                 properties:
                   game:
                     $ref: '#/components/schemas/RoomGame'
+        '400':
+          description: Identifiant de partie invalide (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token manquant ou invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Compte qui n'est pas un compte de salle
+          description: Compte qui n'est pas un compte de salle (`forbidden`)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: Partie introuvable ou d'une autre salle
+          description: Partie introuvable, supprimée ou d'une autre salle ou compagnie (`game_not_found`)
           content:
             application/json:
               schema:
