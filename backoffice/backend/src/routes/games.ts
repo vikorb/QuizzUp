@@ -4,7 +4,6 @@ import {
   COMPANY_STATUS_ACTIVE,
   COMPANY_STATUS_DELETED,
   GAME_STATE_PENDING,
-  GAME_STATE_RUNNING,
   GAME_STATE_SCHEDULED,
   GAME_STATUS_DELETED,
   getRoomDesksCount,
@@ -22,9 +21,11 @@ import { createGameSchema, gamesListQuerySchema, gamesParamsSchema } from './gam
 import {
   addGameListFields,
   addMinutes,
-  findStaffGame,
+  findStaffGameWithJoin,
   GAME_DATE_SQL,
   gameSelect,
+  generateJoinToken,
+  getJoinExpiry,
   getRoomSlotMinutes,
   getSessionWindowError,
   insertGameWithParticipants,
@@ -33,12 +34,18 @@ import {
 import gamesIdRoutes from './games/id'
 import gamesIdCancelRoutes from './games/idCancel'
 import gamesIdOpenRoutes from './games/idOpen'
+import gamesJoinRoutes from './games/join'
+import gamesParticipantsRoutes from './games/participants'
+import gamesRegistrationsRoutes from './games/registrations'
 
 /** Parties d'une compagnie, lancées par l'opérateur depuis le backoffice (US-GAME-08). */
 const gamesRoutes: FastifyPluginAsync = async (app) => {
   app.register(gamesIdRoutes)
   app.register(gamesIdOpenRoutes)
   app.register(gamesIdCancelRoutes)
+  app.register(gamesJoinRoutes)
+  app.register(gamesRegistrationsRoutes)
+  app.register(gamesParticipantsRoutes)
 
   app.get('/companies/:companyId/games', { preHandler: [app.authenticate] }, async (req, reply) => {
     const hasPermission = requireApiPermission(req, reply, API_RESOURCE.GAME, API_ACTION.LIST)
@@ -140,6 +147,7 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
         roundsCount,
         questionsPerRound,
         participants,
+        openJoin,
         miniGames,
         scheduledAt,
         playersCount,
@@ -199,9 +207,10 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
         schedule = { startsAt, endsAt }
       } else {
         // Une session programmée ne prend pas la salle tout de suite : seul `open` contrôle `room_busy`.
+        // Seule une partie en attente bloque : une partie en cours n'empêche pas de préparer la suivante.
         const busyGame = await db('games')
           .where('room_id', roomId)
-          .whereIn('state', [GAME_STATE_PENDING, GAME_STATE_RUNNING])
+          .where('state', GAME_STATE_PENDING)
           .whereNot('status', GAME_STATUS_DELETED)
           .first('id')
 
@@ -228,12 +237,16 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
               playersCount,
               externalRef,
               locale,
+              join:
+                openJoin && !schedule
+                  ? { token: generateJoinToken(), expiresAt: getJoinExpiry() }
+                  : undefined,
             },
             participants
           )
         )
       } catch (error) {
-        // Deux lancements simultanés dans la même salle : l'index unique tranche.
+        // Deux lancements simultanés dans la même salle : l'index unique des parties en attente tranche.
         if (isUniqueViolation(error)) {
           return reply.code(409).send({ error: 'room_busy' })
         }
@@ -246,7 +259,7 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
         throw error
       }
 
-      const game = await findStaffGame(req, companyId, gameId)
+      const game = await findStaffGameWithJoin(req, companyId, gameId)
 
       return reply.code(201).send({ game })
     }

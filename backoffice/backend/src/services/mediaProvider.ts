@@ -22,6 +22,9 @@ export type ProviderTrack = {
   link: string | null
 }
 
+/** Titre d'une playlist : `readable` faux = titre non jouable (retiré du catalogue du pays) ; champ absent = jouable. */
+export type ProviderPlaylistTrack = ProviderTrack & { titleShort: string; readable: boolean }
+
 /** Fournisseur injoignable ou réponse inexploitable (délai, réseau, statut ≥ 500, JSON invalide). */
 export class MediaProviderUnavailableError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
@@ -39,6 +42,8 @@ export const providerRefSchema = z.string().regex(/^\d{1,20}$/)
 const trackSchema = z.object({
   id: z.number().int(),
   title: z.string(),
+  title_short: z.string().optional(),
+  readable: z.boolean().optional(),
   link: z.string().optional(),
   preview: z.string().optional(),
   artist: z.object({ name: z.string() }),
@@ -104,6 +109,26 @@ async function fetchJson(url: URL): Promise<unknown> {
   }
 }
 
+/**
+ * Un objet inconnu répond 200 avec `{ error: { type: 'DataException', code: 800 } }` : `true`.
+ * Les autres erreurs (quota dépassé, etc.) sont une indisponibilité, pas un objet introuvable.
+ */
+function isProviderNotFound(body: unknown): boolean {
+  const providerError = errorSchema.safeParse(body)
+
+  if (!providerError.success) {
+    return false
+  }
+
+  const { type, code } = providerError.data.error
+
+  if (type === 'DataException' || code === 800) {
+    return true
+  }
+
+  throw new MediaProviderUnavailableError(`media provider error ${type ?? ''} ${code ?? ''}`)
+}
+
 function getBaseUrl(): string {
   return (process.env.DEEZER_API_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, '')
 }
@@ -142,22 +167,8 @@ export async function getProviderTrack(ref: string): Promise<ProviderTrack | nul
 
   const body = await fetchJson(new URL(`${getBaseUrl()}/track/${ref}`))
 
-  if (body === null) {
+  if (body === null || isProviderNotFound(body)) {
     return null
-  }
-
-  // Un titre inconnu répond 200 avec `{ error: { type: 'DataException', code: 800 } }` ; les autres
-  // erreurs (quota dépassé, etc.) sont une indisponibilité, pas un titre introuvable.
-  const providerError = errorSchema.safeParse(body)
-
-  if (providerError.success) {
-    const { type, code } = providerError.data.error
-
-    if (type === 'DataException' || code === 800) {
-      return null
-    }
-
-    throw new MediaProviderUnavailableError(`media provider error ${type ?? ''} ${code ?? ''}`)
   }
 
   const parsed = trackSchema.safeParse(body)
@@ -167,4 +178,50 @@ export async function getProviderTrack(ref: string): Promise<ProviderTrack | nul
   }
 
   return toProviderTrack(parsed.data)
+}
+
+/** Nombre de titres lus par appel : une playlist se lit en un seul appel, sans pagination. */
+const PLAYLIST_TRACKS_LIMIT = 500
+
+/**
+ * Titres d'une playlist (un seul appel, 500 au plus), ou `null` si elle est introuvable (référence
+ * invalide comprise). Les titres non jouables ou sans extrait sont rendus tels quels ; un titre mal
+ * formé est écarté seul. Lève `MediaProviderUnavailableError` si le fournisseur ne répond pas
+ * correctement (délai, quota, JSON invalide).
+ */
+export async function getProviderPlaylistTracks(
+  ref: string
+): Promise<ProviderPlaylistTrack[] | null> {
+  if (!providerRefSchema.safeParse(ref).success) {
+    return null
+  }
+
+  const url = new URL(`${getBaseUrl()}/playlist/${ref}/tracks`)
+  url.searchParams.set('limit', String(PLAYLIST_TRACKS_LIMIT))
+
+  const body = await fetchJson(url)
+
+  if (body === null || isProviderNotFound(body)) {
+    return null
+  }
+
+  const parsed = searchSchema.safeParse(body)
+
+  if (!parsed.success) {
+    throw new MediaProviderUnavailableError('media provider answered an unexpected playlist body')
+  }
+
+  return parsed.data.data.flatMap((item) => {
+    const track = trackSchema.safeParse(item)
+
+    return track.success
+      ? [
+          {
+            ...toProviderTrack(track.data),
+            titleShort: track.data.title_short ?? track.data.title,
+            readable: track.data.readable !== false,
+          },
+        ]
+      : []
+  })
 }

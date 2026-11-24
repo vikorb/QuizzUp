@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  getProviderPlaylistTracks,
   getProviderTrack,
   MediaProviderUnavailableError,
   searchProviderTracks,
@@ -224,6 +225,121 @@ describe('services/mediaProvider — searchProviderTracks', () => {
     stubProviderFetch(answer)
 
     await expect(searchProviderTracks('abc', 10)).rejects.toBeInstanceOf(
+      MediaProviderUnavailableError
+    )
+  })
+})
+
+describe('services/mediaProvider — getProviderPlaylistTracks', () => {
+  it('reads the playlist in one call limited to 500 titles, with a timeout signal', async () => {
+    const fetchMock = stubProviderFetch(() => jsonResponse({ data: [providerTrack(1)], total: 1 }))
+
+    const tracks = await getProviderPlaylistTracks('908622995')
+
+    const url = new URL(String(fetchMock.mock.calls[0][0]))
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(url.origin + url.pathname).toBe('https://api.deezer.com/playlist/908622995/tracks')
+    expect(url.searchParams.get('limit')).toBe('500')
+    expect(fetchMock.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal)
+    expect(tracks).toEqual([
+      {
+        provider: 'deezer',
+        ref: '1',
+        title: 'Titre 1',
+        titleShort: 'Titre 1',
+        artist: 'Artiste 1',
+        album: 'Album 1',
+        coverUrl: 'https://cdn.test/cover/1.jpg',
+        previewUrl: 'https://cdn.test/preview/1.mp3?hdnea=exp=1',
+        link: 'https://www.deezer.com/track/1',
+        readable: true,
+      },
+    ])
+  })
+
+  it('keeps the short title when the provider gives one', async () => {
+    stubProviderFetch(() =>
+      jsonResponse({
+        data: [providerTrack(1, { title: 'Song (Remastered)', title_short: 'Song' })],
+      })
+    )
+
+    const [track] = (await getProviderPlaylistTracks('1')) ?? []
+
+    expect([track.title, track.titleShort]).toEqual(['Song (Remastered)', 'Song'])
+  })
+
+  it('flags a title only when readable is false (absent means readable), and a title without a usable preview', async () => {
+    stubProviderFetch(() =>
+      jsonResponse({
+        data: [
+          providerTrack(1, { readable: false }),
+          providerTrack(2, { readable: undefined }),
+          providerTrack(3, { preview: '' }),
+          providerTrack(4, { preview: 'http://cdn.test/4.mp3' }),
+        ],
+      })
+    )
+
+    const tracks = (await getProviderPlaylistTracks('1')) ?? []
+
+    expect(tracks.map((track) => [track.readable, track.previewUrl === null])).toEqual([
+      [false, false],
+      [true, false],
+      [true, true],
+      [true, true],
+    ])
+  })
+
+  it('drops a malformed title and keeps the others', async () => {
+    stubProviderFetch(() =>
+      jsonResponse({ data: [providerTrack(1), { id: 'x' }, null, providerTrack(4)] })
+    )
+
+    expect((await getProviderPlaylistTracks('1'))?.map((track) => track.ref)).toEqual(['1', '4'])
+  })
+
+  it('returns an empty list for an empty playlist', async () => {
+    stubProviderFetch(() => jsonResponse({ data: [], total: 0 }))
+
+    expect(await getProviderPlaylistTracks('1')).toEqual([])
+  })
+
+  it('returns null for an unknown playlist (200 with error 800, or HTTP 404)', async () => {
+    stubProviderFetch(() => jsonResponse(PROVIDER_ERROR_NOT_FOUND))
+    expect(await getProviderPlaylistTracks('999')).toBeNull()
+
+    stubProviderFetch(() => jsonResponse({}, 404))
+    expect(await getProviderPlaylistTracks('999')).toBeNull()
+  })
+
+  it.each(['', 'abc', '12/../x', '-3', '1'.repeat(21)])(
+    'refuses the ref %j without calling the provider',
+    async (ref) => {
+      const fetchMock = stubProviderFetch(() => jsonResponse({ data: [] }))
+
+      expect(await getProviderPlaylistTracks(ref)).toBeNull()
+      expect(fetchMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each<[string, () => Response]>([
+    [
+      'a timeout',
+      () => {
+        throw new DOMException('timeout', 'TimeoutError')
+      },
+    ],
+    ['a network error', () => Promise.reject(new TypeError('fetch failed')) as never],
+    ['HTTP 500', () => jsonResponse({}, 500)],
+    ['HTTP 429', () => jsonResponse({}, 429)],
+    ['a quota error body', () => jsonResponse({ error: { type: 'Exception', code: 4 } })],
+    ['invalid JSON', () => new Response('<html>', { status: 200 })],
+    ['an unreadable envelope', () => jsonResponse({ data: 'nope' })],
+  ])('reports the provider as unavailable on %s', async (_label, answer) => {
+    stubProviderFetch(answer)
+
+    await expect(getProviderPlaylistTracks('1')).rejects.toBeInstanceOf(
       MediaProviderUnavailableError
     )
   })

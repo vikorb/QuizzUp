@@ -1,4 +1,4 @@
-import { randomInt } from 'node:crypto'
+import { randomBytes, randomInt } from 'node:crypto'
 
 import type { FastifyRequest } from 'fastify'
 
@@ -15,8 +15,11 @@ import {
   GAME_STATE_SCHEDULED,
   GAME_STATUS_ACTIVE,
   GAME_STATUS_DELETED,
+  getRoomDesksCount,
   type GameLocale,
   type GameState,
+  JOIN_LINK_TTL_MINUTES,
+  JOIN_TOKEN_BYTES,
   MINI_GAMES,
   type MiniGame,
   ROOM_STATUS_ACTIVE,
@@ -26,9 +29,10 @@ import {
 } from '@quizzup/shared'
 
 import db from '../../db'
-import type { GameParticipantRow, GameRow } from '../../types/game'
+import type { GameJoin, GameParticipantRow, GameRow } from '../../types/game'
 import { isUniqueViolation } from '../_shared/dbErrors'
 import { findCompanyById } from '../companies/_shared'
+import { findRoomInCompany } from '../companies/rooms/_shared'
 import { durationMinutesSchema, type GameParticipantInput } from './_schemas'
 
 export const MINUTE_MS = 60_000
@@ -75,7 +79,7 @@ export const participantSelect = [
   'score',
 ]
 
-type ParticipantDbRow = {
+export type ParticipantDbRow = {
   id: number | string
   podium: number | string
   displayName: string
@@ -112,6 +116,20 @@ export async function findGameInCompany(
   const participants = await findGameParticipants(Number(game.id))
 
   return { ...toGameRow(game), participants }
+}
+
+/** État d'une partie de la compagnie (sans ses participants), `undefined` si elle n'existe pas. */
+export async function findGameState(
+  companyId: number,
+  gameId: number
+): Promise<{ state: GameState; roomId: number } | undefined> {
+  const game = await db('games')
+    .where('company_id', companyId)
+    .where('id', gameId)
+    .whereNot('status', GAME_STATUS_DELETED)
+    .first(['state', 'room_id as roomId'])
+
+  return game ? { state: game.state as GameState, roomId: Number(game.roomId) } : undefined
 }
 
 function toOptionalNumber(value: unknown): number | undefined {
@@ -208,13 +226,8 @@ export async function addGameListFields(games: GameRow[]): Promise<GameRow[]> {
   })
 }
 
-export async function findGameParticipants(gameId: number): Promise<GameParticipantRow[]> {
-  const participants = (await db('game_participants')
-    .where('game_id', gameId)
-    .select(participantSelect)
-    .orderBy('podium', 'asc')) as ParticipantDbRow[]
-
-  return participants.map((participant) => ({
+export function toParticipant(participant: ParticipantDbRow): GameParticipantRow {
+  return {
     id: Number(participant.id),
     podium: Number(participant.podium),
     displayName: participant.displayName,
@@ -232,7 +245,16 @@ export async function findGameParticipants(gameId: number): Promise<GameParticip
         }
       : null,
     score: Number(participant.score),
-  }))
+  }
+}
+
+export async function findGameParticipants(gameId: number): Promise<GameParticipantRow[]> {
+  const participants = (await db('game_participants')
+    .where('game_id', gameId)
+    .select(participantSelect)
+    .orderBy('podium', 'asc')) as ParticipantDbRow[]
+
+  return participants.map(toParticipant)
 }
 
 /**
@@ -243,6 +265,21 @@ export function canReadPlayerEmails(req: FastifyRequest): boolean {
   return req.user.role === ADMIN_ROLE_SUPERADMIN || req.user.role === ADMIN_ROLE_ADMIN
 }
 
+/** Même masquage pour une personne seule (`participant`) et pour sa demande d'inscription. */
+export function maskEmails<
+  T extends { email: string | null; secondPlayer: { email: string | null } | null },
+>(player: T, req: FastifyRequest): T {
+  if (canReadPlayerEmails(req)) {
+    return player
+  }
+
+  return {
+    ...player,
+    email: null,
+    secondPlayer: player.secondPlayer ? { ...player.secondPlayer, email: null } : null,
+  }
+}
+
 export function maskPlayerEmails(game: GameRow, req: FastifyRequest): GameRow {
   if (canReadPlayerEmails(req) || !game.participants) {
     return game
@@ -250,11 +287,7 @@ export function maskPlayerEmails(game: GameRow, req: FastifyRequest): GameRow {
 
   return {
     ...game,
-    participants: game.participants.map((participant) => ({
-      ...participant,
-      email: null,
-      secondPlayer: participant.secondPlayer ? { ...participant.secondPlayer, email: null } : null,
-    })),
+    participants: game.participants.map((participant) => maskEmails(participant, req)),
   }
 }
 
@@ -267,6 +300,17 @@ export async function findStaffGame(
   const game = await findGameInCompany(companyId, gameId)
 
   return game ? maskPlayerEmails(game, req) : undefined
+}
+
+/** Partie du staff avec son lien d'inscription et ses demandes à valider (fiche d'une partie). */
+export async function findStaffGameWithJoin(
+  req: FastifyRequest,
+  companyId: number,
+  gameId: number
+): Promise<GameRow | undefined> {
+  const game = await findStaffGame(req, companyId, gameId)
+
+  return game ? addGameJoin(game) : undefined
 }
 
 /** Efface l'email et les consentements des deux joueurs, noms et scores gardés. */
@@ -298,16 +342,19 @@ function toParticipantRow(gameId: number, participant: GameParticipantInput) {
   }
 }
 
+/** Insère les participants et renvoie les lignes écrites, lues dans la même transaction. */
 export async function insertParticipants(
   trx: Knex.Transaction,
   gameId: number,
   participants: GameParticipantInput[]
-): Promise<void> {
-  if (participants.length > 0) {
-    await trx('game_participants').insert(
-      participants.map((participant) => toParticipantRow(gameId, participant))
-    )
+): Promise<ParticipantDbRow[]> {
+  if (participants.length === 0) {
+    return []
   }
+
+  return (await trx('game_participants')
+    .insert(participants.map((participant) => toParticipantRow(gameId, participant)))
+    .returning(participantSelect)) as ParticipantDbRow[]
 }
 
 export type NewGame = {
@@ -324,6 +371,8 @@ export type NewGame = {
   playersCount?: number
   externalRef?: string
   locale?: GameLocale
+  /** Lien d'inscription ouvert dès la création (partie en attente seulement). */
+  join?: { token: string; expiresAt: Date }
 }
 
 /** La partie et ses participants sont créés ensemble : rien en base si l'un échoue. */
@@ -347,6 +396,8 @@ export async function insertGameWithParticipants(
       players_count: game.playersCount ?? null,
       external_ref: game.externalRef ?? null,
       locale: game.locale ?? null,
+      join_token: game.join?.token ?? null,
+      join_expires_at: game.join?.expiresAt.toISOString() ?? null,
       status: GAME_STATUS_ACTIVE,
       deleted_at: null,
     })
@@ -356,6 +407,111 @@ export async function insertGameWithParticipants(
   await insertParticipants(trx, gameId, participants)
 
   return gameId
+}
+
+/** Nombre de pupitres de la salle de la partie (`rooms.config`, 4 par défaut). */
+export async function getGameDesksCount(companyId: number, roomId: number): Promise<number> {
+  const room = await findRoomInCompany(companyId, roomId)
+
+  return getRoomDesksCount(room?.config)
+}
+
+/** Jeton d'un lien d'inscription : 32 octets aléatoires, jamais dérivés d'une donnée de la partie. */
+export function generateJoinToken(): string {
+  return randomBytes(JOIN_TOKEN_BYTES).toString('base64url')
+}
+
+/** Date de fin de validité d'un lien ouvert maintenant. */
+export function getJoinExpiry(now = new Date()): Date {
+  return addMinutes(now, JOIN_LINK_TTL_MINUTES)
+}
+
+/**
+ * Lien à montrer aux joueurs : `PUBLIC_APP_URL` + `/rejoindre/#<jeton>`. Le jeton est dans le
+ * fragment, jamais dans le chemin ni la query : il n'arrive pas dans les journaux du serveur.
+ * Sans `PUBLIC_APP_URL`, l'URL est relative (`/rejoindre/#…`) : à compléter par l'appelant.
+ */
+export function toGameJoin(token: string, expiresAt: Date | string): GameJoin {
+  const base = (process.env.PUBLIC_APP_URL ?? '').trim().replace(/\/+$/, '')
+
+  return {
+    url: `${base}/rejoindre/#${token}`,
+    expiresAt: new Date(expiresAt).toISOString(),
+  }
+}
+
+/**
+ * Ajoute le lien d'inscription et le nombre de demandes à valider. Le lien n'existe que pour une
+ * partie en attente et non expirée ; sinon `join` vaut `null` (à rouvrir par `POST …/join`).
+ */
+export async function addGameJoin<T extends Pick<GameRow, 'id' | 'state'>>(
+  game: T,
+  now = new Date()
+): Promise<T & { join: GameJoin | null; pendingRegistrationsCount: number }> {
+  if (game.state !== GAME_STATE_PENDING) {
+    return { ...game, join: null, pendingRegistrationsCount: 0 }
+  }
+
+  const row = await db('games')
+    .where('id', game.id)
+    .first(['join_token as joinToken', 'join_expires_at as joinExpiresAt'])
+  const [{ count }] = await db('game_registrations').where('game_id', game.id).count({ count: '*' })
+  const isOpen =
+    typeof row?.joinToken === 'string' &&
+    row.joinExpiresAt &&
+    new Date(row.joinExpiresAt).getTime() > now.getTime()
+
+  return {
+    ...game,
+    join: isOpen ? toGameJoin(row.joinToken, row.joinExpiresAt) : null,
+    pendingRegistrationsCount: Number(count),
+  }
+}
+
+export const registrationSelect = [
+  'id',
+  'created_at as createdAt',
+  'display_name as displayName',
+  'email',
+  'marketing_consent_at as marketingConsentAt',
+  'second_display_name as secondDisplayName',
+  'second_email as secondEmail',
+  'second_marketing_consent_at as secondMarketingConsentAt',
+]
+
+export type RegistrationRow = {
+  id: number
+  createdAt: string
+  displayName: string
+  /** `null` si absent, ou masqué pour le rôle `user` (voir `hasEmail`). */
+  email: string | null
+  hasEmail: boolean
+  marketingConsent: boolean
+  secondPlayer: {
+    displayName: string
+    email: string | null
+    hasEmail: boolean
+    marketingConsent: boolean
+  } | null
+}
+
+export function toRegistration(row: Record<string, unknown>): RegistrationRow {
+  return {
+    id: Number(row.id),
+    createdAt: row.createdAt as string,
+    displayName: row.displayName as string,
+    email: (row.email as string | null) ?? null,
+    hasEmail: Boolean(row.email),
+    marketingConsent: Boolean(row.marketingConsentAt),
+    secondPlayer: row.secondDisplayName
+      ? {
+          displayName: row.secondDisplayName as string,
+          email: (row.secondEmail as string | null) ?? null,
+          hasEmail: Boolean(row.secondEmail),
+          marketingConsent: Boolean(row.secondMarketingConsentAt),
+        }
+      : null,
+  }
 }
 
 /** Durée par défaut d'une session : le créneau réglé sur la salle, sinon `SESSION_DEFAULT_MINUTES`. */
@@ -469,8 +625,8 @@ export async function openScheduledGame(
     return 'session_not_open_yet'
   }
 
-  // Seule une partie en attente bloque (arbitrage 4) ; en attendant le lot 2, l'index unique
-  // refuse aussi l'ouverture pendant qu'une partie est en cours (23505, traité plus bas).
+  // Seule une partie en attente bloque (arbitrage 4) : une partie en cours n'empêche pas d'ouvrir
+  // la suivante.
   const pendingGame = await db('games')
     .where('room_id', game.roomId)
     .where('state', GAME_STATE_PENDING)
