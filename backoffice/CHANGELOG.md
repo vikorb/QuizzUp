@@ -10,6 +10,17 @@ Format inspiré de Keep a Changelog.
 
 - Fumée par la carte USB, lien série (`game/hardware`, rien n'est encore branché à l'écran de salle) : lecture et écriture du protocole de la carte (bannière `QZF READY`, lignes d'état, ordres `F`, `0`, `H`) et lien Web Serial qui n'envoie jamais `F` sans bannière valide, ne renouvelle jamais `F` de lui-même, borne les `F` à un toutes les 100 ms, n'en envoie qu'en phase prête ou en jet (jamais pendant la pause de la carte, dont les 5 s qui suivent sa remise à zéro ; la phase lue est exposée), et signale une carte absente, muette, débranchée ou qui contredit nos ordres. Une carte plus permissive que les limites du projet est refusée. Fausse carte pour les tests.
   US: US-DMX-01 (#215)
+- API de réservation, clés et journal (backend) : `GET` / `POST /companies/:companyId/api-keys` (10 clés actives au plus, 409 `api_key_limit_reached` ; le secret n'est renvoyé qu'à la création), `DELETE /companies/:companyId/api-keys/:apiKeyId` (révocation, idempotente) et `GET /companies/:companyId/api-logs` (journal paginé, filtré par clé et par classe de statut). Purge du journal après 90 jours et des clés d'idempotence après 24 h.
+  US: US-BOOKING-01 (#188)
+- Playlists, thèmes : un thème audio peut porter une playlist du fournisseur de musique (`playlistRef` sur `POST` / `PATCH` / `GET /themes`), vérifiée à l'enregistrement (400 `theme_playlist_ref_invalid`, `theme_playlist_mode_invalid` ; 422 `theme_playlist_not_found`, `theme_playlist_too_small` ; 502 `media_provider_unavailable`). Un thème qui quitte le mode audio perd sa playlist.
+  US: US-PLAYLIST-01 (#204)
+- Bons de fidélisation, API : émission d'un bon pour un participant d'une partie terminée, liste par partie et par compagnie, recherche et utilisation par code (le code voyage dans le corps, jamais dans l'adresse), annulation réservée aux administrateurs. Recherche publique `POST /public/v1/vouchers/lookup`, limitée à 20 requêtes par minute, qui ne révèle ni le joueur ni la partie. Réglages par compagnie : libellé du bon (vide : bons désactivés) et durée de validité (1 à 730 jours, 90 par défaut).
+  US: US-VOUCHER-01 (#156)
+- Accueil des joueurs, API du personnel : lien d'inscription d'une partie en attente (`POST` / `DELETE …/games/:gameId/join`, jeton valable 180 minutes, renouvelable), demandes d'inscription (`GET …/registrations`, validation avec attribution d'un pupitre, refus), ajout et retrait d'un participant tant que la partie est en attente, `openJoin` à la création. `join` et `pendingRegistrationsCount` sont renvoyés avec la partie, y compris à l'écran de salle. Les demandes de plus de 24 heures ou d'une partie qui n'est plus en attente sont purgées. `room_busy` ne vise plus que la partie en attente : une partie en cours ne bloque plus la préparation de la suivante.
+  US: US-JOIN-01 (#166)
+
+- Console éditeur : écran des demandes de démonstration (filtre « À traiter », « Traitées », « Toutes » ; marquer une demande traitée ; supprimer), réservé au superadmin.
+  US: US-CONSOLE-01 (#161)
 
 - Effet audio joué en salle : le blind test lit l'extrait avec l'effet de la question (court, inversé, ralenti), avec des paliers raccourcis pour `short` et une reprise fidèle après rechargement.
   US: US-AUDIO-02 (#144)

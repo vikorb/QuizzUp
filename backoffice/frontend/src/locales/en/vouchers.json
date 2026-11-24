@@ -1,0 +1,14 @@
+{
+  "vouchers": {
+    "errors": {
+      "vouchersDisabled": "Loyalty vouchers are not enabled for this company: set the voucher label in its settings first.",
+      "gameNotFinished": "This game is not over: vouchers can only be issued once the game has ended.",
+      "voucherAlreadyIssued": "A voucher has already been issued for this desk.",
+      "participantNotFound": "This desk is not part of this game.",
+      "voucherNotFound": "No voucher matches this code.",
+      "voucherCancelled": "This voucher has been cancelled.",
+      "voucherAlreadyRedeemed": "This voucher has already been used.",
+      "voucherExpired": "This voucher has expired."
+    }
+  }
+}

@@ -38,6 +38,8 @@ function themeRow(overrides: Partial<ThemeAccessRow>): ThemeAccessRow {
     scope: THEME_SCOPE_GLOBAL,
     company_id: null,
     status: THEME_STATUS_ACTIVE,
+    mode: THEME_MODE_CLASSIC,
+    playlist_ref: null,
     ...overrides,
   }
 }
