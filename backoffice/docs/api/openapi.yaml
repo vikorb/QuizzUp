@@ -3925,6 +3925,28 @@ paths:
                 properties:
                   theme:
                     $ref: '#/components/schemas/Theme'
+        '400':
+          description: >-
+            Corps invalide (`theme_name_required`, `theme_mode_invalid`, `theme_company_required`,
+            `theme_playlist_ref_invalid`, `theme_playlist_mode_invalid`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: >-
+            Playlist refusée : inconnue du fournisseur (`theme_playlist_not_found`) ou moins de 4
+            titres jouables (`theme_playlist_too_small`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Fournisseur indisponible (délai, quota, réponse invalide) (`media_provider_unavailable`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '501':
           description: Route prévue mais pas encore implémentée
           content:
@@ -3992,6 +4014,28 @@ paths:
                 properties:
                   theme:
                     $ref: '#/components/schemas/Theme'
+        '400':
+          description: >-
+            Corps invalide (`theme_name_required`, `theme_mode_invalid`, `theme_company_required`,
+            `theme_playlist_ref_invalid`, `theme_playlist_mode_invalid`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: >-
+            Playlist refusée : inconnue du fournisseur (`theme_playlist_not_found`) ou moins de 4
+            titres jouables (`theme_playlist_too_small`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Fournisseur indisponible (délai, quota, réponse invalide) (`media_provider_unavailable`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '501':
           description: Route prévue mais pas encore implémentée
           content:
@@ -5713,6 +5757,90 @@ components:
       properties:
         processed:
           type: boolean
+
+    Theme:
+      type: object
+      properties:
+        id:
+          type: integer
+        adminId:
+          type: integer
+        companyId:
+          type: integer
+          nullable: true
+        scope:
+          type: string
+          enum: [global, company]
+        name:
+          type: string
+        mode:
+          type: string
+          enum: [classic, image, audio, mixed]
+        playlistRef:
+          type: string
+          nullable: true
+          pattern: '^\d{1,20}$'
+          description: >-
+            Identifiant de la playlist du fournisseur d'extraits (Deezer). `null` sans playlist.
+            Seulement en mode `audio` ; aucun titre ni lien n'est stocké.
+        status:
+          type: integer
+          enum: [0, 1, 2, 3]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        questionsCount:
+          type: integer
+          description: Présent dans la liste seulement
+
+    CreateThemeRequest:
+      type: object
+      required: [name, mode]
+      properties:
+        name:
+          type: string
+        mode:
+          type: string
+          enum: [classic, image, audio, mixed]
+        scope:
+          type: string
+          enum: [global, company]
+        companyId:
+          type: integer
+          nullable: true
+        playlistRef:
+          type: string
+          nullable: true
+          pattern: '^\d{1,20}$'
+          description: >-
+            Playlist du fournisseur d'extraits, mode `audio` seulement. Le serveur la contrôle :
+            `theme_playlist_not_found` (422), `theme_playlist_too_small` (422, moins de 4 titres
+            lisibles avec extrait), `media_provider_unavailable` (502).
+
+    UpdateThemeRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        mode:
+          type: string
+          enum: [classic, image, audio, mixed]
+        playlistRef:
+          type: string
+          nullable: true
+          pattern: '^\d{1,20}$'
+          description: >-
+            Absent : inchangé. `null` : efface la playlist. Un thème qui quitte le mode `audio`
+            perd sa playlist ; en renseigner une hors du mode `audio` est refusé
+            (`theme_playlist_mode_invalid`). Mêmes contrôles qu'à la création.
 
     MediaProviderTrack:
       type: object

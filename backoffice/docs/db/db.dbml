@@ -101,6 +101,8 @@ Table themes {
   scope varchar(50) [not null, default: 'global', note: 'global, company']
   name varchar(255) [not null]
   mode varchar(50) [not null, note: 'classic, image, audio, mixed']
+  playlist_provider varchar(20) [note: 'Fournisseur de la playlist : deezer. NULL sinon. Réservé au mode audio (CHECK).']
+  playlist_ref varchar(64) [note: 'Identifiant de la playlist chez le fournisseur (chiffres). Renseigné si et seulement si playlist_provider l est. Aucun titre ni lien d extrait n est stocké.']
 
   status smallint [not null, default: 1, note: '0=inactive, 1=active, 2=deleted, 3=draft']
   created_at timestamptz [not null, default: `now()`]

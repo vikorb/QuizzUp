@@ -1,6 +1,11 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 
-import { QUESTION_STATUS_DELETED, THEME_SCOPE_GLOBAL, THEME_STATUS_DELETED } from '@quizzup/shared'
+import {
+  QUESTION_STATUS_DELETED,
+  THEME_MODE_AUDIO,
+  THEME_SCOPE_GLOBAL,
+  THEME_STATUS_DELETED,
+} from '@quizzup/shared'
 import db from '../../db'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
 import { requireApiPermission } from '../../security/requireApiPermission'
@@ -14,9 +19,11 @@ import {
   type QuestionAccessRow,
 } from '../questions/_shared'
 import {
+  buildThemePlaylistPatch,
   buildThemeStatusPatch,
   canEditTheme,
   canReadTheme,
+  checkThemePlaylist,
   getThemeAccessRow,
   isValidThemeMode,
   parsePositiveId,
@@ -160,6 +167,27 @@ const themeIdRoutes: FastifyPluginAsync = async (app) => {
         }
 
         patch.mode = req.body.mode
+      }
+
+      const mode = req.body.mode ?? accessTheme.mode
+      const playlistRef = req.body.playlistRef
+
+      if (playlistRef !== undefined && playlistRef !== null) {
+        // Appel réseau avant l'écriture : rien n'est enregistré si la playlist est refusée.
+        const playlistError = await checkThemePlaylist(req, playlistRef, mode)
+
+        if (playlistError) {
+          return reply.code(playlistError.status).send({ error: playlistError.error })
+        }
+      }
+
+      // Hors du mode audio, le thème perd sa playlist (comme une question qui quitte l'audio perd
+      // son extrait) ; le CHECK `themes_playlist_audio_check` l'imposerait de toute façon.
+      if (playlistRef !== undefined || mode !== THEME_MODE_AUDIO) {
+        Object.assign(
+          patch,
+          buildThemePlaylistPatch(mode === THEME_MODE_AUDIO ? (playlistRef ?? null) : null)
+        )
       }
 
       const [theme] = await db('themes').where({ id: themeId }).update(patch).returning(themeSelect)
