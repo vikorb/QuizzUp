@@ -24,7 +24,15 @@ describe('security/rateLimit — fenêtre', () => {
     expect(limiter.hit('1.2.3.4').allowed).toBe(true)
 
     clock.advance(10_000)
-    expect(limiter.hit('1.2.3.4')).toEqual({ allowed: false, retryAfterSeconds: 50 })
+    expect(limiter.hit('1.2.3.4')).toEqual({ allowed: false, retryAfterSeconds: 50, remaining: 0 })
+  })
+
+  it('tells how many hits are left in the window, down to zero', () => {
+    const limiter = createRateLimiter({ max: 2, windowMs: 60_000, now: fakeClock().now })
+
+    expect(limiter.hit('1.2.3.4').remaining).toBe(1)
+    expect(limiter.hit('1.2.3.4').remaining).toBe(0)
+    expect(limiter.hit('1.2.3.4').remaining).toBe(0)
   })
 
   it('starts a fresh window once the previous one has elapsed', () => {
@@ -33,7 +41,7 @@ describe('security/rateLimit — fenêtre', () => {
 
     limiter.hit('1.2.3.4')
     clock.advance(59_999)
-    expect(limiter.hit('1.2.3.4')).toEqual({ allowed: false, retryAfterSeconds: 1 })
+    expect(limiter.hit('1.2.3.4')).toEqual({ allowed: false, retryAfterSeconds: 1, remaining: 0 })
 
     clock.advance(1)
     expect(limiter.hit('1.2.3.4').allowed).toBe(true)

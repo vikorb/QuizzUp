@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- API de réservation, lecture : `GET /public/v1/rooms` et `GET /public/v1/availability` derrière une clé d'API (401 `api_key_missing` / `api_key_invalid`, 403 `company_inactive`), débit par clé (`PUBLIC_API_RATE_LIMIT_PER_MINUTE`, en-têtes `RateLimit-*`, 429 avec `Retry-After`), limite des échecs d'authentification par adresse (`PUBLIC_API_AUTH_FAILURES_PER_MINUTE`) et journal des appels sans corps ni adresse.
+  US: US-BOOKING-01 (#188)
+
 - Lumières Art-Net sans exécutable (`game/artnet-bridge/powershell`) : `quizzup-lumieres.ps1` (PowerShell 5.1, présent sur tout Windows) parle le même protocole WebSocket que le pont et envoie les trames Art-Net ; lanceur `Lancer les lumieres.cmd`. Pas de découverte de nœuds : l'adresse du nœud se saisit à la main. Jamais essayé face à un vrai nœud Art-Net.
   US: US-DMX-01 (#203)
 - Formulaire de question : sélecteur « Effet sur l'extrait » (aucun, très court, à l'envers, ralenti), visible seulement pour une question audio. L'effet est relu à la modification, remis à « aucun » quand la question cesse d'être audio, et les erreurs de l'API (`question_audio_effect_invalid`, `audio_effect_requires_audio`) s'affichent sous le champ.

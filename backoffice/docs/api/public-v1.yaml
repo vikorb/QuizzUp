@@ -35,7 +35,8 @@ info:
 
     **Limite de débit.** Fenêtre fixe d'une minute : 120 requêtes par clé par défaut, et 20
     échecs d'authentification par adresse. Au-delà, `429 too_many_requests` avec l'en-tête
-    `Retry-After` (secondes), `RateLimit-Limit` et `RateLimit-Remaining`.
+    `Retry-After` (secondes), `RateLimit-Limit` et `RateLimit-Remaining`. Ces deux derniers sont aussi
+    présents sur toute réponse à une requête dont la clé est reconnue.
 
     **Corps limité à 16 Ko** (`413 payload_too_large`).
 

@@ -22,6 +22,8 @@ export type RateLimitResult = {
   allowed: boolean
   /** Secondes avant la fin de la fenêtre en cours, au moins 1 (valeur de `Retry-After`). */
   retryAfterSeconds: number
+  /** Passages encore acceptés dans la fenêtre en cours, après celui-ci (valeur de `RateLimit-Remaining`). */
+  remaining: number
 }
 
 export type RateLimiter = {
@@ -110,10 +112,10 @@ export function createRateLimiter({
 
       // Un passage refusé n'est pas compté : le compteur reste borné par `max`, et `refund`
       // ne peut pas faire descendre sous la réalité.
-      if (entry.count >= max) return { allowed: false, retryAfterSeconds }
+      if (entry.count >= max) return { allowed: false, retryAfterSeconds, remaining: 0 }
 
       entry.count += 1
-      return { allowed: true, retryAfterSeconds }
+      return { allowed: true, retryAfterSeconds, remaining: max - entry.count }
     },
 
     refund(ip, suffix) {
