@@ -118,7 +118,7 @@ src/
 
 ### Annonces vocales à enregistrer
 
-Catalogue : `src/audio/announcements.ts` (48 identifiants, texte fr et en), qui sert de script
+Catalogue : `src/audio/announcements.ts` (47 identifiants, texte fr et en), qui sert de script
 d'enregistrement. `src/audio/announcerBridge.ts` donne l'annonce à jouer pour un événement du
 moteur (`announcementForEvent`). **Rien n'est encore branché et aucun fichier son n'est dans le
 dépôt** : l'écran reste muet. Il faut un MP3 mono (environ −16 LUFS) par identifiant et par langue,
@@ -128,7 +128,7 @@ cite un prénom : on dit le numéro de pupitre.
 | Identifiant                 | fr                                         | en                                        |
 | --------------------------- | ------------------------------------------ | ----------------------------------------- |
 | `game.start`                | C’est parti, la partie commence.           | Here we go, the game is starting.         |
-| `round.1` à `round.10`      | Manche un … Manche dix.                    | Round one … Round ten.                    |
+| `round.2` à `round.10`      | Manche deux … Manche dix.                  | Round two … Round ten.                    |
 | `round.last`                | Dernière manche.                           | Final round.                              |
 | `minigame.<code>` (×10)     | Nom du mini-jeu (`game.json`)              | Mini-game name (`game.json`)              |
 | `chooser.desk.1` à `.6`     | Pupitre un, à toi de choisir le thème.     | Desk one, pick the theme.                 |
@@ -137,7 +137,7 @@ cite un prénom : on dit le numéro de pupitre.
 | `question.lost`             | Personne n’a trouvé.                       | Nobody got it.                            |
 | `round.end`                 | Fin de la manche, voyons les scores.       | End of the round, let’s see the scores.   |
 | `points.stolen`             | Points volés.                              | Points stolen.                            |
-| `player.eliminated`         | Éliminé.                                   | Eliminated.                               |
+| `player.eliminated`         | Élimination.                               | Eliminated.                               |
 | `bets.closed`               | Les mises sont faites.                     | Bets are closed.                          |
 | `game.paused`               | Petite pause, on reprend dans un instant.  | Short break, back in a moment.            |
 | `game.resumed`              | On reprend.                                | And we’re back.                           |
@@ -147,7 +147,14 @@ cite un prénom : on dit le numéro de pupitre.
 
 Les noms des 10 mini-jeux sont ceux de `game.miniGames.<code>.name` (un test le vérifie). Les
 annonces de pause (`game.paused`, `game.resumed`) et de sortie (`session.exit`) ne viennent pas du
-moteur : l'écran de salle les dira directement. Aucune annonce pendant un palier de blind test.
+moteur : l'écran de salle les dira directement.
+
+Règles de diction : la première manche n'est pas numérotée (« C'est parti, la partie commence »
+puis le nom du mini-jeu : deux annonces, pas trois). La bonne réponse est dite une seule fois par
+question (à `answer_correct` pour le premier buzz, la révélation progressive et le blind test ; à la
+fin de la question pour les autres mini-jeux). Au blind test, la voix ne dit jamais « raté » : elle
+parle à la bonne réponse ou quand personne n'a trouvé. Rien n'est dit en fin de partie sans contenu
+jouable ni quand le meilleur score est 0.
 
 ### Clavier de simulation
 

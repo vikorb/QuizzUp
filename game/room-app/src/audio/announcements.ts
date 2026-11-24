@@ -15,7 +15,7 @@ import {
 } from '@quizzup/shared'
 
 /**
- * Catalogue des annonces vocales du présentateur : 48 identifiants, chacun avec son texte fr et
+ * Catalogue des annonces vocales du présentateur : 47 identifiants, chacun avec son texte fr et
  * en. Ce fichier sert aussi de **script d'enregistrement** : un fichier par identifiant et par
  * langue (`/announcer/<lang>/<id>.mp3`), sans changer le code quand la voix est remplacée.
  * Aucune annonce ne cite un prénom : on dit le numéro de pupitre.
@@ -23,10 +23,11 @@ import {
 
 export type Announcement = { id: string; fr: string; en: string }
 
-/** Manches annoncées par leur numéro ; au-delà, seule « Dernière manche » est dite (`round.last`). */
+/**
+ * Manches annoncées par leur numéro ; au-delà, seule « Dernière manche » est dite (`round.last`).
+ * La première manche n'est pas numérotée : « la partie commence » et le nom du mini-jeu suffisent.
+ */
 export const ANNOUNCED_ROUNDS_MAX = 10
-export const ANSWER_CORRECT_VARIANTS = 3
-export const ANSWER_WRONG_VARIANTS = 2
 
 // Nombres de 1 à 10, dits pour les manches (jusqu'à 10) et les pupitres (jusqu'à `GAME_PODIUMS`).
 const NUMBER_FR = ['un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf', 'dix']
@@ -51,11 +52,13 @@ const ANSWER_CORRECT = [
   { fr: 'Exactement.', en: 'Exactly.' },
   { fr: 'Bien vu.', en: 'Well spotted.' },
 ]
+export const ANSWER_CORRECT_VARIANTS = ANSWER_CORRECT.length
 
 const ANSWER_WRONG = [
   { fr: 'Raté.', en: 'Wrong.' },
   { fr: 'Eh non.', en: 'Not quite.' },
 ]
+export const ANSWER_WRONG_VARIANTS = ANSWER_WRONG.length
 
 function numbered(
   prefix: string,
@@ -78,10 +81,11 @@ export const ANNOUNCEMENTS: readonly Announcement[] = [
     fr: 'C’est parti, la partie commence.',
     en: 'Here we go, the game is starting.',
   },
+  // `slice(1)` : pas de « Manche un » (première manche non numérotée).
   ...numbered('round', ANNOUNCED_ROUNDS_MAX, (fr, en) => ({
     fr: `Manche ${fr}.`,
     en: `Round ${en}.`,
-  })),
+  })).slice(1),
   { id: 'round.last', fr: 'Dernière manche.', en: 'Final round.' },
   ...MINI_GAMES.map((code) => ({ id: `minigame.${code}`, ...MINI_GAME_NAMES[code] })),
   ...numbered('chooser.desk', GAME_PODIUMS, (fr, en) => ({
@@ -97,7 +101,7 @@ export const ANNOUNCEMENTS: readonly Announcement[] = [
     en: 'End of the round, let’s see the scores.',
   },
   { id: 'points.stolen', fr: 'Points volés.', en: 'Points stolen.' },
-  { id: 'player.eliminated', fr: 'Éliminé.', en: 'Eliminated.' },
+  { id: 'player.eliminated', fr: 'Élimination.', en: 'Eliminated.' },
   { id: 'bets.closed', fr: 'Les mises sont faites.', en: 'Bets are closed.' },
   {
     id: 'game.paused',
