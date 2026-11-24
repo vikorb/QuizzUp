@@ -71,6 +71,17 @@ describe('routes/public — limites de débit', () => {
     expect(blocked.json()).toEqual({ error: 'too_many_requests' })
   })
 
+  it('keeps the per-address limit on the contract route', async () => {
+    app = await createPublicApp()
+
+    for (let i = 0; i < PUBLIC_RATE_LIMIT_MAX; i += 1) await get('/public/v1/openapi.yaml')
+
+    const blocked = await get('/public/v1/openapi.yaml')
+
+    expect(blocked.statusCode).toBe(429)
+    expect(blocked.json()).toEqual({ error: 'too_many_requests' })
+  })
+
   it('keeps the per-address limit on unknown paths of the prefix', async () => {
     app = await createPublicApp()
 
