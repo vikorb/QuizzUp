@@ -8,6 +8,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@surface': path.resolve(__dirname, './src/surface/console.ts'),
     },
   },
   test: {

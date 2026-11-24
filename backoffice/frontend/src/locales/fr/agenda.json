@@ -35,9 +35,11 @@
     "actions": {
       "schedule": "Programmer",
       "view": "Voir le détail",
+      "edit": "Modifier",
       "open": "Ouvrir",
       "cancel": "Annuler",
       "viewAt": "Voir le détail de la session de {time}",
+      "editAt": "Modifier la session de {time}",
       "openAt": "Ouvrir la session de {time}",
       "cancelAt": "Annuler la session de {time}",
       "cancelTitle": "Annuler la session",
@@ -46,7 +48,9 @@
     },
     "banners": {
       "opened": "La session de la salle « {room} » est ouverte : elle attend maintenant son lancement dans la salle.",
-      "cancelled": "La session de la salle « {room} » a bien été annulée."
+      "cancelled": "La session de la salle « {room} » a bien été annulée.",
+      "scheduled": "La session de la salle « {room} » est programmée.",
+      "updated": "La session de la salle « {room} » a bien été modifiée."
     }
   }
 }

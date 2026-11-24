@@ -66,7 +66,7 @@ async function registerPlayers(page: Page, ping?: Desk): Promise<void> {
 }
 
 async function startShortGame(page: Page): Promise<void> {
-  await page.getByRole('radio', { name: /Partie courte · 3 manches × 3 questions/ }).check()
+  await page.getByRole('radio', { name: /Découverte · 3 manches × 3 questions/ }).check()
   await page.getByRole('button', { name: 'Démarrer la partie' }).click()
   await expect(page).toHaveURL(/\/play$/)
   await expectScreen(page, 'intro')

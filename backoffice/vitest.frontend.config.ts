@@ -10,6 +10,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(rootDir, 'frontend/src'),
+      // Les tests voient tous les écrans : la surface console (voir frontend/vite.config.ts).
+      '@surface': path.resolve(rootDir, 'frontend/src/surface/console.ts'),
       '@shared': path.resolve(rootDir, 'shared/src'),
       '@quizzup/shared': path.resolve(rootDir, 'shared/src/index.ts'),
       '@frontend-tests': path.resolve(rootDir, 'tests/frontend/src'),

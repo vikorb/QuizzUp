@@ -35,9 +35,11 @@
     "actions": {
       "schedule": "Schedule",
       "view": "View details",
+      "edit": "Edit",
       "open": "Open",
       "cancel": "Cancel",
       "viewAt": "View details of the {time} session",
+      "editAt": "Edit the session at {time}",
       "openAt": "Open the {time} session",
       "cancelAt": "Cancel the {time} session",
       "cancelTitle": "Cancel the session",
@@ -46,7 +48,9 @@
     },
     "banners": {
       "opened": "The session in room \"{room}\" is open: it now waits to be launched in the room.",
-      "cancelled": "The session in room \"{room}\" has been cancelled."
+      "cancelled": "The session in room \"{room}\" has been cancelled.",
+      "scheduled": "The session in room \"{room}\" is scheduled.",
+      "updated": "The session in room \"{room}\" has been updated."
     }
   }
 }
