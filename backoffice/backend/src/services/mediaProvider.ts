@@ -22,7 +22,7 @@ export type ProviderTrack = {
   link: string | null
 }
 
-/** Titre d'une playlist : `readable` faux = titre non jouable (retiré du catalogue du pays). */
+/** Titre d'une playlist : `readable` faux = titre non jouable (retiré du catalogue du pays) ; champ absent = jouable. */
 export type ProviderPlaylistTrack = ProviderTrack & { titleShort: string; readable: boolean }
 
 /** Fournisseur injoignable ou réponse inexploitable (délai, réseau, statut ≥ 500, JSON invalide). */
@@ -219,7 +219,7 @@ export async function getProviderPlaylistTracks(
           {
             ...toProviderTrack(track.data),
             titleShort: track.data.title_short ?? track.data.title,
-            readable: track.data.readable === true,
+            readable: track.data.readable !== false,
           },
         ]
       : []

@@ -4127,14 +4127,13 @@ paths:
     get:
       tags:
         - Themes
-      summary: '[NON DISPONIBLE] Lister les thèmes'
+      summary: '[DISPONIBLE] Lister les thèmes'
       description: |
-        Statut : **Non disponible**
+        Statut : **Disponible**
 
-        Route prévue pour la gestion des thèmes de quiz.
+        Liste les thèmes visibles : globaux, et ceux de la compagnie du compte (le superadmin voit tout).
       operationId: listThemes
-      x-availability: non_disponible
-      x-us: 'US Gestion des thèmes'
+      x-availability: disponible
       responses:
         '200':
           description: Liste des thèmes
@@ -4147,24 +4146,29 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Theme'
-        '501':
-          description: Route prévue mais pas encore implémentée
+        '401':
+          description: Token manquant ou invalide
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/NotImplementedResponse'
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
     post:
       tags:
         - Themes
-      summary: '[NON DISPONIBLE] Créer un thème'
+      summary: '[DISPONIBLE] Créer un thème'
       description: |
-        Statut : **Non disponible**
+        Statut : **Disponible**
 
-        Route prévue pour créer un thème de quiz.
+        Crée un thème de quiz.
       operationId: createTheme
-      x-availability: non_disponible
-      x-us: 'US Gestion des thèmes'
+      x-availability: disponible
       requestBody:
         required: true
         content:
@@ -4189,8 +4193,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token manquant ou invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
-          description: >-
+          description: |
             Playlist refusée : inconnue du fournisseur (`theme_playlist_not_found`) ou moins de 4
             titres jouables (`theme_playlist_too_small`)
           content:
@@ -4203,25 +4219,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-        '501':
-          description: Route prévue mais pas encore implémentée
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotImplementedResponse'
 
   /themes/{themeId}:
     get:
       tags:
         - Themes
-      summary: '[NON DISPONIBLE] Récupérer un thème'
+      summary: '[DISPONIBLE] Récupérer un thème'
       description: |
-        Statut : **Non disponible**
+        Statut : **Disponible**
 
-        Route prévue pour récupérer le détail d'un thème.
+        Récupère le détail d'un thème.
       operationId: getThemeById
-      x-availability: non_disponible
-      x-us: 'US Gestion des thèmes'
+      x-availability: disponible
       parameters:
         - $ref: '#/components/parameters/ThemeId'
       responses:
@@ -4234,24 +4243,41 @@ paths:
                 properties:
                   theme:
                     $ref: '#/components/schemas/Theme'
-        '501':
-          description: Route prévue mais pas encore implémentée
+        '400':
+          description: Identifiant invalide (`theme_id_invalid`)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/NotImplementedResponse'
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token manquant ou invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (`forbidden`), permission manquante ou thème d'une autre compagnie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Thème introuvable (`theme_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
     patch:
       tags:
         - Themes
-      summary: '[NON DISPONIBLE] Modifier un thème'
+      summary: '[DISPONIBLE] Modifier un thème'
       description: |
-        Statut : **Non disponible**
+        Statut : **Disponible**
 
-        Route prévue pour modifier un thème.
+        Modifie un thème.
       operationId: updateTheme
-      x-availability: non_disponible
-      x-us: 'US Gestion des thèmes'
+      x-availability: disponible
       parameters:
         - $ref: '#/components/parameters/ThemeId'
       requestBody:
@@ -4272,14 +4298,32 @@ paths:
                     $ref: '#/components/schemas/Theme'
         '400':
           description: >-
-            Corps invalide (`theme_name_required`, `theme_mode_invalid`, `theme_company_required`,
+            Corps invalide (`theme_id_invalid`, `theme_name_required`, `theme_mode_invalid`,
             `theme_playlist_ref_invalid`, `theme_playlist_mode_invalid`)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token manquant ou invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (`forbidden`), permission manquante ou thème d'une autre compagnie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Thème introuvable (`theme_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
-          description: >-
+          description: |
             Playlist refusée : inconnue du fournisseur (`theme_playlist_not_found`) ou moins de 4
             titres jouables (`theme_playlist_too_small`)
           content:
@@ -4292,24 +4336,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-        '501':
-          description: Route prévue mais pas encore implémentée
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotImplementedResponse'
 
     delete:
       tags:
         - Themes
-      summary: '[NON DISPONIBLE] Supprimer un thème'
+      summary: '[DISPONIBLE] Supprimer un thème'
       description: |
-        Statut : **Non disponible**
+        Statut : **Disponible**
 
-        Route prévue pour supprimer logiquement un thème.
+        Supprime logiquement un thème.
       operationId: deleteTheme
-      x-availability: non_disponible
-      x-us: 'US Gestion des thèmes'
+      x-availability: disponible
       parameters:
         - $ref: '#/components/parameters/ThemeId'
       responses:
@@ -4322,12 +4359,30 @@ paths:
                 properties:
                   theme:
                     $ref: '#/components/schemas/Theme'
-        '501':
-          description: Route prévue mais pas encore implémentée
+        '400':
+          description: Identifiant invalide (`theme_id_invalid`)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/NotImplementedResponse'
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token manquant ou invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (`forbidden`), permission manquante ou thème d'une autre compagnie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Thème introuvable (`theme_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /questions:
     get:

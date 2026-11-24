@@ -39,6 +39,7 @@ function themeRow(overrides: Partial<ThemeAccessRow>): ThemeAccessRow {
     company_id: null,
     status: THEME_STATUS_ACTIVE,
     mode: THEME_MODE_CLASSIC,
+    playlist_ref: null,
     ...overrides,
   }
 }

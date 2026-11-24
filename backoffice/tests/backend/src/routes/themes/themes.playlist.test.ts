@@ -314,6 +314,32 @@ describe('PATCH /themes/:id avec une playlist', () => {
     expect(storedTheme(4)).toMatchObject({ playlist_provider: 'deezer', playlist_ref: '99' })
   })
 
+  it('ne rappelle pas le fournisseur quand la référence est celle déjà enregistrée', async () => {
+    const fetchMock = stubProviderFetch(() => {
+      throw new DOMException('timeout', 'TimeoutError')
+    })
+
+    const response = await patch(4, { name: 'Renommé', playlistRef: '99' })
+
+    expect(response.statusCode).toBe(200)
+    expect(storedTheme(4)).toMatchObject({ name: 'Renommé', playlist_ref: '99' })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('refuse (400) si le thème a quitté le mode audio pendant l’appel au fournisseur', async () => {
+    stubProviderFetch(() => {
+      storedTheme(4).mode = THEME_MODE_CLASSIC
+
+      return jsonResponse(playlistBody(4))
+    })
+
+    const response = await patch(4, { playlistRef: '2024' })
+
+    expect(response.statusCode).toBe(400)
+    expect(parseJson(response)).toEqual({ error: 'theme_playlist_mode_invalid' })
+    expect(storedTheme(4)).toMatchObject({ mode: THEME_MODE_CLASSIC, playlist_ref: '99' })
+  })
+
   it('refuse (400) une référence invalide sans appeler le fournisseur', async () => {
     const fetchMock = stubPlaylist()
 

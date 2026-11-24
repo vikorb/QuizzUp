@@ -61,6 +61,7 @@ export type ThemeAccessRow = {
   company_id: number | null
   status: ThemeStatus
   mode: ThemeMode
+  playlist_ref: string | null
 }
 
 export const themeSelect = [
@@ -133,7 +134,7 @@ export function canEditTheme(theme: ThemeAccessRow, req: FastifyRequest): boolea
 
 export async function getThemeAccessRow(themeId: number): Promise<ThemeAccessRow | null> {
   const theme = await db('themes')
-    .select('id', 'scope', 'company_id', 'status', 'mode')
+    .select('id', 'scope', 'company_id', 'status', 'mode', 'playlist_ref')
     .where({ id: themeId })
     .first()
 

@@ -269,7 +269,7 @@ describe('services/mediaProvider — getProviderPlaylistTracks', () => {
     expect([track.title, track.titleShort]).toEqual(['Song (Remastered)', 'Song'])
   })
 
-  it('flags a title that is not readable, and a title without a usable preview', async () => {
+  it('flags a title only when readable is false (absent means readable), and a title without a usable preview', async () => {
     stubProviderFetch(() =>
       jsonResponse({
         data: [
@@ -285,7 +285,7 @@ describe('services/mediaProvider — getProviderPlaylistTracks', () => {
 
     expect(tracks.map((track) => [track.readable, track.previewUrl === null])).toEqual([
       [false, false],
-      [false, false],
+      [true, false],
       [true, true],
       [true, true],
     ])

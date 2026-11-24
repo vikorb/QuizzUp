@@ -64,8 +64,9 @@ Salle :
 - **Quand** : dans `loadRoomContent`, au lancement. Pas à la création de la partie : un lien
   d'extrait expire 15 minutes après sa lecture.
 - **Volume** : K = `games.questions_per_round` titres par playlist, au plus 6 playlists par partie
-  (tirées au hasard s'il y en a plus).
-- **Titres jouables** : `readable` vrai et lien d'extrait en `https`. Doublons retirés sur
+  (tirées au hasard s'il y en a plus). La lecture d'une playlist est limitée à ses 500 premiers titres
+  (un seul appel) : le tirage de L2 porte donc sur ces 500 titres.
+- **Titres jouables** : `readable` non faux (champ absent = jouable) et lien d'extrait en `https`. Doublons retirés sur
   `title_short` normalisé (minuscules, sans accents ni espaces superflus).
 - **Leurres** : 3 titres pris dans toute la liste, même sans extrait ; titres normalisés distincts
   du bon et entre eux. Texte des réponses : « titre – artiste ».

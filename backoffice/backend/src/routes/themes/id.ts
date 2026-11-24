@@ -172,7 +172,11 @@ const themeIdRoutes: FastifyPluginAsync = async (app) => {
       const mode = req.body.mode ?? accessTheme.mode
       const playlistRef = req.body.playlistRef
 
-      if (playlistRef !== undefined && playlistRef !== null) {
+      // Même référence que celle déjà enregistrée sur un thème audio : rien à revérifier.
+      const unchangedPlaylist =
+        playlistRef === accessTheme.playlist_ref && mode === THEME_MODE_AUDIO
+
+      if (playlistRef !== undefined && playlistRef !== null && !unchangedPlaylist) {
         // Appel réseau avant l'écriture : rien n'est enregistré si la playlist est refusée.
         const playlistError = await checkThemePlaylist(req, playlistRef, mode)
 
@@ -190,7 +194,20 @@ const themeIdRoutes: FastifyPluginAsync = async (app) => {
         )
       }
 
-      const [theme] = await db('themes').where({ id: themeId }).update(patch).returning(themeSelect)
+      // Le mode a été lu avant l'appel réseau : si le thème a quitté le mode audio entre-temps, la
+      // condition ci-dessous écarte l'écriture (sinon le CHECK de la base lèverait une erreur 500).
+      const keepsStoredMode = typeof playlistRef === 'string' && req.body.mode === undefined
+      const update = db('themes').where({ id: themeId })
+
+      if (keepsStoredMode) {
+        update.where({ mode: THEME_MODE_AUDIO })
+      }
+
+      const [theme] = await update.update(patch).returning(themeSelect)
+
+      if (!theme && keepsStoredMode) {
+        return reply.code(400).send({ error: 'theme_playlist_mode_invalid' })
+      }
 
       return { theme }
     }
