@@ -8,6 +8,8 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Bons : page publique `/bon/#<code>` pour le téléphone du joueur, sur la même infrastructure que `/rejoindre/`. Elle affiche l'état du bon (valide, utilisé, expiré, annulé, introuvable) ; le code reste dans le fragment de l'adresse et part dans le corps de la requête, jamais dans une URL.
+  US: US-VOUCHER-01 (#156)
 - Écran « Joueurs » du backoffice : liste paginée avec recherche sur le nom, nombre de parties, dernière venue et meilleur score ; désinscription des offres et effacement définitif d'un joueur (admins) ; export CSV des joueurs qui acceptent les offres. Un membre du staff voit la liste sans adresse, sans action et sans export.
   US: US-PLAYERS-01 (#157)
 - Écran de salle, réglage des lumières : les modèles de salle (`ROOM_TEMPLATES`) se choisissent dans l'assistant, avec une confirmation avant de remplacer des appareils déjà réglés, et une répartition des univers est proposée en Art-Net avant le test. Un modèle ne touche jamais aux réglages de fumée ; un modèle à plusieurs univers n'est pas proposé avec une interface USB.
