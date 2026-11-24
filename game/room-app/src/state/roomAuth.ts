@@ -36,6 +36,8 @@ export function signIn(nextToken: string, nextAccount: RoomAccount): void {
   setRoomAccountId(nextAccount.id)
   token.value = nextToken
   account.value = nextAccount
+  // Le logo d'un autre centre ne reste jamais affiché : il est relu avec la config de ce compte.
+  company.value = null
   // Des résultats de partie attendaient peut-être un jeton valide.
   void flushPendingFinishes()
 }

@@ -31,7 +31,7 @@ watch(logoUrl, () => {
   display: block;
   width: auto;
   height: auto;
-  max-width: 100%;
+  max-width: var(--company-logo-w, 100%);
   max-height: var(--company-logo-h, 40px);
   object-fit: contain;
 }

@@ -82,9 +82,9 @@ const winners = computed(() => props.lines.filter((line) => line.rank === 1 && l
 }
 
 .finished__company {
-  --company-logo-h: 96px;
-
-  max-width: 320px;
+  /* Plafond 96 px, réduit sur les écrans bas pour que les boutons restent visibles. */
+  --company-logo-h: clamp(40px, 10vh, 96px);
+  --company-logo-w: 320px;
 }
 
 .finished__title {

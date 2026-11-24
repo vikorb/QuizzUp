@@ -79,9 +79,9 @@ onBeforeUnmount(() => document.removeEventListener('fullscreenchange', sync))
 
 .topbar__company {
   --company-logo-h: 40px;
+  --company-logo-w: 160px;
 
   min-width: 0;
-  max-width: 160px;
 }
 
 .topbar__badge,
