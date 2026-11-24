@@ -520,34 +520,35 @@ export const GAME_FORMAT_SETTINGS: Record<
  * Délais du moteur de jeu entre deux étapes (le moteur les réexporte sous `DEFAULT_GAME_TIMINGS`).
  * `themeChoiceMs` est un plafond : le joueur désigné choisit souvent plus vite.
  */
-export const GAME_DEFAULT_TIMINGS_MS = {
+export const GAME_DEFAULT_TIMINGS_MS = Object.freeze({
   roundIntroMs: 4000,
   themeChoiceMs: 15_000,
   revealMs: 5000,
   roundSummaryMs: 8000,
-}
+})
 
 /** Choix du thème en temps typique, pour l'estimation (le plafond est `themeChoiceMs`). */
-const THEME_CHOICE_TYPICAL_MS = 7000
+export const THEME_CHOICE_TYPICAL_MS = 7000
 
 export type DurationEstimate = { typicalMs: number; highMs: number }
 
 /**
  * Durée d'une question de chaque mini-jeu, révélation comprise. `highMs` : toutes les échéances
- * atteintes, sans mauvaise réponse (une erreur d'un jeu de buzz ajoute jusqu'à 5 s). `typicalMs` :
- * hypothèses à recaler sur le banc. Un test du moteur vérifie `highMs` contre ses constantes.
+ * atteintes, un buzz à la dernière seconde (le jeu de buzz ajoute alors 5 s de réponse), sans
+ * mauvaise réponse (une erreur ajoute jusqu'à 5 s). `typicalMs` : hypothèses à recaler sur le
+ * banc. Un test du moteur vérifie `highMs` contre ses constantes.
  */
 export const MINI_GAME_QUESTION_ESTIMATES_MS: Record<MiniGame, DurationEstimate> = {
-  [MINI_GAME_FLASH_BLIND_TEST]: { typicalMs: 18_000, highMs: 40_000 },
+  [MINI_GAME_FLASH_BLIND_TEST]: { typicalMs: 18_000, highMs: 45_000 },
   [MINI_GAME_QUICK_ANSWER]: { typicalMs: 14_000, highMs: 20_000 },
-  [MINI_GAME_FIRST_BUZZ]: { typicalMs: 14_000, highMs: 20_000 },
+  [MINI_GAME_FIRST_BUZZ]: { typicalMs: 14_000, highMs: 25_000 },
   [MINI_GAME_TRUE_FALSE]: { typicalMs: 6100, highMs: 8500 },
   [MINI_GAME_DOUBLE_OR_NOTHING]: { typicalMs: 18_000, highMs: 28_000 },
   [MINI_GAME_SUDDEN_DEATH]: { typicalMs: 14_000, highMs: 20_000 },
   [MINI_GAME_POINT_STEAL]: { typicalMs: 18_000, highMs: 28_000 },
   [MINI_GAME_STREAK]: { typicalMs: 14_000, highMs: 20_000 },
   [MINI_GAME_ESTIMATE]: { typicalMs: 17_000, highMs: 25_000 },
-  [MINI_GAME_PROGRESSIVE_REVEAL]: { typicalMs: 16_000, highMs: 25_000 },
+  [MINI_GAME_PROGRESSIVE_REVEAL]: { typicalMs: 16_000, highMs: 30_000 },
 }
 
 function toCount(value: number): number {
@@ -557,7 +558,7 @@ function toCount(value: number): number {
 /**
  * Durée estimée du jeu d'une partie (hors accueil et podium), avec les délais par défaut :
  * `R × (intro + choix du thème + bilan) + R × Q × moyenne des mini-jeux`. `miniGames` absent ou
- * vide : tous. Nombres négatifs, décimaux ou non finis : ramenés à un entier ≥ 0.
+ * vide, ou sans code connu : tous. Nombres négatifs, décimaux ou non finis : ramenés à un entier ≥ 0.
  */
 export function estimateGameDurationMs(input: {
   roundsCount: number
@@ -566,7 +567,9 @@ export function estimateGameDurationMs(input: {
 }): DurationEstimate {
   const rounds = toCount(input.roundsCount)
   const questions = rounds * toCount(input.questionsPerRound)
-  const games = input.miniGames?.length ? input.miniGames : MINI_GAMES
+  const known: readonly MiniGame[] =
+    input.miniGames?.filter((miniGame) => MINI_GAMES.some((code) => code === miniGame)) ?? []
+  const games = known.length ? known : MINI_GAMES
   const { roundIntroMs, themeChoiceMs, roundSummaryMs } = GAME_DEFAULT_TIMINGS_MS
 
   const average = (key: keyof DurationEstimate): number =>

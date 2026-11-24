@@ -112,7 +112,7 @@ const FORMATS = GAME_FORMATS.filter((id) => id !== GAME_FORMAT_CUSTOM).map((id) 
     id,
     ...settings,
     minMinutes: Math.round(typicalMs / MS_PER_MINUTE),
-    maxMinutes: Math.round(highMs / MS_PER_MINUTE),
+    maxMinutes: Math.ceil(highMs / MS_PER_MINUTE),
   }
 })
 

@@ -17,6 +17,8 @@ import {
   MINI_GAME_QUESTION_ESTIMATES_MS,
   MINI_GAME_TRUE_FALSE,
   MINI_GAMES,
+  type MiniGame,
+  THEME_CHOICE_TYPICAL_MS,
 } from '@quizzup/shared'
 
 const minutes = (ms: number): number => ms / 60_000
@@ -65,24 +67,24 @@ describe('@quizzup/shared — estimations par mini-jeu', () => {
 
 describe('@quizzup/shared — estimateGameDurationMs', () => {
   it.each([
-    // [format, jeu typique min, jeu haut min] : table de la conception, jeu haut arrondi.
-    [GAME_FORMAT_DISCOVERY, 3, 5],
-    [GAME_FORMAT_SHORT, 12, 19],
-    [GAME_FORMAT_STANDARD, 28, 44],
+    // [format, jeu typique min, jeu haut min] : table de la conception, jeu haut arrondi au-dessus (comme le lobby).
+    [GAME_FORMAT_DISCOVERY, 3, 6],
+    [GAME_FORMAT_SHORT, 12, 21],
+    [GAME_FORMAT_STANDARD, 28, 47],
   ] as const)('%s : %i min typique, %i min haut (tous les mini-jeux)', (format, typical, high) => {
     const estimate = estimateGameDurationMs(GAME_FORMAT_SETTINGS[format])
 
     expect(Math.round(minutes(estimate.typicalMs))).toBe(typical)
-    expect(Math.round(minutes(estimate.highMs))).toBe(high)
+    expect(Math.ceil(minutes(estimate.highMs))).toBe(high)
   })
 
-  it('Standard tient dans un créneau d’une heure, Courte dans une demi-heure', () => {
+  it('Standard tient dans un créneau de 60 minutes, Courte dans un créneau de 30 minutes', () => {
     expect(
       minutes(estimateGameDurationMs(GAME_FORMAT_SETTINGS[GAME_FORMAT_STANDARD]).highMs)
-    ).toBeLessThanOrEqual(45)
+    ).toBeLessThanOrEqual(60)
     expect(
       minutes(estimateGameDurationMs(GAME_FORMAT_SETTINGS[GAME_FORMAT_SHORT]).highMs)
-    ).toBeLessThanOrEqual(20)
+    ).toBeLessThanOrEqual(30)
   })
 
   it('calcule R × (intro + thème + bilan) + R × Q × moyenne pour un format personnalisé', () => {
@@ -95,9 +97,9 @@ describe('@quizzup/shared — estimateGameDurationMs', () => {
       miniGames: [MINI_GAME_TRUE_FALSE],
     })
 
-    // Choix du thème typique : 7 s ; au plus : `themeChoiceMs`.
+    // Choix du thème typique : `THEME_CHOICE_TYPICAL_MS` ; au plus : `themeChoiceMs`.
     expect(estimate.typicalMs).toBe(
-      2 * (roundIntroMs + 7000 + roundSummaryMs) + 10 * trueFalse.typicalMs
+      2 * (roundIntroMs + THEME_CHOICE_TYPICAL_MS + roundSummaryMs) + 10 * trueFalse.typicalMs
     )
     expect(estimate.highMs).toBe(
       2 * (roundIntroMs + themeChoiceMs + roundSummaryMs) + 10 * trueFalse.highMs
@@ -138,6 +140,21 @@ describe('@quizzup/shared — estimateGameDurationMs', () => {
     )
   })
 
+  it('ignore les codes de mini-jeu inconnus, et les compte tous s’il n’en reste aucun', () => {
+    const input = { roundsCount: 4, questionsPerRound: 4 }
+    const known = estimateGameDurationMs({ ...input, miniGames: [MINI_GAME_TRUE_FALSE] })
+
+    expect(
+      estimateGameDurationMs({
+        ...input,
+        miniGames: [MINI_GAME_TRUE_FALSE, 'inconnu' as MiniGame],
+      })
+    ).toEqual(known)
+    expect(estimateGameDurationMs({ ...input, miniGames: ['inconnu' as MiniGame] })).toEqual(
+      estimateGameDurationMs(input)
+    )
+  })
+
   it('donne la plus petite partie : 1 manche, 1 question', () => {
     const { roundIntroMs, themeChoiceMs, roundSummaryMs } = GAME_DEFAULT_TIMINGS_MS
     const estimate = estimateGameDurationMs({
@@ -146,7 +163,7 @@ describe('@quizzup/shared — estimateGameDurationMs', () => {
       miniGames: [MINI_GAME_TRUE_FALSE],
     })
 
-    expect(estimate.typicalMs).toBe(roundIntroMs + 7000 + roundSummaryMs + 6100)
+    expect(estimate.typicalMs).toBe(roundIntroMs + THEME_CHOICE_TYPICAL_MS + roundSummaryMs + 6100)
     expect(estimate.highMs).toBe(roundIntroMs + themeChoiceMs + roundSummaryMs + 8500)
   })
 
@@ -189,7 +206,7 @@ describe('@quizzup/shared — estimateGameDurationMs', () => {
       const { roundIntroMs, themeChoiceMs, roundSummaryMs } = GAME_DEFAULT_TIMINGS_MS
 
       expect(estimateGameDurationMs({ roundsCount: 2, questionsPerRound: questions })).toEqual({
-        typicalMs: 2 * (roundIntroMs + 7000 + roundSummaryMs),
+        typicalMs: 2 * (roundIntroMs + THEME_CHOICE_TYPICAL_MS + roundSummaryMs),
         highMs: 2 * (roundIntroMs + themeChoiceMs + roundSummaryMs),
       })
     }

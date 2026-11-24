@@ -112,9 +112,9 @@ describe('LobbyView — format de partie', () => {
 
     const labels = wrapper.findAll('.format__option').map((option) => option.text())
     expect(labels).toEqual([
-      'Découverte · 3 manches × 3 questions · 3 à 5 min',
-      'Courte · 6 manches × 7 questions · 12 à 19 min',
-      'Standard · 10 manches × 10 questions · 28 à 44 min',
+      'Découverte · 3 manches × 3 questions · 3 à 6 min',
+      'Courte · 6 manches × 7 questions · 12 à 21 min',
+      'Standard · 10 manches × 10 questions · 28 à 47 min',
     ])
     wrapper.unmount()
   })
