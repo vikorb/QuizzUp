@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Installation d'un programme sur une carte Arduino Uno depuis le navigateur (bibliothèque `game/hardware`, pas encore d'écran) : lecture et écriture de fichiers Intel HEX, client du chargeur Optiboot par Web Serial (protocole STK500v1, 115200 puis 57600 bauds), sauvegarde de la flash relue avant toute écriture, écriture par pages suivie d'une relecture complète, restauration d'un `.hex`, erreurs nommées (`no_sync`, `wrong_signature`, `too_large`, `verify_failed`, `port_lost`, `port_busy`, `backup_failed`, `timeout`, `cancelled`). Testé contre un émulateur d'Optiboot ; rien n'a été essayé sur une vraie carte.
+  US: US-DMX-01 (#215)
+
 - Effet audio joué en salle : le blind test lit l'extrait avec l'effet de la question (court, inversé, ralenti), avec des paliers raccourcis pour `short` et une reprise fidèle après rechargement.
   US: US-AUDIO-02 (#144)
 

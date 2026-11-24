@@ -656,6 +656,31 @@ Avec la case et sans relais, le relais temporisé n'est pas exigé (`getState().
 une salle en simulation) et renvoie la config normalisée, les appareils résolus et la liste des
 problèmes à afficher (touche en double, adresses qui se chevauchent, profil inconnu…).
 
+## Installer un programme sur une carte Uno (`firmware/`)
+
+Client du chargeur Optiboot d'une carte compatible Arduino Uno, par Web Serial (protocole STK500v1,
+écrit pour ce paquet, aucune bibliothèque de téléversement). Bibliothèque seulement : aucun écran
+ne l'appelle encore.
+
+- `parseIntelHex(texte)` / `writeIntelHex(image)` : fichier `.hex` ↔ image mémoire (trous à 0xFF,
+  somme de contrôle vérifiée ; adresses étendues refusées, un Uno n'en a pas besoin).
+- `installFirmware({ port, hex, onBackup, onProgress, signal })` : impulsion DTR, synchronisation
+  (115200 bauds, puis une fois 57600), signature `1E 95 0F`, **sauvegarde de la flash relue et
+  remise à `onBackup` avant toute écriture** (si elle échoue, rien n'est écrit), écriture par pages
+  de 128 octets, relecture complète, sortie du chargeur. Le port doit être fermé : le client
+  l'ouvre.
+- `restoreFirmware({ port, hex })` réécrit un `.hex` (la sauvegarde téléchargée) ;
+  `connectBootloader` donne le client (`readFlash`, `writeFlash`, `leave`, `close`) pour les cas
+  particuliers.
+- Erreurs `FirmwareError.code` : `no_sync`, `wrong_signature`, `too_large` (plus de 32 256 octets),
+  `verify_failed` (avec `address`), `port_lost`, `port_busy`, `timeout`, `cancelled`,
+  `backup_failed`.
+
+Limites : Uno et clones avec Optiboot seulement (ATmega328P, 32 256 octets). Testé contre un
+émulateur d'Optiboot (`tests/_helpers/fakeOptiboot.ts`) ; **rien n'est prouvé sur une vraie carte**
+(remise à zéro par DTR, débit, pilote USB : à voir sur le banc). Après une erreur, le chargeur n'est
+pas quitté : l'installation se recommence.
+
 ## Commandes
 
 ```bash
