@@ -247,6 +247,54 @@
         "default": "Une erreur est survenue."
       }
     },
+    "diagnostic": {
+      "title": "Diagnostic — {name}",
+      "loading": "Connexion à la salle...",
+      "unknown": "Inconnu",
+      "rows": {
+        "appVersion": "Version de l’écran de salle",
+        "buzzers": "Buzzers",
+        "lights": "Lumières",
+        "smoke": "Fumée",
+        "audio": "Audio",
+        "lastError": "Dernière erreur"
+      },
+      "buzzers": {
+        "keyboard": "Clavier",
+        "gamepad": "Manette : {count} détectée(s)",
+        "gamepadNone": "Manette : aucune détectée",
+        "gamepadUnknown": "Manette"
+      },
+      "lights": {
+        "value": "{driver} : {status}",
+        "drivers": {
+          "simulation": "Simulation",
+          "usbpro": "DMX USB Pro",
+          "opendmx": "Open DMX",
+          "artnet-bridge": "Pont Art-Net"
+        },
+        "statuses": {
+          "open": "connecté",
+          "opening": "connexion en cours",
+          "closing": "fermeture en cours",
+          "closed": "sortie fermée",
+          "error": "en erreur",
+          "unknown": "état inconnu"
+        }
+      },
+      "smoke": {
+        "disabled": "Désactivée",
+        "enabled": "Autorisée, non armée",
+        "armed": "Armée"
+      },
+      "audio": {
+        "ready": "Prêt",
+        "waiting": "Pas encore prêt (un clic sur le poste est nécessaire)"
+      },
+      "lastError": {
+        "none": "Aucune depuis le démarrage du poste"
+      }
+    },
     "logs": {
       "title": "Journaux d’erreurs — {name}",
       "loading": "Chargement des journaux...",
