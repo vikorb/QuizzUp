@@ -87,6 +87,7 @@ test.describe('Fiche d’une partie — commandes à distance', () => {
     })
     await expect(feedback).toHaveText('Commande appliquée par la salle.')
     await expect(paused).toHaveCount(0)
+    await expect(toggle).toHaveText('Pause')
 
     await api.push('room_status', roomPlaying(true))
     await expect(paused).toBeVisible()
@@ -99,6 +100,7 @@ test.describe('Fiche d’une partie — commandes à distance', () => {
     const api = await mockLiveGameApi(page, { game: GAME, room: roomPlaying(true) })
     const paused = page.locator('[data-test="game-live-paused"]')
     const toggle = page.locator('[data-test="game-live-toggle-pause"]')
+    const feedback = page.locator('[data-test="game-live-command-feedback"]')
 
     await page.goto('/games/42')
     await expect(paused).toBeVisible()
@@ -115,7 +117,10 @@ test.describe('Fiche d’une partie — commandes à distance', () => {
       command: 'resume',
       result: 'applied',
     })
+    // L'accusé est traité avant de vérifier que la pause reste affichée.
+    await expect(feedback).toHaveText('Commande appliquée par la salle.')
     await expect(paused).toBeVisible()
+    await expect(toggle).toHaveText('Reprendre')
 
     await api.push('room_status', roomPlaying(false))
     await expect(paused).toHaveCount(0)

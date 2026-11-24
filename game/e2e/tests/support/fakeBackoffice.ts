@@ -177,6 +177,11 @@ export async function mockLiveGameApi(
         if (url !== liveUrl) {
           return realFetch(input, init)
         }
+        // Comme le vrai serveur : pas de flux sans le jeton du personnel.
+        const headers = new Headers(input instanceof Request ? input.headers : init?.headers)
+        if (headers.get('authorization') !== 'Bearer jeton-du-staff') {
+          return Promise.resolve(new Response(null, { status: 401 }))
+        }
         const body = new ReadableStream<Uint8Array>({
           start(controller) {
             stream = controller

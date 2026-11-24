@@ -62,7 +62,9 @@ frontend, `fakeApi.ts` pour la salle), avec les réponses du contrat `openapi.ya
   Le flux `GET /companies/3/live` n'est pas rendu par `page.route` (réponse d'un bloc, puis fermée :
   les boutons se bloqueraient) : `fetch` est remplacé dans la page par un flux resté ouvert, alimenté
   par `api.push`. Ne prouve pas : la salle réelle (cf. `room-app/remote-commands.spec.ts`), le
-  serveur, `expired`, ni le passage de question.
+  serveur, `expired`, `refused` et sa raison traduite, le tri des accusés par `commandId`,
+  l'authentification et le CORS du flux côté serveur, la reconnexion, ni le passage de question
+  (les accusés et la reconnexion sont couverts par les tests unitaires de `useLiveCompany`).
 
 ### Pont Art-Net réel (`tests/support/artnetBridge.ts`)
 
