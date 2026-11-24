@@ -45,6 +45,7 @@ import {
   mdiPlayCircleOutline,
 } from '@mdi/js'
 import { ADMIN_ROLE_SUPERADMIN } from '@quizzup/shared'
+import { navItems as surfaceNavItems } from '@surface'
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 
@@ -96,16 +97,10 @@ const navManage = computed(() => {
     },
   ] as const
 
-  if (isSuperadmin.value) {
-    return [
-      {
-        to: '/clients',
-        icon: mdiBriefcaseAccountOutline,
-        iconType: 'mdi' as const,
-        labelKey: 'navbar.clients',
-      },
-      ...base,
-    ]
+  // Entrées de la console de l'éditeur : vides dans l'espace centre, où le superadmin retombe sur
+  // le lien de sa propre compagnie.
+  if (isSuperadmin.value && surfaceNavItems.length > 0) {
+    return [...surfaceNavItems, ...base]
   }
 
   if (currentCompanyId.value) {

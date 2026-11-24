@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Deux constructions du frontend : la surface « centre » (`npm run build:centre`, dossier `dist`) ne contient aucun écran de la console éditeur ; la surface « console » (`npm run build:console`, dossier `dist-console`) les ajoute. `npm run check:surface` construit les deux et échoue si un écran de la console se retrouve dans la surface centre ; la CI le lance. En production et en recette, la console est servie sur son propre hôte, réservé aux adresses de `CONSOLE_ALLOWED_CIDRS`. `npm run dev` et la démo Docker gardent tous les écrans.
+  US: US-CONSOLE-01 (#161)
+
 - Connexion du superadmin en deux temps : code de l'application d'authentification ou code de secours, enrôlement avec secret à recopier (sans QR code), codes de secours affichés une seule fois, réinitialisation depuis le profil. Les autres rôles se connectent comme avant.
   US: US-CONSOLE-03 (#161)
 

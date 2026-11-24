@@ -13,6 +13,7 @@ export default [
     ignores: [
       '**/node_modules/**',
       '**/dist/**',
+      '**/dist-console/**',
       '**/coverage/**',
       '**/.vite/**',
       '**/.output/**',
@@ -86,6 +87,13 @@ export default [
       'no-console': 'off',
       'no-process-exit': 'off',
     },
+  },
+
+  // Scripts Node du frontend (contrôles de construction), pas du code du navigateur.
+  {
+    files: ['**/frontend/scripts/**/*.mjs'],
+    languageOptions: { sourceType: 'module', globals: { ...globals.node } },
+    rules: { 'no-console': 'off', 'no-process-exit': 'off' },
   },
 
   ...tseslint.configs.recommended.map((config) => ({

@@ -1,3 +1,4 @@
+import { routes as surfaceRoutes } from '@surface'
 import { createRouter } from 'vue-router'
 import { createWebHistory } from 'vue-router'
 
@@ -8,8 +9,6 @@ import { canCreateTheme } from '@/utils/theme/permissions'
 import AgendaView from '@/views/AgendaView.vue'
 import CreateAccountView from '@/views/clients/accounts/CreateAccountView.vue'
 import ClientDetailsView from '@/views/clients/ClientDetailsView.vue'
-import CreateClientView from '@/views/clients/CreateClientView.vue'
-import ClientsView from '@/views/ClientsView.vue'
 import CreateGameView from '@/views/games/CreateGameView.vue'
 import GameDetailView from '@/views/games/GameDetailView.vue'
 import GameResultsView from '@/views/games/results/GameResultsView.vue'
@@ -93,18 +92,8 @@ export const router = createRouter({
           component: CreateAccountView,
           meta: { requiresAuth: true },
         },
-        {
-          path: 'clients',
-          name: 'clients',
-          component: ClientsView,
-          meta: { requiresAuth: true, requiresSuperadmin: true },
-        },
-        {
-          path: 'clients/create',
-          name: 'clients-create',
-          component: CreateClientView,
-          meta: { requiresAuth: true, requiresSuperadmin: true },
-        },
+        // Écrans propres à la surface construite (console de l'éditeur : clients, etc.).
+        ...surfaceRoutes,
         {
           path: 'clients/:companyId/accounts/create',
           name: 'company-account-create',
