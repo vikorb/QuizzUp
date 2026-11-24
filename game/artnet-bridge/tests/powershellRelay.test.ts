@@ -31,9 +31,10 @@ const MARKER_TIMEOUT_MS = 30_000
  * Attente d'une trame ou d'un paquet qui DOIT arriver. Le relais est un processus PowerShell à
  * boucle unique : sur un poste chargé (runner de CI), un démarrage à froid ou une pause peut dépasser
  * les 2 s par défaut des helpers sans que le relais soit en défaut. Un succès ne dépend pas de cette
- * valeur ; seul un vrai blocage la atteint, et le test échoue alors avant son propre délai de 60 s.
+ * valeur ; seul un vrai blocage la atteint. Trois attentes de suite (le pire test) restent sous le
+ * délai de 60 s du test : le blocage est dit par « aucune trame du serveur », pas par « Test timed out ».
  */
-const EXPECTED_TIMEOUT_MS = 20_000
+const EXPECTED_TIMEOUT_MS = 15_000
 const ZEROS = new Uint8Array(512)
 const ADDRESS_0 = { net: 0, subnet: 0, universe: 0 }
 
@@ -252,11 +253,17 @@ describe.skipIf(process.platform !== 'win32')(
 
     it('lit les origines dans QUIZZUP_BRIDGE_ORIGINS et répond 426 hors WebSocket', async () => {
       const relay = await startRelay({ origin: 'env' })
-      const status = await new Promise<number>((resolve) => {
-        request({ host: '127.0.0.1', port: relay.port, path: '/' }, (response) => {
+      const status = await new Promise<number>((resolve, reject) => {
+        const get = request({ host: '127.0.0.1', port: relay.port, path: '/' }, (response) => {
           response.resume()
           resolve(response.statusCode ?? 0)
-        }).end()
+        })
+        get.setTimeout(EXPECTED_TIMEOUT_MS, () => {
+          reject(new Error(`aucune réponse HTTP du relais après ${EXPECTED_TIMEOUT_MS} ms`))
+          get.destroy()
+        })
+        get.on('error', reject)
+        get.end()
       })
       expect(status).toBe(426)
       const client = await connect(relay, helloV1)
