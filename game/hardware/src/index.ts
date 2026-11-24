@@ -136,6 +136,7 @@ export {
   MAX_COLOR_SLOTS,
 } from './dmx/profiles'
 export type {
+  DmxPortExclusion,
   SerialErrorCode,
   SerialErrorDescription,
   SerialLike,
@@ -208,6 +209,7 @@ export {
 export type { ParsedExit, ParsedScenes } from './lighting/showConfig'
 export { parseExit, parseScenes, SCENE_LIMITS } from './lighting/showConfig'
 export type {
+  SmokeBoardConfig,
   SmokeController,
   SmokeFireResult,
   SmokeRefusal,
@@ -220,6 +222,8 @@ export {
   createSmokeController,
   DEFAULT_SMOKE_SAFETY,
   normalizeSmokeSafety,
+  parseSmokeBoard,
+  SMOKE_BOARD_KINDS,
   SMOKE_HARD_LIMITS,
 } from './lighting/smoke'
 export type { PlanFixture, PlanPoint, PlanTarget, RoomPlan } from './plan'

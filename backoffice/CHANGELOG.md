@@ -8,6 +8,16 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Fumée par la carte USB, contrôleur : le contrôleur de lumières accepte un lien vers la carte (`smokeLink`) et lui envoie l'ordre de fumée à chaque trame. L'arrêt part tout de suite à la pause, à l'onglet masqué, à la fermeture de la page, à l'arrêt d'urgence et au changement de sortie. Un lien perdu coupe le jet et désarme la fumée ; un tir est refusé (`board_unavailable`) tant que la carte n'est pas prête. Le réglage `lighting.smoke.board` n'est jamais exporté, et le port de la carte est exclu du choix du port DMX. À valider sur le banc.
+  US: US-DMX-01 (#215)
+
+- Lumières à la pause : quand la partie est mise en pause, la salle passe sur une ambiance basse (scène `pause`, sans éclair ni fumée) ; à la reprise elle retrouve la lumière de la phase en cours. Les liaisons `game_paused` et `game_resumed` restent réglables par salle.
+- Écran Matériel : boutons Exporter et Importer la configuration de la salle (onglet Configuration avancée). L'import vérifie le type et la taille du fichier, affiche un résumé et demande confirmation. Il ne relève aucun réglage de fumée : activation, niveau, jet, pause et confirmation restent ceux de la salle ou plus stricts, et l'assistant, le test de coupure et l'armement sont à refaire. À valider sur le banc.
+  US: US-SHOW-01 (#145)
+
+- Clés d'API au backoffice : la fiche client liste les clés de la compagnie, en crée une, en révoque une (avec confirmation) et affiche le journal des appels. Le secret ne s'affiche qu'une fois, à la création, et n'est jamais enregistré dans le navigateur. Réservé aux rôles admin et superadmin.
+  US: US-BOOKING-01 (#188)
+
 - Format de partie au backoffice et au lobby : à la création, le formulaire propose Découverte, Courte, Standard (par défaut) et Personnalisé, avec les nombres et la durée estimée de chaque format. Les champs manches et questions n'apparaissent qu'en Personnalisé. Le lobby du staff affiche le format et sa durée.
   US: US-FORMAT-01 (#143)
 
