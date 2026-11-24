@@ -20,8 +20,9 @@ RUN npm --prefix backend ci
 COPY backoffice/backend backend
 RUN npm --prefix backend run build
 
-# L'API lit openapi.yaml au démarrage (Swagger) : copié dans l'image, pas monté.
-COPY backoffice/docs/api/openapi.yaml docs/api/openapi.yaml
+# L'API lit openapi.yaml (Swagger) et public-v1.yaml (contrat de l'API publique, servi par
+# GET /public/v1/openapi.yaml) au démarrage : copiés dans l'image, pas montés.
+COPY backoffice/docs/api/openapi.yaml backoffice/docs/api/public-v1.yaml docs/api/
 
 # Dossier des médias : créé au bon propriétaire pour que le volume nommé en hérite.
 RUN mkdir -p /data/media && chown node:node /data/media

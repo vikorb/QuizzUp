@@ -3,8 +3,10 @@ import type { FastifyPluginAsync } from 'fastify'
 import publicApiPlugin from '../../plugins/publicApi'
 import { applyPublicDefaults } from './_shared'
 import publicAvailabilityRoutes from './availability'
+import publicBookingRoutes from './bookings'
 import publicJoinRoutes from './join'
 import publicLogoRoutes from './logos'
+import publicOpenApiRoutes from './openapi'
 import demoRequestsPublicRoutes from './demoRequests'
 import publicRoomRoutes from './rooms'
 import publicVoucherRoutes from './vouchers'
@@ -15,6 +17,7 @@ const publicRoutes: FastifyPluginAsync = async (app) => {
   applyPublicDefaults(app)
 
   await app.register(publicLogoRoutes)
+  await app.register(publicOpenApiRoutes)
   await app.register(demoRequestsPublicRoutes)
   await app.register(publicVoucherRoutes)
   await app.register(publicJoinRoutes)
@@ -25,6 +28,7 @@ const publicRoutes: FastifyPluginAsync = async (app) => {
     await secured.register(publicApiPlugin)
     await secured.register(publicRoomRoutes)
     await secured.register(publicAvailabilityRoutes)
+    await secured.register(publicBookingRoutes)
   })
 }
 

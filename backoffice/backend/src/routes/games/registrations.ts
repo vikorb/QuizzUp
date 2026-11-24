@@ -178,6 +178,8 @@ const gamesRegistrationsRoutes: FastifyPluginAsync = async (app) => {
           return reply.code(outcome.status).send(outcome.body)
         }
 
+        app.liveHub.gameUpdated(companyId, known.roomId, gameId)
+
         return reply
           .code(201)
           .send({ participant: maskEmails(toParticipant(outcome.participant), req) })
@@ -214,7 +216,9 @@ const gamesRegistrationsRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(403).send({ error: 'forbidden' })
       }
 
-      if (!(await findGameState(companyId, gameId))) {
+      const game = await findGameState(companyId, gameId)
+
+      if (!game) {
         return reply.code(404).send({ error: 'not_found' })
       }
 
@@ -227,6 +231,8 @@ const gamesRegistrationsRoutes: FastifyPluginAsync = async (app) => {
       if (deleted === 0) {
         return reply.code(404).send({ error: 'registration_not_found' })
       }
+
+      app.liveHub.gameUpdated(companyId, game.roomId, gameId)
 
       return reply.code(204).send()
     }

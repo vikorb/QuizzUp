@@ -98,9 +98,21 @@
       </dl>
     </BaseCard>
 
-    <GameLivePanel v-if="game" :game="game" @ended="loadPage" />
+    <GameLivePanel
+      v-if="game"
+      :game="game"
+      @ended="loadPage"
+      @game-updated="gameUpdate = { gameId: $event }"
+      @connection="liveState = $event"
+    />
 
-    <GameJoinPanel v-if="game" :game="game" @changed="reloadGame" />
+    <GameJoinPanel
+      v-if="game"
+      :game="game"
+      :live-state="liveState"
+      :game-update="gameUpdate"
+      @changed="reloadGame"
+    />
     <GameVouchersPanel v-if="game" :key="game.id" :game="game" />
 
     <GameParticipantsTable v-if="game" :participants="game.participants ?? []" />
@@ -120,6 +132,7 @@ import MdIcon from '@/components/ui/MdIcon.vue'
 import StatusPill from '@/components/ui/StatusPill.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { useConfirm } from '@/composables/useConfirm'
+import type { LiveConnectionState } from '@/composables/useLiveCompany'
 import { getGameResultsRoute, getGamesRoute } from '@/router/games'
 import { abortGameService, loadGameService } from '@/services/gamesService'
 import { authState } from '@/state/authState'
@@ -147,6 +160,9 @@ const { t, locale } = useI18n()
 const { confirm } = useConfirm()
 
 const game = ref<Game | null>(null)
+// Un seul flux par fiche (5 au plus par compte) : `GameLivePanel` l'ouvre, le panneau d'inscription le suit d'ici.
+const liveState = ref<LiveConnectionState>('connecting')
+const gameUpdate = ref<{ gameId: number } | null>(null)
 const loading = ref(false)
 const error = ref<string | null>(null)
 const aborting = ref(false)

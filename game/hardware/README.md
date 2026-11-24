@@ -568,7 +568,7 @@ Le contrôleur de fumée applique, quoi que dise la configuration :
 
 Pour les salles dont la machine à fumée est commandée par une carte Arduino Uno en USB. Le lien
 parle à la carte par Web Serial (`smoke/boardLink.ts`, protocole pur dans `smoke/boardProtocol.ts`).
-Pas encore branché au `LightingController` (lot suivant).
+Branché au `LightingController` par l'option `smokeLink` (voir plus bas).
 
 - **Ce qu'il fait** : ouvre le port à 9600 bauds et attend la bannière `QZF READY` (3 s au plus).
   Sans bannière valide, il passe `no_firmware` et n'envoie **jamais** `F`. Une bannière d'un autre
@@ -618,6 +618,51 @@ Pas encore branché au `LightingController` (lot suivant).
   compte depuis la bannière ; `abort()` rejette les écritures bloquées comme Chrome. Options : sans
   bannière, autre protocole, muette, parasites, débranchement, erreur de lecture passagère, état forgé.
 
+### Carte de fumée dans le contrôleur de lumières (`smokeLink`)
+
+> Sécurité : fumée. **À valider sur le banc** : cas F11 à F20 et F25 de `docs/recette/banc-materiel.md`.
+
+`createLightingController({ …, smokeLink })` fait de la carte un récepteur de plus de la fumée ; les
+sécurités du contrôleur (pause, onglet masqué, arrêt d'urgence, chien de garde, test de coupure)
+s'appliquent donc sans rien dupliquer :
+
+- **À chaque trame** : `smokeLink.drive(fumée en train de tirer)`. Le lien ne renouvelle jamais `F`
+  de lui-même. Pendant le test de gel aucune trame ne part, donc aucun `F` : la carte coupe à la fin
+  de son bail (500 ms). C'est le test de coupure.
+- **`drive(false)` tout de suite** : `pagehide`, onglet masqué (y compris pendant un gel, où aucune
+  trame ne porte l'ordre), `stop()`, `setOutput()`, `emergencyStop()`, pause de partie et
+  `smoke.stop()`.
+- **Lien perdu** (débranché, muet depuis 1 s, bannière en cours de partie, programme absent, lien
+  fermé) : `smoke.stop('output_error')`, trame à 0 tout de suite, fumée **désarmée**, avertissement
+  `board_lost`. Un lien perdu ne se rouvre pas : `setSmokeLink(nouveauLien)` coupe le jet, désarme la
+  fumée et attache le nouveau lien (carte rebranchée : prête, jamais armée toute seule). Il n'y a pas
+  de retrait du lien : une salle qui a une carte ne retombe pas sur le seul DMX.
+- **`fireSmoke` refuse `board_unavailable`** (test manuel, scène, test de gel) tant que la carte
+  configurée (`smokeLink` ou `lighting.smoke.board`) n'est pas prête : lien pas encore ouvert, muet,
+  perdu, ou carte en pause (`COOL`, dont les 5 s qui suivent chaque remise à zéro). L'arrêt d'urgence
+  garde son motif `emergency`.
+- **Relais DMX en plus de la carte** : le même état de fumée alimente la trame DMX et la carte, donc
+  les deux reçoivent le même ordre au même moment.
+- **`lighting.smoke.board`** (`{ kind: 'uno-serial', usbVendorId, usbProductId }`, facultatif,
+  lu par `parseSmokeBoard`) : l'identifiant USB de la carte, rien d'autre. Une valeur illisible
+  désactive la fumée avec un problème (jamais un retour sur le seul DMX, sans le chien de garde de
+  la carte). **Jamais exporté** (la carte est celle de ce PC) et **jamais retiré ni modifié** par
+  `withoutSmokeEscalation`, qui garde celui de la salle en place et n'en ajoute pas.
+- **Port DMX USB** : `getGrantedDmxPort(serial, { exclude: { port, usb } })` écarte la carte avant
+  tout choix (objet port, ou fabricant + produit USB après un rechargement), `match` compris ;
+  `watchDmxPortReconnection({ exclude })` ignore son rebranchement. L'écran de salle passe toujours
+  `exclude: { usb: lighting.smoke.board }` aux deux. Même sans carte enregistrée, un Arduino
+  (`0x2341`, `0x2A03`) n'est **jamais** choisi automatiquement comme sortie DMX (ni sans `match`, ni
+  en repli avec `match`, ni au rebranchement sans `match`) : seul le choix de l'opérateur (fenêtre
+  « Connecter ») ou un `match` qu'il a fixé peut en désigner un. L'identifiant `0x2A03` (cartes
+  Arduino d'une autre époque) reste dans `DMX_USB_VENDOR_IDS` (filtre de la fenêtre de choix) et dans
+  la politique Chrome du kit poste de salle.
+- **Coupures** : la carte qui annonce `cool` pendant un jet du contrôleur (coupure de son côté)
+  coupe aussi le jet et le relais DMX, par le même chemin que les autres coupures (la fumée reste
+  armée). `smoke.disarm()` passe par ce chemin (ordre `0` et trame à 0 tout de suite). Un lien dont
+  `drive` lève ne bloque jamais la coupure ni la trame noire d'urgence : la fumée est coupée et
+  désarmée, `board_lost` (`write_error`) est signalé une fois par série d'échecs.
+
 ## Fiabilité des interfaces USB DMX (Web Serial)
 
 - **DMX USB Pro** : l'interface fabrique elle-même le signal DMX, le PC lui envoie un paquet
@@ -642,11 +687,49 @@ Pas encore branché au `LightingController` (lot suivant).
   figée ne bloque pas l'écran. Un port ouvert sans flux d'écriture est refermé aussitôt.
 - `getGrantedDmxPort(serial, { match })` retrouve sans clic l'interface déjà autorisée : le même
   port, sinon le même modèle USB, sinon une puce USB-série DMX connue (`DMX_USB_VENDOR_IDS`),
-  sinon rien ; jamais un autre port série (Arduino des buzzers…) quand `match` est donné.
+  sinon rien ; jamais un autre port série (Arduino des buzzers…) quand `match` est donné. Hors
+  `match`, les cartes Arduino ne sont jamais prises automatiquement (voir carte de la fumée).
 - `watchDmxPortReconnection({ onReconnect })` prévient quand l'interface est rebranchée (même
   port ou même modèle USB) : l'écran peut relancer `setOutput` sans redemander le port.
 - `createMeteredOutput(output)` mesure les trames réellement envoyées (Hz mesurés, durée
   moyenne et max d'écriture, échecs) pour l'écran de diagnostic.
+
+### Identité des périphériques (`lighting.usb`, `buzzers.source.id`) : à valider sur le banc
+
+Après un redémarrage, les objets port et manette du navigateur sont neufs : la salle retient donc de
+quoi retrouver le bon appareil. **Rien de plus fin que ce que les API donnent** : Web Serial n'expose
+que `usbVendorId` et `usbProductId` (pas de numéro de série), l'API Gamepad que `Gamepad.id`. Deux
+appareils identiques ne se distinguent donc pas : le cas est **signalé, jamais tranché au hasard**.
+
+- **`lighting.usb`** (`{ usbVendorId, usbProductId }`, facultatif, lu strictement par `parseRoomHardwareConfig` :
+  une valeur illisible est ignorée avec un problème). Retenu par l'écran de salle quand l'opérateur
+  connecte l'interface (`connectDmxInterface`) et qu'elle s'ouvre. Il est **exporté** (point de départ
+  à confirmer), mais **ne passe pas au contrôleur** (`activeLightingConfig` le retire : l'enregistrer
+  ne relance pas les lumières).
+- **`findDmxPortByUsb(serial, usb, { exclude, prefer })`** retrouve l'interface après un rechargement :
+  `found` (un seul port du modèle), `ambiguous` (deux ports du même modèle : aucun n'est ouvert, il
+  faut en débrancher un), `absent` (jamais un autre modèle, même une puce DMX connue) ou `excluded`
+  (le modèle retenu est celui de la carte de la fumée). Le résultat ne dépend pas de l'ordre de
+  `getPorts()` ; `prefer` (le port déjà ouvert par la page) l'emporte sur son jumeau. **La carte de la fumée (`lighting.smoke.board`) est écartée avant tout choix** et
+  n'est jamais retenue comme interface DMX. Sans `lighting.usb` (ancienne configuration),
+  `getGrantedDmxPort` choisit comme avant. Avec `lighting.usb`, jamais un autre modèle : même quand
+  un port est déjà ouvert, seul le modèle retenu est repris.
+  `connectDmxInterface` rend `false` (rien n'ouvert, `dmxPortProblem = 'smoke_board'`) si l'opérateur
+  choisit la carte de la fumée dans la fenêtre du navigateur.
+- **`buzzers.source.id`** (`Gamepad.id` complet de la carte, facultatif) : retenu quand les buzzers
+  sont appris (`saveLearnedBuzzers`, `saveRoomSetup`) avec la carte lue à ce moment. Une fois présent,
+  `gamepadMatcher` ne laisse lire que les cartes de cet `id` exact (il prime sur `match`). Il désigne
+  la carte de ce PC : **jamais exporté ni importé**, la carte se réapprend. Si le navigateur change
+  l'`id` de la carte (pilote), plus rien n'est lu : il faut refaire l'apprentissage dans l'assistant
+  (clavier, puis manette) pour retenir le nouvel `id`.
+- **`withDeviceIdentity(config, latest)`** : l'assistant enregistre un instantané pris à son ouverture ;
+  elle y remet le `lighting.usb` et le `buzzers.source.id` de la config enregistrée la plus récente
+  (connexion de l'interface, apprentissage), sinon l'enregistrement les effacerait.
+- **Deux cartes identiques** (n'importe quelle paire parmi les cartes qui correspondent) :
+  `createGamepadBuzzerInput` n'en lit aucune, `getAmbiguousGamepads()` les
+  liste et `onChange` annonce le changement. `useRoomHardware()` expose `dmxPortProblem`
+  (`'ambiguous'`, `'smoke_board'` ou `null`) et `buzzerCardAmbiguous` (nombre de cartes) pour que
+  l'écran Matériel et `/setup` affichent « débranchez-en une ».
 
 ## Diagnostic matériel (`lights.diagnostics`)
 
@@ -808,7 +891,7 @@ if (result.ok) {
 - **Jamais exporté ni importé** : `lighting.smoke.enabled` (forcé à faux), `cutsOnSignalLoss`
   (retiré), `setupDone` (retiré : l'assistant se relance), toute clé que la relecture ne connaît pas
   (aucun identifiant de compte, aucun secret), l'état local (arrêt d'urgence, révision, parties).
-- Repris comme point de départ à confirmer : cible Art-Net, buzzers appris, plan de salle.
+- Repris comme point de départ à confirmer : cible Art-Net, interface USB-DMX (`lighting.usb`), buzzers appris, plan de salle. `buzzers.source.id` n'est pas exporté.
 - `withoutSmokeEscalation(previous, next)` ne laisse la fumée de `next` jamais plus permissive que
   celle de `previous` : activation, dispense de relais, jet plus long, pause plus courte, niveau plus
   haut, confirmation retirée. Elle sert à l'import et à l'éditeur JSON de l'écran de salle ; seul

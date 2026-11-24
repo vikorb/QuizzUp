@@ -1169,7 +1169,12 @@ describe('routes/games.ts (US-GAME-08)', () => {
         const events: Array<{ event: string; data: unknown }> = []
 
         liveHubOf(app).openRoomStream(1, companyId, {
-          send: (event, data) => events.push({ event, data }),
+          // Seules les commandes comptent ici ; `game_updated` a son fichier (games.gameUpdated.test.ts).
+          send: (event, data) => {
+            if (event === LIVE_EVENT.COMMAND) {
+              events.push({ event, data })
+            }
+          },
           close: () => undefined,
         })
         liveHubOf(app).report(1, companyId, liveReport)

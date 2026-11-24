@@ -226,6 +226,81 @@ describe('live hub broadcast', () => {
   })
 })
 
+describe('live hub game_updated', () => {
+  const gameUpdated = (sink: ReturnType<typeof makeSink>) =>
+    sink.events.filter(({ event }) => event === LIVE_EVENT.GAME_UPDATED)
+
+  it('tells the room stream and the staff of the company, with the game id only', () => {
+    const { hub } = newHub()
+    const room = makeSink()
+    const staff = makeSink()
+
+    hub.openRoomStream(1, 10, room)
+    hub.subscribeStaff(10, 1, staff)
+    hub.gameUpdated(10, 1, 42)
+
+    expect(gameUpdated(room)).toEqual([{ event: LIVE_EVENT.GAME_UPDATED, data: { gameId: 42 } }])
+    expect(gameUpdated(staff)).toEqual([{ event: LIVE_EVENT.GAME_UPDATED, data: { gameId: 42 } }])
+  })
+
+  it('tells nobody of another company, nor another room', () => {
+    const { hub } = newHub()
+    const otherRoom = makeSink()
+    const foreignRoom = makeSink()
+    const foreignStaff = makeSink()
+
+    hub.openRoomStream(2, 10, otherRoom)
+    hub.openRoomStream(3, 20, foreignRoom)
+    hub.subscribeStaff(20, 2, foreignStaff)
+    hub.gameUpdated(10, 1, 42)
+
+    expect(gameUpdated(otherRoom)).toEqual([])
+    expect(gameUpdated(foreignRoom)).toEqual([])
+    expect(gameUpdated(foreignStaff)).toEqual([])
+  })
+
+  it('does not let a company reach the room of another through its room id', () => {
+    const { hub } = newHub()
+    const foreignRoom = makeSink()
+
+    hub.openRoomStream(3, 20, foreignRoom)
+    hub.gameUpdated(10, 3, 42)
+
+    expect(gameUpdated(foreignRoom)).toEqual([])
+  })
+
+  it('is silent for a room without an open stream, and after unsubscription or close', () => {
+    const { hub } = newHub()
+    const staff = makeSink()
+    const room = makeSink()
+
+    expect(() => hub.gameUpdated(10, 1, 42)).not.toThrow()
+
+    const unsubscribe = hub.subscribeStaff(10, 1, staff)
+    const streamId = hub.openRoomStream(1, 10, room)
+
+    unsubscribe()
+    hub.closeRoomStream(1, streamId)
+    hub.gameUpdated(10, 1, 42)
+
+    expect(gameUpdated(staff)).toEqual([])
+    expect(gameUpdated(room)).toEqual([])
+  })
+
+  it('only the new stream of a replaced room gets the event', () => {
+    const { hub } = newHub()
+    const first = makeSink()
+    const second = makeSink()
+
+    hub.openRoomStream(1, 10, first)
+    hub.openRoomStream(1, 10, second)
+    hub.gameUpdated(10, 1, 42)
+
+    expect(gameUpdated(first)).toEqual([])
+    expect(gameUpdated(second)).toHaveLength(1)
+  })
+})
+
 describe('live hub memory of offline rooms', () => {
   it('keeps the last report and the last seen date of a room that went offline', () => {
     const { hub, clock } = newHub()
