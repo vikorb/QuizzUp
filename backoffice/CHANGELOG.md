@@ -8,6 +8,8 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Show lumière réglable par salle : `lighting.scenes` surcharge les scènes par défaut (bornées : 400 ms au moins entre deux éclairs, un seul jet de fumée par scène, jamais dans une boucle), une scène peut en enchaîner une autre (`next`), nouveaux signaux `game_paused`, `game_resumed`, `session_exit` et `round_started.<miniGame>`. Les clés de configuration inconnues sont conservées. Modèles de salle prêts à l'emploi (4 modèles, sans fumée) et proposition d'univers Art-Net.
+  US: US-SHOW-01 (#145)
 - Diagnostic à distance d'une salle, en lecture seule : l'écran de salle publie son état matériel dans son rapport d'état (version, source des buzzers et manettes, pilote et état des lumières, fumée activée et armée, audio prêt, date de la dernière erreur) et la fiche de la salle l'affiche dans un bloc « Diagnostic ». Rien n'est stocké. Une valeur inconnue est lue comme « inconnu » et ne fait jamais paraître la salle hors ligne.
   US: US-DIAG-01 (#157)
 - Commandes à distance, côté serveur : `POST /companies/{companyId}/rooms/{roomId}/commands` relaie pause, reprise, passer et arrêter à l'écran de salle connecté, qui répond par `POST /room/commands/{commandId}/result` ; le personnel reçoit le résultat (`applied`, `refused` ou `expired` après 10 s) sur le flux en direct. L'arrêt d'une partie depuis le backoffice prévient la salle quand elle est pilotable.
