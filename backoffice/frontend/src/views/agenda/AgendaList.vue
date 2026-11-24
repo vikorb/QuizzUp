@@ -41,6 +41,7 @@
         :busy="entry.kind === 'game' && entry.game.id === busyGameId"
         @schedule="$emit('schedule', $event)"
         @view="$emit('view', $event)"
+        @edit="$emit('edit', $event)"
         @open="$emit('open', $event)"
         @cancel="$emit('cancel', $event)"
       />
@@ -77,6 +78,7 @@ defineEmits<{
   (event: 'retry'): void
   (event: 'schedule', startsAt: string): void
   (event: 'view', game: Game): void
+  (event: 'edit', game: Game): void
   (event: 'open', game: Game): void
   (event: 'cancel', game: Game): void
 }>()
