@@ -976,6 +976,8 @@ describe('routes/games.ts (US-GAME-08)', () => {
       // PostgreSQL refuse l'année 0 : sans garde, 500 avec le texte de la requête SQL.
       'from=0000-01-01T00:00:00Z',
       'to=0000-06-01T00:00:00%2B01:00',
+      // Année 1 à +14:00 : année 0 une fois ramenée en UTC.
+      'from=0001-01-01T00:00:00%2B14:00',
     ])('refuses the invalid query %s with a 400', async (query) => {
       seedRoom()
       seedGame()

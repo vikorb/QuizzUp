@@ -7,6 +7,7 @@ import {
   loadCompanyRoomServiceMock,
   loadCompanyRoomsServiceMock,
   loadRoomAccountServiceMock,
+  loadRoomLogsServiceMock,
   mockDeleteRoomFailure,
   mockLoadCompanyRoomsFailure,
   mockLoadRoomAccountSuccess,
@@ -53,13 +54,17 @@ function rowKeys(wrapper: ReturnType<typeof mountWithFrontendMocks>): string[] {
 function rowAction(
   wrapper: ReturnType<typeof mountWithFrontendMocks>,
   roomId: number,
-  action: 'account' | 'schedule' | 'edit' | 'delete'
+  action: 'account' | 'logs' | 'schedule' | 'edit' | 'delete'
 ) {
   return wrapper.find(`[data-row-key="${roomId}"] [data-test="ui-button"].icon-${action}`)
 }
 
 function accountPanel(wrapper: ReturnType<typeof mountWithFrontendMocks>) {
   return wrapper.find('#room-account')
+}
+
+function logsPanel(wrapper: ReturnType<typeof mountWithFrontendMocks>) {
+  return wrapper.find('#room-logs')
 }
 
 function schedulePanel(wrapper: ReturnType<typeof mountWithFrontendMocks>) {
@@ -280,6 +285,66 @@ describe('views/clients/details/room/ClientDetailRoomsSection.vue', () => {
     expect(loadRoomAccountServiceMock).not.toHaveBeenCalled()
   })
 
+  it('opens the room logs panel from the row, replacing the other inline panels', async () => {
+    const wrapper = await mountSection('admin')
+
+    await wrapper.find('[data-test="base-toolbar-primary"]').trigger('click')
+    expect(wrapper.find('#room-form').exists()).toBe(true)
+
+    await rowAction(wrapper, 1, 'logs').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('#room-form').exists()).toBe(false)
+    expect(logsPanel(wrapper).exists()).toBe(true)
+    expect(loadRoomLogsServiceMock).toHaveBeenCalledWith(1, 1, expect.anything())
+    expect(logsPanel(wrapper).findAll('.room-logs__item')).toHaveLength(2)
+
+    await rowAction(wrapper, 1, 'account').trigger('click')
+    await flushPromises()
+
+    expect(logsPanel(wrapper).exists()).toBe(false)
+    expect(accountPanel(wrapper).exists()).toBe(true)
+
+    await rowAction(wrapper, 1, 'logs').trigger('click')
+    await flushPromises()
+
+    expect(accountPanel(wrapper).exists()).toBe(false)
+
+    await logsPanel(wrapper).find('.room-logs__close').trigger('click')
+
+    expect(logsPanel(wrapper).exists()).toBe(false)
+  })
+
+  it('lets the superadmin read the logs too', async () => {
+    const wrapper = await mountSection('superadmin')
+
+    await rowAction(wrapper, 1, 'logs').trigger('click')
+    await flushPromises()
+
+    expect(logsPanel(wrapper).exists()).toBe(true)
+  })
+
+  it('closes the room logs panel when the room is deleted', async () => {
+    const wrapper = await mountSection('admin')
+
+    await rowAction(wrapper, 1, 'logs').trigger('click')
+    await flushPromises()
+    expect(logsPanel(wrapper).exists()).toBe(true)
+
+    await rowAction(wrapper, 1, 'delete').trigger('click')
+    await flushPromises()
+
+    expect(logsPanel(wrapper).exists()).toBe(false)
+  })
+
+  it('never offers the room logs to the user role', async () => {
+    const wrapper = await mountSection('user')
+
+    expect(wrapper.find('.icon-logs').exists()).toBe(false)
+    expect(logsPanel(wrapper).exists()).toBe(false)
+    expect(loadRoomLogsServiceMock).not.toHaveBeenCalled()
+  })
+
   it('opens the schedule panel from the row and keeps a single inline panel at a time', async () => {
     mockLoadRoomAccountSuccess(roomAccountFixture)
 
@@ -355,6 +420,24 @@ describe('views/clients/details/room/ClientDetailRoomsSection.vue', () => {
     expect(loadCompanyRoomServiceMock).not.toHaveBeenCalled()
   })
 
+  it('keeps a single inline panel between the logs and the schedule', async () => {
+    const wrapper = await mountSection('admin')
+
+    await rowAction(wrapper, 1, 'logs').trigger('click')
+    await flushPromises()
+    await rowAction(wrapper, 1, 'schedule').trigger('click')
+    await flushPromises()
+
+    expect(logsPanel(wrapper).exists()).toBe(false)
+    expect(schedulePanel(wrapper).exists()).toBe(true)
+
+    await rowAction(wrapper, 1, 'logs').trigger('click')
+    await flushPromises()
+
+    expect(schedulePanel(wrapper).exists()).toBe(false)
+    expect(logsPanel(wrapper).exists()).toBe(true)
+  })
+
   it('shows action errors in the banner', async () => {
     mockDeleteRoomFailure('server_error')
 
@@ -365,5 +448,39 @@ describe('views/clients/details/room/ClientDetailRoomsSection.vue', () => {
 
     expect(wrapper.find('[data-test="base-banner"]').text()).toContain('server_error')
     expect(rowKeys(wrapper)).toEqual(['1'])
+  })
+
+  it('closes the room logs panel when the user loses the right to manage rooms', async () => {
+    const wrapper = await mountSection('admin')
+
+    await rowAction(wrapper, 1, 'logs').trigger('click')
+    await flushPromises()
+    expect(logsPanel(wrapper).exists()).toBe(true)
+
+    await wrapper.setProps({ canManageRooms: false })
+
+    expect(logsPanel(wrapper).exists()).toBe(false)
+  })
+
+  it('closes every inline panel when the company changes', async () => {
+    const wrapper = await mountSection('admin')
+    const panels = [
+      () => wrapper.find('[data-test="base-toolbar-primary"]').trigger('click'),
+      () => rowAction(wrapper, 1, 'account').trigger('click'),
+      () => rowAction(wrapper, 1, 'logs').trigger('click'),
+      () => rowAction(wrapper, 1, 'schedule').trigger('click'),
+    ]
+    const selectors = ['#room-form', '#room-account', '#room-logs', '#room-schedule']
+
+    for (const [index, open] of panels.entries()) {
+      await open()
+      await flushPromises()
+      expect(wrapper.find(selectors[index] ?? '').exists()).toBe(true)
+
+      await wrapper.setProps({ companyId: 10 + index })
+      await flushPromises()
+
+      expect(wrapper.find(selectors[index] ?? '').exists()).toBe(false)
+    }
   })
 })

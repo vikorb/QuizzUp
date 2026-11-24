@@ -165,7 +165,11 @@ describe.skipIf(!PG_INTEGRATION_URL)('GET /companies/:companyId/games sur Postgr
   it('refuse l’année 0000 en 400 au lieu d’une erreur PostgreSQL', async () => {
     await addGame({ id: 1 })
 
-    for (const query of ['?from=0000-01-01T00:00:00Z', '?to=0000-01-01T00:00:00Z']) {
+    for (const query of [
+      '?from=0000-01-01T00:00:00Z',
+      '?to=0000-01-01T00:00:00Z',
+      '?from=0001-01-01T00:00:00%2B14:00',
+    ]) {
       const response = await list(query)
 
       expect(response.statusCode).toBe(400)
