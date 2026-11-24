@@ -22,6 +22,13 @@ export function isPublicPath(url: string): boolean {
   return path === PUBLIC_API_PREFIX || path.startsWith(`${PUBLIC_API_PREFIX}/`)
 }
 
+declare module 'fastify' {
+  interface FastifyContextConfig {
+    /** Route qui a sa propre limite (clé d'API) : exemptée de la limite par adresse du préfixe. */
+    skipAddressLimit?: boolean
+  }
+}
+
 /** Limite par défaut de tout le préfixe, par adresse. Large : un centre partage une seule IP. */
 export const PUBLIC_RATE_LIMIT_MAX = 120
 export const PUBLIC_RATE_LIMIT_WINDOW_MS = 60_000
@@ -62,6 +69,8 @@ export function applyPublicDefaults(app: FastifyInstance) {
 
   app.addHook('onRequest', async (req, reply) => {
     reply.header('Cache-Control', 'no-store')
+
+    if (req.routeOptions.config?.skipAddressLimit) return
 
     const limit = limiter.hit(req.ip)
     if (!limit.allowed) return replyTooManyRequests(reply, limit.retryAfterSeconds)

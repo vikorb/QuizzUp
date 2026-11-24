@@ -10,6 +10,13 @@ Format inspiré de Keep a Changelog.
 
 - Écran « Joueurs » du backoffice : liste paginée avec recherche sur le nom, nombre de parties, dernière venue et meilleur score ; désinscription des offres et effacement définitif d'un joueur (admins) ; export CSV des joueurs qui acceptent les offres. Un membre du staff voit la liste sans adresse, sans action et sans export.
   US: US-PLAYERS-01 (#157)
+- API de réservation, lecture : `GET /public/v1/rooms` et `GET /public/v1/availability` derrière une clé d'API (401 `api_key_missing` / `api_key_invalid`, 403 `company_inactive`), débit par clé (`PUBLIC_API_RATE_LIMIT_PER_MINUTE`, en-têtes `RateLimit-*`, 429 avec `Retry-After`), limite des échecs d'authentification par adresse (`PUBLIC_API_AUTH_FAILURES_PER_MINUTE`) et journal des appels sans corps ni adresse.
+  US: US-BOOKING-01 (#188)
+- Playlists, formulaire de thème : en mode audio, un champ « Lien de playlist » accepte un lien ou un identifiant de playlist, vérifié avant l'envoi. Vider le champ retire la playlist ; les refus du serveur s'affichent avec leur texte.
+  US: US-PLAYLIST-01 (#204)
+- Écran de salle, accueil des joueurs : le lobby d'une partie en attente affiche le QR code d'inscription fourni par le serveur (dans un `<img>`, jamais en `v-html`), l'adresse en clair et le nombre d'inscriptions en attente de validation. Sans QR code, l'adresse seule ; un lien expiré est signalé ; rien en partie en cours.
+  US: US-JOIN-01 (#166)
+
 - Accueil des joueurs dans le backoffice : sur la fiche d'une partie en attente, un panneau « Accueil » ouvre ou ferme le lien d'inscription, l'affiche avec son QR code (plein écran possible), liste les demandes et permet de les valider sur un pupitre ou de les refuser. La création d'une partie peut ouvrir l'accueil d'emblée et mène alors à la fiche.
   US: US-JOIN-01 (#166)
 
