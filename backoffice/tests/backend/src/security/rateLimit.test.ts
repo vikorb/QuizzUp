@@ -35,6 +35,22 @@ describe('security/rateLimit — fenêtre', () => {
     expect(limiter.hit('1.2.3.4').remaining).toBe(0)
   })
 
+  it('peeks without counting, and refuses once the window is full', () => {
+    const clock = fakeClock()
+    const limiter = createRateLimiter({ max: 2, windowMs: 60_000, now: clock.now })
+
+    expect(limiter.peek('1.2.3.4')).toEqual({ allowed: true, retryAfterSeconds: 60, remaining: 2 })
+    expect(limiter.peek('1.2.3.4').remaining).toBe(2)
+
+    limiter.hit('1.2.3.4')
+    limiter.hit('1.2.3.4')
+    clock.advance(10_000)
+    expect(limiter.peek('1.2.3.4')).toEqual({ allowed: false, retryAfterSeconds: 50, remaining: 0 })
+
+    clock.advance(50_000)
+    expect(limiter.peek('1.2.3.4').allowed).toBe(true)
+  })
+
   it('starts a fresh window once the previous one has elapsed', () => {
     const clock = fakeClock()
     const limiter = createRateLimiter({ max: 1, windowMs: 60_000, now: clock.now })

@@ -29,6 +29,8 @@ export type RateLimitResult = {
 export type RateLimiter = {
   /** Compte un passage pour cette adresse (et ce suffixe) et dit s'il est accepté. */
   hit: (ip: string, suffix?: string) => RateLimitResult
+  /** Dit si un passage serait accepté, sans le compter (lecture seule). */
+  peek: (ip: string, suffix?: string) => RateLimitResult
   /** Rend un passage compté par `hit` (ex. connexion réussie : seuls les échecs comptent). */
   refund: (ip: string, suffix?: string) => void
   /** Nombre de clés suivies, pour vérifier que le ménage vide bien la mémoire. */
@@ -116,6 +118,23 @@ export function createRateLimiter({
 
       entry.count += 1
       return { allowed: true, retryAfterSeconds, remaining: max - entry.count }
+    },
+
+    peek(ip, suffix) {
+      const at = now()
+      sweep(at)
+
+      const entry = entries.get(keyOf(ip, suffix))
+
+      if (!entry) {
+        return { allowed: true, retryAfterSeconds: Math.ceil(windowMs / 1000), remaining: max }
+      }
+
+      return {
+        allowed: entry.count < max,
+        retryAfterSeconds: Math.max(1, Math.ceil((entry.resetAt - at) / 1000)),
+        remaining: Math.max(0, max - entry.count),
+      }
     },
 
     refund(ip, suffix) {

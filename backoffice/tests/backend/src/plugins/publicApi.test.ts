@@ -15,8 +15,14 @@ import { bearer, PUBLIC_API_NOW, seedRevokedToken, seedToken } from '../routes/_
 
 const MINUTE_MS = 60_000
 
+// Réponses entièrement terminées, hooks `onResponse` compris : le journal s'écrit après l'envoi.
+let finished = 0
+const settled = (count: number) => vi.waitFor(() => expect(finished).toBe(count))
+
 async function createApp() {
   const app = fastify({ logger: false })
+
+  finished = 0
 
   await app.register(
     (async (scope: typeof app) => {
@@ -26,6 +32,10 @@ async function createApp() {
         sendPublicError(reply as never, 404, 'room_not_found')
       )
       scope.post('/echo', async () => ({ ok: true }))
+      // Enregistré après le plugin : il s'exécute une fois son hook `onResponse` terminé.
+      scope.addHook('onResponse', async () => {
+        finished += 1
+      })
     }) as never,
     { prefix: '/public/v1' }
   )
@@ -131,6 +141,21 @@ describe('plugins/publicApi — authentification', () => {
     expect(response.headers['ratelimit-remaining']).toBe('119')
   })
 
+  it('still answers 200 when last_used_at cannot be written', async () => {
+    await start()
+    const { token, row } = seedToken()
+
+    Object.defineProperty(row, 'last_used_at', {
+      enumerable: true,
+      get: () => null,
+      set() {
+        throw new Error('write failed')
+      },
+    })
+
+    expect((await call(bearer(token))).statusCode).toBe(200)
+  })
+
   it('refreshes last_used_at at most once a minute', async () => {
     await start()
     const { token, row } = seedToken()
@@ -193,6 +218,28 @@ describe('plugins/publicApi — limites de débit', () => {
     expect((await call(bearer(token))).statusCode).toBe(200)
   })
 
+  it('lets 30 simultaneous valid calls from one address through, whatever the failure limit', async () => {
+    await start()
+    const { token } = seedToken()
+
+    const responses = await Promise.all(Array.from({ length: 30 }, () => call(bearer(token))))
+
+    expect(responses.map((response) => response.statusCode)).toEqual(Array(30).fill(200))
+  })
+
+  it('caps simultaneous failures: N get 401, the others 429, none slips through', async () => {
+    vi.stubEnv('PUBLIC_API_AUTH_FAILURES_PER_MINUTE', '3')
+    await start()
+    const { token } = seedToken()
+    dbState.api_keys.length = 0 // jeton bien formé mais inconnu : l'échec se joue après la lecture en base
+
+    const responses = await Promise.all(Array.from({ length: 10 }, () => call(bearer(token))))
+    const codes = responses.map((response) => response.statusCode)
+
+    expect(codes.filter((code) => code === 401)).toHaveLength(3)
+    expect(codes.filter((code) => code === 429)).toHaveLength(7)
+  })
+
   it.each(['', 'abc', '0', '-5', '1.5'])(
     'falls back to the default limit for %j',
     async (value) => {
@@ -217,7 +264,9 @@ describe('plugins/publicApi — journal des appels', () => {
       payload: JSON.stringify({ email: 'body-secret@example.test', displayName: 'Camille' }),
       remoteAddress: '198.51.100.23',
     })
-    await vi.waitFor(() => expect(dbState.api_request_logs).toHaveLength(1))
+    await settled(1)
+
+    expect(dbState.api_request_logs).toHaveLength(1)
 
     const [log] = dbState.api_request_logs
 
@@ -246,7 +295,7 @@ describe('plugins/publicApi — journal des appels', () => {
 
     await call(bearer(token), '/public/v1/missing')
     await call(bearer(inactive.token))
-    await vi.waitFor(() => expect(dbState.api_request_logs).toHaveLength(2))
+    await settled(2)
 
     expect(
       dbState.api_request_logs.map((log) => [log.status_code, log.error_code, log.company_id])
@@ -265,8 +314,20 @@ describe('plugins/publicApi — journal des appels', () => {
     await call(bearer('qzk_nope'))
     await call(bearer(token))
     await call(bearer(token))
-    await vi.waitFor(() => expect(dbState.api_request_logs).toHaveLength(1))
+    await settled(4)
 
+    expect(dbState.api_request_logs).toHaveLength(1)
     expect(dbState.api_request_logs[0]!.status_code).toBe(200)
+  })
+
+  it('still answers when the log cannot be written', async () => {
+    await start()
+    const { token } = seedToken()
+    dbState.api_request_logs = null as never // l'insertion lève
+
+    const response = await call(bearer(token))
+
+    expect(response.statusCode).toBe(200)
+    await settled(1)
   })
 })

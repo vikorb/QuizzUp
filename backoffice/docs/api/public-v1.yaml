@@ -34,9 +34,12 @@ info:
     d'une compagnie supprimée.
 
     **Limite de débit.** Fenêtre fixe d'une minute : 120 requêtes par clé par défaut, et 20
-    échecs d'authentification par adresse. Au-delà, `429 too_many_requests` avec l'en-tête
-    `Retry-After` (secondes), `RateLimit-Limit` et `RateLimit-Remaining`. Ces deux derniers sont aussi
-    présents sur toute réponse à une requête dont la clé est reconnue.
+    échecs d'authentification (`401`) par adresse. Une requête avec une clé valide n'est limitée que
+    par sa clé : les clés d'un même serveur ne partagent pas leur quota, et les appels réussis ne
+    comptent pas dans la limite d'échecs. Au-delà, `429 too_many_requests` avec l'en-tête
+    `Retry-After` (secondes). `RateLimit-Limit` et `RateLimit-Remaining` accompagnent toute réponse à
+    une clé reconnue, `429` par clé compris ; le `429` de la limite d'échecs, qui ne repose sur aucune
+    clé, n'a que `Retry-After`.
 
     **Corps limité à 16 Ko** (`413 payload_too_large`).
 

@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync } from 'fastify'
+import type { FastifyPluginAsync, FastifyReply } from 'fastify'
 import fp from 'fastify-plugin'
 
 import {
@@ -40,13 +40,17 @@ function positiveInt(value: string | undefined, fallback: number): number {
 /**
  * Authentification par clé d'API des routes de réservation de `/public/v1`, journal des appels et
  * limite de débit par clé. À enregistrer dans un contexte qui ne contient que les routes à clé :
- * il hérite des conventions de `applyPublicDefaults` (format d'erreur, limite par adresse).
+ * il hérite des conventions de `applyPublicDefaults` (format d'erreur), sauf la limite par adresse,
+ * dont ses routes sont exemptées : un appel avec clé est borné par la limite par clé, un appel sans
+ * clé valide par la limite d'échecs.
  *
  * - `Authorization: Bearer qzk_…` ; un jeton du backoffice n'ouvre rien ici. La clé est relue en
  *   base à chaque appel : une révocation est immédiate.
  * - 401 `api_key_missing` (en-tête absent ou autre schéma) et 401 `api_key_invalid` (format faux,
- *   clé inconnue ou révoquée, compagnie supprimée : même réponse). Chaque 401 compte dans la limite
- *   d'échecs par adresse ; un appel authentifié rend son passage.
+ *   clé inconnue ou révoquée, compagnie supprimée : même réponse). Seul un 401 compte dans la
+ *   limite d'échecs par adresse : elle est lue à l'entrée sans être incrémentée, donc des appels
+ *   valides simultanés ne l'épuisent pas. Le plafond tient même pour une rafale d'échecs : le compte
+ *   se fait au moment du refus, et l'échec de trop répond 429 au lieu de 401.
  * - 403 `company_inactive` : clé valide, compagnie inactive.
  * - Une ligne de `api_request_logs` par appel authentifié : méthode, motif de route, statut, code
  *   d'erreur. Jamais l'adresse, le corps, l'URL ni les paramètres. Les 429 par clé n'y sont pas
@@ -72,33 +76,45 @@ const publicApiPlugin: FastifyPluginAsync = async (app) => {
 
   app.decorateRequest('apiKey', null)
 
+  // Les routes de ce contexte ont leur propre limite : pas celle, par adresse, de tout le préfixe
+  // (un serveur d'un centre porte toutes ses clés derrière une seule adresse).
+  app.addHook('onRoute', (route) => {
+    route.config = { ...route.config, skipAddressLimit: true }
+  })
+
+  // Compte l'échec et le refuse. C'est ici que le plafond tient : `hit` est synchrone, donc N échecs
+  // au plus répondent 401 par fenêtre, même simultanés ; les suivants répondent 429.
+  const refuse = (req: { ip: string }, reply: FastifyReply, code: string) => {
+    const failure = failureLimiter.hit(req.ip)
+
+    return failure.allowed
+      ? sendPublicError(reply, 401, code)
+      : replyTooManyRequests(reply, failure.retryAfterSeconds)
+  }
+
   app.addHook('onRequest', async (req, reply) => {
-    // On compte d'abord, on rend le passage une fois la clé reconnue : seuls les échecs restent.
-    const failures = failureLimiter.hit(req.ip)
+    // Lecture seule : un appel valide ne consomme rien, seul `refuse` compte un échec.
+    const failures = failureLimiter.peek(req.ip)
 
     if (!failures.allowed) return replyTooManyRequests(reply, failures.retryAfterSeconds)
 
     const token = /^Bearer (qzk_\S*)$/.exec(req.headers.authorization ?? '')?.[1]
 
-    if (!token) return sendPublicError(reply, 401, 'api_key_missing')
-    if (!API_KEY_TOKEN_PATTERN.test(token)) return sendPublicError(reply, 401, 'api_key_invalid')
+    if (!token) return refuse(req, reply, 'api_key_missing')
+    if (!API_KEY_TOKEN_PATTERN.test(token)) return refuse(req, reply, 'api_key_invalid')
 
     const key = await db('api_keys')
       .where('key_hash', hashApiKey(token))
       .first('id', 'company_id', 'status', 'last_used_at')
 
-    if (!key || key.status !== API_KEY_STATUS_ACTIVE) {
-      return sendPublicError(reply, 401, 'api_key_invalid')
-    }
+    if (!key || key.status !== API_KEY_STATUS_ACTIVE) return refuse(req, reply, 'api_key_invalid')
 
     const company = await db('companies').where('id', key.company_id).first('status')
 
     // Une compagnie supprimée répond comme une clé inconnue : pas de 403 qui confirmerait la clé.
     if (!company || company.status === COMPANY_STATUS_DELETED) {
-      return sendPublicError(reply, 401, 'api_key_invalid')
+      return refuse(req, reply, 'api_key_invalid')
     }
-
-    failureLimiter.refund(req.ip)
 
     const limit = keyLimiter.hit(`key:${key.id}`)
 
@@ -117,7 +133,12 @@ const publicApiPlugin: FastifyPluginAsync = async (app) => {
     const lastUsedAt = key.last_used_at ? new Date(key.last_used_at).getTime() : 0
 
     if (Date.now() - lastUsedAt >= LAST_USED_REFRESH_MS) {
-      await db('api_keys').where('id', key.id).update({ last_used_at: new Date() })
+      try {
+        await db('api_keys').where('id', key.id).update({ last_used_at: new Date() })
+      } catch (err) {
+        // Un repère de dernière utilisation en panne ne doit pas refuser un appel valide.
+        req.log.error({ err }, 'public API last_used_at update failed')
+      }
     }
   })
 
