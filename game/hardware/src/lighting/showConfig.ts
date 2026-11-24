@@ -1,6 +1,19 @@
 import { clampByte } from '../types'
-import type { SceneAim, SceneColor, SceneDefinition, SceneStep, SceneTarget } from './scenes'
-import { DEFAULT_SCENES, MIN_FLASH_INTERVAL_MS, SCENE_IDS, stepDuration } from './scenes'
+import type {
+  ExitLightConfig,
+  SceneAim,
+  SceneColor,
+  SceneDefinition,
+  SceneStep,
+  SceneTarget,
+} from './scenes'
+import {
+  DEFAULT_EXIT,
+  DEFAULT_SCENES,
+  MIN_FLASH_INTERVAL_MS,
+  SCENE_IDS,
+  stepDuration,
+} from './scenes'
 import { SMOKE_HARD_LIMITS } from './smoke'
 
 /**
@@ -211,6 +224,15 @@ function parseScene(input: unknown, index: number, problems: string[]): SceneDef
     problems.push(`${label} : ${SCENE_LIMITS.maxSteps} étapes au plus, les suivantes sont écartées`)
     steps = steps.slice(0, SCENE_LIMITS.maxSteps)
   }
+  // Sécurité : la lumière de sortie ne jette jamais de fumée, quelle que soit la chaîne (fin d'une
+  // partie incomplète, bouton « Éteindre la sortie »). Les pas `smoke` sont retirés, et signalés.
+  if (
+    (id === SCENE_IDS.EXIT || id === SCENE_IDS.EXIT_OFF) &&
+    steps.some((step) => step.type === 'smoke')
+  ) {
+    problems.push(`${label} : pas de fumée dans la sortie, étape de fumée écartée`)
+    steps = withoutSmoke(steps)
+  }
   // Un seul jet par scène : le contrôleur de fumée refuserait le second pendant son repos.
   const firstSmoke = steps.findIndex((step) => step.type === 'smoke')
   const kept = steps.filter((step, at) => step.type !== 'smoke' || at === firstSmoke)
@@ -278,9 +300,10 @@ function findLoops(byId: ReadonlyMap<string, SceneDefinition>): string[][] {
  * plus, scène `identify` non surchargeable. Le contrôleur de fumée
  * garde ses propres garde-fous (armement, durée maximale, repos, arrêt d'urgence, pause).
  *
- * ponytail : les scènes par défaut n'ont pas de `next`, donc une boucle ne passe jamais par l'une
- * d'elles et l'analyse se limite aux scènes de la salle. À refaire sur le graphe complet dès qu'une
- * scène par défaut en aura un (scène de sortie, lot H3).
+ * Les boucles se cherchent sur le graphe complet (scènes par défaut comprises : victoire → sortie →
+ * extinction). Une boucle qui passe par une scène par défaut non remplacée ne peut pas être bornée
+ * (on ne modifie pas les scènes livrées) : les `next` des scènes de la salle qui la forment sont
+ * retirés.
  */
 export function parseScenes(input: unknown): ParsedScenes {
   const problems: string[] = []
@@ -317,7 +340,20 @@ export function parseScenes(input: unknown): ParsedScenes {
     }
   }
 
-  for (const loop of findLoops(byId)) {
+  const whole = new Map<string, SceneDefinition>([
+    ...DEFAULT_SCENES.map((scene): [string, SceneDefinition] => [scene.id, scene]),
+    ...byId,
+  ])
+  for (const loop of findLoops(whole)) {
+    if (loop.some((id) => !byId.has(id))) {
+      problems.push(
+        `Boucle ${loop.join(' → ')} : elle passe par une scène par défaut, boucle écartée`
+      )
+      for (const id of loop) {
+        delete byId.get(id)?.next
+      }
+      continue
+    }
     const members = loop.map((id) => byId.get(id) as SceneDefinition)
     const duration = members.reduce(
       (total, scene) => total + scene.steps.reduce((sum, step) => sum + stepDuration(step), 0),
@@ -370,8 +406,10 @@ function limitSmokeToOnePerChain(
   byId: ReadonlyMap<string, SceneDefinition>,
   problems: string[]
 ): void {
+  const whole = [...DEFAULT_SCENES.filter((scene) => !byId.has(scene.id)), ...byId.values()]
   const hasSmoke = (scene: SceneDefinition) => scene.steps.some((step) => step.type === 'smoke')
-  for (const start of byId.values()) {
+  // Les scènes par défaut aussi : `victory` (fumée) enchaîne `exit`, qu'une salle peut remplacer.
+  for (const start of whole) {
     let smoked = false
     let scene: SceneDefinition | undefined = start
     for (let hops = 0; scene && hops <= SCENE_LIMITS.maxScenes; hops += 1) {
@@ -394,10 +432,96 @@ function limitSmokeToOnePerChain(
         problems.push(
           `Scène « ${scene.id} » : « next » vers ${next.id}, qui a de la fumée alors que la chaîne en a déjà une, enchaînement écarté`
         )
-        delete scene.next
+        if (byId.has(scene.id)) {
+          delete scene.next
+        }
         break
       }
       scene = next
     }
+  }
+}
+
+export type ParsedExit = {
+  /** `undefined` : bloc absent ou illisible, les valeurs par défaut s'appliquent. */
+  exit: ExitLightConfig | undefined
+  problems: string[]
+}
+
+/**
+ * Relit `lighting.exit` de façon tolérante : champ absent ou invalide = valeur par défaut
+ * (`DEFAULT_EXIT`), durée ramenée à `maxStepMs` au plus, intensité dans 0..1. Une configuration
+ * d'avant ce bloc reste donc valide et donne la lumière de sortie par défaut.
+ */
+export function parseExit(input: unknown): ParsedExit {
+  const problems: string[] = []
+  if (input === undefined || input === null) {
+    return { exit: undefined, problems }
+  }
+  const raw = asRecord(input)
+  if (!raw) {
+    return { exit: undefined, problems: ['lighting.exit doit être un objet'] }
+  }
+
+  const duration = (value: unknown, fallback: number, name: string) => {
+    if (value === undefined) {
+      return fallback
+    }
+    if (!isFiniteNumber(value) || value < 0) {
+      problems.push(`lighting.exit.${name} invalide, ${fallback} ms utilisé`)
+      return fallback
+    }
+    if (value > SCENE_LIMITS.maxStepMs) {
+      problems.push(`lighting.exit.${name} ramené à ${SCENE_LIMITS.maxStepMs} ms`)
+      return SCENE_LIMITS.maxStepMs
+    }
+    return value
+  }
+
+  let enabled = DEFAULT_EXIT.enabled
+  if (typeof raw.enabled === 'boolean') {
+    enabled = raw.enabled
+  } else if (raw.enabled !== undefined) {
+    problems.push('lighting.exit.enabled invalide, lumière de sortie activée')
+  }
+
+  let intensity = DEFAULT_EXIT.intensity
+  if (isFiniteNumber(raw.intensity)) {
+    intensity = Math.min(1, Math.max(0, raw.intensity))
+    if (intensity !== raw.intensity) {
+      problems.push(`lighting.exit.intensity ramenée à ${intensity} (0 à 1)`)
+    }
+  } else if (raw.intensity !== undefined) {
+    problems.push(`lighting.exit.intensity invalide, ${intensity} utilisé`)
+  }
+
+  let color: SceneColor | null = { ...DEFAULT_EXIT.color }
+  if (raw.color !== undefined) {
+    // La couleur « pupitre » n'a pas de sens pour la sortie : elle est refusée comme une couleur invalide.
+    color = raw.color === 'desk' ? null : parseColor(raw.color)
+    if (color === null) {
+      problems.push('lighting.exit.color invalide, blanc chaud utilisé')
+      color = { ...DEFAULT_EXIT.color }
+    }
+  }
+
+  // Signalé sans être corrigé : la salle choisit sa lumière, mais une sortie éteinte est sans doute une erreur.
+  if (intensity === 0) {
+    problems.push('lighting.exit.intensity à 0 : la lumière de sortie n’éclairera pas')
+  }
+  const fixed = color as ExitLightConfig['color']
+  if (fixed.r === 0 && fixed.g === 0 && fixed.b === 0 && !fixed.w) {
+    problems.push('lighting.exit.color noire : la lumière de sortie n’éclairera pas')
+  }
+
+  return {
+    exit: {
+      enabled,
+      delayMs: duration(raw.delayMs, DEFAULT_EXIT.delayMs, 'delayMs'),
+      holdMs: duration(raw.holdMs, DEFAULT_EXIT.holdMs, 'holdMs'),
+      intensity,
+      color: fixed,
+    },
+    problems,
   }
 }
