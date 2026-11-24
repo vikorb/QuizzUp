@@ -12,6 +12,7 @@ import roomLogsRoutes from './room/logs'
 import gamesRoutes from './games'
 import vouchersRoutes from './vouchers'
 import statsRoutes from './stats'
+import playersRoutes from './players'
 import demoRequestsRoutes from './demoRequests'
 import liveRoutes from './live'
 import publicRoutes from './public'
@@ -31,6 +32,7 @@ const routes: FastifyPluginAsync = async (app) => {
   await app.register(gamesRoutes)
   await app.register(vouchersRoutes)
   await app.register(statsRoutes)
+  await app.register(playersRoutes)
   await app.register(demoRequestsRoutes)
   await app.register(liveRoutes)
   await app.register(publicRoutes, { prefix: PUBLIC_API_PREFIX })

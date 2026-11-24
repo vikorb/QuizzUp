@@ -12,7 +12,13 @@ export type SerialPortLike = {
   }) => Promise<void>
   close: () => Promise<void>
   writable: WritableStream<Uint8Array> | null
-  setSignals?: (signals: { break?: boolean }) => Promise<void>
+  /** Flux de lecture (facultatif : la sortie DMX n'écrit que ; le client de chargeur lit). */
+  readable?: ReadableStream<Uint8Array> | null
+  setSignals?: (signals: {
+    break?: boolean
+    dataTerminalReady?: boolean
+    requestToSend?: boolean
+  }) => Promise<void>
   getInfo?: () => { usbVendorId?: number; usbProductId?: number }
 }
 
@@ -116,7 +122,7 @@ export const SERIAL_CLOSE_TIMEOUT_MS = 1000
  * rejeté (« flux verrouillé ») et le même port ne peut plus être rouvert. On n'attend pas
  * `abort()` : il peut ne jamais aboutir sur une interface figée.
  */
-function discardWriter(writer: WritableStreamDefaultWriter<Uint8Array>) {
+export function discardWriter(writer: WritableStreamDefaultWriter<Uint8Array>) {
   writer.abort().catch(() => undefined)
   try {
     writer.releaseLock()

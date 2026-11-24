@@ -561,6 +561,63 @@ Le contrôleur de fumée applique, quoi que dise la configuration :
 > erreur** : `parseRoomHardwareConfig` désactive la fumée (`smokeDisabledReason: 'relay_required'`,
 > un problème « Fumée désactivée… ») et garde tous les autres réglages (durée, pause, niveau).
 
+## Lien vers la carte de fumée (`createSmokeBoardLink`)
+
+> Sécurité : fumée. Conception : `docs/cadrage/conception-fumee-carte-usb.md` (§3 protocole et
+> sécurités de la carte). **Rien n'a été essayé sur une vraie carte** : à valider sur le banc.
+
+Pour les salles dont la machine à fumée est commandée par une carte Arduino Uno en USB. Le lien
+parle à la carte par Web Serial (`smoke/boardLink.ts`, protocole pur dans `smoke/boardProtocol.ts`).
+Pas encore branché au `LightingController` (lot suivant).
+
+- **Ce qu'il fait** : ouvre le port à 9600 bauds et attend la bannière `QZF READY` (3 s au plus).
+  Sans bannière valide, il passe `no_firmware` et n'envoie **jamais** `F`. Une bannière d'un autre
+  protocole, illisible ou **plus permissive** que le projet est refusée : plafond de jet au-dessus
+  de 10 s (`SMOKE_HARD_LIMITS`), pause sous 5 s, bail au-dessus de 500 ms (`BOARD_MAX_LEASE_MS`,
+  égal à `WATCHDOG_STALL_MS`, sans en dépendre) ; une carte plus stricte est acceptée, sauf un bail
+  de moins de 200 ms (deux envois de `F`), qui couperait entre deux ordres normaux.
+- **`drive(true)` à chaque trame** : le lien n'envoie `F` qu'au plus toutes les 100 ms et ne le
+  renouvelle **jamais** de lui-même. Si l'appelant s'arrête (page gelée, test de gel), la carte
+  coupe à la fin du bail de 500 ms. `drive(false)` envoie `0` une fois, tout de suite, quand un `F`
+  est parti.
+- **Phase de la carte** (`getState().phase`) : dès la bannière, le lien envoie un `H` pour la lire.
+  La carte démarre en pause (`COOL`) pendant 5 s après chaque remise à zéro, et une pause suit
+  chaque jet. `drive(true)` n'envoie `F` que si la dernière ligne d'état dit `ready` (début de jet)
+  ou `fire` (renouvellement du bail) ; en `cool`, ou avant la première ligne, rien ne part : l'appelant
+  doit refuser le jet plutôt que d'afficher une fumée qui ne sort pas. Un `F` reçu en `COOL`
+  (course entre la page et la carte) est refusé par la carte, qui ignore ensuite les `F` jusqu'à un
+  `0` ou 500 ms de silence : le lien répond par un seul `0` et n'envoie plus de `F` avant d'avoir
+  relu `ready`. Le lien n'envoie non plus aucun `F` tant que la ligne d'état qui répond à son dernier
+  `0` n'est pas revenue, ni tant qu'une écriture précédente n'est pas terminée (port qui n'avale
+  plus rien : pas de rafale au déblocage). Seul le `0` part toujours.
+- **Surveillance** : un `H` de présence quand rien n'est parti depuis 250 ms ; carte `silent` après
+  1 s sans réponse à la plus ancienne ligne envoyée (la carte répond une ligne d'état par ligne
+  reçue, dans l'ordre) ; `fault` si la réponse à une ligne annonce la sortie allumée alors que cette
+  ligne ne pouvait pas l'allumer (partie plus d'un bail, plus 100 ms de latence, après le dernier `F`
+  parti pour de bon, ou après un `0`) : c'est jugé **à l'envoi**, une page ralentie qui lit sa
+  réponse tard n'est pas une panne. Une ligne d'état incohérente (`S 1 COOL`, `S 0 FIRE`) est
+  ignorée. `fault` aussi si la carte renvoie une bannière en cours de partie (elle a redémarré :
+  plafond et pause remis à zéro). `disconnected` sur toute erreur d'ouverture ou d'écriture, fin de
+  flux, ou erreur de lecture : une erreur **passagère** (`FramingError`, `ParityError`,
+  `BufferOverrunError`, `BreakError`) fait reprendre la lecture sur le flux neuf de
+  `port.readable`, trois de suite sans une ligne lue la déclarent perdue. Avant d'abandonner un
+  port dont la lecture est perdue, un dernier `0` est tenté (l'écriture marche peut-être encore).
+  Dès qu'on quitte `ready`, `board` et `phase` repassent à `null` : ils ne décrivent plus une
+  carte qui répond. Tout état d'échec est **définitif** : un nouveau lien (rechargement,
+  rebranchement) repart d'une nouvelle bannière. `onChange` prévient l'appelant, qui doit couper la
+  fumée et désarmer.
+- **Ce qu'il ne fait pas** : il n'arbitre rien. Le bail, le plafond et la pause sont dans la carte ;
+  il ne peut que les observer. Il ne choisit pas le port, ne téléverse pas de programme et ne
+  décide pas de l'arrêt d'urgence.
+- **Fermeture** : chaque étape (dernier `0`, libération du writer, annulation de la lecture,
+  fermeture du port) est bornée à 1 s et indépendante : une carte figée ne garde ni verrou ni port.
+- **Fausse carte** pour les tests : `tests/_helpers/fakeSmokeBoard.ts`. La décision est le port
+  ligne à ligne du programme de la carte (`tests/_helpers/fumeeLogic.ts`) et le test
+  `fumeeVectors.test.ts` le rejoue, avec ce port, sur les vecteurs partagés
+  `firmware/fumee/vecteurs.txt` (31 scénarios, dont le débordement du compteur). La pause de 5 s
+  compte depuis la bannière ; `abort()` rejette les écritures bloquées comme Chrome. Options : sans
+  bannière, autre protocole, muette, parasites, débranchement, erreur de lecture passagère, état forgé.
+
 ## Fiabilité des interfaces USB DMX (Web Serial)
 
 - **DMX USB Pro** : l'interface fabrique elle-même le signal DMX, le PC lui envoie un paquet
@@ -727,6 +784,53 @@ Avec la case et sans relais, le relais temporisé n'est pas exigé (`getState().
 `parseRoomHardwareConfig(room.config)` relit tout de façon tolérante (une config vide `{}` donne
 une salle en simulation) et renvoie la config normalisée, les appareils résolus et la liste des
 problèmes à afficher (touche en double, adresses qui se chevauchent, profil inconnu…).
+
+## Installer un programme sur une carte Uno (`firmware/`)
+
+Client du chargeur Optiboot d'une carte compatible Arduino Uno, par Web Serial (protocole STK500v1,
+écrit pour ce paquet, aucune bibliothèque de téléversement). Bibliothèque seulement : aucun écran
+ne l'appelle encore.
+
+- `parseIntelHex(texte)` / `writeIntelHex(image)` : fichier `.hex` ↔ image mémoire (trous à 0xFF,
+  somme de contrôle vérifiée ; adresses étendues, fin de fichier avec données et enregistrements
+  qui se recouvrent refusés).
+- `installFirmware({ port, hex, onBackup, onProgress, signal })` : impulsion DTR, synchronisation
+  (115200 bauds, puis une fois 57600 ; `GET_SYNC` espacés de 250 ms, confirmé après 50 ms de
+  silence), signature `1E 95 0F`, **sauvegarde de la flash lue deux fois et comparée, puis remise à
+  `onBackup` avant toute écriture** (si elle échoue ou si les deux lectures diffèrent, rien n'est
+  écrit : `backup_failed`), écriture par pages de 128 octets, relecture, sortie du chargeur. Le
+  port doit être fermé : le client l'ouvre. Tant que `onBackup` n'a pas rendu la main (choix d'un
+  fichier, téléchargement), un `GET_SYNC` part toutes les 250 ms : sans cela Optiboot sort du
+  chargeur après 1 s de silence et relance l'ancien programme.
+- **Ordre d'écriture.** Optiboot sort seul du chargeur après 1 s de silence, et lance alors ce que
+  la flash contient, y compris à chaque mise sous tension. Pour qu'une écriture interrompue
+  (annulation, débranchement, délai, relecture fausse) ne laisse jamais un mélange de l'ancien et
+  du nouveau programme, la **page 0 est écrite deux fois** : d'abord une page inerte (`FF CF` =
+  `rjmp .-2`, une boucle sur place, puis 0xFF), relue ; puis les pages 1 à n, relues ; la vraie
+  page 0 en dernier, relue. Après une erreur, la carte boucle donc sur place, broches en entrée
+  (relais retombé), jusqu'à un RESET et une nouvelle installation. Si l'écriture ou la relecture
+  de la vraie page 0 échoue (relecture fausse, délai, port perdu, annulation), la page 0 peut être
+  fausse : le client réécrit alors la page inerte, au mieux, la relit, puis rend l'erreur
+  d'origine. `FirmwareError.inert` dit le résultat : `true` si la page inerte est en place, `false`
+  si cette réécriture a échoué aussi (la carte peut lancer un programme faux, A0 comprise : ne pas
+  rebrancher la machine à fumée avant une nouvelle installation réussie). Absent pour les autres
+  erreurs.
+- `restoreFirmware({ port, hex })` réécrit un `.hex` (la sauvegarde téléchargée), dans le même
+  ordre. `connectBootloader` (dans le module, pas exporté du paquet) donne le client (`readFlash`,
+  `readBackup`, `keepAlive`, `writeFlash`, `leave`, `close`) pour les tests.
+- Taille : 32 256 octets au plus ; **30 720 quand la synchronisation a eu lieu à 57600 bauds**
+  (anciens chargeurs de 2 Kio : le repli à 57600 est le leur), sinon `too_large`.
+- Erreurs `FirmwareError.code` : `no_sync`, `wrong_signature`, `too_large`, `verify_failed` (avec
+  `address`), `port_lost`, `port_busy`, `timeout`, `cancelled`, `backup_failed`. Les erreurs de
+  lecture passagères de Web Serial (`FramingError`, `BreakError`, `BufferOverrunError`,
+  `ParityError`, notamment à la remise à zéro) reprennent la lecture sur `port.readable` ; seule
+  une `NetworkError` ou un port sans flux donne `port_lost`.
+
+Limites : Uno et clones avec Optiboot seulement (ATmega328P). Testé contre un émulateur d'Optiboot
+(`tests/_helpers/fakeOptiboot.ts` : démarrage sans écoute, mémoire de réception de 2 octets,
+adresse qui n'avance qu'avec `LOAD_ADDRESS`, sortie après 1 s de silence) ; **rien n'est prouvé sur
+une vraie carte** (remise à zéro par DTR et durée de l'impulsion, débit, pilote USB, comportement
+réel de la flash et du chargeur : à voir sur le banc).
 
 ## Commandes
 
