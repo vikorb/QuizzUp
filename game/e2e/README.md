@@ -35,6 +35,27 @@ complète se joue en une vingtaine de secondes. Les buzzers sont de vrais appuis
 3 = `A S D F`, 4 = `Z X C V` (touches physiques). Pour savoir quelle réponse est juste, le test
 relit le contenu de la partie que la salle sauvegarde dans `localStorage`.
 
+### Frontend du backoffice (`tests/backoffice/`, `tests/room-app/join-qr.spec.ts`)
+
+Playwright démarre aussi `backoffice/frontend` (`npm run dev`, port **4176**, même
+`VITE_API_URL`). Il lit `@quizzup/shared` construit : `npm --prefix ../../backoffice/shared run build`
+avant le premier lancement (et après un changement de `shared`, sinon la page reste blanche).
+Aucune API ni base : les appels sont interceptés (`tests/support/fakeBackoffice.ts` pour le
+frontend, `fakeApi.ts` pour la salle), avec les réponses du contrat `openapi.yaml`.
+
+- `join-qr.spec.ts` (projet `room-app`) : le lobby du personnel affiche le QR et le lien
+  d'inscription ; un contexte mobile (Pixel 7) ouvre ce lien, lit le jeton dans le fragment et
+  envoie exactement `{ token, displayName }` ; le lobby relit la partie et affiche « 1 inscription
+  en attente de validation », puis le joueur à son pupitre une fois validé (validation simulée par
+  le bouchon). Le bouchon rend le flux d'un bloc et chaque `hello` fait relire la partie : la
+  réception de `game_updated` n'est **pas** prouvée ici, elle l'est par les tests unitaires
+  (`roomLive.test.ts`, `StaffGameLobby.test.ts`, `liveJoinRegistrations.test.ts`).
+- `backoffice/join-refusals.spec.ts` : page téléphone, code inconnu (« Lien invalide »), adresse
+  sans code (« Lien invalide », aucune requête envoyée), inscriptions closes, inscriptions complètes à l'envoi, avec le message traduit.
+- `backoffice/results-print.spec.ts` : feuille de résultats d'une partie terminée. À l'écran, le
+  bouton « Imprimer » appelle `window.print` ; en `emulateMedia({ media: 'print' })`, boutons
+  masqués, classement et bon valable (QR, code) visibles, bon utilisé absent.
+
 ### Pont Art-Net réel (`tests/support/artnetBridge.ts`)
 
 Le test lance le **vrai** pont (`game/artnet-bridge/src/server.ts`, importé tel quel : il n'a aucune
@@ -80,9 +101,12 @@ Les scénarios des mini-jeux joignent une capture par étape au rapport Playwrig
 ```bash
 npm install                     # .npmrc : legacy-peer-deps (comme les autres paquets game/)
 npm --prefix ../room-app install
+npm --prefix ../../backoffice/shared install
+npm --prefix ../../backoffice/shared run build
+npm --prefix ../../backoffice/frontend install
 npx playwright install chromium # navigateur de test (une fois)
 
-npm test                        # lance les deux serveurs Vite puis tous les tests
+npm test                        # lance les trois serveurs Vite puis tous les tests
 npm run test:headed             # avec le navigateur visible
 npm run test:ui                 # mode interactif Playwright
 npm run report                  # dernier rapport HTML

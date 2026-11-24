@@ -192,7 +192,9 @@ npm run knip      # code mort
 `npm run format:check`, `npm run type-check`, `npm test` (`npm run test:coverage` pour les seuils).
 
 **Tests de bout en bout — depuis `game/e2e/`** : `npm install`, `npm --prefix ../room-app install`,
-`npx playwright install chromium`, puis `npm test` (démarre room-app :4174 et le banc d'essai :4175).
+`npm --prefix ../../backoffice/shared install && npm --prefix ../../backoffice/shared run build`,
+`npm --prefix ../../backoffice/frontend install`, `npx playwright install chromium`, puis `npm test`
+(démarre room-app :4174, le banc d'essai :4175 et le frontend du backoffice :4176).
 
 **Docker** (depuis `backoffice/`) : `docker compose up --build`
 → backend `:3001`, frontend `:4173`, écran de salle `:4174`, Swagger `:3001/docs`, Postgres
