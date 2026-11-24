@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify'
 import healthRoute from './health'
 import authRoutes from './auth'
+import loginRoutes from './login'
 import meRoutes from './me'
 import companiesRoutes from './companies'
 import themesRoutes from './themes'
@@ -16,6 +17,7 @@ import { PUBLIC_API_PREFIX } from './public/_shared'
 const routes: FastifyPluginAsync = async (app) => {
   await app.register(healthRoute)
   await app.register(authRoutes)
+  await app.register(loginRoutes)
   await app.register(meRoutes)
   await app.register(companiesRoutes)
   await app.register(themesRoutes)

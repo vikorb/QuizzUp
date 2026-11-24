@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 
 import db from '../db'
+import meTotpRoutes from './me/totp'
 
 type PublicMeAdmin = {
   id: number
@@ -16,6 +17,8 @@ type PublicMeAdmin = {
 }
 
 const meRoutes: FastifyPluginAsync = async (app) => {
+  app.register(meTotpRoutes)
+
   app.get(
     '/me',
     { preHandler: [app.authenticate] },

@@ -2,6 +2,7 @@ import fastify, { type FastifyReply, type FastifyRequest } from 'fastify'
 import { expect, vi } from 'vitest'
 
 import { createConsoleNetwork } from '../../../../../backend/src/security/consoleNetwork'
+import { parseTotpKey } from '../../../../../backend/src/security/secretBox'
 
 export type TestUser = {
   sub: string
@@ -64,6 +65,7 @@ export async function createRouteApp(plugin: unknown) {
 
   // Comme le plugin d'authentification : la variable est lue à la création de l'application.
   app.decorate('consoleNetwork', createConsoleNetwork(process.env.CONSOLE_ALLOWED_CIDRS))
+  app.decorate('totpKey', parseTotpKey(process.env.TOTP_ENCRYPTION_KEY))
 
   app.decorate('authenticate', async (req: FastifyRequest, reply: FastifyReply) => {
     const rawUser = req.headers['x-test-user']
