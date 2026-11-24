@@ -3,7 +3,6 @@ import cors from '@fastify/cors'
 import swagger from '@fastify/swagger'
 import swaggerUi from '@fastify/swagger-ui'
 import path from 'node:path'
-import fs from 'node:fs'
 
 import routes from './routes'
 import { isPublicPath, sendPublicError } from './routes/public/_shared'
@@ -11,30 +10,10 @@ import authPlugin from './plugins/auth'
 import liveHubPlugin from './plugins/liveHub'
 import liveJoinRegistrationsPlugin from './plugins/liveJoinRegistrations'
 import { parseCorsOrigin, parsePublicOrigins } from './utils/cors'
+import { resolveApiDocPath } from './utils/apiDocPath'
 import { parseTrustProxy } from './utils/trustProxy'
 
 import type { FastifyStaticSwaggerOptions } from '@fastify/swagger'
-
-function resolveOpenApiPath() {
-  if (process.env.OPENAPI_PATH) {
-    return path.resolve(process.env.OPENAPI_PATH)
-  }
-
-  const candidates = [
-    path.resolve(process.cwd(), 'docs/api/openapi.yaml'),
-    path.resolve(process.cwd(), '../docs/api/openapi.yaml'),
-    path.resolve(process.cwd(), 'docs/db/openapi.yaml'),
-    path.resolve(process.cwd(), '../docs/db/openapi.yaml'),
-  ]
-
-  const openApiPath = candidates.find((candidate) => fs.existsSync(candidate))
-
-  if (!openApiPath) {
-    throw new Error(`openapi.yaml not found. Tried: ${candidates.join(', ')}`)
-  }
-
-  return openApiPath
-}
 
 export function buildApp() {
   // Derrière un proxy (Caddy), `req.ip` ne vaut l'adresse du client que si on nomme ce proxy ici ;
@@ -80,7 +59,7 @@ export function buildApp() {
     })
   })
 
-  const openApiPath = resolveOpenApiPath()
+  const openApiPath = resolveApiDocPath()
   const openApiBaseDir = path.dirname(openApiPath)
 
   const swaggerOptions: FastifyStaticSwaggerOptions = {

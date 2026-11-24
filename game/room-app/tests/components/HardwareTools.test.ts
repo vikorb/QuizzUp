@@ -4,8 +4,10 @@ import { flushPromises } from '@vue/test-utils'
 import { useConfirm } from '@/composables/useConfirm'
 import {
   getLighting,
+  getRoomHardwareConfig,
   HARDWARE_STORAGE_KEY,
   saveBuzzerKeymap,
+  saveLearnedBuzzers,
   saveRoomHardwareConfig,
   SMOKE_PROOF_STORAGE_KEY,
   useRoomHardware,
@@ -126,6 +128,59 @@ describe('onglet Assistant', () => {
   afterEach(() => {
     uninstallFakeSerial()
     Reflect.deleteProperty(globalThis, 'isSecureContext')
+  })
+
+  it('l’enregistrement de l’assistant garde l’interface connectée et la manette apprise', async () => {
+    const CH340 = { usbVendorId: 0x1a_86, usbProductId: 0x75_23 }
+    const BOARD_ID = 'BU0836A Interface (Vendor: 1dd2 Product: 1001)'
+    installFakeSerial(createFakeUsbPort(CH340))
+    const pad = {
+      index: 0,
+      id: BOARD_ID,
+      connected: true,
+      timestamp: 0,
+      buttons: [{ pressed: false }],
+    }
+    Object.defineProperty(navigator, 'getGamepads', { configurable: true, value: () => [pad] })
+    try {
+      await saveBuzzerKeymap(fullKeymap())
+      const { wrapper } = await mountWithApp(HardwareView, { route: '/hardware' })
+      await openTab(wrapper, 'assistant')
+      await click(wrapper, 'assistant-next')
+      await sel(wrapper, 'buzzer-source').setValue('gamepad')
+      await sel(wrapper, 'gamepad-match').setValue('BU0836')
+      // La carte apprise pendant l'assistant : enregistrée, mais absente de son instantané.
+      await vi.waitFor(() => expect(useRoomHardware().buzzerState.value?.active).toBe(true))
+      await saveLearnedBuzzers(fullKeymap())
+      expect(getRoomHardwareConfig().buzzers.source).toMatchObject({ id: BOARD_ID })
+
+      await click(wrapper, 'assistant-next')
+      await sel(wrapper, 'driver-usbpro').setValue(true)
+      await click(wrapper, 'assistant-connect')
+      await vi.waitFor(() => expect(wrapper.text()).toContain('Interface connectée'))
+      expect(getRoomHardwareConfig().lighting.usb).toEqual(CH340)
+
+      await click(wrapper, 'assistant-next')
+      await sel(wrapper, 'fixture-name').setValue('PAR pupitre 1')
+      await click(wrapper, 'fixture-add')
+      await click(wrapper, 'assistant-next')
+      await click(wrapper, 'assistant-next')
+      // L'étape de test applique la config de l'assistant (`apply()`).
+      await vi.waitFor(() => expect(getLighting()?.diagnostics.getState().active).toBe(true))
+
+      expect(getRoomHardwareConfig().lighting.usb).toEqual(CH340)
+      expect(getRoomHardwareConfig().buzzers.source).toMatchObject({
+        kind: 'gamepad',
+        match: 'BU0836',
+        id: BOARD_ID,
+      })
+      expect(JSON.parse(localStorage.getItem(HARDWARE_STORAGE_KEY) ?? '{}')).toMatchObject({
+        lighting: { usb: CH340 },
+        buzzers: { source: { id: BOARD_ID } },
+      })
+    } finally {
+      Reflect.deleteProperty(navigator, 'getGamepads')
+    }
   })
 
   it('installe une salle USB DMX avec un PAR et une fumée sécurisée', async () => {

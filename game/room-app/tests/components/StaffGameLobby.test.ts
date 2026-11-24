@@ -4,6 +4,7 @@ import {
   GAME_FORMAT_SETTINGS,
   GAME_FORMAT_SHORT,
   GAME_FORMAT_STANDARD,
+  type GameFormat,
   MINI_GAME_FIRST_BUZZ,
   MINI_GAME_FLASH_BLIND_TEST,
   MINI_GAME_POINT_STEAL,
@@ -176,6 +177,8 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
   })
 
   describe('format de la partie', () => {
+    afterEach(() => setCurrentLocale('fr'))
+
     it.each([
       [GAME_FORMAT_DISCOVERY, 'Format Découverte · 3 à 6 min'],
       [GAME_FORMAT_SHORT, 'Format Courte · 12 à 21 min'],
@@ -231,7 +234,14 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
       await flushPromises()
 
       expect(wrapper.get('[data-test="game-format"]').text()).toBe('Short format · 12 to 21 min')
-      setCurrentLocale('fr')
+    })
+
+    it('lit un format inconnu de cet écran comme personnalisé, sans clé brute', async () => {
+      // Un serveur plus récent peut envoyer un format que cet écran ne connaît pas.
+      const line = await formatLine({ format: 'marathon' as unknown as GameFormat })
+
+      expect(line).toContain('Format Personnalisé')
+      expect(line).not.toContain('room.lobby')
     })
   })
 

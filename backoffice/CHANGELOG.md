@@ -10,14 +10,31 @@ Format inspiré de Keep a Changelog.
 
 - Suivi en direct des inscriptions : le lobby de la salle et le panneau d'inscription du backoffice se mettent à jour dès qu'une partie change (événement `game_updated` sur les flux existants), au lieu d'interroger le serveur toutes les 3 à 5 secondes. Flux coupé : une interrogation lente (15 s) prend le relais.
   US: US-LIVE-01 (#129)
+- Identité des périphériques : l'interface DMX USB et la carte de buzzers sont retenues par leur identité (modèle USB, identifiant de manette). Après un redémarrage, seul l'appareil appris est repris ; deux appareils identiques ne sont jamais départagés au hasard, l'ambiguïté est signalée. La carte de fumée est exclue du choix du port DMX. À valider sur le banc.
+  US: US-SHOW-01 (#145)
+
+- Fumée par la carte USB, contrôleur : le contrôleur de lumières accepte un lien vers la carte (`smokeLink`) et lui envoie l'ordre de fumée à chaque trame. L'arrêt part tout de suite à la pause, à l'onglet masqué, à la fermeture de la page, à l'arrêt d'urgence et au changement de sortie. Un lien perdu coupe le jet et désarme la fumée ; un tir est refusé (`board_unavailable`) tant que la carte n'est pas prête. Le réglage `lighting.smoke.board` n'est jamais exporté, et le port de la carte est exclu du choix du port DMX. À valider sur le banc.
+  US: US-DMX-01 (#215)
+
+- Lumières à la pause : quand la partie est mise en pause, la salle passe sur une ambiance basse (scène `pause`, sans éclair ni fumée) ; à la reprise elle retrouve la lumière de la phase en cours. Les liaisons `game_paused` et `game_resumed` restent réglables par salle.
+- Écran Matériel : boutons Exporter et Importer la configuration de la salle (onglet Configuration avancée). L'import vérifie le type et la taille du fichier, affiche un résumé et demande confirmation. Il ne relève aucun réglage de fumée : activation, niveau, jet, pause et confirmation restent ceux de la salle ou plus stricts, et l'assistant, le test de coupure et l'armement sont à refaire. À valider sur le banc.
+  US: US-SHOW-01 (#145)
+
+- Clés d'API au backoffice : la fiche client liste les clés de la compagnie, en crée une, en révoque une (avec confirmation) et affiche le journal des appels. Le secret ne s'affiche qu'une fois, à la création, et n'est jamais enregistré dans le navigateur. Réservé aux rôles admin et superadmin.
+  US: US-BOOKING-01 (#188)
 
 - Format de partie au backoffice et au lobby : à la création, le formulaire propose Découverte, Courte, Standard (par défaut) et Personnalisé, avec les nombres et la durée estimée de chaque format. Les champs manches et questions n'apparaissent qu'en Personnalisé. Le lobby du staff affiche le format et sa durée.
   US: US-FORMAT-01 (#143)
 
-- Format de partie côté serveur : `games.format` stocke le format (`discovery`, `short`, `standard`, `custom`). À la création, un format fixe ses nombres de manches et de questions (les envoyer ensemble donne 400 `invalid_body`, `format_fixes_counts`) ; des nombres sans format donnent `custom`. Modifier les nombres d'une session programmée la passe en `custom`. Le format est renvoyé par les parties et par `GET /room/games/current`.
-  US: US-FORMAT-01 (#143)
-- Écran de salle, accueil des joueurs : le lobby d'une partie en attente affiche le QR code d'inscription fourni par le serveur (dans un `<img>`, jamais en `v-html`), l'adresse en clair et le nombre d'inscriptions en attente de validation. Sans QR code, l'adresse seule ; un lien expiré est signalé ; rien en partie en cours.
-  US: US-JOIN-01 (#166)
+- Blind test par playlist, côté salle : `GET /room/games/current/content` tire les titres d'un thème de playlist chez le fournisseur d'extraits et en fait des questions « Quel est ce titre ? » (quatre réponses, identifiants négatifs, crédit du titre). Nouvelle route `GET /room/games/current/tracks` qui rend les liens d'extrait à jour pour reprendre une partie après rechargement. En mode enfants, seuls les thèmes adaptés sont lus.
+  US: US-PLAYLIST-01 (#204)
+
+- API publique, bac à sable : la salle de démonstration naît avec des créneaux réservables (tous les jours de 10 h à 20 h, créneaux d'une heure, 4 pupitres), et un guide pas à pas (`docs/api/essayer-l-api-publique.md`) montre comment créer une clé puis réserver. Aucune clé n'est créée par le seed.
+  US: US-BOOKING-01 (#188)
+
+- API publique : réservations (`POST`, `GET`, `PATCH`, `DELETE` sur `/public/v1/bookings`). Une réservation crée une partie programmée dans la compagnie de la clé d'API ; une clé ne voit et ne modifie que ses propres réservations. La clé d'idempotence rejoue la même réponse au lieu de créer un doublon, et un créneau déjà pris est refusé (`slot_taken`).
+- API publique : réservations (`POST`, `GET`, `PATCH`, `DELETE` sur `/public/v1/bookings`). Une réservation crée une partie programmée dans la compagnie de la clé d'API ; les clés d'une compagnie voient et modifient les réservations créées par l'API de cette compagnie, jamais les sessions créées au backoffice. La clé d'idempotence rejoue la même réponse au lieu de créer un doublon, et un créneau déjà pris est refusé (`slot_taken`).
+  US: US-BOOKING-01 (#188)
 
 - Bons : page publique `/bon/#<code>` pour le téléphone du joueur, sur la même infrastructure que `/rejoindre/`. Elle affiche l'état du bon (valide, utilisé, expiré, annulé, introuvable) ; le code reste dans le fragment de l'adresse et part dans le corps de la requête, jamais dans une URL.
   US: US-VOUCHER-01 (#156)
@@ -466,6 +483,11 @@ Format inspiré de Keep a Changelog.
   US: us-front-design-01
 
 ### Fixed
+
+- Relais PowerShell des lumières : un envoi partiel est repris jusqu'au bout, et la lecture est bornée par tour : un client qui envoie sans fin ne bloque plus les autres connexions.
+  US: US-DMX-01 (#203)
+- API publique : `GET /public/v1/openapi.yaml` sert le contrat `public-v1.yaml`, sans clé d'API, sous la limite de débit par adresse. Le contrat annonçait cette route sans qu'elle existe. L'image de production embarque le fichier.
+  US: US-BOOKING-01 (#188)
 
 - Relais PowerShell des lumières, tests : les attentes d'une trame ou d'un paquet attendu ne coupent plus à 2 s. Sur le runner Windows de la CI, une pause ponctuelle faisait échouer « lit les origines dans QUIZZUP_BRIDGE_ORIGINS et répond 426 hors WebSocket ». Le délai (20 s) ne sert plus qu'à détecter un blocage.
   US: US-SHOW-01 (#203)

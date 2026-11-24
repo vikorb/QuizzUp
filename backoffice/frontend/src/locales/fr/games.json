@@ -95,6 +95,7 @@
         "custom": "Personnalisé"
       },
       "formatOption": "{name} · {rounds} × {questions} · {min} à {max} min",
+      "formatEditHint": "Modifier les manches ou les questions passe la partie en Personnalisé.",
       "formatEstimate": "Durée estimée : {min} à {max} min, avec les mini-jeux cochés.",
       "roundsCount": "Manches",
       "roundsHint": "Entre 1 et {max}",

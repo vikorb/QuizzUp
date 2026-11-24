@@ -72,6 +72,7 @@ export {
   withArtnetTarget,
   withBuzzerLayout,
   withDesksCount,
+  withDeviceIdentity,
   withLearnedKeymap,
   withoutSmokeEscalation,
   withoutUnknownKeys,
@@ -136,19 +137,24 @@ export {
   MAX_COLOR_SLOTS,
 } from './dmx/profiles'
 export type {
+  DmxPortChoice,
+  DmxPortExclusion,
   SerialErrorCode,
   SerialErrorDescription,
   SerialLike,
   SerialPortLike,
+  UsbId,
 } from './dmx/serialOutput'
 export {
   createSerialOutput,
   describePort,
   describeSerialError,
+  findDmxPortByUsb,
   getGrantedDmxPort,
   getWebSerial,
   isWebSerialSupported,
   OPEN_DMX_FRAME_MS,
+  portUsbId,
   requestDmxPort,
   watchDmxPortReconnection,
 } from './dmx/serialOutput'
@@ -208,6 +214,7 @@ export {
 export type { ParsedExit, ParsedScenes } from './lighting/showConfig'
 export { parseExit, parseScenes, SCENE_LIMITS } from './lighting/showConfig'
 export type {
+  SmokeBoardConfig,
   SmokeController,
   SmokeFireResult,
   SmokeRefusal,
@@ -220,6 +227,8 @@ export {
   createSmokeController,
   DEFAULT_SMOKE_SAFETY,
   normalizeSmokeSafety,
+  parseSmokeBoard,
+  SMOKE_BOARD_KINDS,
   SMOKE_HARD_LIMITS,
 } from './lighting/smoke'
 export type { PlanFixture, PlanPoint, PlanTarget, RoomPlan } from './plan'

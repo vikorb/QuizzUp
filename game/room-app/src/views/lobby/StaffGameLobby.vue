@@ -146,7 +146,12 @@
 <script setup lang="ts">
 import { mdiPlay, mdiRestart, mdiTimerSandEmpty } from '@mdi/js'
 import { GameSetupError } from '@quizzup/game-engine'
-import { estimateGameDurationMs, GAME_FORMAT_CUSTOM, GAME_STATE_RUNNING } from '@quizzup/shared'
+import {
+  estimateGameDurationMs,
+  GAME_FORMAT_CUSTOM,
+  GAME_FORMATS,
+  GAME_STATE_RUNNING,
+} from '@quizzup/shared'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -243,7 +248,10 @@ const formatLabel = computed(() => {
     miniGames: current.miniGames ?? undefined,
   })
   return t('room.staffLobby.format', {
-    name: t(`room.lobby.formats.${current.format ?? GAME_FORMAT_CUSTOM}`),
+    // Un format que cet écran ne connaît pas (serveur plus récent) se lit « Personnalisé ».
+    name: t(
+      `room.lobby.formats.${GAME_FORMATS.find((format) => format === current.format) ?? GAME_FORMAT_CUSTOM}`
+    ),
     min: Math.round(typicalMs / MS_PER_MINUTE),
     max: Math.ceil(highMs / MS_PER_MINUTE),
   })
