@@ -14,6 +14,7 @@ import {
   type RoomSchedule,
 } from '@quizzup/shared'
 import roomRoutes from '@backend/routes/room'
+import { qrSvg } from '@backend/utils/qrSvg'
 import { db, dbState, lockedTables, MOCK_NOW } from './_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from './_helpers/resetRouteMocks'
 import {
@@ -290,7 +291,10 @@ describe('routes/room.ts — current game (US-GAME-08)', () => {
       const body = parseJson<CurrentBody>(response)
 
       expect(body.game).toMatchObject({
-        join: { url: `https://bo.quizzup.test/rejoindre/#${TOKEN}` },
+        join: {
+          url: `https://bo.quizzup.test/rejoindre/#${TOKEN}`,
+          qrSvg: qrSvg(`https://bo.quizzup.test/rejoindre/#${TOKEN}`),
+        },
         pendingRegistrationsCount: 2,
       })
       expect(body).not.toHaveProperty('join')
