@@ -1081,6 +1081,9 @@ export function createLightingController(options: LightingControllerOptions): Li
         stopLoop()
         doc?.removeEventListener('visibilitychange', onVisibilityChange)
         globalThis.removeEventListener?.('pagehide', onPageHide)
+        // Le lien survit au contrôleur (relance des lumières) : plus d'abonné mort sur lui.
+        detachLink?.()
+        detachLink = null
         smoke.stop('shutdown')
         driveLink(false)
         player.blackout()

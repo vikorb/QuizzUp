@@ -128,6 +128,7 @@
         "watchdog": "The page froze: smoke cut for safety.",
         "output_error": "The DMX interface stopped responding.",
         "page_hidden": "Tab hidden: smoke cut for safety.",
+        "board_lost": "The smoke board no longer responds: smoke cut and disarmed.",
         "unknown_scene": "Unknown scene in the configuration.",
         "output_recovered": "The DMX interface responds again: lights resumed (smoke still off)."
       }
@@ -154,6 +155,64 @@
       "arm": "Smoke allowed for this session",
       "armHint": "To be ticked by the operator once the room is checked. Smoke is disarmed by every emergency stop.",
       "test": "Test 2 s",
+      "board": {
+        "title": "Smoke USB board",
+        "status": {
+          "none": "No board connected.",
+          "connecting": "Connecting to the board…",
+          "ready": "Ready (program {version}).",
+          "outdated": "Program {version} needs updating.",
+          "absent": "QuizzUp program missing on this board.",
+          "silent": "The board no longer responds.",
+          "disconnected": "Board unplugged or port lost.",
+          "fault": "The board restarted or contradicts itself: smoke cut."
+        },
+        "empty": "No board chosen. If the list stays empty, check the USB cable and the board driver.",
+        "ambiguous": "Several boards of the same model are plugged in: none is picked up, unplug one.",
+        "connect": "Choose the smoke board",
+        "connectErrors": {
+          "same_as_dmx": "This is the room's DMX interface: choose the smoke board.",
+          "failed": "This board does not answer with the QuizzUp program. Install the program below.",
+          "save_failed": "The board answers, but the room configuration could not be saved: try again.",
+          "unsupported": "Web Serial is unavailable: use Chrome or Edge on the room PC."
+        },
+        "machineOff": "The smoke machine is switched off",
+        "installHint": "The board's old program fires the smoke on its own: switch the machine off before installing. The current program is downloaded first, to go back.",
+        "install": "Install the program",
+        "restoreFile": ".hex file to restore",
+        "restore": "Restore",
+        "restoreHint": "A restored program is the original one: it does not follow QuizzUp's safety rules and may fire the smoke on its own. Keep the machine switched off after a restore.",
+        "backupQuestion": "The board's current program is being downloaded ({file}). Is the file really saved on this PC? Without it there is no way back: nothing is written until you answer.",
+        "backupYes": "Yes, the backup is saved",
+        "backupNo": "No, cancel",
+        "steps": {
+          "sync": "Syncing with the board",
+          "backup": "Backing up the current program",
+          "write": "Writing",
+          "verify": "Reading back",
+          "exit": "Starting the program"
+        },
+        "errors": {
+          "no_sync": "The board does not answer the loader: press RESET when the bar starts.",
+          "wrong_signature": "This is not an Uno board (unexpected signature): nothing was written.",
+          "too_large": "The program is too big for this board: nothing was written.",
+          "verify_failed": "The read-back differs from what was written: install again.",
+          "port_lost": "Board unplugged or port lost: install again.",
+          "port_busy": "Port busy: close the other tab or program using it.",
+          "timeout": "The board no longer responds: install again.",
+          "cancelled": "Operation cancelled.",
+          "backup_failed": "The backup of the current program was not confirmed or failed: nothing was written.",
+          "not_confirmed": "Tick “The smoke machine is switched off” first.",
+          "no_port": "Choose the smoke board first.",
+          "invalid_hex": "This file is not a readable .hex program: nothing was written.",
+          "busy": "An installation is already running."
+        },
+        "notInert": "The board's program may be wrong: do not plug the machine back in before a successful install.",
+        "done": {
+          "install": "Program installed. The board restarts in its safety pause, smoke disarmed.",
+          "restore": "Program restored. This is the original program: it does not follow QuizzUp's safety rules and may fire the smoke on its own. Keep the smoke machine switched off."
+        }
+      },
       "status": {
         "disabled": "disabled",
         "unarmed": "not allowed",
@@ -170,7 +229,8 @@
         "emergency": "Emergency stop active.",
         "invalid_duration": "Duration refused.",
         "page_hidden": "Tab hidden: smoke refused.",
-        "paused": "Game paused: smoke refused until it resumes."
+        "paused": "Game paused: smoke refused until it resumes.",
+        "board_unavailable": "Smoke board missing, silent or in its start-up pause: smoke refused."
       }
     },
     "advanced": {

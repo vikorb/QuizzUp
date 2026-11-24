@@ -308,14 +308,15 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      # À partir du lot L5 (écran d'installation), l'absence de fumee.hex devra faire échouer ce job.
+      # L'écran de salle importe fumee.hex (écran Matériel, installation du programme) : son absence
+      # fait échouer ce job.
       - name: Le .hex versionné est celui de la compilation
         run: |
-          if [ -f fumee.hex ]; then
-            diff -u fumee.hex "$RUNNER_TEMP/fumee-build/fumee.ino.hex"
-          else
-            echo "Pas de fumee.hex versionné : rien à comparer."
+          if [ ! -f fumee.hex ]; then
+            echo "fumee.hex n'est pas versionné : l'écran de salle en a besoin."
+            exit 1
           fi
+          diff -u fumee.hex "$RUNNER_TEMP/fumee-build/fumee.ino.hex"
 
   e2e:
     name: Tests de bout en bout (Playwright, Chromium)

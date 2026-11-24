@@ -79,6 +79,7 @@
     <p class="hw-hint">{{ $t('hardware.lights.physicalStop') }}</p>
 
     <h3 class="hw-panel__subtitle">{{ $t('hardware.smoke.title') }}</h3>
+    <SmokeBoardPanel />
     <p v-if="smokeNeedsTest" class="hw-alert" role="status" data-test="smoke-test-required">
       {{ $t('hardware.smoke.testRequired') }}
     </p>
@@ -90,7 +91,7 @@
         <input
           type="checkbox"
           :checked="smoke?.armed ?? false"
-          :disabled="!lighting || state?.emergency"
+          :disabled="!lighting || state?.emergency || boardBusy"
           data-test="smoke-arm"
           @change="onArm"
         />
@@ -99,7 +100,7 @@
       <span class="smoke__status">
         {{ smoke ? $t(`hardware.smoke.status.${smoke.status}`) : '' }}
       </span>
-      <UiButton :disabled="!smoke?.armed" data-test="smoke-test" @click="onSmokeTest">
+      <UiButton :disabled="!smoke?.armed || boardBusy" data-test="smoke-test" @click="onSmokeTest">
         {{ $t('hardware.smoke.test') }}
       </UiButton>
       <p class="hw-hint smoke__hint">{{ $t('hardware.smoke.armHint') }}</p>
@@ -173,7 +174,9 @@ import {
   switchToSimulatedLights,
   useRoomHardware,
 } from '@/hardware/roomHardware'
+import { reconnectSmokeBoard, useSmokeBoard } from '@/hardware/smokeBoard'
 import { useEmergencyStop } from '@/hardware/useEmergencyStop'
+import SmokeBoardPanel from '@/views/hardware/SmokeBoardPanel.vue'
 
 /** Rafraîchissement de la salle simulée (les scènes s'animent en fondu). */
 const RIG_REFRESH_MS = 100
@@ -201,6 +204,8 @@ const {
   smokeNeedsTest,
 } = useRoomHardware()
 const emergency = useEmergencyStop()
+// Pendant l'installation du programme de la carte, la fumée ne s'arme ni ne s'essaie.
+const { busy: boardBusy } = useSmokeBoard()
 
 const fixtures = shallowRef<FixtureView[]>([])
 const sceneDesk = ref<DeskNumber>(1)
@@ -285,6 +290,7 @@ onMounted(() => {
   void startLighting()
     .catch(() => undefined)
     .then(refreshRig)
+  void reconnectSmokeBoard().catch(() => undefined)
   rigTimer = setInterval(refreshRig, RIG_REFRESH_MS)
 })
 

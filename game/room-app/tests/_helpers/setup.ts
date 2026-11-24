@@ -14,6 +14,8 @@ afterEach(async () => {
   resetPendingFinishes()
   const { resetErrorReporter } = await import('@/diagnostics/errorReporter')
   resetErrorReporter()
+  const { resetSmokeBoard } = await import('@/hardware/smokeBoard')
+  await resetSmokeBoard()
   localStorage.removeItem(HARDWARE_STORAGE_KEY)
   localStorage.removeItem(HARDWARE_SYNC_STORAGE_KEY)
   localStorage.removeItem(EMERGENCY_STORAGE_KEY)
