@@ -632,7 +632,8 @@ describe('contrôleur lumières et fumée', () => {
       type: 'game_ended',
       payload: { reason: 'no_content', winnerIds: [11] },
     })
-    expect(current.controller.getState().currentSceneId).toBe(SCENE_IDS.IDLE)
+    // Pas de célébration : la lumière de sortie, sans fumée.
+    expect(current.controller.getState().currentSceneId).toBe(SCENE_IDS.EXIT)
     expect(current.controller.getState().smoke.status).toBe('ready')
   })
 

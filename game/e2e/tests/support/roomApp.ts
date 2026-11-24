@@ -18,6 +18,8 @@ const SIMULATION_KEYS: Record<Desk, readonly string[]> = {
 }
 
 export const GAME_STORAGE_KEY = 'quizzup_room_game'
+/** Config matériel de la salle (`rooms.config` en local) : lumières, buzzers. */
+export const HARDWARE_KEY = 'quizzup_room_hardware'
 
 /** Appui franc (enfoncé + relâché) sur un bouton de pupitre. */
 export async function pressBuzzer(page: Page, desk: Desk, button: Button = 0): Promise<void> {
@@ -78,6 +80,11 @@ export type Player = { desk: Desk; name: string; email?: string }
 /** Lance la salle, inscrit les joueurs et démarre une partie courte (3 × 3). */
 export async function startShortGame(page: Page, players: Player[]): Promise<void> {
   await page.getByRole('button', { name: 'Lancer la salle' }).click()
+  await registerAndStartShortGame(page, players)
+}
+
+/** Depuis le lobby : inscrit les joueurs et démarre une partie courte (3 × 3). */
+export async function registerAndStartShortGame(page: Page, players: Player[]): Promise<void> {
   await expect(page.getByText('Inscription des joueurs')).toBeVisible()
 
   for (const player of players) {

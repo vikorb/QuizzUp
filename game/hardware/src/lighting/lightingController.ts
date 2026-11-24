@@ -23,12 +23,13 @@ import { createScenePlayer } from './scenePlayer'
 import type { SceneContext, SceneDefinition } from './scenes'
 import {
   DEFAULT_BINDINGS,
-  DEFAULT_SCENES,
+  DEFAULT_EXIT,
+  defaultScenesFor,
   identifyScene,
   MAX_FLASHES_PER_SECOND,
   SCENE_IDS,
 } from './scenes'
-import { parseScenes } from './showConfig'
+import { parseExit, parseScenes } from './showConfig'
 import type { SmokeController, SmokeFireResult, SmokeState } from './smoke'
 import { createSmokeController } from './smoke'
 
@@ -236,10 +237,16 @@ export function createLightingController(options: LightingControllerOptions): Li
   // Les scènes de la salle sont rebornées ici : une config qui n'est pas passée par
   // `parseRoomHardwareConfig` ne contourne ni les plafonds d'éclairs ni la règle de la fumée.
   const roomScenes = parseScenes(config.scenes).scenes
-  for (const scene of [...DEFAULT_SCENES, ...roomScenes, ...(options.scenes ?? [])]) {
+  // Idem pour la lumière de sortie : valeurs bornées, jamais celles d'une config non relue.
+  const exit = parseExit(config.exit).exit ?? DEFAULT_EXIT
+  for (const scene of [...defaultScenesFor(exit), ...roomScenes, ...(options.scenes ?? [])]) {
     scenes.set(scene.id, scene)
   }
   const bindings: Record<string, string | null> = { ...DEFAULT_BINDINGS, ...config.bindings }
+  // Lumière de sortie coupée : rien ne part seul, le bouton de l'écran de fin reste possible.
+  if (!exit.enabled && !Object.hasOwn(config.bindings, 'game_ended_incomplete')) {
+    bindings.game_ended_incomplete = null
+  }
 
   const changeEmitter = createEmitter<LightingState>()
   const warningEmitter = createEmitter<LightingWarning>()
@@ -997,8 +1004,10 @@ export function createLightingController(options: LightingControllerOptions): Li
           : key
       const sceneId = Object.hasOwn(bindings, bindingKey) ? bindings[bindingKey] : undefined
       if (sceneId) {
-        if (event.type === 'game_aborted') {
-          // Partie arrêtée : retour au repos, même si une scène plus prioritaire tourne encore.
+        if (event.type === 'game_aborted' || event.type === 'game_started') {
+          // Partie arrêtée : retour au repos, même si une scène plus prioritaire tourne encore. Début
+          // de partie : la victoire (50) de la partie d'avant n'a pas à enchaîner sa sortie pendant
+          // celle-ci (les scènes de question, priorité 10, ne pourraient plus l'interrompre).
           player.stop()
         }
         playScene(sceneId, { desk })
@@ -1013,7 +1022,16 @@ export function createLightingController(options: LightingControllerOptions): Li
         stopSmoke()
       }
     },
-    playScene,
+    // Chemin de l'opérateur (écran Matériel, écran de fin). Une demande explicite de repos arrête
+    // d'abord le lecteur : sans cela, la sortie lancée par une victoire testée (priorité 15) refuserait
+    // le repos (0) et resterait allumée jusqu'à 5 minutes. Les événements de jeu passent par
+    // `handleGameEvent` et gardent leurs priorités.
+    playScene(sceneId, context) {
+      if (sceneId === SCENE_IDS.IDLE && !emergency && !diagnosticsActive) {
+        player.stop()
+      }
+      return playScene(sceneId, context)
+    },
     identifyFixture(fixtureId) {
       if (emergency || diagnosticsActive || !fixtures.some((fixture) => fixture.id === fixtureId)) {
         return false
