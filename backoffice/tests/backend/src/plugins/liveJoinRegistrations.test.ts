@@ -1,18 +1,18 @@
 import '../routes/_helpers/registerDbMock'
 
-import fastify from 'fastify'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
+import liveHubPlugin from '@backend/plugins/liveHub'
+import liveJoinRegistrationsPlugin from '@backend/plugins/liveJoinRegistrations'
+import publicRoutes from '@backend/routes/public'
+import { PUBLIC_API_PREFIX } from '@backend/routes/public/_shared'
 import {
   COMPANY_STATUS_ACTIVE,
   GAME_STATE_PENDING,
   GAME_STATUS_ACTIVE,
   ROOM_STATUS_ACTIVE,
 } from '@quizzup/shared'
-import liveHubPlugin from '@backend/plugins/liveHub'
-import liveJoinRegistrationsPlugin from '@backend/plugins/liveJoinRegistrations'
-import publicRoutes from '@backend/routes/public'
-import { PUBLIC_API_PREFIX } from '@backend/routes/public/_shared'
+import fastify from 'fastify'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { dbState, resetDb } from '../routes/_helpers/mockDb'
 import {
   expectNobodyNotified,

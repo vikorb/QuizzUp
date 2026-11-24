@@ -1,7 +1,8 @@
 import '../_helpers/registerRouteMocks'
 
-import { describe, expect, it } from 'vitest'
-
+import gamesRoutes from '@backend/routes/games'
+import { createGameSchema } from '@backend/routes/games/_schemas'
+import roomRoutes from '@backend/routes/room'
 import {
   ADMIN_ROLE_ROOM,
   GAME_DEFAULT_QUESTIONS_PER_ROUND,
@@ -17,9 +18,8 @@ import {
   GAME_STATUS_ACTIVE,
   ROOM_STATUS_ACTIVE,
 } from '@quizzup/shared'
-import gamesRoutes from '@backend/routes/games'
-import { createGameSchema } from '@backend/routes/games/_schemas'
-import roomRoutes from '@backend/routes/room'
+import { describe, expect, it } from 'vitest'
+
 import { dbState, MOCK_NOW } from '../_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
 import {

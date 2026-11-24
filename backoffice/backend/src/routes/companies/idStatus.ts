@@ -1,12 +1,11 @@
+import { COMPANY_STATUS_DELETED } from '@quizzup/shared'
 import type { FastifyPluginAsync } from 'fastify'
 
-import { COMPANY_STATUS_DELETED } from '@quizzup/shared'
 import db from '../../db'
+import { canUpdateCompanyStatusContext } from '../../security/companiesPolicy'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
 import { requireApiPermission } from '../../security/requireApiPermission'
-import { canUpdateCompanyStatusContext } from '../../security/companiesPolicy'
 import type { CompanyStatusUpdateBody } from '../../types/company'
-
 import { paramsSchema, updateCompanyStatusSchema } from './_schemas'
 import { findCompanyById, getCompanyAdminsCount, toCompanyRow } from './_shared'
 

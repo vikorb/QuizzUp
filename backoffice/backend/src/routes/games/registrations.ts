@@ -1,6 +1,6 @@
+import { GAME_STATE_PENDING, GAME_STATUS_DELETED } from '@quizzup/shared'
 import type { FastifyPluginAsync } from 'fastify'
 
-import { GAME_STATE_PENDING, GAME_STATUS_DELETED } from '@quizzup/shared'
 import db from '../../db'
 import { canAccessCompanyContext } from '../../security/companiesPolicy'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
@@ -11,8 +11,8 @@ import {
   findGameState,
   getGameDesksCount,
   maskEmails,
-  participantSelect,
   type ParticipantDbRow,
+  participantSelect,
   registrationSelect,
   toParticipant,
   toRegistration,

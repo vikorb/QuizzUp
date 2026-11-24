@@ -1,12 +1,12 @@
-import type { FastifyPluginAsync, FastifyReply } from 'fastify'
-import fp from 'fastify-plugin'
-
 import {
   API_KEY_STATUS_ACTIVE,
   API_KEY_TOKEN_PATTERN,
   COMPANY_STATUS_ACTIVE,
   COMPANY_STATUS_DELETED,
 } from '@quizzup/shared'
+import type { FastifyPluginAsync, FastifyReply } from 'fastify'
+import fp from 'fastify-plugin'
+
 import db from '../db'
 import { sendPublicError } from '../routes/public/_shared'
 import { hashApiKey } from '../security/apiKeys'

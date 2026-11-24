@@ -1,9 +1,9 @@
 import './routes/_helpers/registerDbMock'
 
 import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { GAME_STATES } from '@quizzup/shared'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { buildApp } from '../../../backend/src/app'
 

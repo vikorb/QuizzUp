@@ -1,5 +1,5 @@
-import { z } from 'zod'
 import { TOTP_CODE_LENGTH } from '@quizzup/shared'
+import { z } from 'zod'
 
 // Une application affiche souvent « 123 456 » : les espaces sont retirés avant le contrôle.
 const withoutSpaces = z.string().transform((value) => value.replace(/\s/g, ''))

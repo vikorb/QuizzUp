@@ -1,8 +1,6 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
-import { describe, expect, it } from 'vitest'
-
 import {
   ROOM_LOG_APP_VERSION_MAX_LENGTH,
   ROOM_LOG_CODE_MAX_LENGTH,
@@ -10,6 +8,7 @@ import {
   ROOM_LOG_LEVELS,
   ROOM_LOG_MESSAGE_MAX_LENGTH,
 } from '@quizzup/shared'
+import { describe, expect, it } from 'vitest'
 
 /** Les contraintes de la migration `room_logs` restent alignées sur les constantes partagées. */
 const migration = readFileSync(

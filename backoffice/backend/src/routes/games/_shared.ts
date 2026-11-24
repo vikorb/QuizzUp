@@ -1,9 +1,5 @@
 import { randomBytes, randomInt } from 'node:crypto'
 
-import type { FastifyRequest } from 'fastify'
-
-import type { Knex } from 'knex'
-
 import {
   ADMIN_ROLE_ADMIN,
   ADMIN_ROLE_SUPERADMIN,
@@ -15,10 +11,10 @@ import {
   GAME_STATE_SCHEDULED,
   GAME_STATUS_ACTIVE,
   GAME_STATUS_DELETED,
-  getRoomDesksCount,
   type GameFormat,
   type GameLocale,
   type GameState,
+  getRoomDesksCount,
   JOIN_LINK_TTL_MINUTES,
   JOIN_TOKEN_BYTES,
   MINI_GAMES,
@@ -28,10 +24,12 @@ import {
   SESSION_HORIZON_DAYS,
   SESSION_OPEN_EARLY_MINUTES,
 } from '@quizzup/shared'
+import type { FastifyRequest } from 'fastify'
+import type { Knex } from 'knex'
 
 import db from '../../db'
-import { qrSvg } from '../../utils/qrSvg'
 import type { GameJoin, GameParticipantRow, GameRow } from '../../types/game'
+import { qrSvg } from '../../utils/qrSvg'
 import { isUniqueViolation } from '../_shared/dbErrors'
 import { findCompanyById } from '../companies/_shared'
 import { findRoomInCompany } from '../companies/rooms/_shared'

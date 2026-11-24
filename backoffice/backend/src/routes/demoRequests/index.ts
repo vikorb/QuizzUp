@@ -3,9 +3,8 @@ import type { FastifyPluginAsync } from 'fastify'
 import db from '../../db'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
 import { requireApiPermission } from '../../security/requireApiPermission'
-
-import demoRequestsIdRoutes from './id'
 import { demoRequestSelect } from './_shared'
+import demoRequestsIdRoutes from './id'
 
 // Demandes de démonstration de la vitrine, vues par l'éditeur seulement (console).
 const demoRequestsRoutes: FastifyPluginAsync = async (app) => {

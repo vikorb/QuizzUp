@@ -1,7 +1,8 @@
 import './_helpers/registerRouteMocks'
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
+import roomRoutes from '@backend/routes/room'
+import { loadRoomContent } from '@backend/routes/room/_content'
+import { ROOM_TRACKS_RATE_LIMIT_MAX } from '@backend/routes/room/_playlists'
 import {
   ADMIN_ROLE_ROOM,
   GAME_STATE_FINISHED,
@@ -17,9 +18,8 @@ import {
   THEME_SCOPE_GLOBAL,
   THEME_STATUS_ACTIVE,
 } from '@quizzup/shared'
-import roomRoutes from '@backend/routes/room'
-import { loadRoomContent } from '@backend/routes/room/_content'
-import { ROOM_TRACKS_RATE_LIMIT_MAX } from '@backend/routes/room/_playlists'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { dbState } from './_helpers/mockDb'
 import {
   jsonResponse,

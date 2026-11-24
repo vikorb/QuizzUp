@@ -1,11 +1,11 @@
-import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
-
 import {
   QUESTION_STATUS_DELETED,
   THEME_MODE_AUDIO,
   THEME_SCOPE_GLOBAL,
   THEME_STATUS_DELETED,
 } from '@quizzup/shared'
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
+
 import db from '../../db'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
 import { requireApiPermission } from '../../security/requireApiPermission'
@@ -15,8 +15,8 @@ import {
   getQuestionAccessRow,
   getQuestionWithAnswers,
   parsePositiveId as parsePositiveQuestionId,
-  questionSelect,
   type QuestionAccessRow,
+  questionSelect,
 } from '../questions/_shared'
 import {
   buildThemePlaylistPatch,
@@ -28,10 +28,10 @@ import {
   isValidKidsFriendly,
   isValidThemeMode,
   parsePositiveId,
-  themeSelect,
   type ThemeAccessRow,
   type ThemeBody,
   type ThemeParams,
+  themeSelect,
 } from './_shared'
 
 type ThemeQuestionParams = ThemeParams & {

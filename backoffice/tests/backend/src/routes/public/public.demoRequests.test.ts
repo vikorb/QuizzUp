@@ -1,15 +1,15 @@
 import '../_helpers/registerDbMock'
 
-import fastify from 'fastify'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-import { DEMO_REQUEST_MESSAGE_MAX, DEMO_REQUEST_ROOMS_MAX } from '@quizzup/shared'
 import publicRoutes from '@backend/routes/public'
 import { PUBLIC_API_PREFIX } from '@backend/routes/public/_shared'
 import {
   DEMO_REQUEST_BODY_LIMIT,
   DEMO_REQUEST_RATE_LIMIT_MAX,
 } from '@backend/routes/public/demoRequests'
+import { DEMO_REQUEST_MESSAGE_MAX, DEMO_REQUEST_ROOMS_MAX } from '@quizzup/shared'
+import fastify from 'fastify'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { dbState, MOCK_NOW, resetDb } from '../_helpers/mockDb'
 
 const ENDPOINT = `${PUBLIC_API_PREFIX}/demo-requests`

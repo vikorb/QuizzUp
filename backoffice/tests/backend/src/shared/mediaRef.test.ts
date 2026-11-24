@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'vitest'
-
 import { QUESTION_MEDIA_REF_MAX_LENGTH, QUESTION_MEDIA_REF_PATTERN } from '@quizzup/shared'
+import { describe, expect, it } from 'vitest'
 
 describe('QUESTION_MEDIA_REF_PATTERN', () => {
   it.each(['1', '123456', '9'.repeat(QUESTION_MEDIA_REF_MAX_LENGTH)])('accepts %s', (ref) => {

@@ -1,5 +1,3 @@
-import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
-
 import {
   DEFAULT_QUESTION_KIND,
   getQuestionKindMediaError,
@@ -8,10 +6,11 @@ import {
   QUESTION_MEDIA_TYPE_AUDIO,
   QUESTION_STATUS_DELETED,
 } from '@quizzup/shared'
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
+
 import db from '../../db'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
 import { requireApiPermission } from '../../security/requireApiPermission'
-import { removeStoredMediaFile } from '../_shared/storedMedia'
 import {
   matchesAudioSignature,
   normalizeAudioMimeType,
@@ -23,13 +22,14 @@ import {
   getMediaStorage,
   isValidMediaKey,
 } from '../../storage/mediaStorage'
+import { removeStoredMediaFile } from '../_shared/storedMedia'
 import {
   assertKindMediaAllowed,
   buildClearedMediaPatch,
   lockQuestionMediaRow,
+  type QuestionMediaRow,
   QuestionRuleError,
   resolveQuestionAccess,
-  type QuestionMediaRow,
 } from './_media'
 import {
   getCurrentAdminId,
@@ -235,7 +235,7 @@ const questionMediaRoutes: FastifyPluginAsync = async (app) => {
 
       await getMediaStorage().save(key, content)
 
-      let replacedKey: string | null = null
+      let replacedKey: string | null
 
       try {
         replacedKey = await db.transaction(async (trx) => {

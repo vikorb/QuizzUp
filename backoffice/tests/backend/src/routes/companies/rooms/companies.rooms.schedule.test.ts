@@ -1,17 +1,17 @@
 import '../../_helpers/registerRouteMocks'
 
-import { describe, expect, it } from 'vitest'
-
+import companyRoomsRoutes from '@backend/routes/companies/rooms'
+import companyRoomIdRoutes from '@backend/routes/companies/rooms/id'
+import companyRoomIdScheduleRoutes from '@backend/routes/companies/rooms/idSchedule'
+import { API_ACTION, API_RESOURCE } from '@backend/security/permissions'
 import {
   COMPANY_STATUS_DELETED,
   ROOM_STATUS_ACTIVE,
   ROOM_STATUS_DELETED,
   type RoomSchedule,
 } from '@quizzup/shared'
-import companyRoomsRoutes from '@backend/routes/companies/rooms'
-import companyRoomIdRoutes from '@backend/routes/companies/rooms/id'
-import companyRoomIdScheduleRoutes from '@backend/routes/companies/rooms/idSchedule'
-import { API_ACTION, API_RESOURCE } from '@backend/security/permissions'
+import { describe, expect, it } from 'vitest'
+
 import { db, dbState, MOCK_NOW, resetDb } from '../../_helpers/mockDb'
 import { requireApiPermissionMock, securityState } from '../../_helpers/mockSecurity'
 import { resetRouteMocksBeforeEach } from '../../_helpers/resetRouteMocks'

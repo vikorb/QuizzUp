@@ -1,5 +1,3 @@
-import { describe, expect, it } from 'vitest'
-
 import {
   estimateGameDurationMs,
   GAME_DEFAULT_FORMAT,
@@ -20,6 +18,7 @@ import {
   type MiniGame,
   THEME_CHOICE_TYPICAL_MS,
 } from '@quizzup/shared'
+import { describe, expect, it } from 'vitest'
 
 const minutes = (ms: number): number => ms / 60_000
 

@@ -1,7 +1,6 @@
+import { qrSvg } from '@backend/utils/qrSvg'
 import qrcode from 'qrcode-generator'
 import { describe, expect, it } from 'vitest'
-
-import { qrSvg } from '@backend/utils/qrSvg'
 
 const QUIET_ZONE = 4
 
@@ -28,7 +27,7 @@ function referenceMatrix(text: string): boolean[][] {
   code.make()
 
   return Array.from({ length: code.getModuleCount() }, (_, row) =>
-    Array.from({ length: code.getModuleCount() }, (_, col) => code.isDark(row, col))
+    Array.from({ length: code.getModuleCount() }, (_cell, col) => code.isDark(row, col))
   )
 }
 

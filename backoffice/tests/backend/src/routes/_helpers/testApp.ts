@@ -1,5 +1,5 @@
-import fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
 import { LIVE_EVENT } from '@quizzup/shared'
+import fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
 import { expect, vi } from 'vitest'
 
 import type { LiveHub } from '../../../../../backend/src/live/hub'

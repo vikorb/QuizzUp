@@ -1,11 +1,11 @@
 import '../_helpers/registerDbMock'
 
+import companyApiLogsRoutes from '@backend/routes/companies/apiLogs'
+import { API_LOG_LIST_MAX_LIMIT } from '@quizzup/shared'
 import { describe, expect, it } from 'vitest'
 
-import { API_LOG_LIST_MAX_LIMIT } from '@quizzup/shared'
-import companyApiLogsRoutes from '@backend/routes/companies/apiLogs'
-import { dbState } from '../_helpers/mockDb'
 import { otherCompanyAdmin, seedApiKey, staffUserOfCompany1 } from '../_helpers/apiKeys'
+import { dbState } from '../_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
 import {
   authHeaders,

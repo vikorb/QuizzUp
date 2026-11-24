@@ -1,16 +1,5 @@
 import '../_helpers/registerRouteMocks'
 
-import { describe, expect, it } from 'vitest'
-
-import {
-  THEME_MODE_CLASSIC,
-  THEME_SCOPE_COMPANY,
-  THEME_SCOPE_GLOBAL,
-  THEME_STATUS_ACTIVE,
-  THEME_STATUS_DELETED,
-  THEME_STATUS_DRAFT,
-  THEME_STATUS_INACTIVE,
-} from '@quizzup/shared'
 import {
   buildThemeStatusPatch,
   canEditTheme,
@@ -25,6 +14,17 @@ import {
   parsePositiveId,
   type ThemeAccessRow,
 } from '@backend/routes/themes/_shared'
+import {
+  THEME_MODE_CLASSIC,
+  THEME_SCOPE_COMPANY,
+  THEME_SCOPE_GLOBAL,
+  THEME_STATUS_ACTIVE,
+  THEME_STATUS_DELETED,
+  THEME_STATUS_DRAFT,
+  THEME_STATUS_INACTIVE,
+} from '@quizzup/shared'
+import { describe, expect, it } from 'vitest'
+
 import { MOCK_NOW } from '../_helpers/mockDb'
 import { companyAdminUser, companyUser, superadminUser, type TestUser } from '../_helpers/testApp'
 

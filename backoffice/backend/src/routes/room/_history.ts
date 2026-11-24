@@ -1,6 +1,3 @@
-import type { Knex } from 'knex'
-import { z } from 'zod'
-
 import {
   GAME_MAX_QUESTIONS_PER_ROUND,
   GAME_MAX_ROUNDS,
@@ -8,6 +5,8 @@ import {
   GAME_STATUS_DELETED,
   MINI_GAMES,
 } from '@quizzup/shared'
+import type { Knex } from 'knex'
+import { z } from 'zod'
 
 import db from '../../db'
 import { isReadableByCompany } from './_content'

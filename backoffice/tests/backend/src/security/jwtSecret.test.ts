@@ -1,14 +1,14 @@
 import '../routes/_helpers/registerDbMock'
 
-import fastify from 'fastify'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-
-import authPlugin from '../../../../backend/src/plugins/auth'
 import {
   assertJwtSecretIsSafe,
   DEV_JWT_SECRET,
   JWT_SECRET_MIN_LENGTH,
 } from '@backend/security/jwtSecret'
+import fastify from 'fastify'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import authPlugin from '../../../../backend/src/plugins/auth'
 
 const STRONG_SECRET = 'a'.repeat(JWT_SECRET_MIN_LENGTH)
 

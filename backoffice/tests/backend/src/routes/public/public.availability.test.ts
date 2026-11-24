@@ -1,7 +1,5 @@
 import '../_helpers/registerDbMock'
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
 import {
   COMPANY_STATUS_ACTIVE,
   GAME_STATE_CANCELLED,
@@ -11,6 +9,8 @@ import {
   ROOM_STATUS_INACTIVE,
   SESSION_HORIZON_DAYS,
 } from '@quizzup/shared'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { dbState, resetDb } from '../_helpers/mockDb'
 import {
   bearer,

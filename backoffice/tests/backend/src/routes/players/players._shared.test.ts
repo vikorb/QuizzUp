@@ -1,11 +1,10 @@
-import { describe, expect, it } from 'vitest'
-
 import {
   buildPlayersCsv,
   neutralizeFormula,
   PLAYERS_CSV_HEADER,
   toCsvCell,
 } from '@backend/routes/players/_shared'
+import { describe, expect, it } from 'vitest'
 
 const PLAYER = {
   email: 'jean@exemple.test',

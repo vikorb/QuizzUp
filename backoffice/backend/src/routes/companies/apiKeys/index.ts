@@ -1,21 +1,20 @@
-import type { FastifyPluginAsync } from 'fastify'
-
 import {
   API_KEY_MAX_ACTIVE,
   API_KEY_STATUS_ACTIVE,
   COMPANY_STATUS_ACTIVE,
   COMPANY_STATUS_DELETED,
 } from '@quizzup/shared'
+import type { FastifyPluginAsync } from 'fastify'
+
 import db from '../../../db'
 import { generateApiKey } from '../../../security/apiKeys'
 import { canAccessCompanyContext, getCurrentAdminId } from '../../../security/companiesPolicy'
 import { API_ACTION, API_RESOURCE } from '../../../security/permissions'
 import { requireApiPermission } from '../../../security/requireApiPermission'
-
 import { isUniqueViolation } from '../../_shared/dbErrors'
 import { findCompanyById } from '../_shared'
 import { apiKeysParamsSchema, createApiKeySchema } from './_schemas'
-import { apiKeySelect, toApiKeys, type ApiKeyDbRow } from './_shared'
+import { type ApiKeyDbRow, apiKeySelect, toApiKeys } from './_shared'
 
 /** Collision de préfixe (32 bits) : on retire un autre jeton plutôt que de répondre 500. */
 const CREATE_MAX_ATTEMPTS = 5

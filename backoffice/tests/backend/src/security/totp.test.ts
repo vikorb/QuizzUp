@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'vitest'
-
 import { TOTP_CODE_LENGTH, TOTP_RECOVERY_CODES_COUNT } from '@quizzup/shared'
+import { describe, expect, it } from 'vitest'
 
 import {
   base32Decode,

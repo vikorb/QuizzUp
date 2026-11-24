@@ -1,10 +1,10 @@
 import '../_helpers/registerDbMock'
 
+import voucherLookupRoutes from '@backend/routes/vouchers/lookup'
+import { VOUCHER_STATUS_DELETED } from '@quizzup/shared'
 import type { FastifyInstance } from 'fastify'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { VOUCHER_STATUS_DELETED } from '@quizzup/shared'
-import voucherLookupRoutes from '@backend/routes/vouchers/lookup'
 import { resetDb } from '../_helpers/mockDb'
 import {
   authHeaders,

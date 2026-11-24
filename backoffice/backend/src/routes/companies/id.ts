@@ -1,16 +1,15 @@
+import { ADMIN_ROLE_ROOM, ADMIN_STATUS_DELETED, COMPANY_STATUS_DELETED } from '@quizzup/shared'
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 
-import { ADMIN_ROLE_ROOM, ADMIN_STATUS_DELETED, COMPANY_STATUS_DELETED } from '@quizzup/shared'
 import db from '../../db'
-import { API_ACTION, API_RESOURCE } from '../../security/permissions'
-import { requireApiPermission } from '../../security/requireApiPermission'
 import {
   canAccessCompanyContext,
   canUpdateCompanyContext,
   isSuperadmin,
 } from '../../security/companiesPolicy'
+import { API_ACTION, API_RESOURCE } from '../../security/permissions'
+import { requireApiPermission } from '../../security/requireApiPermission'
 import type { CompanyDbRow, CompanyUpdateBody } from '../../types/company'
-
 import { paramsSchema, updateCompanySchema } from './_schemas'
 import { companySelect, findCompanyById, getCompanyAdminsCount, toCompanyRow } from './_shared'
 

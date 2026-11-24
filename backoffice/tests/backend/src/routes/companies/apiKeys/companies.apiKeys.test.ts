@@ -1,20 +1,21 @@
 // Permissions et politique de compagnie réelles : seule la base est simulée.
 import '../../_helpers/registerDbMock'
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
+import companyApiKeysRoutes from '@backend/routes/companies/apiKeys'
+import type * as securityApiKeysModule from '@backend/security/apiKeys'
+import { generateApiKey, hashApiKey } from '@backend/security/apiKeys'
 import {
   API_KEY_MAX_ACTIVE,
-  API_KEY_TOKEN_PATTERN,
   API_KEY_NAME_MAX_LENGTH,
   API_KEY_STATUS_ACTIVE,
   API_KEY_STATUS_REVOKED,
+  API_KEY_TOKEN_PATTERN,
   COMPANY_STATUS_DELETED,
 } from '@quizzup/shared'
-import { generateApiKey, hashApiKey } from '@backend/security/apiKeys'
-import companyApiKeysRoutes from '@backend/routes/companies/apiKeys'
-import { db, dbState, lockedTables } from '../../_helpers/mockDb'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { otherCompanyAdmin, seedApiKey, staffUserOfCompany1 } from '../../_helpers/apiKeys'
+import { db, dbState, lockedTables } from '../../_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from '../../_helpers/resetRouteMocks'
 import {
   authHeaders,
@@ -27,7 +28,7 @@ import {
 
 // Le vrai générateur, sauf quand un test veut provoquer une collision de préfixe.
 vi.mock('@backend/security/apiKeys', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@backend/security/apiKeys')>()
+  const actual = await importOriginal<typeof securityApiKeysModule>()
 
   return { ...actual, generateApiKey: vi.fn(actual.generateApiKey) }
 })
@@ -35,7 +36,7 @@ vi.mock('@backend/security/apiKeys', async (importOriginal) => {
 resetRouteMocksBeforeEach()
 
 const realGenerateApiKey = (
-  await vi.importActual<typeof import('@backend/security/apiKeys')>('@backend/security/apiKeys')
+  await vi.importActual<typeof securityApiKeysModule>('@backend/security/apiKeys')
 ).generateApiKey
 
 beforeEach(() => {

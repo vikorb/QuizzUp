@@ -1,10 +1,9 @@
+import { COMPANY_STATUS_DELETED } from '@quizzup/shared'
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 
-import { COMPANY_STATUS_DELETED } from '@quizzup/shared'
 import db from '../../db'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
 import { requireApiPermission } from '../../security/requireApiPermission'
-
 import { paramsSchema } from './_schemas'
 import { findCompanyById, revokeCompanyAdminsSessions } from './_shared'
 

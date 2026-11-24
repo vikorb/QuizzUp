@@ -1,18 +1,5 @@
 import '../_helpers/registerRouteMocks'
 
-import { describe, expect, it } from 'vitest'
-
-import {
-  ANSWER_STATUS_ACTIVE,
-  ANSWER_STATUS_DELETED,
-  QUESTION_KIND_ESTIMATE,
-  QUESTION_KIND_QCM,
-  QUESTION_KIND_TRUE_FALSE,
-  QUESTION_MEDIA_TYPES,
-  getQuestionKindMediaError,
-  THEME_SCOPE_COMPANY,
-  THEME_SCOPE_GLOBAL,
-} from '@quizzup/shared'
 import {
   getQuestionCompanyId,
   getQuestionScope,
@@ -22,6 +9,19 @@ import {
   validateAnswers,
   validateAnswersForKind,
 } from '@backend/routes/questions/_shared'
+import {
+  ANSWER_STATUS_ACTIVE,
+  ANSWER_STATUS_DELETED,
+  getQuestionKindMediaError,
+  QUESTION_KIND_ESTIMATE,
+  QUESTION_KIND_QCM,
+  QUESTION_KIND_TRUE_FALSE,
+  QUESTION_MEDIA_TYPES,
+  THEME_SCOPE_COMPANY,
+  THEME_SCOPE_GLOBAL,
+} from '@quizzup/shared'
+import { describe, expect, it } from 'vitest'
+
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
 import { companyAdminUser, superadminUser, type TestUser } from '../_helpers/testApp'
 

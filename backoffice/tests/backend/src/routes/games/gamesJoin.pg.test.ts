@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import type dbModule from '@backend/db'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -33,7 +34,9 @@ const PG_INTEGRATION_URL = process.env.PG_INTEGRATION_URL
 const TRUNCATE_TABLES =
   'TRUNCATE game_registrations, game_participants, games, rooms, admins, companies RESTART IDENTITY CASCADE'
 
-type Db = typeof import('@backend/db').default
+type Db = typeof dbModule
+// Corps de réponse lus champ par champ par les assertions : leur forme n'est pas décrite ici.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Json = Record<string, any>
 type Trx = Parameters<Parameters<Db['transaction']>[0]>[0]
 

@@ -1,6 +1,10 @@
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
+import type dbModule from '@backend/db'
+import type * as routesSharedScopeModule from '@backend/routes/_shared/scope'
+import type * as routesQuestionsSharedModule from '@backend/routes/questions/_shared'
+import type { getThemeAccessRow as getThemeAccessRowType } from '@backend/routes/themes/_shared'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { assertTestDatabase } from '../../setup/assertTestDatabase'
@@ -33,10 +37,10 @@ describe('parseur int8 de pg', () => {
   })
 })
 
-type Db = typeof import('@backend/db').default
-type Scope = typeof import('@backend/routes/_shared/scope')
+type Db = typeof dbModule
+type Scope = typeof routesSharedScopeModule
 type Req = Parameters<Scope['canReadScoped']>[1]
-type Questions = typeof import('@backend/routes/questions/_shared')
+type Questions = typeof routesQuestionsSharedModule
 
 function reqOfCompany(companyId: number, role = 'admin') {
   return { user: { role, company_id: companyId } } as unknown as Req
@@ -48,7 +52,7 @@ describe.skipIf(!PG_INTEGRATION_URL)('portée company_id sur PostgreSQL', () => 
   let questions: Questions
   let ownThemeId: number
   let otherThemeId: number
-  let getThemeAccessRow: typeof import('@backend/routes/themes/_shared').getThemeAccessRow
+  let getThemeAccessRow: typeof getThemeAccessRowType
 
   beforeAll(async () => {
     db = (await import('@backend/db')).default

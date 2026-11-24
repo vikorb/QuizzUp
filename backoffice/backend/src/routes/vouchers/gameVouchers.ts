@@ -1,11 +1,11 @@
-import type { FastifyPluginAsync } from 'fastify'
-
 import {
   COMPANY_STATUS_DELETED,
   GAME_STATE_FINISHED,
   GAME_STATUS_DELETED,
   VOUCHER_STATUS_ACTIVE,
 } from '@quizzup/shared'
+import type { FastifyPluginAsync } from 'fastify'
+
 import db from '../../db'
 import { canAccessCompanyContext } from '../../security/companiesPolicy'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
@@ -16,8 +16,8 @@ import { gameVouchersParamsSchema, issueVoucherSchema } from './_schemas'
 import {
   findVoucherById,
   generateVoucherCode,
-  VOUCHER_ISSUED_CONSTRAINT,
   toVoucherRow,
+  VOUCHER_ISSUED_CONSTRAINT,
   voucherQuery,
   voucherSelect,
   withVoucherQr,

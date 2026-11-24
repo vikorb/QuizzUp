@@ -1,13 +1,12 @@
+import { API_KEY_STATUS_ACTIVE, API_KEY_STATUS_REVOKED } from '@quizzup/shared'
 import type { FastifyPluginAsync } from 'fastify'
 
-import { API_KEY_STATUS_ACTIVE, API_KEY_STATUS_REVOKED } from '@quizzup/shared'
 import db from '../../../db'
 import { canAccessCompanyContext } from '../../../security/companiesPolicy'
 import { API_ACTION, API_RESOURCE } from '../../../security/permissions'
 import { requireApiPermission } from '../../../security/requireApiPermission'
-
 import { apiKeyParamsSchema } from './_schemas'
-import { apiKeySelect, toApiKeys, type ApiKeyDbRow } from './_shared'
+import { type ApiKeyDbRow, apiKeySelect, toApiKeys } from './_shared'
 
 /** Révocation d'une clé d'API (lot 14.1) : suppression logique, idempotente. */
 const companyApiKeyIdRoutes: FastifyPluginAsync = async (app) => {

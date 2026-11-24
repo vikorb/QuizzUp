@@ -1,11 +1,11 @@
 import '../../_helpers/registerDbMock'
 
+import companyApiKeyIdRoutes from '@backend/routes/companies/apiKeys/id'
+import { API_KEY_STATUS_ACTIVE, API_KEY_STATUS_REVOKED } from '@quizzup/shared'
 import { describe, expect, it } from 'vitest'
 
-import { API_KEY_STATUS_ACTIVE, API_KEY_STATUS_REVOKED } from '@quizzup/shared'
-import companyApiKeyIdRoutes from '@backend/routes/companies/apiKeys/id'
-import { MOCK_NOW, dbState } from '../../_helpers/mockDb'
 import { otherCompanyAdmin, seedApiKey, staffUserOfCompany1 } from '../../_helpers/apiKeys'
+import { dbState, MOCK_NOW } from '../../_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from '../../_helpers/resetRouteMocks'
 import {
   authHeaders,

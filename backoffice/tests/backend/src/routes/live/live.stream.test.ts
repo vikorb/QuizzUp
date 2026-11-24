@@ -2,10 +2,9 @@ import '../_helpers/registerDbMock'
 
 import { EventEmitter } from 'node:events'
 
-import { afterEach, describe, expect, it, vi } from 'vitest'
-
-import { ADMIN_ROLE_ADMIN, LIVE_EVENT } from '@quizzup/shared'
 import { openSseStream } from '@backend/routes/live/_stream'
+import { ADMIN_ROLE_ADMIN, LIVE_EVENT } from '@quizzup/shared'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 function open(onClose: () => void) {
   const req = { user: { sub: '2', sid: 'sid', role: ADMIN_ROLE_ADMIN }, log: { warn: vi.fn() } }

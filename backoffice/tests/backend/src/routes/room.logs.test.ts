@@ -1,7 +1,6 @@
 import './_helpers/registerRouteMocks'
 
-import { afterEach, describe, expect, it, vi } from 'vitest'
-
+import roomLogsRoutes from '@backend/routes/room/logs'
 import {
   ADMIN_ROLE_ROOM,
   ROOM_LOG_BATCH_MAX_ENTRIES,
@@ -10,7 +9,8 @@ import {
   ROOM_STATUS_ACTIVE,
   ROOM_STATUS_DELETED,
 } from '@quizzup/shared'
-import roomLogsRoutes from '@backend/routes/room/logs'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
 import { db, dbState } from './_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from './_helpers/resetRouteMocks'
 import {

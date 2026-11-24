@@ -1,10 +1,9 @@
-import { z } from 'zod'
-
 import {
   QUESTION_MEDIA_PROVIDER_DEEZER,
   QUESTION_MEDIA_REF_PATTERN,
   type QuestionMediaProvider,
 } from '@quizzup/shared'
+import { z } from 'zod'
 
 /**
  * Client du fournisseur d'extraits audio (Deezer, API publique sans clé). Le serveur ne télécharge

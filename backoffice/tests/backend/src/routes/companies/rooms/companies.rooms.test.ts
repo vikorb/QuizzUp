@@ -1,16 +1,16 @@
 import '../../_helpers/registerRouteMocks'
 
-import { describe, expect, it } from 'vitest'
-
+import companyRoomsRoutes from '@backend/routes/companies/rooms'
+import companyRoomIdRoutes from '@backend/routes/companies/rooms/id'
+import companyRoomIdStatusRoutes from '@backend/routes/companies/rooms/idStatus'
 import {
   COMPANY_STATUS_DELETED,
   ROOM_STATUS_ACTIVE,
   ROOM_STATUS_DELETED,
   ROOM_STATUS_INACTIVE,
 } from '@quizzup/shared'
-import companyRoomsRoutes from '@backend/routes/companies/rooms'
-import companyRoomIdRoutes from '@backend/routes/companies/rooms/id'
-import companyRoomIdStatusRoutes from '@backend/routes/companies/rooms/idStatus'
+import { describe, expect, it } from 'vitest'
+
 import { dbState, MOCK_NOW, resetDb } from '../../_helpers/mockDb'
 import { securityState } from '../../_helpers/mockSecurity'
 import { resetRouteMocksBeforeEach } from '../../_helpers/resetRouteMocks'
@@ -43,8 +43,8 @@ function room(overrides: Record<string, unknown> = {}) {
 type RoomsBody = { rooms: Array<Record<string, unknown>> }
 type RoomBody = { room: Record<string, unknown> }
 
-function seedRooms(...rooms: ReturnType<typeof room>[]) {
-  resetDb({ rooms })
+function seedRooms(...roomList: ReturnType<typeof room>[]) {
+  resetDb({ rooms: roomList })
 }
 
 async function rooms() {

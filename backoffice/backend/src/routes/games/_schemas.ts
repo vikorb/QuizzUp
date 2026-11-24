@@ -1,5 +1,3 @@
-import { z } from 'zod'
-
 import {
   GAME_DEFAULT_FORMAT,
   GAME_DEFAULT_QUESTIONS_PER_ROUND,
@@ -22,6 +20,7 @@ import {
   SESSION_MAX_MINUTES,
   SESSION_MIN_MINUTES,
 } from '@quizzup/shared'
+import { z } from 'zod'
 
 export const gamesParamsSchema = z.object({
   companyId: z.coerce.number().int().positive(),

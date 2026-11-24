@@ -1,10 +1,9 @@
-import { z } from 'zod'
-
 import {
   PLAYER_LIST_DEFAULT_LIMIT,
   PLAYER_LIST_MAX_LIMIT,
   PLAYER_SEARCH_MAX_LENGTH,
 } from '@quizzup/shared'
+import { z } from 'zod'
 
 export const playersParamsSchema = z.object({
   companyId: z.coerce.number().int().positive(),

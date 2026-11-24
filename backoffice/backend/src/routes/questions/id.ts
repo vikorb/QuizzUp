@@ -1,21 +1,22 @@
-import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
-
 import {
   ANSWER_STATUS_DELETED,
   DEFAULT_QUESTION_KIND,
   getQuestionKindMediaError,
   QUESTION_AUDIO_EFFECT_NONE,
+  QUESTION_MEDIA_TYPE_AUDIO,
+  QUESTION_STATUS_DELETED,
   type QuestionAudioEffect,
   type QuestionKind,
   type QuestionMediaType,
   type QuestionStatus,
-  QUESTION_MEDIA_TYPE_AUDIO,
-  QUESTION_STATUS_DELETED,
 } from '@quizzup/shared'
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
+
 import db from '../../db'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
 import { requireApiPermission } from '../../security/requireApiPermission'
 import { removeStoredMediaFile } from '../_shared/storedMedia'
+import { applyQuestionMediaPatch, lockQuestionMediaRow, QuestionRuleError } from './_media'
 import {
   buildQuestionStatusPatch,
   canEditQuestion,
@@ -25,6 +26,7 @@ import {
   getAnswerStatusFromQuestionStatus,
   getCurrentAdminId,
   getQuestionAccessRow,
+  getQuestionAnswersForValidation,
   getQuestionAudioEffectError,
   getQuestionWithAnswers,
   getThemesForQuestion,
@@ -35,14 +37,12 @@ import {
   parsePositiveId,
   parseQuestionAudioEffect,
   parseQuestionThemeIds,
-  syncQuestionThemes,
-  getQuestionAnswersForValidation,
-  validateAnswers,
-  validateAnswersForKind,
   type QuestionBody,
   type QuestionParams,
+  syncQuestionThemes,
+  validateAnswers,
+  validateAnswersForKind,
 } from './_shared'
-import { applyQuestionMediaPatch, lockQuestionMediaRow, QuestionRuleError } from './_media'
 
 const questionIdRoutes: FastifyPluginAsync = async (app) => {
   app.get<{ Params: QuestionParams }>(

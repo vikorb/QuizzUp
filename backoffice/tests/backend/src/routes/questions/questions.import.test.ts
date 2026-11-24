@@ -1,7 +1,6 @@
 import '../_helpers/registerRouteMocks'
 
-import { beforeEach, describe, expect, it } from 'vitest'
-
+import questionsRoutes from '@backend/routes/questions'
 import {
   ANSWER_STATUS_ACTIVE,
   ANSWER_STATUS_DRAFT,
@@ -17,7 +16,8 @@ import {
   THEME_SCOPE_GLOBAL,
   THEME_STATUS_DELETED,
 } from '@quizzup/shared'
-import questionsRoutes from '@backend/routes/questions'
+import { beforeEach, describe, expect, it } from 'vitest'
+
 import { dbState } from '../_helpers/mockDb'
 import { requireApiPermissionMock, securityState } from '../_helpers/mockSecurity'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'

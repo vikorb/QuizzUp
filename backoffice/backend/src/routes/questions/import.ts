@@ -1,5 +1,3 @@
-import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
-
 import {
   ANSWER_STATUS_DRAFT,
   QUESTION_IMPORT_MAX_BYTES,
@@ -10,17 +8,19 @@ import {
   QUESTION_MEDIA_TYPE_VIDEO,
   QUESTION_STATUS_DELETED,
   QUESTION_STATUS_DRAFT,
+  type QuestionKind,
+  type QuestionMediaType,
   THEME_SCOPE_COMPANY,
   THEME_SCOPE_GLOBAL,
   THEME_STATUS_DELETED,
-  type QuestionKind,
-  type QuestionMediaType,
   type ThemeScope,
 } from '@quizzup/shared'
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
+
 import db from '../../db'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'
 import { requireApiPermission } from '../../security/requireApiPermission'
-import { CsvError, parseCsv, type CsvRecord } from '../../utils/csv'
+import { CsvError, type CsvRecord, parseCsv } from '../../utils/csv'
 import { importQuestionsQuerySchema } from './_schemas'
 import {
   getCreateAnswerStatus,
@@ -29,8 +29,8 @@ import {
   getQuestionCompanyId,
   getQuestionScope,
   getThemeUsableError,
-  validateQuestionInput,
   type QuestionInput,
+  validateQuestionInput,
 } from './_shared'
 
 const REQUIRED_COLUMNS = ['theme', 'question', 'answer_1', 'answer_2', 'correct']

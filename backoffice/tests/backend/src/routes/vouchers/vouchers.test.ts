@@ -1,8 +1,7 @@
 import '../_helpers/registerDbMock'
 
-import type { FastifyInstance } from 'fastify'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
+import vouchersRoutes from '@backend/routes/vouchers'
+import { vouchersListQuerySchema } from '@backend/routes/vouchers/_schemas'
 import {
   VOUCHER_LIST_DEFAULT_LIMIT,
   VOUCHER_LIST_MAX_LIMIT,
@@ -10,8 +9,9 @@ import {
   VOUCHER_STATUS_DELETED,
   VOUCHER_STATUS_INACTIVE,
 } from '@quizzup/shared'
-import vouchersRoutes from '@backend/routes/vouchers'
-import { vouchersListQuerySchema } from '@backend/routes/vouchers/_schemas'
+import type { FastifyInstance } from 'fastify'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { resetDb } from '../_helpers/mockDb'
 import {
   authHeaders,

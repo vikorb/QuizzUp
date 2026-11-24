@@ -1,8 +1,9 @@
 import path from 'node:path'
 
+import type dbModule from '@backend/db'
+import { isExclusionViolation } from '@backend/routes/_shared/dbErrors'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-import { isExclusionViolation } from '@backend/routes/_shared/dbErrors'
 import { assertTestDatabase } from '../../setup/assertTestDatabase'
 
 /**
@@ -20,7 +21,7 @@ import { assertTestDatabase } from '../../setup/assertTestDatabase'
  */
 const PG_INTEGRATION_URL = process.env.PG_INTEGRATION_URL
 
-type Db = typeof import('@backend/db').default
+type Db = typeof dbModule
 
 const at = (time: string) => `2027-03-10T${time}:00.000Z`
 

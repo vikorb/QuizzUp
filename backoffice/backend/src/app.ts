@@ -1,19 +1,19 @@
-import Fastify from 'fastify'
-import cors from '@fastify/cors'
-import swagger from '@fastify/swagger'
-import swaggerUi from '@fastify/swagger-ui'
 import path from 'node:path'
 
-import routes from './routes'
-import { isPublicPath, sendPublicError } from './routes/public/_shared'
+import cors from '@fastify/cors'
+import type { FastifyStaticSwaggerOptions } from '@fastify/swagger'
+import swagger from '@fastify/swagger'
+import swaggerUi from '@fastify/swagger-ui'
+import Fastify from 'fastify'
+
 import authPlugin from './plugins/auth'
 import liveHubPlugin from './plugins/liveHub'
 import liveJoinRegistrationsPlugin from './plugins/liveJoinRegistrations'
-import { parseCorsOrigin, parsePublicOrigins } from './utils/cors'
+import routes from './routes'
+import { isPublicPath, sendPublicError } from './routes/public/_shared'
 import { resolveApiDocPath } from './utils/apiDocPath'
+import { parseCorsOrigin, parsePublicOrigins } from './utils/cors'
 import { parseTrustProxy } from './utils/trustProxy'
-
-import type { FastifyStaticSwaggerOptions } from '@fastify/swagger'
 
 export function buildApp() {
   // Derrière un proxy (Caddy), `req.ip` ne vaut l'adresse du client que si on nomme ce proxy ici ;

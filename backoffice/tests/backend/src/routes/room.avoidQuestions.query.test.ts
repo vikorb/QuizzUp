@@ -1,8 +1,8 @@
 import './_helpers/registerDbMock'
 
+import { findAvoidQuestionIds } from '@backend/routes/room/_history'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { findAvoidQuestionIds } from '@backend/routes/room/_history'
 import { db, dbState, resetDb } from './_helpers/mockDb'
 
 // La requête SQL se prouve sur PostgreSQL (`avoidQuestions.pg.test.ts`) : ici, seulement le cas où

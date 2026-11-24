@@ -1,14 +1,14 @@
 import '../_helpers/registerRouteMocks'
 
-import fastify from 'fastify'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-
-import { COMPANY_STATUS_DELETED, COMPANY_STATUS_INACTIVE } from '@quizzup/shared'
 import publicRoutes from '@backend/routes/public'
 import { PUBLIC_API_PREFIX } from '@backend/routes/public/_shared'
 import { setMediaStorage } from '@backend/storage/mediaStorage'
-import { dbState } from '../_helpers/mockDb'
+import { COMPANY_STATUS_DELETED, COMPANY_STATUS_INACTIVE } from '@quizzup/shared'
+import fastify from 'fastify'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+
 import { createMemoryMediaStorage, type MemoryMediaStorage } from '../_helpers/memoryMediaStorage'
+import { dbState } from '../_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
 
 const FILE = '11111111-1111-4111-8111-111111111111.png'

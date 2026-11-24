@@ -1,6 +1,5 @@
-import type { FastifyRequest } from 'fastify'
-
 import { ADMIN_ROLE_ADMIN, ADMIN_ROLE_SUPERADMIN, ADMIN_ROLE_USER } from '@quizzup/shared'
+import type { FastifyRequest } from 'fastify'
 
 import { getCurrentAdminId } from '../routes/_shared/adminContext'
 

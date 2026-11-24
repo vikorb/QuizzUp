@@ -9,7 +9,6 @@ import {
   THEME_SCOPE_GLOBAL,
   THEME_STATUS_ACTIVE,
 } from '@quizzup/shared'
-
 import { vi } from 'vitest'
 
 import { db, dbState, MOCK_NOW } from '../_helpers/mockDb'

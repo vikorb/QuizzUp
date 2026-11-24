@@ -1,7 +1,5 @@
 import { randomUUID } from 'node:crypto'
 
-import type { FastifyPluginAsync } from 'fastify'
-
 import {
   GAME_FORMAT_CUSTOM,
   GAME_STATE_ABORTED,
@@ -11,6 +9,8 @@ import {
   getRoomDesksCount,
   ROOM_STATUS_ACTIVE,
 } from '@quizzup/shared'
+import type { FastifyPluginAsync } from 'fastify'
+
 import db from '../../db'
 import { canAccessCompanyContext } from '../../security/companiesPolicy'
 import { API_ACTION, API_RESOURCE } from '../../security/permissions'

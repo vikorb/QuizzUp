@@ -1,14 +1,14 @@
 import '../_helpers/registerRouteMocks'
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
+import gamesRoutes from '@backend/routes/games'
 import {
   GAME_STATE_PENDING,
   GAME_STATE_SCHEDULED,
   GAME_STATUS_ACTIVE,
   ROOM_STATUS_ACTIVE,
 } from '@quizzup/shared'
-import gamesRoutes from '@backend/routes/games'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { dbState, MOCK_NOW } from '../_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from '../_helpers/resetRouteMocks'
 import {

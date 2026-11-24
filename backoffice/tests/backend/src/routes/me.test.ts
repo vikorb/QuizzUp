@@ -1,13 +1,11 @@
 import './_helpers/registerRouteMocks'
 
+import { ADMIN_ROLE_ADMIN, ADMIN_STATUS_ACTIVE } from '@quizzup/shared'
 import { describe, expect, it } from 'vitest'
 
-import { ADMIN_ROLE_ADMIN, ADMIN_STATUS_ACTIVE } from '@quizzup/shared'
-
 import meRoutes from '../../../../backend/src/routes/me'
-
 import { dbState } from './_helpers/mockDb'
-
+import { resetRouteMocksBeforeEach } from './_helpers/resetRouteMocks'
 import {
   authHeaders,
   companyAdminUser,
@@ -15,8 +13,6 @@ import {
   expectPublicAdmin,
   parseJson,
 } from './_helpers/testApp'
-
-import { resetRouteMocksBeforeEach } from './_helpers/resetRouteMocks'
 
 resetRouteMocksBeforeEach()
 

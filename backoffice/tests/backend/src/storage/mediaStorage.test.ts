@@ -2,9 +2,6 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-
-import { QUESTION_AUDIO_DEFAULT_MAX_BYTES } from '@quizzup/shared'
 import {
   buildCompanyLogoKey,
   buildQuestionMediaKey,
@@ -13,6 +10,8 @@ import {
   getMediaStorageDir,
   isValidMediaKey,
 } from '@backend/storage/mediaStorage'
+import { QUESTION_AUDIO_DEFAULT_MAX_BYTES } from '@quizzup/shared'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 async function readStream(stream: NodeJS.ReadableStream): Promise<Buffer> {
   const chunks: Buffer[] = []

@@ -1,6 +1,3 @@
-import type { FastifyRequest } from 'fastify'
-import type { Knex } from 'knex'
-
 import {
   DEFAULT_QUESTION_KIND,
   getQuestionKindMediaError,
@@ -8,6 +5,8 @@ import {
   type QuestionKind,
   type QuestionMediaType,
 } from '@quizzup/shared'
+import type { FastifyRequest } from 'fastify'
+import type { Knex } from 'knex'
 
 import {
   canEditQuestion,
@@ -15,9 +14,9 @@ import {
   DEFAULT_QUESTION_MEDIA_TYPE,
   getQuestionAccessRow,
   parsePositiveId,
-  validateMediaStartMs,
   type QuestionAccessRow,
   type QuestionParams,
+  validateMediaStartMs,
 } from './_shared'
 
 export type QuestionMediaRow = {

@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import type dbModule from '@backend/db'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
@@ -32,7 +33,7 @@ const PG_INTEGRATION_URL = process.env.PG_INTEGRATION_URL
 const TRUNCATE_TABLES =
   'TRUNCATE game_rounds, question_themes, questions, themes, game_participants, games, rooms, admins, companies RESTART IDENTITY CASCADE'
 
-type Db = typeof import('@backend/db').default
+type Db = typeof dbModule
 
 const roomDesk = { ...companyAdminUser, role: 'room', room_id: 1, sid: 'sid-room' } as TestUser
 

@@ -1,5 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-
+import { COMMAND_MAX_PER_ROOM, createLiveHub, type LiveHub } from '@backend/live/hub'
 import {
   GAME_COMMAND_REFUSAL,
   GAME_IDLE_PHASES,
@@ -11,7 +10,7 @@ import {
   type RoomLive,
   type RoomStatusReport,
 } from '@quizzup/shared'
-import { COMMAND_MAX_PER_ROOM, createLiveHub, type LiveHub } from '@backend/live/hub'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const idleReport: RoomStatusReport = {
   screen: 'launch',

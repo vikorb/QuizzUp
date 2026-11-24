@@ -1,7 +1,6 @@
 import '../_helpers/registerDbMock'
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
+import { PUBLIC_BOOKING_BODY_LIMIT } from '@backend/routes/public/bookings'
 import {
   COMPANY_STATUS_ACTIVE,
   GAME_STATE_CANCELLED,
@@ -11,7 +10,8 @@ import {
   GAME_STATE_SCHEDULED,
   ROOM_STATUS_INACTIVE,
 } from '@quizzup/shared'
-import { PUBLIC_BOOKING_BODY_LIMIT } from '@backend/routes/public/bookings'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { db, dbState, resetDb } from '../_helpers/mockDb'
 import {
   bearer,
@@ -23,7 +23,7 @@ import {
 } from '../_helpers/publicApi'
 
 type App = Awaited<ReturnType<typeof createPublicApp>>
-type Json = Record<string, any>
+type Json = Record<string, unknown>
 
 let app: App
 let token: string
