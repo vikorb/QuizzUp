@@ -92,6 +92,7 @@
       }
     },
     "errors": {
+      "missingToken": "Your session has expired. Sign in again.",
       "unauthorized": "Your session has expired. Sign in again.",
       "forbidden": "You are not allowed to manage the API keys of this company.",
       "notFound": "Key or company not found.",

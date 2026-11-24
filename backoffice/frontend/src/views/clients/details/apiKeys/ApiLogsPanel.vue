@@ -83,7 +83,7 @@
           v-if="(item as ApiLog).gameId !== null"
           class="api-logs__game"
           data-test="api-log-game"
-          :to="{ name: 'games-detail', params: { gameId: (item as ApiLog).gameId } }"
+          :to="getGameLink((item as ApiLog).gameId as number)"
         >
           {{ $t('apiKeys.logs.game', { id: (item as ApiLog).gameId }) }}
         </RouterLink>
@@ -123,8 +123,11 @@ import SelectField from '@/components/ui/form/SelectField.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import StatusPill from '@/components/ui/StatusPill.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import { getGameDetailRoute } from '@/router/games'
 import { listApiLogsService } from '@/services/apiKeysService'
+import { authState } from '@/state/authState'
 import { getApiKeyErrorKey } from '@/utils/apiKey/errors'
+import { getGameRouteCompanyId } from '@/utils/game/company'
 import { formatGameDate } from '@/utils/game/format'
 
 const props = defineProps<{
@@ -175,6 +178,13 @@ const statusOptions = computed(() => [
     label: t(`apiKeys.logs.filters.statusClasses.${statusClass}`),
   })),
 ])
+
+// Le superadmin ouvre la fiche d'un client qui n'est pas le sien : la partie se cherche dans cette compagnie.
+function getGameLink(gameId: number) {
+  return getGameDetailRoute(gameId, {
+    companyId: getGameRouteCompanyId(authState.me.value, props.companyId),
+  })
+}
 
 function getStatusTone(statusCode: number): 'ok' | 'warn' | 'danger' {
   if (statusCode >= 500) {

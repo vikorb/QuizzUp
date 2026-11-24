@@ -42,6 +42,7 @@ describe('locales — apiKeys', () => {
 
   // Les codes des routes `api-keys` et `api-logs` : un code sans texte s'afficherait brut.
   it.each([
+    'missing_token',
     'unauthorized',
     'forbidden',
     'not_found',

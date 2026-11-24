@@ -1,6 +1,7 @@
 import type { ApiKeyApiErrorCode } from '@/types/apiKey'
 
 const API_KEY_API_ERROR_CODES: ApiKeyApiErrorCode[] = [
+  'missing_token',
   'unauthorized',
   'forbidden',
   'not_found',

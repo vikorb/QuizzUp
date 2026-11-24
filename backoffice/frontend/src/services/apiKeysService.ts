@@ -1,3 +1,4 @@
+import { token } from '@/state/authState'
 import type { ApiRequestOptions } from '@/types/api'
 import type {
   ApiKeyApiErrorCode,
@@ -34,6 +35,11 @@ function getFallbackErrorCode(status: number): ApiKeyApiErrorCode {
 // `apiRequestJson` écarte les codes qu'il ne connaît pas (`api_key_limit_reached`) : comme les bons,
 // on lit le code du serveur ici.
 async function requestApiKeyJson<T>(options: ApiRequestOptions): Promise<ApiKeyApiResult<T>> {
+  // Comme `apiRequestJson` : sans jeton on ne sort pas, et l'écran dit que la session a expiré.
+  if (!token.value) {
+    return { ok: false, status: null, error: 'missing_token' }
+  }
+
   const response = await apiFetch({ ...options, authenticated: true })
 
   if (!response) {

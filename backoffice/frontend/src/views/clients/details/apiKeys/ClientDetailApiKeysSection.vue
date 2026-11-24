@@ -18,7 +18,7 @@
 
         <UiButton
           v-else-if="!formOpen"
-          variant="primary"
+          variant="default"
           type="button"
           data-test="api-key-create"
           :disabled="loading || busy"
@@ -322,8 +322,15 @@ async function handleCreate(): Promise<void> {
   creating.value = true
   bannerMessage.value = null
 
+  // Une réponse arrivée après un changement de compagnie ou de droits ne doit pas rendre le secret.
+  const ticket = loadTicket
+
   try {
     const result = await createApiKeyService(props.companyId, trimmed)
+
+    if (ticket !== loadTicket) {
+      return
+    }
 
     if (!result.ok) {
       showError(result.error)
@@ -348,6 +355,7 @@ async function handleRevoke(apiKey: ApiKey): Promise<void> {
     return
   }
 
+  const ticket = loadTicket
   const confirmed = await confirm({
     title: t('apiKeys.revoke.title'),
     message: t('apiKeys.revoke.confirm', { name: apiKey.name, prefix: apiKey.keyPrefix }),
@@ -356,7 +364,7 @@ async function handleRevoke(apiKey: ApiKey): Promise<void> {
     variant: 'danger',
   })
 
-  if (!confirmed) {
+  if (!confirmed || ticket !== loadTicket) {
     return
   }
 
@@ -366,8 +374,18 @@ async function handleRevoke(apiKey: ApiKey): Promise<void> {
   try {
     const result = await revokeApiKeyService(props.companyId, apiKey.id)
 
+    if (ticket !== loadTicket) {
+      return
+    }
+
     if (!result.ok) {
       showError(result.error)
+
+      // Clé introuvable : elle a changé ailleurs (révoquée dans un autre onglet), la liste se relit.
+      if (result.error === 'not_found') {
+        await loadApiKeys()
+      }
+
       return
     }
 

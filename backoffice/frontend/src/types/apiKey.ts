@@ -2,6 +2,7 @@ import type { ApiKey, ApiLog, ApiLogStatusClass } from '@quizzup/shared'
 
 /** Codes d'erreur des routes `api-keys` et `api-logs`, plus ceux du client (réseau, JSON). */
 export type ApiKeyApiErrorCode =
+  | 'missing_token'
   | 'unauthorized'
   | 'forbidden'
   | 'not_found'

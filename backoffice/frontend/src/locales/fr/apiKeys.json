@@ -92,6 +92,7 @@
       }
     },
     "errors": {
+      "missingToken": "Votre session a expiré. Reconnectez-vous.",
       "unauthorized": "Votre session a expiré. Reconnectez-vous.",
       "forbidden": "Vous n'avez pas le droit de gérer les clés d'API de cette compagnie.",
       "notFound": "Clé ou compagnie introuvable.",

@@ -18,7 +18,7 @@ import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 
-import type { ApiKeyApiResult, ApiKeysResponse } from '@/types/apiKey'
+import type { ApiKeyApiResult, ApiKeysResponse, CreateApiKeyResponse } from '@/types/apiKey'
 import ClientDetailApiKeysSection from '@/views/clients/details/apiKeys/ClientDetailApiKeysSection.vue'
 
 resetFrontendMocksBeforeEach()
@@ -161,15 +161,17 @@ describe('views/clients/details/apiKeys/ClientDetailApiKeysSection.vue', () => {
       )
     })
 
-    it('has a single primary button, with the form closed and with the secret shown', async () => {
+    // Le bouton principal de la fiche est « Enregistrer » (ClientDetailForm) : le bloc n'en ajoute pas.
+    it('has no primary button, with the form closed and with the secret shown', async () => {
       const wrapper = await mountSection()
 
-      expect(wrapper.findAll('[data-variant="primary"]')).toHaveLength(1)
+      expect(wrapper.get('[data-test="api-key-create"]').attributes('data-variant')).toBe('default')
+      expect(wrapper.findAll('[data-variant="primary"]')).toHaveLength(0)
 
       await createKey(wrapper)
 
       expect(wrapper.find('[data-test="api-key-secret-panel"]').exists()).toBe(true)
-      expect(wrapper.findAll('[data-variant="primary"]')).toHaveLength(1)
+      expect(wrapper.findAll('[data-variant="primary"]')).toHaveLength(0)
     })
 
     it('names the key on each revoke button', async () => {
@@ -350,6 +352,29 @@ describe('views/clients/details/apiKeys/ClientDetailApiKeysSection.vue', () => {
       expect(vm.secret).toBeNull()
     })
 
+    it('does not bring the secret back when the answer arrives after the company changed', async () => {
+      const pending = createDeferred<ApiKeyApiResult<CreateApiKeyResponse>>()
+      createApiKeyServiceMock.mockImplementationOnce(() => pending.promise)
+      const wrapper = await mountSection()
+
+      await openForm(wrapper)
+      await wrapper.get('[data-test="api-key-form"] input').setValue('Site')
+      await wrapper.get('[data-test="api-key-form"]').trigger('submit')
+      await wrapper.setProps({ companyId: 8 })
+      await flushPromises()
+
+      pending.resolve({
+        ok: true,
+        status: 201,
+        data: { apiKey: createApiKeyFixture({ id: 9 }), secret: API_KEY_SECRET_FIXTURE },
+      })
+      await flushPromises()
+
+      expect((wrapper.vm as unknown as SectionVm).secret).toBeNull()
+      expect(wrapper.html()).not.toContain(API_KEY_SECRET_FIXTURE)
+      expect(wrapper.find('[data-test="base-table-row"]').exists()).toBe(false)
+    })
+
     it('erases the secret when the role loses the right to see the section', async () => {
       const wrapper = await mountSection()
 
@@ -438,14 +463,32 @@ describe('views/clients/details/apiKeys/ClientDetailApiKeysSection.vue', () => {
     })
 
     it('shows the translated error when the revocation is refused, and keeps the key active', async () => {
-      mockApiKeyFailure(revokeApiKeyServiceMock, 'not_found', 404)
+      mockApiKeyFailure(revokeApiKeyServiceMock, 'forbidden', 403)
       const wrapper = await mountSection()
 
       await wrapper.get('[data-test="api-key-revoke"]').trigger('click')
       await flushPromises()
 
-      expect(wrapper.get('[data-test="base-banner"]').text()).toContain('apiKeys.errors.notFound')
+      expect(wrapper.get('[data-test="base-banner"]').text()).toContain('apiKeys.errors.forbidden')
       expect(wrapper.get('[data-test="api-key-status"]').text()).toContain('apiKeys.status.active')
+      expect(listApiKeysServiceMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('reads the keys again when the key is not found, as it changed in another tab', async () => {
+      mockApiKeyFailure(revokeApiKeyServiceMock, 'not_found', 404)
+      const wrapper = await mountSection()
+
+      listApiKeysServiceMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: { apiKeys: [createRevokedApiKeyFixture({ id: 5, name: 'Site A' })] },
+      })
+      await wrapper.get('[data-test="api-key-revoke"]').trigger('click')
+      await flushPromises()
+
+      expect(listApiKeysServiceMock).toHaveBeenCalledTimes(2)
+      expect(wrapper.get('[data-test="api-key-status"]').text()).toContain('apiKeys.status.revoked')
+      expect(wrapper.get('[data-test="base-banner"]').text()).toContain('apiKeys.errors.notFound')
     })
   })
 })

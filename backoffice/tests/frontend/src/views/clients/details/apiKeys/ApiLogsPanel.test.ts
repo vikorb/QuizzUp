@@ -5,6 +5,10 @@ import {
   listApiLogsServiceMock,
   mockApiKeyFailure,
 } from '@frontend-tests/_helpers/apiKeysServiceMock'
+import {
+  setAuthenticatedAdmin,
+  setAuthenticatedSuperadmin,
+} from '@frontend-tests/_helpers/authStateMock'
 import { missingMessageKeys } from '@frontend-tests/_helpers/i18nMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
@@ -44,6 +48,10 @@ async function mountPanel(): Promise<VueWrapper> {
 
 function card(wrapper: VueWrapper) {
   return wrapper.get('[data-test="api-logs-card"]')
+}
+
+function gameLinkOf(row: ReturnType<VueWrapper['get']>) {
+  return JSON.parse(row.get('[data-test="api-log-game"]').attributes('data-to')!)
 }
 
 async function pick(wrapper: VueWrapper, selectId: string, value: string): Promise<void> {
@@ -113,10 +121,27 @@ describe('views/clients/details/apiKeys/ApiLogsPanel.vue', () => {
     expect(row.text()).toContain('POST')
     expect(row.text()).toContain('/public/v1/bookings')
     expect(row.text()).toContain('201')
-    expect(JSON.parse(row.get('[data-test="api-log-game"]').attributes('data-to')!)).toEqual({
+    expect(gameLinkOf(row)).toEqual({ name: 'games-detail', params: { gameId: '42' }, query: {} })
+  })
+
+  it('opens the session in the company of the page for a superadmin, who may not be in it', async () => {
+    setAuthenticatedSuperadmin({ companyId: 1 })
+    respond([createApiLogFixture({ gameId: 42 })])
+    const wrapper = await mountPanel()
+
+    expect(gameLinkOf(wrapper.get('[data-test="base-table-row"]'))).toEqual({
       name: 'games-detail',
-      params: { gameId: 42 },
+      params: { gameId: '42' },
+      query: { companyId: '7' },
     })
+  })
+
+  it('does not put the company in the address for an admin, who has only his own', async () => {
+    setAuthenticatedAdmin({ companyId: 7 })
+    respond([createApiLogFixture({ gameId: 42 })])
+    const wrapper = await mountPanel()
+
+    expect(gameLinkOf(wrapper.get('[data-test="base-table-row"]')).query).toEqual({})
   })
 
   it('shows a dash when there is no error and no session', async () => {

@@ -3,9 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as ApiKeysService from '@/services/apiKeysService'
 
 const apiFetchMock = vi.hoisted(() => vi.fn())
+const tokenMock = vi.hoisted(() => ({ value: 'jeton-de-test' as string | null }))
 
 vi.mock('@/utils/api', () => ({
   apiFetch: apiFetchMock,
+}))
+
+vi.mock('@/state/authState', () => ({
+  token: tokenMock,
 }))
 
 // Le service est moqué globalement pour les composants : ici on teste le vrai module.
@@ -20,6 +25,7 @@ function jsonResponse(status: number, body: unknown): Response {
 
 beforeEach(() => {
   apiFetchMock.mockReset()
+  tokenMock.value = 'jeton-de-test'
 })
 
 describe('services/apiKeysService', () => {
@@ -100,6 +106,18 @@ describe('services/apiKeysService', () => {
     apiFetchMock.mockResolvedValue(jsonResponse(status, { error: 'something_new' }))
 
     expect(await service.listApiKeysService(7)).toEqual({ ok: false, status, error })
+  })
+
+  it('answers missing_token without any request when there is no token', async () => {
+    tokenMock.value = null
+
+    expect(await service.listApiKeysService(7)).toEqual({
+      ok: false,
+      status: null,
+      error: 'missing_token',
+    })
+    expect(await service.createApiKeyService(7, 'Site')).toMatchObject({ error: 'missing_token' })
+    expect(apiFetchMock).not.toHaveBeenCalled()
   })
 
   it('reports an unreachable server and an unreadable answer', async () => {
