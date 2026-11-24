@@ -68,3 +68,17 @@ export function jsonErrorResponse(status: number, error: string): Response {
     headers: { 'Content-Type': 'application/json' },
   })
 }
+
+/** Promesse que le test résout lui-même, pour garder une réponse en attente. */
+export function createDeferred<T>() {
+  const deferred = { resolve: (_value: T) => undefined } as {
+    promise: Promise<T>
+    resolve: (value: T) => void
+  }
+
+  deferred.promise = new Promise<T>((resolve) => {
+    deferred.resolve = resolve
+  })
+
+  return deferred
+}

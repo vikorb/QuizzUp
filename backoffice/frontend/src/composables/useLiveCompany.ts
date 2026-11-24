@@ -1,7 +1,13 @@
 import {
   createSseParser,
+  GAME_COMMAND_REFUSALS,
+  type GameCommandRefusal,
   LIVE_EVENT,
   LIVE_HEARTBEAT_MS,
+  ROOM_COMMAND_RESULT,
+  ROOM_COMMAND_TIMEOUT_MS,
+  type RoomCommand,
+  type RoomCommandResult,
   type RoomLive,
   type SseMessage,
 } from '@quizzup/shared'
@@ -30,6 +36,46 @@ const RECONNECT_DELAYS_MS = [1_000, 2_000, 5_000, 10_000, 30_000]
 const SILENCE_LIMIT_MS = 3 * LIVE_HEARTBEAT_MS
 /** Rafraîchissement de l'horloge qui sert aux « vu il y a … ». */
 const CLOCK_TICK_MS = 30_000
+
+/** Marge laissée au serveur pour annoncer `expired` avant que le client conclue seul. */
+const COMMAND_RESULT_GRACE_MS = 2_000
+/** Codes d'erreur de la route d'envoi d'une commande qui ont un texte (`live.command.error.*`). */
+const COMMAND_ERROR_CODES = [
+  'room_not_controllable',
+  'command_id_conflict',
+  'too_many_requests',
+  'forbidden',
+  'unauthorized',
+  'room_not_found',
+] as const
+/** Code HTTP → code d'erreur, quand le corps n'en porte pas un connu (ex. un 401 de session). */
+const COMMAND_STATUS_CODES: Record<number, string> = {
+  401: 'unauthorized',
+  403: 'forbidden',
+  404: 'room_not_found',
+  429: 'too_many_requests',
+}
+
+/** Commandes offertes par le panneau : l'arrêt passe par la route d'arrêt de la partie. */
+export type PanelRoomCommand = Exclude<RoomCommand, { command: 'abort' }>
+
+/**
+ * Issue d'une commande : le résultat rendu par la salle (ou `expired`), ou `error` quand l'envoi
+ * lui-même a échoué (`code` : clé de `live.command.error`).
+ */
+export type RoomCommandOutcome =
+  { result: RoomCommandResult; reason?: GameCommandRefusal } | { result: 'error'; code: string }
+
+async function readCommandErrorCode(response: Response): Promise<string> {
+  const body = (await response.json().catch(() => null)) as { error?: unknown } | null
+  const known = COMMAND_ERROR_CODES.find((code) => code === body?.error)
+
+  if (known) {
+    return known
+  }
+
+  return COMMAND_STATUS_CODES[response.status] ?? 'server_error'
+}
 
 function parseJson(text: string): unknown {
   try {
@@ -64,6 +110,8 @@ export function useLiveCompany(companyId: MaybeRefOrGetter<number | null>) {
   let retryTimer: ReturnType<typeof setTimeout> | undefined
   let clockTimer: ReturnType<typeof setInterval> | undefined
   let attempt = 0
+  /** Commandes envoyées qui attendent leur `command_result` : `commandId` → conclusion. */
+  const pendingCommands = new Map<string, (outcome: RoomCommandOutcome) => void>()
   /** Un 401 du flux ne déclenche qu'une relance, même si `/me` confirme la session. */
   let unauthorizedRetried = false
 
@@ -137,6 +185,19 @@ export function useLiveCompany(companyId: MaybeRefOrGetter<number | null>) {
       // Une salle absente du dernier `snapshot` n'est pas affichée : on l'ignore.
       if (isRoomLive(room) && room.roomId in rooms.value) {
         rooms.value[room.roomId] = room
+      }
+    } else if (event === LIVE_EVENT.COMMAND_RESULT) {
+      const message = parseJson(data) as {
+        commandId?: unknown
+        result?: unknown
+        reason?: unknown
+      } | null
+      const result = Object.values(ROOM_COMMAND_RESULT).find((known) => known === message?.result)
+      const reason = GAME_COMMAND_REFUSALS.find((known) => known === message?.reason)
+
+      // Le flux porte les résultats de tout le personnel : on ne garde que les commandes d'ici.
+      if (typeof message?.commandId === 'string' && result) {
+        pendingCommands.get(message.commandId)?.({ result, reason })
       }
     } else if (event === LIVE_EVENT.SESSION_ENDED) {
       void sessionLost('session_ended')
@@ -286,11 +347,88 @@ export function useLiveCompany(companyId: MaybeRefOrGetter<number | null>) {
     void run(id)
   }
 
+  /**
+   * Envoie une commande à la salle (`POST …/rooms/:id/commands`, `202` dit seulement « partie ») puis
+   * attend son résultat sur ce flux. Sans résultat à temps, la commande est donnée pour `expired`.
+   */
+  function sendCommand(roomId: number, command: PanelRoomCommand): Promise<RoomCommandOutcome> {
+    const company = currentId
+
+    if (company === null) {
+      return Promise.resolve({ result: 'error', code: 'room_not_controllable' })
+    }
+
+    // `randomUUID` n'existe que dans un contexte sécurisé (HTTPS, localhost).
+    let commandId: string
+
+    try {
+      commandId = crypto.randomUUID()
+    } catch {
+      return Promise.resolve({ result: 'error', code: 'server_error' })
+    }
+
+    return new Promise((resolve) => {
+      const settle = (outcome: RoomCommandOutcome): void => {
+        clearTimeout(timer)
+        pendingCommands.delete(commandId)
+        resolve(outcome)
+      }
+      const timer = setTimeout(
+        () => settle({ result: ROOM_COMMAND_RESULT.EXPIRED }),
+        ROOM_COMMAND_TIMEOUT_MS + COMMAND_RESULT_GRACE_MS
+      )
+
+      // Enregistrée avant l'envoi : le résultat peut arriver avant la réponse `202`.
+      pendingCommands.set(commandId, settle)
+
+      const post = () =>
+        apiFetch({
+          path: `/companies/${company}/rooms/${roomId}/commands`,
+          method: 'POST',
+          authenticated: true,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ commandId, ...command }),
+        })
+
+      void (async () => {
+        let response = await post()
+
+        if (!response) {
+          if (!authState.token.value) {
+            settle({ result: 'error', code: 'unauthorized' })
+            return
+          }
+
+          // Réponse perdue : la requête a pu arriver. Le serveur répond à l'identique à un
+          // doublon (même `commandId`), donc on réessaie une fois. Si cela échoue encore, on
+          // garde l'attente : le résultat viendra du flux, ou `expired` au délai local.
+          if (!pendingCommands.has(commandId)) {
+            return
+          }
+
+          response = await post()
+        }
+
+        if (response && !response.ok) {
+          if (response.status === 401) {
+            void refreshMe()
+          }
+
+          settle({ result: 'error', code: await readCommandErrorCode(response) })
+        }
+      })()
+    })
+  }
+
   const stopWatching = watch(() => toValue(companyId), start, { immediate: true })
 
   function stop(): void {
     stopWatching()
     close()
+    // Plus de flux pour recevoir les résultats : les commandes en attente sont sans réponse.
+    for (const settle of [...pendingCommands.values()]) {
+      settle({ result: ROOM_COMMAND_RESULT.EXPIRED })
+    }
     // Une réponse de `/me` qui arrive après l'arrêt ne doit rien relancer.
     currentId = null
   }
@@ -299,5 +437,5 @@ export function useLiveCompany(companyId: MaybeRefOrGetter<number | null>) {
     onScopeDispose(stop)
   }
 
-  return { rooms, state, errorKey, uncertain, now, stop }
+  return { rooms, state, errorKey, uncertain, now, sendCommand, stop }
 }
