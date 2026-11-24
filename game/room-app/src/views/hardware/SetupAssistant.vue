@@ -522,13 +522,7 @@
         <span>{{ $t(`hardware.assistant.smoke.checks.${check}`) }}</span>
       </label>
       <p class="hw-hint" data-test="freeze-hint">
-        {{
-          $t(
-            signalLossTest
-              ? 'hardware.diagnostic.freezeHintSignal'
-              : 'hardware.diagnostic.freezeHint'
-          )
-        }}
+        {{ $t(`hardware.diagnostic.freezeHint${freezeVariant}`) }}
       </p>
       <p v-if="freezeRefusal" class="hw-alert" role="status">{{ freezeRefusal }}</p>
       <div class="hw-actions">
@@ -539,7 +533,11 @@
           @click="onFreezeTest"
         >
           {{
-            $t(signalLossTest ? 'hardware.diagnostic.freezeSignal' : 'hardware.diagnostic.freeze')
+            $t(
+              signalLossTest && !viaBoard
+                ? 'hardware.diagnostic.freezeSignal'
+                : 'hardware.diagnostic.freeze'
+            )
           }}
         </UiButton>
       </div>
@@ -549,13 +547,7 @@
         role="status"
         data-test="freeze-running"
       >
-        {{
-          $t(
-            signalLossTest
-              ? 'hardware.assistant.smoke.freezeRunningSignal'
-              : 'hardware.assistant.smoke.freezeRunning'
-          )
-        }}
+        {{ $t(`hardware.assistant.smoke.freezeRunning${freezeVariant}`) }}
         <div class="hw-actions">
           <UiButton variant="danger" data-test="freeze-abort" @click="onFreezeAnswer(false)">
             {{ $t('hardware.assistant.smoke.freezeAbort') }}
@@ -568,13 +560,7 @@
         role="status"
         data-test="freeze-question"
       >
-        {{
-          $t(
-            signalLossTest
-              ? 'hardware.assistant.smoke.freezeQuestionSignal'
-              : 'hardware.assistant.smoke.freezeQuestion'
-          )
-        }}
+        {{ $t(`hardware.assistant.smoke.freezeQuestion${freezeVariant}`) }}
         <div class="hw-actions">
           <UiButton data-test="freeze-ok" @click="onFreezeAnswer(true)">
             {{ $t('hardware.assistant.smoke.freezeYes') }}
@@ -587,9 +573,11 @@
       <p v-if="freezeFailed" class="hw-alert hw-alert--danger" role="alert">
         {{
           $t(
-            freezeFailedSignal
-              ? 'hardware.assistant.smoke.freezeFailedSignal'
-              : 'hardware.assistant.smoke.freezeFailed'
+            viaBoard
+              ? 'hardware.assistant.smoke.freezeFailedBoard'
+              : freezeFailedSignal
+                ? 'hardware.assistant.smoke.freezeFailedSignal'
+                : 'hardware.assistant.smoke.freezeFailed'
           )
         }}
       </p>
@@ -771,7 +759,7 @@ const ARROWS = new Map<string, [PanTiltAxis, 1 | -1]>([
 const { t } = useI18n()
 const { hardware, lightingState, bridgeArtnet, bridgeFeatures, syncStatus, conflictCount } =
   useRoomHardware()
-const { run: runFreezeTest, refusal: freezeRefusal } = useFreezeTest()
+const { run: runFreezeTest, refusal: freezeRefusal, viaBoard } = useFreezeTest()
 
 function newWizard() {
   const created = createSetupWizard(hardware.value.config)
@@ -883,6 +871,10 @@ const canFreezeTest = computed(
 // un test guidé de vraie perte de signal (câble DMX débranché).
 const signalLossTest = computed(
   () => view.value.smokeLacksRelay && view.value.config.lighting.smoke.cutsOnSignalLoss === true
+)
+// Suffixe des textes du test de coupure : la carte USB (elle coupe seule), la perte de signal, ou le relais.
+const freezeVariant = computed(() =>
+  viaBoard.value ? 'Board' : signalLossTest.value ? 'Signal' : ''
 )
 // Sans relais, « relais temporisé » n'a pas de sens : seules les vérifications exigées sont listées.
 const requiredSmokeChecks = computed(() =>

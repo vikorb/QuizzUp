@@ -4,7 +4,9 @@ import { flushPromises } from '@vue/test-utils'
 import { useConfirm } from '@/composables/useConfirm'
 import {
   getLighting,
+  getRoomHardwareConfig,
   saveBuzzerKeymap,
+  saveRoomHardwareConfig,
   SMOKE_PROOF_STORAGE_KEY,
   stopLighting,
   useRoomHardware,
@@ -143,6 +145,37 @@ async function startFreezeTest(wrapper: Wrapper) {
   expect(sel(wrapper, 'freeze-running').exists()).toBe(true)
 }
 
+/** Carte retenue dans la config de la salle, avant l'assistant (un lien prêt n'est pas nécessaire aux textes). */
+async function rememberBoard() {
+  const config = getRoomHardwareConfig()
+  await saveRoomHardwareConfig({
+    ...config,
+    lighting: {
+      ...config.lighting,
+      smoke: {
+        ...config.lighting.smoke,
+        board: { kind: 'uno-serial', usbVendorId: 0x2341, usbProductId: 0x0043 },
+      },
+    },
+  })
+}
+
+async function confirmationTexts(wrapper: Wrapper) {
+  await sel(wrapper, 'check-physicalStop').setValue(true)
+  await sel(wrapper, 'check-timedRelay').setValue(true)
+  const freeze = sel(wrapper, 'assistant-freeze').trigger('click')
+  const texts: string[] = []
+  for (let index = 0; index < 2; index += 1) {
+    await vi.waitFor(() => expect(useConfirm().state.open).toBe(true))
+    texts.push(useConfirm().state.message)
+    useConfirm().accept()
+    await flushPromises()
+  }
+  await freeze
+  await flushPromises()
+  return texts
+}
+
 describe('assistant : garde-fous de la fumée', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -268,6 +301,32 @@ describe('assistant : garde-fous de la fumée', () => {
     const wrapper = await openSmokeStep('usbpro', 'smoke-relay')
     expect(sel(wrapper, 'smoke-no-relay').exists()).toBe(false)
     expect(sel(wrapper, 'check-timedRelay').exists()).toBe(true)
+  })
+
+  describe('fumée par la carte USB : texte du test de coupure', () => {
+    it('carte : le texte dit que la carte coupe en moins d’une seconde', async () => {
+      installFakeSerial(createFakeUsbPort())
+      await rememberBoard()
+      const wrapper = await openSmokeStep('usbpro', 'smoke-relay')
+
+      expect(sel(wrapper, 'freeze-hint').text()).toContain('la carte USB')
+      expect(sel(wrapper, 'freeze-hint').text()).toContain('en moins d’une seconde')
+      expect(sel(wrapper, 'freeze-hint').text()).not.toContain('relais temporisé')
+      expect(sel(wrapper, 'assistant-freeze').text()).toContain('plantage simulé')
+      const [, second] = await confirmationTexts(wrapper)
+      expect(second).toContain('La carte doit couper la fumée en moins d’une seconde')
+    })
+
+    it('DMX : le texte garde le relais temporisé', async () => {
+      installFakeSerial(createFakeUsbPort())
+      const wrapper = await openSmokeStep('usbpro', 'smoke-relay')
+
+      expect(sel(wrapper, 'freeze-hint').text()).toContain('relais temporisé')
+      expect(sel(wrapper, 'freeze-hint').text()).not.toContain('la carte USB')
+      const [, second] = await confirmationTexts(wrapper)
+      expect(second).toContain('Si la fumée ne s’arrête pas seule')
+      expect(second).not.toContain('La carte')
+    })
   })
 
   it('pont Art-Net : le test de gel gèle la sortie du pont (hold) pendant la durée du test', async () => {

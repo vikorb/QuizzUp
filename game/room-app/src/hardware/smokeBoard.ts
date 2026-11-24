@@ -1,4 +1,6 @@
 import {
+  browserClock,
+  type Clock,
   createSmokeBoardLink,
   FirmwareError,
   type FirmwareErrorCode,
@@ -40,6 +42,14 @@ import {
 export const BUNDLED_PROGRAM_VERSION = '1.0.0'
 /** Arduino (2341, 2A03) et CH340 (1A86) : les puces des cartes Uno et de leurs clones. */
 export const SMOKE_BOARD_USB_VENDOR_IDS = [0x2341, 0x2a03, 0x1a86] as const
+/** Reprises seules d'une carte muette, en défaut ou débranchée pendant que la page reste ouverte. */
+export const SMOKE_BOARD_RETRY_MAX = 5
+export const SMOKE_BOARD_RETRY_DELAY_MS = 3000
+/** Une carte restée prête aussi longtemps repart avec tous ses essais (sinon ils s'épuisent sur la soirée). */
+export const SMOKE_BOARD_STABLE_MS = 60_000
+/** Un `no_firmware` n'est pas repris : sans notre programme, recommencer ne changerait rien. */
+const RETRYABLE: readonly SmokeBoardState['status'][] = ['silent', 'disconnected', 'fault']
+
 /** Un seul fichier, sans date : il est écrasé par le suivant dans le dossier de téléchargement. */
 export const BACKUP_FILE_NAME = 'quizzup-fumee-sauvegarde-carte.hex'
 
@@ -70,6 +80,10 @@ const linkState = shallowRef<SmokeBoardState | null>(null)
 const installState = shallowRef<InstallState>({ phase: 'idle' })
 /** Plusieurs ports du modèle retenu : aucun n'est ouvert tant que l'un n'est pas débranché. */
 const ambiguous = shallowRef(false)
+let clock: Clock = browserClock
+let retryTimer: ReturnType<Clock['setTimeout']> | undefined
+let retries = 0
+let readySince: number | null = null
 /** Ouvertures et installations passent l'une après l'autre. */
 let queue: Promise<unknown> = Promise.resolve()
 
@@ -121,8 +135,49 @@ function viewOf(state: SmokeBoardState | null): BoardView {
   }
 }
 
+/** Horloge des reprises (tests). */
+export function setSmokeBoardClock(next: Clock | null): void {
+  cancelRetry()
+  clock = next ?? browserClock
+}
+
+function cancelRetry(): void {
+  if (retryTimer !== undefined) {
+    clock.clearTimeout(retryTimer)
+    retryTimer = undefined
+  }
+}
+
+/**
+ * Lien passé en perte ou en défaut : une reprise est programmée, bornée. Jamais pendant une
+ * installation ou une restauration. La reprise (`reconnectSmokeBoard`) rouvre un lien neuf, donc
+ * la fumée repart désarmée.
+ */
+function scheduleRetry(state: SmokeBoardState): void {
+  if (state.status === 'ready') {
+    readySince ??= clock.now()
+    return
+  }
+  if (!RETRYABLE.includes(state.status) || retryTimer !== undefined) {
+    return
+  }
+  if (readySince !== null && clock.now() - readySince >= SMOKE_BOARD_STABLE_MS) {
+    retries = 0
+  }
+  readySince = null
+  if (retries >= SMOKE_BOARD_RETRY_MAX || inProgress()) {
+    return
+  }
+  retries += 1
+  retryTimer = clock.setTimeout(() => {
+    retryTimer = undefined
+    void reconnectSmokeBoard().catch(() => undefined)
+  }, SMOKE_BOARD_RETRY_DELAY_MS)
+}
+
 /** Ferme le lien en place (un `0` part) : plus aucune commande ne passe, le contrôleur le voit. */
 async function detach(): Promise<void> {
+  cancelRetry()
   stopLink?.()
   stopLink = null
   const previous = link
@@ -145,6 +200,7 @@ async function attach(next: SmokeBoardPort): Promise<SmokeBoardState['status']> 
   stopLink = created.onChange((state) => {
     if (link === created) {
       linkState.value = state
+      scheduleRetry(state)
     }
   })
   setSmokeBoardLink(created)
@@ -221,6 +277,7 @@ export async function connectSmokeBoard(): Promise<ConnectResult> {
       return 'same_as_dmx'
     }
     ambiguous.value = false
+    retries = 0
     const status = await attach(chosen as SmokeBoardPort)
     if (status !== 'ready') {
       return 'failed'
@@ -264,6 +321,7 @@ export async function reconnectSmokeBoard(): Promise<void> {
 function onConnect(event: Event): void {
   const target = event.target as unknown as SerialPortLike | null
   if (target && matchesBoard(target)) {
+    retries = 0
     void reconnectSmokeBoard().catch(() => undefined)
   }
 }
@@ -314,6 +372,7 @@ async function flash(
     return
   }
   installState.value = { phase: 'running', step: 'sync', done: 0, total: 1 }
+  cancelRetry()
   await serialize(async () => {
     // Lu ici, dans la file : une ouverture en cours a pu changer de port.
     const target = port
@@ -403,6 +462,8 @@ export async function resetSmokeBoard(): Promise<void> {
   stopConnectWatch?.()
   answerBackupSaved(false)
   await detach()
+  retries = 0
+  readySince = null
   port = null
   linkState.value = null
   installState.value = { phase: 'idle' }
