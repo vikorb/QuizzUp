@@ -8,6 +8,8 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Formulaire de question : sélecteur « Effet sur l'extrait » (aucun, très court, à l'envers, ralenti), visible seulement pour une question audio. L'effet est relu à la modification, remis à « aucun » quand la question cesse d'être audio, et les erreurs de l'API (`question_audio_effect_invalid`, `audio_effect_requires_audio`) s'affichent sous le champ.
+  US: US-AUDIO-02 (#144)
 - Effet audio d'une question (`audioEffect` : `none`, `short`, `reverse`, `slowed`) : stocké sur la question, validé (400 `question_audio_effect_invalid`, `audio_effect_requires_audio`) et distribué à la salle avec le contenu de la partie.
   US: US-AUDIO-02 (#144)
 

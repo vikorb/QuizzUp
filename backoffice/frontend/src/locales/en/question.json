@@ -75,6 +75,20 @@
         },
         "measuring": "reading duration…"
       },
+      "audioEffect": {
+        "label": "Excerpt effect",
+        "hint": "Changes how the excerpt is played in the blind test. Listen to it before choosing: a reversed or slowed excerpt is harder to recognise.",
+        "options": {
+          "none": "None",
+          "short": "Very short (0.5 s, 2 s, 10 s)",
+          "reverse": "Reversed",
+          "slowed": "Slowed down"
+        },
+        "errors": {
+          "question_audio_effect_invalid": "This effect does not exist.",
+          "audio_effect_requires_audio": "An effect only applies to an audio question."
+        }
+      },
       "kind": "Question type",
       "errors": {
         "trueFalseAnswers": "A true / false question has exactly two answers, « Vrai » and « Faux », with one correct.",

@@ -168,6 +168,20 @@
         },
         "measuring": "durée en cours de lecture…"
       },
+      "audioEffect": {
+        "label": "Effet sur l'extrait",
+        "hint": "Change la façon dont l'extrait est joué au blind test. Écoutez-le avant de choisir : un extrait à l'envers ou ralenti est plus dur à reconnaître.",
+        "options": {
+          "none": "Aucun",
+          "short": "Très court (0,5 s, 2 s, 10 s)",
+          "reverse": "À l'envers",
+          "slowed": "Ralenti"
+        },
+        "errors": {
+          "question_audio_effect_invalid": "Cet effet n'existe pas.",
+          "audio_effect_requires_audio": "Un effet ne s'applique qu'à une question audio."
+        }
+      },
       "kind": "Type de question",
       "kindRules": {
         "true_false": "Vrai/faux : deux réponses « Vrai » et « Faux », une seule juste.",
