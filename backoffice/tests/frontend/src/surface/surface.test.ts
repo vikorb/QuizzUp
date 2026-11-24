@@ -4,7 +4,7 @@ import { router } from '@/router'
 import { navItems as centreNavItems, routes as centreRoutes } from '@/surface/centre'
 import { navItems as consoleNavItems, routes as consoleRoutes } from '@/surface/console'
 
-const CONSOLE_ONLY_ROUTES = ['clients', 'clients-create']
+const CONSOLE_ONLY_ROUTES = ['clients', 'clients-create', 'demo-requests']
 
 describe('surface/centre', () => {
   it('declares none of the screens reserved to the publisher console', () => {
@@ -19,14 +19,14 @@ describe('surface/centre', () => {
 })
 
 describe('surface/console', () => {
-  it('declares the clients screens, lazily loaded and reserved to the superadmin', () => {
+  it('declares the clients and demo requests screens, lazily loaded and reserved to the superadmin', () => {
     expect(consoleRoutes.map((route) => route.name)).toEqual(CONSOLE_ONLY_ROUTES)
 
     for (const route of consoleRoutes) {
       expect(route.meta).toMatchObject({ requiresAuth: true, requiresSuperadmin: true })
       expect(route.component).toBeTypeOf('function')
     }
-    expect(consoleNavItems.map((item) => item.to)).toEqual(['/clients'])
+    expect(consoleNavItems.map((item) => item.to)).toEqual(['/clients', '/demo-requests'])
   })
 
   it('is the surface seen by the tests: the router exposes its routes', () => {
@@ -34,5 +34,6 @@ describe('surface/console', () => {
       expect(router.hasRoute(name)).toBe(true)
     }
     expect(router.resolve('/clients/create').name).toBe('clients-create')
+    expect(router.resolve('/demo-requests').name).toBe('demo-requests')
   })
 })

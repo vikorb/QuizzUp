@@ -10,6 +10,9 @@ Format inspiré de Keep a Changelog.
 
 - Formulaire de question : sélecteur « Effet sur l'extrait » (aucun, très court, à l'envers, ralenti), visible seulement pour une question audio. L'effet est relu à la modification, remis à « aucun » quand la question cesse d'être audio, et les erreurs de l'API (`question_audio_effect_invalid`, `audio_effect_requires_audio`) s'affichent sous le champ.
   US: US-AUDIO-02 (#144)
+- Console éditeur : écran des demandes de démonstration (filtre « À traiter », « Traitées », « Toutes » ; marquer une demande traitée ; supprimer), réservé au superadmin.
+  US: US-CONSOLE-01 (#161)
+
 - Effet audio joué en salle : le blind test lit l'extrait avec l'effet de la question (court, inversé, ralenti), avec des paliers raccourcis pour `short` et une reprise fidèle après rechargement.
   US: US-AUDIO-02 (#144)
 
