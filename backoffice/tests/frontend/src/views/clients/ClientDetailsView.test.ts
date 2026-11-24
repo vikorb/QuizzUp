@@ -181,6 +181,23 @@ describe('views/clients/ClientDetailsView.vue', () => {
     }
   })
 
+  it('shows the API keys section to admins and superadmins only, as the API matrix allows', async () => {
+    const expectations = [
+      { login: setAuthenticatedSuperadmin, shown: true },
+      { login: setAuthenticatedAdmin, shown: true },
+      { login: setAuthenticatedUser, shown: false },
+    ]
+
+    for (const { login, shown } of expectations) {
+      login()
+
+      const wrapper = await mountClientDetailsView()
+
+      expect(wrapper.find('#api-keys').exists()).toBe(shown)
+      wrapper.unmount()
+    }
+  })
+
   it('does not call the service when route id is invalid', async () => {
     currentRouteMock.params = {
       id: 'invalid',

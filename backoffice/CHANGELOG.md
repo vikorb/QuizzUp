@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Clés d'API au backoffice : la fiche client liste les clés de la compagnie, en crée une, en révoque une (avec confirmation) et affiche le journal des appels. Le secret ne s'affiche qu'une fois, à la création, et n'est jamais enregistré dans le navigateur. Réservé aux rôles admin et superadmin.
+  US: US-BOOKING-01 (#188)
+
 - Format de partie au backoffice et au lobby : à la création, le formulaire propose Découverte, Courte, Standard (par défaut) et Personnalisé, avec les nombres et la durée estimée de chaque format. Les champs manches et questions n'apparaissent qu'en Personnalisé. Le lobby du staff affiche le format et sa durée.
   US: US-FORMAT-01 (#143)
 
