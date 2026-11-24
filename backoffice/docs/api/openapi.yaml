@@ -3597,6 +3597,18 @@ paths:
         filtrées par la compagnie de la salle : un identifiant d'une autre compagnie, ou d'une
         question non jouable, est simplement absent de la réponse.
 
+        Thème de playlist (`playlistRef`) : sans `ids`, le serveur lit la playlist chez le
+        fournisseur (un appel par playlist, 5 simultanés au plus, 6 playlists au plus par partie,
+        tirées au hasard s'il y en a plus) et tire `questions_per_round` titres lisibles avec
+        extrait. Chaque titre devient une question « Quel est ce titre ? » d'`id` **négatif**
+        (`-trackId` : aucune ligne `questions` ne la porte), avec `mediaCredit` et jusqu'à
+        quatre réponses « titre – artiste » (le bon titre et trois leurres de la même playlist,
+        `id` négatifs aussi ; 2 ou 3 réponses pour une petite playlist). Moins de titres jouables
+        que demandé : manche plus courte ; moins de 2 : thème écarté. Une playlist introuvable ou en panne n'écarte que son thème (réponse 200, un
+        avertissement journalisé). Le tirage est refait à chaque appel. En mode enfants, seuls les
+        thèmes `kidsFriendly` sont lus, playlists comprises. Avec `ids`, rien n'est tiré : la
+        reprise redemande les liens par `GET /room/games/current/tracks`.
+
         Accès : réservé au rôle `room`, uniquement pendant une partie en attente ou en cours.
       operationId: getCurrentRoomGameContent
       x-availability: disponible
@@ -3679,6 +3691,109 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Pas de partie courante (`game_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /room/games/current/tracks:
+    get:
+      tags:
+        - Rooms
+      summary: "[DISPONIBLE] Liens d'extrait à jour des titres de playlist de la partie courante"
+      description: |
+        Statut : **Disponible** (US-PLAYLIST-01)
+
+        Reprise d'une partie après rechargement de l'écran de salle : les questions tirées d'une
+        playlist (`id` négatif, voir `GET /room/games/current/content`) ont un lien d'extrait qui
+        expire. Cette route rend le lien à jour de chaque titre demandé (`refs` = `-id` de la
+        question). Le serveur ne relit que les playlists des thèmes de `themeIds` (6 au plus : le
+        coût d'un appel est borné), et seulement s'ils sont lisibles par la partie : actifs, de la
+        compagnie ou globaux, et `kidsFriendly` en mode enfants. Un thème interdit ou inconnu est
+        ignoré sans erreur ; un titre qui n'est dans aucune playlist relue, sans extrait, ou d'un
+        thème ignoré, est absent de `items`. Les éléments suivent l'ordre de `refs`.
+
+        Limiteur de débit : 6 appels par minute et par salle (`429`, `too_many_requests`, en-tête
+        `Retry-After`).
+
+        Fournisseur indisponible (délai, quota, réponse invalide) : 502 si un titre demandé n'a pu
+        être retrouvé, sinon les titres retrouvés sont rendus.
+
+        Accès : réservé au rôle `room`, uniquement pendant une partie en attente ou en cours.
+      operationId: getCurrentRoomGameTracks
+      x-availability: disponible
+      x-us: 'US-PLAYLIST-01'
+      parameters:
+        - name: refs
+          in: query
+          required: true
+          description: 'Références de titres (chiffres, 20 au plus chacune) séparées par des virgules, 200 au plus.'
+          schema:
+            type: string
+            example: '3135556,3135557'
+        - name: themeIds
+          in: query
+          required: true
+          description: 'Identifiants des thèmes de playlist à relire (entiers positifs, 1 à 6), séparés par des virgules.'
+          schema:
+            type: string
+            example: '12,14'
+      responses:
+        '200':
+          description: Liens d'extrait à jour
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        ref: { type: string, example: '3135556' }
+                        mediaUrl:
+                          {
+                            type: string,
+                            description: 'URL absolue https, signée, à durée de vie courte.',
+                          }
+                        mediaCredit:
+                          type: object
+                          properties:
+                            provider: { type: string, enum: [deezer] }
+                            title: { type: string }
+                            artist: { type: string }
+                            coverUrl: { type: string, nullable: true }
+                            link: { type: string, nullable: true }
+        '400':
+          description: Paramètre `refs` ou `themeIds` absent ou invalide (`invalid_query`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Compte qui n'est pas un compte de salle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Pas de partie courante (`game_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Trop d'appels pour cette salle (`too_many_requests`)
+          headers:
+            Retry-After:
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Fournisseur indisponible et titre non retrouvé (`media_provider_unavailable`)
           content:
             application/json:
               schema:

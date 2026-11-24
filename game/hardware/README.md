@@ -785,6 +785,42 @@ Avec la case et sans relais, le relais temporisé n'est pas exigé (`getState().
 une salle en simulation) et renvoie la config normalisée, les appareils résolus et la liste des
 problèmes à afficher (touche en double, adresses qui se chevauchent, profil inconnu…).
 
+### Export et import d'une configuration de salle
+
+```ts
+import { exportRoomConfig, parseRoomConfigImport, withoutSmokeEscalation } from '@quizzup/hardware'
+
+const { fileName, content } = exportRoomConfig(config, { roomName: 'Salle 1', now: new Date() })
+// fileName : quizzup-salle-salle-1-2026-11-24.json ; content : { format, schema, exportedAt, config }
+
+const result = parseRoomConfigImport(text) // ne lève jamais
+if (result.ok) {
+  // result.summary (pupitres, appareils, pilote, univers), result.problems, result.smokeDisabled
+  save(withoutSmokeEscalation(current, result.config)) // après confirmation de l'opérateur
+} else {
+  // result.reason : too_large | invalid_json | wrong_format | invalid_schema | newer_schema |
+  // invalid_config ; result.message : texte lisible
+}
+```
+
+- Le fichier est `{ format: "quizzup-room-config", schema, exportedAt, config }`. `schema` vaut
+  `ROOM_HARDWARE_CONFIG_VERSION` ; un fichier plus récent est refusé. 64 Ko au plus (octets).
+- **Jamais exporté ni importé** : `lighting.smoke.enabled` (forcé à faux), `cutsOnSignalLoss`
+  (retiré), `setupDone` (retiré : l'assistant se relance), toute clé que la relecture ne connaît pas
+  (aucun identifiant de compte, aucun secret), l'état local (arrêt d'urgence, révision, parties).
+- Repris comme point de départ à confirmer : cible Art-Net, buzzers appris, plan de salle.
+- `withoutSmokeEscalation(previous, next)` ne laisse la fumée de `next` jamais plus permissive que
+  celle de `previous` : activation, dispense de relais, jet plus long, pause plus courte, niveau plus
+  haut, confirmation retirée. Elle sert à l'import et à l'éditeur JSON de l'écran de salle ; seul
+  l'assistant assouplit la fumée. Conséquence : le JSON ne peut plus ni allonger un jet ni rapprocher
+  deux jets, même sur une salle où la fumée est désactivée.
+- **Limite connue : le niveau maximal (`maxLevel`) ne peut que baisser.** Aucun écran ne permet de le
+  remonter (l'assistant règle `enabled`, `cutsOnSignalLoss`, `maxDurationMs` et `cooldownMs`) : le
+  relever demandera un réglage dédié de l'assistant, à ajouter dans un lot à part.
+- **Nouvelle clé de configuration** : l'export écarte toute clé absente de `ROOT_KEYS` et de
+  `LIGHTING_KEYS` (`config.ts`). Une nouvelle clé (ex. `lighting.usb`) s'y ajoute avec un test
+  d'aller-retour export → import, sinon l'export la perd sans rien dire.
+
 ## Installer un programme sur une carte Uno (`firmware/`)
 
 Client du chargeur Optiboot d'une carte compatible Arduino Uno, par Web Serial (protocole STK500v1,

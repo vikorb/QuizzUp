@@ -44,6 +44,7 @@ type DbState = {
   room_logs: Row[]
   demo_requests: Row[]
   api_keys: Row[]
+  api_idempotency_keys: Row[]
   api_request_logs: Row[]
 }
 
@@ -73,6 +74,7 @@ export const dbState: DbState = {
   room_logs: [],
   demo_requests: [],
   api_keys: [],
+  api_idempotency_keys: [],
   api_request_logs: [],
 }
 
@@ -165,6 +167,7 @@ export function resetDb(seed?: Partial<DbState>): void {
   dbState.room_logs = structuredClone(seed?.room_logs ?? [])
   dbState.demo_requests = structuredClone(seed?.demo_requests ?? [])
   dbState.api_keys = structuredClone(seed?.api_keys ?? [])
+  dbState.api_idempotency_keys = structuredClone(seed?.api_idempotency_keys ?? [])
   dbState.api_request_logs = structuredClone(seed?.api_request_logs ?? [])
   db.fn.now.mockClear()
   db.raw.mockClear()
