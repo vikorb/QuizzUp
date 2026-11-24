@@ -167,6 +167,10 @@ Autres causes : fumée coupée par la sécurité (« La page a gelé… », « O
 DMX ne répond plus. »), machine éteinte, relais non alimenté, liquide ou chauffe de la machine
 insuffisants, mauvaise adresse du relais de fumée.
 
+Si la fumée est commandée par une carte USB : les messages de l'écran (« La carte ne répond plus. »,
+« Carte débranchée ou port perdu. », erreurs d'installation) et les gestes sont dans
+[`fumee-carte-usb.md`](fumee-carte-usb.md), chapitre 5.
+
 > À vérifier sur le banc : tests F du banc. **Ne teste jamais la fumée en présence de public.**
 
 ## Coupure d'internet pendant une partie
