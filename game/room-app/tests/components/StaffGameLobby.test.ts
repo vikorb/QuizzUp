@@ -227,6 +227,41 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
       ).toBe('Format Personnalisé · 3 à 6 min')
     })
 
+    it.each([
+      [1, 1, 'Partie prête : 1 manche × 1 question'],
+      [1, 3, 'Partie prête : 1 manche × 3 questions'],
+      [3, 1, 'Partie prête : 3 manches × 1 question'],
+      [3, 3, 'Partie prête : 3 manches × 3 questions'],
+    ])('accorde le titre pour %i manche(s) de %i question(s)', async (rounds, questions, title) => {
+      const wrapper = await mountLobby({ roundsCount: rounds, questionsPerRound: questions })
+
+      expect(wrapper.get('.staff-lobby__title').text()).toBe(title)
+    })
+
+    it('accorde le titre en anglais et en cours de partie', async () => {
+      const wrapper = await mountLobby({ roundsCount: 1, questionsPerRound: 1, state: 'running' })
+      expect(wrapper.get('.staff-lobby__title').text()).toBe(
+        'Partie en cours : 1 manche × 1 question'
+      )
+
+      setCurrentLocale('en')
+      await flushPromises()
+      expect(wrapper.get('.staff-lobby__title').text()).toBe(
+        'Game in progress: 1 round × 1 question'
+      )
+    })
+
+    it('annonce une seule valeur quand la durée basse et haute sont égales', async () => {
+      const line = await formatLine({
+        format: GAME_FORMAT_CUSTOM,
+        roundsCount: 1,
+        questionsPerRound: 1,
+        miniGames: [MINI_GAME_QUICK_ANSWER],
+      })
+
+      expect(line).toBe('Format Personnalisé · 1 min')
+    })
+
     it.each([[null], [undefined]])(
       'lit un format %s (partie d’avant les formats) comme personnalisé',
       async (format) => {

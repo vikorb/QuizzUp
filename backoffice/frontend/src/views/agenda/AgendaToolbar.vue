@@ -127,6 +127,11 @@ defineEmits<{
   padding: 0;
 }
 
+/* Sans largeur, le champ (`width: 100%` dans une rangée à largeur automatique) s'écrase. */
+.agenda-date :deep(.ff) {
+  flex: 0 0 180px;
+}
+
 .agenda-date :deep(.ff__control) {
   min-height: 48px;
   font-variant-numeric: tabular-nums;

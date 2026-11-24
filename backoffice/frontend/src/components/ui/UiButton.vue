@@ -27,6 +27,8 @@ const variantClass = computed(() => `ui-btn--${props.variant}`)
   color: var(--text-1);
   border-radius: 12px;
   padding: 10px 18px;
+  /* Un bouton n'hérite pas de la police de la page : sans cela il sort en police système. */
+  font-family: inherit;
   font-size: 14px;
   font-weight: 600;
   line-height: 1;

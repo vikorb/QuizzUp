@@ -97,10 +97,11 @@ attente de la CI GitHub, merge), jamais de rebase ni de push forcé.
 | Console, salle             | #208 écran des demandes de démonstration, #222 logo du centre sur l'écran de salle                                                                                                                                                                                                            |
 | Tests, outillage           | #219 endurance sur trois parties, #256 inscription par QR et impression de la feuille, #261 ESLint sur le TypeScript du backend et référence de média partagée, #211 point de reprise précédent                                                                                               |
 
-**En cours** : branche `fix/agenda-champ-date` (copie de travail `import-ecran`), corrections
-trouvées pendant la recette navigateur : champ de date de l'Agenda écrasé (29 px de large),
-boutons des pages publiques en police système, libellé « Demandée le … », accords au singulier
-(« 1 manche × 1 question », « 1 min »).
+**Après ce point** : corrections trouvées pendant la recette navigateur (branche
+`fix/recette-navigateur`) : champ de date de l'Agenda écrasé (29 px de large), boutons des pages
+publiques en police système, libellé « Demandée le … », accords au singulier (« 1 manche × 1
+question », « 1 min »). En cours : scénario Playwright du test de coupure par la carte (branche
+`test/e2e-coupure-carte`, copie de travail `journaux-salle`).
 
 **Vérifié dans un vrai navigateur, sur la pile Docker réelle** (sans erreur de console) :
 
@@ -177,8 +178,7 @@ relevé de la salle ; reprise du lien de la carte de fumée : 5 essais, 3 s d'é
 - _Pilotage et exploitation_ : accusés `refused` et `expired` et réponses 401, 403, 429 des
   commandes à distance non couverts de bout en bout (#259) ; la liste des parties ne montre pas
   l'origine d'une partie (API, agenda) ; « Actualiser le journal » ne rafraîchit pas « Dernier
-  appel » du tableau des clés ; confirmation visible après l'enregistrement de la fiche client et
-  des créneaux à vérifier.
+  appel » du tableau des clés.
 - _API de réservation_ : colonne « Session » vide sur un 201 du journal (`api_request_logs` n'a ni
   `game_id` ni indicateur de rejeu) ; code d'erreur inconnu affiché brut dans le journal ;
   `OPENAPI_PATH` à régler au déploiement ; chemins `/maps`, `/shop/items`, `/assets/upload-url` de

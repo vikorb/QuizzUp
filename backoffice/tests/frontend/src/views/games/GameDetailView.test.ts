@@ -94,6 +94,34 @@ describe('views/games/GameDetailView.vue', () => {
     expect(wrapper.text()).toContain('games.detail.fields.formatValue')
   })
 
+  it.each([
+    [1, 1],
+    [1, 3],
+    [3, 1],
+    [10, 10],
+  ])(
+    'gives each count of the format its own plural (%i rounds, %i questions)',
+    async (rounds, questions) => {
+      loadGameServiceMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: {
+          game: createGameFixture({ id: 4, roundsCount: rounds, questionsPerRound: questions }),
+        },
+      })
+      // `$t` qui expose aussi le compte qui choisit la forme du pluriel.
+      const wrapper = mountWithFrontendMocks(GameDetailView, {
+        global: {
+          mocks: { $t: (key: string, ...args: unknown[]) => `${key}:${JSON.stringify(args)}` },
+        },
+      })
+      await flushPromises()
+
+      expect(wrapper.text()).toContain(`games.detail.fields.roundsValue:[${rounds}]`)
+      expect(wrapper.text()).toContain(`games.detail.fields.questionsValue:[${questions}]`)
+    }
+  )
+
   it('opens one single live stream for the page (the account has 5 at most), and the sign-up panel still follows it', async () => {
     const wrapper = await mountView()
 

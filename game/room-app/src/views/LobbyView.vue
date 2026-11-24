@@ -37,10 +37,14 @@
               {{
                 $t('room.lobby.formatSummary', {
                   name: $t(`room.lobby.formats.${option.id}`),
-                  rounds: option.roundsCount,
-                  questions: option.questionsPerRound,
-                  min: option.minMinutes,
-                  max: option.maxMinutes,
+                  rounds: $t('room.lobby.rounds', option.roundsCount),
+                  questions: $t('room.lobby.questions', option.questionsPerRound),
+                  // Le compte choisit la forme : écart nul, une seule valeur.
+                  duration: $t(
+                    'room.lobby.duration',
+                    { min: option.minMinutes, max: option.maxMinutes },
+                    option.maxMinutes - option.minMinutes
+                  ),
                 })
               }}
             </span>
