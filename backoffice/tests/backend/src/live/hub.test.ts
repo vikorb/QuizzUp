@@ -1,14 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  GAME_COMMAND_REFUSAL,
   GAME_IDLE_PHASES,
   LIVE_EVENT,
   LIVE_OFFLINE_AFTER_MS,
+  ROOM_COMMAND_RESULT,
+  ROOM_COMMAND_TIMEOUT_MS,
   ROOM_PRESENCE,
   type RoomLive,
   type RoomStatusReport,
 } from '@quizzup/shared'
-import { createLiveHub, type LiveHub } from '@backend/live/hub'
+import { COMMAND_MAX_PER_ROOM, createLiveHub, type LiveHub } from '@backend/live/hub'
 
 const idleReport: RoomStatusReport = {
   screen: 'launch',
@@ -371,5 +374,316 @@ describe('live hub room stream', () => {
     expect(staff.state.closed).toBe(1)
     expect(vi.getTimerCount()).toBe(0)
     expect(hub.staffStreamCount(1)).toBe(0)
+  })
+})
+
+describe('live hub remote commands', () => {
+  const COMPANY = 10
+  const STAFF_ACCOUNT = 7
+
+  // Salle 1 de la compagnie 10 : flux ouvert et rapport reçu, donc pilotable. Les minuteries sont
+  // simulées pour traverser les 10 secondes sans attendre.
+  function controllableRoom() {
+    vi.useFakeTimers()
+
+    const { hub } = newHub()
+    const room = makeSink()
+    const staff = makeSink()
+
+    hub.openRoomStream(1, COMPANY, room)
+    hub.report(1, COMPANY, playingReport)
+    hub.subscribeStaff(COMPANY, STAFF_ACCOUNT, staff)
+    staff.events.length = 0
+
+    return { hub, room, staff }
+  }
+
+  const resultsOf = (sink: ReturnType<typeof makeSink>) =>
+    sink.events.filter((message) => message.event === LIVE_EVENT.COMMAND_RESULT).map((m) => m.data)
+
+  it('relays a command to the stream of the room, with its identifier', () => {
+    const { hub, room } = controllableRoom()
+
+    expect(hub.sendCommand(1, COMPANY, 'cmd-1', { command: 'pause' })).toBe('sent')
+    expect(room.events).toEqual([
+      { event: LIVE_EVENT.COMMAND, data: { commandId: 'cmd-1', command: 'pause' } },
+    ])
+  })
+
+  it('relays the round and the question index of a skip', () => {
+    const { hub, room } = controllableRoom()
+
+    hub.sendCommand(1, COMPANY, 'cmd-1', { command: 'skip', round: 2, questionIndex: 3 })
+
+    expect(room.events[0]?.data).toEqual({
+      commandId: 'cmd-1',
+      command: 'skip',
+      round: 2,
+      questionIndex: 3,
+    })
+  })
+
+  it('tells the staff of the company that the room applied the command', () => {
+    const { hub, staff } = controllableRoom()
+
+    hub.sendCommand(1, COMPANY, 'cmd-1', { command: 'resume' })
+
+    expect(hub.settleCommand(1, 'cmd-1', { result: ROOM_COMMAND_RESULT.APPLIED })).toBe(true)
+    expect(resultsOf(staff)).toEqual([
+      { commandId: 'cmd-1', roomId: 1, command: 'resume', result: 'applied' },
+    ])
+  })
+
+  it('tells the staff why the room refused the command', () => {
+    const { hub, staff } = controllableRoom()
+
+    hub.sendCommand(1, COMPANY, 'cmd-1', { command: 'skip', round: 1, questionIndex: 0 })
+    hub.settleCommand(1, 'cmd-1', {
+      result: ROOM_COMMAND_RESULT.REFUSED,
+      reason: GAME_COMMAND_REFUSAL.NOT_IN_QUESTION,
+    })
+
+    expect(resultsOf(staff)).toEqual([
+      {
+        commandId: 'cmd-1',
+        roomId: 1,
+        command: 'skip',
+        result: 'refused',
+        reason: 'not_in_question',
+      },
+    ])
+  })
+
+  it('accepts only one acknowledgement per command', () => {
+    const { hub, staff } = controllableRoom()
+
+    hub.sendCommand(1, COMPANY, 'cmd-1', { command: 'pause' })
+    hub.settleCommand(1, 'cmd-1', { result: ROOM_COMMAND_RESULT.APPLIED })
+
+    expect(
+      hub.settleCommand(1, 'cmd-1', {
+        result: ROOM_COMMAND_RESULT.REFUSED,
+        reason: GAME_COMMAND_REFUSAL.GAME_OVER,
+      })
+    ).toBe(false)
+    expect(resultsOf(staff)).toHaveLength(1)
+  })
+
+  it('answers expired to the staff after 10 seconds without acknowledgement, once', () => {
+    const { hub, staff } = controllableRoom()
+
+    hub.sendCommand(1, COMPANY, 'cmd-1', { command: 'abort', gameId: 1 })
+
+    vi.advanceTimersByTime(ROOM_COMMAND_TIMEOUT_MS - 1)
+    expect(resultsOf(staff)).toEqual([])
+
+    vi.advanceTimersByTime(1)
+    vi.advanceTimersByTime(ROOM_COMMAND_TIMEOUT_MS)
+
+    expect(resultsOf(staff)).toEqual([
+      { commandId: 'cmd-1', roomId: 1, command: 'abort', result: 'expired' },
+    ])
+  })
+
+  it('refuses a late acknowledgement: the command is unknown once expired', () => {
+    const { hub, staff } = controllableRoom()
+
+    hub.sendCommand(1, COMPANY, 'cmd-1', { command: 'pause' })
+    vi.advanceTimersByTime(ROOM_COMMAND_TIMEOUT_MS)
+
+    expect(hub.settleCommand(1, 'cmd-1', { result: ROOM_COMMAND_RESULT.APPLIED })).toBe(false)
+    expect(resultsOf(staff)).toHaveLength(1)
+  })
+
+  it('does not say expired for a command that was acknowledged', () => {
+    const { hub, staff } = controllableRoom()
+
+    hub.sendCommand(1, COMPANY, 'cmd-1', { command: 'pause' })
+    hub.settleCommand(1, 'cmd-1', { result: ROOM_COMMAND_RESULT.APPLIED })
+    vi.advanceTimersByTime(ROOM_COMMAND_TIMEOUT_MS)
+
+    expect(resultsOf(staff)).toEqual([expect.objectContaining({ result: 'applied' })])
+  })
+
+  it('relays an identifier only once, even after the acknowledgement', () => {
+    const { hub, room } = controllableRoom()
+
+    expect(hub.sendCommand(1, COMPANY, 'cmd-1', { command: 'pause' })).toBe('sent')
+    expect(hub.sendCommand(1, COMPANY, 'cmd-1', { command: 'pause' })).toBe('duplicate')
+
+    hub.settleCommand(1, 'cmd-1', { result: ROOM_COMMAND_RESULT.APPLIED })
+
+    expect(hub.sendCommand(1, COMPANY, 'cmd-1', { command: 'pause' })).toBe('duplicate')
+    expect(room.events).toHaveLength(1)
+  })
+
+  it('does not relay to a room that is not controllable', () => {
+    vi.useFakeTimers()
+
+    const { hub, clock } = newHub()
+    const room = makeSink()
+
+    // Aucun rapport ni flux : salle inconnue.
+    expect(hub.sendCommand(1, COMPANY, 'cmd-1', { command: 'pause' })).toBe('not_controllable')
+
+    // Flux ouvert, aucun rapport : hors ligne.
+    const streamId = hub.openRoomStream(1, COMPANY, room)
+    expect(hub.sendCommand(1, COMPANY, 'cmd-2', { command: 'pause' })).toBe('not_controllable')
+
+    // Rapport trop ancien : hors ligne.
+    hub.report(1, COMPANY, playingReport)
+    clock.now += LIVE_OFFLINE_AFTER_MS
+    expect(hub.sendCommand(1, COMPANY, 'cmd-3', { command: 'pause' })).toBe('not_controllable')
+
+    // En ligne, mais flux fermé.
+    hub.report(1, COMPANY, playingReport)
+    hub.closeRoomStream(1, streamId)
+    expect(hub.sendCommand(1, COMPANY, 'cmd-4', { command: 'pause' })).toBe('not_controllable')
+
+    expect(room.events).toEqual([])
+    expect(hub.pendingCommandCount()).toBe(0)
+  })
+
+  it('never relays a command of another company to the room', () => {
+    const { hub, room } = controllableRoom()
+
+    expect(hub.sendCommand(1, COMPANY + 1, 'cmd-1', { command: 'abort', gameId: 1 })).toBe(
+      'not_controllable'
+    )
+    expect(room.events).toEqual([])
+  })
+
+  it('gives the result to the staff of the company of the room only', () => {
+    const { hub, staff } = controllableRoom()
+    const otherStaff = makeSink()
+
+    hub.subscribeStaff(COMPANY + 1, 99, otherStaff)
+    hub.sendCommand(1, COMPANY, 'cmd-1', { command: 'pause' })
+    hub.settleCommand(1, 'cmd-1', { result: ROOM_COMMAND_RESULT.APPLIED })
+    hub.sendCommand(1, COMPANY, 'cmd-2', { command: 'pause' })
+    vi.advanceTimersByTime(ROOM_COMMAND_TIMEOUT_MS)
+
+    expect(resultsOf(staff)).toHaveLength(2)
+    expect(otherStaff.events).toEqual([])
+  })
+
+  it('refuses the acknowledgement of another room, which leaves the command pending', () => {
+    const { hub, staff } = controllableRoom()
+
+    hub.openRoomStream(2, COMPANY, makeSink())
+    hub.report(2, COMPANY, playingReport)
+    staff.events.length = 0
+    hub.sendCommand(1, COMPANY, 'cmd-1', { command: 'pause' })
+
+    expect(hub.settleCommand(2, 'cmd-1', { result: ROOM_COMMAND_RESULT.APPLIED })).toBe(false)
+    expect(resultsOf(staff)).toEqual([])
+    expect(hub.settleCommand(1, 'cmd-1', { result: ROOM_COMMAND_RESULT.APPLIED })).toBe(true)
+  })
+
+  it('refuses the acknowledgement of a command nobody sent', () => {
+    const { hub } = controllableRoom()
+
+    expect(hub.settleCommand(1, 'never-sent', { result: ROOM_COMMAND_RESULT.APPLIED })).toBe(false)
+  })
+
+  it('forgets every command after the delay, acknowledged or not, and accepts the identifier again', () => {
+    const { hub, room } = controllableRoom()
+
+    hub.sendCommand(1, COMPANY, 'cmd-1', { command: 'pause' })
+    hub.sendCommand(1, COMPANY, 'cmd-2', { command: 'resume' })
+    hub.settleCommand(1, 'cmd-2', { result: ROOM_COMMAND_RESULT.APPLIED })
+    expect(hub.pendingCommandCount()).toBe(2)
+
+    vi.advanceTimersByTime(ROOM_COMMAND_TIMEOUT_MS)
+
+    expect(hub.pendingCommandCount()).toBe(0)
+    // Il ne reste que la minuterie de balayage du hub.
+    expect(vi.getTimerCount()).toBe(1)
+    expect(hub.sendCommand(1, COMPANY, 'cmd-1', { command: 'pause' })).toBe('sent')
+    expect(room.events).toHaveLength(3)
+  })
+
+  it('caps the commands kept per room, and frees the room once they are purged', () => {
+    const { hub } = controllableRoom()
+
+    hub.openRoomStream(2, COMPANY, makeSink())
+    hub.report(2, COMPANY, playingReport)
+
+    for (let index = 0; index < COMMAND_MAX_PER_ROOM; index += 1) {
+      expect(hub.sendCommand(1, COMPANY, `cmd-${index}`, { command: 'pause' })).toBe('sent')
+    }
+
+    expect(hub.sendCommand(1, COMPANY, 'one-too-many', { command: 'pause' })).toBe('too_many')
+    expect(hub.sendCommand(2, COMPANY, 'other-room', { command: 'pause' })).toBe('sent')
+    expect(hub.pendingCommandCount()).toBe(COMMAND_MAX_PER_ROOM + 1)
+
+    vi.advanceTimersByTime(ROOM_COMMAND_TIMEOUT_MS)
+
+    expect(hub.pendingCommandCount()).toBe(0)
+    expect(hub.sendCommand(1, COMPANY, 'one-too-many', { command: 'pause' })).toBe('sent')
+  })
+
+  it('relays the game of an abort', () => {
+    const { hub, room } = controllableRoom()
+
+    expect(hub.sendCommand(1, COMPANY, 'cmd-1', { command: 'abort', gameId: 7 })).toBe('sent')
+    expect(room.events).toEqual([
+      { event: LIVE_EVENT.COMMAND, data: { commandId: 'cmd-1', command: 'abort', gameId: 7 } },
+    ])
+  })
+
+  it('answers conflict, and relays nothing, for a known identifier with another content', () => {
+    const { hub, room } = controllableRoom()
+
+    expect(hub.sendCommand(1, COMPANY, 'cmd-1', { command: 'pause' })).toBe('sent')
+    expect(hub.sendCommand(1, COMPANY, 'cmd-1', { command: 'resume' })).toBe('conflict')
+
+    expect(
+      hub.sendCommand(1, COMPANY, 'cmd-2', { command: 'skip', round: 1, questionIndex: 2 })
+    ).toBe('sent')
+    expect(
+      hub.sendCommand(1, COMPANY, 'cmd-2', { command: 'skip', round: 2, questionIndex: 2 })
+    ).toBe('conflict')
+    expect(
+      hub.sendCommand(1, COMPANY, 'cmd-2', { command: 'skip', round: 1, questionIndex: 3 })
+    ).toBe('conflict')
+    expect(
+      hub.sendCommand(1, COMPANY, 'cmd-2', { command: 'skip', round: 1, questionIndex: 2 })
+    ).toBe('duplicate')
+
+    expect(hub.sendCommand(1, COMPANY, 'cmd-3', { command: 'abort', gameId: 1 })).toBe('sent')
+    expect(hub.sendCommand(1, COMPANY, 'cmd-3', { command: 'abort', gameId: 2 })).toBe('conflict')
+    expect(hub.sendCommand(1, COMPANY, 'cmd-3', { command: 'abort', gameId: 1 })).toBe('duplicate')
+
+    expect(room.events).toHaveLength(3)
+  })
+
+  it('never refuses an abort because of the cap, and does not count it in the cap', () => {
+    const { hub, room } = controllableRoom()
+
+    for (let index = 0; index < COMMAND_MAX_PER_ROOM; index += 1) {
+      hub.sendCommand(1, COMPANY, `cmd-${index}`, { command: 'pause' })
+    }
+
+    expect(hub.sendCommand(1, COMPANY, 'abort-1', { command: 'abort', gameId: 1 })).toBe('sent')
+    expect(hub.sendCommand(1, COMPANY, 'abort-2', { command: 'abort', gameId: 1 })).toBe('sent')
+    expect(hub.sendCommand(1, COMPANY, 'one-too-many', { command: 'pause' })).toBe('too_many')
+    expect(room.events).toHaveLength(COMMAND_MAX_PER_ROOM + 2)
+
+    vi.advanceTimersByTime(ROOM_COMMAND_TIMEOUT_MS)
+
+    expect(hub.sendCommand(1, COMPANY, 'one-too-many', { command: 'pause' })).toBe('sent')
+  })
+
+  it('close() drops the pending commands and their timers', () => {
+    const { hub, staff } = controllableRoom()
+
+    hub.sendCommand(1, COMPANY, 'cmd-1', { command: 'pause' })
+    hub.close()
+    vi.advanceTimersByTime(ROOM_COMMAND_TIMEOUT_MS)
+
+    expect(hub.pendingCommandCount()).toBe(0)
+    expect(vi.getTimerCount()).toBe(0)
+    expect(staff.events).toEqual([])
   })
 })
