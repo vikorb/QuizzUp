@@ -479,6 +479,9 @@ Format inspiré de Keep a Changelog.
 
 ### Fixed
 
+- API publique : `GET /public/v1/openapi.yaml` sert le contrat `public-v1.yaml`, sans clé d'API, sous la limite de débit par adresse. Le contrat annonçait cette route sans qu'elle existe. L'image de production embarque le fichier.
+  US: US-BOOKING-01 (#188)
+
 - Relais PowerShell des lumières, tests : les attentes d'une trame ou d'un paquet attendu ne coupent plus à 2 s. Sur le runner Windows de la CI, une pause ponctuelle faisait échouer « lit les origines dans QUIZZUP_BRIDGE_ORIGINS et répond 426 hors WebSocket ». Le délai (20 s) ne sert plus qu'à détecter un blocage.
   US: US-SHOW-01 (#203)
 
