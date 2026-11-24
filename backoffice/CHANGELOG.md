@@ -8,7 +8,7 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
-- Fumée par la carte USB : le test de coupure de l'assistant parle de la carte (elle doit couper seule en moins d'une seconde), une carte muette, en défaut ou débranchée est reprise seule (cinq essais, fumée désarmée au retour), et un guide de l'opérateur pas à pas est ajouté (`docs/guides/fumee-carte-usb.md`). À valider sur le banc.
+- Fumée par la carte USB : le test de coupure de l'assistant parle de la carte (elle doit couper seule en moins d'une seconde), une carte muette ou débranchée est reprise seule (cinq essais, fumée désarmée au retour ; une carte en défaut ne l'est jamais), et un guide de l'opérateur pas à pas est ajouté (`docs/guides/fumee-carte-usb.md`). À valider sur le banc.
   US: US-DMX-01 (#215)
 
 - Programme d'une salle en temps réel : l'événement `schedule_changed` part à chaque création, déplacement, annulation ou ouverture d'une session (backoffice, écran de salle, API publique de réservation). L'agenda du backoffice et le lobby de la salle se mettent à jour seuls, sans recharger la page.
@@ -509,6 +509,9 @@ Format inspiré de Keep a Changelog.
   US: us-front-design-01
 
 ### Fixed
+
+- Corrections de recette : le champ de date de l'Agenda n'est plus écrasé ; les boutons de la page d'inscription et de la page du bon reprennent la police de la page ; la demande d'inscription affiche « Demandée le … » ; le format d'une partie s'accorde au singulier (« 1 manche × 1 question ») et une durée sans écart s'écrit « 1 min » au lieu de « 1 à 1 min », au backoffice et sur l'écran de salle.
+  US: US-UX-02 (#132)
 
 - Relais PowerShell des lumières : un envoi partiel est repris jusqu'au bout, et la lecture est bornée par tour : un client qui envoie sans fin ne bloque plus les autres connexions.
   US: US-DMX-01 (#203)

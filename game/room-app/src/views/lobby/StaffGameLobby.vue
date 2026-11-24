@@ -64,8 +64,8 @@
         <h1 class="staff-lobby__title">
           {{
             $t(isRunning ? 'room.staffLobby.running' : 'room.staffLobby.ready', {
-              rounds: game.roundsCount,
-              questions: game.questionsPerRound,
+              rounds: $t('room.lobby.rounds', game.roundsCount),
+              questions: $t('room.lobby.questions', game.questionsPerRound),
             })
           }}
         </h1>
@@ -294,13 +294,15 @@ const formatLabel = computed(() => {
     questionsPerRound: current.questionsPerRound,
     miniGames: current.miniGames ?? undefined,
   })
+  const min = Math.round(typicalMs / MS_PER_MINUTE)
+  const max = Math.ceil(highMs / MS_PER_MINUTE)
   return t('room.staffLobby.format', {
     // Un format que cet écran ne connaît pas (serveur plus récent) se lit « Personnalisé ».
     name: t(
       `room.lobby.formats.${GAME_FORMATS.find((format) => format === current.format) ?? GAME_FORMAT_CUSTOM}`
     ),
-    min: Math.round(typicalMs / MS_PER_MINUTE),
-    max: Math.ceil(highMs / MS_PER_MINUTE),
+    // Le compte choisit la forme : écart nul, une seule valeur.
+    duration: t('room.lobby.duration', { min, max }, max - min),
   })
 })
 

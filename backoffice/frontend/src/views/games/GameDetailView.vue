@@ -69,8 +69,8 @@
           <dd>
             {{
               $t('games.detail.fields.formatValue', {
-                rounds: game.roundsCount,
-                questions: game.questionsPerRound,
+                rounds: $t('games.detail.fields.roundsValue', game.roundsCount),
+                questions: $t('games.detail.fields.questionsValue', game.questionsPerRound),
               })
             }}
           </dd>

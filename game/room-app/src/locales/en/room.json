@@ -37,7 +37,10 @@
         "standard": "Standard",
         "custom": "Custom"
       },
-      "formatSummary": "{name} · {rounds} rounds × {questions} questions · {min} to {max} min",
+      "rounds": "{count} round | {count} rounds",
+      "questions": "{count} question | {count} questions",
+      "duration": "{min} min | {min} to {max} min | {min} to {max} min",
+      "formatSummary": "{name} · {rounds} × {questions} · {duration}",
       "start": "Start the game",
       "needPlayer": "Register at least one player to start.",
       "keysHint": "Keyboard simulation: {keys}",
@@ -97,8 +100,8 @@
       "offlineTitle": "Back office unreachable",
       "offlineText": "Check the Internet connection of the room PC. A connection is required to start the game.",
       "retry": "Retry",
-      "format": "{name} format · {min} to {max} min",
-      "ready": "Game ready: {rounds} rounds × {questions} questions",
+      "format": "{name} format · {duration}",
+      "ready": "Game ready: {rounds} × {questions}",
       "readyText": "Each player can press a buzzer to check their desk.",
       "starting": "Preparing the clips…",
       "errors": {
@@ -119,7 +122,7 @@
         "opensAt": "Can be started from {time}",
         "late": "{n} min late"
       },
-      "running": "Game in progress: {rounds} rounds × {questions} questions",
+      "running": "Game in progress: {rounds} × {questions}",
       "runningText": "This game has already started on this PC: resume it where it stopped.",
       "runningNoSaveText": "This game has already started, but its progress is not on this PC: it can only restart from the beginning.",
       "resume": "Resume the game",

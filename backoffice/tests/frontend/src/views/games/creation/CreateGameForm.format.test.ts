@@ -162,6 +162,24 @@ describe('views/games/creation/CreateGameForm.vue : format de partie', () => {
       expect(estimatedMinutes(wrapper).max).toBeLessThan(21)
     })
 
+    it('lets the gap between the low and the high duration choose the plural form of the estimate', async () => {
+      const spy = vi.fn(tWithParamsMock)
+      const wrapper = mountWithFrontendMocks(CreateGameForm, {
+        props: { companyId: 1, rooms: roomsFixture, game: null },
+        global: { mocks: { $t: spy } },
+      })
+
+      await formatSelect(wrapper).setValue(GAME_FORMAT_CUSTOM)
+
+      expect(spy).toHaveBeenCalledWith('games.form.formatEstimate', { min: 28, max: 47 }, 19)
+
+      await roundsInput(wrapper).setValue('1')
+      await wrapper.get('input[name="questionsPerRound"]').setValue('1')
+
+      expect(estimatedMinutes(wrapper)).toEqual({ min: 1, max: 1 })
+      expect(spy).toHaveBeenCalledWith('games.form.formatEstimate', { min: 1, max: 1 }, 0)
+    })
+
     it('shows no estimate while a typed count is invalid, and refuses to send it', async () => {
       const wrapper = mountForm()
 
@@ -339,6 +357,33 @@ describe('views/games/creation/CreateGameForm.vue : format de partie', () => {
       expect(form.formatEditHint).toBeTruthy()
       expect(errors.formatFixesCounts).toBeTruthy()
       expect(errors.formatNotUpdatable).toBeTruthy()
+    })
+
+    // vue-i18n choisit la forme par le compte : 0 (écart nul) une seule valeur, 1 et plus une plage.
+    it.each([
+      ['fr', frGames],
+      ['en', enGames],
+    ])(
+      'has a single-value form, then the range twice, for the durations in %s',
+      (_locale, messages) => {
+        for (const text of [messages.games.form.formatOption, messages.games.form.formatEstimate]) {
+          const [single, ...ranges] = text.split(' | ')
+
+          expect(single).toContain('{min}')
+          expect(single).not.toContain('{max}')
+          expect(ranges).toHaveLength(2)
+          expect(ranges[0]).toContain('{max}')
+          expect(ranges[1]).toBe(ranges[0])
+        }
+      }
+    )
+
+    it.each([
+      ['fr', frGames, 'manche', 'manches'],
+      ['en', enGames, 'round', 'rounds'],
+    ])('has a singular and a plural for the rounds in %s', (_locale, messages, one, many) => {
+      expect(messages.games.detail.fields.roundsValue).toBe(`{count} ${one} | {count} ${many}`)
+      expect(messages.games.detail.fields.formatValue).toBe('{rounds} × {questions}')
     })
 
     it('uses the same placeholders in both languages', () => {
