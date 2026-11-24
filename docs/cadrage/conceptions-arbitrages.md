@@ -143,9 +143,10 @@ l'ordre d'application ne dépende pas de l'ordre des merges. Dernière migration
 | `20261124110000` | AU   | `add_media_provider_to_questions`                   |
 | `20261124120000` | A.2  | `add_audio_effect_to_questions`                     |
 | `20261124130000` | L1   | `add_playlist_to_themes`                            |
+| `20261124160000` | 8c-1 | `add_kids_flags`                                    |
 
 Une migration qui dépend d'une autre prend un horodatage plus grand que celle dont elle dépend.
-Prochain horodatage libre : `20261124140000`.
+Prochain horodatage libre : `20261124180000`.
 
 ## Décisions qui restent ouvertes
 

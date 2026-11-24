@@ -3580,7 +3580,8 @@ paths:
         à l'API, `/room/questions/{id}/media`) ou si son titre d'un fournisseur d'extraits répond
         avec un extrait ; une image / vidéo que si elle a un lien (`mediaUrl` = ce lien) ; sans
         média, `mediaUrl` vaut `null`. Le moteur trie ensuite les questions par éligibilité de
-        chaque mini-jeu. Les thèmes sans question jouable sont écartés.
+        chaque mini-jeu. Les thèmes sans question jouable sont écartés. Si la partie courante est
+        en mode enfants (`game.kidsMode`), seuls les thèmes `kidsFriendly` sont retenus.
 
         Extrait de fournisseur : le serveur demande le titre au fournisseur à chaque appel (un
         appel par titre, sans cache ; 5 appels simultanés au plus). `mediaUrl` est alors le lien
@@ -5046,7 +5047,8 @@ paths:
         '400':
           description: >-
             Corps invalide (`theme_name_required`, `theme_mode_invalid`, `theme_company_required`,
-            `theme_playlist_ref_invalid`, `theme_playlist_mode_invalid`)
+            `theme_playlist_ref_invalid`, `theme_playlist_mode_invalid`,
+            `theme_kids_friendly_invalid`)
           content:
             application/json:
               schema:
@@ -5157,7 +5159,8 @@ paths:
         '400':
           description: >-
             Corps invalide (`theme_id_invalid`, `theme_name_required`, `theme_mode_invalid`,
-            `theme_playlist_ref_invalid`, `theme_playlist_mode_invalid`)
+            `theme_playlist_ref_invalid`, `theme_playlist_mode_invalid`,
+            `theme_kids_friendly_invalid`)
           content:
             application/json:
               schema:
@@ -7399,6 +7402,11 @@ components:
           description: >-
             Identifiant de la playlist du fournisseur d'extraits (Deezer). `null` sans playlist.
             Seulement en mode `audio` ; aucun titre ni lien n'est stocké.
+        kidsFriendly:
+          type: boolean
+          description: >-
+            Thème adapté aux enfants. Dans une partie en mode enfants (`kidsMode`), la salle ne
+            reçoit que ces thèmes.
         status:
           type: integer
           enum: [0, 1, 2, 3]
@@ -7440,6 +7448,11 @@ components:
             Playlist du fournisseur d'extraits, mode `audio` seulement. Le serveur la contrôle :
             `theme_playlist_not_found` (422), `theme_playlist_too_small` (422, moins de 4 titres
             lisibles avec extrait), `media_provider_unavailable` (502).
+        kidsFriendly:
+          type: boolean
+          default: false
+          description: >-
+            Thème adapté aux enfants. Un autre type est refusé (`400 theme_kids_friendly_invalid`).
 
     UpdateThemeRequest:
       type: object
@@ -7457,6 +7470,10 @@ components:
             Absent : inchangé. `null` : efface la playlist. Un thème qui quitte le mode `audio`
             perd sa playlist ; en renseigner une hors du mode `audio` est refusé
             (`theme_playlist_mode_invalid`). Mêmes contrôles qu'à la création.
+        kidsFriendly:
+          type: boolean
+          description: >-
+            Absent : inchangé. Un autre type est refusé (`400 theme_kids_friendly_invalid`).
 
     MediaProviderTrack:
       type: object
@@ -8131,6 +8148,10 @@ components:
           type: string
           enum: [fr, en]
           nullable: true
+        kidsMode:
+          type: boolean
+          description: >-
+            Mode enfants. Absent, le mode est inchangé.
         participants:
           type: array
           maxItems: 6
@@ -8569,6 +8590,11 @@ components:
           type: string
           enum: [fr, en]
           nullable: true
+        kidsMode:
+          type: boolean
+          description: >-
+            Mode enfants : la salle ne reçoit que les thèmes adaptés aux enfants
+            (`Theme.kidsFriendly`).
         status:
           type: integer
           enum: [0, 1, 2]
@@ -8731,6 +8757,10 @@ components:
         locale:
           type: string
           enum: [fr, en]
+        kidsMode:
+          type: boolean
+          default: false
+          description: Mode enfants (thèmes adaptés aux enfants seulement).
         roomId:
           type: integer
         format:

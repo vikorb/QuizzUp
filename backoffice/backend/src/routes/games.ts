@@ -154,6 +154,7 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
         playersCount,
         externalRef,
         locale,
+        kidsMode,
       } = parsedBody.data
 
       if (!canAccessCompanyContext(req, companyId)) {
@@ -239,6 +240,7 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
               playersCount,
               externalRef,
               locale,
+              kidsMode,
               join:
                 openJoin && !schedule
                   ? { token: generateJoinToken(), expiresAt: getJoinExpiry() }

@@ -96,6 +96,7 @@ export const SCENE_IDS = {
   VICTORY_TIE: 'victory-tie',
   EXIT: 'exit',
   EXIT_OFF: 'exit-off',
+  PAUSE: 'pause',
   IDENTIFY: 'identify',
 } as const
 
@@ -336,6 +337,16 @@ export const DEFAULT_SCENES: readonly SceneDefinition[] = [
     ],
     next: SCENE_IDS.EXIT,
   },
+  {
+    // Partie en pause : fondu vers une ambiance basse, sans flash ni fumée (la coupure du jet est
+    // celle du contrôleur, `setGamePaused`). Priorité 60 : rien ne la couvre pendant la pause.
+    // Une seule étape sans maintien : elle se termine en 400 ms, la scène `question` de la
+    // reprise (priorité 10) peut donc partir ensuite.
+    id: SCENE_IDS.PAUSE,
+    name: 'Pause',
+    priority: 60,
+    steps: [{ type: 'color', color: AMBIENT, intensity: 0.12, fadeMs: 400 }],
+  },
   exitScene(),
   EXIT_OFF_SCENE,
 ]
@@ -379,12 +390,15 @@ export const DEFAULT_BINDINGS: Readonly<Record<string, string>> = Object.fromEnt
   ['game_aborted', SCENE_IDS.IDLE],
   // Partie terminée faute de contenu : pas de célébration, mais la salle doit trouver la sortie.
   ['game_ended_incomplete', SCENE_IDS.EXIT],
+  // Signaux de l'écran de salle (`SHOW_CUES`) : pause, puis reprise sur l'ambiance de question.
+  ['game_paused', SCENE_IDS.PAUSE],
+  ['game_resumed', SCENE_IDS.QUESTION],
 ])
 
 /**
  * Signaux émis par l'écran de salle, jamais par le moteur de jeu : ils passent par
- * `handleGameEvent` comme un événement et se lient à une scène par `lighting.bindings`. Aucune
- * liaison par défaut (les scènes `pause` et `question` de reprise arrivent avec l'écran de salle).
+ * `handleGameEvent` comme un événement et se lient à une scène par `lighting.bindings`. Liaisons
+ * par défaut : `game_paused` → `pause`, `game_resumed` → `question` ; `session_exit` n'en a aucune.
  */
 export const SHOW_CUES = ['game_paused', 'game_resumed', 'session_exit'] as const
 

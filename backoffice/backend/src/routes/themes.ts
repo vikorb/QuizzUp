@@ -13,6 +13,7 @@ import {
   getCurrentAdminId,
   getThemeCompanyId,
   getThemeScope,
+  isValidKidsFriendly,
   isValidThemeMode,
   isValidThemeScope,
   isValidThemeStatus,
@@ -109,6 +110,10 @@ const themesRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(400).send({ error: 'theme_mode_invalid' })
       }
 
+      if (!isValidKidsFriendly(req.body.kidsFriendly)) {
+        return reply.code(400).send({ error: 'theme_kids_friendly_invalid' })
+      }
+
       const requestedScope = isValidThemeScope(req.body.scope) ? req.body.scope : undefined
       const scope = getThemeScope(req, requestedScope)
       const companyId = getThemeCompanyId(req, scope, req.body.companyId)
@@ -136,6 +141,7 @@ const themesRoutes: FastifyPluginAsync = async (app) => {
           name,
           mode,
           ...buildThemePlaylistPatch(playlistRef),
+          kids_friendly: req.body.kidsFriendly ?? false,
           status: getCreateThemeStatus(req),
           deleted_at: null,
         })

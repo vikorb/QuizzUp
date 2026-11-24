@@ -67,7 +67,9 @@ const roomQuestionParamsSchema = z.object({
 const MEDIA_CACHE_CONTROL = 'private, no-cache'
 
 /** Partie en cours, sinon en attente, de la salle. Les emails restent côté backoffice. */
-function findCurrentRoomGameId(req: FastifyRequest): Promise<number | null> {
+function findCurrentRoomGameId(
+  req: FastifyRequest
+): Promise<{ id: number; kidsMode: boolean } | null> {
   return findCurrentGameId(req.user.company_id, Number(req.user.room_id))
 }
 
@@ -86,9 +88,9 @@ async function findNextRoomGame(req: FastifyRequest) {
 }
 
 async function findCurrentRoomGame(req: FastifyRequest) {
-  const currentId = await findCurrentRoomGameId(req)
+  const current = await findCurrentRoomGameId(req)
 
-  return currentId === null ? null : findRoomGame(req, currentId)
+  return current === null ? null : findRoomGame(req, current.id)
 }
 
 /** Partie de la salle (quel que soit son état), au format du PC de la salle. */
@@ -256,12 +258,20 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ error: 'invalid_query', details: parsedQuery.error.flatten() })
     }
 
-    if ((await findCurrentRoomGameId(req)) === null) {
+    const current = await findCurrentRoomGameId(req)
+
+    if (current === null) {
       return reply.code(404).send({ error: 'game_not_found' })
     }
 
+    // Mode enfants : seuls les thèmes `kids_friendly` sont envoyés à la salle.
     return {
-      themes: await loadRoomContent(req.user.company_id, req.log, parsedQuery.data.ids),
+      themes: await loadRoomContent(
+        req.user.company_id,
+        req.log,
+        parsedQuery.data.ids,
+        current.kidsMode
+      ),
     }
   })
 
@@ -280,7 +290,9 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(400).send({ error: 'question_id_invalid' })
       }
 
-      if ((await findCurrentRoomGameId(req)) === null) {
+      const current = await findCurrentRoomGameId(req)
+
+      if (current === null) {
         return reply.code(404).send({ error: 'game_not_found' })
       }
 
@@ -294,7 +306,7 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
         question.type_media !== QUESTION_MEDIA_TYPE_AUDIO ||
         !isReadableByCompany(question, req.user.company_id) ||
         !isValidMediaKey(question.media_key) ||
-        !(await isInPlayableTheme(Number(question.id), req.user.company_id))
+        !(await isInPlayableTheme(Number(question.id), req.user.company_id, current.kidsMode))
       ) {
         return reply.code(404).send({ error: 'question_media_not_found' })
       }
