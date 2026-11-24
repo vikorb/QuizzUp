@@ -716,6 +716,53 @@ Avec la case et sans relais, le relais temporisé n'est pas exigé (`getState().
 une salle en simulation) et renvoie la config normalisée, les appareils résolus et la liste des
 problèmes à afficher (touche en double, adresses qui se chevauchent, profil inconnu…).
 
+## Installer un programme sur une carte Uno (`firmware/`)
+
+Client du chargeur Optiboot d'une carte compatible Arduino Uno, par Web Serial (protocole STK500v1,
+écrit pour ce paquet, aucune bibliothèque de téléversement). Bibliothèque seulement : aucun écran
+ne l'appelle encore.
+
+- `parseIntelHex(texte)` / `writeIntelHex(image)` : fichier `.hex` ↔ image mémoire (trous à 0xFF,
+  somme de contrôle vérifiée ; adresses étendues, fin de fichier avec données et enregistrements
+  qui se recouvrent refusés).
+- `installFirmware({ port, hex, onBackup, onProgress, signal })` : impulsion DTR, synchronisation
+  (115200 bauds, puis une fois 57600 ; `GET_SYNC` espacés de 250 ms, confirmé après 50 ms de
+  silence), signature `1E 95 0F`, **sauvegarde de la flash lue deux fois et comparée, puis remise à
+  `onBackup` avant toute écriture** (si elle échoue ou si les deux lectures diffèrent, rien n'est
+  écrit : `backup_failed`), écriture par pages de 128 octets, relecture, sortie du chargeur. Le
+  port doit être fermé : le client l'ouvre. Tant que `onBackup` n'a pas rendu la main (choix d'un
+  fichier, téléchargement), un `GET_SYNC` part toutes les 250 ms : sans cela Optiboot sort du
+  chargeur après 1 s de silence et relance l'ancien programme.
+- **Ordre d'écriture.** Optiboot sort seul du chargeur après 1 s de silence, et lance alors ce que
+  la flash contient, y compris à chaque mise sous tension. Pour qu'une écriture interrompue
+  (annulation, débranchement, délai, relecture fausse) ne laisse jamais un mélange de l'ancien et
+  du nouveau programme, la **page 0 est écrite deux fois** : d'abord une page inerte (`FF CF` =
+  `rjmp .-2`, une boucle sur place, puis 0xFF), relue ; puis les pages 1 à n, relues ; la vraie
+  page 0 en dernier, relue. Après une erreur, la carte boucle donc sur place, broches en entrée
+  (relais retombé), jusqu'à un RESET et une nouvelle installation. Si l'écriture ou la relecture
+  de la vraie page 0 échoue (relecture fausse, délai, port perdu, annulation), la page 0 peut être
+  fausse : le client réécrit alors la page inerte, au mieux, la relit, puis rend l'erreur
+  d'origine. `FirmwareError.inert` dit le résultat : `true` si la page inerte est en place, `false`
+  si cette réécriture a échoué aussi (la carte peut lancer un programme faux, A0 comprise : ne pas
+  rebrancher la machine à fumée avant une nouvelle installation réussie). Absent pour les autres
+  erreurs.
+- `restoreFirmware({ port, hex })` réécrit un `.hex` (la sauvegarde téléchargée), dans le même
+  ordre. `connectBootloader` (dans le module, pas exporté du paquet) donne le client (`readFlash`,
+  `readBackup`, `keepAlive`, `writeFlash`, `leave`, `close`) pour les tests.
+- Taille : 32 256 octets au plus ; **30 720 quand la synchronisation a eu lieu à 57600 bauds**
+  (anciens chargeurs de 2 Kio : le repli à 57600 est le leur), sinon `too_large`.
+- Erreurs `FirmwareError.code` : `no_sync`, `wrong_signature`, `too_large`, `verify_failed` (avec
+  `address`), `port_lost`, `port_busy`, `timeout`, `cancelled`, `backup_failed`. Les erreurs de
+  lecture passagères de Web Serial (`FramingError`, `BreakError`, `BufferOverrunError`,
+  `ParityError`, notamment à la remise à zéro) reprennent la lecture sur `port.readable` ; seule
+  une `NetworkError` ou un port sans flux donne `port_lost`.
+
+Limites : Uno et clones avec Optiboot seulement (ATmega328P). Testé contre un émulateur d'Optiboot
+(`tests/_helpers/fakeOptiboot.ts` : démarrage sans écoute, mémoire de réception de 2 octets,
+adresse qui n'avance qu'avec `LOAD_ADDRESS`, sortie après 1 s de silence) ; **rien n'est prouvé sur
+une vraie carte** (remise à zéro par DTR et durée de l'impulsion, débit, pilote USB, comportement
+réel de la flash et du chargeur : à voir sur le banc).
+
 ## Commandes
 
 ```bash

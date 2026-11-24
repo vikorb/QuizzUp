@@ -147,6 +147,16 @@ export {
 export type { SimulationOutput } from './dmx/simulationOutput'
 export { createSimulationOutput } from './dmx/simulationOutput'
 export { DMX_CHANNELS, encodeRawDmxFrame, encodeUsbProFrame, MAX_UNIVERSES } from './dmx/universe'
+export type { IntelHexErrorReason } from './firmware/intelHex'
+export { IntelHexError, parseIntelHex, writeIntelHex } from './firmware/intelHex'
+export type {
+  BootloaderClient,
+  FirmwareErrorCode,
+  FirmwareProgress,
+  FirmwareStep,
+  InstallFirmwareOptions,
+} from './firmware/stk500'
+export { FirmwareError, installFirmware, restoreFirmware, UNO_FLASH_SIZE } from './firmware/stk500'
 export type {
   DeskResolver,
   DiagnosticRefusal,
