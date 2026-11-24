@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import type { FastifyPluginAsync } from 'fastify'
 
 import {
@@ -223,7 +225,7 @@ const gamesIdRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(409).send({ error: 'game_already_over' })
       }
 
-      await db('games')
+      const updated = await db('games')
         .where('id', gameId)
         .whereIn('state', [GAME_STATE_PENDING, GAME_STATE_RUNNING])
         .update({
@@ -232,7 +234,22 @@ const gamesIdRoutes: FastifyPluginAsync = async (app) => {
           updated_at: db.fn.now(),
         })
 
-      return { game: await findStaffGame(req, companyId, gameId) }
+      // La base fait foi : l'écran de la salle est prévenu pour clore sa partie, seulement si cet
+      // arrêt a changé la partie et si la salle joue bien celle-ci (sinon on tuerait une autre partie
+      // ou la démo). Sinon rien n'est relayé, l'arrêt reste celui d'avant.
+      const commandId = randomUUID()
+      const isRelayed =
+        updated > 0 &&
+        app.liveHub.roomLive(game.roomId).status?.gameId === gameId &&
+        app.liveHub.sendCommand(game.roomId, companyId, commandId, {
+          command: 'abort',
+          gameId,
+        }) === 'sent'
+
+      return {
+        game: await findStaffGame(req, companyId, gameId),
+        relay: isRelayed ? { commandId } : null,
+      }
     }
   )
 }

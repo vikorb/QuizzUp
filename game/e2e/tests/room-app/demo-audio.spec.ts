@@ -56,6 +56,10 @@ test.describe('Écran de salle — son réel en mode démo', () => {
       { desk: 2, name: 'Bob' },
     ])
     await expectScreen(page, 'intro')
+    // Horloge réelle, sans mouvement réduit : seul parcours qui passe par la vraie transition de
+    // phase. L'annonce laisse la place au choix du thème, sans rester à l'écran à côté de lui.
+    await expectScreen(page, 'choice')
+    await expect(page.locator('.game__stage > *')).toHaveCount(1)
     await chooseFirstTheme(page)
 
     // Palier 1 : l'extrait joue pendant l'écoute (1 s), puis se tait pendant la fenêtre de buzz.

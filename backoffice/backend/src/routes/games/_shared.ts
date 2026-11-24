@@ -168,7 +168,7 @@ export function toGameRow(row: Record<string, unknown>): GameRow {
     id: Number(row.id),
     companyId: Number(row.companyId),
     roomId: Number(row.roomId),
-    adminId: Number(row.adminId),
+    adminId: toOptionalNumber(row.adminId) ?? null,
     seed: Number(row.seed),
     miniGames: toMiniGames(row.miniGames),
     scheduledAt: game.scheduledAt ?? null,
