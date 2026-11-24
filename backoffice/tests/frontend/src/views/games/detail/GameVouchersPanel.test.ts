@@ -4,7 +4,7 @@ import {
   createGameFixture,
   createParticipantFixture,
 } from '@frontend-tests/_helpers/gamesServiceMock'
-import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
+import { mountWithFrontendMocks, tWithParamsMock } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import {
   cancelVoucherServiceMock,
@@ -135,8 +135,8 @@ describe('views/games/detail/GameVouchersPanel.vue', () => {
     mockVoucherFailure(listGameVouchersServiceMock, 'server_error', 500)
     const wrapper = await mountPanel()
 
-    expect(wrapper.get('[data-test="game-vouchers-panel"]').attributes('data-error')).toBe(
-      'server_error'
+    expect(wrapper.get('[data-test="game-vouchers-error"]').text()).toBe(
+      'vouchers.errors.serverError'
     )
 
     listGameVouchersServiceMock.mockResolvedValue({
@@ -148,7 +148,85 @@ describe('views/games/detail/GameVouchersPanel.vue', () => {
     await flushPromises()
 
     expect(listGameVouchersServiceMock).toHaveBeenCalledTimes(2)
-    expect(wrapper.get('[data-test="game-vouchers-panel"]').attributes('data-error')).toBe('')
+    expect(wrapper.find('[data-test="game-vouchers-error"]').exists()).toBe(false)
+  })
+
+  it('translates a not found error with the vouchers texts', async () => {
+    mockVoucherFailure(listGameVouchersServiceMock, 'not_found', 404)
+    const wrapper = await mountPanel()
+
+    expect(wrapper.get('[data-test="game-vouchers-error"]').text()).toBe('vouchers.errors.notFound')
+  })
+
+  it('reads the vouchers again, and says why, when a desk turns out to have its voucher already', async () => {
+    mockVoucherFailure(issueGameVoucherServiceMock, 'voucher_already_issued')
+    const wrapper = await mountPanel()
+
+    listGameVouchersServiceMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { vouchers: [createVoucherFixture({ participantId: 11, podium: 1 })] },
+    })
+    await desk(wrapper, 1).get('[data-test="game-voucher-issue"]').trigger('click')
+    await flushPromises()
+
+    expect(listGameVouchersServiceMock).toHaveBeenCalledTimes(2)
+    expect(desk(wrapper, 1).find('[data-test="game-voucher-code"]').exists()).toBe(true)
+    expect(wrapper.get('[data-test="base-banner"]').text()).toContain(
+      'vouchers.errors.voucherAlreadyIssued'
+    )
+  })
+
+  it('does not read the vouchers again after other refusals', async () => {
+    mockVoucherFailure(issueGameVoucherServiceMock, 'game_not_finished')
+    const wrapper = await mountPanel()
+
+    await desk(wrapper, 1).get('[data-test="game-voucher-issue"]').trigger('click')
+    await flushPromises()
+
+    expect(listGameVouchersServiceMock).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['admin', () => setAuthenticatedAdmin({ companyId: 7 }), 'vouchers.errors.vouchersDisabled'],
+    [
+      'staff',
+      () => setAuthenticatedUser({ companyId: 7 }),
+      'vouchers.errors.vouchersDisabledStaff',
+    ],
+  ])('words the disabled vouchers for %s', async (_role, signIn, key) => {
+    signIn()
+    mockVoucherFailure(issueGameVoucherServiceMock, 'vouchers_disabled')
+    const wrapper = await mountPanel()
+
+    await desk(wrapper, 1).get('[data-test="game-voucher-issue"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-test="base-banner"]').text()).toMatch(new RegExp(`^${key}(?!Staff)`))
+    expect(wrapper.get('[data-test="base-banner"]').text().includes('Staff')).toBe(
+      key.endsWith('Staff')
+    )
+  })
+
+  it('names the desk on each issue button and the code on each cancel button', async () => {
+    listGameVouchersServiceMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { vouchers: [createVoucherFixture({ participantId: 11, podium: 1 })] },
+    })
+    const wrapper = mountWithFrontendMocks(GameVouchersPanel, {
+      props: { game: createFinishedGame() },
+      global: { mocks: { $t: tWithParamsMock } },
+    })
+
+    await flushPromises()
+
+    expect(desk(wrapper, 2).get('[data-test="game-voucher-issue"]').attributes('aria-label')).toBe(
+      'vouchers.panel.issueAria:{"podium":2}'
+    )
+    expect(desk(wrapper, 1).get('[data-test="game-voucher-cancel"]').attributes('aria-label')).toBe(
+      'vouchers.cancel.ariaLabel:{"code":"7K2M-9QXP"}'
+    )
   })
 
   it('shows the voucher already issued to a desk, with its state, and no issue button for it', async () => {
@@ -255,6 +333,31 @@ describe('views/games/detail/GameVouchersPanel.vue', () => {
       await wrapper.get('[data-test="game-voucher-cancel"]').trigger('click')
       await flushPromises()
 
+      expect(wrapper.get('[data-test="base-banner"]').text()).toContain(
+        'vouchers.errors.voucherAlreadyRedeemed'
+      )
+    })
+
+    it('reads the vouchers again, and says why, when the voucher was used elsewhere', async () => {
+      mockVoucherFailure(cancelVoucherServiceMock, 'voucher_already_redeemed')
+      const wrapper = await mountPanel()
+
+      listGameVouchersServiceMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: {
+          vouchers: [
+            createVoucherFixture({ id: 5, participantId: 11, podium: 1, state: 'redeemed' }),
+          ],
+        },
+      })
+      await wrapper.get('[data-test="game-voucher-cancel"]').trigger('click')
+      await flushPromises()
+
+      expect(listGameVouchersServiceMock).toHaveBeenCalledTimes(2)
+      expect(desk(wrapper, 1).get('[data-test="game-voucher-state"]').text()).toContain(
+        'vouchers.state.redeemed'
+      )
       expect(wrapper.get('[data-test="base-banner"]').text()).toContain(
         'vouchers.errors.voucherAlreadyRedeemed'
       )

@@ -5,7 +5,7 @@ import {
 } from '@frontend-tests/_helpers/authStateMock'
 import { loadCompaniesServiceMock } from '@frontend-tests/_helpers/companiesServiceMock'
 import { confirmMock, setConfirmResult } from '@frontend-tests/_helpers/confirmMock'
-import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
+import { mountWithFrontendMocks, tWithParamsMock } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { currentRouteMock, replaceMock } from '@frontend-tests/_helpers/routerMock'
 import {
@@ -120,7 +120,9 @@ describe('views/VouchersView.vue', () => {
       const wrapper = await mountView()
 
       expect(wrapper.text()).toContain('vouchers.list.retry')
-      expect(wrapper.find('[data-test="base-card-empty"]').exists()).toBe(true)
+      expect(wrapper.get('[data-test="vouchers-list-error"]').text()).toBe(
+        'vouchers.errors.serverError'
+      )
 
       listVouchersServiceMock.mockResolvedValue({
         ok: true,
@@ -136,6 +138,73 @@ describe('views/VouchersView.vue', () => {
 
       expect(listVouchersServiceMock).toHaveBeenCalledTimes(2)
       expect(rows(wrapper)).toHaveLength(3)
+    })
+
+    it.each([
+      ['not_found', 404, 'vouchers.errors.notFound'],
+      ['forbidden', 403, 'vouchers.errors.forbidden'],
+      ['api_unreachable', null, 'vouchers.errors.apiUnreachable'],
+    ])('translates the list error %s with the vouchers texts', async (code, status, key) => {
+      mockVoucherFailure(listVouchersServiceMock, code, status as number)
+      const wrapper = await mountView()
+
+      expect(wrapper.get('[data-test="vouchers-list-error"]').text()).toBe(key)
+    })
+
+    it('tells that no company is chosen, without an error and without a useless retry', async () => {
+      setAuthenticatedSuperadmin({ companyId: null })
+      const wrapper = await mountView()
+
+      expect(listVouchersServiceMock).not.toHaveBeenCalled()
+      expect(wrapper.text()).toContain('vouchers.search.noCompany')
+      expect(wrapper.find('[data-test="vouchers-list-error"]').exists()).toBe(false)
+      expect(wrapper.text()).not.toContain('vouchers.list.retry')
+    })
+
+    it('goes back to the last page that exists when the last voucher of the last page is gone', async () => {
+      const pageSize = VOUCHER_LIST_DEFAULT_LIMIT
+      let total = pageSize + 1
+
+      listVouchersServiceMock.mockImplementation(async (_companyId, query) => {
+        const offset = (query as { offset: number }).offset
+        const count = Math.max(0, Math.min(pageSize, total - offset))
+
+        return {
+          ok: true,
+          status: 200,
+          data: {
+            vouchers: Array.from({ length: count }, (_value, index) =>
+              createVoucherFixture({ id: offset + index + 1, code: `AAAA-${offset + index + 1}` })
+            ),
+            total,
+          },
+        }
+      })
+      cancelVoucherServiceMock.mockImplementation(async () => {
+        total -= 1
+
+        return {
+          ok: true,
+          status: 200,
+          data: { voucher: createVoucherFixture({ state: 'cancelled' }) },
+        }
+      })
+      const wrapper = await mountView()
+
+      await wrapper.get('[data-test="pagination-next"]').trigger('click')
+      await flushPromises()
+
+      expect(rows(wrapper)).toHaveLength(1)
+
+      await rows(wrapper)[0]?.get('[data-test="voucher-cancel"]').trigger('click')
+      await flushPromises()
+
+      expect(listVouchersServiceMock).toHaveBeenLastCalledWith(
+        7,
+        expect.objectContaining({ offset: 0 })
+      )
+      expect(rows(wrapper)).toHaveLength(pageSize)
+      expect(wrapper.find('[data-test="base-card-empty"]').exists()).toBe(false)
     })
 
     it('reloads from the first page when the state filter changes', async () => {
@@ -371,6 +440,45 @@ describe('views/VouchersView.vue', () => {
       await flushPromises()
 
       expect(cancelVoucherServiceMock).not.toHaveBeenCalled()
+    })
+
+    it('waits for the running cancel: one confirmation, buttons disabled meanwhile', async () => {
+      let answer!: (value: boolean) => void
+
+      confirmMock.mockImplementationOnce(
+        () => new Promise<boolean>((resolve) => (answer = resolve))
+      )
+      const wrapper = await mountView()
+      const button = () => rows(wrapper)[0]?.get('[data-test="voucher-cancel"]')
+
+      await button()?.trigger('click')
+      await flushPromises()
+
+      expect(button()?.attributes('disabled')).toBeDefined()
+
+      // Même un second événement « annuler » (autre bouton, touche) n'ouvre pas une seconde confirmation.
+      wrapper.findComponent({ name: 'VouchersTable' }).vm.$emit('cancel', listed[0])
+      await flushPromises()
+
+      expect(confirmMock).toHaveBeenCalledTimes(1)
+
+      answer(true)
+      await flushPromises()
+
+      expect(cancelVoucherServiceMock).toHaveBeenCalledTimes(1)
+      expect(button()?.attributes('disabled')).toBeUndefined()
+    })
+
+    it('names the voucher on each cancel button for screen readers', async () => {
+      const wrapper = mountWithFrontendMocks(VouchersView, {
+        global: { mocks: { $t: tWithParamsMock } },
+      })
+
+      await flushPromises()
+
+      expect(rows(wrapper)[0]?.get('[data-test="voucher-cancel"]').attributes('aria-label')).toBe(
+        'vouchers.cancel.ariaLabel:{"code":"7K2M-9QXP"}'
+      )
     })
 
     it('shows the translated error when the cancel is refused', async () => {

@@ -25,7 +25,6 @@
       "redeem": "Mark as used",
       "redeeming": "Saving…",
       "redeemed": "Voucher {code} is marked as used.",
-      "cancel": "Cancel this voucher",
       "noCompany": "No company selected."
     },
     "detail": {
@@ -54,7 +53,8 @@
       "action": "Cancel",
       "title": "Cancel the voucher",
       "confirm": "Cancel voucher {code}? It will no longer be usable.",
-      "done": "Voucher {code} is cancelled."
+      "done": "Voucher {code} is cancelled.",
+      "ariaLabel": "Cancel voucher {code}"
     },
     "panel": {
       "title": "Loyalty vouchers",
@@ -64,6 +64,7 @@
       "desk": "Desk {podium}",
       "issue": "Issue a voucher",
       "issuing": "Issuing…",
+      "issueAria": "Issue a voucher for desk {podium}",
       "issued": "Voucher {code} issued for desk {podium}.",
       "validUntil": "Valid until {date}"
     },
@@ -85,6 +86,7 @@
     },
     "errors": {
       "vouchersDisabled": "Loyalty vouchers are not enabled for this company: set the voucher label in its settings first.",
+      "vouchersDisabledStaff": "Loyalty vouchers are not enabled for this venue: ask an administrator.",
       "gameNotFinished": "This game is not over: vouchers can only be issued once the game has ended.",
       "voucherAlreadyIssued": "A voucher has already been issued for this desk.",
       "participantNotFound": "This desk is not part of this game.",

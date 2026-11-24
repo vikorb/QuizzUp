@@ -25,7 +25,6 @@
       "redeem": "Marquer comme utilisé",
       "redeeming": "Enregistrement…",
       "redeemed": "Le bon {code} est marqué comme utilisé.",
-      "cancel": "Annuler ce bon",
       "noCompany": "Aucune compagnie sélectionnée."
     },
     "detail": {
@@ -54,7 +53,8 @@
       "action": "Annuler",
       "title": "Annuler le bon",
       "confirm": "Annuler le bon {code} ? Il ne pourra plus être utilisé.",
-      "done": "Le bon {code} est annulé."
+      "done": "Le bon {code} est annulé.",
+      "ariaLabel": "Annuler le bon {code}"
     },
     "panel": {
       "title": "Bons de fidélisation",
@@ -64,6 +64,7 @@
       "desk": "Pupitre {podium}",
       "issue": "Émettre un bon",
       "issuing": "Émission…",
+      "issueAria": "Émettre un bon pour le pupitre {podium}",
       "issued": "Bon {code} émis pour le pupitre {podium}.",
       "validUntil": "Valable jusqu'au {date}"
     },
@@ -85,6 +86,7 @@
     },
     "errors": {
       "vouchersDisabled": "Les bons de fidélisation ne sont pas activés pour cette compagnie : renseignez d'abord le libellé du bon dans ses réglages.",
+      "vouchersDisabledStaff": "Les bons de fidélisation ne sont pas activés pour ce centre : voyez avec un administrateur.",
       "gameNotFinished": "Cette partie n'est pas terminée : les bons ne peuvent être émis qu'à la fin de la partie.",
       "voucherAlreadyIssued": "Un bon a déjà été émis pour ce pupitre.",
       "participantNotFound": "Ce pupitre ne fait pas partie de cette partie.",

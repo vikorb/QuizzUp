@@ -4,11 +4,9 @@
     :neon="true"
     :no-hover="true"
     :loading="loading"
-    :error="error"
-    :empty="vouchers.length === 0"
+    :empty="!error && vouchers.length === 0"
     :loading-label="$t('vouchers.list.loading')"
-    :empty-label="$t('vouchers.list.empty')"
-    error-namespace="vouchers.errors"
+    :empty-label="noCompany ? $t('vouchers.search.noCompany') : $t('vouchers.list.empty')"
     class="vouchers-table-card"
   >
     <template #actions>
@@ -17,7 +15,11 @@
       </UiButton>
     </template>
 
-    <BaseTable :columns="columns" :items="tableItems" row-key="id">
+    <p v-if="error" class="vouchers-table__error" role="alert" data-test="vouchers-list-error">
+      {{ $t(getVoucherErrorKey(error)) }}
+    </p>
+
+    <BaseTable v-else :columns="columns" :items="tableItems" row-key="id">
       <template #cell-code="{ value }">
         <span class="voucher-code">{{ value }}</span>
       </template>
@@ -43,6 +45,8 @@
           variant="danger"
           type="button"
           data-test="voucher-cancel"
+          :aria-label="$t('vouchers.cancel.ariaLabel', { code: toVoucher(item).code })"
+          :disabled="busy"
           @click="emit('cancel', toVoucher(item))"
         >
           {{ $t('vouchers.cancel.action') }}
@@ -64,6 +68,7 @@ import UiButton from '@/components/ui/UiButton.vue'
 import { authState } from '@/state/authState'
 import type { Voucher } from '@/types/voucher'
 import { formatGameDate } from '@/utils/game/format'
+import { getVoucherErrorKey } from '@/utils/voucher/errors'
 import {
   canCancelVoucher,
   getVoucherHolderNames,
@@ -75,6 +80,10 @@ const props = defineProps<{
   vouchers: Voucher[]
   loading: boolean
   error: string | null
+  /** Aucune compagnie choisie : rien à lister, ce n'est pas une erreur. */
+  noCompany?: boolean
+  /** Une annulation est en cours : les boutons attendent. */
+  busy?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -110,6 +119,12 @@ function toDateValue(value: unknown): string | null {
 .vouchers-table-card {
   max-height: 100%;
   margin-top: 10px;
+}
+
+.vouchers-table__error {
+  margin: 0;
+  padding: 14px 8px;
+  color: var(--danger);
 }
 
 .voucher-code {

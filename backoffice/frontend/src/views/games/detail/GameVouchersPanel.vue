@@ -5,11 +5,9 @@
     :neon="true"
     :no-hover="true"
     :loading="loading"
-    :error="error"
     :empty="!loading && !error && desks.length === 0"
     :loading-label="$t('vouchers.panel.loading')"
     :empty-label="$t('vouchers.panel.empty')"
-    error-namespace="vouchers.errors"
     class="game-vouchers-card"
     data-test="game-vouchers-panel"
   >
@@ -21,7 +19,11 @@
 
     <BaseBanner :variant="bannerVariant" :message="bannerMessage" @dismiss="bannerMessage = null" />
 
-    <ul class="game-vouchers__list">
+    <p v-if="error" class="game-vouchers__error" role="alert" data-test="game-vouchers-error">
+      {{ $t(getVoucherErrorKey(error)) }}
+    </p>
+
+    <ul v-else class="game-vouchers__list">
       <li
         v-for="desk in desks"
         :key="desk.participant.id"
@@ -58,6 +60,7 @@
             variant="danger"
             type="button"
             data-test="game-voucher-cancel"
+            :aria-label="$t('vouchers.cancel.ariaLabel', { code: desk.voucher.code })"
             :disabled="busy"
             @click="handleCancel(desk.voucher)"
           >
@@ -70,6 +73,7 @@
           :variant="desk.participant.id === firstIssuableId ? 'primary' : 'default'"
           type="button"
           data-test="game-voucher-issue"
+          :aria-label="$t('vouchers.panel.issueAria', { podium: desk.participant.podium })"
           :disabled="busy"
           @click="handleIssue(desk.participant)"
         >
@@ -151,7 +155,18 @@ function getDeskNames(participant: GameParticipant): string {
 
 function showError(code: string): void {
   bannerVariant.value = 'error'
-  bannerMessage.value = t(getVoucherErrorKey(code))
+  bannerMessage.value = t(getVoucherErrorKey(code, role.value ?? null))
+}
+
+// Le refus dit que la salle et le serveur ne voient pas la même chose : on relit la liste, puis on l'annonce.
+const STALE_CODES = ['voucher_already_issued', 'voucher_already_redeemed']
+
+async function refuse(code: string): Promise<void> {
+  if (STALE_CODES.includes(code)) {
+    await loadVouchers()
+  }
+
+  showError(code)
 }
 
 function showSuccess(message: string): void {
@@ -195,7 +210,7 @@ async function handleIssue(participant: GameParticipant): Promise<void> {
     )
 
     if (!result.ok) {
-      showError(result.error)
+      await refuse(result.error)
       return
     }
 
@@ -235,7 +250,7 @@ async function handleCancel(voucher: Voucher): Promise<void> {
     const result = await cancelVoucherService(props.game.companyId, voucher.id)
 
     if (!result.ok) {
-      showError(result.error)
+      await refuse(result.error)
       return
     }
 
@@ -278,6 +293,12 @@ onMounted(() => {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.game-vouchers__error {
+  margin: 0;
+  padding: 14px 8px;
+  color: var(--danger);
 }
 
 .game-vouchers__line {

@@ -100,7 +100,7 @@
 
     <GameLivePanel v-if="game" :game="game" @ended="loadPage" />
 
-    <GameVouchersPanel v-if="game" :game="game" />
+    <GameVouchersPanel v-if="game" :key="game.id" :game="game" />
 
     <GameParticipantsTable v-if="game" :participants="game.participants ?? []" />
   </SectionLayout>

@@ -71,6 +71,25 @@ describe('utils/voucher/errors', () => {
     expect(getVoucherErrorKey('???')).toBe('vouchers.errors.serverError')
     expect(getVoucherErrorKey(null)).toBe('vouchers.errors.serverError')
   })
+
+  it('keeps the disabled vouchers message for roles that can edit the settings', () => {
+    expect(getVoucherErrorKey('vouchers_disabled')).toBe('vouchers.errors.vouchersDisabled')
+    expect(getVoucherErrorKey('vouchers_disabled', ADMIN_ROLE_ADMIN)).toBe(
+      'vouchers.errors.vouchersDisabled'
+    )
+    expect(getVoucherErrorKey('vouchers_disabled', ADMIN_ROLE_SUPERADMIN)).toBe(
+      'vouchers.errors.vouchersDisabled'
+    )
+  })
+
+  it('sends staff to an administrator when the vouchers are disabled', () => {
+    expect(getVoucherErrorKey('vouchers_disabled', ADMIN_ROLE_USER)).toBe(
+      'vouchers.errors.vouchersDisabledStaff'
+    )
+    expect(getVoucherErrorKey('voucher_expired', ADMIN_ROLE_USER)).toBe(
+      'vouchers.errors.voucherExpired'
+    )
+  })
 })
 
 describe('utils/voucher/qr', () => {

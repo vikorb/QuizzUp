@@ -1,4 +1,5 @@
 import type { VoucherApiErrorCode } from '@/types/voucher'
+import { canManageCompanyDetails } from '@/utils/company/details/permissions'
 
 const VOUCHER_API_ERROR_CODES: VoucherApiErrorCode[] = [
   'unauthorized',
@@ -30,8 +31,15 @@ export function readVoucherApiError(payload: unknown): VoucherApiErrorCode | nul
   return isVoucherApiErrorCode(error) ? error : null
 }
 
-/** `voucher_expired` → `vouchers.errors.voucherExpired` : clé i18n d'un code d'erreur. */
-export function getVoucherErrorKey(code: string | null | undefined): string {
+/**
+ * `voucher_expired` → `vouchers.errors.voucherExpired` : clé i18n d'un code d'erreur.
+ * Avec un rôle, `vouchers_disabled` ne renvoie vers les réglages que si le rôle peut les modifier.
+ */
+export function getVoucherErrorKey(code: string | null | undefined, role?: string | null): string {
+  if (code === 'vouchers_disabled' && role !== undefined && !canManageCompanyDetails(role)) {
+    return 'vouchers.errors.vouchersDisabledStaff'
+  }
+
   const known = isVoucherApiErrorCode(code) ? code : 'server_error'
 
   return `vouchers.errors.${known.replace(/_([a-z])/g, (_match, letter: string) => letter.toUpperCase())}`

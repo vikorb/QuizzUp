@@ -21,6 +21,8 @@
       :vouchers="vouchers"
       :loading="loading"
       :error="error"
+      :no-company="companyId === null"
+      :busy="cancelling"
       @retry="loadPage"
       @cancel="handleCancel"
     />
@@ -71,6 +73,7 @@ const total = ref(0)
 const offset = ref(0)
 const companies = ref<Company[]>([])
 const loading = ref(false)
+const cancelling = ref(false)
 const error = ref<string | null>(null)
 const stateFilterValue = ref('')
 const selectedCompanyId = ref<number | null>(null)
@@ -117,7 +120,7 @@ async function loadPage(): Promise<void> {
   if (companyId.value === null) {
     vouchers.value = []
     total.value = 0
-    error.value = 'invalid_params'
+    error.value = null
     return
   }
 
@@ -138,6 +141,17 @@ async function loadPage(): Promise<void> {
     }
 
     if (result.ok) {
+      // Dernière page vidée (dernier bon annulé ou utilisé) : retour à la dernière page qui existe,
+      // le changement d'`offset` relit la liste.
+      if (result.data.vouchers.length === 0 && offset.value > 0 && result.data.total > 0) {
+        offset.value = Math.max(
+          0,
+          Math.floor((result.data.total - 1) / VOUCHER_LIST_DEFAULT_LIMIT) *
+            VOUCHER_LIST_DEFAULT_LIMIT
+        )
+        return
+      }
+
       vouchers.value = result.data.vouchers
       total.value = result.data.total
     } else {
@@ -171,10 +185,20 @@ function handleCompanyChange(value: string): void {
 }
 
 async function handleCancel(voucher: Voucher): Promise<void> {
-  if (companyId.value === null) {
+  if (companyId.value === null || cancelling.value) {
     return
   }
 
+  cancelling.value = true
+
+  try {
+    await cancelWithConfirmation(companyId.value, voucher)
+  } finally {
+    cancelling.value = false
+  }
+}
+
+async function cancelWithConfirmation(company: number, voucher: Voucher): Promise<void> {
   const confirmed = await confirm({
     title: t('vouchers.cancel.title'),
     message: t('vouchers.cancel.confirm', { code: voucher.code }),
@@ -190,7 +214,7 @@ async function handleCancel(voucher: Voucher): Promise<void> {
   bannerMessage.value = null
 
   try {
-    const result = await cancelVoucherService(companyId.value, voucher.id)
+    const result = await cancelVoucherService(company, voucher.id)
 
     if (result.ok) {
       bannerVariant.value = 'success'

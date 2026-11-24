@@ -373,7 +373,7 @@ onMounted(loadPage)
 
 .sheet-voucher__names,
 .sheet-voucher__note {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--print-ink-muted);
 }
 
@@ -385,7 +385,7 @@ onMounted(loadPage)
 }
 
 .sheet-voucher__code {
-  font-size: 26px;
+  font-size: 22px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.08em;
