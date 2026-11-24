@@ -11,6 +11,15 @@ Format inspiré de Keep a Changelog.
 - Extraits de blind test fournis par Deezer : dans le champ audio d'une question, l'auteur cherche un titre (`GET /media-catalog/tracks`), l'écoute et le rattache à la question (`PUT /questions/:questionId/media/provider`). Un titre sans extrait est refusé. Une question référence soit un fichier importé, soit un titre (`media_provider`, `media_provider_ref`), jamais les deux. Au lancement d'une partie, le serveur donne à la salle le lien d'extrait à jour et le crédit ; l'écran de salle télécharge l'extrait sans jeton de salle et affiche « Extrait fourni par Deezer » à la révélation. Si le fournisseur ne répond pas, la question est écartée et la partie démarre.
   US: US-AUDIO-03 (#185)
 
+- Journaux d'erreurs d'une salle consultables depuis le tableau des salles d'un client : panneau en ligne avec filtre par niveau, actualisation et « charger plus », réservé aux administrateurs.
+  US: US-LOG-01 (#157)
+- Statistiques d'exploitation d'une compagnie : route `GET /companies/:companyId/stats` et écran « Statistiques » (séances terminées et arrêtées, taux d'abandon, durée médiane, répartition par salle, joueurs, créneaux les plus chargés), réservés aux administrateurs. Aucune donnée individuelle ne sort.
+  US: US-STATS-01 (#157)
+- Connexion du superadmin en deux temps : code de l'application d'authentification ou code de secours, enrôlement avec secret à recopier (sans QR code), codes de secours affichés une seule fois, réinitialisation depuis le profil. Les autres rôles se connectent comme avant.
+  US: US-CONSOLE-03 (#161)
+
+- Console de l'éditeur : le superadmin se connecte avec un deuxième facteur TOTP. Enrôlement à la première connexion, dix codes de secours à usage unique, anti-rejeu, blocage de 15 minutes après 5 échecs, secret chiffré en base (`TOTP_ENCRYPTION_KEY`). Commande `npm run totp:reset` pour réinitialiser un compte. Les autres rôles ne changent pas. L'écran de connexion en deux temps arrive dans un lot suivant.
+  US: US-CONSOLE-03 (#161)
 - Écran « Agenda » du backoffice : les sessions programmées d'une salle, jour par jour, dans le fuseau de la salle, avec les créneaux libres de la grille, l'ouverture, l'annulation confirmée et l'accès au détail.
   US: US-SESSION-01 (#142)
 

@@ -20,6 +20,15 @@ info:
       valide. Cela vaut pour toutes les routes, pas seulement celles réservées au superadmin, sauf
       `POST /logout`, qui révoque la session où que soit l'appelant.
 
+    **Double authentification du superadmin.** Pour un superadmin, `POST /login` ne crée pas de session :
+    il rend un jeton de défi (`challengeToken`, 5 minutes, inutilisable comme jeton porteur) et l'étape
+    à suivre, `totp` (saisir le code de l'application) ou `enroll` (première connexion : enrôler
+    l'application). Les routes `/login/totp*` ne sont servies qu'aux adresses de `CONSOLE_ALLOWED_CIDRS`
+    (`403 forbidden` sinon), avec une limite de 10 requêtes par minute et par adresse. Un code faux et un
+    code déjà utilisé reçoivent exactement la même réponse `401 totp_invalid` ; après 5 échecs le compte est
+    bloqué 15 minutes (`429 too_many_attempts`, même avec le bon code). Sans `TOTP_ENCRYPTION_KEY` valide,
+    le superadmin ne peut plus se connecter (`503 totp_unavailable`).
+
     Les autres rôles ne sont pas concernés.
 
 servers:
@@ -41,6 +50,8 @@ tags:
     description: Salles de jeu d'une compagnie et leur configuration matérielle
   - name: Games
     description: Parties lancées par l'opérateur dans une salle
+  - name: Stats
+    description: Statistiques d'exploitation d'une compagnie (agrégats, aucun joueur)
   - name: DemoRequests
     description: Demandes de démonstration reçues de la vitrine, consultées dans la console de l'éditeur
   - name: Public
@@ -93,6 +104,10 @@ paths:
         Statut : **Disponible**
 
         Permet à un administrateur de se connecter avec son email ou son nom d'utilisateur.
+
+        Un **superadmin** dont le mot de passe est juste n'obtient pas de session mais un défi
+        (`LoginChallengeResponse`) à compléter par `POST /login/totp` ou `POST /login/totp/enroll`. Les
+        autres rôles reçoivent directement `{ token, admin }`.
       operationId: login
       x-availability: disponible
       security: []
@@ -115,11 +130,15 @@ paths:
                   password: password123
       responses:
         '200':
-          description: Connexion réussie
+          description: |
+            Connexion réussie (`LoginResponse`), ou, pour un superadmin, défi de double authentification
+            (`LoginChallengeResponse`) : aucune session n'est créée à ce stade.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LoginResponse'
+                oneOf:
+                  - $ref: '#/components/schemas/LoginResponse'
+                  - $ref: '#/components/schemas/LoginChallengeResponse'
         '400':
           description: Corps de requête invalide
           content:
@@ -153,6 +172,240 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
               example:
                 error: too_many_requests
+        '503':
+          description: |
+            Superadmin dont le mot de passe est juste, alors que `TOTP_ENCRYPTION_KEY` est absente ou
+            invalide : code `totp_unavailable`, aucune session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: totp_unavailable
+
+  /login/totp:
+    post:
+      tags:
+        - Auth
+      summary: '[DISPONIBLE] Deuxième facteur du superadmin (code TOTP ou code de secours)'
+      description: |
+        Statut : **Disponible**
+
+        Termine la connexion d'un superadmin enrôlé : le code à 6 chiffres de l'application, ou un code
+        de secours (`xxxxx-xxxxx`, usage unique, majuscules, espaces et tiret ignorés). Ouvre la session
+        et rend `{ token, admin }` ; avec un code de secours, `recoveryCodesRemaining` donne le nombre de
+        codes restants. Réservée aux adresses de `CONSOLE_ALLOWED_CIDRS` (`403 forbidden` sinon).
+      operationId: loginTotp
+      x-availability: disponible
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TotpChallengeCodeRequest'
+      responses:
+        '200':
+          description: Session ouverte
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/LoginResponse'
+                  - type: object
+                    properties:
+                      recoveryCodesRemaining:
+                        type: integer
+                        description: Présent seulement quand un code de secours vient d'être utilisé
+        '400':
+          description: Corps de requête invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '401':
+          description: |
+            `mfa_challenge_invalid` (défi absent, expiré, altéré, ou compte devenu inactif) ou
+            `totp_invalid` (code faux ou déjà utilisé, réponses identiques).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Adresse hors de `CONSOLE_ALLOWED_CIDRS` (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Le superadmin n'a pas encore enrôlé d'application (`totp_not_enrolled`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: |
+            `too_many_attempts` : compte bloqué après 5 échecs, pour 15 minutes, même avec le bon code ;
+            ou `too_many_requests` : plus de 10 requêtes par minute depuis cette adresse.
+          headers:
+            Retry-After:
+              description: Secondes à attendre avant de réessayer
+              schema:
+                type: integer
+                example: 900
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Clé de chiffrement absente ou invalide (`totp_unavailable`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /login/totp/enroll:
+    post:
+      tags:
+        - Auth
+      summary: "[DISPONIBLE] Enrôler l'application d'authentification (première étape)"
+      description: |
+        Statut : **Disponible**
+
+        Génère un secret TOTP pour le superadmin du défi (`mfa: 'enroll'`) et le range chiffré
+        (AES-256-GCM). Peut être rappelée tant que l'enrôlement n'est pas confirmé : le secret est alors
+        remplacé. Le secret n'est rendu qu'ici, en clair, pour être saisi dans l'application ou lu via
+        l'adresse `otpauth`. Réservée aux adresses de `CONSOLE_ALLOWED_CIDRS`.
+      operationId: loginTotpEnroll
+      x-availability: disponible
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TotpChallengeRequest'
+      responses:
+        '200':
+          description: Secret généré
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TotpEnrollResponse'
+        '400':
+          description: Corps de requête invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '401':
+          description: Défi absent, expiré ou altéré (`mfa_challenge_invalid`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Adresse hors de `CONSOLE_ALLOWED_CIDRS` (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Enrôlement déjà confirmé (`totp_already_enrolled`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Plus de 10 requêtes par minute depuis cette adresse (`too_many_requests`)
+          headers:
+            Retry-After:
+              description: Secondes à attendre avant de réessayer
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Clé de chiffrement absente ou invalide (`totp_unavailable`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /login/totp/enroll/confirm:
+    post:
+      tags:
+        - Auth
+      summary: "[DISPONIBLE] Confirmer l'enrôlement et ouvrir la session"
+      description: |
+        Statut : **Disponible**
+
+        Vérifie le premier code à 6 chiffres de l'application, active le deuxième facteur, ouvre la
+        session et rend les 10 codes de secours **une seule fois** (seules leurs empreintes sont
+        conservées). Le code servi ici ne peut plus l'être pour se connecter. Réservée aux adresses de
+        `CONSOLE_ALLOWED_CIDRS`.
+      operationId: loginTotpEnrollConfirm
+      x-availability: disponible
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TotpChallengeCodeRequest'
+      responses:
+        '200':
+          description: Enrôlement confirmé, session ouverte
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TotpConfirmResponse'
+        '400':
+          description: Corps de requête invalide (le code doit compter exactement 6 chiffres)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '401':
+          description: Défi invalide (`mfa_challenge_invalid`) ou code faux (`totp_invalid`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Adresse hors de `CONSOLE_ALLOWED_CIDRS` (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: |
+            Enrôlement non commencé (`totp_not_enrolled`), déjà confirmé (`totp_already_enrolled`) ou
+            dont le secret a été régénéré par une autre requête pendant la vérification
+            (`totp_enrollment_changed`) : scanner le nouveau secret et saisir un nouveau code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Plus de 10 requêtes par minute depuis cette adresse (`too_many_requests`)
+          headers:
+            Retry-After:
+              description: Secondes à attendre avant de réessayer
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Clé de chiffrement absente ou invalide (`totp_unavailable`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /logout:
     post:
@@ -210,6 +463,71 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Administrateur introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /me/totp:
+    delete:
+      tags:
+        - Me
+      summary: '[DISPONIBLE] Retirer le deuxième facteur du superadmin'
+      description: |
+        Statut : **Disponible**
+
+        Réservée au superadmin. Exige un code TOTP ou un code de secours valide, efface le secret et
+        les codes de secours et **révoque toutes les sessions** du superadmin, la sienne comprise : la
+        prochaine connexion repasse par l'enrôlement. Les échecs comptent pour le blocage de
+        15 minutes après 5 échecs.
+      operationId: deleteMeTotp
+      x-availability: disponible
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TotpCodeRequest'
+      responses:
+        '204':
+          description: Deuxième facteur retiré
+        '400':
+          description: Corps de requête invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '401':
+          description: Token manquant ou invalide, ou code faux (`totp_invalid`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Compte non superadmin, ou adresse hors de `CONSOLE_ALLOWED_CIDRS` (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Aucun deuxième facteur à retirer (`totp_not_enrolled`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Compte bloqué après 5 échecs (`too_many_attempts`)
+          headers:
+            Retry-After:
+              description: Secondes à attendre avant de réessayer
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Clé de chiffrement absente ou invalide (`totp_unavailable`)
           content:
             application/json:
               schema:
@@ -1665,7 +1983,7 @@ paths:
 
         Parties de la compagnie, de la plus récente à la plus ancienne (date de la partie, puis identifiant décroissant pour départager les égalités), avec le nom de la salle, le nombre de joueurs nommés, la durée et le meilleur score. Les parties supprimées sont exclues.
 
-        Tous les filtres sont facultatifs et se cumulent. `from` et `to` filtrent la date de la partie, c'est-à-dire le début prévu d'une session programmée (`scheduledAt`), sinon la date de démarrage, sinon la date de création ; l'intervalle est semi-ouvert : borne basse incluse, borne haute exclue. L'année 0000 est refusée. Il n'y a pas de plafond de période : la pagination borne la réponse. `total` est le nombre de parties qui passent les filtres, quelle que soit la page.
+        Tous les filtres sont facultatifs et se cumulent. `from` et `to` filtrent la date de la partie, c'est-à-dire le début prévu d'une session programmée (`scheduledAt`), sinon la date de démarrage, sinon la date de création ; l'intervalle est semi-ouvert : borne basse incluse, borne haute exclue. L'année 0 est refusée, y compris ramenée en UTC par le décalage. Il n'y a pas de plafond de période : la pagination borne la réponse. `total` est le nombre de parties qui passent les filtres, quelle que soit la page.
 
         Chaque ligne porte les champs de session programmée (`scheduledAt`, `scheduledEndAt`, `cancelledAt`, `playersCount`, `externalRef`, `locale`). Le champ `source` (`backoffice` ou `api`) arrive avec le lot 14.
 
@@ -1690,14 +2008,14 @@ paths:
         - name: from
           in: query
           required: false
-          description: Début de période inclus, instant ISO 8601 avec fuseau (ex. `2026-11-05T00:00:00+01:00` ou `...Z`). L'année 0000 est refusée.
+          description: Début de période inclus, instant ISO 8601 avec fuseau (ex. `2026-11-05T00:00:00+01:00` ou `...Z`). L'année 0 est refusée, y compris ramenée en UTC par le décalage.
           schema:
             type: string
             format: date-time
         - name: to
           in: query
           required: false
-          description: Fin de période exclue (intervalle semi-ouvert), instant ISO 8601 avec fuseau. Pour inclure un jour entier, passer le début du jour suivant. L'année 0000 est refusée.
+          description: Fin de période exclue (intervalle semi-ouvert), instant ISO 8601 avec fuseau. Pour inclure un jour entier, passer le début du jour suivant. L'année 0 est refusée, y compris ramenée en UTC par le décalage.
           schema:
             type: string
             format: date-time
@@ -2051,6 +2369,78 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: Partie déjà terminée (`game_already_over`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/stats:
+    get:
+      tags:
+        - Stats
+      summary: "[DISPONIBLE] Statistiques d'exploitation d'une compagnie"
+      description: |
+        Statut : **Disponible** (lot 7d)
+
+        Agrégats calculés sur les parties **terminées** et **arrêtées** de la compagnie, hors parties supprimées. La date d'une partie est celle de l'historique : date programmée, sinon de démarrage, sinon de création. Une partie arrêtée avant d'avoir démarré n'est pas un abandon : elle n'est comptée nulle part. L'intervalle `[from, to)` est semi-ouvert : borne basse incluse, borne haute exclue.
+
+        Période par défaut : les 30 jours avant `to` ; sans `to`, jusqu'à maintenant. Plafond : 366 jours (à une heure près, pour un changement d'heure). Une période vide, inversée ou trop longue répond `400 stats_period_invalid`.
+
+        `tz` est un nom de fuseau IANA (`Europe/Paris`, `UTC`), celui du navigateur ; il ne sert qu'à ranger les créneaux (jour de la semaine et heure locale, changements d'heure compris). Absent : `UTC`. Seuls les noms que PostgreSQL connaît (`pg_timezone_names`) sont acceptés, sans tenir compte de la casse : un nom inconnu, ou un décalage (`+02:00`), répond `400 stats_timezone_invalid`.
+
+        Indicateurs : sessions terminées et arrêtées (par salle), taux d'abandon, durée réelle médiane, joueurs accueillis (un pupitre plus son second joueur nommé, sessions terminées seulement) et moyenne par session, part des joueurs qui laissent un e-mail et part qui accepte les offres, e-mails fidèles (vus dans au moins deux sessions, après normalisation), dix créneaux les plus chargés. Les taux sont des fractions de 0 à 1, `null` quand le dénominateur est nul.
+
+        Aucune donnée personnelle dans la réponse : ni nom, ni adresse e-mail.
+
+        Accès : superadmin (toutes les compagnies) et `admin` de la compagnie ; le rôle `user` est refusé.
+      operationId: getCompanyStats
+      x-availability: disponible
+      x-us: 'US-STATS-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - name: from
+          in: query
+          required: false
+          description: Début de période inclus, instant ISO 8601 avec fuseau. L'année 0 est refusée, y compris ramenée en UTC par le décalage.
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          description: Fin de période exclue, instant ISO 8601 avec fuseau. Pour inclure un jour entier, passer le début du jour suivant. L'année 0 est refusée, y compris ramenée en UTC par le décalage.
+          schema:
+            type: string
+            format: date-time
+        - name: roomId
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+        - name: tz
+          in: query
+          required: false
+          description: Fuseau IANA des créneaux (défaut `UTC`).
+          schema:
+            type: string
+            maxLength: 64
+            example: Europe/Paris
+      responses:
+        '200':
+          description: Statistiques de la période
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyStats'
+        '400':
+          description: Paramètre invalide (`invalid_params`), période invalide (`stats_period_invalid`) ou fuseau inconnu (`stats_timezone_invalid`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (rôle `user`, ou autre compagnie)
           content:
             application/json:
               schema:
@@ -4654,32 +5044,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/NotImplementedResponse'
 
-  /stats/overview:
-    get:
-      tags:
-        - Stats
-      summary: '[NON DISPONIBLE] Récupérer les statistiques globales'
-      description: |
-        Statut : **Non disponible**
-
-        Route prévue pour la page statistiques.
-      operationId: getStatsOverview
-      x-availability: non_disponible
-      x-us: 'US Statistiques'
-      responses:
-        '200':
-          description: Statistiques globales
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/StatsOverview'
-        '501':
-          description: Route prévue mais pas encore implémentée
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotImplementedResponse'
-
   /public/v1/logos/{file}:
     get:
       tags:
@@ -5204,6 +5568,83 @@ components:
         admin:
           $ref: '#/components/schemas/AuthAdmin'
 
+    LoginChallengeResponse:
+      type: object
+      description: Défi de double authentification d'un superadmin (aucune session créée)
+      required:
+        - mfa
+        - challengeToken
+      properties:
+        mfa:
+          type: string
+          enum: [totp, enroll]
+          description: "`totp` : saisir le code de l'application ; `enroll` : enrôler l'application"
+        challengeToken:
+          type: string
+          description: Jeton de défi, valable 5 minutes, refusé comme jeton porteur
+
+    TotpChallengeRequest:
+      type: object
+      required:
+        - challengeToken
+      properties:
+        challengeToken:
+          type: string
+
+    TotpChallengeCodeRequest:
+      type: object
+      required:
+        - challengeToken
+        - code
+      properties:
+        challengeToken:
+          type: string
+        code:
+          type: string
+          description: |
+            Code à 6 chiffres. `POST /login/totp` accepte aussi un code de secours `xxxxx-xxxxx` ;
+            `POST /login/totp/enroll/confirm` exige exactement 6 chiffres.
+          example: '123456'
+
+    TotpCodeRequest:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          description: Code à 6 chiffres ou code de secours `xxxxx-xxxxx`
+          example: '123456'
+
+    TotpEnrollResponse:
+      type: object
+      required:
+        - secret
+        - otpauthUrl
+      properties:
+        secret:
+          type: string
+          description: Secret en base32, à saisir dans l'application
+          example: JBSWY3DPEHPK3PXP
+        otpauthUrl:
+          type: string
+          description: Adresse `otpauth://totp/...` (émetteur `TOTP_ISSUER`, `QuizzUp` par défaut) pour un code QR
+          example: otpauth://totp/QuizzUp:root?secret=JBSWY3DPEHPK3PXP&issuer=QuizzUp
+
+    TotpConfirmResponse:
+      allOf:
+        - $ref: '#/components/schemas/LoginResponse'
+        - type: object
+          required:
+            - recoveryCodes
+          properties:
+            recoveryCodes:
+              type: array
+              description: Dix codes de secours, rendus une seule fois
+              items:
+                type: string
+                example: abcde-fghij
+
     AuthAdmin:
       type: object
       properties:
@@ -5701,6 +6142,126 @@ components:
         - streak
         - estimate
         - progressive_reveal
+
+    CompanyStats:
+      type: object
+      description: Statistiques d'exploitation d'une compagnie sur une période. Agrégats seulement, aucune donnée de joueur.
+      required: [period, sessions, players, busiestSlots]
+      properties:
+        period:
+          type: object
+          required: [from, to, timeZone]
+          properties:
+            from:
+              type: string
+              format: date-time
+            to:
+              type: string
+              format: date-time
+              description: Exclue.
+            timeZone:
+              type: string
+              example: Europe/Paris
+        sessions:
+          type: object
+          required: [finished, aborted, abandonRate, medianDurationSeconds, byRoom]
+          properties:
+            finished:
+              type: integer
+              minimum: 0
+            aborted:
+              type: integer
+              minimum: 0
+            abandonRate:
+              type: number
+              nullable: true
+              minimum: 0
+              maximum: 1
+              description: Arrêtées (démarrées) sur terminées et arrêtées ; `null` sans aucune session.
+            medianDurationSeconds:
+              type: integer
+              nullable: true
+              description: Durée réelle médiane d'une session terminée ; `null` si aucune.
+            byRoom:
+              type: array
+              description: Salles ayant au moins une session terminée ou arrêtée, par nom.
+              items:
+                type: object
+                required: [roomId, roomName, finished, aborted]
+                properties:
+                  roomId:
+                    type: integer
+                  roomName:
+                    type: string
+                  finished:
+                    type: integer
+                    minimum: 0
+                  aborted:
+                    type: integer
+                    minimum: 0
+        players:
+          type: object
+          required:
+            - total
+            - averagePerSession
+            - withEmail
+            - emailRate
+            - withMarketingConsent
+            - marketingConsentRate
+            - distinctEmails
+            - returningEmails
+          properties:
+            total:
+              type: integer
+              minimum: 0
+              description: Joueurs des sessions terminées (pupitres et seconds joueurs nommés).
+            averagePerSession:
+              type: number
+              nullable: true
+              description: Une décimale ; `null` sans session terminée.
+            withEmail:
+              type: integer
+              minimum: 0
+            emailRate:
+              type: number
+              nullable: true
+              minimum: 0
+              maximum: 1
+            withMarketingConsent:
+              type: integer
+              minimum: 0
+            marketingConsentRate:
+              type: number
+              nullable: true
+              minimum: 0
+              maximum: 1
+            distinctEmails:
+              type: integer
+              minimum: 0
+              description: Adresses distinctes (minuscules, espaces retirés) vues sur la période.
+            returningEmails:
+              type: integer
+              minimum: 0
+              description: Adresses vues dans au moins deux sessions de la période.
+        busiestSlots:
+          type: array
+          description: Dix créneaux au plus, du plus chargé au moins chargé (puis par jour et par heure). Sessions terminées, dans le fuseau demandé.
+          items:
+            type: object
+            required: [weekday, hour, sessions]
+            properties:
+              weekday:
+                type: integer
+                minimum: 1
+                maximum: 7
+                description: 1 = lundi, 7 = dimanche.
+              hour:
+                type: integer
+                minimum: 0
+                maximum: 23
+              sessions:
+                type: integer
+                minimum: 1
 
     GameSummary:
       type: object

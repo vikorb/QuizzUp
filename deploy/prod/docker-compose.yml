@@ -118,6 +118,9 @@ services:
       # Refus de démarrer si le secret fait moins de 32 caractères (src/security/jwtSecret.ts).
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET manquant dans .env (openssl rand -hex 32)}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-2h}
+      # Clé AES-256 des secrets TOTP du superadmin (32 octets en base64). Sans clé valide, ou avec la
+      # clé publique de démonstration, le superadmin ne peut pas se connecter (src/security/secretBox.ts).
+      TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:?TOTP_ENCRYPTION_KEY manquant dans .env (openssl rand -base64 32)}
       # Console éditeur : le superadmin ne passe que depuis ces adresses (vide = personne), vues
       # par l'API grâce à TRUST_PROXY (le réseau `internal` de Caddy, fixé plus bas). Pas de valeur
       # par défaut : une production mal configurée reste fermée plutôt qu'ouverte.

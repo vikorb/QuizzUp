@@ -6,8 +6,8 @@ import { pathToFileURL } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  ADMIN_ROLE_ADMIN,
   ADMIN_ROLE_ROOM,
-  ADMIN_ROLE_SUPERADMIN,
   ADMIN_STATUS_ACTIVE,
   COMPANY_STATUS_INACTIVE,
   ROOM_STATUS_ACTIVE,
@@ -137,8 +137,8 @@ describe('routes/auth.ts', () => {
       method: 'POST',
       url: '/login',
       payload: {
-        identifier: 'ROOT@QUIZZUP.TEST',
-        password: 'root-password',
+        identifier: 'ALICE@QUIZZUP.TEST',
+        password: 'alice-password',
       },
     })
 
@@ -150,26 +150,107 @@ describe('routes/auth.ts', () => {
     expect(response.statusCode).toBe(200)
     expect(body.token).toBe('test.jwt.token')
     expect(body.admin).toMatchObject({
-      id: 1,
+      id: 2,
       company_id: 1,
-      role: ADMIN_ROLE_SUPERADMIN,
-      username: 'root',
-      email: 'root@quizzup.test',
+      role: ADMIN_ROLE_ADMIN,
+      username: 'alice',
+      email: 'alice@quizzup.test',
     })
     expectPublicAdmin(body.admin)
     expect(dbState.admin_sessions).toHaveLength(1)
-    expect(dbState.admin_sessions[0]).toMatchObject({ admin_id: 1 })
+    expect(dbState.admin_sessions[0]).toMatchObject({ admin_id: 2 })
     expect(jwtSignMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        sub: '1',
+        sub: '2',
         company_id: 1,
-        role: ADMIN_ROLE_SUPERADMIN,
+        role: ADMIN_ROLE_ADMIN,
         sid: expect.any(String),
       }),
       { expiresIn: '7d' }
     )
 
     await app.close()
+  })
+
+  describe('superadmin : deuxième facteur', () => {
+    const superadminLogin = { identifier: 'ROOT@QUIZZUP.TEST', password: 'root-password' }
+
+    it('answers a challenge to enroll, with no session and no bearer token', async () => {
+      const app = await createRouteApp(authRoutes)
+
+      const response = await app.inject({ method: 'POST', url: '/login', payload: superadminLogin })
+
+      expect(response.statusCode).toBe(200)
+      expect(parseJson(response)).toEqual({ mfa: 'enroll', challengeToken: 'test.jwt.token' })
+      expect(dbState.admin_sessions).toHaveLength(0)
+      expect(jwtSignMock).toHaveBeenCalledTimes(1)
+      expect(jwtSignMock).toHaveBeenCalledWith(
+        { sub: '1', typ: 'mfa_challenge' },
+        { expiresIn: '5m' }
+      )
+
+      await app.close()
+    })
+
+    it('asks for the code once the second factor is confirmed, and still enrolls while it is pending', async () => {
+      dbState.admin_totp.push({ admin_id: 1, secret_enc: 'v1.x.y.z', confirmed_at: MOCK_NOW })
+      const app = await createRouteApp(authRoutes)
+
+      const confirmed = await app.inject({
+        method: 'POST',
+        url: '/login',
+        payload: superadminLogin,
+      })
+
+      expect(parseJson(confirmed)).toMatchObject({ mfa: 'totp' })
+      expect(dbState.admin_sessions).toHaveLength(0)
+
+      dbState.admin_totp[0].confirmed_at = null
+      const pending = await app.inject({ method: 'POST', url: '/login', payload: superadminLogin })
+
+      expect(parseJson(pending)).toMatchObject({ mfa: 'enroll' })
+
+      await app.close()
+    })
+
+    it('answers 503 totp_unavailable without a valid key, with no session and no challenge', async () => {
+      for (const key of ['', Buffer.alloc(16).toString('base64')]) {
+        vi.stubEnv('TOTP_ENCRYPTION_KEY', key)
+        const app = await createRouteApp(authRoutes)
+
+        const response = await app.inject({
+          method: 'POST',
+          url: '/login',
+          payload: superadminLogin,
+        })
+
+        expect(response.statusCode).toBe(503)
+        expect(parseJson(response)).toEqual({ error: 'totp_unavailable' })
+        expect(dbState.admin_sessions).toHaveLength(0)
+        expect(jwtSignMock).not.toHaveBeenCalled()
+
+        await app.close()
+      }
+
+      vi.unstubAllEnvs()
+    })
+
+    it('does not touch the other roles when the key is missing', async () => {
+      vi.stubEnv('TOTP_ENCRYPTION_KEY', '')
+      const app = await createRouteApp(authRoutes)
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/login',
+        payload: { identifier: 'alice', password: 'alice-password' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(parseJson(response)).toHaveProperty('token')
+
+      vi.unstubAllEnvs()
+      await app.close()
+    })
   })
 
   it('gives a room account a long-lived token (US-ROOM-02)', async () => {
@@ -240,13 +321,13 @@ describe('routes/auth.ts', () => {
       method: 'POST',
       url: '/login',
       payload: {
-        identifier: 'RoOt',
-        password: 'root-password',
+        identifier: 'AlIcE',
+        password: 'alice-password',
       },
     })
 
     expect(response.statusCode).toBe(200)
-    expect(parseJson<{ admin: { id: number } }>(response).admin.id).toBe(1)
+    expect(parseJson<{ admin: { id: number } }>(response).admin.id).toBe(2)
 
     await app.close()
   })
@@ -511,13 +592,17 @@ describe('routes/auth.ts — garde réseau de la console éditeur sur /login', (
     await app.close()
   })
 
-  it('logs a superadmin in from an allowed address, IPv4, IPv6 or IPv4-mapped', async () => {
+  it('gives a superadmin a challenge from an allowed address, IPv4, IPv6 or IPv4-mapped', async () => {
     const app = await createRouteApp(authRoutes)
 
     for (const ip of [OPERATOR, '2001:db8::5', `::ffff:${OPERATOR}`]) {
-      expect((await loginFrom(app, superadminLogin, ip)).statusCode, ip).toBe(200)
+      const response = await loginFrom(app, superadminLogin, ip)
+
+      expect(response.statusCode, ip).toBe(200)
+      expect(parseJson(response), ip).toHaveProperty('challengeToken')
     }
-    expect(dbState.admin_sessions).toHaveLength(3)
+    // Le mot de passe ne suffit pas : aucune session avant le deuxième facteur.
+    expect(dbState.admin_sessions).toHaveLength(0)
 
     await app.close()
   })

@@ -1,14 +1,18 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
-import { randomUUID } from 'node:crypto'
-import { ADMIN_ROLE_ROOM, ADMIN_ROLE_SUPERADMIN } from '@quizzup/shared'
+import { ADMIN_ROLE_ROOM, ADMIN_ROLE_SUPERADMIN, type LoginMfaStep } from '@quizzup/shared'
 import db from '../db'
+import { getAdminTotp } from '../security/adminTotp'
 import { createRateLimiter, replyTooManyRequests } from '../security/rateLimit'
 import { isRoomAccountUsable } from '../security/roomCompany'
-
-/** Jeton d'un compte de salle (appareil fixe) : la révocation se fait en base. */
-const ROOM_TOKEN_EXPIRES_IN = '365d'
+import {
+  ADMIN_LOGIN_COLUMNS,
+  issueSession,
+  replyTotpUnavailable,
+  signChallenge,
+  type AdminRow,
+} from './login/_shared'
 
 /**
  * Limites des tentatives de connexion, sur 15 minutes. Par adresse : 100, large car tout le
@@ -28,27 +32,6 @@ const LOGIN_RATE_LIMIT_IDENTIFIER_MAX = 254
 // Même coût que les mots de passe réels (cf. companies/admins) : un compte inconnu passe par un
 // `bcrypt.compare` de même durée, sinon le temps de réponse révèle si le compte existe.
 const MISSING_ACCOUNT_HASH = bcrypt.hashSync('missing-account', 12)
-
-type AdminRow = {
-  id: number
-  company_id: number
-  room_id: number | null
-  role: string
-  firstname: string
-  lastname: string
-  username: string
-  email: string
-  mdp_hash: string
-  status: number
-}
-
-type AdminSessionRow = {
-  id: string
-  admin_id: number
-  created_at: string
-  last_seen_at: string
-  revoked_at: string | null
-}
 
 const loginSchema = z.object({
   identifier: z.string().min(1),
@@ -72,18 +55,8 @@ const authRoutes: FastifyPluginAsync = async (app) => {
       req: FastifyRequest<{ Body: unknown }>,
       reply: FastifyReply
     ): Promise<
-      | {
-          token: string
-          admin: {
-            id: number
-            company_id: number
-            role: string
-            firstname: string
-            lastname: string
-            username: string
-            email: string
-          }
-        }
+      | Awaited<ReturnType<typeof issueSession>>
+      | { mfa: LoginMfaStep; challengeToken: string }
       | FastifyReply
     > => {
       // Avant tout accès à la base ou à bcrypt, et quel que soit l'identifiant : la réponse ne
@@ -108,18 +81,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
       const isEmail = identifier.includes('@')
 
       const query = db<AdminRow>('admins')
-        .select(
-          'id',
-          'company_id',
-          'room_id',
-          'role',
-          'firstname',
-          'lastname',
-          'username',
-          'email',
-          'mdp_hash',
-          'status'
-        )
+        .select(...ADMIN_LOGIN_COLUMNS)
         .where('status', 1)
 
       if (isEmail) query.andWhereRaw('lower(email) = lower(?)', [identifier])
@@ -155,33 +117,17 @@ const authRoutes: FastifyPluginAsync = async (app) => {
       addressLimiter.refund(req.ip)
       accountLimiter.refund(req.ip, accountKey)
 
-      const sid = randomUUID()
+      // Superadmin : le mot de passe ne suffit pas. Aucune session n'est créée ; un jeton de défi de
+      // 5 minutes ouvre la saisie du code (`mfa: 'totp'`) ou l'enrôlement (`mfa: 'enroll'`).
+      if (admin.role === ADMIN_ROLE_SUPERADMIN) {
+        if (!app.totpKey) return replyTotpUnavailable(req, reply)
 
-      await db<AdminSessionRow>('admin_sessions').insert({
-        id: sid,
-        admin_id: admin.id,
-      })
+        const enrolled = Boolean((await getAdminTotp(admin.id))?.confirmedAt)
 
-      // expiresIn peut être large (ex 7j) car l’inactivité est gérée par la session DB
-      const token = app.jwt.sign(
-        { sub: String(admin.id), company_id: admin.company_id, role: admin.role, sid },
-        // US-ROOM-02 : le PC d'une salle reste connecté ; l'admin coupe l'accès en
-        // supprimant le compte (sessions révoquées en base).
-        { expiresIn: admin.role === ADMIN_ROLE_ROOM ? ROOM_TOKEN_EXPIRES_IN : '7d' }
-      )
-
-      return {
-        token,
-        admin: {
-          id: admin.id,
-          company_id: admin.company_id,
-          role: admin.role,
-          firstname: admin.firstname,
-          lastname: admin.lastname,
-          username: admin.username,
-          email: admin.email,
-        },
+        return { mfa: enrolled ? 'totp' : 'enroll', challengeToken: signChallenge(app, admin.id) }
       }
+
+      return issueSession(app, admin)
     }
   )
 
