@@ -45,7 +45,22 @@ describe('API de la salle', () => {
     expect(themes[0]?.questions[0]?.mediaUrl).toBe(`${API}/room/questions/3/media`)
 
     respond(200, { room: { id: 1, name: 'Salle', config: {} } })
-    await expect(fetchRoomInfo('tok')).resolves.toMatchObject({ name: 'Salle' })
+    await expect(fetchRoomInfo('tok')).resolves.toMatchObject({ name: 'Salle', company: null })
+  })
+
+  it('lit le centre de la salle et complète l’adresse de son logo', async () => {
+    const company = { id: 4, name: 'Escape du Port' }
+    const room = { id: 1, name: 'Salle', config: {} }
+
+    respond(200, { room, company: { ...company, logoUrl: '/public/v1/logos/a.png' } })
+    await expect(fetchRoomInfo('tok')).resolves.toMatchObject({
+      company: { ...company, logoUrl: `${API}/public/v1/logos/a.png` },
+    })
+
+    respond(200, { room, company: { ...company, logoUrl: null } })
+    await expect(fetchRoomInfo('tok')).resolves.toMatchObject({
+      company: { ...company, logoUrl: null },
+    })
   })
 
   it('lit l’effet audio avec tolérance : absent, nul ou inconnu = pas d’effet', async () => {
@@ -158,6 +173,19 @@ describe('API de la salle', () => {
     expect(fetchMock.mock.calls[0]?.[1]?.method).toBe('POST')
     expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(
       JSON.stringify({ scores: [{ podium: 1, score: 300 }] })
+    )
+  })
+
+  it('joint les manches jouées à la fin de partie, seulement si elles sont fournies', async () => {
+    const fetchMock = respond(200, { game: { id: 4, state: 'finished' } })
+    const rounds = [
+      { position: 1, miniGame: 'quick_answer' as const, themeId: 2, questionIds: [5] },
+    ]
+
+    await finishRoomGame('tok', 4, [{ podium: 1, score: 300 }], rounds)
+
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(
+      JSON.stringify({ scores: [{ podium: 1, score: 300 }], rounds })
     )
   })
 

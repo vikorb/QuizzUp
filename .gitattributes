@@ -1,2 +1,4 @@
 # Le lanceur Windows tourne sous cmd.exe : fins de ligne CRLF même après un checkout sous Linux ou macOS.
 *.cmd text eol=crlf
+game/hardware/firmware/fumee/*.hex -text
+game/hardware/firmware/fumee/vecteurs.txt text eol=lf

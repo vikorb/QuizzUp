@@ -2,6 +2,7 @@ import type { GameState } from '@quizzup/game-engine'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  getPlayedRounds,
   readBackofficeGameId,
   rememberBackofficeGameId,
   reportFinishedGame,
@@ -23,7 +24,36 @@ vi.mock('@/game/selectors', () => ({
 }))
 
 const SEED = 42
-const state = { setup: { seed: SEED } } as GameState
+
+const questions = (...ids: number[]) => ids.map((id) => ({ id }))
+const answer = (participantId: number, questionId: number, isCorrect: boolean) => ({
+  participantId,
+  questionId,
+  isCorrect,
+})
+const quickRound = {
+  position: 1,
+  miniGame: 'quick_answer',
+  themeId: 4,
+  questions: questions(10, 11),
+  answers: [],
+}
+// Mort subite à deux joueurs : le joueur 2 tombe à la question 21, la 22 n'est jamais posée.
+const suddenDeathRound = {
+  position: 2,
+  miniGame: 'sudden_death',
+  themeId: 5,
+  questions: questions(20, 21, 22),
+  answers: [answer(1, 20, true), answer(2, 20, true), answer(1, 21, true), answer(2, 21, false)],
+}
+const state = {
+  setup: { seed: SEED, participants: [{ id: 1 }, { id: 2 }] },
+  rounds: [quickRound, suddenDeathRound],
+} as unknown as GameState
+const ROUNDS = [
+  { position: 1, miniGame: 'quick_answer', themeId: 4, questionIds: [10, 11] },
+  { position: 2, miniGame: 'sudden_death', themeId: 5, questionIds: [20, 21] },
+]
 const SCORES = [
   { podium: 3, score: 900 },
   { podium: 1, score: 100 },
@@ -50,7 +80,7 @@ describe('fin de partie envoyée au backoffice', () => {
     // Le second appel retrouve la même partie en file : un seul envoi, un seul état.
     expect([first, second]).toEqual([7, 7])
     expect(finishRoomGame).toHaveBeenCalledOnce()
-    expect(finishRoomGame).toHaveBeenCalledWith('tok', 7, SCORES)
+    expect(finishRoomGame).toHaveBeenCalledWith('tok', 7, SCORES, ROUNDS)
     expect(readBackofficeGameId()).toBeNull()
     expect(readPendingFinishes()).toEqual([])
   })
@@ -63,7 +93,9 @@ describe('fin de partie envoyée au backoffice', () => {
     await vi.advanceTimersByTimeAsync(0)
 
     expect(readBackofficeGameId()).toBeNull()
-    expect(readPendingFinishes()).toEqual([{ gameId: 7, seed: SEED, scores: SCORES }])
+    expect(readPendingFinishes()).toEqual([
+      { gameId: 7, seed: SEED, scores: SCORES, rounds: ROUNDS },
+    ])
   })
 
   it("n'envoie rien en mode démo, sans jeton, sans partie ou pour une autre partie", async () => {
@@ -143,7 +175,7 @@ describe('fin de partie envoyée au backoffice', () => {
 
     await vi.advanceTimersByTimeAsync(5000)
     expect(finishRoomGame).toHaveBeenCalledTimes(3)
-    expect(finishRoomGame).toHaveBeenLastCalledWith('tok', 7, SCORES)
+    expect(finishRoomGame).toHaveBeenLastCalledWith('tok', 7, SCORES, ROUNDS)
     expect(readPendingFinishes()).toEqual([])
   })
 
@@ -178,7 +210,7 @@ describe('fin de partie envoyée au backoffice', () => {
     expect(readPendingFinishes().map((item) => item.gameId)).toEqual([7])
 
     // Elle se termine à son tour, toujours hors ligne.
-    reportFinishedGame({ setup: { seed: SEED + 1 } } as GameState)
+    reportFinishedGame({ ...state, setup: { ...state.setup, seed: SEED + 1 } } as GameState)
     await vi.advanceTimersByTimeAsync(0)
     expect(readPendingFinishes().map((item) => item.gameId)).toEqual([7, 8])
 
@@ -190,5 +222,40 @@ describe('fin de partie envoyée au backoffice', () => {
 
     expect(vi.mocked(finishRoomGame).mock.calls.map((call) => call[1])).toEqual([7, 8])
     expect(readPendingFinishes()).toEqual([])
+  })
+})
+
+const play = (rounds: unknown[]) => getPlayedRounds({ ...state, rounds } as unknown as GameState)
+
+describe('manches jouées', () => {
+  it('liste le mini-jeu, le thème et les questions posées de chaque manche', () => {
+    expect(play(state.rounds)).toEqual(ROUNDS)
+  })
+
+  it('compte toutes les questions quand la mort subite va à son terme', () => {
+    // Les deux joueurs répondent juste à chacune des trois questions : personne ne tombe.
+    const toTheEnd = {
+      ...suddenDeathRound,
+      answers: [20, 21, 22].flatMap((id) => [answer(1, id, true), answer(2, id, true)]),
+    }
+
+    expect(play([toTheEnd])[0]?.questionIds).toEqual([20, 21, 22])
+  })
+
+  it("compte une question passée par l'animateur et garde une manche sans thème", () => {
+    const skipped = {
+      ...suddenDeathRound,
+      themeId: null,
+      skippedQuestionIds: [20],
+      answers: [answer(1, 21, true), answer(2, 21, false)],
+    }
+
+    expect(play([skipped])).toEqual([
+      { position: 2, miniGame: 'sudden_death', themeId: null, questionIds: [20, 21] },
+    ])
+  })
+
+  it('ne renvoie aucune manche pour une partie sans manche', () => {
+    expect(play([])).toEqual([])
   })
 })
