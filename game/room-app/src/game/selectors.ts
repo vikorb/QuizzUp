@@ -3,9 +3,9 @@ import {
   type EngineQuestion,
   FLASH_BLIND_TEST_ANSWER_TIMEOUT_MS,
   FLASH_BLIND_TEST_BUZZ_WINDOW_MS,
-  FLASH_BLIND_TEST_STAGE_DURATIONS_MS,
   FLASH_BLIND_TEST_STAGE_POINTS,
   type GameState,
+  getFlashBlindTestStageDurationsMs,
   type RoundRecord,
 } from '@quizzup/game-engine'
 import { MINI_GAME_FLASH_BLIND_TEST, type MiniGame } from '@quizzup/shared'
@@ -15,11 +15,17 @@ import { MINI_GAME_FLASH_BLIND_TEST, type MiniGame } from '@quizzup/shared'
  * calcule jamais de règle du jeu lui-même, il lit l'état et l'heure courante.
  */
 
-export const BLIND_TEST_STAGES = FLASH_BLIND_TEST_STAGE_DURATIONS_MS.map((durationMs, index) => ({
-  stage: index + 1,
-  durationMs,
-  points: FLASH_BLIND_TEST_STAGE_POINTS[index] ?? 0,
-}))
+/** Paliers du blind test d'une question : les durées suivent son effet audio. */
+export function getBlindTestStages(question: Pick<EngineQuestion, 'audioEffect'>) {
+  return getFlashBlindTestStageDurationsMs(question).map((durationMs, index) => ({
+    stage: index + 1,
+    durationMs,
+    points: FLASH_BLIND_TEST_STAGE_POINTS[index] ?? 0,
+  }))
+}
+
+/** Paliers par défaut (sans effet) : écran d'intro de manche, la question n'y est pas connue. */
+export const BLIND_TEST_STAGES = getBlindTestStages({})
 
 export function getCurrentRound(state: GameState): RoundRecord | undefined {
   return state.rounds.at(-1)
@@ -94,6 +100,8 @@ export type BlindTestView = {
   questionsCount: number
   /** Palier 1-based. */
   stage: number
+  /** Les paliers de la question (durées selon son effet audio). */
+  stages: ReturnType<typeof getBlindTestStages>
   status: BlindTestStatus
   /** Avancement du palier (écoute + fenêtre de buzz), de 0 à 1. */
   stageProgress: number
@@ -112,7 +120,8 @@ export function getBlindTestView(state: GameState, now: number): BlindTestView |
   }
 
   const mini = phase.miniGameState
-  const extractMs = FLASH_BLIND_TEST_STAGE_DURATIONS_MS[mini.stageIndex] ?? 0
+  const stages = getBlindTestStages(mini.question)
+  const extractMs = getFlashBlindTestStageDurationsMs(mini.question)[mini.stageIndex] ?? 0
   const totalMs = extractMs + FLASH_BLIND_TEST_BUZZ_WINDOW_MS
   const reference = mini.status === 'answering' && mini.pausedAt !== null ? mini.pausedAt : now
   const elapsed = Math.min(totalMs, Math.max(0, reference - mini.stageStartedAt))
@@ -127,6 +136,7 @@ export function getBlindTestView(state: GameState, now: number): BlindTestView |
     questionIndex: phase.questionIndex,
     questionsCount: getCurrentRound(state)?.questions.length ?? 0,
     stage: mini.stageIndex + 1,
+    stages,
     status,
     stageProgress: totalMs > 0 ? elapsed / totalMs : 1,
     stageRemainingMs: totalMs - elapsed,

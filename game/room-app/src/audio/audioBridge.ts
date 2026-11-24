@@ -1,6 +1,7 @@
 import type { GameEvent } from '@quizzup/game-engine'
 import { ROOM_LOG_LEVEL_WARN } from '@quizzup/shared'
 
+import { toExtractEffect } from '@/audio/extractEffect'
 import type { ExtractPlayer } from '@/audio/player'
 import { reportRoomError } from '@/diagnostics/errorReporter'
 
@@ -38,7 +39,12 @@ export function createAudioBridge(player: ExtractPlayer) {
         if (isPlayable(mediaUrl)) {
           const startSec = (Number(payload.mediaStartMs) || 0) / 1000
           // Un extrait illisible ne doit pas arrêter la partie : le palier continue en silence.
-          player.play(mediaUrl, startSec, currentExtractMs).catch(reportUnreadable)
+          const effect = toExtractEffect(payload.audioEffect)
+          const played =
+            effect === 'none'
+              ? player.play(mediaUrl, startSec, currentExtractMs)
+              : player.play(mediaUrl, startSec, currentExtractMs, { effect })
+          played.catch(reportUnreadable)
         }
         break
       }
@@ -78,6 +84,8 @@ export function createAudioBridge(player: ExtractPlayer) {
     restore(options: {
       mediaUrl: string | null
       mediaStartMs: number
+      /** Absent (ancienne sauvegarde) ou inconnu : pas d'effet. */
+      audioEffect?: unknown
       extractMs: number
       elapsedMs: number
       paused: boolean
@@ -89,8 +97,20 @@ export function createAudioBridge(player: ExtractPlayer) {
         return
       }
 
-      const startSec = (options.mediaStartMs + options.elapsedMs) / 1000
-      player.play(options.mediaUrl, startSec, remainingMs).catch(reportUnreadable)
+      const effect = toExtractEffect(options.audioEffect)
+      // Avec un effet, `startSec + écoulé` est faux : le lecteur convertit lui-même `elapsedMs`.
+      const played =
+        effect === 'none'
+          ? player.play(
+              options.mediaUrl,
+              (options.mediaStartMs + options.elapsedMs) / 1000,
+              remainingMs
+            )
+          : player.play(options.mediaUrl, options.mediaStartMs / 1000, options.extractMs, {
+              effect,
+              elapsedMs: options.elapsedMs,
+            })
+      played.catch(reportUnreadable)
       if (options.paused) {
         player.pause()
       }

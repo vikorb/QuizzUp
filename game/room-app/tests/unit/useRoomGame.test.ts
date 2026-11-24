@@ -200,6 +200,53 @@ describe('useRoomGame', () => {
   })
 })
 
+describe('reprise d’un extrait avec effet', () => {
+  let clock: ReturnType<typeof createManualClock>
+  let player: ExtractPlayer
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    clock = createManualClock()
+    player = fakePlayer()
+    configureRoomGame({ storage: createMemorySessionStorage(), player, now: clock.now })
+    setDemoMode(true)
+  })
+
+  afterEach(() => {
+    closeGame()
+    setDemoMode(false)
+    localStorage.clear()
+    vi.useRealTimers()
+  })
+
+  it.each([
+    ['short', 500],
+    ['reverse', 1000],
+  ] as const)('relance le palier %s avec sa durée et son effet', async (audioEffect, extractMs) => {
+    const themes = getPlayableThemes().map((theme) => ({
+      ...theme,
+      questions: theme.questions.map((question) => ({ ...question, audioEffect })),
+    }))
+    const { state } = useRoomGame()
+    startNewGame({ registrations: REGISTRATIONS, themes, seed: 7, miniGames: BLIND_TEST_ONLY })
+    clock.advance(DEFAULT_GAME_TIMINGS.roundIntroMs + 10)
+    vi.advanceTimersByTime(50)
+    const chooser = state.value?.rounds[0]?.chooserParticipantId as 1 | 2 | 3
+    pressBuzzer({ desk: chooser, button: 'A', buttonIndex: 0, at: clock.value, code: 'test' })
+    clock.advance(100)
+    vi.advanceTimersByTime(100)
+    vi.mocked(player.play).mockClear()
+
+    expect(await resumeSavedGame()).toBe(true)
+
+    expect(player.play).toHaveBeenCalledTimes(1)
+    const [, , durationMs, options] = vi.mocked(player.play).mock.calls[0] ?? []
+    expect(durationMs).toBe(extractMs)
+    expect(options).toMatchObject({ effect: audioEffect })
+    expect(options?.elapsedMs).toBeGreaterThanOrEqual(0)
+  })
+})
+
 describe('sauvegarde de partie et contexte courant', () => {
   const SEED = 99
   let storage: ReturnType<typeof createMemorySessionStorage>

@@ -21,6 +21,12 @@ export type EngineQuestion = {
    * sauvegarde d'avant le champ) : le moteur le déduit des réponses.
    */
   kind?: QuestionKind
+  /**
+   * Effet de l'extrait audio, choisi par l'auteur de la question. Absent (ancien contenu, serveur
+   * ancien) = `none`. `short` raccourcit les paliers du blind test ; `reverse` et `slowed` ne
+   * concernent que le lecteur. Valeurs alignées sur `QUESTION_AUDIO_EFFECTS` de `@quizzup/shared` (lot A.2).
+   */
+  audioEffect?: 'none' | 'short' | 'reverse' | 'slowed'
   answers: EngineAnswer[]
 }
 

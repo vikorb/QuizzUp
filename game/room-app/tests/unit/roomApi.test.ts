@@ -48,6 +48,37 @@ describe('API de la salle', () => {
     await expect(fetchRoomInfo('tok')).resolves.toMatchObject({ name: 'Salle' })
   })
 
+  it('lit l’effet audio avec tolérance : absent, nul ou inconnu = pas d’effet', async () => {
+    respond(200, {
+      themes: [
+        {
+          id: 1,
+          name: 'T',
+          questions: [
+            { id: 1, mediaUrl: null, audioEffect: 'reverse' },
+            { id: 2, mediaUrl: null, audioEffect: 'slowed' },
+            { id: 3, mediaUrl: null, audioEffect: 'short' },
+            { id: 4, mediaUrl: null },
+            { id: 5, mediaUrl: null, audioEffect: null },
+            { id: 6, mediaUrl: null, audioEffect: 'echo' },
+            { id: 7, mediaUrl: null, audioEffect: 12 },
+          ],
+        },
+      ],
+    })
+    const themes = await fetchCurrentContent('tok')
+
+    expect(themes[0]?.questions.map((question) => question.audioEffect)).toEqual([
+      'reverse',
+      'slowed',
+      'short',
+      'none',
+      'none',
+      'none',
+      'none',
+    ])
+  })
+
   it('limite le contenu aux questions demandées, avec un délai facultatif', async () => {
     const timeout = vi.spyOn(AbortSignal, 'timeout')
     const fetchMock = vi

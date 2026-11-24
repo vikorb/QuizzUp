@@ -2921,7 +2921,7 @@ paths:
 
         Partie en attente ou en cours de la salle du compte connecté, ou `null`. Les emails des participants ne sont pas renvoyés.
 
-        **À venir (lot 13)** : la réponse gagnera `next`, la session `scheduled` la plus proche de la salle dont la fin prévue (`scheduledEndAt`) est dans le futur, au même format que `game` (noms seulement, aucun email), ou `null`.
+        `next` : la session `scheduled` la plus proche de la salle dont la fin prévue (`scheduledEndAt`) est dans le futur, au même format que `game` (noms seulement, aucun email), ou `null`. Une session en retard mais dont le créneau n'est pas fini reste renvoyée.
 
         Accès : réservé au rôle `room`.
       operationId: getCurrentRoomGame
@@ -2943,7 +2943,7 @@ paths:
                     allOf:
                       - $ref: '#/components/schemas/RoomGame'
                     nullable: true
-                    description: '**À venir (lot 13).** Prochaine session programmée de la salle.'
+                    description: Prochaine session programmée de la salle.
         '403':
           description: Compte qui n'est pas un compte de salle
           content:
@@ -3025,6 +3025,12 @@ paths:
                                   example: /room/questions/12/media,
                                 }
                               mediaStartMs: { type: integer }
+                              audioEffect:
+                                {
+                                  type: string,
+                                  enum: [none, short, reverse, slowed],
+                                  description: "Effet joué sur l'extrait (blind test), `none` hors question audio ou sans effet.",
+                                }
                               mediaCredit:
                                 type: object
                                 nullable: true
@@ -3117,15 +3123,15 @@ paths:
     post:
       tags:
         - Rooms
-      summary: '[NON DISPONIBLE] Ouvrir une session programmée de la salle'
+      summary: '[DISPONIBLE] Ouvrir une session programmée de la salle'
       description: |
-        Statut : **Non disponible** (à venir, lot 13)
+        Statut : **Disponible**
 
-        Passe une session `scheduled` de la salle à l'état `pending` (bouton « Lancer » de l'écran de salle). Mêmes règles et mêmes codes que `POST /companies/{companyId}/games/{gameId}/open`, avec le même traitement côté serveur.
+        Passe une session `scheduled` de la salle à l'état `pending` (bouton « Lancer » de l'écran de salle). Mêmes règles que `POST /companies/{companyId}/games/{gameId}/open`, avec le même traitement côté serveur ; les codes d'erreur sont listés ci-dessous (le `404` est `game_not_found`, là où le backoffice répond `not_found`).
 
         Accès : réservé au rôle `room`, limité à sa propre salle (une autre salle : `404`).
       operationId: openRoomGame
-      x-availability: non_disponible
+      x-availability: disponible
       x-us: 'Lot 13 / sessions programmées'
       parameters:
         - $ref: '#/components/parameters/GameIdParam'
@@ -3139,14 +3145,26 @@ paths:
                 properties:
                   game:
                     $ref: '#/components/schemas/RoomGame'
+        '400':
+          description: Identifiant de partie invalide (`invalid_params`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token manquant ou invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Compte qui n'est pas un compte de salle
+          description: Compte qui n'est pas un compte de salle (`forbidden`)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: Partie introuvable ou d'une autre salle
+          description: Partie introuvable, supprimée ou d'une autre salle ou compagnie (`game_not_found`)
           content:
             application/json:
               schema:
@@ -4691,6 +4709,10 @@ paths:
         Statut : **Non disponible**
 
         Route prévue pour créer une question et ses réponses.
+
+        Effet audio : le champ optionnel `audioEffect` (voir `UpdateQuestionRequest`) est accepté
+        à la création, avec les mêmes règles (`question_audio_effect_invalid`,
+        `audio_effect_requires_audio`).
       operationId: createQuestion
       x-availability: non_disponible
       x-us: 'US Gestion des questions'
@@ -6640,6 +6662,14 @@ components:
           description: |
             Libellé « artiste — titre » enregistré au rattachement, pour afficher le titre sans
             interroger le fournisseur ; `null` si `mediaProvider` l'est.
+        audioEffect:
+          type: string
+          enum: [none, short, reverse, slowed]
+          default: none
+          description: |
+            Effet joué sur l'extrait de la question audio (blind test) : `none`, `short` (paliers
+            très courts, appliqué par le moteur), `reverse` (à l'envers) ou `slowed` (ralenti).
+            `none` pour une question qui n'est pas audio.
         status:
           type: integer
           enum: [0, 1, 2, 3]
@@ -6690,6 +6720,15 @@ components:
             `question_media_start_out_of_range`) ; refusé sans fichier (`question_media_not_found`).
             Passer `typeMedia` à une autre valeur que `audio` détache et supprime le fichier.
           example: not_found
+        audioEffect:
+          type: string
+          enum: [none, short, reverse, slowed]
+          nullable: true
+          description: |
+            Effet joué sur l'extrait (blind test) ; `null` l'efface (retour à `none`). Valeur
+            inconnue : `question_audio_effect_invalid`. Autre chose que `none` sur une question qui
+            n'est pas audio : `audio_effect_requires_audio` (le type est celui envoyé, sinon celui
+            de la base). Passer `typeMedia` à autre chose que `audio` remet l'effet à `none`.
 
     ValidationError:
       type: object

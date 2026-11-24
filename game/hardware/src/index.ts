@@ -66,6 +66,7 @@ export {
   withBuzzerLayout,
   withDesksCount,
   withLearnedKeymap,
+  withoutUnknownKeys,
   withPlanPoint,
 } from './config'
 export type {
@@ -180,7 +181,10 @@ export {
   DEFAULT_SCENES,
   NEON,
   SCENE_IDS,
+  SHOW_CUES,
 } from './lighting/scenes'
+export type { ParsedScenes } from './lighting/showConfig'
+export { parseScenes, SCENE_LIMITS } from './lighting/showConfig'
 export type {
   SmokeController,
   SmokeFireResult,
@@ -198,6 +202,14 @@ export {
 } from './lighting/smoke'
 export type { PlanFixture, PlanPoint, PlanTarget, RoomPlan } from './plan'
 export { DEFAULT_SCREEN_POINT, defaultRoomPlan, parseRoomPlan, resolveRoomPlan } from './plan'
+export type {
+  RoomTemplate,
+  RoomTemplateFixture,
+  RoomTemplateResult,
+  RoomTemplateRig,
+  UniverseAssignment,
+} from './presets/roomTemplates'
+export { createRigFromTemplate, proposeUniverses, ROOM_TEMPLATES } from './presets/roomTemplates'
 export type { PanTiltCalibration, SixDeskRig, SixDeskRigOptions } from './presets/sixDeskRoom'
 export {
   createSixDeskKeyboardKeymap,

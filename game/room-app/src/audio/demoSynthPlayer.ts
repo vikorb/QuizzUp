@@ -192,17 +192,19 @@ export function createDemoSynthPlayer(
       options?.onProgress?.(urls.length, urls.length)
       return { loaded: [...urls], failed: [] }
     },
-    play(url, startSec, durationMs) {
+    // L'effet est ignoré (mélodies synthétisées) ; `elapsedMs` est honoré pour une reprise juste.
+    play(url, startSec, durationMs, options) {
       settle('stopped')
-      if (durationMs <= 0) {
+      const elapsedMs = Math.min(Math.max(options?.elapsedMs ?? 0, 0) || 0, durationMs)
+      if (durationMs - elapsedMs <= 0) {
         return Promise.resolve('ended')
       }
       return new Promise<PlayOutcome>((resolve) => {
         const next: Segment = {
           url,
-          offsetSec: Number.isFinite(startSec) && startSec > 0 ? startSec : 0,
-          remainingMs: durationMs,
-          playedMs: 0,
+          offsetSec: (Number.isFinite(startSec) && startSec > 0 ? startSec : 0) + elapsedMs / 1000,
+          remainingMs: durationMs - elapsedMs,
+          playedMs: elapsedMs,
           paused: false,
           resolve,
         }
@@ -259,13 +261,15 @@ export function createRoutingExtractPlayer(
         urls.filter((url) => !isDemoMediaUrl(url)),
         options
       ),
-    play(url, startSec, durationMs) {
+    play(url, startSec, durationMs, options) {
       const next = pick(url)
       if (active && active !== next) {
         active.stop()
       }
       active = next
-      return next.play(url, startSec, durationMs)
+      return options === undefined
+        ? next.play(url, startSec, durationMs)
+        : next.play(url, startSec, durationMs, options)
     },
     pause: () => active?.pause() ?? 0,
     resume: () => active?.resume(),
