@@ -200,10 +200,11 @@
       "importing": {
         "title": "Replace this room’s configuration?",
         "message": "The file contains {desks} desks, {fixtures} fixtures, driver {driver}, universes {universes}; {problems} issue(s) to fix. {smoke} The setup assistant will have to be run again.",
-        "smokeKept": "Smoke is never imported: its settings stay those of the room, or stricter.",
-        "smokeArmed": "The file armed the smoke: this is ignored. Smoke settings stay those of the room, or stricter.",
+        "smokeKept": "The room’s smoke will be disabled: it will have to be re-enabled in the assistant, cutoff test and arming included. Its settings are never more permissive than the room’s.",
+        "smokeArmed": "The file armed the smoke: this is ignored. The room’s smoke will be disabled: it will have to be re-enabled in the assistant, cutoff test and arming included.",
         "done": "Configuration imported.",
-        "todo": "To do again: the setup assistant, the smoke cutoff test and arming the smoke."
+        "todo": "To do again: the setup assistant, the smoke cutoff test and arming the smoke.",
+        "appliedNotRestarted": "The configuration is applied, but the lights did not restart. Reload the page, then run the assistant, the smoke cutoff test and arming again."
       }
     },
     "diagnostic": {

@@ -1,7 +1,8 @@
 import { flushPromises } from '@vue/test-utils'
 
 import { useConfirm } from '@/composables/useConfirm'
-import { resetRoomHardware, useRoomHardware } from '@/hardware/roomHardware'
+import type * as RoomHardware from '@/hardware/roomHardware'
+import { resetRoomHardware, saveRoomHardwareConfig, useRoomHardware } from '@/hardware/roomHardware'
 import { enterDemo, syncRoomAuth } from '@/state/roomAuth'
 import HardwareView from '@/views/hardware/HardwareView.vue'
 
@@ -9,6 +10,12 @@ import { mountWithApp, PRELOAD_TIMEOUT_MS, preloadRoutes } from '../_helpers/mou
 import { saveWithSmokeProof } from '../_helpers/smokeProof'
 
 beforeAll(preloadRoutes, PRELOAD_TIMEOUT_MS)
+
+// Même comportement que le vrai module, mais un test peut faire échouer un enregistrement.
+vi.mock('@/hardware/roomHardware', async (importOriginal) => {
+  const actual = await importOriginal<typeof RoomHardware>()
+  return { ...actual, saveRoomHardwareConfig: vi.fn(actual.saveRoomHardwareConfig) }
+})
 
 const SMOKE_FIXTURE = { id: 'fumee', name: 'Fumée', profileId: 'smoke-relay', address: 40 }
 const BOUNDED_SMOKE = {
@@ -168,6 +175,52 @@ describe('configuration avancée : boutons Exporter et Importer', () => {
     expect(smokeConfig()).toEqual({ ...BOUNDED_SMOKE, enabled: false })
     expect(smokeConfig()).not.toHaveProperty('board')
     expect(text('transfer-safety')).toContain('armement')
+  })
+
+  it('désactive la fumée armée de la salle, et le dit avant de demander confirmation', async () => {
+    await saveWithSmokeProof({ lighting: { fixtures: [SMOKE_FIXTURE], smoke: BOUNDED_SMOKE } })
+    expect(smokeConfig().enabled).toBe(true)
+    const { pick, answer } = await openAdvanced()
+
+    await pick(jsonFile(fileText({ config: { desksCount: 3 } })))
+    const message = await answer(true)
+
+    expect(message).toContain('sera désactivée')
+    expect(message).toContain('test de coupure')
+    expect(config().desksCount).toBe(3)
+    expect(smokeConfig().enabled).toBe(false)
+  })
+
+  it('refuse un second import tant que le premier est en cours', async () => {
+    const { pick, answer, wrapper } = await openAdvanced()
+    const input = () => wrapper.find<HTMLInputElement>('[data-test="config-import"]')
+
+    await pick(jsonFile(fileText({ config: { desksCount: 3 } })))
+    expect(input().element.disabled).toBe(true)
+    expect(wrapper.find('[data-test="config-export"]').attributes('disabled')).toBeDefined()
+    await pick(jsonFile(fileText({ config: { desksCount: 4 } })))
+    await answer(true)
+
+    expect(config().desksCount).toBe(3)
+    expect(input().element.disabled).toBe(false)
+  })
+
+  it('distingue une config appliquée dont les lumières n’ont pas redémarré', async () => {
+    const actual = await vi.importActual<typeof RoomHardware>('@/hardware/roomHardware')
+    const { pick, answer, wrapper, text } = await openAdvanced()
+    vi.mocked(saveRoomHardwareConfig).mockImplementationOnce(async (input, options) => {
+      await actual.saveRoomHardwareConfig(input, options)
+      throw new Error('restart_lighting')
+    })
+
+    await pick(jsonFile(fileText({ config: { desksCount: 3 } })))
+    await answer(true)
+
+    expect(text('transfer-error')).toContain('lumières n’ont pas redémarré')
+    expect(text('transfer-error')).not.toContain('Rien n’a été importé')
+    expect(config().desksCount).toBe(3)
+    const draft = wrapper.find<HTMLTextAreaElement>('[data-test="config-json"]').element.value
+    expect(JSON.parse(draft).desksCount).toBe(3)
   })
 
   it('n’active pas la fumée d’une salle qui ne l’avait pas', async () => {

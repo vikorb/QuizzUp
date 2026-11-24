@@ -41,6 +41,7 @@
           type="file"
           accept=".json,application/json"
           data-test="config-import"
+          :disabled="transferBusy"
           @change="onImportFile"
         />
       </label>
@@ -240,7 +241,14 @@ async function onImportFile(event: Event): Promise<void> {
     if (!ok) {
       return
     }
-    await applyImport(result)
+    try {
+      await applyImport(result)
+    } catch {
+      // Appliquée mais pas relancée (ex. : les lumières n'ont pas redémarré) : le brouillon la reflète.
+      reload()
+      transferError.value = t('hardware.advanced.importing.appliedNotRestarted')
+      return
+    }
     // Après un conflit, c'est la config d'un autre poste qui est affichée : rien n'est importé.
     if (syncStatus.value !== 'conflict') {
       transferDone.value = t('hardware.advanced.importing.done')

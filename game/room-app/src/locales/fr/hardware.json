@@ -200,10 +200,11 @@
       "importing": {
         "title": "Remplacer la configuration de cette salle ?",
         "message": "Le fichier contient {desks} pupitres, {fixtures} appareils, pilote {driver}, univers {universes} ; {problems} point(s) à corriger. {smoke} L’assistant de configuration sera à refaire.",
-        "smokeKept": "La fumée n’est jamais importée : ses réglages restent ceux de la salle, ou plus stricts.",
-        "smokeArmed": "Le fichier armait la fumée : elle est ignorée. Les réglages de fumée restent ceux de la salle, ou plus stricts.",
+        "smokeKept": "La fumée de la salle sera désactivée : elle devra être réactivée par l’assistant, test de coupure et armement compris. Ses réglages ne sont jamais plus permissifs que ceux de la salle.",
+        "smokeArmed": "Le fichier armait la fumée : elle est ignorée. La fumée de la salle sera désactivée : elle devra être réactivée par l’assistant, test de coupure et armement compris.",
         "done": "Configuration importée.",
-        "todo": "À refaire : l’assistant de configuration, le test de coupure de la fumée et son armement."
+        "todo": "À refaire : l’assistant de configuration, le test de coupure de la fumée et son armement.",
+        "appliedNotRestarted": "La configuration est appliquée, mais les lumières n’ont pas redémarré. Recharge la page, puis refais l’assistant, le test de coupure de la fumée et son armement."
       }
     },
     "diagnostic": {
