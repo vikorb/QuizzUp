@@ -175,9 +175,14 @@ async function loadReadableThemes(
 
 /**
  * Une question n'est jouable par la salle que si elle appartient à au moins un thème actif
- * lisible par sa compagnie : même règle que le catalogue, pour la route média.
+ * lisible par sa compagnie : même règle que le catalogue, pour la route média. Avec `kidsOnly`
+ * (partie en mode enfants), ce thème doit en plus être adapté aux enfants.
  */
-export async function isInPlayableTheme(questionId: number, companyId: number): Promise<boolean> {
+export async function isInPlayableTheme(
+  questionId: number,
+  companyId: number,
+  kidsOnly = false
+): Promise<boolean> {
   const links = await db('question_themes').where('question_id', questionId).select('theme_id')
 
   if (links.length === 0) {
@@ -186,7 +191,8 @@ export async function isInPlayableTheme(questionId: number, companyId: number): 
 
   const themes = await loadReadableThemes(
     companyId,
-    links.map((link) => link.theme_id)
+    links.map((link) => link.theme_id),
+    kidsOnly
   )
 
   return themes.length > 0

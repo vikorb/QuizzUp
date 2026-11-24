@@ -200,21 +200,53 @@ describe.skipIf(!PG_INTEGRATION_URL)('add_kids_flags sur PostgreSQL', () => {
       await db.migrate.latest({ directory: MIGRATIONS })
     })
 
-    it('refuse tant qu’un thème ou une partie utilise l’option, puis passe une fois retirée', async () => {
+    const REFUSED =
+      /Rollback impossible : des thèmes sont adaptés aux enfants .* ou des parties programmées, en attente ou en cours sont en mode enfants/
+
+    it('refuse tant qu’un thème est adapté aux enfants, puis passe une fois retiré', async () => {
       await insertTheme(db, { id: 932, kids_friendly: true })
 
-      await expect(db.migrate.down(rollback)).rejects.toThrow(
-        /Rollback impossible : des thèmes ou des parties utilisent l'option enfants/
-      )
+      await expect(db.migrate.down(rollback)).rejects.toThrow(REFUSED)
       expect(await kidsColumns(db)).toHaveLength(2)
 
       await db('themes').where({ id: 932 }).update({ kids_friendly: false })
-      await insertGame(db, { kids_mode: true })
+      await db.migrate.down(rollback)
 
-      await expect(db.migrate.down(rollback)).rejects.toThrow(/Rollback impossible/)
-      expect(await kidsColumns(db)).toHaveLength(2)
+      expect(await kidsColumns(db)).toEqual([])
+    })
 
-      await db('games').update({ kids_mode: false })
+    it.each(['scheduled', 'pending', 'running'])(
+      'refuse tant qu’une partie %s est en mode enfants',
+      async (state) => {
+        await insertGame(db, {
+          kids_mode: true,
+          state,
+          ...(state === 'scheduled'
+            ? { scheduled_at: '2030-01-01T10:00:00Z', scheduled_end_at: '2030-01-01T11:00:00Z' }
+            : {}),
+        })
+
+        await expect(db.migrate.down(rollback)).rejects.toThrow(REFUSED)
+        expect(await kidsColumns(db)).toHaveLength(2)
+      }
+    )
+
+    it('ne compte ni les parties terminées ou arrêtées, ni les thèmes supprimés', async () => {
+      await insertGame(db, { kids_mode: true, state: 'finished' })
+      await insertGame(db, { kids_mode: true, state: 'aborted' })
+      await insertTheme(db, {
+        id: 933,
+        kids_friendly: true,
+        status: 2,
+        deleted_at: new Date().toISOString(),
+      })
+
+      await db.migrate.down(rollback)
+
+      expect(await kidsColumns(db)).toEqual([])
+    })
+
+    it('rejoue up après un retour arrière réel', async () => {
       await db.migrate.down(rollback)
 
       expect(await kidsColumns(db)).toEqual([])

@@ -23,20 +23,28 @@ exports.up = async function (knex) {
 }
 
 /**
- * Retour arrière refusé tant qu'un thème ou une partie utilise l'option : supprimer les colonnes
- * ferait servir à une partie enfants des thèmes qui ne le sont pas. Il faut d'abord retirer l'option
- * depuis le backoffice.
+ * Retour arrière refusé tant qu'un thème (non supprimé) est adapté aux enfants, ou qu'une partie
+ * non supprimée encore à jouer (programmée, en attente ou en cours) est en mode enfants : supprimer
+ * les colonnes ferait servir à cette partie des thèmes qui ne sont pas pour les enfants. Les parties
+ * terminées, arrêtées ou annulées ne comptent pas : le mode enfants n'y a plus d'effet.
  *
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
 exports.down = async function (knex) {
-  const usedTheme = await knex('themes').where('kids_friendly', true).first('id')
-  const usedGame = await knex('games').where('kids_mode', true).first('id')
+  const usedTheme = await knex('themes')
+    .where('kids_friendly', true)
+    .whereNot('status', 2)
+    .first('id')
+  const usedGame = await knex('games')
+    .where('kids_mode', true)
+    .whereNot('status', 2)
+    .whereIn('state', ['scheduled', 'pending', 'running'])
+    .first('id')
 
   if (usedTheme || usedGame) {
     throw new Error(
-      "Rollback impossible : des thèmes ou des parties utilisent l'option enfants (themes.kids_friendly, games.kids_mode)."
+      'Rollback impossible : des thèmes sont adaptés aux enfants (themes.kids_friendly) ou des parties programmées, en attente ou en cours sont en mode enfants (games.kids_mode). Retire l’option des thèmes, puis termine, annule ou arrête ces parties.'
     )
   }
 

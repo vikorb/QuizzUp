@@ -1,12 +1,16 @@
 import './_helpers/registerRouteMocks'
 
-import { describe, expect, it } from 'vitest'
+import { Readable } from 'node:stream'
+
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import {
   ADMIN_ROLE_ROOM,
   ANSWER_STATUS_ACTIVE,
   GAME_STATE_PENDING,
+  GAME_STATE_RUNNING,
   GAME_STATUS_ACTIVE,
+  QUESTION_MEDIA_TYPE_AUDIO,
   QUESTION_MEDIA_TYPE_NONE,
   QUESTION_STATUS_ACTIVE,
   ROOM_STATUS_ACTIVE,
@@ -16,6 +20,7 @@ import {
   THEME_STATUS_INACTIVE,
 } from '@quizzup/shared'
 import roomRoutes from '@backend/routes/room'
+import { setMediaStorage } from '@backend/storage/mediaStorage'
 import { dbState } from './_helpers/mockDb'
 import { resetRouteMocksBeforeEach } from './_helpers/resetRouteMocks'
 import { authHeaders, createRouteApp, parseJson, type TestUser } from './_helpers/testApp'
@@ -169,19 +174,126 @@ describe('routes/room.ts — contenu d’une partie en mode enfants', () => {
     expect(parseJson<ContentBody>(response).themes).toEqual([])
   })
 
-  it('ignore le mode enfants d’une partie d’une autre compagnie', async () => {
+  it('ignore le mode enfants d’une partie en cours d’une autre compagnie', async () => {
+    // La partie de la compagnie 2 est en cours dans une salle de même identifiant : sans le filtre de
+    // compagnie de `findCurrentGameId`, elle passerait avant la partie en attente de la compagnie 1.
     seedGame({ kids_mode: false })
     dbState.games.push({
       id: 6,
       company_id: 2,
-      room_id: 2,
-      state: GAME_STATE_PENDING,
+      room_id: 1,
+      state: GAME_STATE_RUNNING,
       status: GAME_STATUS_ACTIVE,
       kids_mode: true,
     })
     seedContent()
 
     expect(summary(await get('/room/games/current/content'))).toHaveLength(4)
+  })
+})
+
+describe('routes/room.ts — extrait audio d’une partie en mode enfants', () => {
+  const MP3_BYTES = Buffer.from([0x49, 0x44, 0x33, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x21])
+  const UUID = '0b6f1c1e-1d2a-4c3b-9e8f-7a6b5c4d3e2f'
+  let files: Map<string, Buffer>
+
+  beforeEach(() => {
+    files = new Map()
+    setMediaStorage({
+      async save(key, content) {
+        files.set(key, Buffer.from(content))
+      },
+      async read(key) {
+        const content = files.get(key)
+
+        return content ? { stream: Readable.from(content), size: content.length } : null
+      },
+      async remove(key) {
+        files.delete(key)
+      },
+    })
+  })
+
+  afterEach(() => {
+    setMediaStorage(null)
+  })
+
+  /** Question audio avec fichier, rattachée aux thèmes donnés. */
+  function audioQuestion(id: number, ...themeIds: number[]) {
+    question(id, ...themeIds)
+
+    const key = `questions/${id}/${UUID}.mp3`
+
+    Object.assign(dbState.questions.at(-1) as Record<string, unknown>, {
+      type_media: QUESTION_MEDIA_TYPE_AUDIO,
+      media_key: key,
+      media_mime_type: 'audio/mpeg',
+    })
+    files.set(key, MP3_BYTES)
+  }
+
+  it('sert l’extrait d’un thème adapté aux enfants', async () => {
+    seedGame({ kids_mode: true })
+    theme(1, { kids_friendly: true })
+    audioQuestion(11, 1)
+
+    const response = await get('/room/questions/11/media')
+
+    expect(response.statusCode).toBe(200)
+    expect(response.rawPayload).toEqual(MP3_BYTES)
+  })
+
+  it('sert l’extrait d’une question qui est aussi dans un thème adapté aux enfants', async () => {
+    seedGame({ kids_mode: true })
+    theme(1, { kids_friendly: true })
+    theme(2)
+    audioQuestion(11, 2, 1)
+
+    expect((await get('/room/questions/11/media')).statusCode).toBe(200)
+  })
+
+  it('répond 404 pour une question qui n’est que dans un thème adulte', async () => {
+    seedGame({ kids_mode: true })
+    theme(1, { kids_friendly: true })
+    theme(2)
+    audioQuestion(21, 2)
+
+    const response = await get('/room/questions/21/media')
+
+    expect(response.statusCode).toBe(404)
+    expect(parseJson(response)).toEqual({ error: 'question_media_not_found' })
+  })
+
+  it('répond 404 pour une question d’un thème adapté aux enfants mais inactif', async () => {
+    seedGame({ kids_mode: true })
+    theme(1, { kids_friendly: true, status: THEME_STATUS_INACTIVE })
+    audioQuestion(11, 1)
+
+    expect((await get('/room/questions/11/media')).statusCode).toBe(404)
+  })
+
+  it('sert l’extrait d’un thème adulte hors mode enfants', async () => {
+    seedGame()
+    theme(2)
+    audioQuestion(21, 2)
+
+    expect((await get('/room/questions/21/media')).statusCode).toBe(200)
+  })
+
+  it('ignore le mode enfants d’une partie en cours d’une autre compagnie', async () => {
+    seedGame()
+    dbState.games.push({
+      id: 6,
+      company_id: 2,
+      room_id: 1,
+      state: GAME_STATE_RUNNING,
+      status: GAME_STATUS_ACTIVE,
+      kids_mode: true,
+    })
+    theme(2)
+    audioQuestion(21, 2)
+
+    expect((await get('/room/questions/21/media')).statusCode).toBe(200)
   })
 })
 
