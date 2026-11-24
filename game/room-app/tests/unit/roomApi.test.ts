@@ -1,10 +1,12 @@
 import {
   fetchCurrentContent,
   fetchCurrentGame,
+  fetchCurrentState,
   fetchCurrentTracks,
   fetchRoomInfo,
   FINISH_REQUEST_TIMEOUT_MS,
   finishRoomGame,
+  openRoomGame,
   postRoomLogs,
   resolveMediaUrl,
   RoomApiError,
@@ -30,6 +32,33 @@ describe('API de la salle', () => {
     expect(resolveMediaUrl('/room/questions/3/media')).toBe(`${API}/room/questions/3/media`)
     expect(resolveMediaUrl('https://cdn/x.png')).toBe('https://cdn/x.png')
     expect(resolveMediaUrl(null)).toBeNull()
+  })
+
+  it('lit la partie et la prochaine session en une seule requête (`next` absent accepté)', async () => {
+    const session = { id: 5, state: 'scheduled', scheduledAt: '2026-11-24T13:00:00.000Z' }
+    const fetchMock = respond(200, { game: null, next: session })
+    await expect(fetchCurrentState('tok')).resolves.toEqual({ game: null, next: session })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    respond(200, { game: null })
+    await expect(fetchCurrentState('tok')).resolves.toEqual({ game: null, next: null })
+
+    respond(200, { game: { id: 1 }, next: session })
+    await expect(fetchCurrentGame('tok')).resolves.toEqual({ id: 1 })
+  })
+
+  it('ouvre une session programmée de la salle', async () => {
+    const fetchMock = respond(200, { game: { id: 5, state: 'pending' } })
+    await expect(openRoomGame('tok', 5)).resolves.toMatchObject({ state: 'pending' })
+    const [url, init] = fetchMock.mock.calls[0] ?? []
+    expect(url).toBe(`${API}/room/games/5/open`)
+    expect(init?.method).toBe('POST')
+
+    respond(409, { error: 'session_not_open_yet' })
+    await expect(openRoomGame('tok', 5)).rejects.toMatchObject({
+      status: 409,
+      code: 'session_not_open_yet',
+    })
   })
 
   it('lit la partie, son contenu et la salle avec le jeton', async () => {
