@@ -42,11 +42,23 @@ export type GamepadBuzzerInputOptions = {
 
 export type GamepadInfo = { index: number; id: string; buttons: number }
 
+const describePad = (pad: GamepadLike): GamepadInfo => ({
+  index: pad.index,
+  id: pad.id,
+  buttons: pad.buttons.length,
+})
+
 export type GamepadBuzzerInput = BuzzerInput & {
   setKeymap: (keymap: BuzzerKeymap) => void
   getKeymap: () => BuzzerKeymap
   /** Carte lue actuellement, `null` si aucune n'est visible par le navigateur. */
   getGamepad: () => GamepadInfo | null
+  /**
+   * Cartes identiques (même `id`) qui correspondent toutes au choix : l'API Gamepad ne les distingue
+   * pas, aucune n'est lue (`getGamepad()` rend `null`) et l'opérateur doit en débrancher une. Vide
+   * s'il n'y a pas d'ambiguïté.
+   */
+  getAmbiguousGamepads: () => GamepadInfo[]
   /**
    * Capte Échap, Alt+Tab… via l'API Keyboard Lock, comme pour les buzzers clavier : les buzzers
    * sont lus en manette, mais le clavier du staff reste là et Échap ne doit pas quitter le plein
@@ -90,6 +102,7 @@ export function createGamepadBuzzerInput(options: GamepadBuzzerInputOptions): Ga
   let keymap: BuzzerKeymap = { ...options.keymap }
   const heldCodes = new Set<string>()
   let gamepad: GamepadInfo | null = null
+  let ambiguous: GamepadInfo[] = []
   let visible = doc.visibilityState !== 'hidden'
   let focused = doc.hasFocus()
   let disposed = false
@@ -124,21 +137,26 @@ export function createGamepadBuzzerInput(options: GamepadBuzzerInputOptions): Ga
       // Politique de permissions « gamepad » refusée : comme si aucune carte n'était branchée.
       pads = []
     }
-    return (
-      pads.find((pad): pad is GamepadLike =>
-        Boolean(pad?.connected && (options.match ? options.match(pad.id) : true))
-      ) ?? null
+    const found = pads.filter((pad): pad is GamepadLike =>
+      Boolean(pad?.connected && (options.match ? options.match(pad.id) : true))
     )
+    // Deux cartes du même `id` ne se distinguent pas : on n'en lit aucune plutôt que d'en prendre
+    // une au hasard (l'ordre de branchement n'est pas une identité).
+    const twins = found.filter((pad) => pad.id === found[0]?.id)
+    ambiguous = twins.length > 1 ? twins.map(describePad) : []
+    return ambiguous.length > 0 ? null : (found[0] ?? null)
   }
 
   const poll = () => {
     const now = clock.now()
+    const ambiguousBefore = ambiguous.map((pad) => pad.index).join()
     const pad = readGamepad()
-    const info = pad ? { index: pad.index, id: pad.id, buttons: pad.buttons.length } : null
+    const info = pad ? describePad(pad) : null
     const changed =
       info?.index !== gamepad?.index ||
       info?.id !== gamepad?.id ||
-      info?.buttons !== gamepad?.buttons
+      info?.buttons !== gamepad?.buttons ||
+      ambiguous.map((twin) => twin.index).join() !== ambiguousBefore
     if (changed) {
       // Autre carte lue (rebranchée, autre index) : ses boutons déjà enfoncés ne comptent pas.
       resync = true
@@ -251,6 +269,7 @@ export function createGamepadBuzzerInput(options: GamepadBuzzerInputOptions): Ga
     },
     getKeymap: () => ({ ...keymap }),
     getGamepad: () => (gamepad ? { ...gamepad } : null),
+    getAmbiguousGamepads: () => ambiguous.map((pad) => ({ ...pad })),
     lockSystemKeys: systemKeys.lock,
     unlockSystemKeys: systemKeys.unlock,
     dispose() {

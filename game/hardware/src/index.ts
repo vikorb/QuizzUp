@@ -136,20 +136,24 @@ export {
   MAX_COLOR_SLOTS,
 } from './dmx/profiles'
 export type {
+  DmxPortChoice,
   DmxPortExclusion,
   SerialErrorCode,
   SerialErrorDescription,
   SerialLike,
   SerialPortLike,
+  UsbId,
 } from './dmx/serialOutput'
 export {
   createSerialOutput,
   describePort,
   describeSerialError,
+  findDmxPortByUsb,
   getGrantedDmxPort,
   getWebSerial,
   isWebSerialSupported,
   OPEN_DMX_FRAME_MS,
+  portUsbId,
   requestDmxPort,
   watchDmxPortReconnection,
 } from './dmx/serialOutput'

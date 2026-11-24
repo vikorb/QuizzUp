@@ -122,6 +122,56 @@ export async function getGrantedDmxPort(
   )
 }
 
+/**
+ * Identité USB d'une interface, la plus fine que Web Serial donne : fabricant + produit, pas de
+ * numéro de série. Deux interfaces du même modèle ont donc la même identité.
+ */
+export type UsbId = { usbVendorId: number; usbProductId: number }
+
+/** Identité USB d'un port, `null` si le navigateur n'en donne pas. */
+export function portUsbId(port: SerialPortLike): UsbId | null {
+  const { usbVendorId, usbProductId } = port.getInfo?.() ?? {}
+  return usbVendorId !== undefined && usbProductId !== undefined
+    ? { usbVendorId, usbProductId }
+    : null
+}
+
+/**
+ * Résultat de `findDmxPortByUsb` : un seul port du modèle retenu (`found`), plusieurs du même modèle
+ * (`ambiguous`, rien n'est choisi), aucun (`absent`), ou seulement des ports exclus (`excluded` :
+ * l'identité retenue est celle de la carte de la fumée, jamais ouverte en DMX).
+ */
+export type DmxPortChoice =
+  | { status: 'found'; port: SerialPortLike }
+  | { status: 'ambiguous'; ports: SerialPortLike[] }
+  | { status: 'absent' }
+  | { status: 'excluded' }
+
+/**
+ * Retrouve après un rechargement l'interface DMX retenue dans la configuration (`lighting.usb`) :
+ * seulement le même modèle USB, jamais une autre puce. Deux ports du même modèle ne se distinguent
+ * pas : aucun n'est pris, l'opérateur débranche l'un des deux. `exclude` (la carte de la fumée) est
+ * écarté avant le choix. Le résultat ne dépend pas de l'ordre de `getPorts()`.
+ */
+export async function findDmxPortByUsb(
+  serial: SerialLike | null = getWebSerial(),
+  usb: UsbId,
+  options: { exclude?: DmxPortExclusion } = {}
+): Promise<DmxPortChoice> {
+  const sameModel = (await serial?.getPorts())?.filter((port) => {
+    const id = portUsbId(port)
+    return id?.usbVendorId === usb.usbVendorId && id.usbProductId === usb.usbProductId
+  })
+  const ports = sameModel?.filter((port) => !isExcluded(port, options.exclude)) ?? []
+  if (ports.length === 1 && ports[0]) {
+    return { status: 'found', port: ports[0] }
+  }
+  if (ports.length > 1) {
+    return { status: 'ambiguous', ports }
+  }
+  return { status: sameModel?.length ? 'excluded' : 'absent' }
+}
+
 type SerialOutputOptions = {
   port: SerialPortLike
   driver: 'usbpro' | 'opendmx'

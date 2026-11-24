@@ -684,6 +684,35 @@ s'appliquent donc sans rien dupliquer :
 - `createMeteredOutput(output)` mesure les trames réellement envoyées (Hz mesurés, durée
   moyenne et max d'écriture, échecs) pour l'écran de diagnostic.
 
+### Identité des périphériques (`lighting.usb`, `buzzers.source.id`) : à valider sur le banc
+
+Après un redémarrage, les objets port et manette du navigateur sont neufs : la salle retient donc de
+quoi retrouver le bon appareil. **Rien de plus fin que ce que les API donnent** : Web Serial n'expose
+que `usbVendorId` et `usbProductId` (pas de numéro de série), l'API Gamepad que `Gamepad.id`. Deux
+appareils identiques ne se distinguent donc pas : le cas est **signalé, jamais tranché au hasard**.
+
+- **`lighting.usb`** (`{ usbVendorId, usbProductId }`, facultatif, lu strictement par `parseRoomHardwareConfig` :
+  une valeur illisible est ignorée avec un problème). Retenu par l'écran de salle quand l'opérateur
+  connecte l'interface (`connectDmxInterface`) et qu'elle s'ouvre. Il est **exporté** (point de départ
+  à confirmer), mais **ne passe pas au contrôleur** (`activeLightingConfig` le retire : l'enregistrer
+  ne relance pas les lumières).
+- **`findDmxPortByUsb(serial, usb, { exclude })`** retrouve l'interface après un rechargement :
+  `found` (un seul port du modèle), `ambiguous` (deux ports du même modèle : aucun n'est ouvert, il
+  faut en débrancher un), `absent` (jamais un autre modèle, même une puce DMX connue) ou `excluded`
+  (le modèle retenu est celui de la carte de la fumée). Le résultat ne dépend pas de l'ordre de
+  `getPorts()`. **La carte de la fumée (`lighting.smoke.board`) est écartée avant tout choix** et
+  n'est jamais retenue comme interface DMX. Sans `lighting.usb` (ancienne configuration),
+  `getGrantedDmxPort` choisit comme avant.
+- **`buzzers.source.id`** (`Gamepad.id` complet de la carte, facultatif) : retenu quand les buzzers
+  sont appris (`saveLearnedBuzzers`, `saveRoomSetup`) avec la carte lue à ce moment. Une fois présent,
+  `gamepadMatcher` ne laisse lire que les cartes de cet `id` exact (il prime sur `match`). Il désigne
+  la carte de ce PC : **jamais exporté ni importé**, la carte se réapprend. Si le navigateur change
+  l'`id` de la carte (pilote), plus rien n'est lu jusqu'au nouvel apprentissage.
+- **Deux cartes identiques** : `createGamepadBuzzerInput` n'en lit aucune, `getAmbiguousGamepads()` les
+  liste et `onChange` annonce le changement. `useRoomHardware()` expose `dmxPortProblem`
+  (`'ambiguous'`, `'smoke_board'` ou `null`) et `buzzerCardAmbiguous` (nombre de cartes) pour que
+  l'écran Matériel et `/setup` affichent « débranchez-en une ».
+
 ## Diagnostic matériel (`lights.diagnostics`)
 
 Pendant un diagnostic, les scènes et les événements de jeu sont suspendus :
@@ -844,7 +873,7 @@ if (result.ok) {
 - **Jamais exporté ni importé** : `lighting.smoke.enabled` (forcé à faux), `cutsOnSignalLoss`
   (retiré), `setupDone` (retiré : l'assistant se relance), toute clé que la relecture ne connaît pas
   (aucun identifiant de compte, aucun secret), l'état local (arrêt d'urgence, révision, parties).
-- Repris comme point de départ à confirmer : cible Art-Net, buzzers appris, plan de salle.
+- Repris comme point de départ à confirmer : cible Art-Net, interface USB-DMX (`lighting.usb`), buzzers appris, plan de salle. `buzzers.source.id` n'est pas exporté.
 - `withoutSmokeEscalation(previous, next)` ne laisse la fumée de `next` jamais plus permissive que
   celle de `previous` : activation, dispense de relais, jet plus long, pause plus courte, niveau plus
   haut, confirmation retirée. Elle sert à l'import et à l'éditeur JSON de l'écran de salle ; seul
