@@ -8,6 +8,8 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Playlists, formulaire de thème : en mode audio, un champ « Lien de playlist » accepte un lien ou un identifiant de playlist, vérifié avant l'envoi. Vider le champ retire la playlist ; les refus du serveur s'affichent avec leur texte.
+  US: US-PLAYLIST-01 (#204)
 - Écran de salle, accueil des joueurs : le lobby d'une partie en attente affiche le QR code d'inscription fourni par le serveur (dans un `<img>`, jamais en `v-html`), l'adresse en clair et le nombre d'inscriptions en attente de validation. Sans QR code, l'adresse seule ; un lien expiré est signalé ; rien en partie en cours.
   US: US-JOIN-01 (#166)
 
