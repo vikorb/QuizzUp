@@ -5,10 +5,17 @@ backoffice, écran de salle et API en **HTTPS** (obligatoire pour piloter une in
 depuis Chrome / Edge hors de `localhost`).
 
 ```
-https://bo.<DOMAIN>     backoffice (gérant, staff, superadmin)
-https://salle.<DOMAIN>  écran de salle (compte de salle)
-https://api.<DOMAIN>    API (Swagger : /docs)
+https://bo.<DOMAIN>      backoffice du centre (gérant, staff) : sans les écrans de l'éditeur
+https://console.<DOMAIN> console de l'éditeur (superadmin) : filtrée par CONSOLE_ALLOWED_CIDRS
+https://salle.<DOMAIN>   écran de salle (compte de salle)
+https://api.<DOMAIN>     API (Swagger : /docs)
 ```
+
+Le frontend du backoffice est construit **deux fois** (`build:centre`, `build:console`) : `bo.`
+ne contient pas le code de la console, et `console.` appelle l'API sur son propre nom d'hôte
+(chemin `/api`, même origine), donc sans passer par `api.<DOMAIN>`. Le superadmin se connecte sur
+`console.<DOMAIN>`, depuis une adresse de `CONSOLE_ALLOWED_CIDRS` : ailleurs, la connexion est
+coupée.
 
 Caddy obtient et renouvelle seul les certificats Let's Encrypt. Pas besoin d'acheter un nom de
 domaine : `sslip.io` transforme l'IP du serveur en domaine (`51-15-12-34.sslip.io`).
@@ -79,7 +86,7 @@ docker compose -f deploy/recette/docker-compose.yml --env-file deploy/recette/.e
 ```
 
 - **Certificat refusé** : vérifier que les ports 80/443 sont ouverts et que `DOMAIN` pointe bien
-  sur l'IP du serveur (`ping bo.<DOMAIN>`).
+  sur l'IP du serveur (`ping bo.<DOMAIN>` ; idem pour `console.<DOMAIN>`).
 - **Écran de salle « API injoignable »** : l'URL de l'API est figée à la construction de l'image
   `web` ; après un changement de `DOMAIN`, relancer avec `--build`.
 - **Tout remettre à zéro** (efface base et extraits) : `… down -v` puis `… up -d --build`.

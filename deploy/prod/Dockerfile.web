@@ -1,9 +1,10 @@
-# Construit l'espace centre (backoffice/frontend) et l'écran de salle (game/room-app) en fichiers
-# statiques. L'image finale ne sert à rien d'autre qu'à les copier dans le volume `static` :
+# Construit l'espace centre et la console éditeur (deux constructions de backoffice/frontend) et
+# l'écran de salle (game/room-app) en fichiers statiques. L'image finale ne sert à rien d'autre qu'à les copier dans le volume `static` :
 # c'est Caddy (Dockerfile.caddy) qui les sert. Contexte de build : la racine du dépôt.
 
 FROM node:22-alpine AS build
-# URL de l'API, figée dans les fichiers à la construction (changer de nom d'hôte = reconstruire).
+# URL de l'API de l'espace centre, figée dans les fichiers à la construction (changer de nom d'hôte =
+# reconstruire). La console n'en a pas besoin : elle appelle l'API sur son propre nom d'hôte, chemin /api.
 ARG API_URL
 ENV VITE_API_URL=${API_URL}
 WORKDIR /repo
@@ -12,12 +13,15 @@ WORKDIR /repo
 COPY backoffice/shared backoffice/shared
 RUN npm --prefix backoffice/shared ci && npm --prefix backoffice/shared run build
 
-# Espace centre
+# Espace centre et console éditeur : un seul `npm ci`, deux constructions (modes Vite `centre` et
+# `console`, voir backoffice/frontend/vite.config.ts). La construction du centre ne contient aucun
+# écran de la console.
 COPY backoffice/frontend/package*.json backoffice/frontend/
 RUN npm --prefix backoffice/frontend ci
 COPY backoffice/frontend backoffice/frontend
 COPY backoffice/tsconfig*.json backoffice/
-RUN npm --prefix backoffice/frontend run build-only
+RUN npm --prefix backoffice/frontend run build:centre
+RUN VITE_API_URL=/api npm --prefix backoffice/frontend run build:console
 
 # Écran de salle (moteur, matériel et audio en sources via les alias Vite)
 COPY game/room-app/package*.json game/room-app/.npmrc game/room-app/
@@ -30,6 +34,7 @@ RUN npm --prefix game/room-app run build
 
 FROM alpine:3
 COPY --from=build /repo/backoffice/frontend/dist /dist/app
+COPY --from=build /repo/backoffice/frontend/dist-console /dist/console
 COPY --from=build /repo/game/room-app/dist /dist/salle
 # Dossier de destination au bon propriétaire : le volume nommé en hérite (utilisateur non root).
 RUN mkdir -p /srv/web && chown 65532:65532 /srv/web

@@ -35,6 +35,14 @@
       @close="closeAccountPanel"
     />
 
+    <RoomLogsPanel
+      v-if="canManageRooms && logsRoom"
+      :key="`logs-${logsRoom.id}`"
+      :company-id="companyId"
+      :room="logsRoom"
+      @close="closeLogsPanel"
+    />
+
     <RoomSchedulePanel
       v-if="canManageRooms && scheduleRoom"
       :key="`schedule-${scheduleRoom.id}`"
@@ -54,6 +62,7 @@
       @deleted="handleRoomDeleted"
       @edit="handleEditRoom"
       @account="handleManageRoomAccount"
+      @logs="handleShowRoomLogs"
       @schedule="handleManageRoomSchedule"
       @error="handleTableError"
       @retry="loadRooms"
@@ -95,6 +104,7 @@ import { clearTimer, scheduleTimer } from '@/utils/timer'
 
 import RoomAccountPanel from '../../rooms/RoomAccountPanel.vue'
 import RoomForm from '../../rooms/RoomForm.vue'
+import RoomLogsPanel from '../../rooms/RoomLogsPanel.vue'
 import RoomSchedulePanel from '../../rooms/RoomSchedulePanel.vue'
 import RoomsTable from '../../rooms/RoomsTable.vue'
 import RoomsToolBar from '../../rooms/RoomsToolBar.vue'
@@ -121,6 +131,7 @@ const statusFilter = ref<RoomStatusFilter>(DEFAULT_ROOM_STATUS_FILTER)
 const formMode = ref<RoomFormMode | null>(null)
 const editedRoomId = ref<number | null>(null)
 const accountRoomId = ref<number | null>(null)
+const logsRoomId = ref<number | null>(null)
 const scheduleRoomId = ref<number | null>(null)
 const actionBanner = ref<ActionBanner | null>(null)
 const actionBannerTimer = ref<TimerHandle | null>(null)
@@ -138,6 +149,17 @@ const accountRoom = computed(() => {
   }
 
   const room = findRoomById(rooms.value, accountRoomId.value)
+
+  return room && !isRoomDeleted(room.status) ? room : null
+})
+
+// Journaux : même règle que le compte, une salle supprimée n'a plus de panneau (US-LOG-01).
+const logsRoom = computed(() => {
+  if (logsRoomId.value === null) {
+    return null
+  }
+
+  const room = findRoomById(rooms.value, logsRoomId.value)
 
   return room && !isRoomDeleted(room.status) ? room : null
 })
@@ -193,16 +215,25 @@ function closeAccountPanel(): void {
   accountRoomId.value = null
 }
 
+function closeLogsPanel(): void {
+  logsRoomId.value = null
+}
+
 function closeSchedulePanel(): void {
   scheduleRoomId.value = null
+}
+
+function closeAllPanels(): void {
+  closeForm()
+  closeAccountPanel()
+  closeLogsPanel()
+  closeSchedulePanel()
 }
 
 function resetSection(): void {
   rooms.value = []
   roomsErrorCode.value = null
-  closeForm()
-  closeAccountPanel()
-  closeSchedulePanel()
+  closeAllPanels()
   clearActionBanner()
 }
 
@@ -250,6 +281,7 @@ function handleCreateRoom(): void {
   }
 
   closeAccountPanel()
+  closeLogsPanel()
   closeSchedulePanel()
   editedRoomId.value = null
   formMode.value = 'create'
@@ -265,6 +297,7 @@ function handleEditRoom(roomId: number): void {
   }
 
   closeAccountPanel()
+  closeLogsPanel()
   closeSchedulePanel()
   editedRoomId.value = roomId
   formMode.value = 'edit'
@@ -283,8 +316,27 @@ function handleManageRoomAccount(roomId: number): void {
   }
 
   closeForm()
+  closeLogsPanel()
   closeSchedulePanel()
   accountRoomId.value = roomId
+}
+
+// Journaux : réservés à ceux qui gèrent les salles (admin, superadmin), comme `roomLog:list` côté API.
+function handleShowRoomLogs(roomId: number): void {
+  if (!props.canShowRoomsSection || !props.canManageRooms) {
+    return
+  }
+
+  const room = findRoomById(rooms.value, roomId)
+
+  if (!room || isRoomDeleted(room.status)) {
+    return
+  }
+
+  closeForm()
+  closeAccountPanel()
+  closeSchedulePanel()
+  logsRoomId.value = roomId
 }
 
 function handleManageRoomSchedule(roomId: number): void {
@@ -300,6 +352,7 @@ function handleManageRoomSchedule(roomId: number): void {
 
   closeForm()
   closeAccountPanel()
+  closeLogsPanel()
   scheduleRoomId.value = roomId
 }
 
@@ -364,6 +417,10 @@ function handleRoomDeleted(roomId: number): void {
     closeAccountPanel()
   }
 
+  if (logsRoomId.value === roomId) {
+    closeLogsPanel()
+  }
+
   if (scheduleRoomId.value === roomId) {
     closeSchedulePanel()
   }
@@ -391,6 +448,8 @@ watch(
       return
     }
 
+    // Un panneau ouvert pour une salle de l'ancienne compagnie ne survit pas au changement.
+    closeAllPanels()
     loadRooms()
   },
   { immediate: true }
@@ -400,9 +459,7 @@ watch(
   () => props.canManageRooms,
   (canManage) => {
     if (!canManage) {
-      closeForm()
-      closeAccountPanel()
-      closeSchedulePanel()
+      closeAllPanels()
     }
   }
 )

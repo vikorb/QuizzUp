@@ -165,7 +165,7 @@ services:
     command:
       - sh
       - -c
-      - mkdir -p /srv/web/app /srv/web/salle && cp -R /dist/app/. /srv/web/app/ && cp -R /dist/salle/. /srv/web/salle/
+      - mkdir -p /srv/web/app /srv/web/console /srv/web/salle && cp -R /dist/app/. /srv/web/app/ && cp -R /dist/console/. /srv/web/console/ && cp -R /dist/salle/. /srv/web/salle/
     volumes:
       - static:/srv/web
     networks: [internal]

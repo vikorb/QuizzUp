@@ -11,6 +11,17 @@ Format inspiré de Keep a Changelog.
 - Bons de fidélisation, API : émission d'un bon pour un participant d'une partie terminée, liste par partie et par compagnie, recherche et utilisation par code (le code voyage dans le corps, jamais dans l'adresse), annulation réservée aux administrateurs. Recherche publique `POST /public/v1/vouchers/lookup`, limitée à 20 requêtes par minute, qui ne révèle ni le joueur ni la partie. Réglages par compagnie : libellé du bon (vide : bons désactivés) et durée de validité (1 à 730 jours, 90 par défaut).
   US: US-VOUCHER-01 (#156)
 
+- Écran de salle : catalogue des 48 annonces vocales (identifiant, texte français et anglais) et correspondance événement de partie → annonce (`announcementForEvent`). Une annonce cite le numéro de pupitre, jamais un prénom ; aucune annonce pendant un palier de blind test. Aucun fichier son n'est livré et rien n'est encore branché : l'écran reste muet.
+  US: US-AUDIO-02 (#144)
+- Détail d'une partie : panneau de suivi en direct (présence de la salle, pause, étape, manche, question, mini-jeu, scores par pupitre avec le nom des joueurs), alimenté par le flux en direct de la compagnie. Il ne s'affiche que si la salle joue la partie affichée ; hors ligne, il garde les dernières valeurs reçues.
+  US: US-LIVE-01 (#129)
+- Deux constructions du frontend : la surface « centre » (`npm run build:centre`, dossier `dist`) ne contient aucun écran de la console éditeur ; la surface « console » (`npm run build:console`, dossier `dist-console`) les ajoute. `npm run check:surface` construit les deux et échoue si un écran de la console se retrouve dans la surface centre ; la CI le lance. En production et en recette, la console est servie sur son propre hôte, réservé aux adresses de `CONSOLE_ALLOWED_CIDRS`. `npm run dev` et la démo Docker gardent tous les écrans.
+  US: US-CONSOLE-01 (#161)
+
+- Journaux d'erreurs d'une salle consultables depuis le tableau des salles d'un client : panneau en ligne avec filtre par niveau, actualisation et « charger plus », réservé aux administrateurs.
+  US: US-LOG-01 (#157)
+- Statistiques d'exploitation d'une compagnie : route `GET /companies/:companyId/stats` et écran « Statistiques » (séances terminées et arrêtées, taux d'abandon, durée médiane, répartition par salle, joueurs, créneaux les plus chargés), réservés aux administrateurs. Aucune donnée individuelle ne sort.
+  US: US-STATS-01 (#157)
 - Connexion du superadmin en deux temps : code de l'application d'authentification ou code de secours, enrôlement avec secret à recopier (sans QR code), codes de secours affichés une seule fois, réinitialisation depuis le profil. Les autres rôles se connectent comme avant.
   US: US-CONSOLE-03 (#161)
 
