@@ -74,6 +74,75 @@
       />
     </section>
 
+    <section class="game-form__section" data-test="game-schedule-section">
+      <h3 class="game-form__section-title">{{ $t('games.form.sections.schedule') }}</h3>
+
+      <label v-if="!game" class="game-form__check" for="game-scheduled">
+        <input
+          id="game-scheduled"
+          type="checkbox"
+          data-test="game-scheduled"
+          :checked="form.scheduled"
+          :disabled="isBusy"
+          @change="onScheduledChange"
+        />
+        <span>{{ $t('games.form.scheduled') }}</span>
+      </label>
+
+      <template v-if="form.scheduled">
+        <p class="game-form__notice" data-test="game-schedule-timezone">
+          {{ $t('games.form.scheduleTimezone', { zone: timeZone }) }}
+        </p>
+
+        <div class="game-form__grid game-form__grid--schedule">
+          <FormField
+            id="game-date"
+            v-model="form.scheduledDate"
+            type="date"
+            name="scheduledDate"
+            :label="$t('games.form.date')"
+            :disabled="isBusy"
+            :error="errorLabel(fieldErrors.scheduledAt)"
+            required
+          />
+
+          <FormField
+            id="game-time"
+            v-model="form.scheduledTime"
+            type="time"
+            name="scheduledTime"
+            :label="$t('games.form.time')"
+            :disabled="isBusy"
+            required
+          />
+
+          <FormField
+            id="game-duration"
+            v-model="form.durationMinutes"
+            name="durationMinutes"
+            inputmode="numeric"
+            autocomplete="off"
+            :label="$t('games.form.durationMinutes')"
+            :hint="durationHint"
+            :disabled="isBusy"
+            :error="errorLabel(fieldErrors.durationMinutes, durationBounds)"
+          />
+
+          <FormField
+            id="game-players-count"
+            v-model="form.playersCount"
+            name="playersCount"
+            inputmode="numeric"
+            autocomplete="off"
+            :label="$t('games.form.playersCount')"
+            :hint="$t('games.form.playersCountHint', { max: GAME_MAX_PLAYERS })"
+            :disabled="isBusy"
+            :error="errorLabel(fieldErrors.playersCount, { max: GAME_MAX_PLAYERS })"
+          />
+        </div>
+      </template>
+    </section>
+
     <section class="game-form__section">
       <GameMiniGamesField
         :model-value="form.miniGames"
@@ -88,7 +157,22 @@
         <div>
           <h3 class="game-form__section-title">{{ $t('games.form.sections.participants') }}</h3>
           <p class="game-form__notice">
-            {{ $t('games.form.participantsHint', { max: desksCount }) }}
+            {{
+              $t(
+                form.scheduled
+                  ? 'games.form.participantsHintScheduled'
+                  : 'games.form.participantsHint',
+                { max: desksCount }
+              )
+            }}
+          </p>
+          <p
+            v-if="participantsLocked"
+            class="game-form__notice game-form__notice--warn"
+            role="status"
+            data-test="game-participants-locked"
+          >
+            {{ $t('games.form.participantsLocked') }}
           </p>
         </div>
 
@@ -96,7 +180,7 @@
           variant="default"
           type="button"
           data-test="game-add-participant"
-          :disabled="isBusy || !canAddParticipant"
+          :disabled="isBusy || participantsLocked || !canAddParticipant"
           @click="addParticipant"
         >
           <span class="game-form__button-content">
@@ -115,7 +199,7 @@
           :errors="getParticipantErrors(index)"
           :podium-options="getPodiumOptions(index)"
           :can-remove="canRemoveParticipant"
-          :disabled="isBusy"
+          :disabled="isBusy || participantsLocked"
           @update="
             (field: GameParticipantField, value: string | boolean) =>
               updateParticipant(index, field, value)
@@ -131,8 +215,8 @@
 
     <FormActions
       :cancel-label="$t('games.form.cancel')"
-      :submit-label="$t('games.form.submit')"
-      :submitting-label="$t('games.form.submitting')"
+      :submit-label="$t(submitLabels.submit)"
+      :submitting-label="$t(submitLabels.submitting)"
       :loading="saving"
       :disabled="isBusy || hasNoActiveRoom"
       @cancel="emit('cancel')"
@@ -143,7 +227,14 @@
 <script setup lang="ts">
 import { mdiAccountPlusOutline } from '@mdi/js'
 import type { MiniGame, RoomLive } from '@quizzup/shared'
-import { GAME_MAX_QUESTIONS_PER_ROUND, GAME_MAX_ROUNDS } from '@quizzup/shared'
+import {
+  GAME_MAX_PLAYERS,
+  GAME_MAX_QUESTIONS_PER_ROUND,
+  GAME_MAX_ROUNDS,
+  SESSION_DEFAULT_MINUTES,
+  SESSION_MAX_MINUTES,
+  SESSION_MIN_MINUTES,
+} from '@quizzup/shared'
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -154,7 +245,7 @@ import SelectField from '@/components/ui/form/SelectField.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import RoomPresenceBadge from '@/components/ui/RoomPresenceBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
-import { createGameService } from '@/services/gamesService'
+import { createGameService, updateGameService } from '@/services/gamesService'
 import type { SelectFieldOption } from '@/types/form'
 import type {
   Game,
@@ -167,21 +258,28 @@ import type {
 } from '@/types/game'
 import { getGameErrorKey } from '@/utils/game/errors'
 import {
+  applyGamePrefill,
   buildCreateGamePayload,
+  buildUpdateGamePayload,
   canAddGameParticipant,
   canRemoveGameParticipant,
   closeGameSecondPlayer,
   createDefaultGameFormValues,
   createGameFieldErrors,
+  createGameFormValuesFromGame,
   createGameParticipantFieldErrors,
   createGameParticipantFormValues,
   fitGameParticipantsToDesks,
+  type GamePrefill,
   getActiveGameRooms,
   getGamePodiums,
   getGameRoomDesksCount,
+  getGameRoomTimeZone,
   getNextFreePodium,
   hasGameFormErrors,
+  hasMaskedParticipantEmails,
   openGameSecondPlayer,
+  setGameScheduled,
   validateGameForm,
 } from '@/utils/game/form'
 import { getRoomPresenceKind, getRoomPresenceLabelKey } from '@/utils/room/presence'
@@ -192,11 +290,17 @@ import GameParticipantFields from './GameParticipantFields.vue'
 
 /** Erreurs de l'API qui concernent le choix de la salle. */
 const ROOM_ERROR_CODES = ['room_busy', 'room_inactive', 'room_not_found']
+/** Erreurs de l'API qui concernent le jour et l'heure : elles s'affichent près du champ date. */
+const SCHEDULE_ERROR_CODES = ['slot_taken', 'session_in_past', 'session_too_far']
 
 const props = withDefaults(
   defineProps<{
     companyId: number
     rooms: GameRoom[]
+    /** Session programmée à modifier : le formulaire en part et appelle la modification. */
+    game?: Game | null
+    /** Salle et heure lues dans l'adresse (lien d'un créneau de l'agenda), pour une création. */
+    prefill?: GamePrefill
     roomsLoading?: boolean
     /** Présence des salles reçue du flux en direct ; absente, aucune présence n'est affichée. */
     liveRooms?: Record<number, RoomLive>
@@ -204,6 +308,8 @@ const props = withDefaults(
     now?: number
   }>(),
   {
+    game: null,
+    prefill: undefined,
     roomsLoading: false,
     liveRooms: undefined,
     liveUncertain: true,
@@ -213,13 +319,23 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (event: 'created', game: Game): void
+  (event: 'saved', game: Game): void
   (event: 'cancel'): void
 }>()
 
 const { t } = useI18n()
 
-const form = reactive<GameFormValues>(createDefaultGameFormValues())
-const fieldErrors = reactive<GameFieldErrors>(createGameFieldErrors())
+const form = reactive<GameFormValues>(
+  props.game
+    ? createGameFormValuesFromGame(
+        props.game,
+        getGameRoomTimeZone(props.rooms, String(props.game.roomId))
+      )
+    : createDefaultGameFormValues()
+)
+const fieldErrors = reactive<GameFieldErrors>(createGameFieldErrors(form.participants.length))
+// Un préremplissage ne vaut qu'une fois : il attend que les salles soient là, puis cède la main.
+let prefillPending = !props.game && props.prefill !== undefined
 const saving = ref(false)
 const formError = ref<string | null>(null)
 /** Avertissement après un changement de salle qui a déplacé ou retiré des participants. */
@@ -231,7 +347,33 @@ const hasNoActiveRoom = computed(() => !props.roomsLoading && activeRooms.value.
 // Pupitres de la salle choisie : seuls ceux-là sont proposés (4 tant qu'aucune salle n'est choisie).
 const desksCount = computed(() => getGameRoomDesksCount(props.rooms, form.roomId))
 const canAddParticipant = computed(() => canAddGameParticipant(form.participants, desksCount.value))
-const canRemoveParticipant = computed(() => canRemoveGameParticipant(form.participants))
+// Emails masqués (rôle `user`) : renvoyer les participants les effacerait, on ne les modifie pas ici.
+const participantsLocked = computed(() =>
+  props.game ? hasMaskedParticipantEmails(props.game) : false
+)
+const canRemoveParticipant = computed(
+  () => !participantsLocked.value && canRemoveGameParticipant(form.participants, form.scheduled)
+)
+// Jour et heure se lisent dans le fuseau de la salle choisie, comme l'agenda.
+const timeZone = computed(() => getGameRoomTimeZone(props.rooms, form.roomId))
+const durationBounds = { min: SESSION_MIN_MINUTES, max: SESSION_MAX_MINUTES }
+const durationHint = computed(() =>
+  t('games.form.durationHint', {
+    ...durationBounds,
+    default:
+      props.rooms.find((room) => String(room.id) === form.roomId)?.schedule?.slotMinutes ??
+      SESSION_DEFAULT_MINUTES,
+  })
+)
+const submitLabels = computed(() => {
+  if (props.game) {
+    return { submit: 'games.form.save', submitting: 'games.form.saving' }
+  }
+
+  return form.scheduled
+    ? { submit: 'games.form.submitScheduled', submitting: 'games.form.submittingScheduled' }
+    : { submit: 'games.form.submit', submitting: 'games.form.submitting' }
+})
 
 function getRoomPresence(roomId: number): { room: RoomLive | null } | null {
   return props.liveRooms ? { room: props.liveRooms[roomId] ?? null } : null
@@ -258,7 +400,12 @@ const roomOptions = computed<SelectFieldOption[]>(() =>
   }))
 )
 
-// Une seule salle active : on la présélectionne pour gagner un clic à l'opérateur.
+function syncParticipantErrors(): void {
+  fieldErrors.participants = form.participants.map(() => createGameParticipantFieldErrors())
+}
+
+// Une seule salle active : on la présélectionne pour gagner un clic à l'opérateur. Le lien d'un
+// créneau de l'agenda passe après : sa salle l'emporte, et son heure se lit dans le fuseau de cette salle.
 watch(
   activeRooms,
   (rooms) => {
@@ -267,9 +414,22 @@ watch(
     if (!form.roomId && rooms.length === 1 && onlyRoom) {
       form.roomId = String(onlyRoom.id)
     }
+
+    if (prefillPending && rooms.length > 0 && props.prefill) {
+      prefillPending = false
+      applyGamePrefill(form, props.rooms, props.prefill)
+      syncParticipantErrors()
+    }
   },
   { immediate: true }
 )
+
+function onScheduledChange(event: Event): void {
+  if (event.target instanceof HTMLInputElement) {
+    setGameScheduled(form, event.target.checked)
+    syncParticipantErrors()
+  }
+}
 
 function describeParticipant(participant: GameParticipantFormValues, index: number): string {
   const name =
@@ -447,6 +607,11 @@ function applyApiError(code: string): void {
     return
   }
 
+  if (SCHEDULE_ERROR_CODES.includes(code)) {
+    fieldErrors.scheduledAt = getGameErrorKey(code)
+    return
+  }
+
   formError.value = t(getGameErrorKey(code))
 }
 
@@ -457,7 +622,7 @@ async function onSubmit(): Promise<void> {
 
   resetErrors()
 
-  const errors = validateGameForm(form, desksCount.value)
+  const errors = validateGameForm(form, desksCount.value, timeZone.value)
 
   if (hasGameFormErrors(errors)) {
     Object.assign(fieldErrors, errors)
@@ -467,14 +632,27 @@ async function onSubmit(): Promise<void> {
   saving.value = true
 
   try {
-    const result = await createGameService(props.companyId, buildCreateGamePayload(form))
+    const { game } = props
+    const result = game
+      ? await updateGameService(
+          props.companyId,
+          game.id,
+          buildUpdateGamePayload(form, timeZone.value, game, {
+            includeParticipants: !participantsLocked.value,
+          })
+        )
+      : await createGameService(props.companyId, buildCreateGamePayload(form, timeZone.value))
 
     if (!result.ok) {
       applyApiError(result.error)
       return
     }
 
-    emit('created', result.data.game)
+    if (game) {
+      emit('saved', result.data.game)
+    } else {
+      emit('created', result.data.game)
+    }
   } catch {
     applyApiError('server_error')
   } finally {
@@ -534,6 +712,30 @@ async function onSubmit(): Promise<void> {
   align-items: start;
 }
 
+.game-form__grid--schedule {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: start;
+}
+
+.game-form__check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  color: var(--text-1);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.game-form__check input {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
 .game-form__participants {
   display: grid;
   gap: 12px;
@@ -549,6 +751,10 @@ async function onSubmit(): Promise<void> {
 @media (max-width: 820px) {
   .game-form__grid--room {
     grid-template-columns: 1fr;
+  }
+
+  .game-form__grid--schedule {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>

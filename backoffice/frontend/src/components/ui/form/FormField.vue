@@ -53,7 +53,7 @@ const props = withDefaults(
     name?: string
     id?: string
     placeholder?: string
-    type?: 'text' | 'email' | 'password' | 'date'
+    type?: 'text' | 'email' | 'password' | 'date' | 'time'
     autocomplete?: string
     inputmode?: 'text' | 'email' | 'numeric' | 'search' | 'tel' | 'url' | 'none'
     autocapitalize?: 'none' | 'off' | 'on' | 'sentences' | 'words' | 'characters'

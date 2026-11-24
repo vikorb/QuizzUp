@@ -180,6 +180,12 @@ export const router = createRouter({
           meta: { requiresAuth: true },
         },
         {
+          path: 'games/:gameId/edit',
+          name: 'games-edit',
+          component: CreateGameView,
+          meta: { requiresAuth: true },
+        },
+        {
           path: 'games/:gameId',
           name: 'games-detail',
           component: GameDetailView,

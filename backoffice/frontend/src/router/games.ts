@@ -37,6 +37,19 @@ export function getCreateGameRoute(
   return { name: 'games-create', query }
 }
 
+export function getEditGameRoute(
+  gameId: number | string,
+  options: GameCompanyQuery = {}
+): RouteLocationRaw {
+  return {
+    name: 'games-edit',
+    params: {
+      gameId: String(gameId),
+    },
+    query: buildCompanyQuery(options),
+  }
+}
+
 export function getAgendaRoute(options: GameCompanyQuery = {}): RouteLocationRaw {
   return { name: 'agenda', query: buildCompanyQuery(options) }
 }

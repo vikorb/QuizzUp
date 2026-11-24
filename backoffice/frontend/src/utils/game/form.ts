@@ -2,29 +2,48 @@ import type { MiniGame } from '@quizzup/shared'
 import {
   GAME_DEFAULT_QUESTIONS_PER_ROUND,
   GAME_DEFAULT_ROUNDS,
+  GAME_MAX_PLAYERS,
   GAME_MAX_QUESTIONS_PER_ROUND,
   GAME_MAX_ROUNDS,
   GAME_PARTICIPANT_DISPLAY_NAME_MAX_LENGTH,
   GAME_PODIUMS,
   MINI_GAMES,
   ROOM_DEFAULT_DESKS,
+  ROOM_DEFAULT_TIMEZONE,
   ROOM_STATUS_ACTIVE,
+  SESSION_MAX_MINUTES,
+  SESSION_MIN_MINUTES,
+  zonedLocalToUtc,
 } from '@quizzup/shared'
 
 import type {
   CreateGameParticipantPayload,
   CreateGamePayload,
   CreateGameSecondPlayerPayload,
+  Game,
   GameFieldErrors,
   GameFormValues,
+  GameParticipant,
   GameParticipantFieldErrors,
   GameParticipantFormValues,
   GameRoom,
+  UpdateGamePayload,
 } from '@/types/game'
+import {
+  formatAgendaTime,
+  getLocalDate,
+  getRoomTimezone,
+  isCalendarDate,
+} from '@/utils/game/agenda'
+import { parseGameId } from '@/utils/game/company'
 import { isBlank } from '@/utils/validation'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const EMAIL_MAX_LENGTH = 255
+const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
+// Un instant ISO 8601 complet, avec `Z` ou un décalage : ce que porte le lien d'un créneau de l'agenda.
+const ISO_INSTANT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/
+const MINUTE_MS = 60_000
 
 let participantKeySequence = 0
 
@@ -133,6 +152,11 @@ export function createDefaultGameFormValues(): GameFormValues {
     // Tous les mini-jeux cochés par défaut : l'opérateur retire ce qu'il ne veut pas.
     miniGames: [...MINI_GAMES],
     participants: [createGameParticipantFormValues(1)],
+    scheduled: false,
+    scheduledDate: '',
+    scheduledTime: '',
+    durationMinutes: '',
+    playersCount: '',
   }
 }
 
@@ -154,6 +178,9 @@ export function createGameFieldErrors(participantsCount = 0): GameFieldErrors {
     roundsCount: '',
     questionsPerRound: '',
     miniGames: '',
+    scheduledAt: '',
+    durationMinutes: '',
+    playersCount: '',
     participants: Array.from({ length: participantsCount }, createGameParticipantFieldErrors),
   }
 }
@@ -178,8 +205,12 @@ export function canAddGameParticipant(
   )
 }
 
-export function canRemoveGameParticipant(participants: GameParticipantFormValues[]): boolean {
-  return participants.length > 1
+/** Une partie immédiate a au moins un participant ; une session programmée peut n'en avoir aucun. */
+export function canRemoveGameParticipant(
+  participants: GameParticipantFormValues[],
+  scheduled = false
+): boolean {
+  return participants.length > (scheduled ? 0 : 1)
 }
 
 /** Seules les salles actives peuvent accueillir une partie. */
@@ -187,7 +218,7 @@ export function getActiveGameRooms(rooms: GameRoom[]): GameRoom[] {
   return rooms.filter((room) => room.status === ROOM_STATUS_ACTIVE)
 }
 
-function parseIntegerInRange(value: string, max: number): number | null {
+function parseIntegerInRange(value: string, max: number, min = 1): number | null {
   const trimmed = value.trim()
 
   if (!/^\d+$/.test(trimmed)) {
@@ -196,7 +227,7 @@ function parseIntegerInRange(value: string, max: number): number | null {
 
   const parsed = Number(trimmed)
 
-  return parsed >= 1 && parsed <= max ? parsed : null
+  return parsed >= min && parsed <= max ? parsed : null
 }
 
 /** Règle RGPD : un email saisi exige une case de consentement cochée explicitement. */
@@ -290,13 +321,45 @@ function getDuplicatedPodiums(participants: GameParticipantFormValues[]): Set<st
   return duplicated
 }
 
+/** Date, heure, durée et effectif d'une session programmée. */
+function validateSchedule(
+  form: GameFormValues,
+  timeZone: string
+): Pick<GameFieldErrors, 'scheduledAt' | 'durationMinutes' | 'playersCount'> {
+  const errors = { scheduledAt: '', durationMinutes: '', playersCount: '' }
+
+  if (isBlank(form.scheduledDate) || isBlank(form.scheduledTime)) {
+    errors.scheduledAt = 'games.form.errors.scheduledAtRequired'
+  } else if (getScheduledInstant(form, timeZone) === null) {
+    errors.scheduledAt = 'games.form.errors.scheduledAtInvalid'
+  }
+
+  if (
+    !isBlank(form.durationMinutes) &&
+    parseIntegerInRange(form.durationMinutes, SESSION_MAX_MINUTES, SESSION_MIN_MINUTES) === null
+  ) {
+    errors.durationMinutes = 'games.form.errors.durationInvalid'
+  }
+
+  if (
+    !isBlank(form.playersCount) &&
+    parseIntegerInRange(form.playersCount, GAME_MAX_PLAYERS) === null
+  ) {
+    errors.playersCount = 'games.form.errors.playersCountInvalid'
+  }
+
+  return errors
+}
+
 /**
  * Valide la saisie ; chaque erreur est une clé i18n (vide = pas d'erreur). `desksCount` : pupitres
- * de la salle choisie (tous les pupitres possibles par défaut).
+ * de la salle choisie (tous les pupitres possibles par défaut). `timeZone` : celui de la salle, dans
+ * lequel se lisent le jour et l'heure d'une session programmée.
  */
 export function validateGameForm(
   form: GameFormValues,
-  desksCount: number = GAME_PODIUMS
+  desksCount: number = GAME_PODIUMS,
+  timeZone: string = ROOM_DEFAULT_TIMEZONE
 ): GameFieldErrors {
   const errors = createGameFieldErrors()
 
@@ -316,6 +379,10 @@ export function validateGameForm(
     errors.miniGames = 'games.form.errors.miniGamesRequired'
   }
 
+  if (form.scheduled) {
+    Object.assign(errors, validateSchedule(form, timeZone))
+  }
+
   const duplicatedPodiums = getDuplicatedPodiums(form.participants)
 
   errors.participants = form.participants.map((participant) =>
@@ -327,8 +394,15 @@ export function validateGameForm(
 
 export function hasGameFormErrors(errors: GameFieldErrors): boolean {
   return (
-    Boolean(errors.roomId || errors.roundsCount || errors.questionsPerRound || errors.miniGames) ||
-    errors.participants.some((participant) => Object.values(participant).some(Boolean))
+    Boolean(
+      errors.roomId ||
+      errors.roundsCount ||
+      errors.questionsPerRound ||
+      errors.miniGames ||
+      errors.scheduledAt ||
+      errors.durationMinutes ||
+      errors.playersCount
+    ) || errors.participants.some((participant) => Object.values(participant).some(Boolean))
   )
 }
 
@@ -388,7 +462,10 @@ export function getSelectedMiniGames(selected: MiniGame[]): MiniGame[] | undefin
 }
 
 /** Corps de POST /companies/:companyId/games, à n'appeler qu'après validation. */
-export function buildCreateGamePayload(form: GameFormValues): CreateGamePayload {
+export function buildCreateGamePayload(
+  form: GameFormValues,
+  timeZone: string = ROOM_DEFAULT_TIMEZONE
+): CreateGamePayload {
   const payload: CreateGamePayload = {
     roomId: Number(form.roomId),
     roundsCount: Number(form.roundsCount.trim()),
@@ -403,5 +480,240 @@ export function buildCreateGamePayload(form: GameFormValues): CreateGamePayload 
     payload.miniGames = miniGames
   }
 
+  const startsAt = form.scheduled ? getScheduledInstant(form, timeZone) : null
+
+  if (startsAt) {
+    payload.scheduledAt = startsAt.toISOString()
+
+    if (!isBlank(form.durationMinutes)) {
+      payload.durationMinutes = Number(form.durationMinutes.trim())
+    }
+
+    if (!isBlank(form.playersCount)) {
+      payload.playersCount = Number(form.playersCount.trim())
+    }
+  }
+
   return payload
+}
+
+/**
+ * Corps de PATCH d'une session programmée, à n'appeler qu'après validation. Début, durée et format ne
+ * sont envoyés que s'ils ont changé : le serveur les contrôle (créneau passé, format personnalisé).
+ * `participants` absent = gardés tels quels.
+ */
+export function buildUpdateGamePayload(
+  form: GameFormValues,
+  timeZone: string,
+  original: Game,
+  options: { includeParticipants: boolean }
+): UpdateGamePayload {
+  const roundsCount = Number(form.roundsCount.trim())
+  const questionsPerRound = Number(form.questionsPerRound.trim())
+  const startsAt = getScheduledInstant(form, timeZone)
+  const payload: UpdateGamePayload = {
+    roomId: Number(form.roomId),
+    // Une liste complète de mini-jeux s'écrit `null` en modification (« absent » = inchangé).
+    miniGames: getSelectedMiniGames(form.miniGames) ?? null,
+    playersCount: isBlank(form.playersCount) ? null : Number(form.playersCount.trim()),
+  }
+
+  if (roundsCount !== original.roundsCount) {
+    payload.roundsCount = roundsCount
+  }
+
+  if (questionsPerRound !== original.questionsPerRound) {
+    payload.questionsPerRound = questionsPerRound
+  }
+
+  if (startsAt && startsAt.getTime() !== Date.parse(original.scheduledAt ?? '')) {
+    payload.scheduledAt = startsAt.toISOString()
+  }
+
+  if (!isBlank(form.durationMinutes)) {
+    const durationMinutes = Number(form.durationMinutes.trim())
+
+    if (durationMinutes !== getGameDurationMinutes(original)) {
+      payload.durationMinutes = durationMinutes
+    }
+  }
+
+  if (options.includeParticipants) {
+    payload.participants = [...form.participants]
+      .map(buildParticipantPayload)
+      .sort((left, right) => left.podium - right.podium)
+  }
+
+  return payload
+}
+
+/** Instant du jour et de l'heure saisis, lus dans le fuseau de la salle ; `null` s'ils n'existent pas. */
+export function getScheduledInstant(form: GameFormValues, timeZone: string): Date | null {
+  const date = form.scheduledDate.trim()
+  const time = form.scheduledTime.trim()
+
+  if (!isCalendarDate(date) || !TIME_PATTERN.test(time)) {
+    return null
+  }
+
+  try {
+    return zonedLocalToUtc(`${date}T${time}`, timeZone)
+  } catch {
+    // Un jour que le calendrier refuse (30 février) : `zonedLocalToUtc` lève.
+    return null
+  }
+}
+
+/** Fuseau de la salle choisie ; le fuseau par défaut sans salle choisie ou sans créneaux réglés. */
+export function getGameRoomTimeZone(rooms: GameRoom[], roomId: string): string {
+  return getRoomTimezone(rooms.find((room) => String(room.id) === roomId)?.schedule)
+}
+
+function getGameDurationMinutes(game: Game): number | null {
+  return game.scheduledAt && game.scheduledEndAt
+    ? Math.round((Date.parse(game.scheduledEndAt) - Date.parse(game.scheduledAt)) / MINUTE_MS)
+    : null
+}
+
+function setScheduledInstant(form: GameFormValues, instantMs: number, timeZone: string): void {
+  Object.assign(form, {
+    scheduledDate: getLocalDate(instantMs, timeZone),
+    scheduledTime: formatAgendaTime(instantMs, timeZone, 'en'),
+  })
+}
+
+function isParticipantBlank(participant: GameParticipantFormValues): boolean {
+  return (
+    isBlank(participant.displayName) && isBlank(participant.email) && !participant.hasSecondPlayer
+  )
+}
+
+/**
+ * Bascule « Programmer pour plus tard ». Programmée, la session peut n'avoir aucun participant : la
+ * ligne vierge du départ disparaît. Redevenue immédiate, elle en exige un : on en remet une.
+ */
+export function setGameScheduled(form: GameFormValues, scheduled: boolean): void {
+  Object.assign(form, { scheduled })
+
+  if (scheduled) {
+    Object.assign(form, {
+      participants: form.participants.filter((participant) => !isParticipantBlank(participant)),
+    })
+  } else if (form.participants.length === 0) {
+    form.participants.push(createGameParticipantFormValues(1))
+  }
+}
+
+/** Ce que l'adresse (`?roomId=&scheduledAt=`) préremplit ; toute autre valeur est ignorée. */
+export type GamePrefill = { roomId?: number; scheduledAt?: string }
+
+function readQueryString(value: unknown): string | undefined {
+  const raw = Array.isArray(value) ? value[0] : value
+
+  return typeof raw === 'string' ? raw : undefined
+}
+
+export function parseGamePrefill(query: Record<string, unknown>): GamePrefill {
+  const prefill: GamePrefill = {}
+  const roomId = parseGameId(query.roomId)
+  const scheduledAt = readQueryString(query.scheduledAt)
+
+  if (roomId !== null) {
+    prefill.roomId = roomId
+  }
+
+  if (
+    scheduledAt !== undefined &&
+    ISO_INSTANT_PATTERN.test(scheduledAt) &&
+    !Number.isNaN(Date.parse(scheduledAt))
+  ) {
+    prefill.scheduledAt = scheduledAt
+  }
+
+  return prefill
+}
+
+/**
+ * Applique le préremplissage une fois les salles connues. Une salle absente ou inactive est ignorée ;
+ * sans salle choisie, l'heure n'a pas de fuseau : elle est ignorée aussi.
+ */
+export function applyGamePrefill(
+  form: GameFormValues,
+  rooms: GameRoom[],
+  prefill: GamePrefill
+): void {
+  const room = getActiveGameRooms(rooms).find((item) => item.id === prefill.roomId)
+
+  if (room) {
+    Object.assign(form, { roomId: String(room.id) })
+  }
+
+  if (prefill.scheduledAt && form.roomId) {
+    setGameScheduled(form, true)
+    setScheduledInstant(
+      form,
+      Date.parse(prefill.scheduledAt),
+      getGameRoomTimeZone(rooms, form.roomId)
+    )
+  }
+}
+
+function createParticipantValuesFromGame(participant: GameParticipant): GameParticipantFormValues {
+  const values = createGameParticipantFormValues(participant.podium)
+  const { secondPlayer } = participant
+
+  Object.assign(values, {
+    displayName: participant.displayName,
+    email: participant.email ?? '',
+    // Le consentement est celui déjà donné ; sans email, il n'y a rien à consentir.
+    emailConsent: Boolean(participant.email) && participant.consentAt !== null,
+    marketingConsent: Boolean(participant.email) && participant.marketingConsent,
+  })
+
+  if (secondPlayer) {
+    Object.assign(values, {
+      hasSecondPlayer: true,
+      secondDisplayName: secondPlayer.displayName,
+      secondEmail: secondPlayer.email ?? '',
+      secondEmailConsent: Boolean(secondPlayer.email) && secondPlayer.consentAt !== null,
+      secondMarketingConsent: Boolean(secondPlayer.email) && secondPlayer.marketingConsent,
+    })
+  }
+
+  return values
+}
+
+/**
+ * Un email masqué (rôle `user`) ne peut pas être renvoyé : remplacer les participants l'effacerait.
+ * Dans ce cas ils ne se modifient pas depuis ce formulaire.
+ */
+export function hasMaskedParticipantEmails(game: Game): boolean {
+  return (game.participants ?? []).some(
+    (participant) =>
+      (participant.hasEmail && participant.email === null) ||
+      (participant.secondPlayer?.hasEmail === true && participant.secondPlayer.email === null)
+  )
+}
+
+/** Saisie d'une session programmée existante, pour la modifier ; `timeZone` est celui de sa salle. */
+export function createGameFormValuesFromGame(game: Game, timeZone: string): GameFormValues {
+  const values: GameFormValues = {
+    ...createDefaultGameFormValues(),
+    roomId: String(game.roomId),
+    roundsCount: String(game.roundsCount),
+    questionsPerRound: String(game.questionsPerRound),
+    miniGames: game.miniGames?.length ? [...game.miniGames] : [...MINI_GAMES],
+    participants: [...(game.participants ?? [])]
+      .sort((left, right) => left.podium - right.podium)
+      .map(createParticipantValuesFromGame),
+    scheduled: true,
+    durationMinutes: String(getGameDurationMinutes(game) ?? ''),
+    playersCount: game.playersCount ? String(game.playersCount) : '',
+  }
+
+  if (game.scheduledAt) {
+    setScheduledInstant(values, Date.parse(game.scheduledAt), timeZone)
+  }
+
+  return values
 }

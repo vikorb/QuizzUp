@@ -186,6 +186,11 @@ export function canCancelScheduledGame(game: Game): boolean {
   return game.state === GAME_STATE_SCHEDULED
 }
 
+/** Seule une session encore programmée se modifie, même passée (« non lancée »). */
+export function canEditScheduledGame(game: Game): boolean {
+  return game.state === GAME_STATE_SCHEDULED
+}
+
 /** Heure d'un instant dans le fuseau de la salle, sur 24 h (`14:00`), quelle que soit la langue. */
 export function formatAgendaTime(value: string | number, timeZone: string, locale: string): string {
   return new Intl.DateTimeFormat(locale, {

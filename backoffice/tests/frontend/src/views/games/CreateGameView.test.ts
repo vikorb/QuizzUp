@@ -5,7 +5,9 @@ import {
 import {
   createGameFixture,
   createGameServiceMock,
+  createScheduledGameFixture,
   listGameRoomsServiceMock,
+  loadGameServiceMock,
   mockServiceFailure,
   resetGamesServiceMock,
   roomsFixture,
@@ -42,8 +44,10 @@ const createGameFormStub = defineComponent({
     companyId: { type: Number, required: true },
     rooms: { type: Array, default: () => [] },
     roomsLoading: Boolean,
+    game: { type: Object, default: null },
+    prefill: { type: Object, default: undefined },
   },
-  emits: ['created', 'cancel'],
+  emits: ['created', 'saved', 'cancel'],
   setup(props, { emit }) {
     return () =>
       h(
@@ -52,8 +56,15 @@ const createGameFormStub = defineComponent({
           'data-test': 'create-game-form-stub',
           'data-company-id': String(props.companyId),
           'data-rooms': String(props.rooms.length),
+          'data-game-id': String((props.game as { id?: number } | null)?.id ?? ''),
+          'data-prefill': JSON.stringify(props.prefill ?? null),
         },
         [
+          h('button', {
+            type: 'button',
+            'data-test': 'stub-saved',
+            onClick: () => emit('saved'),
+          }),
           h('button', {
             type: 'button',
             'data-test': 'stub-created',
@@ -178,5 +189,187 @@ describe('views/games/CreateGameView.vue', () => {
     const wrapper = await mountView()
 
     expect(wrapper.get('[data-test="base-card"]').attributes('data-error')).toBe('forbidden')
+  })
+
+  it('does not load a game on the creation route', async () => {
+    setAuthenticatedUser()
+
+    const wrapper = await mountView()
+
+    expect(loadGameServiceMock).not.toHaveBeenCalled()
+    expect(wrapper.get('[data-test="base-card"]').attributes('data-title')).toBe(
+      'games.create.cardTitle'
+    )
+  })
+
+  describe('programmation', () => {
+    it('hands the prefill of the address to the form', async () => {
+      setAuthenticatedUser()
+      currentRouteMock.query = { roomId: '10', scheduledAt: '2026-12-05T13:00:00.000Z' }
+
+      const wrapper = await mountView()
+      const form = wrapper.get('[data-test="create-game-form-stub"]')
+
+      expect(JSON.parse(form.attributes('data-prefill') ?? 'null')).toEqual({
+        roomId: 10,
+        scheduledAt: '2026-12-05T13:00:00.000Z',
+      })
+    })
+
+    it('shows no error for an invalid address value', async () => {
+      setAuthenticatedUser()
+      currentRouteMock.query = { roomId: 'abc', scheduledAt: 'demain' }
+
+      const wrapper = await mountView()
+
+      expect(wrapper.get('[data-test="base-card"]').attributes('data-error')).toBe('')
+      expect(wrapper.find('[data-test="create-game-form-stub"]').exists()).toBe(true)
+    })
+
+    it('returns to the agenda after a scheduled creation', async () => {
+      setAuthenticatedUser()
+
+      const wrapper = await mountView()
+      const form = wrapper.getComponent({ name: 'CreateGameForm' })
+
+      form.vm.$emit('created', createScheduledGameFixture('2026-12-05T13:00:00.000Z', { id: 7 }))
+
+      expect(pushMock).toHaveBeenCalledWith({ name: 'agenda', query: {} })
+    })
+
+    it('cancels back to the agenda when the form was opened from a slot', async () => {
+      setAuthenticatedUser()
+      currentRouteMock.query = { roomId: '10', scheduledAt: '2026-12-05T13:00:00.000Z' }
+
+      const wrapper = await mountView()
+
+      await wrapper.get('[data-test="stub-cancel"]').trigger('click')
+
+      expect(pushMock).toHaveBeenCalledWith({ name: 'agenda', query: {} })
+    })
+  })
+
+  describe('modification', () => {
+    const scheduled = createScheduledGameFixture('2026-12-05T13:00:00.000Z', { id: 5 })
+    const scheduledResult = { ok: true as const, status: 200, data: { game: scheduled } }
+
+    beforeEach(() => {
+      currentRouteMock.params = { gameId: '5' }
+    })
+
+    it('loads the session and the rooms, then gives the session to the form', async () => {
+      setAuthenticatedUser({ companyId: 1 })
+      loadGameServiceMock.mockResolvedValueOnce(scheduledResult)
+
+      const wrapper = await mountView()
+      const form = wrapper.get('[data-test="create-game-form-stub"]')
+
+      expect(loadGameServiceMock).toHaveBeenCalledWith(1, 5)
+      expect(listGameRoomsServiceMock).toHaveBeenCalledWith(1)
+      expect(form.attributes('data-game-id')).toBe('5')
+      expect(form.attributes('data-prefill')).toBe('null')
+      expect(wrapper.get('[data-test="base-card"]').attributes('data-title')).toBe(
+        'games.edit.cardTitle'
+      )
+    })
+
+    it('shows the loading state and no form while the session is being read', async () => {
+      setAuthenticatedUser()
+      loadGameServiceMock.mockReturnValueOnce(new Promise(() => undefined))
+
+      const wrapper = await mountView()
+
+      expect(wrapper.get('[data-test="base-card"]').attributes('data-loading')).toBe('true')
+      expect(wrapper.get('[data-test="base-card-loading"]').text()).toBe('games.edit.loading')
+      expect(wrapper.find('[data-test="create-game-form-stub"]').exists()).toBe(false)
+    })
+
+    it('shows the server error code and no form, then retries', async () => {
+      setAuthenticatedUser()
+      mockServiceFailure(loadGameServiceMock, 'game_not_found', 404)
+
+      const wrapper = await mountView()
+
+      expect(wrapper.get('[data-test="base-card"]').attributes('data-error')).toBe('game_not_found')
+      expect(wrapper.find('[data-test="create-game-form-stub"]').exists()).toBe(false)
+
+      loadGameServiceMock.mockResolvedValueOnce(scheduledResult)
+      await wrapper.get('[data-test="game-form-retry"]').trigger('click')
+      await flushPromises()
+
+      expect(loadGameServiceMock).toHaveBeenCalledTimes(2)
+      expect(wrapper.get('[data-test="base-card"]').attributes('data-error')).toBe('')
+      expect(wrapper.get('[data-test="create-game-form-stub"]').attributes('data-game-id')).toBe(
+        '5'
+      )
+    })
+
+    it('shows a network failure as a server error', async () => {
+      setAuthenticatedUser()
+      loadGameServiceMock.mockRejectedValueOnce(new Error('network'))
+
+      const wrapper = await mountView()
+
+      expect(wrapper.get('[data-test="base-card"]').attributes('data-error')).toBe('server_error')
+    })
+
+    it('refuses a session that is no longer scheduled', async () => {
+      setAuthenticatedUser()
+      loadGameServiceMock.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        data: { game: createGameFixture({ id: 5, state: 'running' }) },
+      })
+
+      const wrapper = await mountView()
+
+      expect(wrapper.get('[data-test="base-card"]').attributes('data-error')).toBe(
+        'game_not_scheduled'
+      )
+      expect(wrapper.find('[data-test="create-game-form-stub"]').exists()).toBe(false)
+    })
+
+    it('keeps the rooms error visible, with a retry', async () => {
+      setAuthenticatedUser()
+      loadGameServiceMock.mockResolvedValueOnce(scheduledResult)
+      mockServiceFailure(listGameRoomsServiceMock, 'forbidden', 403)
+
+      const wrapper = await mountView()
+
+      expect(wrapper.get('[data-test="base-card"]').attributes('data-error')).toBe('forbidden')
+      expect(wrapper.find('[data-test="game-form-retry"]').exists()).toBe(true)
+    })
+
+    it('goes back to the agenda once saved', async () => {
+      setAuthenticatedUser()
+      loadGameServiceMock.mockResolvedValueOnce(scheduledResult)
+
+      const wrapper = await mountView()
+      await wrapper.get('[data-test="stub-saved"]').trigger('click')
+
+      expect(pushMock).toHaveBeenCalledWith({ name: 'agenda', query: {} })
+    })
+
+    it('cancels back to the agenda, keeping the company chosen by the superadmin', async () => {
+      setAuthenticatedSuperadmin({ companyId: 1 })
+      currentRouteMock.query = { companyId: '2' }
+      loadGameServiceMock.mockResolvedValueOnce(scheduledResult)
+
+      const wrapper = await mountView()
+      await wrapper.get('[data-test="stub-cancel"]').trigger('click')
+
+      expect(loadGameServiceMock).toHaveBeenCalledWith(2, 5)
+      expect(pushMock).toHaveBeenCalledWith({ name: 'agenda', query: { companyId: '2' } })
+    })
+
+    it('reports an unreadable game identifier without calling the API', async () => {
+      setAuthenticatedUser()
+      currentRouteMock.params = { gameId: 'abc' }
+
+      const wrapper = await mountView()
+
+      expect(loadGameServiceMock).not.toHaveBeenCalled()
+      expect(wrapper.get('[data-test="base-card"]').attributes('data-error')).toBe('invalid_params')
+    })
   })
 })

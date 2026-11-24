@@ -18,6 +18,7 @@ import {
   type AgendaEntry,
   buildAgendaTimeline,
   canCancelScheduledGame,
+  canEditScheduledGame,
   canOpenScheduledGame,
   formatAgendaTime,
   getAgendaStateKind,
@@ -418,6 +419,15 @@ describe('utils/game/agenda', () => {
       expect(canCancelScheduledGame(game)).toBe(true)
       expect(canCancelScheduledGame({ ...game, state: GAME_STATE_PENDING })).toBe(false)
       expect(canCancelScheduledGame({ ...game, state: GAME_STATE_CANCELLED })).toBe(false)
+    })
+
+    it('edits only a scheduled session, even when its slot is over', () => {
+      expect(canEditScheduledGame(game)).toBe(true)
+      expect(canEditScheduledGame(createScheduledGameFixture('2020-01-01T10:00:00.000Z'))).toBe(
+        true
+      )
+      expect(canEditScheduledGame({ ...game, state: GAME_STATE_PENDING })).toBe(false)
+      expect(canEditScheduledGame({ ...game, state: GAME_STATE_CANCELLED })).toBe(false)
     })
   })
 

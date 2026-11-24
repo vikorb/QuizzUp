@@ -705,6 +705,40 @@ describe('views/AgendaView.vue', () => {
       ).toBeUndefined()
     })
 
+    it('offers to edit a scheduled session, even one that was not launched, and no other', async () => {
+      const wrapper = await mountAgenda()
+
+      expect([5, 8, 9, 10].map((id) => hasButton(wrapper, id, 'edit'))).toEqual([
+        true,
+        true,
+        true,
+        false,
+      ])
+    })
+
+    it('opens the edit form of a session', async () => {
+      const wrapper = await mountAgenda()
+
+      await gameRow(wrapper, 8).get('[data-test="agenda-edit"]').trigger('click')
+
+      expect(pushMock).toHaveBeenCalledWith({
+        name: 'games-edit',
+        params: { gameId: '8' },
+        query: {},
+      })
+    })
+
+    it('names the hour of the session in the label of the edit button', async () => {
+      const wrapper = await mountAgenda({
+        $t: (key: string, params?: { time?: string }) =>
+          params?.time ? `${key}|${params.time}` : key,
+      })
+
+      expect(gameRow(wrapper, 5).get('[data-test="agenda-edit"]').attributes('aria-label')).toBe(
+        'agenda.actions.editAt|11:00'
+      )
+    })
+
     it('opens the detail of a session', async () => {
       const wrapper = await mountAgenda()
 

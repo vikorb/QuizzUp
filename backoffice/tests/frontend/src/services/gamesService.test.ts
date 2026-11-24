@@ -8,6 +8,7 @@ import {
   listGamesService,
   loadGameService,
   openGameService,
+  updateGameService,
 } from '@/services/gamesService'
 
 const { apiFetchMock } = vi.hoisted(() => ({
@@ -59,6 +60,52 @@ describe('services/gamesService', () => {
     })
     expect(result).toEqual({ ok: true, status: 200, data: { games: [], total: 0 } })
   })
+
+  it('modifies a scheduled session with a PATCH and a JSON body', async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse(200, { game: { id: 3, state: 'scheduled' } }))
+
+    const result = await updateGameService(7, 3, {
+      roomId: 10,
+      miniGames: null,
+      playersCount: null,
+      scheduledAt: '2027-03-27T09:00:00.000Z',
+    })
+
+    expect(apiFetchMock).toHaveBeenCalledWith({
+      path: '/companies/7/games/3',
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        roomId: 10,
+        miniGames: null,
+        playersCount: null,
+        scheduledAt: '2027-03-27T09:00:00.000Z',
+      }),
+      authenticated: true,
+    })
+    expect(result).toEqual({
+      ok: true,
+      status: 200,
+      data: { game: { id: 3, state: 'scheduled' } },
+    })
+  })
+
+  it.each(['game_not_scheduled', 'slot_taken', 'session_in_past', 'podium_not_in_room'])(
+    'keeps the session error %s on modification',
+    async (error) => {
+      apiFetchMock.mockResolvedValue(
+        jsonResponse(error === 'session_in_past' ? 400 : 409, { error })
+      )
+
+      const result = await updateGameService(7, 3, {
+        roomId: 10,
+        miniGames: null,
+        playersCount: null,
+      })
+
+      expect(result).toMatchObject({ ok: false, error })
+    }
+  )
 
   it('opens a scheduled session without sending a body', async () => {
     apiFetchMock.mockResolvedValue(jsonResponse(200, { game: { id: 3, state: 'pending' } }))

@@ -53,6 +53,12 @@
       "subtitle": "Pick the room, the participants and the game format",
       "cardTitle": "New game"
     },
+    "edit": {
+      "title": "Edit a session",
+      "subtitle": "Change the slot, headcount, players or format of a scheduled session",
+      "cardTitle": "Scheduled session",
+      "loading": "Loading the session..."
+    },
     "miniGames": {
       "flash_blind_test": "Flash blind test",
       "quick_answer": "Quick answer",
@@ -69,7 +75,8 @@
       "sections": {
         "room": "Room and format",
         "miniGames": "Mini-games",
-        "participants": "Participants"
+        "participants": "Participants",
+        "schedule": "Date and time"
       },
       "room": "Room",
       "roomPlaceholder": "Pick a room",
@@ -114,12 +121,31 @@
         "displayNameRequired": "The display name is required.",
         "displayNameTooLong": "The display name is too long.",
         "emailInvalid": "The email address is invalid.",
-        "consentRequired": "Tick the consent box to keep this email, or remove the email."
+        "consentRequired": "Tick the consent box to keep this email, or remove the email.",
+        "scheduledAtRequired": "Choose the day and time of the session.",
+        "scheduledAtInvalid": "This day and time do not exist in the room's time zone (clock change?).",
+        "durationInvalid": "The duration must be a whole number of minutes between {min} and {max}.",
+        "playersCountInvalid": "The number of players must be an integer between 1 and {max}."
       },
       "secondPlayer": "2nd player",
       "secondDisplayNamePlaceholder": "e.g. Alex",
       "addSecondPlayer": "Add a 2nd player",
-      "removeSecondPlayer": "Remove the 2nd player"
+      "removeSecondPlayer": "Remove the 2nd player",
+      "scheduled": "Schedule for later",
+      "scheduleTimezone": "Room time, time zone {zone}",
+      "date": "Day",
+      "time": "Time",
+      "durationMinutes": "Duration (minutes)",
+      "durationHint": "Between {min} and {max}. Empty: {default} min, the room default.",
+      "playersCount": "Announced players",
+      "playersCountHint": "Optional, from 1 to {max}.",
+      "participantsHintScheduled": "Optional for a scheduled session: players can be added later (up to {max} podiums).",
+      "participantsLocked": "Players' email addresses are hidden for your role: their list cannot be edited here.",
+      "submitScheduled": "Schedule the session",
+      "submittingScheduled": "Scheduling...",
+      "save": "Save",
+      "saving": "Saving...",
+      "retry": "Retry"
     },
     "detail": {
       "title": "Game details",

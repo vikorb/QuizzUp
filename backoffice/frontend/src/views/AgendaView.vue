@@ -50,6 +50,7 @@
       @retry="load(true)"
       @schedule="goToSchedule"
       @view="goToDetail"
+      @edit="goToEdit"
       @open="handleOpen"
       @cancel="handleCancel"
     />
@@ -67,7 +68,12 @@ import BaseBanner from '@/components/ui/BaseBanner.vue'
 import LiveConnectionNote from '@/components/ui/LiveConnectionNote.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import { useLiveCompany } from '@/composables/useLiveCompany'
-import { getAgendaRoute, getCreateGameRoute, getGameDetailRoute } from '@/router/games'
+import {
+  getAgendaRoute,
+  getCreateGameRoute,
+  getEditGameRoute,
+  getGameDetailRoute,
+} from '@/router/games'
 import { loadCompaniesService } from '@/services/companiesService'
 import {
   cancelGameService,
@@ -354,6 +360,10 @@ function handleShift(days: number): void {
 
 function goToDetail(game: Game): void {
   void router.push(getGameDetailRoute(game.id, companyContext.value))
+}
+
+function goToEdit(game: Game): void {
+  void router.push(getEditGameRoute(game.id, companyContext.value))
 }
 
 function goToSchedule(startsAt: string): void {

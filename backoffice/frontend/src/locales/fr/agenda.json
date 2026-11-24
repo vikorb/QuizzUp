@@ -35,9 +35,11 @@
     "actions": {
       "schedule": "Programmer",
       "view": "Voir le détail",
+      "edit": "Modifier",
       "open": "Ouvrir",
       "cancel": "Annuler",
       "viewAt": "Voir le détail de la session de {time}",
+      "editAt": "Modifier la session de {time}",
       "openAt": "Ouvrir la session de {time}",
       "cancelAt": "Annuler la session de {time}",
       "cancelTitle": "Annuler la session",

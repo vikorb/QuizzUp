@@ -116,6 +116,27 @@ export type CreateGamePayload = {
   questionsPerRound?: number
   /** Omis quand tous les mini-jeux sont autorisés (= tous, y compris les futurs). */
   miniGames?: MiniGame[]
+  /** Instant ISO 8601 de début : présent, la partie est une session programmée. */
+  scheduledAt?: string
+  /** Absent : durée du créneau de la salle. */
+  durationMinutes?: number
+  playersCount?: number
+}
+
+/**
+ * Corps de PATCH /companies/:companyId/games/:gameId : les champs absents sont gardés. Ici une
+ * liste complète de mini-jeux s'écrit `null`, et `playersCount: null` efface l'effectif.
+ */
+export type UpdateGamePayload = {
+  roomId: number
+  roundsCount?: number
+  questionsPerRound?: number
+  miniGames: MiniGame[] | null
+  scheduledAt?: string
+  durationMinutes?: number
+  playersCount: number | null
+  /** Absent : participants gardés tels quels (emails masqués pour le rôle `user`). */
+  participants?: CreateGameParticipantPayload[]
 }
 
 /** Saisie d'un participant dans le formulaire de lancement (champs texte bruts). */
@@ -154,6 +175,15 @@ export type GameFormValues = {
   /** Mini-jeux cochés (tous par défaut). */
   miniGames: MiniGame[]
   participants: GameParticipantFormValues[]
+  /** Case « Programmer pour plus tard » : la partie devient une session à date et heure fixées. */
+  scheduled: boolean
+  /** Jour (`YYYY-MM-DD`) et heure (`HH:MM`) lus dans le fuseau de la salle choisie. */
+  scheduledDate: string
+  scheduledTime: string
+  /** Vide : durée du créneau de la salle. */
+  durationMinutes: string
+  /** Effectif annoncé, facultatif. */
+  playersCount: string
 }
 
 export type GameParticipantFieldErrors = {
@@ -171,6 +201,9 @@ export type GameFieldErrors = {
   roundsCount: string
   questionsPerRound: string
   miniGames: string
+  scheduledAt: string
+  durationMinutes: string
+  playersCount: string
   participants: GameParticipantFieldErrors[]
 }
 

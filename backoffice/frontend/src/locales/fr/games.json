@@ -53,6 +53,12 @@
       "subtitle": "Choisir la salle, les participants et le format de la partie",
       "cardTitle": "Nouvelle partie"
     },
+    "edit": {
+      "title": "Modifier une session",
+      "subtitle": "Changer le créneau, l'effectif, les joueurs ou le format d'une session programmée",
+      "cardTitle": "Session programmée",
+      "loading": "Chargement de la session..."
+    },
     "miniGames": {
       "flash_blind_test": "Blind test éclair",
       "quick_answer": "Rapidité",
@@ -69,7 +75,8 @@
       "sections": {
         "room": "Salle et format",
         "miniGames": "Mini-jeux",
-        "participants": "Participants"
+        "participants": "Participants",
+        "schedule": "Date et heure"
       },
       "room": "Salle",
       "roomPlaceholder": "Choisir une salle",
@@ -114,12 +121,31 @@
         "displayNameRequired": "Le nom affiché est obligatoire.",
         "displayNameTooLong": "Le nom affiché est trop long.",
         "emailInvalid": "L'adresse email est invalide.",
-        "consentRequired": "Cochez la case de consentement pour enregistrer cet email, ou retirez l'email."
+        "consentRequired": "Cochez la case de consentement pour enregistrer cet email, ou retirez l'email.",
+        "scheduledAtRequired": "Choisissez le jour et l'heure de la session.",
+        "scheduledAtInvalid": "Ce jour et cette heure n'existent pas dans le fuseau de la salle (changement d'heure ?).",
+        "durationInvalid": "La durée doit être un nombre entier de minutes entre {min} et {max}.",
+        "playersCountInvalid": "Le nombre de joueurs doit être un entier entre 1 et {max}."
       },
       "secondPlayer": "2e joueur",
       "secondDisplayNamePlaceholder": "Ex : Alex",
       "addSecondPlayer": "Ajouter un 2e joueur",
-      "removeSecondPlayer": "Retirer le 2e joueur"
+      "removeSecondPlayer": "Retirer le 2e joueur",
+      "scheduled": "Programmer pour plus tard",
+      "scheduleTimezone": "Heure de la salle, fuseau {zone}",
+      "date": "Jour",
+      "time": "Heure",
+      "durationMinutes": "Durée (minutes)",
+      "durationHint": "Entre {min} et {max}. Vide : {default} min, durée par défaut de la salle.",
+      "playersCount": "Joueurs annoncés",
+      "playersCountHint": "Facultatif, de 1 à {max}.",
+      "participantsHintScheduled": "Facultatif pour une session programmée : les joueurs peuvent être ajoutés plus tard (jusqu'à {max} pupitres).",
+      "participantsLocked": "Les adresses email des joueurs sont masquées pour votre rôle : leur liste ne peut pas être modifiée ici.",
+      "submitScheduled": "Programmer la session",
+      "submittingScheduled": "Programmation...",
+      "save": "Enregistrer",
+      "saving": "Enregistrement...",
+      "retry": "Réessayer"
     },
     "detail": {
       "title": "Détail de la partie",
