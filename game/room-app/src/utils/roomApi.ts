@@ -29,9 +29,18 @@ export type RoomGame = {
   participants: RoomGameParticipant[]
 }
 
+/** Centre de la salle, tel que `GET /room/me` le renvoie (`logoUrl` : adresse complète, `null` sans logo). */
+export type RoomCompany = {
+  id: number
+  name: string
+  logoUrl: string | null
+}
+
 export type RoomInfo = {
   id: number
   name: string
+  /** Absent d'un backoffice ancien. */
+  company?: RoomCompany | null
   config: Record<string, unknown>
   /** Révision de `config` : à renvoyer à l'enregistrement (absente d'un backoffice ancien). */
   configRevision?: number
@@ -106,8 +115,11 @@ export function resolveMediaUrl(url: string | null): string | null {
 }
 
 export async function fetchRoomInfo(token: string): Promise<RoomInfo> {
-  const data = await request<{ room: RoomInfo }>(token, '/room/me')
-  return data.room
+  const data = await request<{ room: RoomInfo; company?: RoomCompany | null }>(token, '/room/me')
+  const company = data.company
+    ? { ...data.company, logoUrl: resolveMediaUrl(data.company.logoUrl ?? null) }
+    : null
+  return { ...data.room, company }
 }
 
 /** Partie en attente ou en cours de la salle, ou `null` si le staff n'en a lancé aucune. */

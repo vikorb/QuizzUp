@@ -10,7 +10,7 @@ import {
   setHardwareConfigRevision,
   setHardwareRemoteSaver,
 } from '@/hardware/roomHardware'
-import { roomAccount } from '@/state/roomAuth'
+import { roomAccount, setRoomCompany } from '@/state/roomAuth'
 import { getRoomToken, isDemoMode } from '@/utils/auth'
 import { fetchRoomInfo, type RoomInfo, saveRoomConfig } from '@/utils/roomApi'
 
@@ -85,6 +85,9 @@ export async function syncHardwareWithRoom(): Promise<void> {
   if (getRoomToken() !== token || isDemoMode()) {
     return
   }
+
+  // `/room/me` renvoie aussi le centre : le logo n'ajoute aucun appel.
+  setRoomCompany(room.company ?? null)
 
   const foreign = isHardwareCopyForeign()
   // Enregistrement local pendant la lecture : la config reçue est périmée
