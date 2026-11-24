@@ -200,6 +200,7 @@ export const createGameSchema = z
     playersCount: playersCountSchema.optional(),
     externalRef: externalRefSchema.optional(),
     locale: z.enum(GAME_LOCALES).optional(),
+    kidsMode: z.boolean().optional(),
   })
   .refine(
     (body) =>
@@ -247,6 +248,7 @@ export const updateGameSchema = z
     playersCount: playersCountSchema.nullable().optional(),
     externalRef: externalRefSchema.nullable().optional(),
     locale: z.enum(GAME_LOCALES).nullable().optional(),
+    kidsMode: z.boolean().optional(),
     participants: participantsSchema.optional(),
   })
   .refine((body) => Object.values(body).some((value) => value !== undefined), {

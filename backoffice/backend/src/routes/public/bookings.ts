@@ -13,6 +13,7 @@ import {
   GAME_STATE_CANCELLED,
   GAME_STATE_SCHEDULED,
   GAME_STATUS_DELETED,
+  getRoomDesksCount,
   type RoomSlot,
   type RoomSchedule,
 } from '@quizzup/shared'
@@ -32,7 +33,7 @@ import {
   insertGameWithParticipants,
   insertParticipants,
 } from '../games/_shared'
-import { type BookableRoom, findBookableRooms, toPublicRoom } from './_rooms'
+import { findBookableRooms, toPublicRoom } from './_rooms'
 import { sendPublicError } from './_shared'
 
 /** Corps limité à 16 Ko (`413 payload_too_large`). */
@@ -172,16 +173,15 @@ function findGridSlot(schedule: RoomSchedule, startsAt: string, now: Date): Room
 
 /** Un pupitre au-delà de `bookableDesks`, ou plus de joueurs annoncés que 2 × `bookableDesks`. */
 function hasTooManyPlayers(
-  room: BookableRoom,
+  bookableDesks: number,
   playersCount: number | null | undefined,
   podiums: number[]
 ): boolean {
-  const { bookableDesks, maxPlayers } = toPublicRoom(room)
-
-  return podiums.some((podium) => podium > bookableDesks) || (playersCount ?? 0) > maxPlayers
+  return podiums.some((podium) => podium > bookableDesks) || (playersCount ?? 0) > bookableDesks * 2
 }
 
-type CreateOutcome = { gameId: number; isReplay: boolean } | { status: number; error: string }
+type Refusal = { status: number; error: string }
+type CreateOutcome = { gameId: number; isReplay: boolean } | Refusal
 
 /**
  * `/public/v1/bookings` : réservations par l'API, derrière une clé. Mince adaptateur sur les
@@ -230,7 +230,7 @@ const publicBookingRoutes: FastifyPluginAsync = async (app) => {
             : { status: 422, error: 'idempotency_key_reused' }
         }
 
-        const [room] = await findBookableRooms(companyId, body.roomId)
+        const [room] = await findBookableRooms(companyId, body.roomId, trx)
 
         if (!room) return { status: 404, error: 'room_not_found' }
 
@@ -240,7 +240,7 @@ const publicBookingRoutes: FastifyPluginAsync = async (app) => {
 
         const podiums = (body.participants ?? []).map((participant) => participant.podium)
 
-        if (hasTooManyPlayers(room, body.playersCount, podiums)) {
+        if (hasTooManyPlayers(toPublicRoom(room).bookableDesks, body.playersCount, podiums)) {
           return { status: 422, error: 'too_many_players' }
         }
 
@@ -315,74 +315,105 @@ const publicBookingRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const body = parsed.data
-    const booking = await findBooking(companyId, params.data.id)
-
-    if (!booking) return sendPublicError(reply, 404, 'booking_not_found')
-
-    if (booking.state !== GAME_STATE_SCHEDULED) {
-      return sendPublicError(reply, 409, 'booking_not_modifiable')
-    }
-
-    const isRoomChanged = body.roomId !== undefined && body.roomId !== booking.roomId
-    const isStartChanged = body.startsAt !== undefined && body.startsAt !== booking.startsAt
-    let slot: RoomSlot | undefined
-
-    if (
-      isRoomChanged ||
-      isStartChanged ||
-      body.playersCount !== undefined ||
-      body.participants !== undefined
-    ) {
-      const [room] = await findBookableRooms(companyId, body.roomId ?? booking.roomId)
-
-      if (!room) return sendPublicError(reply, 404, 'room_not_found')
-
-      if (isRoomChanged || isStartChanged) {
-        slot = findGridSlot(room.schedule, body.startsAt ?? booking.startsAt, new Date())
-
-        if (!slot) return sendPublicError(reply, 422, 'slot_unavailable')
-      }
-
-      const playersCount =
-        body.playersCount === undefined ? booking.playersCount : body.playersCount
-      const podiums = (body.participants ?? booking.participants).map((item) => item.podium)
-
-      if (hasTooManyPlayers(room, playersCount, podiums)) {
-        return sendPublicError(reply, 422, 'too_many_players')
-      }
-    }
-
-    const changes = {
-      room_id: body.roomId,
-      scheduled_at: slot?.startsAt,
-      scheduled_end_at: slot?.endsAt,
-      players_count: body.playersCount,
-      external_ref: body.externalRef,
-      locale: body.locale,
-      updated_at: db.fn.now(),
-    }
+    const bookingId = params.data.id
 
     try {
-      const isUpdated = await db.transaction(async (trx) => {
-        const updated = await trx('games')
-          .where('id', booking.id)
-          .where('state', GAME_STATE_SCHEDULED)
+      // Tout se lit et s'écrit dans la même transaction, la ligne verrouillée : le centre qui ouvre
+      // la session, un autre appel ou un changement de réglage de la salle ne s'intercalent pas.
+      const refusal = await db.transaction(async (trx): Promise<Refusal | null> => {
+        const row = await trx('games')
+          .where('company_id', companyId)
+          .where('id', bookingId)
+          .whereNotNull('api_key_id')
+          .whereNot('status', GAME_STATUS_DELETED)
+          .forUpdate()
+          .first([
+            'room_id as roomId',
+            'state',
+            'scheduled_at as scheduledAt',
+            'players_count as playersCount',
+          ])
+
+        if (!row) return { status: 404, error: 'booking_not_found' }
+
+        if (row.state !== GAME_STATE_SCHEDULED) {
+          return { status: 409, error: 'booking_not_modifiable' }
+        }
+
+        const currentRoomId = Number(row.roomId)
+        const currentStart = new Date(row.scheduledAt as string).toISOString()
+        const isRoomChanged = body.roomId !== undefined && body.roomId !== currentRoomId
+        const isStartChanged = body.startsAt !== undefined && body.startsAt !== currentStart
+        let slot: RoomSlot | undefined
+
+        if (
+          isRoomChanged ||
+          isStartChanged ||
+          body.playersCount !== undefined ||
+          body.participants !== undefined
+        ) {
+          const roomId = body.roomId ?? currentRoomId
+          const [room] = await findBookableRooms(companyId, roomId, trx)
+
+          // Changer de salle ou d'heure exige une salle réservable. Sans cela, la réservation
+          // existe déjà : fermer la salle à la réservation ne la rend pas immuable.
+          if (!room && (isRoomChanged || isStartChanged)) {
+            return { status: 404, error: 'room_not_found' }
+          }
+
+          if (room && (isRoomChanged || isStartChanged)) {
+            slot = findGridSlot(room.schedule, body.startsAt ?? currentStart, new Date())
+
+            if (!slot) return { status: 422, error: 'slot_unavailable' }
+          }
+
+          // Salle plus réservable : on garde au moins la limite physique de ses pupitres.
+          const closedRoom = room
+            ? undefined
+            : await trx('rooms').where('id', roomId).first(['config'])
+          const bookableDesks = room
+            ? toPublicRoom(room).bookableDesks
+            : getRoomDesksCount(closedRoom?.config)
+          const playersCount =
+            body.playersCount === undefined
+              ? (row.playersCount as number | null)
+              : body.playersCount
+          const podiums = body.participants
+            ? body.participants.map((item) => item.podium)
+            : (await trx('game_participants').where('game_id', bookingId).select('podium')).map(
+                (item) => Number(item.podium)
+              )
+
+          if (hasTooManyPlayers(bookableDesks, playersCount, podiums)) {
+            return { status: 422, error: 'too_many_players' }
+          }
+        }
+
+        const changes = {
+          room_id: body.roomId,
+          scheduled_at: slot?.startsAt,
+          scheduled_end_at: slot?.endsAt,
+          players_count: body.playersCount,
+          external_ref: body.externalRef,
+          locale: body.locale,
+          updated_at: db.fn.now(),
+        }
+
+        await trx('games')
+          .where('id', bookingId)
           .update(
             Object.fromEntries(Object.entries(changes).filter(([, value]) => value !== undefined))
           )
 
-        // Ouverte ou annulée par le centre entre la lecture et l'écriture : rien ne change.
-        if (updated === 0) return false
-
         if (body.participants) {
-          await trx('game_participants').where('game_id', booking.id).delete()
-          await insertParticipants(trx, booking.id, body.participants)
+          await trx('game_participants').where('game_id', bookingId).delete()
+          await insertParticipants(trx, bookingId, body.participants)
         }
 
-        return true
+        return null
       })
 
-      if (!isUpdated) return sendPublicError(reply, 409, 'booking_not_modifiable')
+      if (refusal) return sendPublicError(reply, refusal.status, refusal.error)
     } catch (error) {
       // Une autre session de la salle occupe déjà ce créneau : la contrainte d'exclusion tranche.
       if (isExclusionViolation(error)) return sendPublicError(reply, 409, 'slot_taken')
@@ -390,7 +421,7 @@ const publicBookingRoutes: FastifyPluginAsync = async (app) => {
       throw error
     }
 
-    return { booking: await findBooking(companyId, booking.id) }
+    return { booking: await findBooking(companyId, bookingId) }
   })
 
   app.delete('/bookings/:id', async (req, reply) => {

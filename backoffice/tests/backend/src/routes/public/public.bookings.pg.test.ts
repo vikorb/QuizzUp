@@ -130,6 +130,51 @@ describe.skipIf(!PG_INTEGRATION_URL)("réservations de l'API publique sur Postgr
     expect(await count('api_idempotency_keys')).toBe(1)
   }, 30_000)
 
+  it('settles a burst of 12 calls with the same key without exhausting the pool of 10', async () => {
+    // Une transaction tient le verrou de la clé : les 12 appels s'empilent, chacun sur sa transaction,
+    // et occupent tout le pool. Le premier à passer ne doit plus avoir besoin d'une autre connexion.
+    const holder = await db.transaction()
+
+    await holder.raw('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['1:burst'])
+
+    const calls = Array.from({ length: 12 }, () => book('burst', { participants: [LEA] }))
+
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+    await holder.commit()
+
+    const responses = await Promise.all(calls)
+
+    expect(responses.map((response) => response.statusCode)).toEqual(Array(12).fill(201))
+    expect(responses.filter((r) => r.headers['idempotent-replayed'] === 'true')).toHaveLength(11)
+    expect(new Set(responses.map((r) => r.json().booking.id)).size).toBe(1)
+    expect(await count('games')).toBe(1)
+  }, 25_000)
+
+  it('refuses a change that waits for a session the centre opens in the meantime', async () => {
+    const created = await book('first')
+    const id = created.json().booking.id
+    // Le centre ouvre la session : sa transaction tient la ligne, sans avoir encore validé.
+    const opening = await db.transaction()
+
+    await opening('games').where('id', id).forUpdate().first()
+    await opening('games').where('id', id).update({ state: 'pending' })
+
+    const patch = app.inject({
+      method: 'PATCH',
+      url: `/public/v1/bookings/${id}`,
+      headers: headersA,
+      payload: { externalRef: 'trop-tard' },
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    await opening.commit()
+    const response = await patch
+
+    expect(response.statusCode).toBe(409)
+    expect(response.json()).toEqual({ error: 'booking_not_modifiable' })
+    expect((await db('games').where('id', id).first())!.external_ref).toBeNull()
+  }, 30_000)
+
   it('lets one of two simultaneous calls on the same slot through: 201 and 409', async () => {
     const responses = await Promise.all([book('first'), book('second')])
 
