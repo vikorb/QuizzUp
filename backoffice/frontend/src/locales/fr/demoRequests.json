@@ -1,0 +1,46 @@
+{
+  "demoRequests": {
+    "nav": "Demandes de démo",
+    "title": "Demandes de démonstration",
+    "subtitle": "Demandes reçues depuis la vitrine, à rappeler puis à marquer comme traitées.",
+    "filters": {
+      "label": "Affichage",
+      "pending": "À traiter",
+      "processed": "Traitées",
+      "all": "Toutes"
+    },
+    "status": {
+      "pending": "À traiter",
+      "processed": "Traitée"
+    },
+    "table": {
+      "title": "Demandes",
+      "loading": "Chargement des demandes…",
+      "empty": "Aucune demande à afficher.",
+      "retry": "Réessayer",
+      "columns": {
+        "createdAt": "Reçue le",
+        "contact": "Contact",
+        "coordinates": "Coordonnées",
+        "rooms": "Salles",
+        "message": "Message",
+        "status": "Statut",
+        "actions": "Actions"
+      }
+    },
+    "actions": {
+      "markProcessed": "Marquer comme traitée",
+      "delete": "Supprimer",
+      "deleteConfirm": "Supprimer définitivement la demande de {name} ? Cette action est irréversible."
+    },
+    "errors": {
+      "missingToken": "Votre session a expiré : reconnectez-vous.",
+      "unauthorized": "Votre session a expiré : reconnectez-vous.",
+      "forbidden": "Cet écran est réservé à l'éditeur.",
+      "apiUnreachable": "API injoignable.",
+      "invalidJson": "La réponse du serveur est illisible.",
+      "invalidBody": "La demande envoyée est invalide.",
+      "serverError": "Erreur serveur. Réessayez dans quelques instants."
+    }
+  }
+}

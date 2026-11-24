@@ -67,6 +67,8 @@
     "roomDisabled": "La salle {name} a bien été désactivée.",
     "roomDeleted": "La salle {name} a bien été supprimée.",
     "roomAccountCreated": "Le compte de salle {username} a bien été créé pour la salle {name}.",
-    "roomAccountDeleted": "Le compte de salle {username} a bien été supprimé : le PC de la salle {name} est déconnecté."
+    "roomAccountDeleted": "Le compte de salle {username} a bien été supprimé : le PC de la salle {name} est déconnecté.",
+    "demoRequestProcessed": "La demande a été marquée comme traitée.",
+    "demoRequestDeleted": "La demande a bien été supprimée."
   }
 }
