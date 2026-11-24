@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Effet audio joué en salle : le blind test lit l'extrait avec l'effet de la question (court, inversé, ralenti), avec des paliers raccourcis pour `short` et une reprise fidèle après rechargement.
+  US: US-AUDIO-02 (#144)
+
 - Sessions programmées, routes de la salle : `GET /room/games/current` renvoie aussi la prochaine session de la salle (`next`), et `POST /room/games/:gameId/open` ouvre une session programmée depuis la salle (409 `game_not_scheduled`, `session_not_open_yet`, `room_busy`, `room_inactive`, `company_inactive`).
   US: US-SCHED-01 (#142)
 
