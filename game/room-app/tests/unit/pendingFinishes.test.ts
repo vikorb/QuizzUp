@@ -740,14 +740,43 @@ describe('file des résultats de partie à envoyer', () => {
       expect(readPendingFinishes()).toEqual([])
     })
 
-    it('renvoie les scores sans les manches quand le backoffice refuse les manches', async () => {
-      finish.mockRejectedValueOnce(new RoomApiError(400, 'game_rounds_invalid'))
+    it.each(['game_rounds_invalid', 'invalid_body'])(
+      'renvoie les scores sans les manches et signale l’erreur sur un 400 %s',
+      async (code) => {
+        const fetchMock = vi
+          .spyOn(globalThis, 'fetch')
+          .mockResolvedValue(new Response(null, { status: 204 }))
+        finish.mockRejectedValueOnce(new RoomApiError(400, code))
+
+        await enqueuePendingFinish({ ...report(7, 900), rounds })
+        await flushRoomErrors()
+
+        expect(finish).toHaveBeenCalledTimes(2)
+        expect(finish).toHaveBeenLastCalledWith('tok', 7, [{ podium: 1, score: 900 }], undefined)
+        expect(getFinishStatus(7)).toBe('sent')
+        expect(readPendingFinishes()).toEqual([])
+        const sent = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
+          entries: unknown[]
+        }
+        expect(sent.entries).toMatchObject([
+          {
+            level: 'error',
+            code: 'finish_rounds_refused',
+            message: code,
+            context: { httpStatus: 400 },
+          },
+        ])
+      }
+    )
+
+    it('un 400 sur l’envoi sans manches reste un refus définitif', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+      finish.mockRejectedValue(new RoomApiError(400, 'invalid_body'))
 
       await enqueuePendingFinish({ ...report(7, 900), rounds })
 
       expect(finish).toHaveBeenCalledTimes(2)
-      expect(finish).toHaveBeenLastCalledWith('tok', 7, [{ podium: 1, score: 900 }], undefined)
-      expect(getFinishStatus(7)).toBe('sent')
+      expect(getFinishStatus(7)).toBe('refused')
       expect(readPendingFinishes()).toEqual([])
     })
   })

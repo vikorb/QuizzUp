@@ -8,10 +8,13 @@ import {
   GAME_STATE_RUNNING,
   GAME_STATUS_ACTIVE,
   QUESTION_STATUS_ACTIVE,
+  QUESTION_STATUS_DELETED,
+  QUESTION_STATUS_DRAFT,
   ROOM_STATUS_ACTIVE,
   THEME_SCOPE_COMPANY,
   THEME_SCOPE_GLOBAL,
   THEME_STATUS_ACTIVE,
+  THEME_STATUS_DELETED,
 } from '@quizzup/shared'
 import roomRoutes from '@backend/routes/room'
 import { dbState } from './_helpers/mockDb'
@@ -180,6 +183,35 @@ describe('POST /room/games/:gameId/finish : manches jouées (lot 8d)', () => {
     expect(parseJson<{ error: string }>(response).error).toBe('invalid_body')
     expect(dbState.games[0]!.state).toBe(GAME_STATE_RUNNING)
     expect(dbState.game_rounds).toEqual([])
+  })
+
+  it('refuses a round numbered beyond the rounds of the game', async () => {
+    seedGame()
+    seedContent()
+    dbState.games[0]!.rounds_count = 1
+
+    const response = await finish({ scores: SCORES, rounds: ROUNDS })
+
+    expect(response.statusCode).toBe(400)
+    expect(parseJson(response)).toEqual({ error: 'game_rounds_invalid' })
+    expect(dbState.games[0]!.state).toBe(GAME_STATE_RUNNING)
+    expect(dbState.game_rounds).toEqual([])
+
+    expect((await finish({ scores: SCORES, rounds: [ROUNDS[0]] })).statusCode).toBe(200)
+  })
+
+  it('keeps the rounds of a theme or a question deleted or drafted since they were drawn', async () => {
+    seedGame()
+    seedContent()
+    // L'écran de salle renvoie parfois sa fin de partie après une suppression : on garde l'historique.
+    dbState.themes[0]!.status = THEME_STATUS_DELETED
+    dbState.questions[0]!.status = QUESTION_STATUS_DELETED
+    dbState.questions[1]!.status = QUESTION_STATUS_DRAFT
+
+    const response = await finish({ scores: SCORES, rounds: ROUNDS })
+
+    expect(response.statusCode).toBe(200)
+    expect(dbState.game_rounds).toHaveLength(2)
   })
 
   it('does not write the rounds of a game of another company', async () => {

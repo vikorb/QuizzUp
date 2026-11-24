@@ -210,8 +210,14 @@ async function attempt(report: PendingFinish, token: string): Promise<Attempt> {
     return 'sent'
   } catch (error) {
     const status = error instanceof RoomApiError ? error.status : null
-    // Manches refusées (thème ou question inconnus du backoffice) : les scores partent sans elles.
-    if (report.rounds && error instanceof RoomApiError && error.code === 'game_rounds_invalid') {
+    // Un 400 avec des manches peut venir d'elles (corps invalide, thème ou question inconnus du
+    // backoffice) : on le signale, puis les scores repartent seuls. Sans manches, c'est définitif.
+    if (report.rounds && status === 400) {
+      reportRoomError(
+        'finish_rounds_refused',
+        error instanceof Error ? error.message : 'finish_rounds_refused',
+        { context: { httpStatus: status } }
+      )
       return attempt({ ...report, rounds: undefined }, token)
     }
     if (status !== null && FINAL_REFUSALS.has(status)) {

@@ -44,8 +44,22 @@ async function allReadable(table: 'themes' | 'questions', ids: number[], company
   return rows.length === ids.length && rows.every((row) => isReadableByCompany(row, companyId))
 }
 
-/** Les thèmes et les questions des manches appartiennent à la compagnie ou au contenu global. */
-export async function areRoundsReadable(companyId: number, rounds: RoomRounds): Promise<boolean> {
+/**
+ * Les manches tiennent dans la partie (`position` au plus égale à son nombre de manches), et leurs
+ * thèmes et questions appartiennent à la compagnie ou au contenu global. Seuls la portée et
+ * l'existence comptent, pas l'état : un thème ou une question supprimé ou en brouillon depuis le
+ * tirage est accepté, car la file hors ligne de la salle peut envoyer une fin de partie après une
+ * suppression, et l'historique doit garder ce qui a été joué.
+ */
+export async function areRoundsAcceptable(
+  companyId: number,
+  roundsCount: number,
+  rounds: RoomRounds
+): Promise<boolean> {
+  if (rounds.some((round) => round.position > roundsCount)) {
+    return false
+  }
+
   const themeIds = [...new Set(rounds.flatMap((round) => round.themeId ?? []))]
   const questionIds = [...new Set(rounds.flatMap((round) => round.questionIds))]
 

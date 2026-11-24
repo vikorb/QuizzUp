@@ -21,7 +21,7 @@ import { roomSelect } from './companies/rooms/_shared'
 import { addGameJoin, findGameInCompany, openScheduledGame } from './games/_shared'
 import { getMediaVersion } from './questions/_shared'
 import { isInPlayableTheme, isReadableByCompany, loadRoomContent } from './room/_content'
-import { areRoundsReadable, roomRoundsSchema, saveGameRounds } from './room/_history'
+import { areRoundsAcceptable, roomRoundsSchema, saveGameRounds } from './room/_history'
 import { findCurrentGameId } from './room/_join'
 import { isRoomAccount, roomPodiumsSchema, roomScoresSchema } from './room/_shared'
 
@@ -474,8 +474,7 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ error: 'game_scores_invalid' })
     }
 
-    // Thèmes et questions des manches : ceux de la compagnie ou du contenu global.
-    if (rounds && !(await areRoundsReadable(req.user.company_id, rounds))) {
+    if (rounds && !(await areRoundsAcceptable(req.user.company_id, game.roundsCount, rounds))) {
       return reply.code(400).send({ error: 'game_rounds_invalid' })
     }
 

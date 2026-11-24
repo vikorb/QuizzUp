@@ -3659,7 +3659,7 @@ paths:
 
         Envoyé par l'écran de salle au podium : la partie passe `finished` (`finishedAt` renseigné) et le score de chaque pupitre est enregistré (une ligne par pupitre inscrit, ni plus ni moins). Idempotent : une partie déjà terminée est renvoyée telle quelle, sans toucher aux scores ni aux manches.
 
-        `rounds` (facultatif : un écran de salle pas encore à jour n'en envoie pas) liste les manches jouées. Elles sont écrites dans `game_rounds` dans la même transaction que les scores, une seule fois : le renvoi d'une fin de partie n'écrit rien de plus. Les thèmes et les questions doivent appartenir à la compagnie ou au contenu global (`400 game_rounds_invalid` sinon, rien n'est enregistré).
+        `rounds` (facultatif : un écran de salle pas encore à jour n'en envoie pas) liste les manches jouées. Elles sont écrites dans `game_rounds` dans la même transaction que les scores, une seule fois : le renvoi d'une fin de partie n'écrit rien de plus. Les thèmes et les questions doivent appartenir à la compagnie ou au contenu global et leurs `position` ne dépassent pas le nombre de manches de la partie (`400 game_rounds_invalid` sinon, rien n'est enregistré).
 
         Accès : réservé au rôle `room`, partie de sa salle uniquement.
       operationId: finishRoomGame
@@ -3705,8 +3705,7 @@ paths:
                         minimum: 1
                         maximum: 20
                       miniGame:
-                        type: string
-                        description: Un des mini-jeux (`MINI_GAMES` de `@quizzup/shared`)
+                        $ref: '#/components/schemas/MiniGame'
                       themeId:
                         type: integer
                         nullable: true

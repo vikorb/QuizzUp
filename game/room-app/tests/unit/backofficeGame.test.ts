@@ -233,7 +233,11 @@ describe('manches jouées', () => {
   })
 
   it('compte toutes les questions quand la mort subite va à son terme', () => {
-    const toTheEnd = { ...suddenDeathRound, answers: suddenDeathRound.answers.slice(0, 2) }
+    // Les deux joueurs répondent juste à chacune des trois questions : personne ne tombe.
+    const toTheEnd = {
+      ...suddenDeathRound,
+      answers: [20, 21, 22].flatMap((id) => [answer(1, id, true), answer(2, id, true)]),
+    }
 
     expect(play([toTheEnd])[0]?.questionIds).toEqual([20, 21, 22])
   })

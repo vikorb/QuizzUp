@@ -34,6 +34,7 @@ export type RoomErrorCode =
   | 'unhandled_rejection'
   | 'vue_error'
   | 'finish_refused'
+  | 'finish_rounds_refused'
   | 'audio_play_failed'
   | 'dmx_output_error'
   | 'artnet_bridge_unavailable'
