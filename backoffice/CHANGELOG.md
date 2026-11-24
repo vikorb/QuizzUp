@@ -8,6 +8,15 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- API publique, bac à sable : la salle de démonstration naît avec des créneaux réservables (tous les jours de 10 h à 20 h, créneaux d'une heure, 4 pupitres), et un guide pas à pas (`docs/api/essayer-l-api-publique.md`) montre comment créer une clé puis réserver. Aucune clé n'est créée par le seed.
+  US: US-BOOKING-01 (#188)
+
+- API publique : réservations (`POST`, `GET`, `PATCH`, `DELETE` sur `/public/v1/bookings`). Une réservation crée une partie programmée dans la compagnie de la clé d'API ; une clé ne voit et ne modifie que ses propres réservations. La clé d'idempotence rejoue la même réponse au lieu de créer un doublon, et un créneau déjà pris est refusé (`slot_taken`).
+- API publique : réservations (`POST`, `GET`, `PATCH`, `DELETE` sur `/public/v1/bookings`). Une réservation crée une partie programmée dans la compagnie de la clé d'API ; les clés d'une compagnie voient et modifient les réservations créées par l'API de cette compagnie, jamais les sessions créées au backoffice. La clé d'idempotence rejoue la même réponse au lieu de créer un doublon, et un créneau déjà pris est refusé (`slot_taken`).
+  US: US-BOOKING-01 (#188)
+
+- Bons : page publique `/bon/#<code>` pour le téléphone du joueur, sur la même infrastructure que `/rejoindre/`. Elle affiche l'état du bon (valide, utilisé, expiré, annulé, introuvable) ; le code reste dans le fragment de l'adresse et part dans le corps de la requête, jamais dans une URL.
+  US: US-VOUCHER-01 (#156)
 - Écran « Joueurs » du backoffice : liste paginée avec recherche sur le nom, nombre de parties, dernière venue et meilleur score ; désinscription des offres et effacement définitif d'un joueur (admins) ; export CSV des joueurs qui acceptent les offres. Un membre du staff voit la liste sans adresse, sans action et sans export.
   US: US-PLAYERS-01 (#157)
 - Écran de salle, réglage des lumières : les modèles de salle (`ROOM_TEMPLATES`) se choisissent dans l'assistant, avec une confirmation avant de remplacer des appareils déjà réglés, et une répartition des univers est proposée en Art-Net avant le test. Un modèle ne touche jamais aux réglages de fumée ; un modèle à plusieurs univers n'est pas proposé avec une interface USB.

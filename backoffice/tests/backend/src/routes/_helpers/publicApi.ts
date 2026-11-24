@@ -1,7 +1,6 @@
 import fastify from 'fastify'
 
 import { API_KEY_STATUS_REVOKED, ROOM_STATUS_ACTIVE, type RoomSchedule } from '@quizzup/shared'
-import publicRoutes from '@backend/routes/public'
 import { PUBLIC_API_PREFIX } from '@backend/routes/public/_shared'
 import { generateApiKey } from '@backend/security/apiKeys'
 import { seedApiKey } from './apiKeys'
@@ -24,6 +23,8 @@ export const OPEN_EVERY_DAY: RoomSchedule = {
 
 /** Application réduite à l'API publique, comme `routes/index.ts` la monte. */
 export async function createPublicApp() {
+  // Import tardif : un test `*.pg.test.ts` règle `DATABASE_URL` avant que `db` ne soit chargé.
+  const { default: publicRoutes } = await import('@backend/routes/public')
   const app = fastify({ logger: false })
 
   // Le projet de tests ne charge pas les augmentations de types du backend.
