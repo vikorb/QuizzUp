@@ -362,6 +362,8 @@ export type NewGame = {
   companyId: number
   roomId: number
   adminId: number | null
+  /** Clé d'API qui a créé la partie (réservation par l'API publique), sinon `null`. */
+  apiKeyId?: number
   roundsCount: number
   questionsPerRound: number
   /** `undefined` = tous les mini-jeux. */
@@ -387,6 +389,7 @@ export async function insertGameWithParticipants(
       company_id: game.companyId,
       room_id: game.roomId,
       admin_id: game.adminId,
+      api_key_id: game.apiKeyId ?? null,
       rounds_count: game.roundsCount,
       questions_per_round: game.questionsPerRound,
       mini_games: game.miniGames ? JSON.stringify(game.miniGames) : null,

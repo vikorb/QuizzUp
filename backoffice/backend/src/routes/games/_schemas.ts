@@ -133,8 +133,8 @@ export const durationMinutesSchema = z
   .int()
   .min(SESSION_MIN_MINUTES)
   .max(SESSION_MAX_MINUTES)
-const playersCountSchema = z.number().int().min(1).max(GAME_MAX_PLAYERS)
-const externalRefSchema = z.string().trim().min(1).max(GAME_EXTERNAL_REF_MAX_LENGTH)
+export const playersCountSchema = z.number().int().min(1).max(GAME_MAX_PLAYERS)
+export const externalRefSchema = z.string().trim().min(1).max(GAME_EXTERNAL_REF_MAX_LENGTH)
 const participantsSchema = z.array(participantSchema).max(GAME_PODIUMS)
 
 // Programme de la partie : absent, tous les mini-jeux du moteur.
@@ -146,7 +146,7 @@ const miniGamesSchema = z
     message: 'mini_games_duplicated',
   })
 
-const arePodiumsUnique = (participants: GameParticipantInput[] = []) =>
+export const arePodiumsUnique = (participants: GameParticipantInput[] = []) =>
   new Set(participants.map((item) => item.podium)).size === participants.length
 
 export const createGameSchema = z
