@@ -1,0 +1,14 @@
+{
+  "vouchers": {
+    "errors": {
+      "vouchersDisabled": "Les bons de fidélisation ne sont pas activés pour cette compagnie : renseignez d'abord le libellé du bon dans ses réglages.",
+      "gameNotFinished": "Cette partie n'est pas terminée : les bons ne peuvent être émis qu'à la fin de la partie.",
+      "voucherAlreadyIssued": "Un bon a déjà été émis pour ce pupitre.",
+      "participantNotFound": "Ce pupitre ne fait pas partie de cette partie.",
+      "voucherNotFound": "Aucun bon ne correspond à ce code.",
+      "voucherCancelled": "Ce bon a été annulé.",
+      "voucherAlreadyRedeemed": "Ce bon a déjà été utilisé.",
+      "voucherExpired": "Ce bon a expiré."
+    }
+  }
+}

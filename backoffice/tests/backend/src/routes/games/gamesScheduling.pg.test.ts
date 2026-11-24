@@ -39,6 +39,9 @@ function inHours(hours: number): Date {
   return new Date(Math.ceil(Date.now() / HOUR_MS) * HOUR_MS + hours * HOUR_MS)
 }
 
+const TRUNCATE_TABLES =
+  'TRUNCATE game_participants, games, rooms, admins, companies RESTART IDENTITY CASCADE'
+
 describe.skipIf(!PG_INTEGRATION_URL)('sessions programmées sur PostgreSQL', () => {
   let db: Db
   let app: FastifyInstance
@@ -56,13 +59,13 @@ describe.skipIf(!PG_INTEGRATION_URL)('sessions programmées sur PostgreSQL', () 
 
   afterAll(async () => {
     await app?.close()
+    // La base est partagée avec les autres fichiers `.pg.test.ts` : ne rien y laisser.
+    await db?.raw(TRUNCATE_TABLES)
     await db?.destroy()
   })
 
   beforeEach(async () => {
-    await db.raw(
-      'TRUNCATE game_participants, games, rooms, admins, companies RESTART IDENTITY CASCADE'
-    )
+    await db.raw(TRUNCATE_TABLES)
 
     for (const companyId of [1, 2]) {
       await db('companies').insert({
@@ -236,16 +239,27 @@ describe.skipIf(!PG_INTEGRATION_URL)('sessions programmées sur PostgreSQL', () 
     ])
   })
 
-  it('answers room_busy when a game is running in the room, the unique index refuses', async () => {
+  it('answers room_busy when a game waits in the room, the unique index refuses', async () => {
     const soon = new Date(Math.ceil(Date.now() / MINUTE_MS) * MINUTE_MS + 20 * MINUTE_MS)
     const { id } = parseJson<GameBody>(await schedule(soon, { durationMinutes: 20 })).game
-    await db('games').insert({ company_id: 1, room_id: 1, admin_id: 2, seed: 1, state: 'running' })
+    await db('games').insert({ company_id: 1, room_id: 1, admin_id: 2, seed: 1, state: 'pending' })
 
     const busy = await request('POST', `/companies/1/games/${id}/open`)
 
     expect(busy.statusCode).toBe(409)
     expect(parseJson(busy)).toEqual({ error: 'room_busy' })
     expect(await db('games').where('id', id).first()).toMatchObject({ state: 'scheduled' })
+  })
+
+  it('opens the session while another game is running in the room (arbitrage 4)', async () => {
+    const soon = new Date(Math.ceil(Date.now() / MINUTE_MS) * MINUTE_MS + 20 * MINUTE_MS)
+    const { id } = parseJson<GameBody>(await schedule(soon, { durationMinutes: 20 })).game
+    await db('games').insert({ company_id: 1, room_id: 1, admin_id: 2, seed: 1, state: 'running' })
+
+    const opened = await request('POST', `/companies/1/games/${id}/open`)
+
+    expect(opened.statusCode).toBe(200)
+    expect(await db('games').where('id', id).first()).toMatchObject({ state: 'pending' })
   })
 
   it('answers 404 to a superadmin opening a game through another company', async () => {

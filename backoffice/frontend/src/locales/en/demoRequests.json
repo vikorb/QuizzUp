@@ -1,0 +1,48 @@
+{
+  "demoRequests": {
+    "nav": "Demo requests",
+    "title": "Demo requests",
+    "subtitle": "Requests received from the showcase site: call back, then mark as handled.",
+    "filters": {
+      "label": "Show",
+      "pending": "To handle",
+      "processed": "Handled",
+      "all": "All"
+    },
+    "status": {
+      "pending": "To handle",
+      "processed": "Handled"
+    },
+    "table": {
+      "title": "Requests",
+      "loading": "Loading requests…",
+      "empty": "No request to show.",
+      "retry": "Retry",
+      "columns": {
+        "createdAt": "Received",
+        "contact": "Contact",
+        "coordinates": "Details",
+        "rooms": "Rooms",
+        "message": "Message",
+        "status": "Status",
+        "actions": "Actions"
+      }
+    },
+    "actions": {
+      "markProcessed": "Mark as handled",
+      "markProcessedFor": "Mark the request from {name} as handled",
+      "delete": "Delete",
+      "deleteFor": "Delete the request from {name}",
+      "deleteConfirm": "Permanently delete the request from {name}? This cannot be undone."
+    },
+    "errors": {
+      "missingToken": "Your session has expired: sign in again.",
+      "unauthorized": "Your session has expired: sign in again.",
+      "forbidden": "This screen is reserved for the publisher.",
+      "apiUnreachable": "API unreachable.",
+      "invalidJson": "The server response is unreadable.",
+      "invalidBody": "The request sent is invalid.",
+      "serverError": "Server error. Try again in a few moments."
+    }
+  }
+}
