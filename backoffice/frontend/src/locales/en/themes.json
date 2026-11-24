@@ -1,0 +1,13 @@
+{
+  "themes": {
+    "errors": {
+      "apiErrors": {
+        "theme_playlist_ref_invalid": "The playlist link is invalid.",
+        "theme_playlist_mode_invalid": "A playlist can only be linked to a theme in audio mode.",
+        "theme_playlist_not_found": "This playlist was not found.",
+        "theme_playlist_too_small": "This playlist does not have enough playable tracks (4 minimum).",
+        "media_provider_unavailable": "The excerpt service is not answering, try again in a moment."
+      }
+    }
+  }
+}

@@ -1,4 +1,4 @@
-import type { QuestionStatus } from '@quizzup/shared'
+import type { QuestionAudioEffect, QuestionStatus } from '@quizzup/shared'
 
 import type { ApiResult } from '@/types/api'
 import type {
@@ -51,6 +51,7 @@ export type UpdateQuestionPayload = {
   typeMedia?: QuestionMediaType
   mediaUrl?: string | null
   mediaStartMs?: number
+  audioEffect?: QuestionAudioEffect
   status?: number
   answers?: Answer[]
 }
@@ -108,6 +109,10 @@ function buildQuestionBody(
 
   if (payload.mediaUrl !== undefined) {
     body.mediaUrl = payload.mediaUrl
+  }
+
+  if (payload.audioEffect !== undefined) {
+    body.audioEffect = payload.audioEffect
   }
 
   if ('mediaStartMs' in payload && payload.mediaStartMs !== undefined) {

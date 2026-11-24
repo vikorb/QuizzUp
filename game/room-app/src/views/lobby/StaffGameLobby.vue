@@ -159,6 +159,7 @@ type StartError =
   | 'noContent'
   | 'gameGone'
   | 'startFailed'
+  | 'participantsChanged'
   | 'invalidGame'
   | 'noPlayers'
   | 'invalidSetup'
@@ -311,7 +312,12 @@ async function onStart(): Promise<void> {
     if (disposed) {
       return
     }
-    await startRoomGame(token, current.id)
+    // Les pupitres chargés : le backoffice refuse (409) si le staff a changé la liste entre-temps.
+    await startRoomGame(
+      token,
+      current.id,
+      current.participants.map((participant) => participant.podium)
+    )
     if (disposed) {
       return
     }
@@ -319,6 +325,11 @@ async function onStart(): Promise<void> {
     rememberBackofficeGameId(current.id, current.seed)
   } catch (caught) {
     error.value = toStartError(caught)
+    if (error.value === 'participantsChanged' && !disposed) {
+      // Le relevé affiché est périmé : on le recharge (`refresh` ne tourne pas pendant `starting`).
+      starting.value = false
+      await refresh()
+    }
     return
   } finally {
     starting.value = false
@@ -334,7 +345,14 @@ function toStartError(caught: unknown): StartError {
   if (caught instanceof GameSetupError) {
     return 'invalidSetup'
   }
-  return caught instanceof RoomApiError && caught.status === 404 ? 'gameGone' : 'startFailed'
+  if (caught instanceof RoomApiError && caught.status === 404) {
+    return 'gameGone'
+  }
+  return caught instanceof RoomApiError &&
+    caught.status === 409 &&
+    caught.code === 'game_participants_changed'
+    ? 'participantsChanged'
+    : 'startFailed'
 }
 
 async function onResume(): Promise<void> {

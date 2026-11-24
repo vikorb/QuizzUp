@@ -18,6 +18,8 @@ export const companySelect = [
   'companies.email',
   'companies.status',
   'companies.logo_key as logoKey',
+  'companies.voucher_label as voucherLabel',
+  'companies.voucher_validity_days as voucherValidityDays',
   'companies.created_at as createdAt',
   'companies.updated_at as updatedAt',
   'companies.deleted_at as deletedAt',
