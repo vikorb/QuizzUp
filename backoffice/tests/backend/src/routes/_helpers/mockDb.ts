@@ -40,6 +40,8 @@ type DbState = {
   game_participants: Row[]
   room_logs: Row[]
   demo_requests: Row[]
+  api_keys: Row[]
+  api_request_logs: Row[]
 }
 
 type TableName = keyof DbState
@@ -64,6 +66,8 @@ export const dbState: DbState = {
   game_participants: [],
   room_logs: [],
   demo_requests: [],
+  api_keys: [],
+  api_request_logs: [],
 }
 
 const DEFAULT_COMPANIES: Row[] = [
@@ -151,6 +155,8 @@ export function resetDb(seed?: Partial<DbState>): void {
   dbState.game_participants = structuredClone(seed?.game_participants ?? [])
   dbState.room_logs = structuredClone(seed?.room_logs ?? [])
   dbState.demo_requests = structuredClone(seed?.demo_requests ?? [])
+  dbState.api_keys = structuredClone(seed?.api_keys ?? [])
+  dbState.api_request_logs = structuredClone(seed?.api_request_logs ?? [])
   db.fn.now.mockClear()
   db.raw.mockClear()
 }
@@ -733,6 +739,8 @@ class QueryBuilder {
           return
         }
 
+        this.assertUniqueColumns(payload)
+
         const row: Row = {
           ...payload,
           created_at: payload.created_at ?? MOCK_NOW,
@@ -748,6 +756,20 @@ class QueryBuilder {
       })
 
     return insertedRows
+  }
+
+  // Index uniques d'`api_keys` (`key_prefix`, `key_hash`) : la base réelle refuse un doublon.
+  private assertUniqueColumns(payload: Row): void {
+    const columns = this.table === 'api_keys' ? ['key_prefix', 'key_hash'] : []
+    const taken = columns.some((column) =>
+      getTableRows(this.table).some((row) => row[column] === payload[column])
+    )
+
+    if (taken) {
+      throw Object.assign(new Error('duplicate key value violates unique constraint'), {
+        code: '23505',
+      })
+    }
   }
 
   private conflicts(payload: Row, pending: Row[]): boolean {
