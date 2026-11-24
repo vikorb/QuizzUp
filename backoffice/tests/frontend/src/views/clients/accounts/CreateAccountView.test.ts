@@ -4,7 +4,10 @@ import {
   mockLoadCompanyAccountFailure,
   mockLoadCompanyAccountSuccess,
 } from '@frontend-tests/_helpers/accountsServiceMock'
-import { setAuthenticatedAdmin } from '@frontend-tests/_helpers/authStateMock'
+import {
+  setAuthenticatedAdmin,
+  setAuthenticatedSuperadmin,
+} from '@frontend-tests/_helpers/authStateMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { currentRouteMock, pushMock } from '@frontend-tests/_helpers/routerMock'
@@ -126,5 +129,43 @@ describe('views/clients/accounts/CreateAccountView.vue', () => {
     await wrapper.find('[data-test="base-card-actions"] [data-test="ui-button"]').trigger('click')
 
     expect(pushMock).toHaveBeenCalledTimes(1)
+  })
+
+  describe('double authentification', () => {
+    const resetStub = {
+      totpResetSection: { template: '<section data-test="totp-reset-stub" />' },
+      createAccountForm: { template: '<form />' },
+    }
+
+    function mountOn(routeName: string, params: Record<string, string>) {
+      setRoute(routeName, params)
+      mockLoadCompanyAccountSuccess(accountsFixture[0])
+
+      return mountWithFrontendMocks(CreateAccountView, { global: { stubs: resetStub } })
+    }
+
+    it('offers the reset to a superadmin on their own profile', async () => {
+      setAuthenticatedSuperadmin()
+      const wrapper = mountOn('profile', {})
+      await flushPromises()
+
+      expect(wrapper.find('[data-test="totp-reset-stub"]').exists()).toBe(true)
+    })
+
+    it('does not offer it to an admin on their profile', async () => {
+      setAuthenticatedAdmin()
+      const wrapper = mountOn('profile', {})
+      await flushPromises()
+
+      expect(wrapper.find('[data-test="totp-reset-stub"]').exists()).toBe(false)
+    })
+
+    it('does not offer it to a superadmin outside the profile', async () => {
+      setAuthenticatedSuperadmin()
+      const wrapper = mountOn('edit-client-account', { companyId: '1', accountId: '1' })
+      await flushPromises()
+
+      expect(wrapper.find('[data-test="totp-reset-stub"]').exists()).toBe(false)
+    })
   })
 })

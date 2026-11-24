@@ -71,6 +71,13 @@ démarrage installe encore des dépendances (`npm run demo:logs` pour suivre).
 | Compte de la salle « Salle 1 » | `salle1-demo` | `Demo1234!`    | Écran de salle  |
 | Superadmin (éditeur)           | `admin`       | `ChangeMe123!` | Backoffice      |
 
+Le superadmin `admin` passe par une double authentification gérée côté serveur : après son mot de
+passe, une clé est à saisir dans une application d'authentification (Google Authenticator,
+Aegis…), puis les codes de secours sont à noter ; aux connexions suivantes, il saisit le code à 6
+chiffres. L'écran de connexion en deux temps qui présente ces étapes arrive avec le lot 12f,
+livré en même temps. Perdu : `docker compose exec backend npm run totp:reset -- --username admin` (depuis
+`backoffice/`) efface le deuxième facteur, et le prochain login le recrée.
+
 Compagnie de démo : **QuizzUP Démo**. Thèmes blind test : **Mélodies du domaine public**
 (Frère Jacques, Ode à la joie, Lettre à Élise…) et **Sons synthétiques** (sirène de pompiers,
 SOS en morse, carillon…).
