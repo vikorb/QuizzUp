@@ -1004,8 +1004,10 @@ export function createLightingController(options: LightingControllerOptions): Li
           : key
       const sceneId = Object.hasOwn(bindings, bindingKey) ? bindings[bindingKey] : undefined
       if (sceneId) {
-        if (event.type === 'game_aborted') {
-          // Partie arrêtée : retour au repos, même si une scène plus prioritaire tourne encore.
+        if (event.type === 'game_aborted' || event.type === 'game_started') {
+          // Partie arrêtée : retour au repos, même si une scène plus prioritaire tourne encore. Début
+          // de partie : la victoire (50) de la partie d'avant n'a pas à enchaîner sa sortie pendant
+          // celle-ci (les scènes de question, priorité 10, ne pourraient plus l'interrompre).
           player.stop()
         }
         playScene(sceneId, { desk })
@@ -1020,7 +1022,16 @@ export function createLightingController(options: LightingControllerOptions): Li
         stopSmoke()
       }
     },
-    playScene,
+    // Chemin de l'opérateur (écran Matériel, écran de fin). Une demande explicite de repos arrête
+    // d'abord le lecteur : sans cela, la sortie lancée par une victoire testée (priorité 15) refuserait
+    // le repos (0) et resterait allumée jusqu'à 5 minutes. Les événements de jeu passent par
+    // `handleGameEvent` et gardent leurs priorités.
+    playScene(sceneId, context) {
+      if (sceneId === SCENE_IDS.IDLE && !emergency && !diagnosticsActive) {
+        player.stop()
+      }
+      return playScene(sceneId, context)
+    },
     identifyFixture(fixtureId) {
       if (emergency || diagnosticsActive || !fixtures.some((fixture) => fixture.id === fixtureId)) {
         return false

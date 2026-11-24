@@ -35,6 +35,20 @@ const VICTORY_MS = duration(SCENE_IDS.VICTORY)
 const WINNER = { type: 'game_ended', payload: { desk: 1, winnerIds: [1] } }
 const INCOMPLETE = { type: 'game_ended', payload: { reason: 'no_content', winnerIds: [] } }
 
+/** Avance seconde par seconde et relève la scène en cours à chaque pas. */
+const sampleScenes = (
+  clock: ReturnType<typeof createManualClock>,
+  scene: () => string | null,
+  seconds: number
+) => {
+  const seen = new Set<string | null>()
+  for (let at = 0; at < seconds; at += 1) {
+    clock.advance(1_000)
+    seen.add(scene())
+  }
+  return seen
+}
+
 const setup = (overrides: Parameters<typeof lightingConfig>[0] = {}) => {
   const clock = createManualClock(10_000)
   const controller = createLightingController({
@@ -212,9 +226,9 @@ describe('scène de sortie dans le contrôleur', () => {
       controller.handleGameEvent({ type: 'game_started' })
       expect(scene()).toBe('game-start')
       // Rien ne relance la sortie après le début de partie.
-      clock.advance(60_000)
-      expect(scene()).not.toBe('exit')
-      expect(scene()).not.toBe('exit-off')
+      const seen = sampleScenes(clock, scene, 60)
+      expect(seen).not.toContain('exit')
+      expect(seen).not.toContain('exit-off')
     })
 
     it('une nouvelle partie coupe la sortie allumée, sans extinction ensuite', async () => {
@@ -280,6 +294,75 @@ describe('scène de sortie dans le contrôleur', () => {
     })
   })
 
+  describe('repos demandé par l’opérateur et début de partie', () => {
+    const SIX_MINUTES = 6 * 60
+    const FULL = { exit: DEFAULT_EXIT }
+
+    // Le bouton « victoire » de l'écran Matériel, puis le bouton « repos », à trois moments.
+    it.each([
+      ['pendant la victoire', 2_000],
+      ['pendant l’attente de la sortie', VICTORY_MS + 500],
+      ['pendant le maintien de la sortie', VICTORY_MS + DEFAULT_EXIT.delayMs + FADE_MS + 500],
+    ])('repos %s : tout de suite, et la sortie ne revient pas', async (_when, after) => {
+      current = setup(FULL)
+      const { controller, clock, scene, wash } = current
+      await controller.start()
+      expect(controller.playScene('victory')).toBe(true)
+      clock.advance(after)
+
+      expect(controller.playScene('idle')).toBe(true)
+      expect(scene()).toBe('idle')
+      clock.advance(2_000)
+      expect(wash().intensity).toBeCloseTo(0.3)
+
+      const seen = sampleScenes(clock, scene, SIX_MINUTES)
+      expect(seen).not.toContain('victory')
+      expect(seen).not.toContain('exit')
+      expect(seen).not.toContain('exit-off')
+      expect(wash().intensity).toBeCloseTo(0.3)
+    })
+
+    it('le repos demandé ne change pas les priorités entre événements de jeu', async () => {
+      // Une liaison de la salle vers « idle » passe par le chemin des événements : la sortie reste.
+      current = setup({ bindings: { question_started: 'idle' } })
+      const { controller, clock, scene } = current
+      await controller.start()
+      controller.handleGameEvent(INCOMPLETE)
+      clock.advance(2_000)
+      controller.handleGameEvent({ type: 'question_started' })
+      expect(scene()).toBe('exit')
+    })
+
+    it('un début de partie pendant la victoire n’est pas suivi d’une sortie', async () => {
+      current = setup()
+      const { controller, clock, scene } = current
+      await controller.start()
+      controller.handleGameEvent(WINNER)
+      clock.advance(2_000)
+      controller.handleGameEvent({ type: 'game_started' })
+      expect(scene()).toBe('game-start')
+      controller.handleGameEvent({ type: 'question_started' })
+
+      const seen = sampleScenes(clock, scene, 90)
+      expect(seen).not.toContain('victory')
+      expect(seen).not.toContain('exit')
+      expect(seen).not.toContain('exit-off')
+    })
+
+    it('même chose pour une égalité', async () => {
+      current = setup()
+      const { controller, clock, scene } = current
+      await controller.start()
+      controller.handleGameEvent({ type: 'game_ended', payload: { winnerIds: [1, 2] } })
+      clock.advance(2_000)
+      controller.handleGameEvent({ type: 'game_started' })
+      expect(scene()).toBe('game-start')
+      const seen = sampleScenes(clock, scene, 90)
+      expect(seen).not.toContain('victory-tie')
+      expect(seen).not.toContain('exit')
+    })
+  })
+
   describe('arrêt d’urgence et arrêt des lumières', () => {
     it('l’arrêt d’urgence éteint tout, et la sortie ne repart pas au réarmement', async () => {
       current = setup()
@@ -315,8 +398,9 @@ describe('scène de sortie dans le contrôleur', () => {
       clock.advance(20_000)
       expect(controller.getFrame().every((value) => value === 0)).toBe(true)
       controller.resetEmergency()
-      clock.advance(20_000)
-      expect(scene()).not.toBe('exit')
+      const seen = sampleScenes(clock, scene, 20)
+      expect(seen).not.toContain('exit')
+      expect(seen).not.toContain('exit-off')
     })
 
     it('l’arrêt des lumières coupe la sortie', async () => {
@@ -349,11 +433,16 @@ describe('scène de sortie dans le contrôleur', () => {
 
     it('une partie incomplète n’allume pas la sortie toute seule', async () => {
       current = setup(disabled)
-      const { controller, clock, scene } = current
+      const { controller, clock, scene, wash } = current
       await controller.start()
       controller.handleGameEvent(INCOMPLETE)
-      clock.advance(30_000)
       expect(scene()).not.toBe('exit')
+      // Plus longtemps que la sortie courte (9 s) : si elle partait, on la verrait.
+      for (let at = 0; at < 12; at += 1) {
+        clock.advance(1_000)
+        expect(scene()).not.toBe('exit')
+        expect(wash().intensity).toBeLessThanOrEqual(0.3 + 1e-9)
+      }
     })
 
     it('le bouton de l’écran de fin reste possible', async () => {
@@ -416,6 +505,55 @@ describe('scène de sortie dans le contrôleur', () => {
       // Tous les jets sont partis pendant la victoire.
       expect(Math.max(...fired) - 10_000).toBeLessThan(VICTORY_MS)
       expect(warnings).not.toHaveBeenCalled()
+    })
+
+    const shortWait = { type: 'wait', durationMs: 500 }
+    const withoutSmoke = [
+      { id: 'victory', name: 'v', priority: 50, steps: [shortWait] },
+      { id: 'victory-tie', name: 'v', priority: 50, steps: [shortWait] },
+    ]
+    const smokeThenLight = [
+      { type: 'smoke', durationMs: 2_000 },
+      { type: 'color', color: WARM, fadeMs: 500, holdMs: 500 },
+    ]
+
+    it('cas A : une sortie de la salle avec fumée ne jette rien à la fin d’une partie incomplète', async () => {
+      current = setup({
+        scenes: [
+          ...withoutSmoke,
+          { id: 'exit', name: 'x', priority: 15, steps: smokeThenLight },
+        ] as never,
+      })
+      const { controller, clock } = current
+      await controller.start()
+      controller.smoke.arm()
+      controller.handleGameEvent(INCOMPLETE)
+      for (let at = 0; at < 12; at += 1) {
+        clock.advance(1_000)
+        expect(controller.getFrame()[SMOKE_INDEX]).toBe(0)
+        expect(controller.getState().smoke.status).toBe('ready')
+      }
+    })
+
+    it('cas B : une extinction de la salle avec fumée ne jette rien au bouton « Éteindre la sortie »', async () => {
+      current = setup({
+        scenes: [
+          ...withoutSmoke,
+          { id: 'exit', name: 'x', priority: 15, steps: [smokeThenLight[1]], next: 'exit-off' },
+          { id: 'exit-off', name: 'x', priority: 15, steps: smokeThenLight },
+        ] as never,
+      })
+      const { controller, clock } = current
+      await controller.start()
+      controller.smoke.arm()
+      controller.handleGameEvent(INCOMPLETE)
+      clock.advance(1_500)
+      expect(controller.playScene('exit-off')).toBe(true)
+      for (let at = 0; at < 12; at += 1) {
+        clock.advance(1_000)
+        expect(controller.getFrame()[SMOKE_INDEX]).toBe(0)
+        expect(controller.getState().smoke.status).toBe('ready')
+      }
     })
 
     it('un stroboscope reste éteint pendant toute la sortie', async () => {
@@ -487,6 +625,18 @@ describe('lighting.exit : lecture de la configuration', () => {
     expect(parseExit({ intensity: -1 }).exit?.intensity).toBe(0)
   })
 
+  it('signale une lumière de sortie qui plongerait la salle dans le noir, sans la corriger', () => {
+    const dark = parseExit({ intensity: 0 })
+    expect(dark.exit?.intensity).toBe(0)
+    expect(dark.problems).toEqual([expect.stringContaining('intensity à 0')])
+
+    const black = parseExit({ color: { r: 0, g: 0, b: 0 } })
+    expect(black.exit?.color).toEqual({ r: 0, g: 0, b: 0 })
+    expect(black.problems).toEqual([expect.stringContaining('color noire')])
+    expect(parseExit({ color: { r: 0, g: 0, b: 0, w: 1 } }).problems).toEqual([])
+    expect(parseExit({ intensity: 0.1 }).problems).toEqual([])
+  })
+
   it('écarte les valeurs de mauvais type sans rien bloquer', () => {
     const { exit, problems } = parseExit({
       enabled: 'oui',
@@ -535,6 +685,7 @@ describe('lighting.exit : lecture de la configuration', () => {
 
 describe('parseScenes : la sortie par défaut ne s’ouvre à aucun détour', () => {
   const wait = { type: 'wait', durationMs: 500 }
+  const LIGHT = { r: 1, g: 2, b: 3 }
 
   it('refuse une boucle qui passe par la victoire et la sortie livrées', () => {
     const { scenes, problems } = parseScenes([
@@ -556,8 +707,53 @@ describe('parseScenes : la sortie par défaut ne s’ouvre à aucun détour', ()
     const { scenes, problems } = parseScenes([
       { id: 'exit', name: 'x', priority: 15, steps: [{ type: 'smoke', durationMs: 2_000 }, wait] },
     ])
-    expect(problems).toEqual([expect.stringContaining('déjà une fumée plus tôt')])
+    expect(problems).toEqual([expect.stringContaining('pas de fumée dans la sortie')])
     expect(scenes[0]!.steps.some((step) => step.type === 'smoke')).toBe(false)
+  })
+
+  it('cas A : une sortie de la salle avec fumée la perd, même quand la victoire n’en a pas', () => {
+    const quiet = (id: string) => ({ id, name: 'v', priority: 50, steps: [wait] })
+    const { scenes, problems } = parseScenes([
+      quiet('victory'),
+      quiet('victory-tie'),
+      {
+        id: 'exit',
+        name: 'x',
+        priority: 15,
+        steps: [
+          { type: 'smoke', durationMs: 2_000 },
+          { type: 'color', color: LIGHT },
+        ],
+      },
+    ])
+    expect(problems).toEqual([expect.stringContaining('pas de fumée dans la sortie')])
+    const exit = scenes.find((scene) => scene.id === 'exit')!
+    expect(exit.steps.map((step) => step.type)).toEqual(['color'])
+  })
+
+  it('cas B : une extinction de la salle avec fumée la perd aussi', () => {
+    const { scenes, problems } = parseScenes([
+      { id: 'exit', name: 'x', priority: 15, steps: [wait], next: 'exit-off' },
+      {
+        id: 'exit-off',
+        name: 'x',
+        priority: 15,
+        steps: [
+          { type: 'smoke', durationMs: 2_000 },
+          { type: 'color', color: LIGHT },
+        ],
+      },
+    ])
+    expect(problems).toEqual([expect.stringContaining('pas de fumée dans la sortie')])
+    const off = scenes.find((scene) => scene.id === 'exit-off')!
+    expect(off.steps.map((step) => step.type)).toEqual(['color'])
+  })
+
+  it('une sortie réduite à une fumée garde une attente nulle, jamais une scène vide', () => {
+    const { scenes } = parseScenes([
+      { id: 'exit', name: 'x', priority: 15, steps: [{ type: 'smoke', durationMs: 2_000 }] },
+    ])
+    expect(scenes[0]!.steps).toEqual([{ type: 'wait', durationMs: 0 }])
   })
 
   it('les scènes livrées ne sont jamais modifiées par la relecture', () => {

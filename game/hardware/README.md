@@ -474,7 +474,18 @@ aux défauts et le dit dans `problems` ; le contrôleur reborne aussi le bloc lu
   `game_ended_incomplete` à `null`. `playScene('exit')` reste possible (action explicite de
   l'opérateur), et une liaison `game_ended_incomplete` posée par la salle est respectée.
 - Une salle peut remplacer `exit` ou `exit-off` par `lighting.scenes` (mêmes bornes que les autres
-  scènes) ; les réglages `lighting.exit` ne s'appliquent alors plus à la scène remplacée.
+  scènes) ; les réglages `lighting.exit` ne s'appliquent alors plus à la scène remplacée. Une salle
+  qui a sa propre scène `exit` la voit jouée après chaque victoire, et `lighting.exit` ne s'y applique
+  pas. Une salle qui remplace `victory` ou `victory-tie` sans `next` n'a plus de sortie automatique.
+  Un pas `smoke` n'est jamais accepté dans `exit` ni `exit-off` : il est retiré et signalé dans
+  `problems`, quelle que soit la chaîne.
+- `lighting.exit.intensity` à 0 ou une couleur noire (rien d'allumé) sont acceptés mais signalés dans
+  `problems` : la salle resterait dans le noir.
+- **Repos et début de partie** : `playScene('idle')` (bouton de l'opérateur) arrête d'abord le lecteur,
+  scène en cours et enchaînement en attente compris : un test de victoire à l'écran Matériel ne
+  laisse pas la sortie allumée. `game_started` arrête aussi le lecteur avant sa scène (comme
+  `game_aborted`) : une victoire en cours n'enchaîne pas sa sortie pendant la partie suivante. Les
+  autres événements de jeu gardent leurs priorités.
 - Le plafond de 400 ms entre deux éclairs s'applique comme à toute scène : l'allumage de la sortie est
   un seul fondu, un seul éclair compté. Les 3 s de fondu et la lisibilité depuis la porte sont **à
   valider sur le banc** (D12).

@@ -224,6 +224,15 @@ function parseScene(input: unknown, index: number, problems: string[]): SceneDef
     problems.push(`${label} : ${SCENE_LIMITS.maxSteps} étapes au plus, les suivantes sont écartées`)
     steps = steps.slice(0, SCENE_LIMITS.maxSteps)
   }
+  // Sécurité : la lumière de sortie ne jette jamais de fumée, quelle que soit la chaîne (fin d'une
+  // partie incomplète, bouton « Éteindre la sortie »). Les pas `smoke` sont retirés, et signalés.
+  if (
+    (id === SCENE_IDS.EXIT || id === SCENE_IDS.EXIT_OFF) &&
+    steps.some((step) => step.type === 'smoke')
+  ) {
+    problems.push(`${label} : pas de fumée dans la sortie, étape de fumée écartée`)
+    steps = withoutSmoke(steps)
+  }
   // Un seul jet par scène : le contrôleur de fumée refuserait le second pendant son repos.
   const firstSmoke = steps.findIndex((step) => step.type === 'smoke')
   const kept = steps.filter((step, at) => step.type !== 'smoke' || at === firstSmoke)
@@ -496,13 +505,22 @@ export function parseExit(input: unknown): ParsedExit {
     }
   }
 
+  // Signalé sans être corrigé : la salle choisit sa lumière, mais une sortie éteinte est sans doute une erreur.
+  if (intensity === 0) {
+    problems.push('lighting.exit.intensity à 0 : la lumière de sortie n’éclairera pas')
+  }
+  const fixed = color as ExitLightConfig['color']
+  if (fixed.r === 0 && fixed.g === 0 && fixed.b === 0 && !fixed.w) {
+    problems.push('lighting.exit.color noire : la lumière de sortie n’éclairera pas')
+  }
+
   return {
     exit: {
       enabled,
       delayMs: duration(raw.delayMs, DEFAULT_EXIT.delayMs, 'delayMs'),
       holdMs: duration(raw.holdMs, DEFAULT_EXIT.holdMs, 'holdMs'),
       intensity,
-      color: color as ExitLightConfig['color'],
+      color: fixed,
     },
     problems,
   }
