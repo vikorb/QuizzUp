@@ -457,6 +457,9 @@ Format inspiré de Keep a Changelog.
 
 ### Changed
 
+- Mode enfants : aucun e-mail de joueur n'est gardé sur une partie en mode enfants, quel que soit le chemin (création, modification des participants, ajout d'un participant, validation d'une demande par le personnel, modification d'une réservation de l'API publique). Le formulaire de partie ne propose plus les champs e-mail ni les consentements dans ce mode.
+  US: US-KIDS-01 (#158)
+
 - Écran de salle : boutons et mises en page recalés sur l'accueil, les assistants de configuration, l'écran Matériel, le lobby, l'inscription et la connexion. Un seul bouton principal par écran, cibles d'au moins 48 px (plan de salle compris), barres d'actions alignées, rien ne déborde à 1280 px ni à 768 px.
   US: US-UX-01 (#132)
 - **Rupture de déploiement.** Console éditeur : le compte superadmin ne peut plus se connecter ni appeler l'API que depuis les adresses de `CONSOLE_ALLOWED_CIDRS` (401 `invalid_credentials` à la connexion, 403 `forbidden` ensuite). Variable vide ou absente = console fermée : la renseigner avant de déployer. La même variable, séparée par des espaces, remplace `EDITOR_ALLOWED_RANGES` côté Caddy de production, et les réseaux Docker de recette et de production ont un sous-réseau fixe à nommer dans `TRUST_PROXY` (réseau à recréer une fois, voir les README de `deploy/`).

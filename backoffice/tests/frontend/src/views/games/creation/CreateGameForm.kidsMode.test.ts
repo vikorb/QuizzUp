@@ -91,6 +91,43 @@ describe('views/games/creation/CreateGameForm.vue: kids mode', () => {
     expect(createGameServiceMock.mock.calls[0]?.[1]).not.toHaveProperty('kidsMode')
   })
 
+  describe('player e-mail', () => {
+    it('offers the e-mail field and the consent outside kids mode', () => {
+      const wrapper = mountForm()
+
+      expect(wrapper.find('input[name="participants.0.email"]').exists()).toBe(true)
+      expect(wrapper.find('[data-test="game-participant-consent"]').exists()).toBe(true)
+      expect(wrapper.find('[data-test="game-kids-no-email"]').exists()).toBe(false)
+    })
+
+    it('hides the e-mail field and the consent in kids mode, with an explanation', async () => {
+      const wrapper = mountForm()
+
+      await kidsSwitch(wrapper).trigger('click')
+
+      expect(wrapper.find('input[name="participants.0.email"]').exists()).toBe(false)
+      expect(wrapper.find('[data-test="game-participant-consent"]').exists()).toBe(false)
+      expect(wrapper.get('[data-test="game-kids-no-email"]').text()).toBe('games.form.kidsNoEmail')
+    })
+
+    it('sends no e-mail typed before the switch was turned on', async () => {
+      const wrapper = mountForm()
+
+      await wrapper.get('input[name="participants.0.email"]').setValue('lea@exemple.fr')
+      await kidsSwitch(wrapper).trigger('click')
+      await fillAndSubmitCreation(wrapper)
+
+      expect(createGameServiceMock).toHaveBeenCalledTimes(1)
+      const payload = createGameServiceMock.mock.calls[0]?.[1] as {
+        participants: Record<string, unknown>[]
+      }
+      const participant = payload.participants[0]
+
+      expect(participant).not.toHaveProperty('email')
+      expect(participant).not.toHaveProperty('emailConsent')
+    })
+  })
+
   describe('editing a scheduled session', () => {
     it('shows the switch as it is saved', () => {
       expect(

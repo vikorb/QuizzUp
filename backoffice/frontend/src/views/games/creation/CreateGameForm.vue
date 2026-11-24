@@ -112,7 +112,7 @@
           :label="$t('games.form.kidsMode')"
           aria-describedby="game-form-kids-mode-hint"
           data-test="game-kids-mode"
-          @change="form.kidsMode = $event"
+          @change="setKidsMode($event)"
         />
         <label for="game-form-kids-mode">{{ $t('games.form.kidsMode') }}</label>
       </div>
@@ -259,11 +259,16 @@
         {{ $t('games.form.openJoinHint') }}
       </p>
 
+      <p v-if="form.kidsMode" class="game-form__notice" data-test="game-kids-no-email">
+        {{ $t('games.form.kidsNoEmail') }}
+      </p>
+
       <div class="game-form__participants">
         <GameParticipantFields
           v-for="(participant, index) in form.participants"
           :key="participant.key"
           :participant="participant"
+          :kids-mode="form.kidsMode"
           :index="index"
           :errors="getParticipantErrors(index)"
           :podium-options="getPodiumOptions(index)"
@@ -729,6 +734,35 @@ function updateParticipant(
     } else if (field === 'secondEmail') {
       errors.secondEmailConsent = ''
     }
+  }
+}
+
+/** Mode enfants : aucun e-mail n'est gardé, ceux déjà saisis sont donc retirés du formulaire. */
+function setKidsMode(value: boolean): void {
+  form.kidsMode = value
+
+  if (!value) {
+    return
+  }
+
+  for (const participant of form.participants) {
+    Object.assign(participant, {
+      email: '',
+      emailConsent: false,
+      marketingConsent: false,
+      secondEmail: '',
+      secondEmailConsent: false,
+      secondMarketingConsent: false,
+    })
+  }
+
+  for (const errors of fieldErrors.participants) {
+    Object.assign(errors, {
+      email: '',
+      emailConsent: '',
+      secondEmail: '',
+      secondEmailConsent: '',
+    })
   }
 }
 
