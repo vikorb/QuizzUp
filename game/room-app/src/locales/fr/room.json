@@ -34,7 +34,8 @@
       "formats": {
         "discovery": "Découverte",
         "short": "Courte",
-        "standard": "Standard"
+        "standard": "Standard",
+        "custom": "Personnalisé"
       },
       "formatSummary": "{name} · {rounds} manches × {questions} questions · {min} à {max} min",
       "start": "Démarrer la partie",
@@ -96,6 +97,7 @@
       "offlineTitle": "Backoffice injoignable",
       "offlineText": "Vérifie la connexion Internet du PC de la salle. Une connexion est nécessaire pour lancer la partie.",
       "retry": "Réessayer",
+      "format": "Format {name} · {min} à {max} min",
       "ready": "Partie prête : {rounds} manches × {questions} questions",
       "readyText": "Chaque joueur peut appuyer sur un buzzer pour vérifier son pupitre.",
       "starting": "Préparation des extraits…",
