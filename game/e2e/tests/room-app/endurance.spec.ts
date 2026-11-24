@@ -1,6 +1,6 @@
 import { expect, type Page, test } from '@playwright/test'
 
-import { dmxData, type FakeNode, startBridge, startFakeNode } from '../support/artnetBridge'
+import { startBridge, startFakeNode } from '../support/artnetBridge'
 import {
   advance,
   answerButtons,
@@ -11,6 +11,7 @@ import {
   expectScreen,
   freezeClock,
   GAME_STORAGE_KEY,
+  HARDWARE_KEY,
   pressBuzzer,
   registerAndStartShortGame,
   scoreOf,
@@ -21,8 +22,13 @@ import {
  * Endurance : plusieurs parties courtes enchaînées sur le même écran de salle, sans recharger la
  * page (mode démo, horloge figée, graine fixe), pour voir ce qu'une partie seule ne montre pas :
  * écouteurs, nœuds ou minuteries qui s'accumulent, état d'une partie qui fuit dans la suivante,
- * son ou lumières encore actifs après la fin, erreurs de console. Les lumières sortent par le vrai
- * pont Art-Net vers un faux nœud UDP : c'est la seule façon de lire les trames DMX de l'extérieur.
+ * son ou lumières encore actifs après la fin, erreurs de console.
+ *
+ * Les lumières sont lues **à l'envoi par la page** (sonde sur `WebSocket.send`, trames de 515
+ * octets du protocole du pont), jamais à la sortie du pont : celle-ci suit l'horloge réelle de
+ * Node (regroupement, keepalive, chien de garde) alors que la page a son horloge figée. Le vrai
+ * pont et un faux nœud UDP restent lancés seulement pour que la salle ait une sortie à laquelle
+ * envoyer ses trames ; aucune mesure n'en est tirée.
  * Rien n'est ajouté au code de production : les sondes sont injectées par le test.
  */
 const GAMES = 3
@@ -33,24 +39,30 @@ const PLAYERS = [
 const NAMES: Record<number, string> = { 1: 'Alice', 2: 'Bob' }
 /** Totaux de la partie jouée par `playGame` (100 / 50 / 20 points selon le palier). */
 const FINAL_SCORES = { Alice: 600, Bob: 250 }
-const HARDWARE_KEY = 'quizzup_room_hardware'
 const FIXED_SEED = 123_456
 
 /** Seuils de conception-spectacle-config-salle.md §4 (budget mesurable). */
 const MAX_DRIFT = 0.05
-/**
- * Coût d'une partie (trames, extraits) : large, car la charge de la machine joue un peu ; une
- * fuite qui s'ajoute à chaque partie le dépasse dès la deuxième (coût doublé).
- */
-const MAX_COST_DRIFT = 0.25
 /** Minuteries en attente : tolérance de quelques minuteries d'interface, pas d'une par partie. */
 const TIMEOUTS_SLACK = 2
 const MAX_HEAP_RISE_BYTES = 10 * 1024 * 1024
+/** Une trame par tick de la boucle des lumières : 30 Hz par défaut, soit `round(1000 / 30)` ms. */
+const LIGHT_TICK_MS = 33
 
 declare global {
   interface Window {
     audioProbe: { live: () => number; started: () => number; contexts: () => number }
     timerProbe: { intervals: () => number; timeouts: () => number }
+    dmxProbe: {
+      /** Trames envoyées au pont par la page depuis le chargement. */
+      frames: () => number
+      /** Dernière trame de chaque univers (canaux 1 à 512, un caractère par canal). */
+      last: () => Record<number, string>
+      /** Prend les dernières trames comme référence et remet `differing` à zéro. */
+      markReference: () => void
+      /** Trames envoyées depuis `markReference` qui diffèrent de la référence de leur univers. */
+      differing: () => number
+    }
   }
 }
 
@@ -117,6 +129,39 @@ async function installProbes(page: Page): Promise<void> {
       nativeClearTimeout(id)
     }) as typeof window.clearTimeout
     window.timerProbe = { intervals: () => intervals.size, timeouts: () => timeouts.size }
+
+    // Trames DMX envoyées au pont (protocole de `bridgeOutput.ts` : version, univers sur 2 octets,
+    // puis 512 canaux). Les messages texte (hello, hold…) n'ont pas cette forme et sont ignorés.
+    const FRAME_BYTES = 515
+    let frames = 0
+    let differing = 0
+    const last: Record<number, string> = {}
+    let reference: Record<number, string> = {}
+    const nativeSend = WebSocket.prototype.send
+    WebSocket.prototype.send = function send(this: WebSocket, data) {
+      if (ArrayBuffer.isView(data) && data.byteLength === FRAME_BYTES) {
+        const bytes = new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
+        if (bytes[0] === 1) {
+          const universe = (bytes[1]! << 8) | bytes[2]!
+          const channels = String.fromCharCode(...bytes.subarray(3))
+          frames += 1
+          last[universe] = channels
+          if (reference[universe] !== channels) {
+            differing += 1
+          }
+        }
+      }
+      return nativeSend.call(this, data)
+    }
+    window.dmxProbe = {
+      frames: () => frames,
+      last: () => ({ ...last }),
+      markReference: () => {
+        reference = { ...last }
+        differing = 0
+      },
+      differing: () => differing,
+    }
   }, FIXED_SEED)
 }
 
@@ -193,7 +238,7 @@ async function playGame(page: Page): Promise<void> {
 }
 
 /** Mesures CDP après ramasse-miettes (écouteurs, nœuds, tas) et compteurs des sondes. */
-async function snapshot(page: Page, node: FakeNode) {
+async function snapshot(page: Page) {
   const cdp = await page.context().newCDPSession(page)
   await cdp.send('Performance.enable')
   await cdp.send('HeapProfiler.collectGarbage')
@@ -206,43 +251,38 @@ async function snapshot(page: Page, node: FakeNode) {
     timeouts: window.timerProbe.timeouts(),
     sources: window.audioProbe.started(),
     contexts: window.audioProbe.contexts(),
-    canvases: document.querySelectorAll('canvas').length,
+    frames: window.dmxProbe.frames(),
+    clock: Date.now(),
   }))
   return {
     listeners: metric('JSEventListeners'),
     nodes: metric('Nodes'),
     heap: metric('JSHeapUsedSize'),
-    packets: node.packets.length,
     ...probes,
   }
 }
 
 type Snapshot = Awaited<ReturnType<typeof snapshot>>
 
-/**
- * Attend que les trames en route soient arrivées au faux nœud : plus rien de neuf pendant
- * 1 s. Sans cela, le retard d'une partie serait compté dans la suivante (machine chargée).
- */
-async function settleFrames(node: FakeNode): Promise<void> {
-  let last = -1
-  let calm = 0
-  await expect
-    .poll(
-      () => {
-        calm = node.packets.length === last ? calm + 1 : 0
-        last = node.packets.length
-        return calm
-      },
-      { intervals: [200], timeout: 20_000 }
-    )
-    .toBeGreaterThanOrEqual(5)
+/** Canaux allumés d'une trame (« canal:valeur »), lisible dans un message d'échec. */
+const litChannels = (frame: string | undefined) =>
+  [...(frame ?? '')].flatMap((char, index) =>
+    char === '\u0000' ? [] : [`${index + 1}:${char.charCodeAt(0)}`]
+  )
+
+/** Dernières trames envoyées par la page, sous une forme comparable (univers → canaux allumés). */
+async function sentFrames(page: Page): Promise<Record<string, string[]>> {
+  const last = await page.evaluate(() => window.dmxProbe.last())
+  return Object.fromEntries(
+    Object.entries(last).map(([universe, frame]) => [universe, litChannels(frame)])
+  )
 }
 
 test.describe('Écran de salle — endurance', () => {
   test('3 parties de suite sans recharger : pas de fuite, lumières et son revenus au repos', async ({
     page,
   }) => {
-    test.setTimeout(240_000)
+    test.setTimeout(180_000)
     const problems: string[] = []
     page.on('console', (message) => {
       if (message.type() === 'error') {
@@ -277,17 +317,29 @@ test.describe('Écran de salle — endurance', () => {
       await page.getByRole('button', { name: 'Lancer la salle' }).click()
       await expect(page.getByText('Inscription des joueurs')).toBeVisible()
 
-      // Salle au repos : les lumières démarrent avec la salle, c'est la trame de référence.
-      await advance(page, 2000)
-      await settleFrames(node)
-      expect(node.packets.length).toBeGreaterThan(5)
-      const rest = dmxData(node.packets.at(-1)!)
-      const start = await snapshot(page, node)
+      // Salle au repos : la sortie s'établit avec le pont (poignée de main réelle, seule attente
+      // réelle), puis la scène de repos finit son fondu (1,5 s de temps de jeu). Cette trame, prise
+      // **avant** la première partie, est la référence « lumières au repos ».
+      await expect
+        .poll(async () => {
+          await advance(page, 100)
+          return page.evaluate(() => window.dmxProbe.frames())
+        })
+        .toBeGreaterThan(0)
+      await advance(page, 3000)
+      const rest = await sentFrames(page)
+      expect(rest[0], 'trame de repos de l’univers 0 : pas noire').not.toHaveLength(0)
+      await advance(page, 1000)
+      expect(await sentFrames(page), 'le repos est stable').toEqual(rest)
+      await page.evaluate(() => window.dmxProbe.markReference())
+      const start = await snapshot(page)
 
       const games: Snapshot[] = []
-      const perGame: { frames: number; sources: number; litFrames: number }[] = []
+      const perGame: { frames: number; elapsed: number; sources: number; sceneFrames: number }[] =
+        []
       for (let game = 1; game <= GAMES; game += 1) {
         const before = games.at(-1) ?? start
+        await page.evaluate(() => window.dmxProbe.markReference())
         await registerAndStartShortGame(page, PLAYERS)
         await playGame(page)
         await page.getByRole('button', { name: 'Nouvelle partie' }).click()
@@ -295,70 +347,77 @@ test.describe('Écran de salle — endurance', () => {
 
         // Les scènes de fin ont le temps de finir ; plus rien ne doit sortir ni sonner.
         await advance(page, 10_000)
-        await settleFrames(node)
+        expect(await sentFrames(page), `partie ${game} : lumières revenues au repos`).toEqual(rest)
         await expect.poll(() => page.evaluate(() => window.audioProbe.live())).toBe(0)
-        expect(
-          dmxData(node.packets.at(-1)!).equals(rest),
-          `partie ${game} : lumières au repos`
-        ).toBe(true)
 
-        const after = await snapshot(page, node)
+        const after = await snapshot(page)
         perGame.push({
-          frames: after.packets - before.packets,
+          frames: after.frames - before.frames,
+          elapsed: after.clock - before.clock,
           sources: after.sources - before.sources,
-          litFrames: node.packets
-            .slice(before.packets)
-            .filter((packet) => !dmxData(packet).equals(rest)).length,
+          sceneFrames: await page.evaluate(() => window.dmxProbe.differing()),
         })
         games.push(after)
       }
 
       // Les lumières et le son ont bien servi (sinon « revenus au repos » ne prouverait rien).
       for (const [index, game] of perGame.entries()) {
-        expect(game.litFrames, `partie ${index + 1} : trames hors repos`).toBeGreaterThan(0)
+        expect(
+          game.sceneFrames,
+          `partie ${index + 1} : trames différentes du repos`
+        ).toBeGreaterThan(0)
         expect(game.sources, `partie ${index + 1} : extraits démarrés`).toBeGreaterThan(0)
       }
 
-      // Pas d'accumulation : chaque partie coûte pareil que la première.
-      const [first, ...others] = perGame
-      for (const [index, game] of others.entries()) {
-        const label = `partie ${index + 2}`
+      // Pas d'accumulation : l'horloge est figée et la partie toujours la même, donc chaque partie
+      // dure le même temps de jeu, démarre les mêmes extraits et envoie une trame par tick des
+      // lumières (ni plus, ni moins : une boucle en double ou perdue se verrait). Le nombre de
+      // trames n'est pas strictement égal d'une partie à l'autre : la durée n'est pas un
+      // multiple de 33 ms, donc selon la phase du tick au départ il vaut `floor` ou `ceil` du quotient.
+      const [first] = perGame
+      for (const [index, game] of perGame.entries()) {
+        const label = `partie ${index + 1}`
+        expect(game.elapsed, `${label} : temps de jeu écoulé`).toBe(first!.elapsed)
+        expect(game.sources, `${label} : extraits démarrés`).toBe(first!.sources)
         expect(
-          Math.abs(game.sources - first!.sources) / first!.sources,
-          `${label} : extraits démarrés`
-        ).toBeLessThanOrEqual(MAX_COST_DRIFT)
-        expect(
-          Math.abs(game.frames - first!.frames) / first!.frames,
-          `${label} : trames DMX`
-        ).toBeLessThanOrEqual(MAX_COST_DRIFT)
-      }
-      const [firstGame, ...laterGames] = games
-      for (const [index, game] of laterGames.entries()) {
-        const label = `partie ${index + 2}`
-        expect(game.intervals, `${label} : intervalles actifs`).toBeLessThanOrEqual(
-          firstGame!.intervals
-        )
-        expect(game.timeouts, `${label} : minuteries en attente`).toBeLessThanOrEqual(
-          firstGame!.timeouts + TIMEOUTS_SLACK
-        )
-        expect(game.contexts, `${label} : contextes audio`).toBeLessThanOrEqual(firstGame!.contexts)
+          Math.abs(game.frames - game.elapsed / LIGHT_TICK_MS),
+          `${label} : trames DMX (${game.frames} pour ${game.elapsed} ms)`
+        ).toBeLessThan(1)
       }
 
-      // Seuils de la conception : écouteurs et nœuds jamais au-dessus du départ (+5 %), tas < +10 Mo.
+      // Seuils de la conception : tas < +10 Mo au-dessus du départ ; minuteries, intervalles et
+      // contextes audio jamais au-dessus du départ au lobby (le contexte audio naît au premier
+      // extrait : aucun au départ, un seul ensuite).
       for (const [index, game] of games.entries()) {
         const label = `partie ${index + 1}`
-        expect(game.listeners, `${label} : écouteurs`).toBeLessThanOrEqual(
-          start.listeners * (1 + MAX_DRIFT)
-        )
-        expect(game.nodes, `${label} : nœuds`).toBeLessThanOrEqual(start.nodes * (1 + MAX_DRIFT))
         expect(game.heap - start.heap, `${label} : tas`).toBeLessThan(MAX_HEAP_RISE_BYTES)
-        expect(game.canvases, `${label} : canvas`).toBe(0)
+        expect(game.intervals, `${label} : intervalles actifs`).toBeLessThanOrEqual(start.intervals)
+        expect(game.timeouts, `${label} : minuteries en attente`).toBeLessThanOrEqual(
+          start.timeouts + TIMEOUTS_SLACK
+        )
+        expect(game.contexts, `${label} : contextes audio`).toBeLessThanOrEqual(start.contexts + 1)
+      }
+
+      // Écouteurs et nœuds (+5 % au plus) : référence = le lobby après la première partie. Le
+      // premier lobby, relevé avant toute partie, est plus pauvre d'un coût qui n'arrive qu'une fois :
+      // au premier lancement, Vite charge les écrans de jeu paresseux et injecte leurs styles
+      // (relevé : +18 balises <style>, soit +36 nœuds et +14 écouteurs, puis plus rien). Une fuite
+      // née dans la première partie n'est donc pas vue par ces deux mesures (cf. README).
+      const [baseline, ...laterGames] = games
+      for (const [index, game] of laterGames.entries()) {
+        const label = `partie ${index + 2}`
+        expect(game.listeners, `${label} : écouteurs`).toBeLessThanOrEqual(
+          baseline!.listeners * (1 + MAX_DRIFT)
+        )
+        expect(game.nodes, `${label} : nœuds`).toBeLessThanOrEqual(
+          baseline!.nodes * (1 + MAX_DRIFT)
+        )
       }
 
       // Valeurs relevées, jointes au rapport pour suivre la dérive d'une version à l'autre.
       test.info().annotations.push({
         type: 'mesures',
-        description: JSON.stringify({ start, games, perGame }),
+        description: JSON.stringify({ rest, start, games, perGame }),
       })
       expect(problems).toEqual([])
     } finally {

@@ -18,6 +18,8 @@ const SIMULATION_KEYS: Record<Desk, readonly string[]> = {
 }
 
 export const GAME_STORAGE_KEY = 'quizzup_room_game'
+/** Config matériel de la salle (`rooms.config` en local) : lumières, buzzers. */
+export const HARDWARE_KEY = 'quizzup_room_hardware'
 
 /** Appui franc (enfoncé + relâché) sur un bouton de pupitre. */
 export async function pressBuzzer(page: Page, desk: Desk, button: Button = 0): Promise<void> {
