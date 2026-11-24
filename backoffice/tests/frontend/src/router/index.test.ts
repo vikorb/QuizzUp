@@ -66,3 +66,21 @@ describe('router: edition of a scheduled session', () => {
     expect(router.currentRoute.value.params.gameId).toBe('4')
   })
 })
+
+describe('router: unknown address', () => {
+  it('sends a signed-in visitor to the home page', async () => {
+    setAuthenticatedAdmin()
+
+    await router.push('/cette/page/nexiste/pas')
+
+    expect(router.currentRoute.value.name).toBe('home')
+  })
+
+  it('sends a signed-out visitor to the public home page (guest view), never to a private screen', async () => {
+    setUnauthenticated()
+
+    await router.push('/cette/page/nexiste/pas')
+
+    expect(router.currentRoute.value.name).toBe('home')
+  })
+})

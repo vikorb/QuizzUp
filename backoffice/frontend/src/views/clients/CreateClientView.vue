@@ -1,5 +1,9 @@
 <template>
-  <SectionLayout :title="$t('clients.create.title')" :subtitle="$t('clients.create.subtitle')">
+  <SectionLayout
+    data-surface="console"
+    :title="$t('clients.create.title')"
+    :subtitle="$t('clients.create.subtitle')"
+  >
     <BaseCard
       :title="$t('clients.create.cardTitle')"
       :neon="true"
