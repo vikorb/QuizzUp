@@ -6,6 +6,7 @@ import {
 } from '@quizzup/shared'
 
 import { createSilentExtractPlayer, type ExtractPlayer } from '@/audio/player'
+import { flushRoomErrors } from '@/diagnostics/errorReporter'
 import { rememberBackofficeGameId } from '@/game/backofficeGameMemory'
 import { getDemoThemes } from '@/game/demoContent'
 import { getMediaCredit } from '@/game/mediaCredits'
@@ -490,6 +491,79 @@ function respondWith(themes: unknown) {
   )
 }
 
+const PLAYLIST_THEME_ID = 9000
+const PLAYLIST_IDS = Array.from({ length: 10 }, (_item, index) => -(1001 + index))
+
+const CREDIT = { provider: 'deezer', title: 'Titre', coverUrl: null, link: 'https://dz.test/1' }
+
+/** Thème de playlist : questions d'identifiant négatif (`-idDuTitre`), extrait Deezer et crédit. */
+function playlistTheme(base: string, artist: string) {
+  const template = deezerThemes(base, artist)[0]?.questions.find((question) => question.mediaUrl)
+  return {
+    id: PLAYLIST_THEME_ID,
+    name: 'Playlist',
+    questions: PLAYLIST_IDS.map((id) => ({
+      ...template,
+      id,
+      mediaUrl: `${base}${-id}.mp3`,
+      mediaCredit: { ...CREDIT, artist },
+    })),
+  } as unknown as ReturnType<typeof deezerThemes>[number]
+}
+
+/** Réponse de `GET /room/games/current/tracks` : un titre par question de la playlist. */
+function tracksBody(base: string, artist: string) {
+  return {
+    items: PLAYLIST_IDS.map((id) => ({
+      ref: String(-id),
+      mediaUrl: `${base}${-id}.mp3`,
+      mediaCredit: { ...CREDIT, artist },
+    })),
+  }
+}
+
+function jsonReply(status: number, body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+
+/** Réponses de `content` et de `tracks` ; l'envoi des journaux (`/room/logs`) est accepté. */
+function routeFetch(routes: { content?: Response | Error; tracks?: Response | Error }) {
+  return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+    const url = String(input)
+    if (url.includes('/room/logs')) {
+      return new Response(null, { status: 204 })
+    }
+    const reply = url.includes('/tracks') ? routes.tracks : routes.content
+    if (reply === undefined) {
+      throw new Error(`appel inattendu : ${url}`)
+    }
+    if (reply instanceof Error) {
+      throw reply
+    }
+    return reply.clone()
+  })
+}
+
+function calledUrls(fetchMock: ReturnType<typeof routeFetch>): string[] {
+  return fetchMock.mock.calls.map(([url]) => String(url)).filter((url) => !url.includes('/logs'))
+}
+
+function playlistQuestions(snapshot: SessionSnapshot | null) {
+  return (snapshot?.setup.themes ?? [])
+    .flatMap((theme) => theme.questions)
+    .filter((question) => question.id < 0)
+}
+
+/** Entrées envoyées au journal de la salle (`POST /room/logs`) depuis le début du test. */
+async function sentLogEntries(fetchMock: ReturnType<typeof routeFetch>) {
+  await flushRoomErrors()
+  const call = fetchMock.mock.calls.find(([url]) => String(url).includes('/room/logs'))
+  return call ? (JSON.parse(String(call[1]?.body)) as { entries: unknown[] }).entries : []
+}
+
 describe('extraits fournis par un tiers', () => {
   const SEED = 99
   let storage: ReturnType<typeof createMemorySessionStorage>
@@ -691,6 +765,103 @@ describe('extraits fournis par un tiers', () => {
       )
       expect(total).toBeGreaterThan(200)
       expect(sizes).toEqual([200, total - 200])
+    })
+
+    describe('titres de playlist (identifiants négatifs)', () => {
+      const PLAIN = getPlayableThemes()
+
+      it('identifiants négatifs seuls : appelle `tracks` avec les thèmes de playlist, jamais `content`', async () => {
+        startGame([...PLAIN, playlistTheme(DEEZER_OLD, 'Ancien')])
+        leaveSaveBehind()
+        const fetchMock = routeFetch({ tracks: jsonReply(200, tracksBody(DEEZER_NEW, 'Nouveau')) })
+
+        expect(await resumeSavedGame()).toBe(true)
+
+        expect(calledUrls(fetchMock)).toEqual([
+          `http://localhost:3001/room/games/current/tracks?themeIds=${PLAYLIST_THEME_ID}&refs=${PLAYLIST_IDS.map((id) => -id).join(',')}`,
+        ])
+        const refreshed = playlistQuestions(storage.current)
+        expect(refreshed).toHaveLength(PLAYLIST_IDS.length)
+        expect(refreshed.every((question) => question.mediaUrl?.startsWith(DEEZER_NEW))).toBe(true)
+        expect(getMediaCredit(PLAYLIST_IDS[0] ?? 0)?.artist).toBe('Nouveau')
+      })
+
+      it('identifiants positifs seuls : appelle `content`, jamais `tracks`', async () => {
+        startGame()
+        leaveSaveBehind()
+        const fetchMock = routeFetch({
+          content: jsonReply(200, { themes: deezerThemes(DEEZER_NEW, 'Nouveau') }),
+        })
+
+        expect(await resumeSavedGame()).toBe(true)
+
+        const urls = calledUrls(fetchMock)
+        expect(urls).toHaveLength(1)
+        expect(urls[0]).toContain('/content?ids=')
+        expect(urls[0]).not.toContain('-')
+      })
+
+      it('identifiants mélangés : les positifs vont à `content`, les négatifs à `tracks`', async () => {
+        startGame([...deezerThemes(DEEZER_OLD, 'Ancien'), playlistTheme(DEEZER_OLD, 'Ancien')])
+        leaveSaveBehind()
+        const fetchMock = routeFetch({
+          content: jsonReply(200, { themes: deezerThemes(DEEZER_NEW, 'Nouveau') }),
+          tracks: jsonReply(200, tracksBody(DEEZER_NEW, 'Nouveau')),
+        })
+
+        expect(await resumeSavedGame()).toBe(true)
+
+        const urls = calledUrls(fetchMock)
+        const content = urls.find((url) => url.includes('/content'))
+        const tracks = urls.find((url) => url.includes('/tracks'))
+        expect(urls).toHaveLength(2)
+        expect(
+          content
+            ?.split('?ids=')[1]
+            ?.split(',')
+            .every((id) => Number(id) > 0)
+        ).toBe(true)
+        expect(tracks).toContain(`themeIds=${PLAYLIST_THEME_ID}`)
+        const saved = (storage.current?.setup.themes ?? []).flatMap((theme) => theme.questions)
+        const withAudio = saved.filter((question) => question.mediaUrl)
+        expect(withAudio.length).toBeGreaterThan(PLAYLIST_IDS.length)
+        expect(withAudio.every((question) => question.mediaUrl?.startsWith(DEEZER_NEW))).toBe(true)
+      })
+
+      it.each([
+        [
+          'quota dépassé (429)',
+          () => jsonReply(429, { error: 'too_many_requests' }),
+          'too_many_requests',
+        ],
+        [
+          'fournisseur indisponible (502)',
+          () => jsonReply(502, { error: 'media_provider_unavailable' }),
+          'media_provider_unavailable',
+        ],
+        ['panne de réseau', () => new TypeError('offline'), 'offline'],
+        ['titres absents de la réponse', () => jsonReply(200, { items: [] }), 'tracks_missing'],
+      ])(
+        '%s : la partie reprend avec ses liens et l’écart est noté en avertissement',
+        async (_name, reply, message) => {
+          startGame([...deezerThemes(DEEZER_OLD, 'Ancien'), playlistTheme(DEEZER_OLD, 'Ancien')])
+          leaveSaveBehind()
+          const fetchMock = routeFetch({
+            content: jsonReply(200, { themes: deezerThemes(DEEZER_NEW, 'Nouveau') }),
+            tracks: reply(),
+          })
+
+          expect(await resumeSavedGame()).toBe(true)
+
+          // Les titres gardent leurs liens ; les questions classiques sont rafraîchies quand même.
+          const kept = playlistQuestions(storage.current)
+          expect(kept.every((question) => question.mediaUrl?.startsWith(DEEZER_OLD))).toBe(true)
+          expect(getMediaCredit(CREDITED_ID)?.artist).toBe('Nouveau')
+          expect(await sentLogEntries(fetchMock)).toMatchObject([
+            { level: 'warn', code: 'resume_tracks_failed', message },
+          ])
+        }
+      )
     })
 
     it('ne redemande rien à une partie de démonstration', async () => {

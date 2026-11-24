@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Playlists à l'écran de salle : à la reprise d'une partie, les extraits des titres de playlist sont relus auprès du serveur (route `tracks`) à part des questions du catalogue ; une panne du fournisseur ne bloque pas la reprise. Le texte « Quel est ce titre ? » est traduit.
+  US: US-PLAYLIST-01 (#204)
+
 - Blind test par playlist, côté salle : `GET /room/games/current/content` tire les titres d'un thème de playlist chez le fournisseur d'extraits et en fait des questions « Quel est ce titre ? » (quatre réponses, identifiants négatifs, crédit du titre). Nouvelle route `GET /room/games/current/tracks` qui rend les liens d'extrait à jour pour reprendre une partie après rechargement. En mode enfants, seuls les thèmes adaptés sont lus.
   US: US-PLAYLIST-01 (#204)
 
