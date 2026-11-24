@@ -22,6 +22,32 @@
         <MdIcon :path="mdiTimerSandEmpty" :size="48" />
         <h1>{{ $t('room.staffLobby.waitingTitle') }}</h1>
         <p>{{ $t('room.staffLobby.waitingText') }}</p>
+
+        <!-- Session programmée de la salle : « Lancer » l'ouvre puis démarre la partie. -->
+        <section v-if="shownNext" class="staff-lobby__next" data-test="next-session">
+          <h2>{{ $t('room.staffLobby.next.title', { when: inRoomZone(startMs, true) }) }}</h2>
+          <ul v-if="sortedParticipants.length > 0" class="staff-lobby__next-desks">
+            <li v-for="participant in sortedParticipants" :key="participant.id">
+              {{ $t('room.desk', { n: participant.podium }) }} · {{ formatDeskName(participant) }}
+            </li>
+          </ul>
+          <p v-if="nextStatus" class="staff-lobby__subtitle" role="status" data-test="next-status">
+            {{ nextStatus }}
+          </p>
+          <p v-if="error" class="staff-lobby__error" role="alert">
+            {{ $t(`room.staffLobby.errors.${error}`) }}
+          </p>
+          <UiButton
+            variant="primary"
+            size="lg"
+            :disabled="!nextOpenable || starting"
+            data-test="launch-next"
+            @click="onLaunchNext"
+          >
+            <MdIcon :path="mdiPlay" :size="24" />
+            {{ starting ? $t('room.staffLobby.starting') : $t('room.staffLobby.next.launch') }}
+          </UiButton>
+        </section>
       </div>
 
       <div
@@ -146,7 +172,12 @@
 <script setup lang="ts">
 import { mdiPlay, mdiRestart, mdiTimerSandEmpty } from '@mdi/js'
 import { GameSetupError } from '@quizzup/game-engine'
-import { estimateGameDurationMs, GAME_FORMAT_CUSTOM, GAME_STATE_RUNNING } from '@quizzup/shared'
+import {
+  estimateGameDurationMs,
+  GAME_FORMAT_CUSTOM,
+  GAME_STATE_RUNNING,
+  SESSION_OPEN_EARLY_MINUTES,
+} from '@quizzup/shared'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -175,6 +206,9 @@ import { getRoomToken } from '@/utils/auth'
 import {
   fetchCurrentContent,
   fetchCurrentGame,
+  fetchNextSession,
+  fetchRoomInfo,
+  openRoomGame,
   RoomApiError,
   type RoomGame,
   type RoomGameParticipant,
@@ -187,6 +221,8 @@ import {
  */
 const FALLBACK_POLL_INTERVAL_MS = 15_000
 const PING_DURATION_MS = 1200
+/** Rythme lent de l'horloge de l'écran : « Lancer » s'active et le retard s'affiche à la minute près. */
+const NOW_TICK_MS = 30_000
 /** Une partie affichée ne disparaît qu'après plusieurs échecs de suite (micro-coupure). */
 const OFFLINE_AFTER_FAILURES = 3
 
@@ -200,9 +236,18 @@ type StartError =
   | 'noPlayers'
   | 'invalidSetup'
   | 'noPlayableMiniGame'
+  | 'notOpenYet'
+  | 'roomBusy'
+
+/** Refus 409 de « Lancer » (`POST /room/games/:id/open`) et message affiché. */
+const OPEN_ERRORS = new Map<string, StartError>([
+  ['session_not_open_yet', 'notOpenYet'],
+  ['room_busy', 'roomBusy'],
+  ['game_not_scheduled', 'gameGone'],
+])
 
 const router = useRouter()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const { confirm } = useConfirm()
 
 /** Résultats de parties terminées pas encore enregistrés au backoffice (réseau coupé). */
@@ -218,6 +263,12 @@ function hasSaveFor(current: RoomGame | null): boolean {
 }
 
 const savedGame = ref(false)
+/** Prochaine session programmée de la salle, lue seulement quand aucune partie n'attend. */
+const next = shallowRef<RoomGame | null>(null)
+/** Fuseau de la salle (`/room/me`), lu avec la première session : `''` = salle sans réglage, `null` = inconnu. */
+const roomTimeZone = ref<string | null>(null)
+const now = ref(Date.now())
+let clock: ReturnType<typeof setInterval> | null = null
 const pinged = reactive(new Set<DeskNumber>())
 const timers = new Set<ReturnType<typeof setTimeout>>()
 let poller: ReturnType<typeof setInterval> | null = null
@@ -266,12 +317,46 @@ const joinQrSrc = computed(() =>
 const pendingRegistrations = computed(() => game.value?.pendingRegistrationsCount ?? 0)
 
 const sortedParticipants = computed(() =>
-  (game.value?.participants ?? [])
+  ((game.value ?? shownNext.value)?.participants ?? [])
     .flatMap((participant) =>
       isDeskNumber(participant.podium) ? [{ ...participant, podium: participant.podium }] : []
     )
     .sort((left, right) => left.podium - right.podium)
 )
+
+/**
+ * La session programmée affichée : son fuseau est connu (sinon l'heure serait celle du PC) et son
+ * créneau n'est pas fini. Le serveur cesse de la renvoyer à la fin du créneau ; l'horloge de l'écran
+ * la retire sans attendre la lecture suivante.
+ */
+const shownNext = computed(() => {
+  const session = next.value
+  if (!session?.scheduledAt || roomTimeZone.value === null) {
+    return null
+  }
+  return Date.parse(session.scheduledEndAt ?? '') <= now.value ? null : session
+})
+const startMs = computed(() => Date.parse(shownNext.value?.scheduledAt ?? ''))
+const opensMs = computed(() => startMs.value - SESSION_OPEN_EARLY_MINUTES * MS_PER_MINUTE)
+const nextOpenable = computed(() => now.value >= opensMs.value)
+const nextStatus = computed(() => {
+  if (!nextOpenable.value) {
+    return t('room.staffLobby.next.opensAt', { time: inRoomZone(opensMs.value, true) })
+  }
+  const late = Math.floor((now.value - startMs.value) / MS_PER_MINUTE)
+  return late >= 1 ? t('room.staffLobby.next.late', { n: late }) : ''
+})
+
+/** Heure (et jour) dans le fuseau de la salle, jamais celui du PC. */
+function inRoomZone(ms: number, withDay: boolean): string {
+  return new Intl.DateTimeFormat(locale.value, {
+    ...(withDay ? { weekday: 'short' } : {}),
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+    timeZone: roomTimeZone.value || undefined,
+  }).format(ms)
+}
 
 /** Nom affiché d'un pupitre : un ou deux joueurs (le score est celui du pupitre). */
 function formatDeskName(participant: RoomGameParticipant): string {
@@ -301,6 +386,22 @@ function toRegistrations(current: RoomGame): Registration[] | StartError {
   return registrations
 }
 
+/** `next` de la salle et, avec la première, son fuseau. Lecture ratée : on garde ce qui s'affichait. */
+async function readNext(token: string): Promise<RoomGame | null> {
+  try {
+    const session = await fetchNextSession(token)
+    if (session && roomTimeZone.value === null) {
+      roomTimeZone.value = await fetchRoomInfo(token).then(
+        (room) => room.schedule?.timezone ?? '',
+        () => null
+      )
+    }
+    return session
+  } catch {
+    return next.value
+  }
+}
+
 async function refresh(): Promise<void> {
   if (starting.value) {
     return
@@ -317,11 +418,14 @@ async function refresh(): Promise<void> {
   polling = true
   try {
     const current = await fetchCurrentGame(token)
+    const upcoming = current ? null : await readNext(token)
     failures = 0
     if (starting.value || disposed) {
       return
     }
+    now.value = Date.now()
     game.value = current
+    next.value = upcoming
     status.value = current ? 'ready' : 'waiting'
     savedGame.value = hasSaveFor(current)
   } catch {
@@ -347,8 +451,11 @@ useBuzzers((press) => {
   timers.add(timer)
 })
 
-async function onStart(): Promise<void> {
-  const current = game.value
+const onStart = (): Promise<void> => launch(game.value)
+const onLaunchNext = (): Promise<void> => launch(shownNext.value, true)
+
+/** `opening` : la partie est une session programmée, que le backoffice ouvre avant le démarrage. */
+async function launch(current: RoomGame | null, opening = false): Promise<void> {
   const token = getRoomToken()
   if (starting.value || !current || !token) {
     return
@@ -368,7 +475,12 @@ async function onStart(): Promise<void> {
 
   starting.value = true
   error.value = null
+  let opened = false
   try {
+    if (opening) {
+      await openRoomGame(token, current.id)
+      opened = true
+    }
     const themes = await fetchCurrentContent(token)
     if (disposed) {
       return
@@ -414,6 +526,10 @@ async function onStart(): Promise<void> {
     return
   } finally {
     starting.value = false
+    // Session ouverte puis échec : elle est maintenant la partie en attente, l'écran la relit.
+    if (opened && error.value !== null && !disposed) {
+      void refresh()
+    }
   }
 
   await router.push({ name: 'play' })
@@ -429,11 +545,12 @@ function toStartError(caught: unknown): StartError {
   if (caught instanceof RoomApiError && caught.status === 404) {
     return 'gameGone'
   }
-  return caught instanceof RoomApiError &&
-    caught.status === 409 &&
-    caught.code === 'game_participants_changed'
-    ? 'participantsChanged'
-    : 'startFailed'
+  if (caught instanceof RoomApiError && caught.status === 409) {
+    return caught.code === 'game_participants_changed'
+      ? 'participantsChanged'
+      : (OPEN_ERRORS.get(caught.code) ?? 'startFailed')
+  }
+  return 'startFailed'
 }
 
 async function onResume(): Promise<void> {
@@ -479,6 +596,7 @@ watch(connected, (isConnected) => {
 onMounted(() => {
   void refresh()
   stopListening = onRoomGameUpdated(() => void refresh())
+  clock = setInterval(() => (now.value = Date.now()), NOW_TICK_MS)
   if (!connected.value) {
     poller = setInterval(() => void refresh(), FALLBACK_POLL_INTERVAL_MS)
   }
@@ -487,6 +605,10 @@ onMounted(() => {
 onBeforeUnmount(() => {
   disposed = true
   stopPoller()
+  if (clock !== null) {
+    clearInterval(clock)
+    clock = null
+  }
   stopListening?.()
   stopListening = null
   for (const timer of timers) {
@@ -661,6 +783,30 @@ onBeforeUnmount(() => {
 .player__ping {
   color: var(--desk-color);
   font-weight: 800;
+}
+
+.staff-lobby__next {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.staff-lobby__next h2 {
+  margin: 0;
+  font-size: var(--stage-text);
+  font-weight: 900;
+  color: var(--text-0);
+  font-variant-numeric: tabular-nums;
+}
+
+.staff-lobby__next-desks {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-1);
 }
 
 .staff-lobby__notice {

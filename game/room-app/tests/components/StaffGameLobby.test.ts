@@ -142,6 +142,7 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
     player = fakePlayer()
     storage = createMemorySessionStorage()
     configureRoomGame({ storage, player })
+    vi.spyOn(roomApi, 'fetchNextSession').mockResolvedValue(null)
   })
 
   afterEach(() => {
@@ -876,6 +877,274 @@ describe('Lobby d’un compte de salle (partie lancée au backoffice)', () => {
 
       await vi.advanceTimersByTimeAsync(FALLBACK_POLL_MS * 4)
       expect(fetchGame).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('session programmée (next)', () => {
+    // 13:00 UTC = 02:45 le lendemain à Chatham (+13:45) : une heure que ni UTC ni un PC de salle
+    // courant ne donnent, donc seule la conversion vers le fuseau de la salle la produit.
+    const ROOM_ZONE = 'Pacific/Chatham'
+    const START = '2026-11-24T13:00:00.000Z'
+    const SESSION: roomApi.RoomGame = {
+      ...GAME,
+      id: 55,
+      state: 'scheduled',
+      scheduledAt: START,
+      scheduledEndAt: '2026-11-24T14:00:00.000Z',
+    }
+    const ROOM_INFO = {
+      id: 10,
+      name: 'Salle',
+      config: {},
+      schedule: { timezone: ROOM_ZONE },
+    } as roomApi.RoomInfo
+
+    let fetchNext: ReturnType<typeof vi.spyOn>
+    let fetchInfo: ReturnType<typeof vi.spyOn>
+
+    /** Lobby sans partie en attente, à l'heure `at` (UTC), avec `next` pour prochaine session. */
+    async function mountWaiting(next: roomApi.RoomGame | null, at: string) {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date(at))
+      vi.spyOn(roomApi, 'fetchCurrentGame').mockResolvedValue(null)
+      fetchNext = vi.spyOn(roomApi, 'fetchNextSession').mockResolvedValue(next)
+      fetchInfo = vi.spyOn(roomApi, 'fetchRoomInfo').mockResolvedValue(ROOM_INFO)
+      const { wrapper, router } = await mountWithApp(LobbyView, { route: '/lobby' })
+      await flushPromises()
+      return { wrapper, router }
+    }
+
+    /** Flux ouvert : plus de lecture périodique, seuls l'événement et l'horloge de l'écran bougent. */
+    async function mountOnLiveStream(next: roomApi.RoomGame | null, at: string) {
+      const server = createFakeLiveServer()
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date(at))
+      vi.stubGlobal('fetch', server.fetchMock)
+      vi.spyOn(roomApi, 'fetchCurrentGame').mockResolvedValue(null)
+      fetchNext = vi.spyOn(roomApi, 'fetchNextSession').mockResolvedValue(next)
+      vi.spyOn(roomApi, 'fetchRoomInfo').mockResolvedValue(ROOM_INFO)
+      startRoomLive()
+      await vi.advanceTimersByTimeAsync(0)
+      server.streams.at(-1)?.push(helloMessage())
+      await vi.advanceTimersByTimeAsync(0)
+      const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+      await flushPromises()
+      return { server, wrapper }
+    }
+
+    const launchButton = (wrapper: Awaited<ReturnType<typeof mountWaiting>>['wrapper']) =>
+      wrapper.get('[data-test="launch-next"]')
+
+    afterEach(() => {
+      stopRoomLive()
+      vi.unstubAllGlobals()
+      vi.useRealTimers()
+    })
+
+    it('sans session à venir : l’attente habituelle, rien d’autre', async () => {
+      const { wrapper } = await mountWaiting(null, '2026-11-24T10:00:00Z')
+
+      expect(wrapper.find('[data-test="waiting-game"]').exists()).toBe(true)
+      expect(wrapper.find('[data-test="next-session"]').exists()).toBe(false)
+      expect(fetchInfo).not.toHaveBeenCalled()
+    })
+
+    it('une partie en attente reste prioritaire : next n’est pas lu', async () => {
+      vi.spyOn(roomApi, 'fetchCurrentGame').mockResolvedValue(GAME)
+      const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+      await flushPromises()
+
+      expect(wrapper.find('[data-test="start-game"]').exists()).toBe(true)
+      expect(wrapper.find('[data-test="next-session"]').exists()).toBe(false)
+      expect(roomApi.fetchNextSession).not.toHaveBeenCalled()
+    })
+
+    it('plus d’une heure avant : l’heure est celle de la salle, « Lancer » est désactivé', async () => {
+      const { wrapper } = await mountWaiting(SESSION, '2026-11-24T10:00:00Z')
+
+      const title = wrapper.get('[data-test="next-session"] h2').text()
+      expect(title).toMatch(/^Prochaine session : .*02:45$/)
+      // Ouverture 60 min avant : 12:00 UTC = 01:45 à Chatham.
+      expect(wrapper.get('[data-test="next-status"]').text()).toMatch(/à partir de .*01:45$/)
+      expect(launchButton(wrapper).attributes('disabled')).toBeDefined()
+      expect(wrapper.findAll('[data-test="next-session"] li').map((li) => li.text())).toEqual([
+        'Pupitre 1 · Léa',
+        'Pupitre 3 · Inès',
+      ])
+      expect(fetchInfo).toHaveBeenCalledTimes(1)
+    })
+
+    it('se traduit en anglais', async () => {
+      const { wrapper } = await mountWaiting(SESSION, '2026-11-24T10:00:00Z')
+      setCurrentLocale('en')
+      await flushPromises()
+
+      expect(wrapper.get('[data-test="next-session"] h2').text()).toMatch(/^Next session: .*02:45$/)
+      expect(launchButton(wrapper).text()).toBe('Start')
+      setCurrentLocale('fr')
+    })
+
+    it('après l’heure de début : « en retard de N min »', async () => {
+      const { wrapper } = await mountWaiting(SESSION, '2026-11-24T13:12:30Z')
+
+      expect(launchButton(wrapper).attributes('disabled')).toBeUndefined()
+      expect(wrapper.get('[data-test="next-status"]').text()).toBe('En retard de 12 min')
+    })
+
+    it('à la fin du créneau la session disparaît de l’écran, sans nouvelle lecture', async () => {
+      const { wrapper } = await mountWaiting(SESSION, '2026-11-24T13:59:50Z')
+      expect(wrapper.find('[data-test="next-session"]').exists()).toBe(true)
+
+      await vi.advanceTimersByTimeAsync(30_000)
+      expect(wrapper.find('[data-test="next-session"]').exists()).toBe(false)
+      expect(wrapper.find('[data-test="waiting-game"]').exists()).toBe(true)
+    })
+
+    it('fuseau illisible : la session reste cachée (jamais l’heure du PC), puis revient', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-11-24T10:00:00Z'))
+      vi.spyOn(roomApi, 'fetchCurrentGame').mockResolvedValue(null)
+      vi.spyOn(roomApi, 'fetchNextSession').mockResolvedValue(SESSION)
+      fetchInfo = vi
+        .spyOn(roomApi, 'fetchRoomInfo')
+        .mockRejectedValueOnce(new Error('network'))
+        .mockResolvedValue(ROOM_INFO)
+      const { wrapper } = await mountWithApp(LobbyView, { route: '/lobby' })
+      await flushPromises()
+      expect(wrapper.find('[data-test="next-session"]').exists()).toBe(false)
+
+      await vi.advanceTimersByTimeAsync(FALLBACK_POLL_MS)
+      await flushPromises()
+      expect(wrapper.get('[data-test="next-session"] h2').text()).toMatch(/02:45$/)
+    })
+
+    it('lecture de next en échec : la session affichée est gardée', async () => {
+      const { wrapper } = await mountWaiting(SESSION, '2026-11-24T10:00:00Z')
+      fetchNext.mockRejectedValue(new Error('network'))
+
+      await vi.advanceTimersByTimeAsync(FALLBACK_POLL_MS)
+      await flushPromises()
+      expect(wrapper.find('[data-test="next-session"]').exists()).toBe(true)
+      expect(wrapper.find('[data-test="waiting-game"]').exists()).toBe(true)
+    })
+
+    it('« Lancer » ouvre la session, charge le contenu, démarre puis entre en jeu', async () => {
+      const { wrapper, router } = await mountWaiting(SESSION, '2026-11-24T13:05:00Z')
+      const open = vi
+        .spyOn(roomApi, 'openRoomGame')
+        .mockResolvedValue({ ...SESSION, state: 'pending' })
+      vi.spyOn(roomApi, 'fetchCurrentContent').mockResolvedValue(getPlayableThemes())
+      const start = vi
+        .spyOn(roomApi, 'startRoomGame')
+        .mockResolvedValue({ ...SESSION, state: 'running' })
+
+      await launchButton(wrapper).trigger('click')
+      await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('play'))
+
+      expect(open).toHaveBeenCalledWith('token-salle', 55)
+      expect(start).toHaveBeenCalledWith('token-salle', 55, [3, 1])
+      expect(open.mock.invocationCallOrder[0]!).toBeLessThan(start.mock.invocationCallOrder[0]!)
+      expect(useRoomGame().state.value?.setup.seed).toBe(GAME.seed)
+    })
+
+    it('sans joueur inscrit : refusé en local, la session n’est pas ouverte', async () => {
+      const { wrapper } = await mountWaiting(
+        { ...SESSION, participants: [] },
+        '2026-11-24T13:05:00Z'
+      )
+      const open = vi.spyOn(roomApi, 'openRoomGame')
+
+      await launchButton(wrapper).trigger('click')
+      await flushPromises()
+
+      expect(open).not.toHaveBeenCalled()
+      expect(wrapper.get('[data-test="next-session"]').text()).toContain(
+        'Aucun joueur n’est inscrit'
+      )
+    })
+
+    it.each([
+      ['session_not_open_yet', 'pas encore ouvrable'],
+      ['room_busy', 'Une autre partie attend déjà'],
+      ['game_not_scheduled', 'n’est plus disponible'],
+    ])('refus du serveur %s : message affiché, rien n’est démarré', async (code, message) => {
+      const { wrapper, router } = await mountWaiting(SESSION, '2026-11-24T13:05:00Z')
+      vi.spyOn(roomApi, 'openRoomGame').mockRejectedValue(new roomApi.RoomApiError(409, code))
+      const content = vi.spyOn(roomApi, 'fetchCurrentContent')
+
+      await launchButton(wrapper).trigger('click')
+      await flushPromises()
+
+      expect(wrapper.get('[data-test="next-session"]').text()).toContain(message)
+      expect(content).not.toHaveBeenCalled()
+      expect(router.currentRoute.value.name).not.toBe('play')
+      expect(launchButton(wrapper).attributes('disabled')).toBeUndefined()
+    })
+
+    it('session ouverte mais contenu introuvable : la partie en attente est relue', async () => {
+      const { wrapper } = await mountWaiting(SESSION, '2026-11-24T13:05:00Z')
+      vi.spyOn(roomApi, 'openRoomGame').mockResolvedValue({ ...SESSION, state: 'pending' })
+      vi.spyOn(roomApi, 'fetchCurrentContent').mockResolvedValue([])
+      const current = vi
+        .spyOn(roomApi, 'fetchCurrentGame')
+        .mockResolvedValue({ ...SESSION, state: 'pending' })
+
+      await launchButton(wrapper).trigger('click')
+      await flushPromises()
+
+      expect(current).toHaveBeenCalled()
+      expect(wrapper.find('[data-test="start-game"]').exists()).toBe(true)
+      expect(wrapper.find('[data-test="next-session"]').exists()).toBe(false)
+      expect(wrapper.text()).toContain('Aucun thème jouable')
+    })
+
+    describe('suivi en direct (game_updated)', () => {
+      it('l’horloge active « Lancer » 60 min avant le début, sans nouvelle lecture', async () => {
+        const { wrapper } = await mountOnLiveStream(SESSION, '2026-11-24T11:59:40Z')
+        expect(launchButton(wrapper).attributes('disabled')).toBeDefined()
+        fetchNext.mockClear()
+
+        await vi.advanceTimersByTimeAsync(30_000)
+        expect(launchButton(wrapper).attributes('disabled')).toBeUndefined()
+        expect(fetchNext).not.toHaveBeenCalled()
+      })
+
+      it('l’événement relit next ; flux ouvert : aucune lecture périodique', async () => {
+        const { server, wrapper } = await mountOnLiveStream(null, '2026-11-24T10:00:00Z')
+        expect(wrapper.find('[data-test="next-session"]').exists()).toBe(false)
+
+        await vi.advanceTimersByTimeAsync(FALLBACK_POLL_MS * 4)
+        expect(fetchNext).toHaveBeenCalledTimes(1)
+
+        fetchNext.mockResolvedValue(SESSION)
+        server.streams.at(-1)?.push(GAME_UPDATED)
+        await vi.advanceTimersByTimeAsync(0)
+        await flushPromises()
+        expect(wrapper.find('[data-test="next-session"]').exists()).toBe(true)
+        expect(fetchNext).toHaveBeenCalledTimes(2)
+      })
+
+      it('flux coupé : la lecture lente rafraîchit next', async () => {
+        const { wrapper } = await mountWaiting(null, '2026-11-24T10:00:00Z')
+        fetchNext.mockResolvedValue(SESSION)
+
+        await vi.advanceTimersByTimeAsync(FALLBACK_POLL_MS)
+        await flushPromises()
+        expect(wrapper.find('[data-test="next-session"]').exists()).toBe(true)
+      })
+    })
+
+    it('au démontage : plus d’horloge, plus de lecture, aucune minuterie laissée', async () => {
+      vi.useFakeTimers()
+      const before = vi.getTimerCount()
+      const { wrapper } = await mountWaiting(SESSION, '2026-11-24T10:00:00Z')
+      expect(vi.getTimerCount()).toBeGreaterThan(before)
+      wrapper.unmount()
+      fetchNext.mockClear()
+
+      await vi.advanceTimersByTimeAsync(FALLBACK_POLL_MS * 4)
+      expect(fetchNext).not.toHaveBeenCalled()
+      expect(vi.getTimerCount()).toBe(before)
     })
   })
 })

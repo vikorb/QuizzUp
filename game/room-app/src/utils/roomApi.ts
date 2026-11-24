@@ -1,5 +1,5 @@
 import type { EngineQuestion, EngineTheme } from '@quizzup/game-engine'
-import type { GameFormat, MiniGame, RoomLogEntryInput } from '@quizzup/shared'
+import type { GameFormat, MiniGame, RoomLogEntryInput, RoomSchedule } from '@quizzup/shared'
 
 import { toExtractEffect } from '@/audio/extractEffect'
 import type { MediaCredit } from '@/game/mediaCredits'
@@ -41,6 +41,9 @@ export type RoomGame = {
   join?: RoomGameJoin | null
   /** Demandes d'inscription à valider au backoffice (jamais leurs noms). */
   pendingRegistrationsCount?: number
+  /** Créneau d'une session programmée (ISO UTC) ; `null` ou absent : partie lancée sans créneau. */
+  scheduledAt?: string | null
+  scheduledEndAt?: string | null
 }
 
 /** Centre de la salle, tel que `GET /room/me` le renvoie (`logoUrl` : adresse complète, `null` sans logo). */
@@ -58,6 +61,8 @@ export type RoomInfo = {
   config: Record<string, unknown>
   /** Révision de `config` : à renvoyer à l'enregistrement (absente d'un backoffice ancien). */
   configRevision?: number
+  /** Créneaux de la salle (son fuseau horaire) ; `null` : aucun réglage ; absent d'un backoffice ancien. */
+  schedule?: RoomSchedule | null
 }
 
 /** Corps du 409 de `PUT /room/config` : la config courante du compte et sa révision. */
@@ -139,6 +144,20 @@ export async function fetchRoomInfo(token: string): Promise<RoomInfo> {
 /** Partie en attente ou en cours de la salle, ou `null` si le staff n'en a lancé aucune. */
 export async function fetchCurrentGame(token: string): Promise<RoomGame | null> {
   const data = await request<{ game: RoomGame | null }>(token, '/room/games/current')
+  return data.game
+}
+
+/** Prochaine session programmée de la salle (`next`), `null` s'il n'y en a pas ou si le serveur est ancien. */
+export async function fetchNextSession(token: string): Promise<RoomGame | null> {
+  const data = await request<{ next?: RoomGame | null }>(token, '/room/games/current')
+  return data.next ?? null
+}
+
+/** « Lancer » : ouvre une session programmée de la salle (`scheduled` → en attente). */
+export async function openRoomGame(token: string, gameId: number): Promise<RoomGame> {
+  const data = await request<{ game: RoomGame }>(token, `/room/games/${gameId}/open`, {
+    method: 'POST',
+  })
   return data.game
 }
 
