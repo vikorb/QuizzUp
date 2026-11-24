@@ -20,7 +20,7 @@ export type ThemePayload = {
   mode: ThemeMode
   scope?: ThemeScope
   companyId?: number | null
-  /** Absent : inchangé ; `null` : efface la playlist. */
+  /** Absent : inchangÃ© ; `null` : efface la playlist. */
   playlistRef?: string | null
 }
 

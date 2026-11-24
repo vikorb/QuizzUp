@@ -40,6 +40,9 @@ describe('locales — themes.form (playlist field)', () => {
       expect((form?.[key] as string | undefined)?.trim(), `${locale}: ${key}`).toBeTruthy()
     }
 
+    // Le minimum vient de `THEME_PLAYLIST_MIN_PLAYABLE_TRACKS`, pas du texte.
+    expect(form?.playlistLinkHint as string, `${locale}: hint`).toContain('{min}')
+
     expect(form?.errors?.playlistLinkInvalid?.trim(), `${locale}: playlistLinkInvalid`).toBeTruthy()
   })
 })

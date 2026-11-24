@@ -120,7 +120,7 @@
       "companyIdPlaceholder": "Ex : 1",
       "playlistLink": "Lien de playlist",
       "playlistLinkPlaceholder": "https://www.deezer.com/fr/playlist/…",
-      "playlistLinkHint": "Playlist Deezer : lien de la page ou identifiant. Elle fournit les titres du blind test ; 4 titres jouables au minimum. Laisser vide pour ne pas en associer.",
+      "playlistLinkHint": "Playlist Deezer : lien de la page ou identifiant. Elle fournit les titres du blind test ; {min} titres jouables au minimum. Laisser vide pour ne pas en associer.",
       "create": "Créer",
       "save": "Enregistrer",
       "saving": "Enregistrement...",

@@ -32,7 +32,7 @@
       inputmode="url"
       autocomplete="off"
       :placeholder="$t('themes.form.playlistLinkPlaceholder')"
-      :hint="$t('themes.form.playlistLinkHint')"
+      :hint="$t('themes.form.playlistLinkHint', { min: THEME_PLAYLIST_MIN_PLAYABLE_TRACKS })"
       :disabled="saving || isReadonly"
       :error="getErrorLabel(errors.playlistLink)"
     />
@@ -95,6 +95,7 @@ import {
   THEME_MODE_CLASSIC,
   THEME_MODE_IMAGE,
   THEME_MODE_MIXED,
+  THEME_PLAYLIST_MIN_PLAYABLE_TRACKS,
   THEME_SCOPE_COMPANY,
   THEME_SCOPE_GLOBAL,
   THEME_STATUS_ACTIVE,
@@ -320,7 +321,7 @@ function buildPayload(): ThemePayload {
     }
   }
 
-  // La playlist n'existe qu'en mode audio : ailleurs le serveur l'efface lui-même.
+  // La playlist n'existe qu'en mode audio : ailleurs le serveur l'efface lui-mÃªme.
   if (form.mode === THEME_MODE_AUDIO) {
     const playlistRef = extractPlaylistRef(form.playlistLink)
 
@@ -332,7 +333,7 @@ function buildPayload(): ThemePayload {
   return payload
 }
 
-/** Les codes de playlist ont leur texte ; les autres passent par les erreurs génériques. */
+/** Les codes de playlist ont leur texte ; les autres passent par les erreurs gÃ©nÃ©riques. */
 function getSaveErrorKey(code: string): string {
   const key = `themes.errors.apiErrors.${code}`
 
