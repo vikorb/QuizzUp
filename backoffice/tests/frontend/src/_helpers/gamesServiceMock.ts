@@ -14,7 +14,14 @@ import {
 } from '@quizzup/shared'
 import { vi } from 'vitest'
 
-import type { Game, GameParticipant, GameRoom, GamesQuery } from '@/types/game'
+import type {
+  Game,
+  GameJoin,
+  GameParticipant,
+  GameRegistration,
+  GameRoom,
+  GamesQuery,
+} from '@/types/game'
 
 type ServiceErrorResult = {
   ok: false
@@ -26,6 +33,39 @@ type GamesResult =
   { ok: true; status: number; data: { games: Game[]; total: number } } | ServiceErrorResult
 type GameResult = { ok: true; status: number; data: { game: Game } } | ServiceErrorResult
 type RoomsResult = { ok: true; status: number; data: { rooms: GameRoom[] } } | ServiceErrorResult
+
+type JoinResult = { ok: true; status: number; data: { join: GameJoin } } | ServiceErrorResult
+type RegistrationsResult =
+  { ok: true; status: number; data: { registrations: GameRegistration[] } } | ServiceErrorResult
+type EmptyResult = { ok: true; status: number; data: undefined } | ServiceErrorResult
+
+export function createRegistrationFixture(
+  overrides: Partial<GameRegistration> = {}
+): GameRegistration {
+  return {
+    id: 1,
+    createdAt: '2026-11-03T10:05:00.000Z',
+    displayName: 'Les Fusées',
+    email: null,
+    hasEmail: false,
+    marketingConsent: false,
+    secondPlayer: null,
+    ...overrides,
+  }
+}
+
+/** SVG minimal avec des caractères qui exigent l'encodage d'une adresse `data:` (`#`, `<`, espaces). */
+export const JOIN_QR_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 2"><path fill="#000" d="M0 0h1v1H0z"/></svg>'
+
+export function createJoinFixture(overrides: Partial<GameJoin> = {}): GameJoin {
+  return {
+    url: 'https://quizz.example/rejoindre/#jeton',
+    qrSvg: JOIN_QR_SVG,
+    expiresAt: '2099-01-01T00:00:00.000Z',
+    ...overrides,
+  }
+}
 
 export function createParticipantFixture(
   overrides: Partial<GameParticipant> = {}
@@ -184,6 +224,51 @@ export const listGameRoomsServiceMock = vi.fn(async (_companyId: number): Promis
   data: { rooms: roomsFixture },
 }))
 
+export const openGameJoinServiceMock = vi.fn(
+  async (_companyId: number, _gameId: number): Promise<JoinResult> => ({
+    ok: true,
+    status: 200,
+    data: { join: createJoinFixture() },
+  })
+)
+
+export const closeGameJoinServiceMock = vi.fn(
+  async (_companyId: number, _gameId: number): Promise<EmptyResult> => ({
+    ok: true,
+    status: 204,
+    data: undefined,
+  })
+)
+
+export const listGameRegistrationsServiceMock = vi.fn(
+  async (_companyId: number, _gameId: number): Promise<RegistrationsResult> => ({
+    ok: true,
+    status: 200,
+    data: { registrations: [] },
+  })
+)
+
+export const acceptGameRegistrationServiceMock = vi.fn(
+  async (
+    _companyId: number,
+    _gameId: number,
+    _registrationId: number,
+    _podium?: number
+  ): Promise<{ ok: true; status: number; data: unknown } | ServiceErrorResult> => ({
+    ok: true,
+    status: 201,
+    data: { participant: createParticipantFixture() },
+  })
+)
+
+export const refuseGameRegistrationServiceMock = vi.fn(
+  async (_companyId: number, _gameId: number, _registrationId: number): Promise<EmptyResult> => ({
+    ok: true,
+    status: 204,
+    data: undefined,
+  })
+)
+
 export function mockServiceFailure(
   mock:
     | typeof listGamesServiceMock
@@ -193,7 +278,12 @@ export function mockServiceFailure(
     | typeof abortGameServiceMock
     | typeof openGameServiceMock
     | typeof cancelGameServiceMock
-    | typeof listGameRoomsServiceMock,
+    | typeof listGameRoomsServiceMock
+    | typeof openGameJoinServiceMock
+    | typeof closeGameJoinServiceMock
+    | typeof listGameRegistrationsServiceMock
+    | typeof acceptGameRegistrationServiceMock
+    | typeof refuseGameRegistrationServiceMock,
   error = 'server_error',
   status: number | null = 500
 ): void {
@@ -209,6 +299,11 @@ export const gamesServiceModuleMock = {
   openGameService: openGameServiceMock,
   cancelGameService: cancelGameServiceMock,
   listGameRoomsService: listGameRoomsServiceMock,
+  openGameJoinService: openGameJoinServiceMock,
+  closeGameJoinService: closeGameJoinServiceMock,
+  listGameRegistrationsService: listGameRegistrationsServiceMock,
+  acceptGameRegistrationService: acceptGameRegistrationServiceMock,
+  refuseGameRegistrationService: refuseGameRegistrationServiceMock,
 }
 
 export function resetGamesServiceMock(): void {
@@ -220,6 +315,11 @@ export function resetGamesServiceMock(): void {
   openGameServiceMock.mockReset()
   cancelGameServiceMock.mockReset()
   listGameRoomsServiceMock.mockReset()
+  openGameJoinServiceMock.mockReset()
+  closeGameJoinServiceMock.mockReset()
+  listGameRegistrationsServiceMock.mockReset()
+  acceptGameRegistrationServiceMock.mockReset()
+  refuseGameRegistrationServiceMock.mockReset()
 
   listGamesServiceMock.mockResolvedValue({
     ok: true,
@@ -283,4 +383,21 @@ export function resetGamesServiceMock(): void {
     status: 200,
     data: { rooms: roomsFixture },
   })
+  openGameJoinServiceMock.mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { join: createJoinFixture() },
+  })
+  closeGameJoinServiceMock.mockResolvedValue({ ok: true, status: 204, data: undefined })
+  listGameRegistrationsServiceMock.mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { registrations: [] },
+  })
+  acceptGameRegistrationServiceMock.mockResolvedValue({
+    ok: true,
+    status: 201,
+    data: { participant: createParticipantFixture() },
+  })
+  refuseGameRegistrationServiceMock.mockResolvedValue({ ok: true, status: 204, data: undefined })
 }
