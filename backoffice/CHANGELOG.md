@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Écran de salle, accueil des joueurs : le lobby d'une partie en attente affiche le QR code d'inscription fourni par le serveur (dans un `<img>`, jamais en `v-html`), l'adresse en clair et le nombre d'inscriptions en attente de validation. Sans QR code, l'adresse seule ; un lien expiré est signalé ; rien en partie en cours.
+  US: US-JOIN-01 (#166)
+
 - Accueil des joueurs dans le backoffice : sur la fiche d'une partie en attente, un panneau « Accueil » ouvre ou ferme le lien d'inscription, l'affiche avec son QR code (plein écran possible), liste les demandes et permet de les valider sur un pupitre ou de les refuser. La création d'une partie peut ouvrir l'accueil d'emblée et mène alors à la fiche.
   US: US-JOIN-01 (#166)
 
