@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Joueurs d'une compagnie (API) : `GET /companies/:companyId/players` (liste paginée, recherche par nom, e-mail masqué pour le rôle `user`), `GET …/players/export.csv` (joueurs ayant accepté les offres, cellules protégées contre les formules), `POST …/players/unsubscribe` (retire le consentement aux offres, réponse identique que l'adresse soit connue ou non) et `POST …/players/erase` (efface l'e-mail, les consentements et le nom sur chaque pupitre, supprime les demandes d'inscription en attente ; scores conservés). Export, désinscription et effacement réservés aux admins.
+  US: US-PLAYERS-01 (#157)
+
 - Bons de fidélisation, API : émission d'un bon pour un participant d'une partie terminée, liste par partie et par compagnie, recherche et utilisation par code (le code voyage dans le corps, jamais dans l'adresse), annulation réservée aux administrateurs. Recherche publique `POST /public/v1/vouchers/lookup`, limitée à 20 requêtes par minute, qui ne révèle ni le joueur ni la partie. Réglages par compagnie : libellé du bon (vide : bons désactivés) et durée de validité (1 à 730 jours, 90 par défaut).
   US: US-VOUCHER-01 (#156)
 - Accueil des joueurs, API du personnel : lien d'inscription d'une partie en attente (`POST` / `DELETE …/games/:gameId/join`, jeton valable 180 minutes, renouvelable), demandes d'inscription (`GET …/registrations`, validation avec attribution d'un pupitre, refus), ajout et retrait d'un participant tant que la partie est en attente, `openJoin` à la création. `join` et `pendingRegistrationsCount` sont renvoyés avec la partie, y compris à l'écran de salle. Les demandes de plus de 24 heures ou d'une partie qui n'est plus en attente sont purgées. `room_busy` ne vise plus que la partie en attente : une partie en cours ne bloque plus la préparation de la suivante.
