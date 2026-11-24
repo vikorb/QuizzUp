@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Accueil des joueurs, page du téléphone : `/rejoindre/` (lien ou QR code d'une partie en attente) où le joueur saisit son nom, un second joueur et, s'il le veut, son e-mail avec ses accords. Routes publiques `POST /public/v1/join/lookup` et `POST /public/v1/join/registrations` : le jeton voyage dans le corps, jamais dans l'adresse ; 404 `join_link_invalid`, 410 `join_link_closed`, 409 `join_full` au-delà de 12 demandes en attente, 30 inscriptions par minute et par adresse.
+  US: US-JOIN-01 (#166)
+
 - Joueurs d'une compagnie (API) : `GET /companies/:companyId/players` (liste paginée, recherche par nom, e-mail masqué pour le rôle `user`), `GET …/players/export.csv` (joueurs ayant accepté les offres, cellules protégées contre les formules), `POST …/players/unsubscribe` (retire le consentement aux offres, réponse identique que l'adresse soit connue ou non) et `POST …/players/erase` (efface l'e-mail, les consentements et le nom sur chaque pupitre, supprime les demandes d'inscription en attente ; scores conservés). Export, désinscription et effacement réservés aux admins.
   US: US-PLAYERS-01 (#157)
 

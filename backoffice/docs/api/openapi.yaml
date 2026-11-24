@@ -66,8 +66,9 @@ tags:
     description: |
       API publique sous `/public/v1` (vitrine, réservation) : sans compte, sans jeton, sans cookie.
       Routes livrées : `POST /public/v1/demo-requests` (demande de démonstration),
-      `GET /public/v1/logos/{file}` (logo d'un centre) et `POST /public/v1/vouchers/lookup`
-      (consultation d'un bon). Toutes suivent ces conventions.
+      `GET /public/v1/logos/{file}` (logo d'un centre), `POST /public/v1/vouchers/lookup`
+      (consultation d'un bon), `POST /public/v1/join/lookup` et `POST /public/v1/join/registrations`
+      (accueil des joueurs par QR code). Toutes suivent ces conventions.
 
       L'API de réservation (`/public/v1/rooms`, `/availability`, `/bookings`) fait exception : elle
       exige une clé d'API (`Authorization: Bearer qzk_…`) et son contrat est dans `public-v1.yaml`.
@@ -81,7 +82,7 @@ tags:
         avec l'en-tête `Retry-After` (secondes).
       - Réponses jamais mises en cache (`Cache-Control: no-store`), sauf le contenu immuable d'un
         fichier (logo : `public, max-age=31536000, immutable`).
-      - CORS réservé aux sites listés dans la variable `VITRINE_ORIGINS` (aucun si elle est vide).
+      - CORS réservé aux sites listés dans la variable `VITRINE_ORIGINS` et à l'origine de `PUBLIC_APP_URL` (aucun si les deux sont vides).
 
 security:
   - bearerAuth: []
@@ -6652,6 +6653,170 @@ paths:
               schema:
                 $ref: '#/components/schemas/PublicError'
 
+  /public/v1/join/lookup:
+    post:
+      tags:
+        - Public
+      summary: "[DISPONIBLE] Lire la partie d'un lien d'inscription"
+      description: |
+        Statut : **Disponible** (lot 2c)
+
+        Route publique de la page `/rejoindre/#<jeton>` : aucune authentification. Le jeton du lien (celui du QR code) circule dans le corps, jamais dans l'URL : il n'entre pas dans les journaux.
+
+        La réponse donne le centre, la salle, son logo et la fin de validité du lien : jamais un identifiant, ni le nom d'une demande en attente. Un jeton mal formé, inconnu, ou remplacé par un nouveau QR code répond le même `404 join_link_invalid`. Un jeton reconnu mais fermé (délai dépassé, partie lancée ou terminée, salle ou compagnie inactive) répond `410 join_link_closed`. Le corps est limité à 4 Ko ; la limite par adresse est celle de tout `/public/v1` (120 requêtes par minute).
+      operationId: lookupPublicJoinLink
+      x-availability: disponible
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinLookupRequest'
+      responses:
+        '200':
+          description: Le lien est ouvert
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicJoinLink'
+        '400':
+          description: Corps invalide (`invalid_json`, `invalid_body` avec `details.fieldErrors`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '404':
+          description: Jeton inconnu ou mal formé (`join_link_invalid`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '410':
+          description: Lien fermé (`join_link_closed`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '413':
+          description: Corps de plus de 4 Ko (`payload_too_large`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '415':
+          description: Corps qui n'est pas du JSON (`unsupported_media_type`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '429':
+          description: Trop de requêtes depuis cette adresse (`too_many_requests`)
+          headers:
+            Retry-After:
+              description: Secondes avant de pouvoir réessayer
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '500':
+          description: Erreur serveur (`server_error`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+
+  /public/v1/join/registrations:
+    post:
+      tags:
+        - Public
+      summary: "[DISPONIBLE] Déposer une demande d'inscription"
+      description: |
+        Statut : **Disponible** (lot 2c)
+
+        Dépose la demande d'un pupitre (un ou deux joueurs) sur la partie du jeton. Rien n'est joué tant que le personnel n'a pas validé la demande dans le backoffice, au pupitre de son choix. Le jeton et les données du joueur circulent dans le corps, jamais dans l'URL.
+
+        Les consentements sont recueillis case par case et horodatés par le serveur à la réception. Un e-mail n'est gardé que si `emailConsent` vaut vrai ; `marketingConsent` (offres du centre) suppose un e-mail ; l'e-mail suppose `ageConfirmed` (15 ans ou plus). La même règle vaut pour le 2e joueur. La réponse est la même quel que soit l'e-mail : on ne dit jamais s'il était déjà connu.
+
+        Au plus 12 demandes en attente par partie (`409 join_full`). Limite : 30 envois par minute et par adresse, valides ou non (`429` `too_many_requests`, en-tête `Retry-After`). Le corps est limité à 4 Ko.
+      operationId: createPublicJoinRegistration
+      x-availability: disponible
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinRegistrationRequest'
+      responses:
+        '201':
+          description: Demande enregistrée, en attente de validation
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+                    enum: [true]
+        '400':
+          description: |
+            Corps invalide (`invalid_json`, `invalid_body` avec `details.fieldErrors`). Dans cette route, `fieldErrors` est indexé par chemin complet (`email`, `secondPlayer.email`...) et ses messages incluent `display_name_invalid`, `email_consent_required`, `marketing_consent_requires_email` et `age_confirmation_required`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '404':
+          description: Jeton inconnu ou mal formé (`join_link_invalid`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '409':
+          description: La partie a déjà 12 demandes en attente (`join_full`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '410':
+          description: Lien fermé (`join_link_closed`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '413':
+          description: Corps de plus de 4 Ko (`payload_too_large`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '415':
+          description: Corps qui n'est pas du JSON (`unsupported_media_type`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '429':
+          description: Trop d'envois depuis cette adresse (`too_many_requests`)
+          headers:
+            Retry-After:
+              description: Secondes avant de pouvoir réessayer
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+        '500':
+          description: Erreur serveur (`server_error`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -6859,6 +7024,87 @@ components:
           type: integer
           minimum: 1
           description: Pupitre de la partie qui reçoit le bon
+
+    JoinLookupRequest:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token:
+          type: string
+          maxLength: 256
+          description: Jeton du lien d'inscription (fragment de l'adresse `/rejoindre/#<jeton>`)
+
+    PublicJoinLink:
+      type: object
+      required: [companyName, roomName, logoUrl, expiresAt]
+      properties:
+        companyName:
+          type: string
+        roomName:
+          type: string
+        logoUrl:
+          type: string
+          nullable: true
+          description: Chemin du logo du centre (`GET /public/v1/logos/{file}`), ou `null`
+        expiresAt:
+          type: string
+          format: date-time
+          description: Fin de validité du lien
+
+    JoinPlayerFields:
+      type: object
+      additionalProperties: false
+      required: [displayName]
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 30
+          description: 'Prénom affichable (après suppression des espaces aux extrémités) : au moins un caractère visible, aucun caractère de contrôle ni de mise en forme invisible (`display_name_invalid` sinon).'
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          nullable: true
+        emailConsent:
+          type: boolean
+          description: Requis (vrai) si `email` est renseigné
+        marketingConsent:
+          type: boolean
+          description: Offres du centre ; suppose un `email`
+        ageConfirmed:
+          type: boolean
+          description: Requis (vrai) si `email` est renseigné (15 ans ou plus)
+
+    JoinRegistrationRequest:
+      type: object
+      additionalProperties: false
+      required: [token, displayName]
+      properties:
+        token:
+          type: string
+          maxLength: 256
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 30
+          description: 'Prénom affichable (après suppression des espaces aux extrémités) : au moins un caractère visible, aucun caractère de contrôle ni de mise en forme invisible (`display_name_invalid` sinon).'
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          nullable: true
+        emailConsent:
+          type: boolean
+        marketingConsent:
+          type: boolean
+        ageConfirmed:
+          type: boolean
+        secondPlayer:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/JoinPlayerFields'
 
     VoucherCodeRequest:
       type: object
