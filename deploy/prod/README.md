@@ -11,17 +11,17 @@ secrets, stockage des sauvegardes) vient du fichier `.env`, jamais du dépôt.
           |  Caddy   |----> api :3001 ----> postgres :5432
           +----+-----+          |
                |                +--> volume médias (/data/media)
-     fichiers statiques (volume « static ») : espace centre, écran de salle
+     fichiers statiques (volume « static ») : espace centre, console éditeur, écran de salle
      dossier « vitrine/ » (site vitrine, optionnel)
 ```
 
 | Surface           | Nom d'hôte (variable) | Contenu                                                 |
 | ----------------- | --------------------- | ------------------------------------------------------ |
 | Site vitrine      | `HOST_WWW`            | `vitrine/` si `VITRINE_ENABLED=true`, sinon renvoi vers l'espace centre |
-| Espace centre     | `HOST_APP`            | backoffice (admin du centre, collaborateurs)            |
+| Espace centre     | `HOST_APP`            | backoffice (admin du centre, collaborateurs), **sans** les écrans de l'éditeur |
 | Écran de salle    | `HOST_SALLE`          | `game/room-app`                                         |
 | API               | `HOST_API`            | API ; Swagger (`/docs`) réservé à la console éditeur    |
-| Console éditeur   | `HOST_CONSOLE`        | même application que l'espace centre ; le filtrage par plages réseau **masque son adresse, il ne la protège pas** (voir « Limites connues ») |
+| Console éditeur   | `HOST_CONSOLE`        | construction à part du backoffice (écrans de l'éditeur), qui appelle l'API sur son propre nom d'hôte (`/api`) ; le filtrage par plages réseau **masque son adresse, il ne la protège pas** (voir « Limites connues ») |
 
 | Fichier                                | Rôle                                                            |
 | -------------------------------------- | --------------------------------------------------------------- |
@@ -65,6 +65,14 @@ gauche et ne croit que les relais déclarés (`trusted_proxies_strict`) : un rel
 l'adresse à l'en-tête, au lieu de la remplacer, est géré. Le certificat de la console éditeur est
 émis comme les autres : le nom d'hôte reste visible dans les journaux publics des certificats. La
 protection de la console est dans l'API (`CONSOLE_ALLOWED_CIDRS`, voir « Limites connues »).
+
+Le frontend du backoffice est construit **deux fois** par `Dockerfile.web` (`npm run build:centre`,
+puis `VITE_API_URL=/api npm run build:console`, dossiers `app` et `console` du volume `static`).
+La construction du centre ne contient pas le code de la console ; la CI le vérifie
+(`npm --prefix backoffice/frontend run check:surface`). La console appelle l'API en `/api` sur son
+propre nom d'hôte, donc sans passer par `HOST_API` ni par internet : le nom d'hôte de la console
+doit être joignable depuis les postes des opérateurs, et Caddy n'envoie `/api` à l'API que pour les
+adresses de `CONSOLE_ALLOWED_CIDRS`.
 
 ## Première installation
 
@@ -186,6 +194,10 @@ cd deploy/prod
 tmux new -s maj          # ou : nohup ./update.sh vX.Y.Z > update.log 2>&1 &
 ./update.sh vX.Y.Z
 ```
+
+À la première mise à jour vers les deux constructions du frontend (espace centre et console), vider
+une fois le dossier des assets de l'espace centre du volume statique (`/srv/web/app/assets`) : l'ancienne application unique
+y laisse ses fichiers à empreinte.
 
 Lancer la mise à jour dans `tmux` (ou `nohup`) : la construction dure 5 à 10 minutes et une session
 SSH qui tombe en plein milieu coupe le script. Si cela arrive quand même, le script reçoit le signal
@@ -360,6 +372,10 @@ avec un délai de 1 s ; `200 {"status":"ok","db":"ok"}`, sinon `503 {"status":"d
       cet essai extérieur, pas au pare-feu de la machine. `docker compose ps` ne montre un port
       publié que pour `caddy`.
 - [ ] HTTPS valide sur les cinq noms d'hôte ; `http://` redirige vers `https://`.
+- [ ] **Deux constructions** : `https://<HOST_APP>/clients` n'ouvre aucun écran de gestion des clients
+      (la liste des compagnies n'existe pas dans cette construction), alors que
+      `https://<HOST_CONSOLE>/clients`, depuis une adresse autorisée, ouvre la liste ; sur la console,
+      l'onglet réseau du navigateur ne montre que des appels vers `https://<HOST_CONSOLE>/api/…`.
 - [ ] **Filtrage par adresse** : depuis une adresse hors de `CONSOLE_ALLOWED_CIDRS`,
       `https://<HOST_CONSOLE>/` et `https://<HOST_API>/docs/` répondent **403** ; depuis une adresse
       autorisée, la console s'ouvre. Vide `CONSOLE_ALLOWED_CIDRS` = 403 partout.
@@ -398,8 +414,9 @@ avec un délai de 1 s ; `200 {"status":"ok","db":"ok"}`, sinon `503 {"status":"d
   de la console** ; la protection est la garde de l'API, qui lit `CONSOLE_ALLOWED_CIDRS` : un
   superadmin hors de ces adresses ne peut ni se connecter ni utiliser un jeton, sur aucun nom
   d'hôte. Tout repose sur l'adresse que voit l'API (`TRUST_PROXY`) : elle est fausse si un relais
-  n'est pas déclaré à la fois dans `TRUSTED_PROXIES` et `TRUST_PROXY`. Le double facteur et la
-  séparation des deux applications arrivent avec la suite du lot « console éditeur » (lot 12).
+  n'est pas déclaré à la fois dans `TRUSTED_PROXIES` et `TRUST_PROXY`. Le code de la console n'est
+  plus dans l'espace centre (deux constructions), mais les textes de ses écrans y restent : les
+  fichiers de traduction sont communs.
 - **Un seul serveur** : une panne de la machine coupe l'API (les parties en cours continuent, mais
   aucune nouvelle ne démarre) ; le rétablissement est la restauration. Pas de haute disponibilité.
 - **Polices** : le backoffice et l'écran de salle importent encore leurs polices depuis un service
