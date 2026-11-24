@@ -1,4 +1,5 @@
 import { DEFAULT_GAME_TIMINGS, type GameEvent } from '@quizzup/game-engine'
+import type { LightingController } from '@quizzup/hardware'
 import { GAME_COMMAND_REFUSAL, MINI_GAME_FLASH_BLIND_TEST } from '@quizzup/shared'
 
 import { createSilentExtractPlayer, type ExtractPlayer } from '@/audio/player'
@@ -43,6 +44,87 @@ function aimed(): number {
   return (state.value ? getLiveQuestionId(state.value) : null) ?? 0
 }
 
+/** Lumières par défaut (simulation), sans fumée : seules les scènes sont observées. */
+async function startScenes() {
+  const lights = await startLighting()
+  return { lights, scene: () => lights.getState().currentSceneId }
+}
+
+const PARS = [
+  { id: 'par1', name: 'PAR 1', profileId: 'par-rgb', address: 1, desk: 1 },
+  { id: 'par2', name: 'PAR 2', profileId: 'par-rgb', address: 4, desk: 2 },
+  { id: 'par3', name: 'PAR 3', profileId: 'par-rgb', address: 7, desk: 3 },
+  { id: 'fumee', name: 'Fumée', profileId: 'smoke-relay', address: 40 },
+]
+const SMOKE_ON = { enabled: true, requireConfirmation: false }
+/** Scène de salle qui commence par un jet de fumée. */
+const SMOKE_INTRO = {
+  id: 'intro-fumee',
+  name: 'Intro fumée',
+  priority: 20,
+  steps: [
+    { type: 'smoke', durationMs: 1_000 },
+    { type: 'color', color: { r: 255, g: 0, b: 0 }, intensity: 0.5, fadeMs: 100 },
+  ],
+}
+
+/** Salle équipée de PAR et d'une machine à fumée, fumée armée, `extra` fusionné dans `lighting`. */
+async function startRoom(extra: Record<string, unknown> = {}) {
+  await saveWithSmokeProof({ lighting: { fixtures: PARS, smoke: SMOKE_ON, ...extra } })
+  const lights = await startLighting()
+  let jets = 0
+  let firing = false
+  lights.onChange((lightsState) => {
+    const now = lightsState.smoke.status === 'firing'
+    jets += now && !firing ? 1 : 0
+    firing = now
+  })
+  return { lights, jets: () => jets, scene: () => lights.getState().currentSceneId }
+}
+
+/**
+ * Avance le temps par pas de 20 ms et compte les baisses de niveau d'un appareil : un éclair en
+ * fait au moins une, une montée continue vers une couleur n'en fait aucune.
+ */
+function countDrops(lights: LightingController, durationMs: number): number {
+  const last = new Map<string, number>()
+  let drops = 0
+  const sample = () => {
+    for (const view of lights.getFixtureViews()) {
+      const level = view.intensity * Math.max(view.color.r, view.color.g, view.color.b)
+      drops += level < (last.get(view.id) ?? 0) - 5 ? 1 : 0
+      last.set(view.id, level)
+    }
+  }
+  sample()
+  for (let at = 0; at < durationMs; at += 20) {
+    vi.advanceTimersByTime(20)
+    sample()
+  }
+  return drops
+}
+
+/** Liaison d'un événement à une scène de salle (`null` : liaison retirée). */
+const bind = (event: string, scene: string | null) => ({ [event]: scene })
+
+/** Pause de plus de 30 s (repos de la fumée écoulé) puis reprise, et un temps pour tout voir. */
+function pauseThenResume() {
+  pauseGame()
+  vi.advanceTimersByTime(31_000)
+  resumeGame()
+  vi.advanceTimersByTime(2_000)
+}
+
+function startIntro() {
+  startNewGame({
+    registrations: REGISTRATIONS,
+    themes: getPlayableThemes(),
+    seed: 7,
+    miniGames: [MINI_GAME_FLASH_BLIND_TEST],
+  })
+  vi.advanceTimersByTime(2_000)
+}
+
 describe('useRoomGame : pause et passage de question', () => {
   let clock: ReturnType<typeof createManualClock>
   let player: ExtractPlayer
@@ -80,6 +162,27 @@ describe('useRoomGame : pause et passage de question', () => {
 
   function buzz(desk: 1 | 2 | 3 = 1) {
     pressBuzzer({ desk, button: 'A', buttonIndex: 0, at: clock.value, code: 'test' })
+  }
+
+  /** Partie lancée, amenée à la phase `theme_choice` (joueur qui choisit le thème). */
+  function startThemeChoice() {
+    startNewGame({
+      registrations: REGISTRATIONS,
+      themes: getPlayableThemes(),
+      seed: 7,
+      miniGames: [MINI_GAME_FLASH_BLIND_TEST],
+    })
+    clock.advance(DEFAULT_GAME_TIMINGS.roundIntroMs + 10)
+    vi.advanceTimersByTime(50)
+  }
+
+  /** Question de blind test en cours, la scène du choix de thème (20) étant terminée. */
+  function startClip() {
+    startThemeChoice()
+    vi.advanceTimersByTime(1_000)
+    const { state } = useRoomGame()
+    const chooser = state.value?.rounds[0]?.chooserParticipantId as 1 | 2 | 3
+    pressBuzzer({ desk: chooser, button: 'A', buttonIndex: 0, at: clock.value, code: 'test' })
   }
 
   it('sans partie, chaque commande est refusée avec le code game_over', () => {
@@ -397,6 +500,318 @@ describe('useRoomGame : pause et passage de question', () => {
 
       resumeGame()
       expect(again.smoke.fire(1_000)).toMatchObject({ ok: true })
+    })
+  })
+
+  describe('lumières : signaux de pause et de reprise', () => {
+    it('la pause joue la scène pause, la reprise rejoue la scène de la phase d’intro de manche', async () => {
+      const { scene } = await startScenes()
+      startNewGame({
+        registrations: REGISTRATIONS,
+        themes: getPlayableThemes(),
+        seed: 7,
+        miniGames: [MINI_GAME_FLASH_BLIND_TEST],
+      })
+      expect(useRoomGame().state.value?.phase.name).toBe('round_intro')
+      expect(scene()).toBe('round-start')
+
+      pauseGame()
+      expect(scene()).toBe('pause')
+      vi.advanceTimersByTime(600)
+      resumeGame()
+
+      expect(scene()).toBe('round-start')
+    })
+
+    it('pause pendant le choix du thème : reprise sur la scène du joueur qui choisit', async () => {
+      const { scene } = await startScenes()
+      startThemeChoice()
+      expect(useRoomGame().state.value?.phase.name).toBe('theme_choice')
+      expect(scene()).toBe('chooser')
+
+      pauseGame()
+      expect(scene()).toBe('pause')
+      vi.advanceTimersByTime(600)
+      resumeGame()
+
+      expect(scene()).toBe('chooser')
+    })
+
+    it('pause pendant un extrait : reprise sur la scène de l’extrait', async () => {
+      const { scene } = await startScenes()
+      startClip()
+      expect(scene()).toBe('clip-playing')
+
+      pauseGame()
+      expect(scene()).toBe('pause')
+      vi.advanceTimersByTime(600)
+      resumeGame()
+
+      expect(scene()).toBe('clip-playing')
+    })
+
+    it('pause pendant la réponse d’un joueur : reprise sur la scène de son buzz', async () => {
+      const { scene } = await startScenes()
+      startClip()
+      buzz()
+      expect(scene()).toBe('buzz')
+
+      pauseGame()
+      expect(scene()).toBe('pause')
+      vi.advanceTimersByTime(600)
+      resumeGame()
+
+      expect(scene()).toBe('buzz')
+    })
+
+    it('pause pendant la révélation : reprise sur l’ambiance de question', async () => {
+      const { scene } = await startScenes()
+      startQuestion()
+      skipQuestion(aimed())
+      expect(useRoomGame().state.value?.phase.name).toBe('reveal')
+
+      pauseGame()
+      expect(scene()).toBe('pause')
+      vi.advanceTimersByTime(600)
+      resumeGame()
+
+      expect(scene()).toBe('question')
+    })
+
+    it('une reprise en moins de 400 ms n’est pas refusée par la scène pause encore en cours', async () => {
+      const { scene } = await startScenes()
+      startClip()
+
+      pauseGame()
+      vi.advanceTimersByTime(100)
+      expect(scene()).toBe('pause')
+      resumeGame()
+
+      expect(scene()).toBe('clip-playing')
+    })
+
+    it('reprise sans pause préalable : refusée, aucun signal, la scène en cours est gardée', async () => {
+      const { lights, scene } = await startScenes()
+      startQuestion()
+      const handle = vi.spyOn(lights, 'handleGameEvent')
+      const before = scene()
+
+      expect(resumeGame()).toEqual({ ok: false, code: GAME_COMMAND_REFUSAL.NOT_PAUSED })
+
+      expect(scene()).toBe(before)
+      expect(handle).not.toHaveBeenCalled()
+    })
+
+    it('des lumières démarrées hors pause n’émettent aucun signal de pause', async () => {
+      startQuestion()
+
+      const lights = await startLighting()
+
+      // Ni `pause`, ni `question` de reprise : les lumières naissent au repos.
+      expect(lights.getState().currentSceneId).toBe('idle')
+    })
+
+    it('des lumières démarrées pendant une pause jouent la scène pause', async () => {
+      startQuestion()
+      pauseGame()
+
+      const lights = await startLighting()
+
+      expect(lights.getState().currentSceneId).toBe('pause')
+    })
+
+    it('la partie arrêtée puis fermée pendant la pause ne rallume pas l’ambiance de question', async () => {
+      const { scene } = await startScenes()
+      startQuestion()
+      pauseGame()
+      abortGame()
+      expect(scene()).toBe('idle')
+
+      closeGame()
+
+      expect(scene()).toBe('idle')
+    })
+
+    it('un jet demandé par la scène pause elle-même est refusé : la coupure passe avant le signal', async () => {
+      const { lights, jets } = await startRoom({
+        scenes: [
+          {
+            id: 'pause',
+            name: 'Pause',
+            priority: 60,
+            steps: [
+              { type: 'smoke', durationMs: 1_000 },
+              { type: 'color', color: { r: 40, g: 40, b: 40 }, intensity: 0.12, fadeMs: 400 },
+            ],
+          },
+        ],
+      })
+      const refusals: string[] = []
+      lights.onWarning((warning) => {
+        refusals.push(warning.kind === 'smoke_refused' ? warning.reason : warning.kind)
+      })
+      startClip()
+
+      pauseGame()
+      vi.advanceTimersByTime(2_000)
+
+      expect(refusals).toEqual(['paused'])
+      expect(jets()).toBe(0)
+      expect(lights.getState().smoke.status).toBe('ready')
+    })
+
+    describe('reprise : couleurs seulement, jamais de fumée ni d’éclair', () => {
+      const INTRO = { scenes: [SMOKE_INTRO], bindings: bind('round_started', 'intro-fumee') }
+
+      it('scène de salle avec fumée en première étape : un seul jet pour l’intro, aucun à la reprise', async () => {
+        const { jets, scene } = await startRoom(INTRO)
+        startIntro()
+        expect(jets()).toBe(1)
+        expect(useRoomGame().state.value?.phase.name).toBe('round_intro')
+
+        pauseThenResume()
+
+        expect(scene()).not.toBe('pause')
+        expect(jets()).toBe(1)
+      })
+
+      it('trois pauses et reprises espacées de plus de 30 s : toujours un seul jet', async () => {
+        const { jets } = await startRoom(INTRO)
+        startIntro()
+
+        for (let cycle = 0; cycle < 3; cycle += 1) {
+          pauseThenResume()
+        }
+
+        expect(jets()).toBe(1)
+      })
+
+      it('une scène de salle liée à un buzz, avec fumée, ne jette aucun jet à la reprise', async () => {
+        const { jets } = await startRoom({
+          scenes: [{ ...SMOKE_INTRO, id: 'buzz-fumee', priority: 40 }],
+          bindings: bind('buzzer_pressed', 'buzz-fumee'),
+        })
+        startClip()
+        buzz()
+        vi.advanceTimersByTime(2_000)
+        expect(jets()).toBe(1)
+
+        pauseThenResume()
+
+        expect(jets()).toBe(1)
+      })
+
+      it('une salle qui a retiré la liaison de reprise : la scène pause (longue) s’arrête, la phase revient', async () => {
+        const { scene } = await startRoom({
+          bindings: bind('game_resumed', null),
+          scenes: [
+            {
+              id: 'pause',
+              name: 'Pause longue',
+              priority: 60,
+              steps: [
+                { type: 'color', color: { r: 40, g: 40, b: 40 }, intensity: 0.12, fadeMs: 400 },
+                { type: 'wait', durationMs: 60_000 },
+              ],
+            },
+          ],
+        })
+        startClip()
+        expect(scene()).toBe('clip-playing')
+
+        pauseGame()
+        vi.advanceTimersByTime(1_000)
+        expect(scene()).toBe('pause')
+        resumeGame()
+
+        expect(scene()).toBe('clip-playing')
+      })
+
+      it('liaison de reprise retirée, phase sans scène propre (révélation) : ambiance de question', async () => {
+        const { scene } = await startRoom({ bindings: bind('game_resumed', null) })
+        startClip()
+        skipQuestion(aimed())
+        vi.advanceTimersByTime(1_000)
+
+        pauseGame()
+        resumeGame()
+
+        expect(scene()).toBe('question')
+      })
+
+      it('scènes par défaut : une pause pendant round-start n’ajoute aucun éclair, la couleur revient', async () => {
+        const { lights, scene } = await startRoom()
+        startNewGame({
+          registrations: REGISTRATIONS,
+          themes: getPlayableThemes(),
+          seed: 7,
+          miniGames: [MINI_GAME_FLASH_BLIND_TEST],
+        })
+        vi.advanceTimersByTime(3_000)
+        pauseGame()
+        vi.advanceTimersByTime(600)
+
+        resumeGame()
+
+        expect(scene()).toBe('round-start')
+        expect(countDrops(lights, 2_000)).toBe(0)
+        const par = lights.getFixtureViews().find((view) => view.id === 'par1')
+        expect(par?.intensity).toBeCloseTo(0.4, 1)
+      })
+
+      it('scènes par défaut : une pause pendant buzz n’ajoute aucun éclair, le pupitre reste allumé', async () => {
+        const { lights, scene } = await startRoom()
+        startClip()
+        buzz()
+        vi.advanceTimersByTime(2_000)
+        pauseGame()
+        vi.advanceTimersByTime(600)
+
+        resumeGame()
+
+        expect(scene()).toBe('buzz')
+        expect(countDrops(lights, 2_000)).toBe(0)
+        const lit = lights.getFixtureViews().filter((view) => view.intensity >= 0.9)
+        expect(lit).toHaveLength(1)
+      })
+
+      it('le même événement joué normalement (hors reprise) fait bien des éclairs', async () => {
+        const { lights } = await startRoom()
+        startNewGame({
+          registrations: REGISTRATIONS,
+          themes: getPlayableThemes(),
+          seed: 7,
+          miniGames: [MINI_GAME_FLASH_BLIND_TEST],
+        })
+        vi.advanceTimersByTime(3_000)
+
+        lights.handleGameEvent({ type: 'round_started', payload: { miniGame: 'flash_blind_test' } })
+
+        expect(countDrops(lights, 2_000)).toBeGreaterThan(0)
+      })
+    })
+
+    it('une nouvelle partie lancée pendant une pause : lumières de la partie neuve, rien d’une reprise', async () => {
+      const { scene, jets } = await startRoom({
+        scenes: [SMOKE_INTRO],
+        bindings: bind('round_started', 'intro-fumee'),
+      })
+      startClip()
+      pauseGame()
+      vi.advanceTimersByTime(31_000)
+      expect(jets()).toBe(1)
+
+      startNewGame({
+        registrations: REGISTRATIONS,
+        themes: getPlayableThemes(),
+        seed: 8,
+        miniGames: [MINI_GAME_FLASH_BLIND_TEST],
+      })
+
+      expect(useRoomGame().paused.value).toBe(false)
+      expect(scene()).toBe('intro-fumee')
+      // Un jet pour chaque partie, aucun de plus pour la reprise parasite de l'état neuf.
+      expect(jets()).toBe(2)
     })
   })
 })

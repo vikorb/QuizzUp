@@ -1,6 +1,12 @@
 import { createSimulationOutput } from '@hardware/dmx/simulationOutput'
 import { createLightingController } from '@hardware/lighting/lightingController'
-import { SCENE_IDS } from '@hardware/lighting/scenes'
+import type { SceneDefinition } from '@hardware/lighting/scenes'
+import {
+  DEFAULT_BINDINGS,
+  DEFAULT_SCENES,
+  SCENE_IDS,
+  stepDuration,
+} from '@hardware/lighting/scenes'
 
 import { advanceAsync, createManualClock, flushPromises } from '../_helpers/manualClock'
 import { lightingConfig } from '../_helpers/rig'
@@ -180,5 +186,188 @@ describe('contrôleur de lumières : partie en pause', () => {
     controller.handleGameEvent({ type: 'game_aborted' })
 
     expect(controller.getState().currentSceneId).toBe(SCENE_IDS.IDLE)
+  })
+
+  describe('scène `pause` et signaux game_paused / game_resumed', () => {
+    const pauseScene = () => DEFAULT_SCENES.find((scene) => scene.id === SCENE_IDS.PAUSE)!
+
+    it('liaisons par défaut : game_paused → pause, game_resumed → question, session_exit aucune', () => {
+      expect(DEFAULT_BINDINGS.game_paused).toBe(SCENE_IDS.PAUSE)
+      expect(DEFAULT_BINDINGS.game_resumed).toBe(SCENE_IDS.QUESTION)
+      expect(DEFAULT_BINDINGS).not.toHaveProperty('session_exit')
+    })
+
+    it('la scène pause : priorité 60, un fondu de 400 ms, ni flash ni fumée', () => {
+      const scene = pauseScene()
+
+      expect(scene.priority).toBe(60)
+      expect(scene.next).toBeUndefined()
+      expect(scene.steps.map((step) => step.type)).toEqual(['color'])
+      expect(scene.steps.reduce((sum, step) => sum + stepDuration(step), 0)).toBe(400)
+    })
+
+    it('game_paused joue pause et interrompt une scène de jeu prioritaire', async () => {
+      const ctx = await setup()
+      controller = ctx.controller
+      controller.handleGameEvent({ type: 'answer_correct', payload: { desk: 1 } })
+      expect(controller.getState().currentSceneId).toBe(SCENE_IDS.CORRECT)
+
+      controller.handleGameEvent({ type: 'game_paused' })
+
+      expect(controller.getState().currentSceneId).toBe(SCENE_IDS.PAUSE)
+    })
+
+    it('la scène pause ne tire aucun jet et ne relâche pas la coupure de la pause', async () => {
+      const ctx = await setup()
+      controller = ctx.controller
+      controller.smoke.fire(3_000)
+      await advanceAsync(ctx.clock, 100)
+
+      controller.setGamePaused(true)
+      controller.handleGameEvent({ type: 'game_paused' })
+      await advanceAsync(ctx.clock, 1_000)
+
+      expect(ctx.output.lastFrame()[SMOKE_CHANNEL]).toBe(0)
+      expect(controller.getState().smoke).toMatchObject({ status: 'cooldown', level: 0 })
+      expect(controller.smoke.fire(1_000)).toEqual({ ok: false, reason: 'paused' })
+    })
+
+    it('game_resumed joue question une fois la scène pause terminée', async () => {
+      const ctx = await setup()
+      controller = ctx.controller
+      controller.handleGameEvent({ type: 'game_paused' })
+      await advanceAsync(ctx.clock, 600)
+
+      controller.handleGameEvent({ type: 'game_resumed' })
+
+      expect(controller.getState().currentSceneId).toBe(SCENE_IDS.QUESTION)
+    })
+
+    it('game_resumed reprend même si la scène pause tourne encore (reprise en moins de 400 ms)', async () => {
+      const ctx = await setup()
+      controller = ctx.controller
+      controller.handleGameEvent({ type: 'game_paused' })
+      await advanceAsync(ctx.clock, 100)
+      expect(controller.getState().currentSceneId).toBe(SCENE_IDS.PAUSE)
+
+      controller.handleGameEvent({ type: 'game_resumed' })
+
+      expect(controller.getState().currentSceneId).toBe(SCENE_IDS.QUESTION)
+    })
+
+    it('une salle qui coupe la liaison game_paused garde ses lumières', async () => {
+      const clock = createManualClock(10_000)
+      const quiet = createLightingController({
+        config: lightingConfig({ bindings: { game_paused: null } }),
+        output: createSimulationOutput(),
+        clock,
+        doc: null,
+      })
+      await quiet.start()
+      controller = quiet
+
+      quiet.handleGameEvent({ type: 'game_paused' })
+
+      expect(quiet.getState().currentSceneId).toBe(SCENE_IDS.IDLE)
+    })
+  })
+
+  describe('rejeu de reprise (restore) : couleurs seulement', () => {
+    const RED = { r: 255, g: 0, b: 0 }
+    const smokeThenColor = (id: string, next?: string): SceneDefinition => ({
+      id,
+      name: id,
+      priority: 20,
+      steps: [
+        { type: 'smoke', durationMs: 1_000 },
+        { type: 'flash', color: RED, count: 2, onMs: 200, offMs: 200 },
+        { type: 'color', color: RED, intensity: 0.5 },
+      ],
+      ...(next ? { next } : {}),
+    })
+
+    async function setupRoom(over: Parameters<typeof lightingConfig>[0] = {}) {
+      const clock = createManualClock(10_000)
+      const output = createSimulationOutput()
+      const built = createLightingController({
+        config: lightingConfig(over),
+        output,
+        clock,
+        doc: null,
+        // Hors `parseScenes` : deux pas `smoke` dans la chaîne, ce que la salle ne peut pas écrire.
+        scenes: [smokeThenColor('show-a', 'show-b'), smokeThenColor('show-b')],
+      })
+      await built.start()
+      built.smoke.arm()
+      controller = built
+      return { clock, controller: built }
+    }
+
+    /** Baisses de niveau d'un appareil pendant `durationMs` : un éclair en fait, une montée non. */
+    async function countDrops(ctx: Awaited<ReturnType<typeof setupRoom>>, durationMs: number) {
+      const last = new Map<string, number>()
+      let drops = 0
+      for (let at = 0; at <= durationMs; at += 20) {
+        for (const view of ctx.controller.getFixtureViews()) {
+          const level = view.intensity * Math.max(view.color.r, view.color.g, view.color.b)
+          drops += level < (last.get(view.id) ?? 0) - 5 ? 1 : 0
+          last.set(view.id, level)
+        }
+        await advanceAsync(ctx.clock, 20, 20)
+      }
+      return drops
+    }
+
+    it('sans restore, la scène jette sa fumée et fait ses éclairs', async () => {
+      const ctx = await setupRoom({ bindings: { round_started: 'show-a' } })
+
+      ctx.controller.handleGameEvent({ type: 'round_started' })
+
+      expect(ctx.controller.getState().smoke.status).toBe('firing')
+      expect(await countDrops(ctx, 1_500)).toBeGreaterThan(0)
+    })
+
+    it('avec restore : ni jet ni éclair, y compris dans la scène enchaînée, et la couleur arrive', async () => {
+      const ctx = await setupRoom({ bindings: { round_started: 'show-a' } })
+
+      ctx.controller.handleGameEvent({ type: 'round_started' }, { restore: true })
+
+      expect(ctx.controller.getState().smoke.status).toBe('ready')
+      expect(await countDrops(ctx, 3_000)).toBe(0)
+      expect(ctx.controller.getState().smoke.status).toBe('ready')
+      const par = ctx.controller.getFixtureViews().find((view) => view.id === 'par1')
+      expect(par).toMatchObject({ intensity: 0.5, color: { r: 255 } })
+    })
+
+    it('game_resumed est toujours un rejeu : la scène de salle liée n’a ni jet ni éclair', async () => {
+      const ctx = await setupRoom({ bindings: { game_resumed: 'show-a' } })
+
+      ctx.controller.handleGameEvent({ type: 'game_resumed' })
+
+      expect(ctx.controller.getState().smoke.status).toBe('ready')
+      expect(await countDrops(ctx, 1_500)).toBe(0)
+    })
+
+    it('liaison game_resumed retirée : la scène pause en cours s’arrête et l’ambiance question revient', async () => {
+      const ctx = await setupRoom({ bindings: { game_resumed: null } })
+      ctx.controller.handleGameEvent({ type: 'game_paused' })
+
+      ctx.controller.handleGameEvent({ type: 'game_resumed' })
+
+      expect(ctx.controller.getState().currentSceneId).toBe(SCENE_IDS.QUESTION)
+    })
+
+    it('la reprise coupe aussi une identification et une scène de test lancées pendant la pause', async () => {
+      const ctx = await setupRoom()
+      ctx.controller.setGamePaused(true)
+      ctx.controller.handleGameEvent({ type: 'game_paused' })
+      ctx.controller.identifyFixture('par1')
+      expect(ctx.controller.getState().currentSceneId).toBe(SCENE_IDS.IDENTIFY)
+
+      ctx.controller.setGamePaused(false)
+      ctx.controller.handleGameEvent({ type: 'game_resumed' })
+
+      expect(ctx.controller.getState().currentSceneId).toBe(SCENE_IDS.QUESTION)
+    })
   })
 })

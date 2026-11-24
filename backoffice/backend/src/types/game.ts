@@ -1,4 +1,4 @@
-import type { GameLocale, GameState, GameStatus, MiniGame } from '@quizzup/shared'
+import type { GameFormat, GameLocale, GameState, GameStatus, MiniGame } from '@quizzup/shared'
 
 /** 2e joueur facultatif d'un pupitre. */
 export type GameSecondPlayerRow = {
@@ -43,6 +43,8 @@ export type GameRow = {
   roomName?: string
   /** `null` pour une réservation faite par l'API (la partie porte alors une clé d'API). */
   adminId: number | null
+  /** Format choisi à la création ; `null` pour une partie d'avant les formats (« Personnalisé »). */
+  format: GameFormat | null
   roundsCount: number
   questionsPerRound: number
   /** Mini-jeux choisis au lancement, `null` = tous. */
@@ -61,6 +63,8 @@ export type GameRow = {
   /** Référence du système de réservation du client. */
   externalRef: string | null
   locale: GameLocale | null
+  /** Mode enfants : thèmes adaptés aux enfants seulement, aucun e-mail demandé aux joueurs. */
+  kidsMode: boolean
   status: GameStatus
   createdAt: string
   updatedAt: string | null

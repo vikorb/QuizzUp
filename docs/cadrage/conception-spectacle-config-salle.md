@@ -294,6 +294,7 @@ Règle commune : la détection propose, l'opérateur confirme. Le résultat d'un
 - **Fonctions pures dans `config.ts`.**
   - `exportRoomConfig` et `parseRoomConfigImport`.
   - `withoutSmokeEscalation(previous, next)` : la fumée ne passe jamais de désactivée à active hors de l'assistant. On l'applique aussi à `AdvancedConfig.vue`, ce qui ferme le défaut 8 côté écran de salle. Le côté serveur est fermé par le lot de sécurité `smoke_config_forbidden` (arbitrage 10).
+  - Le niveau maximal de fumée (`maxLevel`) ne se relève que par un réglage dédié de l'assistant, à ajouter dans un lot à part : tant qu'il n'existe pas, l'éditeur JSON et l'import ne peuvent que le baisser.
 - **Écran.** Matériel, onglet Configuration avancée : boutons « Exporter » et « Importer » (`<input type="file">` et `Blob`, aucune bibliothèque).
 - **Tests.**
   - Aller-retour export → import identique, sauf les champs forcés.

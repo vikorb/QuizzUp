@@ -115,6 +115,11 @@
       "resume": "Resume the game",
       "restart": "Restart from the beginning",
       "restartConfirm": "Restart the game from the beginning? The scores already earned on this PC will be lost.",
+      "join": {
+        "title": "Scan to sign up",
+        "qrAlt": "Sign-up QR code for the game",
+        "pending": "{n} sign-up waiting for approval | {n} sign-ups waiting for approval"
+      },
       "duo": "{first} & {second}",
       "pendingResults": "{n} game result waiting to be sent to the backoffice: automatic retry. | {n} game results waiting to be sent to the backoffice: automatic retry."
     }
@@ -180,7 +185,24 @@
       "later": "I will set it up later",
       "laterHint": "You can do it from Hardware.",
       "smokeConflict": "The model overlaps your smoke machine’s address. Keep your fixtures, or change the smoke address in Hardware.",
-      "replaceConfirm": "Your current fixtures will be replaced by the 6-desk model. Continue?"
+      "replaceConfirm": "Your current fixtures will be replaced by the 6-desk model. Continue?",
+      "templateRefused": "This model could not be applied. Your fixtures have not changed.",
+      "universesRefused": "The fixtures could not be placed on the box outputs without covering another fixture or the smoke machine: they keep their current universes. You can set them from Hardware.",
+      "replaceModelConfirm": "Your current fixtures will be replaced by those of the “{name}” model. Continue?",
+      "universesConfirm": "Your network box reports the outputs {outputs}. Place your fixtures on these universes? {n} fixture(s) change universe."
+    },
+    "models": {
+      "title": "Or start from a room model",
+      "hint": "{desks} desks, {n} fixtures",
+      "needsArtnet": "Needs a network box (several universes)",
+      "needsOutputs": "Needs {need} outputs, your box reports {have}",
+      "desksDiffer": "you set {n} desks: that number is kept",
+      "names": {
+        "six-desks-eight-heads": "6 desks, 8 moving heads and LED strips",
+        "four-desks-four-par-rgbw": "4 desks, 4 RGBW PARs",
+        "four-desks-four-par-two-heads": "4 desks, 4 PARs + 2 moving heads",
+        "six-desks-six-par-two-heads": "6 desks, 6 RGB PARs + 2 moving heads"
+      }
     },
     "test": {
       "progress": "Fixture {n} of {total}",
