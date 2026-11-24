@@ -93,7 +93,12 @@
         data-test="game-format-estimate"
       >
         {{
-          $t('games.form.formatEstimate', { min: formPlan.minMinutes, max: formPlan.maxMinutes })
+          $t(
+            'games.form.formatEstimate',
+            { min: formPlan.minMinutes, max: formPlan.maxMinutes },
+            // Le compte choisit la forme : écart nul, une seule valeur.
+            formPlan.maxMinutes - formPlan.minMinutes
+          )
         }}
       </p>
 
@@ -476,13 +481,17 @@ const formatOptions = computed<SelectFieldOption[]>(() =>
 
     return {
       label: plan
-        ? t('games.form.formatOption', {
-            name,
-            rounds: plan.roundsCount,
-            questions: plan.questionsPerRound,
-            min: plan.minMinutes,
-            max: plan.maxMinutes,
-          })
+        ? t(
+            'games.form.formatOption',
+            {
+              name,
+              rounds: plan.roundsCount,
+              questions: plan.questionsPerRound,
+              min: plan.minMinutes,
+              max: plan.maxMinutes,
+            },
+            plan.maxMinutes - plan.minMinutes
+          )
         : name,
       value: format,
     }

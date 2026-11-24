@@ -37,7 +37,10 @@
         "standard": "Standard",
         "custom": "Personnalisé"
       },
-      "formatSummary": "{name} · {rounds} manches × {questions} questions · {min} à {max} min",
+      "rounds": "{count} manche | {count} manches",
+      "questions": "{count} question | {count} questions",
+      "duration": "{min} min | {min} à {max} min | {min} à {max} min",
+      "formatSummary": "{name} · {rounds} × {questions} · {duration}",
       "start": "Démarrer la partie",
       "needPlayer": "Inscris au moins un joueur pour démarrer.",
       "keysHint": "Simulation clavier : {keys}",
@@ -97,8 +100,8 @@
       "offlineTitle": "Backoffice injoignable",
       "offlineText": "Vérifie la connexion Internet du PC de la salle. Une connexion est nécessaire pour lancer la partie.",
       "retry": "Réessayer",
-      "format": "Format {name} · {min} à {max} min",
-      "ready": "Partie prête : {rounds} manches × {questions} questions",
+      "format": "Format {name} · {duration}",
+      "ready": "Partie prête : {rounds} × {questions}",
       "readyText": "Chaque joueur peut appuyer sur un buzzer pour vérifier son pupitre.",
       "starting": "Préparation des extraits…",
       "errors": {
@@ -119,7 +122,7 @@
         "opensAt": "Lancement possible à partir de {time}",
         "late": "En retard de {n} min"
       },
-      "running": "Partie en cours : {rounds} manches × {questions} questions",
+      "running": "Partie en cours : {rounds} × {questions}",
       "runningText": "Cette partie a déjà commencé sur ce PC : reprends-la là où elle s’est arrêtée.",
       "runningNoSaveText": "Cette partie a déjà commencé, mais sa progression n’est pas sur ce PC : elle ne peut que recommencer depuis le début.",
       "resume": "Reprendre la partie",

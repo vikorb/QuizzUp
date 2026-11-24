@@ -21,7 +21,7 @@
     "count": "{count} pending request | {count} pending requests",
     "empty": "No requests. Show the sign-up link to the players.",
     "listLabel": "Sign-up requests",
-    "requestedAt": "Requested at {date}",
+    "requestedAt": "Requested on {date}",
     "secondPlayer": "2nd player: {name}",
     "email": "Email: {email}",
     "emailMasked": "Email provided",

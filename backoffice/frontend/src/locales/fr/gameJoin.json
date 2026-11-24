@@ -21,7 +21,7 @@
     "count": "{count} demande en attente | {count} demandes en attente",
     "empty": "Aucune demande. Montrez le lien d'inscription aux joueurs.",
     "listLabel": "Demandes d'inscription",
-    "requestedAt": "Demandée à {date}",
+    "requestedAt": "Demandée le {date}",
     "secondPlayer": "2e joueur : {name}",
     "email": "Email : {email}",
     "emailMasked": "Email renseigné",
