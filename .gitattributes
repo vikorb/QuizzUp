@@ -1,0 +1,2 @@
+game/hardware/firmware/fumee/*.hex -text
+game/hardware/firmware/fumee/vecteurs.txt text eol=lf

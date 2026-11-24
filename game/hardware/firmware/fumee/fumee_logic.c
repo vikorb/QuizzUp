@@ -6,24 +6,30 @@
  * millis() déborde (49 jours). Ne jamais comparer deux instants entre eux.
  */
 
-void fumee_init(fumee_t *f) {
+/* Une carte qui démarre (mise sous tension, RESET, chien de garde) ne sait pas depuis quand le
+ * dernier jet s'est arrêté : elle commence par une pause entière. */
+void fumee_init(fumee_t *f, uint32_t now) {
   f->out = 0;
-  f->state = FUMEE_ST_READY;
+  f->state = FUMEE_ST_COOL;
   f->cause = FUMEE_CAUSE_CMD;
   f->held = 0;
   f->lease_at = 0;
   f->fire_start = 0;
-  f->cool_start = 0;
+  f->cool_start = now;
 }
 
-/* Coupe la sortie. Un jet en cours déclenche la pause ; une pause déjà commencée n'est pas relancée. */
+/*
+ * Coupe la sortie. Un jet en cours déclenche la pause et en note la cause ; hors jet, il n'y a rien
+ * à couper : la pause déjà commencée n'est pas relancée et la cause de la dernière coupure réelle
+ * (LEASE, MAX...) n'est pas écrasée par un 0 ou une ligne illisible qui arrive ensuite.
+ */
 static void cut(fumee_t *f, uint32_t now, fumee_cause cause) {
   if (f->state == FUMEE_ST_FIRE) {
     f->state = FUMEE_ST_COOL;
     f->cool_start = now;
+    f->cause = cause;
   }
   f->out = 0;
-  f->cause = cause;
 }
 
 void fumee_tick(fumee_t *f, uint32_t now) {

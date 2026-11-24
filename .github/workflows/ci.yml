@@ -259,7 +259,7 @@ jobs:
 
       - name: Logique de la fumée (gcc, vecteurs partagés)
         run: |
-          gcc -std=c99 -Wall -Wextra -Werror -o "$RUNNER_TEMP/test_fumee" tests/test_fumee.c fumee_logic.c
+          gcc -std=c99 -Wall -Wextra -Werror -fsanitize=undefined,address -fno-sanitize-recover=all -o "$RUNNER_TEMP/test_fumee" tests/test_fumee.c fumee_logic.c
           "$RUNNER_TEMP/test_fumee" vecteurs.txt
 
       - name: Installer arduino-cli
@@ -308,6 +308,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      # À partir du lot L5 (écran d'installation), l'absence de fumee.hex devra faire échouer ce job.
       - name: Le .hex versionné est celui de la compilation
         run: |
           if [ -f fumee.hex ]; then

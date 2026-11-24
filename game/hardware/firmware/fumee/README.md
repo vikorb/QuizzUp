@@ -32,10 +32,17 @@ Texte ASCII, une ligne par message terminée par `\n`, 9600 bauds 8N1.
 | page → carte | `H`                                                   | présence, sans effet sur la fumée                                  |
 | carte → page | `S <0\|1> <READY\|FIRE\|COOL> <LEASE\|MAX\|CMD\|BAD>` | après chaque ligne reçue : sortie, état, dernière cause de coupure |
 
-- Seule la ligne exacte `F` allume. Toute autre ligne coupe et donne la cause `BAD` : `FF`, `f`,
-  une ligne vide, une ligne avec `\r` ou un espace, une ligne de plus de 8 octets.
+- Seule la ligne exacte `F` allume. Toute autre ligne coupe le jet en cours avec la cause `BAD` :
+  `FF`, `f`, une ligne vide, une ligne avec `\r` ou un espace, une ligne de plus de 8 octets.
 - `H` ne change rien : ni la sortie, ni le bail, ni la cause.
-- La cause vaut `CMD` au démarrage, tant que rien n'a coupé.
+- La cause est la raison de la dernière coupure réelle d'un jet (`LEASE`, `MAX`, `CMD` pour une
+  ligne `0`, `BAD` pour une ligne illisible), et `CMD` au démarrage. Un `0` ou une ligne illisible
+  reçu hors jet ne la change pas : le `0` que la page envoie après une coupure par plafond ou par
+  bail laisse `MAX` ou `LEASE`.
+- **La carte démarre en pause.** Après la bannière, la première réponse `S` dit `COOL` pendant 5 s
+  (`S 0 COOL CMD`), puis `READY`. La page attend `S … READY` avant d'envoyer un `F` (une ligne `H`
+  suffit pour obtenir une réponse). Une bannière qui arrive alors que le lien était établi veut
+  dire que la carte a été remise à zéro : la page la traite comme une perte de lien.
 - Quand le bail et le plafond sont échus au même instant, la cause est `MAX`.
 - Les fins de ligne `\r\n` ne sont pas acceptées : la page envoie `\n` seul.
 
@@ -46,13 +53,15 @@ A0 n'est au niveau haut que si les trois conditions sont vraies ensemble :
 1. le dernier `F` date de moins de 500 ms (bail, `WATCHDOG_STALL_MS`) ;
 2. le jet a commencé il y a moins de 10 s (plafond, `SMOKE_HARD_LIMITS.maxDurationMs`) ;
 3. au moins 5 s se sont écoulées depuis la fin du jet précédent (pause,
-   `SMOKE_HARD_LIMITS.minCooldownMs`).
+   `SMOKE_HARD_LIMITS.minCooldownMs`), ou depuis le démarrage de la carte.
 
 Et aussi :
 
 - Les durées sont comparées par soustraction non signée de `millis()` : le débordement du compteur
   (49 jours) est sans effet. Ne jamais comparer deux instants entre eux.
-- La première instruction du programme met A0 au niveau bas.
+- La première instruction de `setup()` met A0 au niveau bas.
+- Une remise à zéro (mise sous tension, RESET, ouverture du port, chien de garde) n'efface pas la
+  pause : `setup()` appelle `fumee_init(&fumee, millis())`, la carte repart en `COOL` pour 5 s.
 - Chien de garde matériel : `wdt_enable(WDTO_250MS)` à la fin de `setup()`, `wdt_reset()` seulement
   au début de `loop()`. Si `loop()` se fige, la carte redémarre et A0 repasse en entrée.
 - Au plus une ligne lue par tour de `loop()` : une réponse bloquée par le débit ne retarde jamais
@@ -68,13 +77,31 @@ d'origine a été refusée et qu'un flot continu ne dit pas si la page veut enco
 
 Le jet repart seulement après un `F` précédé d'un silence d'au moins 500 ms de la page, ou d'une
 ligne `0`. Une page qui veut un nouveau jet l'obtient donc en cessant d'envoyer, puis en redemandant.
-Le scénario correspondant est dans `vecteurs.txt` (« un flot de F commencé pendant la pause »).
+Les scénarios correspondants sont dans `vecteurs.txt` (« un flot de F commencé pendant la pause »,
+« démarrage en pause », « remise à zéro en plein jet »).
+
+**Pourquoi ce verrou.** Il limite une page figée sur `F` (elle renvoie `F` toutes les 100 ms sans
+jamais envoyer `0`) à un seul jet : la carte coupe au plafond de 10 s, puis refuse les `F`
+suivants, qui forment un flot sans silence. Sans verrou, la même page déclencherait un nouveau jet
+de 10 s à chaque fin de pause, sans fin.
 
 Après une coupure par bail, par plafond ou par ligne illisible, la pause de 5 s commence au moment
-où la carte constate la coupure (au plus tard au tour de `loop()` suivant).
+où la carte constate la coupure (au plus tard au tour de `loop()` suivant). Après une remise à
+zéro de la carte (mise sous tension, RESET, ouverture du port, chien de garde), elle commence au
+démarrage : la carte ne sait pas quand le dernier jet s'est arrêté, donc elle ne suppose rien.
 
-Une remise à zéro de la carte (RESET, chien de garde) oublie la pause : le premier `F` qui suit
-est accepté. C'est à la page de ne pas redemander avant la fin de sa propre pause.
+### Contrat avec la page
+
+La page tient les trois règles suivantes ; la carte ne les vérifie pas à sa place :
+
+1. envoyer `0` à chaque fin de jet (cela lève aussi le verrou) ;
+2. n'envoyer `F` que si la dernière réponse `S` dit `READY`, ou `FIRE` pour renouveler le bail ;
+3. sinon refuser le jet côté page, sans envoyer de `F`.
+
+La page et la carte ne comptent pas la pause depuis le même instant (la page depuis son ordre
+d'arrêt, la carte depuis qu'elle constate la coupure ou qu'elle redémarre). Un `F` envoyé « à
+peu près à la fin de la pause » est donc refusé, pose le verrou, et si la page continue d'envoyer,
+un jet entier est perdu sans qu'aucun signal ne le dise.
 
 ## Remise à zéro et A0 : à vérifier sur le banc
 
@@ -91,7 +118,8 @@ après une remise à zéro par celui-ci (c'est le cas d'Optiboot) ; sinon la car
 
 Le job « Fumée (programme de la carte) » de `.github/workflows/ci.yml` :
 
-1. compile `tests/test_fumee.c` avec `gcc -std=c99 -Wall -Wextra -Werror` et le lance ;
+1. compile `tests/test_fumee.c` avec `gcc -std=c99 -Wall -Wextra -Werror` et
+   `-fsanitize=undefined,address -fno-sanitize-recover=all`, et le lance ;
 2. installe `arduino-cli` et le cœur `arduino:avr` à des versions épinglées, compile `fumee.ino`
    pour `arduino:avr:uno` avec `--warnings all` et échoue sur le moindre avertissement venu de ce
    dossier (les avertissements du cœur Arduino ne comptent pas) ;
@@ -104,7 +132,8 @@ Le job « Fumée (programme de la carte) » de `.github/workflows/ci.yml` :
 Depuis ce dossier, avec gcc :
 
 ```bash
-gcc -std=c99 -Wall -Wextra -Werror -o test_fumee tests/test_fumee.c fumee_logic.c
+gcc -std=c99 -Wall -Wextra -Werror -fsanitize=undefined,address -fno-sanitize-recover=all \
+  -o test_fumee tests/test_fumee.c fumee_logic.c
 ./test_fumee            # lit vecteurs.txt ; ./test_fumee autre.txt pour un autre fichier
 ```
 

@@ -39,16 +39,17 @@ typedef enum {
 
 typedef struct {
   uint8_t out;        /* 1 = A0 au niveau haut. Toujours égal à (state == FUMEE_ST_FIRE). */
-  fumee_state state;  /* READY : prête. FIRE : jet en cours. COOL : pause après un jet. */
-  fumee_cause cause;  /* Dernière cause de coupure ; CMD au démarrage (aucune coupure encore). */
+  fumee_state state;  /* READY : prête. FIRE : jet en cours. COOL : pause (après un jet, au démarrage). */
+  fumee_cause cause;  /* Raison de la dernière coupure réelle d'un jet ; CMD au démarrage. Un 0 ou une
+                         ligne illisible hors jet ne la change pas. */
   uint8_t held;       /* Un F a été refusé et le flot continue : il ne lancera jamais un jet. */
   uint32_t lease_at;  /* Instant du dernier F reçu (accepté ou refusé). */
   uint32_t fire_start;
-  uint32_t cool_start; /* Instant où le dernier jet s'est arrêté. */
+  uint32_t cool_start; /* Instant où la pause a commencé : arrêt du dernier jet, ou démarrage. */
 } fumee_t;
 
-/* Carte remise à zéro : sortie coupée, prête. */
-void fumee_init(fumee_t *f);
+/* Carte remise à zéro à l'instant now : sortie coupée, en pause pour 5 s (état COOL). */
+void fumee_init(fumee_t *f, uint32_t now);
 
 /* Une ligne reçue (sans le '\n'), à l'instant now (ms, entier non signé 32 bits qui déborde). */
 void fumee_line(fumee_t *f, uint32_t now, const char *line, size_t len);

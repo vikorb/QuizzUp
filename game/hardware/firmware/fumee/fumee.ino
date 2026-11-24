@@ -18,7 +18,7 @@ static void applyOutput() {
 }
 
 void setup() {
-  // Première instruction : le relais est coupé avant toute autre chose.
+  // Première instruction de setup() : le relais est coupé avant toute autre chose.
   digitalWrite(PIN_FUMEE, LOW);
   pinMode(PIN_FUMEE, OUTPUT);
 
@@ -26,7 +26,8 @@ void setup() {
   MCUSR = 0;
   wdt_disable();
 
-  fumee_init(&fumee);
+  // La carte démarre en pause de 5 s : une remise à zéro n'efface pas la pause.
+  fumee_init(&fumee, millis());
   Serial.begin(9600);
   Serial.print(F(FUMEE_BANNER "\n"));
 
