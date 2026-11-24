@@ -435,6 +435,9 @@ Format inspiré de Keep a Changelog.
 
 ### Fixed
 
+- Relais PowerShell des lumières, tests : les attentes d'une trame ou d'un paquet attendu ne coupent plus à 2 s. Sur le runner Windows de la CI, une pause ponctuelle faisait échouer « lit les origines dans QUIZZUP_BRIDGE_ORIGINS et répond 426 hors WebSocket ». Le délai (20 s) ne sert plus qu'à détecter un blocage.
+  US: US-SHOW-01 (#203)
+
 - Vitrine : le formulaire de démonstration envoie ses champs sous les noms attendus par `POST /public/v1/demo-requests` (`centerName`, `roomsCount`), respecte les bornes du serveur (50 salles, centre sur 160 caractères, message facultatif) et signale sous chaque champ ceux que le serveur refuse.
   US: US-SITE-01 (#133)
 - Sécurité lumière : avertissement non bloquant quand un canal `shutter` ou `fixed` est réglé dans la plage stroboscope de l'appareil (`strobeRange`, facultatif, à saisir sur un profil sur mesure) ; stroboscope du Diagnostic plafonné en vitesse et coupé après 3 secondes. Non validé sur du vrai matériel (banc, cas D10).
