@@ -5,6 +5,7 @@ import {
   tokenMock,
 } from '@frontend-tests/_helpers/authStateMock'
 import {
+  createDeferred,
   createLiveStream,
   createRoomLive,
   jsonErrorResponse,
@@ -12,7 +13,13 @@ import {
   snapshotEvent,
   sseEvent,
 } from '@frontend-tests/_helpers/liveMock'
-import { LIVE_EVENT, LIVE_HEARTBEAT_MS, ROOM_PRESENCE } from '@quizzup/shared'
+import {
+  LIVE_EVENT,
+  LIVE_HEARTBEAT_MS,
+  ROOM_COMMAND_TIMEOUT_MS,
+  ROOM_PRESENCE,
+  type RoomCommand,
+} from '@quizzup/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { type EffectScope, effectScope, ref } from 'vue'
 
@@ -80,6 +87,20 @@ afterEach(() => {
   Reflect.deleteProperty(document, 'visibilityState')
   vi.useRealTimers()
 })
+
+/** Flux ouvert sur la compagnie 7 ; la réponse du POST se programme ensuite. */
+async function openStream() {
+  const stream = nextStream()
+  const { live } = mountLive(7)
+
+  stream.push(snapshotEvent([createRoomLive({ roomId: 10 })]))
+  await settle()
+
+  return { stream, live }
+}
+
+const resultEvent = (commandId: string, payload: Record<string, unknown>) =>
+  sseEvent(LIVE_EVENT.COMMAND_RESULT, { commandId, roomId: 10, command: 'pause', ...payload })
 
 describe('composables/useLiveCompany', () => {
   it('opens the company stream through apiFetch, never with a token in the URL', async () => {
@@ -682,5 +703,215 @@ describe('composables/useLiveCompany', () => {
     await vi.advanceTimersByTimeAsync(30_000)
 
     expect(live.now.value).toBe(start + 30_000)
+  })
+
+  describe('sendCommand', () => {
+    type PostOptions = FetchOptions & { method: string; body: string }
+
+    const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
+    /** Identifiant de la commande envoyée par l'appel `index` d'`apiFetch` (0 = le flux). */
+    const sentId = (index: number) =>
+      (JSON.parse((fetchCall(index) as PostOptions).body) as { commandId: string }).commandId
+
+    it.each<RoomCommand>([
+      { command: 'pause' },
+      { command: 'resume' },
+      { command: 'skip', round: 2, questionIndex: 3 },
+      { command: 'abort', gameId: 4 },
+    ])('posts « $command » with a fresh uuid and only its own fields', async (command) => {
+      const { stream, live } = await openStream()
+
+      apiFetchMock.mockResolvedValueOnce(new Response('{"commandId":"x"}', { status: 202 }))
+
+      const outcome = live.sendCommand(10, command)
+
+      await settle()
+
+      const { commandId, ...fields } = JSON.parse((fetchCall(1) as PostOptions).body) as {
+        commandId: string
+      }
+
+      expect(fetchCall(1)).toMatchObject({
+        path: '/companies/7/rooms/10/commands',
+        method: 'POST',
+        authenticated: true,
+      })
+      expect(commandId).toMatch(UUID)
+      expect(fields).toEqual(command)
+
+      stream.push(resultEvent(commandId, { result: 'applied' }))
+
+      await expect(outcome).resolves.toEqual({ result: 'applied' })
+    })
+
+    it('uses a different identifier for each command', async () => {
+      await openStream().then(async ({ live }) => {
+        apiFetchMock.mockResolvedValue(new Response('{}', { status: 202 }))
+        void live.sendCommand(10, { command: 'pause' })
+        void live.sendCommand(10, { command: 'pause' })
+        await settle()
+      })
+
+      expect(sentId(1)).not.toBe(sentId(2))
+    })
+
+    it('gives the refusal reason sent by the room, and drops a reason it does not know', async () => {
+      const { stream, live } = await openStream()
+
+      apiFetchMock.mockResolvedValue(new Response('{}', { status: 202 }))
+
+      const refused = live.sendCommand(10, { command: 'resume' })
+      const odd = live.sendCommand(10, { command: 'pause' })
+
+      await settle()
+      stream.push(resultEvent(sentId(1), { result: 'refused', reason: 'not_paused' }))
+      stream.push(resultEvent(sentId(2), { result: 'refused', reason: 'something_new' }))
+
+      await expect(refused).resolves.toEqual({ result: 'refused', reason: 'not_paused' })
+      await expect(odd).resolves.toEqual({ result: 'refused' })
+    })
+
+    it('gives expired when the server says so', async () => {
+      const { stream, live } = await openStream()
+
+      apiFetchMock.mockResolvedValueOnce(new Response('{}', { status: 202 }))
+
+      const outcome = live.sendCommand(10, { command: 'pause' })
+
+      await settle()
+      stream.push(resultEvent(sentId(1), { result: 'expired' }))
+
+      await expect(outcome).resolves.toEqual({ result: 'expired' })
+    })
+
+    it('ignores the result of a command it did not send, and a malformed result', async () => {
+      const { stream, live } = await openStream()
+      let done = false
+
+      apiFetchMock.mockResolvedValueOnce(new Response('{}', { status: 202 }))
+
+      const outcome = live.sendCommand(10, { command: 'pause' }).then((value) => {
+        done = true
+
+        return value
+      })
+
+      await settle()
+      stream.push(resultEvent(crypto.randomUUID(), { result: 'applied' }))
+      stream.push(resultEvent(sentId(1), { result: 'bogus' }))
+      await settle()
+
+      expect(done).toBe(false)
+
+      stream.push(resultEvent(sentId(1), { result: 'applied' }))
+
+      await expect(outcome).resolves.toEqual({ result: 'applied' })
+    })
+
+    it('keeps a result that arrives before the 202 answer', async () => {
+      const { stream, live } = await openStream()
+      const gate = createDeferred<Response>()
+
+      apiFetchMock.mockReturnValueOnce(gate.promise)
+
+      const outcome = live.sendCommand(10, { command: 'pause' })
+
+      await settle()
+      stream.push(resultEvent(sentId(1), { result: 'applied' }))
+      await settle()
+      gate.resolve(new Response('{}', { status: 202 }))
+
+      await expect(outcome).resolves.toEqual({ result: 'applied' })
+    })
+
+    it('concludes expired by itself when no result comes, a little after the server delay', async () => {
+      const { live } = await openStream()
+      let done = false
+
+      apiFetchMock.mockResolvedValueOnce(new Response('{}', { status: 202 }))
+
+      const outcome = live.sendCommand(10, { command: 'pause' }).then((value) => {
+        done = true
+
+        return value
+      })
+
+      await vi.advanceTimersByTimeAsync(ROOM_COMMAND_TIMEOUT_MS)
+      expect(done).toBe(false)
+
+      await vi.advanceTimersByTimeAsync(2_000)
+
+      await expect(outcome).resolves.toEqual({ result: 'expired' })
+    })
+
+    it('gives expired to the commands still waiting when the follow-up stops', async () => {
+      const { live } = await openStream()
+
+      apiFetchMock.mockResolvedValueOnce(new Response('{}', { status: 202 }))
+
+      const outcome = live.sendCommand(10, { command: 'pause' })
+
+      await settle()
+      live.stop()
+
+      await expect(outcome).resolves.toEqual({ result: 'expired' })
+    })
+
+    it.each([
+      [409, 'room_not_controllable', 'room_not_controllable'],
+      [409, 'command_id_conflict', 'command_id_conflict'],
+      [429, 'too_many_requests', 'too_many_requests'],
+      [403, 'forbidden', 'forbidden'],
+      [401, 'unauthorized', 'unauthorized'],
+      [404, 'room_not_found', 'room_not_found'],
+      [404, 'something_else', 'room_not_found'],
+      [500, 'boom', 'server_error'],
+      [400, 'invalid_body', 'server_error'],
+    ])(
+      'answers the HTTP error %i « %s » with the code %s, without waiting',
+      async (status, error, code) => {
+        const { live } = await openStream()
+
+        apiFetchMock.mockResolvedValueOnce(jsonErrorResponse(status, error))
+
+        await expect(live.sendCommand(10, { command: 'pause' })).resolves.toEqual({
+          result: 'error',
+          code,
+        })
+      }
+    )
+
+    it('answers server_error when the error has no readable body', async () => {
+      const { live } = await openStream()
+
+      apiFetchMock.mockResolvedValueOnce(new Response('<html>', { status: 502 }))
+
+      await expect(live.sendCommand(10, { command: 'pause' })).resolves.toEqual({
+        result: 'error',
+        code: 'server_error',
+      })
+    })
+
+    it('answers api_unreachable when the server cannot be reached', async () => {
+      const { live } = await openStream()
+
+      apiFetchMock.mockResolvedValueOnce(null)
+
+      await expect(live.sendCommand(10, { command: 'pause' })).resolves.toEqual({
+        result: 'error',
+        code: 'api_unreachable',
+      })
+    })
+
+    it('sends nothing without a company', async () => {
+      const { live } = mountLive(null)
+
+      await expect(live.sendCommand(10, { command: 'pause' })).resolves.toEqual({
+        result: 'error',
+        code: 'room_not_controllable',
+      })
+      expect(apiFetchMock).not.toHaveBeenCalled()
+    })
   })
 })

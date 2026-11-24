@@ -39,15 +39,28 @@
       "desk": "Desk {podium}"
     },
     "command": {
+      "title": "Remote commands",
+      "pause": "Pause",
+      "resume": "Resume",
+      "skip": "Skip question",
+      "abort": "Stop the game",
+      "abortTitle": "Stop the game?",
+      "abortConfirm": "The game stops right away on the room screen. This cannot be undone.",
       "error": {
         "room_not_controllable": "The room is offline or its screen is not connected: the command was not sent.",
         "too_many_requests": "Too many commands in progress for this room. Try again in a few seconds.",
         "command_unknown": "This command no longer exists or has already been answered.",
-        "command_id_conflict": "This command was already sent with different content. Start again."
+        "command_id_conflict": "This command was already sent with different content. Start again.",
+        "forbidden": "You are not allowed to control this room.",
+        "unauthorized": "Your session has expired: sign in again.",
+        "room_not_found": "This room no longer exists.",
+        "api_unreachable": "The server is unreachable: the command was not sent.",
+        "server_error": "Server error: the command was not sent."
       },
       "result": {
         "expired": "The room did not answer in time: the command may not have been applied.",
-        "refused": "The room refused the command."
+        "refused": "The room refused the command.",
+        "applied": "Command applied by the room."
       },
       "refusal": {
         "already_paused": "The game is already paused.",
@@ -55,6 +68,14 @@
         "paused": "The question cannot be skipped while the game is paused.",
         "not_in_question": "The question had already changed: nothing was skipped.",
         "game_over": "The game is over."
+      },
+      "disabled": {
+        "stream": "Live tracking interrupted: commands come back with the connection.",
+        "offline": "The room is offline: it cannot receive commands.",
+        "screen": "The room screen is not on the game.",
+        "noGame": "No game in progress on the room screen.",
+        "skipPaused": "Resume the game to skip the question.",
+        "skipPhase": "A question can only be skipped while it is running."
       }
     }
   }

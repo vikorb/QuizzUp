@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Pilotage en direct, commandes à distance (frontend) : boutons « Mettre en pause », « Reprendre », « Passer la question » et « Arrêter la partie » dans le panneau en direct d'une partie. Le résultat (`applied`, `refused` avec sa raison, `expired`) vient de l'événement `command_result` du flux ; sans résultat après 12 s, la commande est tenue pour expirée. Boutons inactifs si la salle n'est pas pilotable.
+  US: US-LIVE-01 (#129)
+
 - Diagnostic à distance d'une salle, en lecture seule : l'écran de salle publie son état matériel dans son rapport d'état (version, source des buzzers et manettes, pilote et état des lumières, fumée activée et armée, audio prêt, date de la dernière erreur) et la fiche de la salle l'affiche dans un bloc « Diagnostic ». Rien n'est stocké. Une valeur inconnue est lue comme « inconnu » et ne fait jamais paraître la salle hors ligne.
   US: US-DIAG-01 (#157)
 - Commandes à distance, côté serveur : `POST /companies/{companyId}/rooms/{roomId}/commands` relaie pause, reprise, passer et arrêter à l'écran de salle connecté, qui répond par `POST /room/commands/{commandId}/result` ; le personnel reçoit le résultat (`applied`, `refused` ou `expired` après 10 s) sur le flux en direct. L'arrêt d'une partie depuis le backoffice prévient la salle quand elle est pilotable.
