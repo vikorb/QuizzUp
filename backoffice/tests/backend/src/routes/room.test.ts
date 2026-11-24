@@ -551,6 +551,72 @@ describe('routes/room.ts — current game (US-GAME-08)', () => {
     await app.close()
   })
 
+  describe('game_updated on finish', () => {
+    const finishAs = async (
+      user: TestUser,
+      state: string = GAME_STATE_RUNNING,
+      scores: unknown = [{ podium: 1, score: 10 }],
+      times = 1
+    ) => {
+      seedRoom()
+      seedGame({ state })
+      const app = await createRouteApp(roomRoutes)
+      const updates = watchGameUpdates(app)
+      let response!: Awaited<ReturnType<typeof app.inject>>
+
+      for (let i = 0; i < times; i += 1) {
+        response = await app.inject({
+          method: 'POST',
+          url: '/room/games/5/finish',
+          headers: authHeaders(user),
+          payload: { scores },
+        })
+      }
+
+      await app.close()
+
+      return { response, updates }
+    }
+
+    it('tells the staff of the company and the room, by the game id only', async () => {
+      const { response, updates } = await finishAs(roomUser)
+
+      expect(response.statusCode).toBe(200)
+      expectOnlyCompany1Notified(updates, 5)
+    })
+
+    it('tells once only: a resend of a game already finished changes nothing', async () => {
+      const { response, updates } = await finishAs(roomUser, GAME_STATE_RUNNING, undefined, 2)
+
+      expect(response.statusCode).toBe(200)
+      expect(updates.staff1).toEqual([{ gameId: 5 }])
+      expect(updates.room1).toEqual([{ gameId: 5 }])
+    })
+
+    it('tells nobody when the scores are refused', async () => {
+      const { response, updates } = await finishAs(roomUser, GAME_STATE_RUNNING, [
+        { podium: 3, score: 1 },
+      ])
+
+      expect(response.statusCode).toBe(400)
+      expectNobodyNotified(updates)
+    })
+
+    it('tells nobody when the game is already aborted', async () => {
+      const { response, updates } = await finishAs(roomUser, GAME_STATE_ABORTED)
+
+      expect(response.statusCode).toBe(409)
+      expectNobodyNotified(updates)
+    })
+
+    it('tells nobody when the game belongs to another company', async () => {
+      const { response, updates } = await finishAs({ ...roomUser, company_id: 2 } as TestUser)
+
+      expect(response.statusCode).toBe(404)
+      expectNobodyNotified(updates)
+    })
+  })
+
   it('finishes a game played on 6 pupitres', async () => {
     seedRoom()
     seedGame({ state: GAME_STATE_RUNNING })

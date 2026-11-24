@@ -521,9 +521,13 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
 
     const finished = await findRoomGame(req, gameId)
 
-    return finished?.state === GAME_STATE_FINISHED
-      ? { game: finished }
-      : reply.code(409).send({ error: 'game_already_over' })
+    if (finished?.state !== GAME_STATE_FINISHED) {
+      return reply.code(409).send({ error: 'game_already_over' })
+    }
+
+    app.liveHub.gameUpdated(Number(req.user.company_id), Number(req.user.room_id), gameId)
+
+    return { game: finished }
   })
 }
 

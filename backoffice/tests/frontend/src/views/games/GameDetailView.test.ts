@@ -11,7 +11,12 @@ import {
   mockServiceFailure,
   resetGamesServiceMock,
 } from '@frontend-tests/_helpers/gamesServiceMock'
-import { setLiveRooms, useLiveCompanyMock } from '@frontend-tests/_helpers/liveCompanyMock'
+import {
+  gameUpdatedListenerMock,
+  liveStateMock,
+  setLiveRooms,
+  useLiveCompanyMock,
+} from '@frontend-tests/_helpers/liveCompanyMock'
 import { createRoomLive } from '@frontend-tests/_helpers/liveMock'
 import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
@@ -87,6 +92,33 @@ describe('views/games/GameDetailView.vue', () => {
     expect(wrapper.text()).toContain('Salle Néon')
     expect(wrapper.text()).toContain('games.state.pending')
     expect(wrapper.text()).toContain('games.detail.fields.formatValue')
+  })
+
+  it('opens one single live stream for the page (the account has 5 at most), and the sign-up panel still follows it', async () => {
+    const wrapper = await mountView()
+
+    expect(useLiveCompanyMock).toHaveBeenCalledTimes(1)
+    expect(listGameRegistrationsServiceMock).toHaveBeenCalledTimes(1)
+
+    // `game_updated` du flux unique : le panneau d'inscription relit.
+    gameUpdatedListenerMock.current?.(4)
+    await flushPromises()
+    expect(listGameRegistrationsServiceMock).toHaveBeenCalledTimes(2)
+
+    // Un autre jeu ne le concerne pas.
+    gameUpdatedListenerMock.current?.(5)
+    await flushPromises()
+    expect(listGameRegistrationsServiceMock).toHaveBeenCalledTimes(2)
+
+    // Flux coupé puis rétabli : relecture de rattrapage.
+    liveStateMock.value = 'reconnecting'
+    await flushPromises()
+    liveStateMock.value = 'live'
+    await flushPromises()
+    expect(listGameRegistrationsServiceMock).toHaveBeenCalledTimes(3)
+    expect(useLiveCompanyMock).toHaveBeenCalledTimes(1)
+
+    wrapper.unmount()
   })
 
   it('shows the sign-up panel of a pending game and reloads the game once a request is validated', async () => {

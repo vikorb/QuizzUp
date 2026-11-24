@@ -3979,7 +3979,7 @@ paths:
         - `replaced` : un autre poste de la salle a ouvert son flux ; celui-ci est fermé juste après.
         - `session_ended` : la session n'est plus valable (`{ error }`) ; le flux est fermé juste après.
         - `command` : une commande du personnel à proposer au moteur, `{ commandId, command }` (`pause`, `resume`), `{ commandId, command: skip, round, questionIndex }` ou `{ commandId, command: abort, gameId }`. La salle répond par `POST /room/commands/{commandId}/result` dans les 10 s.
-        - `game_updated` : une partie de la salle a changé (demande d'inscription, joueur ajouté ou retiré, lien, ouverture, lancement, annulation…), `{ gameId }` seulement, sans donnée de joueur. La salle relit la partie par `GET /room/games/current` ; sans flux ouvert, elle relit toutes les 15 s.
+        - `game_updated` : une partie de la salle a changé (demande d'inscription, joueur ajouté ou retiré, lien, ouverture, lancement, fin de partie, annulation…), `{ gameId }` seulement, sans donnée de joueur. La salle relit la partie par `GET /room/games/current` ; sans flux ouvert, elle relit toutes les 15 s.
 
         Une ligne de commentaire `: ping` est écrite toutes les 15 s. La session est revérifiée toutes les 60 s sans être prolongée.
 
