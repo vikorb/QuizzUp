@@ -379,6 +379,8 @@ Table game_participants {
     (game_id, podium) [unique, name: 'game_participants_game_id_podium_unique']
     (email) [name: 'game_participants_email_index']
     (second_email) [name: 'game_participants_second_email_index']
+    `lower(btrim(email))` [name: 'game_participants_email_normalized_index', note: 'Questions déjà vues, purge et joueurs : même expression que les requêtes']
+    `lower(btrim(second_email))` [name: 'game_participants_second_email_normalized_index']
   }
 }
 

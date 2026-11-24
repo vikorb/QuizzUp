@@ -109,7 +109,15 @@
         "invalidGame": "A player sits at an unknown desk: fix the game in the back office.",
         "noPlayers": "No player is registered for this game: add them in the back office.",
         "invalidSetup": "This game's format (rounds, questions or players) cannot be played: fix it in the back office.",
-        "noPlayableMiniGame": "None of the chosen mini-games can be played with these players and this content: change the mini-games or add content in the back office."
+        "noPlayableMiniGame": "None of the chosen mini-games can be played with these players and this content: change the mini-games or add content in the back office.",
+        "notOpenYet": "This session cannot be opened yet: try again at the time shown.",
+        "roomBusy": "Another game is already waiting in this room: start it or stop it in the back office."
+      },
+      "next": {
+        "title": "Next session: {when}",
+        "launch": "Start",
+        "opensAt": "Can be started from {time}",
+        "late": "{n} min late"
       },
       "running": "Game in progress: {rounds} rounds × {questions} questions",
       "runningText": "This game has already started on this PC: resume it where it stopped.",

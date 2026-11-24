@@ -155,6 +155,7 @@ function resolveSetup(setup: GameSetup): ResolvedSetup {
     questionsPerRound,
     miniGames,
     timings,
+    avoidQuestionIds: [...new Set(setup.avoidQuestionIds ?? [])],
   }
 }
 
@@ -364,7 +365,8 @@ function selectTheme(context: Context, themeId: number, at: number, automatic: b
     theme.questions.filter((question) => definition.isQuestionEligible(question)),
     state.usedQuestionIds,
     state.setup.questionsPerRound,
-    context.random
+    context.random,
+    state.setup.avoidQuestionIds
   )
 
   round.themeId = themeId

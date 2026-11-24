@@ -84,20 +84,33 @@ export function drawOfferedThemes(
 }
 
 /**
- * Questions de la manche : d'abord celles jamais posées dans la partie, puis,
- * si le thème n'en a pas assez, des questions déjà posées pour compléter.
+ * Questions de la manche, en trois niveaux : d'abord les neuves, puis, si le thème n'en a pas
+ * assez, celles que les joueurs ont vues dans une partie précédente (`avoidQuestionIds`), enfin
+ * celles déjà posées dans cette partie. Sans questions à éviter, le deuxième niveau est vide et ne
+ * consomme pas le hasard : le tirage est celui d'avant.
  */
 export function drawRoundQuestions(
   eligibleQuestions: EngineQuestion[],
   usedQuestionIds: number[],
   count: number,
-  random: Random
+  random: Random,
+  avoidQuestionIds: number[] = []
 ): EngineQuestion[] {
-  const fresh = eligibleQuestions.filter((question) => !usedQuestionIds.includes(question.id))
-  const alreadyPlayed = eligibleQuestions.filter((question) =>
-    usedQuestionIds.includes(question.id)
-  )
-  const drawnFresh = drawMany(fresh, count, random)
+  const tiers = [
+    eligibleQuestions.filter(
+      (question) =>
+        !usedQuestionIds.includes(question.id) && !avoidQuestionIds.includes(question.id)
+    ),
+    eligibleQuestions.filter(
+      (question) => !usedQuestionIds.includes(question.id) && avoidQuestionIds.includes(question.id)
+    ),
+    eligibleQuestions.filter((question) => usedQuestionIds.includes(question.id)),
+  ]
+  const drawn: EngineQuestion[] = []
 
-  return [...drawnFresh, ...drawMany(alreadyPlayed, count - drawnFresh.length, random)]
+  for (const tier of tiers) {
+    drawn.push(...drawMany(tier, count - drawn.length, random))
+  }
+
+  return drawn
 }

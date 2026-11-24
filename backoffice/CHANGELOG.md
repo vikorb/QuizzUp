@@ -11,6 +11,11 @@ Format inspiré de Keep a Changelog.
 - Fumée par la carte USB, écran de salle : section « Fumée » de l'écran Matériel pour brancher la carte (Web Serial, à la demande), voir son état, installer son programme depuis la page (signature vérifiée, sauvegarde du programme d'origine téléchargée avant d'écrire) et restaurer un `.hex`. La carte déjà autorisée se reconnecte seule au lancement, toujours désarmée ; pendant une installation aucun ordre de fumée ne part. Le programme `fumee.hex` est versionné, la CI échoue s'il manque ou s'il diffère de la compilation, et les images de recette et de production l'embarquent. À valider sur le banc.
   US: US-DMX-01 (#215)
 
+- Écran de salle : la prochaine session programmée s'affiche au lobby quand aucune partie n'attend, avec son heure dans le fuseau de la salle et l'action « Lancer ».
+  US: US-SCHED-01 (#142)
+
+- Questions déjà vues : une partie évite les questions que ses joueurs, reconnus par leur e-mail, ont déjà eues dans les parties terminées de la même compagnie (`avoidQuestionIds` dans `GET /room/games/current`, 2 000 au plus). Un thème ne se vide jamais : les questions déjà vues passent en dernier.
+  US: US-CONTENT-01 (#158)
 - Playlists à l'écran de salle : à la reprise d'une partie, les extraits des titres de playlist sont relus auprès du serveur (route `tracks`) à part des questions du catalogue ; une panne du fournisseur ne bloque pas la reprise. Le texte « Quel est ce titre ? » est traduit.
   US: US-PLAYLIST-01 (#204)
 - Mode enfants : option à la création et à la modification d'une partie dans le backoffice. Sur la page du téléphone, aucun e-mail n'est demandé ni enregistré pour une partie en mode enfants (`kidsMode` dans `POST /public/v1/join/lookup`).
@@ -33,6 +38,10 @@ Format inspiré de Keep a Changelog.
 - Format de partie au backoffice et au lobby : à la création, le formulaire propose Découverte, Courte, Standard (par défaut) et Personnalisé, avec les nombres et la durée estimée de chaque format. Les champs manches et questions n'apparaissent qu'en Personnalisé. Le lobby du staff affiche le format et sa durée.
   US: US-FORMAT-01 (#143)
 
+- Format de partie côté serveur : `games.format` stocke le format (`discovery`, `short`, `standard`, `custom`). À la création, un format fixe ses nombres de manches et de questions (les envoyer ensemble donne 400 `invalid_body`, `format_fixes_counts`) ; des nombres sans format donnent `custom`. Modifier les nombres d'une session programmée la passe en `custom`. Le format est renvoyé par les parties et par `GET /room/games/current`.
+  US: US-FORMAT-01 (#143)
+- Écran de salle, accueil des joueurs : le lobby d'une partie en attente affiche le QR code d'inscription fourni par le serveur (dans un `<img>`, jamais en `v-html`), l'adresse en clair et le nombre d'inscriptions en attente de validation. Sans QR code, l'adresse seule ; un lien expiré est signalé ; rien en partie en cours.
+  US: US-JOIN-01 (#166)
 - Blind test par playlist, côté salle : `GET /room/games/current/content` tire les titres d'un thème de playlist chez le fournisseur d'extraits et en fait des questions « Quel est ce titre ? » (quatre réponses, identifiants négatifs, crédit du titre). Nouvelle route `GET /room/games/current/tracks` qui rend les liens d'extrait à jour pour reprendre une partie après rechargement. En mode enfants, seuls les thèmes adaptés sont lus.
   US: US-PLAYLIST-01 (#204)
 
