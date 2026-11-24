@@ -173,6 +173,7 @@
         "connectErrors": {
           "same_as_dmx": "C’est l’interface DMX de la salle : choisis la carte de la fumée.",
           "failed": "Cette carte ne répond pas avec le programme QuizzUp. Installe le programme ci-dessous.",
+          "save_failed": "La carte répond, mais la configuration de la salle n’a pas pu être enregistrée : réessaie.",
           "unsupported": "Web Serial est indisponible : utilise Chrome ou Edge sur le PC de la salle."
         },
         "machineOff": "La machine à fumée est éteinte",
@@ -180,6 +181,10 @@
         "install": "Installer le programme",
         "restoreFile": "Fichier .hex à restaurer",
         "restore": "Restaurer",
+        "restoreHint": "Un programme restauré est celui d’origine : il ne suit pas les sécurités de QuizzUp et peut déclencher la fumée tout seul. Laisse la machine éteinte après une restauration.",
+        "backupQuestion": "Le programme actuel de la carte est téléchargé ({file}). Le fichier est-il bien enregistré sur ce PC ? Sans lui, pas de retour arrière : rien n’est écrit tant que tu n’as pas répondu.",
+        "backupYes": "Oui, la sauvegarde est enregistrée",
+        "backupNo": "Non, annuler",
         "steps": {
           "sync": "Synchronisation avec la carte",
           "backup": "Sauvegarde du programme en place",
@@ -196,7 +201,7 @@
           "port_busy": "Port occupé : ferme l’autre onglet ou le programme qui l’utilise.",
           "timeout": "La carte ne répond plus : recommence l’installation.",
           "cancelled": "Opération annulée.",
-          "backup_failed": "La sauvegarde du programme en place a échoué : rien n’a été écrit.",
+          "backup_failed": "La sauvegarde du programme en place n’est pas confirmée ou a échoué : rien n’a été écrit.",
           "not_confirmed": "Coche d’abord « La machine à fumée est éteinte ».",
           "no_port": "Choisis d’abord la carte de la fumée.",
           "invalid_hex": "Ce fichier n’est pas un programme .hex lisible : rien n’a été écrit.",
@@ -205,7 +210,7 @@
         "notInert": "Le programme de la carte est peut-être faux : ne rebranche pas la machine avant une nouvelle installation réussie.",
         "done": {
           "install": "Programme installé. La carte repart en pause de sécurité, fumée désarmée.",
-          "restore": "Programme restauré. La carte repart en pause de sécurité, fumée désarmée."
+          "restore": "Programme restauré. C’est le programme d’origine : il ne suit pas les sécurités de QuizzUp et peut déclencher la fumée tout seul. Laisse la machine à fumée éteinte."
         }
       },
       "status": {

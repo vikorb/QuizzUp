@@ -173,6 +173,7 @@
         "connectErrors": {
           "same_as_dmx": "This is the room's DMX interface: choose the smoke board.",
           "failed": "This board does not answer with the QuizzUp program. Install the program below.",
+          "save_failed": "The board answers, but the room configuration could not be saved: try again.",
           "unsupported": "Web Serial is unavailable: use Chrome or Edge on the room PC."
         },
         "machineOff": "The smoke machine is switched off",
@@ -180,6 +181,10 @@
         "install": "Install the program",
         "restoreFile": ".hex file to restore",
         "restore": "Restore",
+        "restoreHint": "A restored program is the original one: it does not follow QuizzUp's safety rules and may fire the smoke on its own. Keep the machine switched off after a restore.",
+        "backupQuestion": "The board's current program is being downloaded ({file}). Is the file really saved on this PC? Without it there is no way back: nothing is written until you answer.",
+        "backupYes": "Yes, the backup is saved",
+        "backupNo": "No, cancel",
         "steps": {
           "sync": "Syncing with the board",
           "backup": "Backing up the current program",
@@ -196,7 +201,7 @@
           "port_busy": "Port busy: close the other tab or program using it.",
           "timeout": "The board no longer responds: install again.",
           "cancelled": "Operation cancelled.",
-          "backup_failed": "Backing up the current program failed: nothing was written.",
+          "backup_failed": "The backup of the current program was not confirmed or failed: nothing was written.",
           "not_confirmed": "Tick “The smoke machine is switched off” first.",
           "no_port": "Choose the smoke board first.",
           "invalid_hex": "This file is not a readable .hex program: nothing was written.",
@@ -205,7 +210,7 @@
         "notInert": "The board's program may be wrong: do not plug the machine back in before a successful install.",
         "done": {
           "install": "Program installed. The board restarts in its safety pause, smoke disarmed.",
-          "restore": "Program restored. The board restarts in its safety pause, smoke disarmed."
+          "restore": "Program restored. This is the original program: it does not follow QuizzUp's safety rules and may fire the smoke on its own. Keep the smoke machine switched off."
         }
       },
       "status": {

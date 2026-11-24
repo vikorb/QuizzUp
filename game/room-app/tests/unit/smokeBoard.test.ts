@@ -5,8 +5,10 @@ import {
   getRoomHardwareConfig,
   saveRoomHardwareConfig,
   startLighting,
+  stopLighting,
 } from '@/hardware/roomHardware'
 import {
+  answerBackupSaved,
   BACKUP_FILE_NAME,
   BUNDLED_PROGRAM_VERSION,
   connectSmokeBoard,
@@ -78,6 +80,18 @@ async function readyBoard(options: FakeBoardOptions = {}) {
   await reconnectSmokeBoard()
   await vi.waitFor(() => expect(useSmokeBoard().view.value).toBe('ready'))
   return { fake, serial }
+}
+
+/** Fait avancer l'horloge simulée jusqu'à la fin de l'opération : aucune attente réelle. */
+async function pump<T>(operation: Promise<T>): Promise<T> {
+  let finished = false
+  const tracked = operation.finally(() => {
+    finished = true
+  })
+  while (!finished) {
+    await vi.advanceTimersByTimeAsync(250)
+  }
+  return tracked
 }
 
 afterEach(async () => {
@@ -170,6 +184,18 @@ describe('carte USB de la fumée : connexion et gardes', () => {
     await vi.waitFor(() => expect(replugged.isOutputOn()).toBe(true))
   })
 
+  it('relance des lumières avec une carte prête : fumée désarmée, même sans confirmation d’armement', async () => {
+    const { fake } = await readyBoard()
+    // Sans confirmation demandée, un contrôleur neuf serait armé : le lien repris doit le désarmer.
+    await stopLighting()
+
+    await startLighting()
+
+    expect(smoke().armed).toBe(false)
+    expect(lighting().smoke.fire(1000)).toEqual({ ok: false, reason: 'not_armed' })
+    expect(fake.fireLines()).toBe(0)
+  })
+
   it('n’ouvre aucune carte quand deux ports ont le modèle retenu', async () => {
     const first = createFakeBoardPort()
     const second = createFakeBoardPort()
@@ -198,12 +224,23 @@ describe('carte USB de la fumée : connexion et gardes', () => {
 describe('carte USB de la fumée : installation du programme', () => {
   const OLD_PROGRAM = Uint8Array.from({ length: 600 }, (_value, index) => (index * 7 + 3) & 0xff)
 
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const saved = { confirmBackup: async () => true }
+
   async function connected(options: FakeBoardOptions = {}) {
     const fake = createFakeBoardPort({ flash: OLD_PROGRAM, ...options })
     const serial = installSerial(fake.port, [fake.port])
     await provisionedRoom(false)
-    // Carte sans programme QuizzUp : le port est tout de même celui de l'installation.
-    await connectSmokeBoard()
+    // Carte sans programme QuizzUp (pas de bannière) : le port est tout de même celui de l'installation.
+    await pump(connectSmokeBoard())
+    expect(useSmokeBoard().view.value).toBe('absent')
     return { fake, serial }
   }
 
@@ -218,14 +255,17 @@ describe('carte USB de la fumée : installation du programme', () => {
     const duringInstall: unknown[] = []
     lighting().smoke.arm()
 
-    await installSmokeBoardProgram({
-      machineOff: true,
-      download: (name, text) => {
-        downloads.push({ name, text })
-        // En pleine installation : armée ou non, aucune fumée ne part.
-        duringInstall.push(lighting().smoke.fire(1000), useSmokeBoard().busy.value)
-      },
-    })
+    await pump(
+      installSmokeBoardProgram({
+        machineOff: true,
+        ...saved,
+        download: (name, text) => {
+          downloads.push({ name, text })
+          // En pleine installation : armée ou non, aucune fumée ne part.
+          duringInstall.push(lighting().smoke.fire(1000), useSmokeBoard().busy.value)
+        },
+      })
+    )
 
     expect(useSmokeBoard().install.value).toEqual({ phase: 'done', kind: 'install' })
     expect(downloads).toHaveLength(1)
@@ -236,6 +276,7 @@ describe('carte USB de la fumée : installation du programme', () => {
     const image = parseIntelHex(bundledHex)
     expect(fake.flash.subarray(0, image.length)).toEqual(image)
     expect(fake.fireLines()).toBe(0)
+    expect(fake.stats.pagesWritten).toBeGreaterThan(0)
     expect(fake.opens).toEqual([9600, 115_200, 9600])
     await vi.waitFor(() => expect(useSmokeBoard().view.value).toBe('ready'))
     expect(smoke().armed).toBe(false)
@@ -243,6 +284,40 @@ describe('carte USB de la fumée : installation du programme', () => {
       kind: 'uno-serial',
       ...BOARD_USB,
     })
+  })
+
+  it('sauvegarde non confirmée par l’opérateur : arrêt `backup_failed`, aucune page écrite', async () => {
+    const { fake } = await connected()
+    const download = vi.fn()
+
+    await pump(
+      installSmokeBoardProgram({ machineOff: true, download, confirmBackup: async () => false })
+    )
+
+    expect(download).toHaveBeenCalledTimes(1)
+    expect(useSmokeBoard().install.value).toMatchObject({ phase: 'error', code: 'backup_failed' })
+    expect(fake.stats.pagesWritten).toBe(0)
+    expect(fake.flash.subarray(0, OLD_PROGRAM.length)).toEqual(OLD_PROGRAM)
+    expect(fake.fireLines()).toBe(0)
+  })
+
+  it('attend la réponse de l’opérateur, chargeur maintenu, puis écrit une fois confirmé', async () => {
+    const { fake } = await connected()
+
+    const installation = installSmokeBoardProgram({ machineOff: true, download: vi.fn() })
+    await vi.waitFor(() =>
+      expect(useSmokeBoard().install.value).toEqual({ phase: 'awaiting_backup' })
+    )
+    // Question posée : le chargeur est tenu, rien n'est encore écrit, l'écran reste occupé.
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(fake.stats.pagesWritten).toBe(0)
+    expect(useSmokeBoard().busy.value).toBe(true)
+
+    answerBackupSaved(true)
+    await pump(installation)
+
+    expect(useSmokeBoard().install.value).toEqual({ phase: 'done', kind: 'install' })
+    expect(fake.stats.pagesWritten).toBeGreaterThan(0)
   })
 
   it('n’écrit rien sans la case « machine éteinte »', async () => {
@@ -259,7 +334,7 @@ describe('carte USB de la fumée : installation du programme', () => {
     const { fake } = await connected({ signature: [0x1e, 0x95, 0x14] })
     const download = vi.fn()
 
-    await installSmokeBoardProgram({ machineOff: true, download })
+    await pump(installSmokeBoardProgram({ machineOff: true, download, ...saved }))
 
     expect(useSmokeBoard().install.value).toMatchObject({ phase: 'error', code: 'wrong_signature' })
     expect(fake.stats.pagesWritten).toBe(0)
@@ -279,23 +354,36 @@ describe('carte USB de la fumée : installation du programme', () => {
     const { fake } = await connected({ corruptFirstWrite: true })
     const download = vi.fn()
 
-    await installSmokeBoardProgram({ machineOff: true, download })
+    await pump(installSmokeBoardProgram({ machineOff: true, download, ...saved }))
     expect(useSmokeBoard().install.value).toMatchObject({ phase: 'error', code: 'verify_failed' })
     expect(smoke().armed).toBe(false)
     expect(fake.fireLines()).toBe(0)
 
-    await installSmokeBoardProgram({ machineOff: true, download })
+    await pump(installSmokeBoardProgram({ machineOff: true, download, ...saved }))
     expect(useSmokeBoard().install.value).toEqual({ phase: 'done', kind: 'install' })
     expect(download).toHaveBeenCalledTimes(2)
 
     // Retour arrière : la dernière sauvegarde téléchargée est celle du programme déjà remplacé ;
     // la première (avant tout essai) contient l'ancien programme.
     const firstBackup = download.mock.calls[0]?.[1] as string
-    await restoreSmokeBoardProgram({ machineOff: true, hex: firstBackup })
+    await pump(restoreSmokeBoardProgram({ machineOff: true, hex: firstBackup }))
 
     expect(useSmokeBoard().install.value).toEqual({ phase: 'done', kind: 'restore' })
     expect(fake.flash.subarray(0, OLD_PROGRAM.length)).toEqual(OLD_PROGRAM)
     expect(fake.fireLines()).toBe(0)
+    // Le programme d'origine ne dit pas la bannière QuizzUp : la carte n'est plus « prête ».
+    expect(useSmokeBoard().view.value).toBe('absent')
+  })
+
+  it('après un échec, l’état publié est « fermé » et non « prête » ; le port reste pour recommencer', async () => {
+    await readyBoard({ corruptFirstWrite: true })
+
+    await pump(installSmokeBoardProgram({ machineOff: true, download: vi.fn(), ...saved }))
+
+    expect(useSmokeBoard().install.value).toMatchObject({ phase: 'error', code: 'verify_failed' })
+    expect(useSmokeBoard().state.value?.status).toBe('closed')
+    expect(useSmokeBoard().view.value).toBe('none')
+    expect(useSmokeBoard().hasPort.value).toBe(true)
   })
 
   it('refuse un fichier .hex illisible sans toucher à la carte', async () => {

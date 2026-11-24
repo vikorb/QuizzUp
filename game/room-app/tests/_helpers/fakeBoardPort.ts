@@ -59,6 +59,16 @@ export function createFakeBoardPort(options: FakeBoardOptions = {}) {
   const opens: number[] = []
   const stats = { pagesWritten: 0, resets: 0 }
 
+  /**
+   * Sans `options.flash`, la carte est livrée avec le programme QuizzUp. Avec `options.flash`
+   * (l'ancien programme), elle ne dit la bannière qu'une fois sa première page changée : une
+   * restauration de la sauvegarde la fait donc taire de nouveau.
+   */
+  const oldPage = flash.slice(0, PAGE)
+  const runsQuizzUpProgram = () =>
+    options.flash === undefined ||
+    flash.subarray(0, PAGE).some((byte, index) => byte !== oldPage[index])
+
   const emit = (data: Uint8Array) => {
     try {
       controller?.enqueue(data)
@@ -159,7 +169,7 @@ export function createFakeBoardPort(options: FakeBoardOptions = {}) {
         stats.resets += 1
         out = 0
         cause = 'CMD'
-        if (banner !== null) {
+        if (banner !== null && runsQuizzUpProgram()) {
           queueMicrotask(() => emit(ascii(`${banner}\n`)))
         }
       }

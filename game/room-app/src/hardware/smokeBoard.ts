@@ -52,6 +52,8 @@ export type InstallErrorCode =
 export type InstallState =
   | { phase: 'idle' }
   | { phase: 'running'; step: FirmwareProgress['step']; done: number; total: number }
+  /** Sauvegarde téléchargée : le chargeur est maintenu, l'opérateur doit dire si le fichier est bien enregistré. */
+  | { phase: 'awaiting_backup' }
   | { phase: 'done'; kind: 'install' | 'restore' }
   | { phase: 'error'; code: InstallErrorCode; inert: boolean | null }
 
@@ -70,6 +72,29 @@ const installState = shallowRef<InstallState>({ phase: 'idle' })
 const ambiguous = shallowRef(false)
 /** Ouvertures et installations passent l'une après l'autre. */
 let queue: Promise<unknown> = Promise.resolve()
+
+/** Installation ou restauration en cours (y compris l'attente de la confirmation de sauvegarde). */
+const inProgress = () =>
+  installState.value.phase === 'running' || installState.value.phase === 'awaiting_backup'
+
+/** Réponse de l'opérateur à « la sauvegarde est-elle bien enregistrée ? » (`null` : aucune question posée). */
+let backupAnswer: ((saved: boolean) => void) | null = null
+
+const askBackupSaved = () =>
+  new Promise<boolean>((resolve) => {
+    backupAnswer = resolve
+    installState.value = { phase: 'awaiting_backup' }
+  })
+
+/** Réponse de l'écran. Refus : l'installation s'arrête (`backup_failed`), rien n'est écrit. */
+export function answerBackupSaved(saved: boolean): void {
+  const answer = backupAnswer
+  backupAnswer = null
+  if (saved && installState.value.phase === 'awaiting_backup') {
+    installState.value = { phase: 'running', step: 'backup', done: 1, total: 1 }
+  }
+  answer?.(saved)
+}
 
 function serialize<T>(task: () => Promise<T>): Promise<T> {
   const run = queue.then(task, task)
@@ -103,6 +128,10 @@ async function detach(): Promise<void> {
   const previous = link
   link = null
   await previous?.close()
+  // L'abonnement est coupé : l'état fermé est publié ici (`port` et `hasPort` restent pour recommencer).
+  if (previous) {
+    linkState.value = previous.getState()
+  }
 }
 
 async function attach(next: SmokeBoardPort): Promise<SmokeBoardState['status']> {
@@ -218,11 +247,11 @@ const isLive = () => {
  */
 export async function reconnectSmokeBoard(): Promise<void> {
   watchConnection()
-  if (!isWebSerialSupported() || installState.value.phase === 'running') {
+  if (!isWebSerialSupported() || inProgress()) {
     return
   }
   await serialize(async () => {
-    if (isLive() || installState.value.phase === 'running') {
+    if (isLive() || inProgress()) {
       return
     }
     const found = await findGrantedBoard()
@@ -280,17 +309,18 @@ async function flash(
   kind: 'install' | 'restore',
   task: (target: SmokeBoardPort, onProgress: (progress: FirmwareProgress) => void) => Promise<void>
 ): Promise<void> {
-  if (installState.value.phase === 'running') {
+  if (inProgress()) {
     installState.value = { phase: 'error', code: 'busy', inert: null }
-    return
-  }
-  const target = port
-  if (!target) {
-    installState.value = { phase: 'error', code: 'no_port', inert: null }
     return
   }
   installState.value = { phase: 'running', step: 'sync', done: 0, total: 1 }
   await serialize(async () => {
+    // Lu ici, dans la file : une ouverture en cours a pu changer de port.
+    const target = port
+    if (!target) {
+      installState.value = { phase: 'error', code: 'no_port', inert: null }
+      return
+    }
     const lighting = getLighting()
     lighting?.smoke.stop()
     lighting?.smoke.disarm()
@@ -321,6 +351,8 @@ async function flash(
 export async function installSmokeBoardProgram(options: {
   machineOff: boolean
   download?: DownloadFile
+  /** Défaut : question posée à l'opérateur dans l'écran (`answerBackupSaved`). */
+  confirmBackup?: () => Promise<boolean>
   hex?: string
 }): Promise<void> {
   if (!options.machineOff) {
@@ -334,7 +366,14 @@ export async function installSmokeBoardProgram(options: {
       hex: options.hex ?? bundledHex,
       onProgress,
       // La sauvegarde du programme d'origine est le retour arrière : rien n'est écrit sans elle.
-      onBackup: (backup) => download(BACKUP_FILE_NAME, writeIntelHex(backup)),
+      // Télécharger ne prouve pas que le fichier existe (annulé, bloqué) : l'opérateur confirme,
+      // le chargeur étant maintenu pendant ce temps. Un refus lève, donc `backup_failed`.
+      onBackup: async (backup) => {
+        download(BACKUP_FILE_NAME, writeIntelHex(backup))
+        if (!(await (options.confirmBackup ?? askBackupSaved)())) {
+          throw new Error('Sauvegarde non confirmée')
+        }
+      },
     })
   )
 }
@@ -354,7 +393,7 @@ export async function restoreSmokeBoardProgram(options: {
 }
 
 export function dismissInstallResult(): void {
-  if (installState.value.phase !== 'running') {
+  if (!inProgress()) {
     installState.value = { phase: 'idle' }
   }
 }
@@ -362,6 +401,7 @@ export function dismissInstallResult(): void {
 /** Remet le module à zéro (tests, changement de salle). */
 export async function resetSmokeBoard(): Promise<void> {
   stopConnectWatch?.()
+  answerBackupSaved(false)
   await detach()
   port = null
   linkState.value = null
@@ -376,7 +416,9 @@ export function useSmokeBoard() {
     state: computed(() => linkState.value),
     view: computed(() => viewOf(linkState.value)),
     install: computed(() => installState.value),
-    busy: computed(() => installState.value.phase === 'running'),
+    busy: computed(
+      () => installState.value.phase === 'running' || installState.value.phase === 'awaiting_backup'
+    ),
     ambiguous: computed(() => ambiguous.value),
     /** Un port a été choisi ou repris : l'installation a une cible. */
     hasPort: computed(() => linkState.value !== null),

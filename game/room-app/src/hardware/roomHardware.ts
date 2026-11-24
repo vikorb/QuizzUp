@@ -584,7 +584,8 @@ async function createLighting(
     ...(smokeBoardLink ? { smokeLink: smokeBoardLink } : {}),
   })
   // Fumée désarmée et arrêt d'urgence repris avant la première trame.
-  if (options.disarmSmoke) {
+  // Un lien de carte repris est toujours désarmé, même sans confirmation d'armement demandée.
+  if (options.disarmSmoke || smokeBoardLink) {
     controller.smoke.disarm()
   }
   // Repris du redémarrage en cours, d'un arrêt pressé sans contrôleur, ou d'un arrêt d'avant

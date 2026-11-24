@@ -8,7 +8,7 @@
       <p class="board__status" data-test="board-status" role="status">
         {{ $t(`hardware.smoke.board.status.${view}`, { version: state?.version ?? '' }) }}
       </p>
-      <p v-if="view === 'none'" class="hw-hint" data-test="board-empty">
+      <p v-if="view === 'none' && !hasPort" class="hw-hint" data-test="board-empty">
         {{ $t('hardware.smoke.board.empty') }}
       </p>
       <p v-if="ambiguous" class="hw-alert" role="alert" data-test="board-ambiguous">
@@ -31,11 +31,15 @@
         </label>
         <p class="hw-hint">{{ $t('hardware.smoke.board.installHint') }}</p>
         <div class="hw-actions">
-          <UiButton :disabled="busy || !machineOff" data-test="board-install" @click="onInstall">
+          <UiButton
+            :disabled="busy || connecting || !machineOff"
+            data-test="board-install"
+            @click="onInstall"
+          >
             {{ $t('hardware.smoke.board.install') }}
           </UiButton>
-          <label class="board__file">
-            <span>{{ $t('hardware.smoke.board.restoreFile') }}</span>
+          <label class="file-btn">
+            {{ $t('hardware.smoke.board.restoreFile') }}
             <input
               type="file"
               accept=".hex"
@@ -45,15 +49,40 @@
             />
           </label>
           <UiButton
-            :disabled="busy || !machineOff || restoreText === null"
+            :disabled="busy || connecting || !machineOff || restoreText === null"
             data-test="board-restore"
             @click="onRestore"
           >
             {{ $t('hardware.smoke.board.restore') }}
           </UiButton>
         </div>
+        <p class="hw-hint" data-test="board-restore-hint">
+          {{ $t('hardware.smoke.board.restoreHint') }}
+        </p>
 
-        <div v-if="install.phase === 'running'" class="board__progress" data-test="board-progress">
+        <div
+          v-if="install.phase === 'awaiting_backup'"
+          class="board__backup"
+          role="alert"
+          data-test="board-backup-confirm"
+        >
+          <p class="hw-alert">
+            {{ $t('hardware.smoke.board.backupQuestion', { file: BACKUP_FILE_NAME }) }}
+          </p>
+          <div class="hw-actions">
+            <UiButton data-test="board-backup-yes" @click="answerBackupSaved(true)">
+              {{ $t('hardware.smoke.board.backupYes') }}
+            </UiButton>
+            <UiButton data-test="board-backup-no" @click="answerBackupSaved(false)">
+              {{ $t('hardware.smoke.board.backupNo') }}
+            </UiButton>
+          </div>
+        </div>
+        <div
+          v-else-if="install.phase === 'running'"
+          class="board__progress"
+          data-test="board-progress"
+        >
           <label>
             {{ $t(`hardware.smoke.board.steps.${install.step}`) }}
             <progress :value="install.done" :max="install.total" />
@@ -85,6 +114,8 @@ import { ref } from 'vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import {
+  answerBackupSaved,
+  BACKUP_FILE_NAME,
   type ConnectResult,
   connectSmokeBoard,
   installSmokeBoardProgram,
@@ -95,7 +126,7 @@ import {
 const { supported, state, view, install, busy, ambiguous, hasPort } = useSmokeBoard()
 
 const connecting = ref(false)
-const connectError = ref<Exclude<ConnectResult, 'ready' | 'cancelled'> | null>(null)
+const connectError = ref<Exclude<ConnectResult, 'ready' | 'cancelled'> | 'save_failed' | null>(null)
 /** Case obligatoire : la machine doit être éteinte avant toute écriture. Jamais retenue d'un essai à l'autre. */
 const machineOff = ref(false)
 const restoreText = ref<string | null>(null)
@@ -106,6 +137,9 @@ async function onConnect(): Promise<void> {
   try {
     const result = await connectSmokeBoard()
     connectError.value = result === 'ready' || result === 'cancelled' ? null : result
+  } catch {
+    // La carte répond mais la config de la salle n'a pas pu être enregistrée.
+    connectError.value = 'save_failed'
   } finally {
     connecting.value = false
   }
@@ -169,12 +203,6 @@ async function onRestore(): Promise<void> {
   width: 24px;
   height: 24px;
   accent-color: var(--accent-purple);
-}
-
-.board__file {
-  display: grid;
-  gap: 4px;
-  color: var(--text-2);
 }
 
 .board__progress progress {
