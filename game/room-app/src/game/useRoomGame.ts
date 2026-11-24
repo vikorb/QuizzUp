@@ -1,7 +1,7 @@
 import type { EngineTheme, GameEvent, GameSetup, GameState } from '@quizzup/game-engine'
 import {
   createGame,
-  FLASH_BLIND_TEST_STAGE_DURATIONS_MS,
+  getFlashBlindTestStageDurationsMs,
   getPlayableMiniGames,
   MAX_SEED,
 } from '@quizzup/game-engine'
@@ -170,7 +170,8 @@ function restoreAudio(resumed: GameSession): void {
   audioBridge.restore({
     mediaUrl: mini.question.mediaUrl,
     mediaStartMs: mini.question.mediaStartMs,
-    extractMs: FLASH_BLIND_TEST_STAGE_DURATIONS_MS[mini.stageIndex] ?? 0,
+    audioEffect: mini.question.audioEffect,
+    extractMs: getFlashBlindTestStageDurationsMs(mini.question)[mini.stageIndex] ?? 0,
     elapsedMs: Math.max(0, reference - mini.stageStartedAt),
     paused: answering || resumed.paused,
   })

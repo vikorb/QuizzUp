@@ -24,6 +24,8 @@
     "server_error": "Erreur serveur.",
     "invalid_body": "La demande envoyée est invalide. Vérifiez les informations puis réessayez.",
     "invalid_params": "Paramètres invalides.",
+    "missing_token": "Votre session a expiré : reconnectez-vous.",
+    "invalid_json": "La réponse du serveur est illisible.",
     "unknown_error": "Une erreur inconnue est survenue. Réessayez dans quelques instants.",
     "unauthorized": "Vous devez être connecté pour effectuer cette action.",
     "forbidden": "Vous n'avez pas les droits nécessaires pour effectuer cette action.",
@@ -84,6 +86,8 @@
     "roomDisabled": "La salle {name} a bien été désactivée.",
     "roomDeleted": "La salle {name} a bien été supprimée.",
     "roomAccountCreated": "Le compte de salle {username} a bien été créé pour la salle {name}.",
-    "roomAccountDeleted": "Le compte de salle {username} a bien été supprimé : le PC de la salle {name} est déconnecté."
+    "roomAccountDeleted": "Le compte de salle {username} a bien été supprimé : le PC de la salle {name} est déconnecté.",
+    "demoRequestProcessed": "La demande a été marquée comme traitée.",
+    "demoRequestDeleted": "La demande a bien été supprimée."
   }
 }
