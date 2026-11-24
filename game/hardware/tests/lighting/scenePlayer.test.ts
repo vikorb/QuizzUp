@@ -4,7 +4,10 @@ import { createScenePlayer } from '@hardware/lighting/scenePlayer'
 import type { SceneDefinition } from '@hardware/lighting/scenes'
 import {
   DEFAULT_DESK_COLORS,
+  DEFAULT_EXIT,
   DEFAULT_SCENES,
+  defaultScenesFor,
+  exitScene,
   identifyScene,
   MAX_FLASHES_PER_SECOND,
   MIN_FLASH_INTERVAL_MS,
@@ -468,7 +471,12 @@ describe('plafond d’éclairs de la salle (photosensibilité)', () => {
   })
 
   it('chaque scène par défaut garde 400 ms entre deux éclairs, par appareil et pour la salle', () => {
-    for (const definition of DEFAULT_SCENES) {
+    // La sortie n'a que des fondus : seuls son délai et son maintien (5 min), sans effet sur les
+    // éclairs, sont raccourcis pour ne pas échantillonner 5 minutes à la milliseconde.
+    const shortExit = exitScene({ ...DEFAULT_EXIT, delayMs: 500, holdMs: 500 })
+    for (const definition of DEFAULT_SCENES.map((entry) =>
+      entry.id === SCENE_IDS.EXIT ? shortExit : entry
+    )) {
       // Pupitre 1 (appareils dédiés), pupitre 3 (aucun appareil : toute la salle) et sans pupitre.
       for (const desk of [1, 3, null] as const) {
         const run = measure(
@@ -481,6 +489,24 @@ describe('plafond d’éclairs de la salle (photosensibilité)', () => {
         )
         expectCapped(run, `${definition.id}, pupitre ${desk}`)
       }
+    }
+  })
+
+  it('la victoire enchaînée sur la sortie puis son extinction garde 400 ms entre deux éclairs', () => {
+    const delivered = defaultScenesFor({ ...DEFAULT_EXIT, delayMs: 500, holdMs: 500 })
+    const victory = delivered.find((entry) => entry.id === SCENE_IDS.VICTORY)!
+    for (const desk of [1, null] as const) {
+      const run = measure(
+        [
+          { at: 0, scene: ambient },
+          { at: BEFORE, scene: victory, desk },
+        ],
+        BEFORE + totalDuration(victory) + 500 + 3_000 + 500 + 3_000 + 100,
+        BEFORE,
+        RIG,
+        delivered
+      )
+      expectCapped(run, `victoire puis sortie, pupitre ${desk}`)
     }
   })
 
