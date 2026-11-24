@@ -1,7 +1,7 @@
 <template>
   <div class="prompt" :class="{ 'prompt--media': imageUrl }">
     <p v-if="hint" class="prompt__hint">{{ hint }}</p>
-    <h1 class="prompt__text">{{ question.text }}</h1>
+    <h1 class="prompt__text">{{ text }}</h1>
     <figure v-if="imageUrl" class="prompt__media">
       <img
         class="prompt__image"
@@ -17,6 +17,7 @@
 import type { EngineQuestion } from '@quizzup/game-engine'
 import { QUESTION_MEDIA_TYPE_IMAGE } from '@quizzup/shared'
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 const props = withDefaults(
   defineProps<{
@@ -26,6 +27,13 @@ const props = withDefaults(
     blur?: number
   }>(),
   { hint: '', blur: 0 }
+)
+
+const { t } = useI18n()
+
+/** Un titre de playlist (identifiant négatif) arrive avec une question en français : on la traduit. */
+const text = computed(() =>
+  props.question.id < 0 ? t('game.playlistQuestion') : props.question.text
 )
 
 const imageUrl = computed(() =>
