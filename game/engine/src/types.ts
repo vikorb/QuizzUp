@@ -64,8 +64,9 @@ export type GameSetup = {
   miniGames?: MiniGame[]
   timings?: Partial<GameTimings>
   /**
-   * Questions déjà vues par ces joueurs dans une partie précédente : posées en dernier, après les
-   * questions neuves (jamais écartées, un thème ne se vide donc pas).
+   * Questions déjà vues par ces joueurs dans une partie précédente : tirées après les questions
+   * neuves, mais avant celles déjà posées dans cette partie (jamais écartées : un thème ne se vide
+   * pas).
    */
   avoidQuestionIds?: number[]
 }
@@ -78,6 +79,8 @@ export type ResolvedSetup = {
   questionsPerRound: number
   miniGames: MiniGame[]
   timings: GameTimings
+  /** Questions vues dans une partie précédente, sans doublon (`GameSetup.avoidQuestionIds`). */
+  avoidQuestionIds: number[]
 }
 
 /** Une réponse jouée, telle qu'elle sera stockée dans `game_answers`. */

@@ -41,13 +41,13 @@ describe('useRoomGame : questions déjà vues (lot 8e)', () => {
   it('hands the received list to the engine, which counts those questions as already asked', () => {
     start([3, 5, 3])
 
-    expect(useRoomGame().state.value?.usedQuestionIds).toEqual([3, 5])
+    expect(useRoomGame().state.value?.setup.avoidQuestionIds).toEqual([3, 5])
   })
 
   it('leaves the game unchanged without a list, as with an older backoffice', () => {
     start()
 
-    expect(useRoomGame().state.value?.usedQuestionIds).toEqual([])
+    expect(useRoomGame().state.value?.setup.avoidQuestionIds).toEqual([])
   })
 
   it('keeps the list when the saved game is resumed after a reload', async () => {
@@ -55,6 +55,6 @@ describe('useRoomGame : questions déjà vues (lot 8e)', () => {
 
     // La session rechargée rejoue ses commandes depuis le setup sauvegardé, liste comprise.
     expect(await resumeSavedGame()).toBe(true)
-    expect(useRoomGame().state.value?.usedQuestionIds).toEqual([3, 5])
+    expect(useRoomGame().state.value?.setup.avoidQuestionIds).toEqual([3, 5])
   })
 })

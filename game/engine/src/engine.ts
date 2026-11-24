@@ -155,6 +155,7 @@ function resolveSetup(setup: GameSetup): ResolvedSetup {
     questionsPerRound,
     miniGames,
     timings,
+    avoidQuestionIds: [...new Set(setup.avoidQuestionIds ?? [])],
   }
 }
 
@@ -174,8 +175,7 @@ export function createGame(setup: GameSetup): GameState {
     })),
     rounds: [],
     usedThemeIds: [],
-    // Les questions à éviter comptent comme déjà posées : le tirage les passe en dernier.
-    usedQuestionIds: [...new Set(setup.avoidQuestionIds ?? [])],
+    usedQuestionIds: [],
     miniGameBag: [],
   }
 }
@@ -365,7 +365,8 @@ function selectTheme(context: Context, themeId: number, at: number, automatic: b
     theme.questions.filter((question) => definition.isQuestionEligible(question)),
     state.usedQuestionIds,
     state.setup.questionsPerRound,
-    context.random
+    context.random,
+    state.setup.avoidQuestionIds
   )
 
   round.themeId = themeId

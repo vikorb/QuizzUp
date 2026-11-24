@@ -80,7 +80,7 @@ async function playWith(game: Partial<roomApi.RoomGame>) {
 
   await wrapper.find('[data-test="start-game"]').trigger('click')
   await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('play'))
-  const used = useRoomGame().state.value?.usedQuestionIds
+  const used = useRoomGame().state.value?.setup.avoidQuestionIds
   closeGame()
 
   return used

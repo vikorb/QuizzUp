@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module'
 import path from 'node:path'
 
 import type { FastifyInstance } from 'fastify'
@@ -32,6 +33,19 @@ const TRUNCATE_TABLES =
   'TRUNCATE game_rounds, game_participants, games, rooms, admins, companies RESTART IDENTITY CASCADE'
 
 type Db = typeof import('@backend/db').default
+
+const require = createRequire(import.meta.url)
+const indexMigration = require(
+  path.resolve(
+    process.cwd(),
+    'backend/db/migrations/20261124180000_add_normalized_email_indexes_to_game_participants.js'
+  )
+) as { up: (knex: Db) => Promise<void>; down: (knex: Db) => Promise<void> }
+
+const EMAIL_INDEXES = [
+  'game_participants_email_normalized_index',
+  'game_participants_second_email_normalized_index',
+]
 
 const roomDesk = { ...companyAdminUser, role: 'room', room_id: 1, sid: 'sid-room' } as TestUser
 
@@ -109,10 +123,10 @@ describe.skipIf(!PG_INTEGRATION_URL)('questions déjà vues par les joueurs d’
       podium,
       display_name: 'Joueur',
       email: emails.email ?? null,
-      consent_at: emails.email ? consent : null,
-      second_display_name: emails.secondEmail ? 'Second' : null,
+      consent_at: emails.email == null ? null : consent,
+      second_display_name: emails.secondEmail == null ? null : 'Second',
       second_email: emails.secondEmail ?? null,
-      second_consent_at: emails.secondEmail ? consent : null,
+      second_consent_at: emails.secondEmail == null ? null : consent,
     })
   }
 
@@ -161,6 +175,24 @@ describe.skipIf(!PG_INTEGRATION_URL)('questions déjà vues par les joueurs d’
     await addGame(1)
     await addPlayer(1, { email: null })
     await addRound(1, 1, [10])
+
+    expect(await avoidOf()).toEqual([])
+  })
+
+  it('ne prend pas deux joueurs sans e-mail, mais avec une chaîne vide, pour le même joueur', async () => {
+    await addPlayer(CURRENT_GAME, { email: '  ', secondEmail: '' })
+    await addPlayer(CURRENT_GAME, { email: 'lea@x.test' }, 2)
+    await addGame(1)
+    await addPlayer(1, { email: '', secondEmail: ' ' })
+    await addRound(1, 1, [10])
+    await addGame(2)
+    await addPlayer(2, { email: ' ' })
+    await addRound(2, 1, [20])
+
+    expect(await avoidOf()).toEqual([])
+
+    // La partie courante n'a que des e-mails vides : aucun joueur connu, même résultat.
+    await db('game_participants').where({ game_id: CURRENT_GAME, podium: 2 }).delete()
 
     expect(await avoidOf()).toEqual([])
   })
@@ -266,5 +298,59 @@ describe.skipIf(!PG_INTEGRATION_URL)('questions déjà vues par les joueurs d’
     expect(
       parseJson<{ game: { id: number; avoidQuestionIds: number[] } }>(response).game
     ).toMatchObject({ id: CURRENT_GAME, avoidQuestionIds: [10, 11] })
+  })
+
+  describe('index sur l’e-mail normalisé', () => {
+    const readIndexes = async (trx: Db) =>
+      (
+        (
+          await trx.raw(
+            'select indexname, indexdef from pg_indexes where indexname = any(?) order by indexname',
+            [EMAIL_INDEXES]
+          )
+        ).rows as { indexname: string; indexdef: string }[]
+      ).map((row) => ({ name: row.indexname, definition: row.indexdef }))
+
+    it('existe sur lower(btrim(email)) et lower(btrim(second_email))', async () => {
+      const indexes = await readIndexes(db)
+
+      expect(indexes.map((index) => index.name)).toEqual(EMAIL_INDEXES)
+      expect(indexes[0]?.definition).toContain('lower(btrim((email)::text))')
+      expect(indexes[1]?.definition).toContain('lower(btrim((second_email)::text))')
+    })
+
+    it('est utilisé par la recherche des parties d’un même joueur', async () => {
+      const { rows } = await db.transaction(async (trx) => {
+        await trx.raw('SET LOCAL enable_seqscan = off')
+
+        return trx.raw(
+          `EXPLAIN SELECT game_id FROM game_participants
+           WHERE lower(btrim(email)) IN (SELECT 'lea@x.test')
+           UNION
+           SELECT game_id FROM game_participants
+           WHERE lower(btrim(second_email)) IN (SELECT 'lea@x.test')`
+        )
+      })
+      const plan = (rows as { 'QUERY PLAN': string }[]).map((row) => row['QUERY PLAN']).join(' ')
+
+      for (const name of EMAIL_INDEXES) {
+        expect(plan).toContain(name)
+      }
+    })
+
+    it('se défait et se rejoue à l’identique', async () => {
+      const rollback = new Error('rollback voulu')
+      const before = await readIndexes(db)
+
+      await expect(
+        db.transaction(async (trx) => {
+          await indexMigration.down(trx as unknown as Db)
+          expect(await readIndexes(trx as unknown as Db)).toEqual([])
+          await indexMigration.up(trx as unknown as Db)
+          expect(await readIndexes(trx as unknown as Db)).toEqual(before)
+          throw rollback
+        })
+      ).rejects.toBe(rollback)
+    })
   })
 })
