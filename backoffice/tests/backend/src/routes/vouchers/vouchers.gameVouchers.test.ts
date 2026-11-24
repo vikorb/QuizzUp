@@ -12,6 +12,7 @@ import {
 } from '@quizzup/shared'
 import gameVouchersRoutes from '@backend/routes/vouchers/gameVouchers'
 import { generateVoucherCode } from '@backend/routes/vouchers/_shared'
+import { qrSvg } from '@backend/utils/qrSvg'
 import { dbState, resetDb } from '../_helpers/mockDb'
 import {
   authHeaders,
@@ -133,12 +134,16 @@ describe('POST /companies/:companyId/games/:gameId/vouchers', () => {
     const { voucher } = parseJson<VoucherBody>(await issue({ participantId: 10 }))
 
     expect(voucher.url).toBe(`https://bo.quizzup.test/bon/#${String(voucher.code)}`)
+    expect(voucher.qrSvg).toBe(qrSvg(`https://bo.quizzup.test/bon/#${String(voucher.code)}`))
   })
 
   it('answers a null url while PUBLIC_APP_URL is empty', async () => {
     vi.stubEnv('PUBLIC_APP_URL', '')
 
-    expect(parseJson<VoucherBody>(await issue({ participantId: 10 })).voucher.url).toBeNull()
+    const { voucher } = parseJson<VoucherBody>(await issue({ participantId: 10 }))
+
+    expect(voucher.url).toBeNull()
+    expect(voucher.qrSvg).toBeNull()
   })
 
   it('lets the operator (role user) and the superadmin issue vouchers', async () => {
@@ -295,6 +300,27 @@ describe('GET /companies/:companyId/games/:gameId/vouchers', () => {
     expect(vouchers.map((voucher) => [voucher.podium, voucher.code, voucher.state])).toEqual([
       [1, CODE_A, 'cancelled'],
       [2, CODE_B, 'valid'],
+    ])
+  })
+
+  it('gives each voucher the QR code of its url, null while PUBLIC_APP_URL is empty', async () => {
+    seedVoucher({ id: 1, participant_id: 11, code: CODE_B })
+    seedVoucher({ id: 2, participant_id: 10, code: CODE_A })
+
+    vi.stubEnv('PUBLIC_APP_URL', 'https://bo.quizzup.test')
+    const withUrl = parseJson<ListBody>(await list()).vouchers
+
+    expect(withUrl.map((voucher) => voucher.qrSvg)).toEqual([
+      qrSvg(`https://bo.quizzup.test/bon/#${CODE_A}`),
+      qrSvg(`https://bo.quizzup.test/bon/#${CODE_B}`),
+    ])
+
+    vi.stubEnv('PUBLIC_APP_URL', '')
+    const withoutUrl = parseJson<ListBody>(await list()).vouchers
+
+    expect(withoutUrl.map((voucher) => [voucher.url, voucher.qrSvg])).toEqual([
+      [null, null],
+      [null, null],
     ])
   })
 
