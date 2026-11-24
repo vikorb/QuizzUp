@@ -447,6 +447,7 @@ export const GAME_COMMAND_REFUSAL_ALREADY_PAUSED = 'already_paused' as const
 export const GAME_COMMAND_REFUSAL_NOT_PAUSED = 'not_paused' as const
 /** Passer une question est refusé pendant une pause. */
 export const GAME_COMMAND_REFUSAL_PAUSED = 'paused' as const
+/** Aussi pour un `skip` qui ne vise plus la question en cours (`round` ou `questionIndex` périmé). */
 export const GAME_COMMAND_REFUSAL_NOT_IN_QUESTION = 'not_in_question' as const
 /** Aucune partie en cours : terminée, arrêtée ou pas encore lancée. */
 export const GAME_COMMAND_REFUSAL_GAME_OVER = 'game_over' as const
@@ -729,6 +730,10 @@ export const LIVE_EVENT = {
   ROOM_STATUS: 'room_status',
   /** Une session programmée a été créée, modifiée, annulée ou ouverte : `{ roomId }`. */
   SCHEDULE_CHANGED: 'schedule_changed',
+  /** Flux de la salle : une commande du personnel à proposer au moteur, `RoomCommandMessage`. */
+  COMMAND: 'command',
+  /** Flux du personnel : l'accusé (ou l'expiration) d'une commande, `RoomCommandResultMessage`. */
+  COMMAND_RESULT: 'command_result',
 } as const
 
 export type LiveEvent = (typeof LIVE_EVENT)[keyof typeof LIVE_EVENT]
@@ -781,6 +786,47 @@ export const LIVE_STATUS_EVERY_MS = 15_000 as const
 /** Sans rapport depuis ce délai, la salle est hors ligne. */
 export const LIVE_OFFLINE_AFTER_MS = 45_000 as const
 
+/** Source des buzzers de la salle (`BuzzerSource.kind` de `game/hardware`). */
+export const BUZZER_SOURCE_KINDS = ['keyboard', 'gamepad'] as const
+
+export type BuzzerSourceKind = (typeof BUZZER_SOURCE_KINDS)[number]
+
+/** Pilotes de lumières (`DMX_DRIVERS` de `game/hardware`) : un test de contrat de la salle les compare. */
+export const LIGHTING_DRIVERS = ['simulation', 'usbpro', 'opendmx', 'artnet-bridge'] as const
+
+export type LightingDriver = (typeof LIGHTING_DRIVERS)[number]
+
+/** États de la sortie lumières (`DmxOutputStatus` de `game/hardware`), idem. */
+export const LIGHTING_OUTPUT_STATUSES = ['closed', 'opening', 'open', 'closing', 'error'] as const
+
+export type LightingOutputStatus = (typeof LIGHTING_OUTPUT_STATUSES)[number]
+
+/** Manettes vues par le navigateur de la salle : borne haute acceptée par le serveur. */
+export const ROOM_DIAGNOSTICS_MAX_GAMEPADS = 16 as const
+
+/**
+ * État matériel de la salle, en lecture seule pour le personnel (US-EXPLOIT, diagnostic à distance).
+ * Gardé en mémoire avec le rapport, jamais enregistré. Aucune donnée de joueur. L'audio prêt est
+ * `RoomStatusReport.audioReady`. Le serveur lit `null` pour tout champ qu'il ne comprend pas (valeur
+ * inconnue, mauvais type, hors borne) : `null` veut dire « inconnu », sauf `lastErrorAt` (aucune erreur).
+ */
+export type RoomDiagnostics = {
+  /** Version de l'écran de salle (même borne que les journaux). */
+  appVersion: string | null
+  buzzerSource: BuzzerSourceKind | null
+  /** Manettes que le navigateur voit en ce moment. */
+  gamepadCount: number | null
+  lightingDriver: LightingDriver | null
+  /** Lumières pas démarrées sur ce poste : `closed`. */
+  lightingStatus: LightingOutputStatus | null
+  /** Fumée autorisée dans la configuration de la salle. */
+  smokeEnabled: boolean | null
+  /** Fumée armée par l'opérateur pour la partie. */
+  smokeArmed: boolean | null
+  /** Date ISO de la dernière erreur notée par le poste depuis son démarrage, `null` si aucune. */
+  lastErrorAt: string | null
+}
+
 /** Rapport d'état envoyé par l'écran de salle (aucune donnée de joueur). */
 export type RoomStatusReport = {
   screen: RoomScreen
@@ -792,6 +838,8 @@ export type RoomStatusReport = {
   paused: boolean
   scores: { podium: number; score: number }[]
   audioReady: boolean
+  /** Absent des écrans de salle plus anciens. */
+  diagnostics?: RoomDiagnostics
 }
 
 /** État d'une salle tel que le voit le personnel. */
@@ -803,6 +851,44 @@ export type RoomLive = {
   /** Date ISO du dernier rapport reçu, `null` si la salle n'en a jamais envoyé. */
   lastSeenAt: string | null
   status: RoomStatusReport | null
+}
+
+/**
+ * Commandes à distance (US-LIVE-01) : le personnel propose, l'écran de salle applique ou refuse.
+ * `skip` vise une question précise : la salle le refuse (`not_in_question`) si `round` et
+ * `questionIndex` ne sont plus ceux de la partie. `abort` vise une partie précise : la salle le
+ * refuse si `gameId` n'est pas celle qu'elle joue.
+ */
+export const ROOM_COMMANDS = ['pause', 'resume', 'skip', 'abort'] as const
+
+export type RoomCommandName = (typeof ROOM_COMMANDS)[number]
+
+/** Sans accusé de la salle au bout de ce délai, la commande est `expired`. */
+export const ROOM_COMMAND_TIMEOUT_MS = 10_000 as const
+
+export const ROOM_COMMAND_RESULT = {
+  APPLIED: 'applied',
+  REFUSED: 'refused',
+  EXPIRED: 'expired',
+} as const
+
+export type RoomCommandResult = (typeof ROOM_COMMAND_RESULT)[keyof typeof ROOM_COMMAND_RESULT]
+
+export type RoomCommand =
+  | { command: 'pause' | 'resume' }
+  | { command: 'skip'; round: number; questionIndex: number }
+  | { command: 'abort'; gameId: number }
+
+/** Charge utile de l'événement `command` du flux de la salle. */
+export type RoomCommandMessage = RoomCommand & { commandId: string }
+
+/** Charge utile de l'événement `command_result` du flux du personnel (`reason` si `refused`). */
+export type RoomCommandResultMessage = {
+  commandId: string
+  roomId: number
+  command: RoomCommandName
+  result: RoomCommandResult
+  reason?: GameCommandRefusal
 }
 
 export type SseMessage = { event: string; data: string }

@@ -117,6 +117,13 @@ function savePending(): void {
 }
 
 let flushing: Promise<void> | null = null
+/** Date de la dernière erreur notée depuis le démarrage de la page (publiée dans le diagnostic). */
+let lastErrorAt: string | null = null
+
+/** Date ISO de la dernière erreur notée par ce poste, `null` si aucune depuis le démarrage. */
+export function getLastErrorAt(): string | null {
+  return lastErrorAt
+}
 let stopListening: (() => void) | null = null
 
 /** Texte lisible d'une erreur quelconque (`Error`, texte, objet). */
@@ -137,6 +144,8 @@ export function reportRoomError(
   const text = cleanRoomLogText(message, ROOM_LOG_MESSAGE_MAX_LENGTH)
   const context = pickRoomLogContext(options.context)
   const key = entryKey(level, code, text, context)
+
+  lastErrorAt = new Date().toISOString()
 
   const known = buffer.find((entry) => keys.get(entry) === key)
   if (known) {
@@ -258,4 +267,5 @@ export function resetErrorReporter(): void {
   buffer.length = 0
   savePending()
   flushing = null
+  lastErrorAt = null
 }

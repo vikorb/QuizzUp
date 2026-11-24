@@ -5,15 +5,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   ADMIN_ROLE_ROOM,
+  GAME_COMMAND_REFUSAL,
+  GAME_COMMAND_REFUSALS,
   LIVE_EVENT,
   LIVE_HEARTBEAT_MS,
   LIVE_STATUS_EVERY_MS,
+  ROOM_COMMAND_RESULT,
+  ROOM_COMMAND_TIMEOUT_MS,
   ROOM_STATUS_ACTIVE,
   ROOM_STATUS_DELETED,
   ROOM_STATUS_INACTIVE,
+  type RoomCommandMessage,
+  type RoomCommandResultMessage,
+  type RoomDiagnostics,
   type RoomLive,
   type RoomStatusReport,
 } from '@quizzup/shared'
+import { COMMAND_MAX_PER_ROOM } from '@backend/live/hub'
 import liveRoutes from '@backend/routes/live'
 import { dbState, MOCK_NOW, resetDb } from './_helpers/mockDb'
 import { openSse, type SseClient } from './_helpers/sse'
@@ -22,6 +30,7 @@ import {
   companyAdminUser,
   companyUser,
   createRouteApp,
+  liveHubOf,
   superadminUser,
   type TestUser,
 } from './_helpers/testApp'
@@ -57,6 +66,17 @@ const report: RoomStatusReport = {
     { podium: 2, score: -10 },
   ],
   audioReady: true,
+}
+
+const diagnostics: RoomDiagnostics = {
+  appVersion: '0.1.0',
+  buzzerSource: 'gamepad',
+  gamepadCount: 1,
+  lightingDriver: 'artnet-bridge',
+  lightingStatus: 'open',
+  smokeEnabled: true,
+  smokeArmed: false,
+  lastErrorAt: '2026-11-24T09:30:00.000Z',
 }
 
 function seedRooms() {
@@ -259,6 +279,103 @@ describe('live routes without an open stream', () => {
     expect(response.json()).toMatchObject({ error: 'invalid_body' })
   })
 
+  it('POST /room/status accepts a report with diagnostics, and without (old room screens)', async () => {
+    const withDiagnostics = await app.inject({
+      method: 'POST',
+      url: '/room/status',
+      headers: authHeaders(roomUser),
+      payload: { ...report, diagnostics },
+    })
+    const noError = await app.inject({
+      method: 'POST',
+      url: '/room/status',
+      headers: authHeaders(roomUser),
+      payload: {
+        ...report,
+        diagnostics: { ...diagnostics, lightingStatus: 'closed', lastErrorAt: null },
+      },
+    })
+
+    expect(withDiagnostics.statusCode).toBe(204)
+    expect(noError.statusCode).toBe(204)
+    // `report` n'a pas de `diagnostics` : 'POST /room/status answers 204 to a valid report' le couvre.
+  })
+
+  it.each([
+    ['an unknown buzzer source', { buzzerSource: 'midi' }, { buzzerSource: null }],
+    ['an unknown lighting driver', { lightingDriver: 'sacn' }, { lightingDriver: null }],
+    ['an unknown output status', { lightingStatus: 'melting' }, { lightingStatus: null }],
+    ['a negative gamepad count', { gamepadCount: -1 }, { gamepadCount: null }],
+    ['too many gamepads', { gamepadCount: 17 }, { gamepadCount: null }],
+    ['a gamepad count with decimals', { gamepadCount: 1.5 }, { gamepadCount: null }],
+    ['an empty app version', { appVersion: '' }, { appVersion: null }],
+    ['an app version of the wrong type', { appVersion: 12 }, { appVersion: null }],
+    [
+      'an app version longer than 32 characters',
+      { appVersion: 'v'.repeat(33) },
+      { appVersion: null },
+    ],
+    ['a smoke flag that is not a boolean', { smokeArmed: 'yes' }, { smokeArmed: null }],
+    ['a last error that is not an ISO date', { lastErrorAt: 'yesterday' }, { lastErrorAt: null }],
+    ['a missing field', { smokeEnabled: undefined }, { smokeEnabled: null }],
+    ['a field this server does not know', { playerName: 'Alice' }, {}],
+  ])(
+    'POST /room/status accepts diagnostics with %s: the field is read as null or dropped, the room stays present',
+    async (_label, change, expected) => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/room/status',
+        headers: authHeaders(roomUser),
+        payload: { ...report, diagnostics: { ...diagnostics, ...change } },
+      })
+
+      expect(response.statusCode).toBe(204)
+
+      const staff = await connect('/companies/1/live', companyAdminUser)
+      const snapshot = JSON.parse((await staff.next()).data) as { rooms: RoomLive[] }
+
+      expect(snapshot.rooms[0]).toMatchObject({ roomId: 1, presence: 'in_game', status: report })
+      expect(snapshot.rooms[0]?.status?.diagnostics).toEqual({ ...diagnostics, ...expected })
+    }
+  )
+
+  it.each([
+    ['a string', 'x'],
+    ['a number', 12],
+    ['null', null],
+    ['an array', [diagnostics]],
+  ])(
+    'POST /room/status accepts diagnostics that is %s: the report is kept without diagnostics',
+    async (_label, bad) => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/room/status',
+        headers: authHeaders(roomUser),
+        payload: { ...report, diagnostics: bad },
+      })
+
+      expect(response.statusCode).toBe(204)
+
+      const staff = await connect('/companies/1/live', companyAdminUser)
+      const snapshot = JSON.parse((await staff.next()).data) as { rooms: RoomLive[] }
+
+      expect(snapshot.rooms[0]).toMatchObject({ roomId: 1, presence: 'in_game', status: report })
+      expect(snapshot.rooms[0]?.status).not.toHaveProperty('diagnostics')
+    }
+  )
+
+  it('POST /room/status still refuses a bad field outside diagnostics (400 invalid_body)', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/room/status',
+      headers: authHeaders(roomUser),
+      payload: { ...report, screen: 'nope', diagnostics },
+    })
+
+    expect(response.statusCode).toBe(400)
+    expect(response.json()).toMatchObject({ error: 'invalid_body' })
+  })
+
   it('POST /room/status accepts a phase this server does not know and reads it as null (204)', async () => {
     const response = await app.inject({
       method: 'POST',
@@ -392,6 +509,39 @@ describe('live routes with real streams', () => {
     })
     expect(live.lastSeenAt).toEqual(expect.any(String))
     expect(JSON.stringify(live)).not.toContain(streamId)
+  })
+
+  it('relays the diagnostics of a report to the staff, in the snapshot of a later stream too', async () => {
+    const staff = await connect('/companies/1/live', companyAdminUser)
+    await staff.next()
+
+    const posted = await postStatus(roomUser, { ...report, diagnostics })
+
+    expect(posted.status).toBe(204)
+    expect((await nextRoomLive(staff)).status?.diagnostics).toEqual(diagnostics)
+
+    const later = await connect('/companies/1/live', companyAdminUser)
+    const snapshot = JSON.parse((await later.next()).data) as { rooms: RoomLive[] }
+
+    expect(snapshot.rooms.find((room) => room.roomId === 1)?.status?.diagnostics).toEqual(
+      diagnostics
+    )
+  })
+
+  it('does not show the diagnostics of a room to the staff of another company', async () => {
+    const staffOne = await connect('/companies/1/live', companyAdminUser)
+    const staffTwo = await connect('/companies/2/live', companyUser)
+
+    await staffOne.next()
+    await staffTwo.next()
+
+    await postStatus(roomUser, { ...report, diagnostics })
+    await postStatus(otherCompanyRoomUser, report)
+
+    expect(await nextRoomLive(staffOne)).toMatchObject({ roomId: 1 })
+    expect(await nextRoomLive(staffTwo)).toMatchObject({ roomId: 3 })
+    expect(staffOne.raw()).toContain('"lightingDriver"')
+    expect(staffTwo.raw()).not.toContain('"lightingDriver"')
   })
 
   it('replaces the stream of a room: the old one gets replaced and closes, its reports are refused', async () => {
@@ -688,5 +838,505 @@ describe('live routes with a simulated clock', () => {
     // Il ne reste que la minuterie de balayage du hub, arrêtée avec l'application.
     await app.close()
     expect(vi.getTimerCount()).toBe(baseline - 1)
+  })
+})
+
+const secondRoomUser = { ...roomUser, sub: '12', id: 12, room_id: 2, sid: 'sid-room-b' } as TestUser
+const operator = { ...companyUser, company_id: 1, companyId: 1 } as TestUser
+
+const COMMAND_ID = '3f2b8c1e-5d4a-4e7b-9a6c-1d2e3f4a5b6c'
+const OTHER_COMMAND_ID = '5a1d9e2f-7b3c-4d8e-8f0a-2b4c6d8e0f1a'
+
+function postCommand(user: TestUser | undefined, url: string, payload: unknown) {
+  return app.inject({
+    method: 'POST',
+    url,
+    headers: user ? authHeaders(user) : {},
+    payload: payload as object,
+  })
+}
+
+function postResult(user: TestUser | undefined, commandId: string, payload: unknown) {
+  return app.inject({
+    method: 'POST',
+    url: `/room/commands/${commandId}/result`,
+    headers: user ? authHeaders(user) : {},
+    payload: payload as object,
+  })
+}
+
+// Salle pilotable : flux ouvert (premier message lu) et rapport reçu.
+async function openControllableRoom(user: TestUser) {
+  const room = await connect('/room/stream', user)
+  const { streamId } = JSON.parse((await room.next()).data) as { streamId: string }
+
+  await postStatus(user, { ...report, streamId })
+
+  return room
+}
+
+async function nextMessage<T>(client: SseClient, event: string): Promise<T> {
+  const message = await client.next()
+
+  expect(message.event).toBe(event)
+
+  return JSON.parse(message.data) as T
+}
+
+describe('POST /companies/:companyId/rooms/:roomId/commands', () => {
+  beforeEach(startApp)
+
+  it('answers 401 without login and 403 to a room account', async () => {
+    const url = '/companies/1/rooms/1/commands'
+    const body = { commandId: COMMAND_ID, command: 'pause' }
+
+    expect((await postCommand(undefined, url, body)).statusCode).toBe(401)
+
+    const room = await postCommand(roomUser, url, body)
+
+    expect(room.statusCode).toBe(403)
+    expect(room.json()).toEqual({ error: 'forbidden' })
+  })
+
+  it.each([
+    ['superadmin', superadminUser],
+    ['admin', companyAdminUser],
+    ['user', operator],
+  ])('relays the command of a %s to the stream of the room (202)', async (_role, user) => {
+    const room = await openControllableRoom(roomUser)
+    const response = await postCommand(user, '/companies/1/rooms/1/commands', {
+      commandId: COMMAND_ID,
+      command: 'pause',
+    })
+
+    expect(response.statusCode).toBe(202)
+    expect(response.json()).toEqual({ commandId: COMMAND_ID })
+    expect(await nextMessage<RoomCommandMessage>(room, LIVE_EVENT.COMMAND)).toEqual({
+      commandId: COMMAND_ID,
+      command: 'pause',
+    })
+  })
+
+  it('relays the round and the question index of a skip', async () => {
+    const room = await openControllableRoom(roomUser)
+
+    await postCommand(companyAdminUser, '/companies/1/rooms/1/commands', {
+      commandId: COMMAND_ID,
+      command: 'skip',
+      round: 2,
+      questionIndex: 3,
+    })
+
+    expect(await nextMessage<RoomCommandMessage>(room, LIVE_EVENT.COMMAND)).toEqual({
+      commandId: COMMAND_ID,
+      command: 'skip',
+      round: 2,
+      questionIndex: 3,
+    })
+  })
+
+  it('lets the superadmin command a room of any company', async () => {
+    const room = await openControllableRoom(otherCompanyRoomUser)
+    const response = await postCommand(superadminUser, '/companies/2/rooms/3/commands', {
+      commandId: COMMAND_ID,
+      command: 'abort',
+      gameId: 5,
+    })
+
+    expect(response.statusCode).toBe(202)
+    expect(await nextMessage<RoomCommandMessage>(room, LIVE_EVENT.COMMAND)).toMatchObject({
+      command: 'abort',
+      gameId: 5,
+    })
+  })
+
+  it('relays an identifier received twice only once, and answers the same both times', async () => {
+    const room = await openControllableRoom(roomUser)
+    const body = { commandId: COMMAND_ID, command: 'pause' }
+
+    const first = await postCommand(companyAdminUser, '/companies/1/rooms/1/commands', body)
+    const second = await postCommand(companyAdminUser, '/companies/1/rooms/1/commands', body)
+
+    expect([first.statusCode, second.statusCode]).toEqual([202, 202])
+    expect(second.json()).toEqual(first.json())
+
+    await postCommand(companyAdminUser, '/companies/1/rooms/1/commands', {
+      commandId: OTHER_COMMAND_ID,
+      command: 'resume',
+    })
+
+    expect(await nextMessage<RoomCommandMessage>(room, LIVE_EVENT.COMMAND)).toMatchObject({
+      commandId: COMMAND_ID,
+    })
+    // La commande suivante est la deuxième, pas le doublon.
+    expect(await nextMessage<RoomCommandMessage>(room, LIVE_EVENT.COMMAND)).toMatchObject({
+      commandId: OTHER_COMMAND_ID,
+      command: 'resume',
+    })
+  })
+
+  it('answers 409 command_id_conflict when an identifier comes back with another content, and relays nothing', async () => {
+    const room = await openControllableRoom(roomUser)
+    const url = '/companies/1/rooms/1/commands'
+
+    await postCommand(companyAdminUser, url, { commandId: COMMAND_ID, command: 'pause' })
+    const conflict = await postCommand(companyAdminUser, url, {
+      commandId: COMMAND_ID,
+      command: 'resume',
+    })
+    const skipA = { commandId: OTHER_COMMAND_ID, command: 'skip', round: 1, questionIndex: 2 }
+    await postCommand(companyAdminUser, url, skipA)
+    const skipB = await postCommand(companyAdminUser, url, { ...skipA, questionIndex: 3 })
+
+    expect(conflict.statusCode).toBe(409)
+    expect(conflict.json()).toEqual({ error: 'command_id_conflict' })
+    expect(skipB.statusCode).toBe(409)
+    expect(await nextMessage<RoomCommandMessage>(room, LIVE_EVENT.COMMAND)).toMatchObject({
+      command: 'pause',
+    })
+    expect(await nextMessage<RoomCommandMessage>(room, LIVE_EVENT.COMMAND)).toMatchObject({
+      command: 'skip',
+    })
+  })
+
+  it.each([
+    ['a command that does not exist', { commandId: COMMAND_ID, command: 'dance' }],
+    ['the start command, not handled yet', { commandId: COMMAND_ID, command: 'start' }],
+    ['an abort without game', { commandId: COMMAND_ID, command: 'abort' }],
+    [
+      'an abort with a game that is not an id',
+      { commandId: COMMAND_ID, command: 'abort', gameId: 0 },
+    ],
+    ['a missing identifier', { command: 'pause' }],
+    ['an identifier that is not a uuid', { commandId: 'cmd-1', command: 'pause' }],
+    ['a skip without round', { commandId: COMMAND_ID, command: 'skip', questionIndex: 1 }],
+    ['a skip without question index', { commandId: COMMAND_ID, command: 'skip', round: 1 }],
+    [
+      'a skip with a negative round',
+      { commandId: COMMAND_ID, command: 'skip', round: -1, questionIndex: 1 },
+    ],
+    [
+      'a skip with a question index that is not an integer',
+      { commandId: COMMAND_ID, command: 'skip', round: 1, questionIndex: 1.5 },
+    ],
+  ])('answers 400 invalid_body for %s', async (_label, body) => {
+    await openControllableRoom(roomUser)
+
+    const response = await postCommand(companyAdminUser, '/companies/1/rooms/1/commands', body)
+
+    expect(response.statusCode).toBe(400)
+    expect(response.json()).toMatchObject({ error: 'invalid_body' })
+  })
+
+  it('answers 400 invalid_params for a bad room or company id', async () => {
+    const body = { commandId: COMMAND_ID, command: 'pause' }
+
+    for (const url of ['/companies/1/rooms/abc/commands', '/companies/abc/rooms/1/commands']) {
+      const response = await postCommand(superadminUser, url, body)
+
+      expect(response.statusCode).toBe(400)
+      expect(response.json()).toEqual({ error: 'invalid_params' })
+    }
+  })
+
+  it('answers 404 room_not_found for an unknown room, a deleted room and a room of another company', async () => {
+    const body = { commandId: COMMAND_ID, command: 'pause' }
+
+    for (const url of [
+      '/companies/1/rooms/99/commands',
+      '/companies/1/rooms/5/commands',
+      '/companies/1/rooms/3/commands',
+    ]) {
+      const response = await postCommand(companyAdminUser, url, body)
+
+      expect(response.statusCode).toBe(404)
+      expect(response.json()).toEqual({ error: 'room_not_found' })
+    }
+  })
+
+  it('answers 409 room_not_controllable when the room has no open stream, or its stream was cut', async () => {
+    const body = { commandId: COMMAND_ID, command: 'pause' }
+    const url = '/companies/1/rooms/1/commands'
+
+    // Jamais vue.
+    const unknown = await postCommand(companyAdminUser, url, body)
+
+    expect(unknown.statusCode).toBe(409)
+    expect(unknown.json()).toEqual({ error: 'room_not_controllable' })
+
+    // Rapport reçu mais aucun flux : en ligne, pas pilotable.
+    await postStatus(roomUser, report)
+    expect((await postCommand(companyAdminUser, url, body)).statusCode).toBe(409)
+
+    // Flux ouvert puis coupé : le personnel apprend que la salle n'est plus pilotable.
+    const room = await openControllableRoom(roomUser)
+    const staff = await connect('/companies/1/live', companyAdminUser)
+
+    await staff.next()
+    room.abort()
+    expect(await nextRoomLive(staff)).toMatchObject({ roomId: 1, controllable: false })
+    expect((await postCommand(companyAdminUser, url, body)).statusCode).toBe(409)
+  })
+
+  it('answers 403 to the admin of another company and does not reach its rooms', async () => {
+    const room = await openControllableRoom(otherCompanyRoomUser)
+    const refused = await postCommand(companyAdminUser, '/companies/2/rooms/3/commands', {
+      commandId: COMMAND_ID,
+      command: 'abort',
+      gameId: 5,
+    })
+    const own = await postCommand(companyUser, '/companies/2/rooms/3/commands', {
+      commandId: OTHER_COMMAND_ID,
+      command: 'pause',
+    })
+
+    expect(refused.statusCode).toBe(403)
+    expect(refused.json()).toEqual({ error: 'forbidden' })
+    expect(own.statusCode).toBe(202)
+    // La seule commande reçue est celle du personnel de la compagnie 2.
+    expect(await nextMessage<RoomCommandMessage>(room, LIVE_EVENT.COMMAND)).toMatchObject({
+      commandId: OTHER_COMMAND_ID,
+    })
+  })
+
+  it('does not deliver the command of a room to the stream of another room', async () => {
+    const first = await openControllableRoom(roomUser)
+    const second = await openControllableRoom(secondRoomUser)
+
+    await postCommand(companyAdminUser, '/companies/1/rooms/2/commands', {
+      commandId: COMMAND_ID,
+      command: 'pause',
+    })
+
+    expect(await nextMessage<RoomCommandMessage>(second, LIVE_EVENT.COMMAND)).toMatchObject({
+      commandId: COMMAND_ID,
+    })
+    expect(first.raw()).not.toContain(LIVE_EVENT.COMMAND)
+  })
+
+  it('answers 429 too_many_requests beyond the cap per room', async () => {
+    await openControllableRoom(roomUser)
+
+    for (let index = 0; index < COMMAND_MAX_PER_ROOM; index += 1) {
+      const sent = await postCommand(companyAdminUser, '/companies/1/rooms/1/commands', {
+        commandId: crypto.randomUUID(),
+        command: 'pause',
+      })
+
+      expect(sent.statusCode).toBe(202)
+    }
+
+    const refused = await postCommand(companyAdminUser, '/companies/1/rooms/1/commands', {
+      commandId: crypto.randomUUID(),
+      command: 'pause',
+    })
+
+    expect(refused.statusCode).toBe(429)
+    expect(refused.json()).toEqual({ error: 'too_many_requests' })
+    expect(refused.headers['retry-after']).toBe('10')
+  })
+
+  it('still relays an abort when the cap per room is reached', async () => {
+    const room = await openControllableRoom(roomUser)
+
+    for (let index = 0; index < COMMAND_MAX_PER_ROOM; index += 1) {
+      await postCommand(companyAdminUser, '/companies/1/rooms/1/commands', {
+        commandId: crypto.randomUUID(),
+        command: 'pause',
+      })
+    }
+
+    const abort = await postCommand(companyAdminUser, '/companies/1/rooms/1/commands', {
+      commandId: COMMAND_ID,
+      command: 'abort',
+      gameId: 1,
+    })
+
+    expect(abort.statusCode).toBe(202)
+
+    for (let index = 0; index < COMMAND_MAX_PER_ROOM; index += 1) {
+      await nextMessage<RoomCommandMessage>(room, LIVE_EVENT.COMMAND)
+    }
+
+    expect(await nextMessage<RoomCommandMessage>(room, LIVE_EVENT.COMMAND)).toEqual({
+      commandId: COMMAND_ID,
+      command: 'abort',
+      gameId: 1,
+    })
+  })
+})
+
+describe('POST /room/commands/:commandId/result', () => {
+  beforeEach(startApp)
+
+  // Salle 1 pilotable, personnel de la compagnie 1 à l'écoute, une commande `pause` envoyée.
+  async function sendPause() {
+    const room = await openControllableRoom(roomUser)
+    const staff = await connect('/companies/1/live', companyAdminUser)
+
+    await staff.next()
+    await postCommand(companyAdminUser, '/companies/1/rooms/1/commands', {
+      commandId: COMMAND_ID,
+      command: 'pause',
+    })
+    await room.next()
+
+    return { room, staff }
+  }
+
+  it('answers 401 without login and 403 to a staff account', async () => {
+    expect((await postResult(undefined, COMMAND_ID, { result: 'applied' })).statusCode).toBe(401)
+
+    const admin = await postResult(companyAdminUser, COMMAND_ID, { result: 'applied' })
+
+    expect(admin.statusCode).toBe(403)
+    expect(admin.json()).toEqual({ error: 'forbidden' })
+  })
+
+  it('passes an applied command to the staff of the company (204)', async () => {
+    const { staff } = await sendPause()
+
+    const response = await postResult(roomUser, COMMAND_ID, { result: ROOM_COMMAND_RESULT.APPLIED })
+
+    expect(response.statusCode).toBe(204)
+    expect(response.body).toBe('')
+    expect(await nextMessage<RoomCommandResultMessage>(staff, LIVE_EVENT.COMMAND_RESULT)).toEqual({
+      commandId: COMMAND_ID,
+      roomId: 1,
+      command: 'pause',
+      result: 'applied',
+    })
+  })
+
+  it('passes a refusal with its reason to the staff', async () => {
+    const { staff } = await sendPause()
+
+    const response = await postResult(roomUser, COMMAND_ID, {
+      result: ROOM_COMMAND_RESULT.REFUSED,
+      reason: GAME_COMMAND_REFUSAL.NOT_IN_QUESTION,
+    })
+
+    expect(response.statusCode).toBe(204)
+    expect(await nextMessage<RoomCommandResultMessage>(staff, LIVE_EVENT.COMMAND_RESULT)).toEqual({
+      commandId: COMMAND_ID,
+      roomId: 1,
+      command: 'pause',
+      result: 'refused',
+      reason: 'not_in_question',
+    })
+  })
+
+  it.each(GAME_COMMAND_REFUSALS)('accepts the refusal reason %s', async (reason) => {
+    await sendPause()
+
+    const response = await postResult(roomUser, COMMAND_ID, { result: 'refused', reason })
+
+    expect(response.statusCode).toBe(204)
+  })
+
+  it.each([
+    ['an expired result, which only the server decides', { result: 'expired' }],
+    ['a refusal without reason', { result: 'refused' }],
+    ['a refusal with an unknown reason', { result: 'refused', reason: 'because' }],
+    ['a missing result', {}],
+  ])('answers 400 invalid_body for %s', async (_label, body) => {
+    await sendPause()
+
+    const response = await postResult(roomUser, COMMAND_ID, body)
+
+    expect(response.statusCode).toBe(400)
+    expect(response.json()).toMatchObject({ error: 'invalid_body' })
+  })
+
+  it('answers 400 invalid_params for an identifier that is not a uuid', async () => {
+    const response = await postResult(roomUser, 'cmd-1', { result: 'applied' })
+
+    expect(response.statusCode).toBe(400)
+    expect(response.json()).toEqual({ error: 'invalid_params' })
+  })
+
+  it('answers 404 command_unknown for a command nobody sent', async () => {
+    const response = await postResult(roomUser, COMMAND_ID, { result: 'applied' })
+
+    expect(response.statusCode).toBe(404)
+    expect(response.json()).toEqual({ error: 'command_unknown' })
+  })
+
+  it('answers 404 command_unknown to a room of another company, and the command stays pending', async () => {
+    const { staff } = await sendPause()
+    const intruder = await postResult(otherCompanyRoomUser, COMMAND_ID, { result: 'applied' })
+
+    expect(intruder.statusCode).toBe(404)
+    expect(intruder.json()).toEqual({ error: 'command_unknown' })
+    expect(staff.raw()).not.toContain(LIVE_EVENT.COMMAND_RESULT)
+    expect((await postResult(roomUser, COMMAND_ID, { result: 'applied' })).statusCode).toBe(204)
+  })
+
+  it('answers 404 command_unknown to another room of the same company', async () => {
+    const { staff } = await sendPause()
+    const other = await postResult(secondRoomUser, COMMAND_ID, { result: 'applied' })
+
+    expect(other.statusCode).toBe(404)
+    expect(other.json()).toEqual({ error: 'command_unknown' })
+    expect(staff.raw()).not.toContain(LIVE_EVENT.COMMAND_RESULT)
+  })
+
+  it('answers 404 command_unknown to a second acknowledgement', async () => {
+    await sendPause()
+
+    await postResult(roomUser, COMMAND_ID, { result: 'applied' })
+    const again = await postResult(roomUser, COMMAND_ID, { result: 'applied' })
+
+    expect(again.statusCode).toBe(404)
+    expect(again.json()).toEqual({ error: 'command_unknown' })
+  })
+
+  it('does not leak a result to the staff of another company', async () => {
+    await sendPause()
+    const otherStaff = await connect('/companies/2/live', companyUser)
+
+    await otherStaff.next()
+    await postResult(roomUser, COMMAND_ID, { result: 'applied' })
+
+    expect(otherStaff.raw()).not.toContain(LIVE_EVENT.COMMAND_RESULT)
+  })
+})
+
+describe('remote commands with a simulated clock', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({
+      toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'],
+    })
+  })
+
+  it('tells the staff the command expired after 10 seconds, then refuses the late acknowledgement', async () => {
+    await startApp()
+
+    await openControllableRoom(roomUser)
+    const staff = await connect('/companies/1/live', companyAdminUser)
+
+    await staff.next()
+    await postCommand(companyAdminUser, '/companies/1/rooms/1/commands', {
+      commandId: COMMAND_ID,
+      command: 'pause',
+    })
+
+    await vi.advanceTimersByTimeAsync(ROOM_COMMAND_TIMEOUT_MS - 1)
+    expect(staff.raw()).not.toContain(LIVE_EVENT.COMMAND_RESULT)
+
+    await vi.advanceTimersByTimeAsync(1)
+
+    expect(await nextMessage<RoomCommandResultMessage>(staff, LIVE_EVENT.COMMAND_RESULT)).toEqual({
+      commandId: COMMAND_ID,
+      roomId: 1,
+      command: 'pause',
+      result: 'expired',
+    })
+
+    const late = await postResult(roomUser, COMMAND_ID, { result: 'applied' })
+
+    expect(late.statusCode).toBe(404)
+    expect(late.json()).toEqual({ error: 'command_unknown' })
+    expect(liveHubOf(app).pendingCommandCount()).toBe(0)
   })
 })
