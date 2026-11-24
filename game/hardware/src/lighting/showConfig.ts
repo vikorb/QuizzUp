@@ -18,6 +18,8 @@ export const SCENE_LIMITS = {
   maxFlashStepMs: 5_000,
   /** Durée minimale d'une boucle (somme des étapes des scènes qui bouclent). */
   minLoopMs: 200,
+  /** Durée maximale d'une attente, d'un fondu ou d'un maintien (sinon une scène bloque les autres). */
+  maxStepMs: 10 * 60_000,
   maxPriority: 60,
   /** Une scène qui boucle ne doit jamais couvrir une scène de jeu (20 et plus). */
   maxLoopPriority: 10,
@@ -40,10 +42,6 @@ const asRecord = (value: unknown): Record<string, unknown> | null =>
 
 const isFiniteNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value)
-
-/** Durée facultative : absente = 0, sinon un nombre fini et positif ou nul (`null` = invalide). */
-const optionalDuration = (value: unknown): number | null =>
-  value === undefined ? 0 : isFiniteNumber(value) && value >= 0 ? value : null
 
 function parseColor(value: unknown): SceneColor | null {
   if (value === 'desk') {
@@ -85,6 +83,20 @@ function parseStep(input: unknown, label: string, problems: string[]): SceneStep
   if (!raw) {
     return reject('ce n’est pas un objet')
   }
+  /** Durée facultative : absente = 0, plafonnée à `maxStepMs` (signalé), `null` si invalide. */
+  const duration = (value: unknown, what: string): number | null => {
+    if (value === undefined) {
+      return 0
+    }
+    if (!isFiniteNumber(value) || value < 0) {
+      return null
+    }
+    if (value > SCENE_LIMITS.maxStepMs) {
+      problems.push(`${label} : ${what} ramenée à ${SCENE_LIMITS.maxStepMs} ms`)
+      return SCENE_LIMITS.maxStepMs
+    }
+    return value
+  }
 
   if (raw.type === 'smoke') {
     if (!isFiniteNumber(raw.durationMs)) {
@@ -100,13 +112,12 @@ function parseStep(input: unknown, label: string, problems: string[]): SceneStep
     return { type: 'smoke', durationMs }
   }
   if (raw.type === 'wait') {
-    return isFiniteNumber(raw.durationMs) && raw.durationMs >= 0
-      ? { type: 'wait', durationMs: raw.durationMs }
-      : reject('durée d’attente invalide')
+    const durationMs = raw.durationMs === undefined ? null : duration(raw.durationMs, 'attente')
+    return durationMs === null ? reject('durée d’attente invalide') : { type: 'wait', durationMs }
   }
 
-  const fadeMs = optionalDuration(raw.fadeMs)
-  const holdMs = optionalDuration(raw.holdMs)
+  const fadeMs = duration(raw.fadeMs, 'fondu')
+  const holdMs = duration(raw.holdMs, 'maintien')
   if (raw.type === 'blackout') {
     return fadeMs === null || holdMs === null
       ? reject('durée invalide')
@@ -262,8 +273,9 @@ function findLoops(byId: ReadonlyMap<string, SceneDefinition>): string[][] {
  * défaut), jamais le show complet (limite de taille de `rooms.config`).
  *
  * Sécurité, avec `SCENE_LIMITS` : flashs au moins `MIN_FLASH_INTERVAL_MS` d'écart, un seul jet de
- * fumée par scène (durée dans `SMOKE_HARD_LIMITS`) et aucun dans une boucle, boucle d'au moins
- * 200 ms et de priorité 10 au plus, scène `identify` non surchargeable. Le contrôleur de fumée
+ * fumée par scène et par chaîne `next` (durée dans `SMOKE_HARD_LIMITS`) et aucun dans une boucle,
+ * boucle d'au moins 200 ms et de priorité 10 au plus, attente, fondu et maintien de 10 minutes au
+ * plus, scène `identify` non surchargeable. Le contrôleur de fumée
  * garde ses propres garde-fous (armement, durée maximale, repos, arrêt d'urgence, pause).
  *
  * ponytail : les scènes par défaut n'ont pas de `next`, donc une boucle ne passe jamais par l'une
@@ -331,10 +343,61 @@ export function parseScenes(input: unknown): ParsedScenes {
         problems.push(
           `Scène « ${scene.id} » : pas de fumée dans une boucle, étape de fumée écartée`
         )
-        scene.steps = scene.steps.filter((step) => step.type !== 'smoke')
+        scene.steps = withoutSmoke(scene.steps)
       }
     }
   }
 
+  limitSmokeToOnePerChain(byId, problems)
+
   return { scenes: [...byId.values()], problems }
+}
+
+/** Les pas sans fumée ; une scène ne reste jamais vide (elle ne survivrait pas à une relecture). */
+function withoutSmoke(steps: SceneStep[]): SceneStep[] {
+  const kept = steps.filter((step) => step.type !== 'smoke')
+  return kept.length > 0 ? kept : [{ type: 'wait', durationMs: 0 }]
+}
+
+/**
+ * Un seul jet de fumée par événement, même par une chaîne `next` sans boucle (s1 → s2 → s3 : trois
+ * jets sinon). On suit la chaîne de chaque scène (`maxScenes` sauts au plus) : seule la première
+ * fumée rencontrée reste, les pas `smoke` des scènes atteintes après elle sont retirés. Une scène par
+ * défaut qui a de la fumée (victoire) ne peut pas être modifiée : la scène de salle qui y mène perd
+ * alors son `next`.
+ */
+function limitSmokeToOnePerChain(
+  byId: ReadonlyMap<string, SceneDefinition>,
+  problems: string[]
+): void {
+  const hasSmoke = (scene: SceneDefinition) => scene.steps.some((step) => step.type === 'smoke')
+  for (const start of byId.values()) {
+    let smoked = false
+    let scene: SceneDefinition | undefined = start
+    for (let hops = 0; scene && hops <= SCENE_LIMITS.maxScenes; hops += 1) {
+      if (hasSmoke(scene)) {
+        if (!smoked) {
+          smoked = true
+        } else if (byId.has(scene.id)) {
+          problems.push(
+            `Scène « ${scene.id} » : déjà une fumée plus tôt dans la chaîne « next », étape de fumée écartée`
+          )
+          scene.steps = withoutSmoke(scene.steps)
+        }
+      }
+      const nextId: string | undefined = scene.next
+      const next: SceneDefinition | undefined =
+        nextId === undefined
+          ? undefined
+          : (byId.get(nextId) ?? DEFAULT_SCENES.find((entry) => entry.id === nextId))
+      if (smoked && next && !byId.has(next.id) && hasSmoke(next)) {
+        problems.push(
+          `Scène « ${scene.id} » : « next » vers ${next.id}, qui a de la fumée alors que la chaîne en a déjà une, enchaînement écarté`
+        )
+        delete scene.next
+        break
+      }
+      scene = next
+    }
+  }
 }

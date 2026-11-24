@@ -6,18 +6,25 @@ import { DMX_CHANNELS, MAX_UNIVERSES } from '../dmx/universe'
 import type { Desk } from '../types'
 import { createSixDeskRoomRig } from './sixDeskRoom'
 
-/** Appareil d'un modèle : tout sauf l'adresse, calculée à la création (consécutive, sans trou). */
+/**
+ * Appareil d'un modèle. Sans `address`, elle est calculée à la création (consécutive, sans trou, sur
+ * l'univers 0). Avec `address` et `universe`, ils sont gardés tels quels : c'est le cas d'une salle
+ * de référence dont le câblage est connu.
+ */
 export type RoomTemplateFixture = {
   id: string
   name: string
   profileId: string
   desk?: Desk
+  address?: number
+  universe?: number
 }
 
 /**
- * Modèle de salle proposé par l'assistant : une liste d'appareils et leurs profils, sans adresse ni
- * univers (ils dépendent du câblage). L'opérateur confirme ensuite appareil par appareil. Un modèle
- * n'ajoute ni n'active jamais la fumée : elle se déclare à part, avec ses vérifications.
+ * Modèle de salle proposé par l'assistant : une liste d'appareils et leurs profils. Adresse et
+ * univers dépendent du câblage : calculés, sauf pour un appareil qui porte les siens. L'opérateur
+ * confirme ensuite appareil par appareil. Un modèle n'ajoute ni n'active jamais la fumée : elle se
+ * déclare à part, avec ses vérifications.
  */
 export type RoomTemplate = {
   id: string
@@ -41,19 +48,23 @@ const heads = (count: number): RoomTemplateFixture[] =>
     profileId: 'moving-head-8',
   }))
 
-// Le préréglage « 6 pupitres, 8 lyres » est celui de `createSixDeskRoomRig` (mêmes appareils, mêmes
-// profils) ; seules les adresses changent, elles se suivent à partir de l'adresse choisie.
+// Le modèle « 6 pupitres » décrit la salle réelle de référence, un nœud Art-Net à deux sorties : mêmes
+// appareils, mêmes profils et mêmes adresses que `createSixDeskRoomRig`, mais les rubans LED passent
+// sur l'univers interne 1 (sortie B du nœud, décodeur à l'adresse 128) et les huit lyres restent sur
+// l'univers interne 0 (sortie A). `createSixDeskRoomRig` met tout sur un seul univers (USB DMX).
 const sixDesk = createSixDeskRoomRig()
 
 export const ROOM_TEMPLATES: readonly RoomTemplate[] = [
   {
     id: 'six-desks-eight-heads',
-    name: '6 pupitres, 8 lyres',
+    name: '6 pupitres, 8 lyres et rubans LED',
     desksCount: 6,
-    fixtures: sixDesk.fixtures.map(({ id, name, profileId, desk }) => ({
+    fixtures: sixDesk.fixtures.map(({ id, name, profileId, desk, address }) => ({
       id,
       name,
       profileId,
+      address,
+      universe: id.startsWith('led-') ? 1 : 0,
       ...(desk === undefined ? {} : { desk }),
     })),
     customProfiles: sixDesk.customProfiles,
@@ -91,9 +102,11 @@ export type RoomTemplateResult =
     }
 
 /**
- * Appareils d'un modèle, sur l'univers 0, aux adresses consécutives à partir de `startAddress`
- * (1 par défaut) : aucun chevauchement. Refus si l'adresse n'est pas un entier de 1 à 512 ou si les
- * appareils ne tiennent pas dans l'univers. Un appareil de fumée est refusé, quel que soit le modèle.
+ * Appareils d'un modèle. Ceux qui n'ont pas d'adresse propre sont sur l'univers 0, aux adresses
+ * consécutives à partir de `startAddress` (1 par défaut) : aucun chevauchement entre eux ; les autres
+ * gardent leur `address` et leur `universe`, `startAddress` ne les décale pas. Refus si l'adresse de
+ * départ n'est pas un entier de 1 à 512 ou si les appareils à adresse calculée ne tiennent pas dans
+ * l'univers. Un appareil de fumée est refusé, quel que soit le modèle.
  */
 export function createRigFromTemplate(
   template: RoomTemplate,
@@ -114,8 +127,12 @@ export function createRigFromTemplate(
     if (profile.kind === 'smoke' || profile.channels.some((channel) => channel.role === 'smoke')) {
       return { ok: false, reason: 'smoke_forbidden' }
     }
-    fixtures.push({ ...entry, address })
-    address += profile.channels.length
+    if (entry.address === undefined) {
+      fixtures.push({ ...entry, address })
+      address += profile.channels.length
+    } else {
+      fixtures.push({ ...entry, address: entry.address })
+    }
   }
   if (address - 1 > DMX_CHANNELS) {
     return { ok: false, reason: 'does_not_fit' }

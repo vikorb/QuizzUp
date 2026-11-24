@@ -180,6 +180,29 @@ describe('parseScenes : bornes une à une', () => {
     }
   })
 
+  it('durée d’un pas : 10 minutes au plus (attente, fondu, maintien), ramenée et signalée', () => {
+    const max = SCENE_LIMITS.maxStepMs
+    expect(max).toBe(10 * 60_000)
+    const { steps, problems } = parseOne([
+      { type: 'wait', durationMs: 1e12 },
+      { type: 'color', color: RED, fadeMs: 1e12, holdMs: max + 1 },
+      { type: 'blackout', fadeMs: max + 1, holdMs: 1e12 },
+    ])
+    expect(steps).toEqual([
+      { type: 'wait', durationMs: max },
+      { type: 'color', color: RED, fadeMs: max, holdMs: max },
+      { type: 'blackout', fadeMs: max, holdMs: max },
+    ])
+    expect(problems).toHaveLength(5)
+    // Pile au plafond : rien à signaler.
+    expect(
+      parseOne([
+        { type: 'wait', durationMs: max },
+        { type: 'color', color: RED, fadeMs: max },
+      ]).problems
+    ).toEqual([])
+  })
+
   it('boucle : 200 ms au moins, sinon l’enchaînement est écarté', () => {
     const instant = parseOne([{ type: 'wait', durationMs: 199 }], { next: 'show' })
     expect(instant.scene?.next).toBeUndefined()
@@ -272,6 +295,50 @@ describe('parseScenes : fumée', () => {
         { type: 'wait', durationMs: 1 },
       ]).steps
     ).toEqual([{ type: 'wait', durationMs: 1 }])
+  })
+
+  it('un seul jet pour un événement : une chaîne `next` garde la première fumée seulement', () => {
+    const jet = { type: 'smoke', durationMs: 1_000 }
+    const { scenes, problems } = parseScenes([
+      scene([jet, { type: 'wait', durationMs: 100 }], { id: 's1', next: 's2' }),
+      scene([{ type: 'wait', durationMs: 100 }, jet], { id: 's2', next: 's3' }),
+      scene([jet, { type: 'wait', durationMs: 100 }], { id: 's3' }),
+    ])
+    const smokeIn = (id: string) =>
+      scenes.find((entry) => entry.id === id)?.steps.filter((step) => step.type === 'smoke').length
+    expect([smokeIn('s1'), smokeIn('s2'), smokeIn('s3')]).toEqual([1, 0, 0])
+    expect(problems).toHaveLength(2)
+    expect(problems.join(' ')).toContain('s2')
+    expect(problems.join(' ')).toContain('s3')
+    // Relue, la config ne change plus.
+    expect(parseScenes(scenes)).toEqual({ scenes, problems: [] })
+  })
+
+  it('une scène qui ne garde que sa fumée de chaîne reste une scène lisible', () => {
+    const { scenes } = parseScenes([
+      scene([{ type: 'smoke', durationMs: 1_000 }], { id: 's1', next: 's2' }),
+      scene([{ type: 'smoke', durationMs: 1_000 }], { id: 's2' }),
+    ])
+    expect(scenes.find((entry) => entry.id === 's2')?.steps).toEqual([
+      { type: 'wait', durationMs: 0 },
+    ])
+    expect(parseScenes(scenes).scenes).toEqual(scenes)
+  })
+
+  it('une scène de salle qui mène à une scène par défaut avec fumée ne garde pas son `next`', () => {
+    const { scenes, problems } = parseScenes([
+      scene(
+        [
+          { type: 'smoke', durationMs: 1_000 },
+          { type: 'wait', durationMs: 100 },
+        ],
+        { id: 'avant', next: 'victory' }
+      ),
+      scene([{ type: 'wait', durationMs: 100 }], { id: 'sans-fumee', next: 'victory' }),
+    ])
+    expect(scenes.find((entry) => entry.id === 'avant')?.next).toBeUndefined()
+    expect(scenes.find((entry) => entry.id === 'sans-fumee')?.next).toBe('victory')
+    expect(problems).toHaveLength(1)
   })
 
   it('refusée dans une scène qui se désigne elle-même', () => {

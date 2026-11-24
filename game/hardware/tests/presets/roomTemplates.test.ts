@@ -26,7 +26,7 @@ const build = (template: RoomTemplate, startAddress?: number) => {
 describe('modèles de salle', () => {
   it('propose les quatre modèles de la conception, sous des identifiants distincts', () => {
     expect(ROOM_TEMPLATES.map((template) => template.name)).toEqual([
-      '6 pupitres, 8 lyres',
+      '6 pupitres, 8 lyres et rubans LED',
       '4 pupitres, 4 PAR RVBW',
       '4 pupitres, 4 PAR + 2 lyres',
       '6 pupitres, 6 PAR RVB + 2 lyres',
@@ -49,15 +49,22 @@ describe('modèles de salle', () => {
         expect(rig.fixtures).toHaveLength(expected.fixtures)
       })
 
-      it('met les appareils sur des adresses consécutives, sans chevauchement', () => {
+      it('met les appareils sur des adresses consécutives, sans chevauchement (sauf adresse propre)', () => {
         const { fixtures, customProfiles } = build(template)
         const rig = parseRig(fixtures, customProfiles)
         let next = 1
-        for (const fixture of rig.fixtures) {
+        let channels = 0
+        rig.fixtures.forEach((fixture, index) => {
+          const own = template.fixtures[index]!.address
+          channels += fixture.profile.channels.length
+          if (own !== undefined) {
+            expect(fixture.address).toBe(own)
+            return
+          }
           expect(fixture.address).toBe(next)
           next += fixture.profile.channels.length
-        }
-        expect(next - 1).toBe(expected.channels)
+        })
+        expect(channels).toBe(expected.channels)
       })
 
       it('ne contient aucun appareil de fumée', () => {
@@ -106,6 +113,78 @@ describe('modèles de salle', () => {
     ])
   })
 
+  describe('modèle 6 pupitres : la salle de référence (nœud Art-Net à deux sorties)', () => {
+    const { fixtures, customProfiles } = build(ROOM_TEMPLATES[0]!)
+    const heads = fixtures.filter((fixture) => fixture.profileId.startsWith('six-desk-'))
+    const strips = fixtures.filter((fixture) => fixture.profileId === 'par-rgb')
+
+    it('le nom annonce les rubans LED', () => {
+      expect(ROOM_TEMPLATES[0]!.name).toBe('6 pupitres, 8 lyres et rubans LED')
+    })
+
+    it('sortie A : huit lyres 9 canaux sur l’univers interne 0, aux adresses 1, 10 … 64', () => {
+      expect(heads.map((fixture) => fixture.address)).toEqual([1, 10, 19, 28, 37, 46, 55, 64])
+      expect(heads.every((fixture) => fixture.universe === 0)).toBe(true)
+      // Six spots (un par pupitre) et deux wash (sans pupitre).
+      expect(heads.filter((fixture) => fixture.desk !== undefined)).toHaveLength(6)
+      expect(heads.filter((fixture) => fixture.profileId === 'six-desk-wash-9')).toHaveLength(2)
+    })
+
+    it('sortie B : sept rubans sur l’univers interne 1 à partir de 128, ambiance en dernier', () => {
+      expect(strips.map((fixture) => fixture.address)).toEqual([128, 131, 134, 137, 140, 143, 146])
+      expect(strips.every((fixture) => fixture.universe === 1)).toBe(true)
+      expect(strips.map((fixture) => fixture.desk)).toEqual([1, 2, 3, 4, 5, 6, undefined])
+    })
+
+    it('passe parseRig sans problème et sans fumée', () => {
+      const rig = parseRig(fixtures, customProfiles)
+      expect(rig.problems).toEqual([])
+      expect(rig.fixtures.some((fixture) => fixture.profile.kind === 'smoke')).toBe(false)
+    })
+
+    it('ignore l’adresse de départ pour les appareils qui ont la leur', () => {
+      const shifted = build(ROOM_TEMPLATES[0]!, 300)
+      expect(shifted.fixtures.map((fixture) => [fixture.address, fixture.universe])).toEqual(
+        fixtures.map((fixture) => [fixture.address, fixture.universe])
+      )
+    })
+
+    it('proposeUniverses propose une correspondance par sortie : 0 → 1 et 1 → 2 pour 0.0.1 / 0.0.2', () => {
+      const proposal = proposeUniverses({ universes: ['0.0.1', '0.0.2'] }, fixtures) ?? []
+      const universeOf = (id: string) =>
+        proposal.find((change) => change.fixtureId === id)?.universe
+      expect(proposal).toHaveLength(fixtures.length)
+      for (const fixture of heads) {
+        expect(universeOf(fixture.id), fixture.id).toBe(1)
+      }
+      for (const fixture of strips) {
+        expect(universeOf(fixture.id), fixture.id).toBe(2)
+      }
+      const placed = fixtures.map((fixture) => ({ ...fixture, universe: universeOf(fixture.id) }))
+      expect(parseRig(placed, customProfiles).problems).toEqual([])
+    })
+  })
+
+  it('une adresse propre est gardée telle quelle, les autres se suivent à partir de l’adresse de départ', () => {
+    const template: RoomTemplate = {
+      id: 'mixte',
+      name: 'Mixte',
+      desksCount: 2,
+      customProfiles: [],
+      fixtures: [
+        { id: 'a', name: 'A', profileId: 'par-rgb' },
+        { id: 'b', name: 'B', profileId: 'par-rgb', address: 200, universe: 1 },
+        { id: 'c', name: 'C', profileId: 'par-rgb' },
+      ],
+    }
+    const { fixtures } = build(template, 10)
+    expect(fixtures.map((fixture) => [fixture.address, fixture.universe])).toEqual([
+      [10, undefined],
+      [200, 1],
+      [13, undefined],
+    ])
+  })
+
   it('décale toutes les adresses à partir de l’adresse de départ', () => {
     const { fixtures } = build(ROOM_TEMPLATES[1]!, 101)
     expect(fixtures.map((fixture) => fixture.address)).toEqual([101, 105, 109, 113])
@@ -113,9 +192,10 @@ describe('modèles de salle', () => {
   })
 
   it('tient pile jusqu’au canal 512, pas au-delà', () => {
-    const template = ROOM_TEMPLATES[0]!
-    expect(createRigFromTemplate(template, { startAddress: 420 }).ok).toBe(true)
-    expect(createRigFromTemplate(template, { startAddress: 421 })).toEqual({
+    // 6 PAR RVB + 2 lyres : 34 canaux.
+    const template = ROOM_TEMPLATES[3]!
+    expect(createRigFromTemplate(template, { startAddress: 479 }).ok).toBe(true)
+    expect(createRigFromTemplate(template, { startAddress: 480 })).toEqual({
       ok: false,
       reason: 'does_not_fit',
     })
@@ -281,7 +361,7 @@ describe('proposeUniverses', () => {
   })
 
   it('les univers proposés pour un modèle de salle passent parseRig une fois appliqués', () => {
-    const { fixtures: rigFixtures, customProfiles } = build(ROOM_TEMPLATES[0]!)
+    const { fixtures: rigFixtures, customProfiles } = build(ROOM_TEMPLATES[3]!)
     const proposal = proposeUniverses({ universes: ['0.0.1'] }, rigFixtures) ?? []
     const placed = rigFixtures.map((fixture) => ({
       ...fixture,

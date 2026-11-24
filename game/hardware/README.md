@@ -135,8 +135,11 @@ débrancher) : [rapport de compatibilité](../../docs/compatibilite/compatibilit
 ### Modèles de salle et univers proposés
 
 `src/presets/roomTemplates.ts` propose quatre modèles pour équiper une salle vite (`ROOM_TEMPLATES`) :
-« 6 pupitres, 8 lyres » (le préréglage ci-dessus, mêmes appareils et profils), « 4 pupitres, 4 PAR
-RVBW », « 4 pupitres, 4 PAR + 2 lyres » et « 6 pupitres, 6 PAR RVB + 2 lyres » (profils génériques ;
+« 6 pupitres, 8 lyres et rubans LED » (la salle de référence à nœud Art-Net à deux sorties : mêmes
+appareils, profils et adresses que le préréglage ci-dessus, mais les huit lyres restent sur
+l'univers interne 0 aux adresses 1, 10 … 64 et les sept rubans passent sur l'univers interne 1 à
+partir de 128 ; `address` et `universe` d'un appareil de modèle sont gardés tels quels, ceux des
+autres sont calculés à la suite), « 4 pupitres, 4 PAR RVBW », « 4 pupitres, 4 PAR + 2 lyres » et « 6 pupitres, 6 PAR RVB + 2 lyres » (profils génériques ;
 la lyre est `moving-head-8`, **à vérifier sur la notice**). **Un modèle n'ajoute ni n'active jamais
 la fumée** : elle se déclare à part, avec ses vérifications ; `createRigFromTemplate` refuse tout
 appareil ou canal de fumée (`smoke_forbidden`).
@@ -144,7 +147,7 @@ appareil ou canal de fumée (`smoke_forbidden`).
 ```ts
 const result = createRigFromTemplate(ROOM_TEMPLATES[1], { startAddress: 1 })
 if (result.ok) {
-  // result.fixtures : adresses consécutives sur l'univers 0, sans chevauchement
+  // result.fixtures : adresses consécutives sur l'univers 0 (sauf adresse propre au modèle)
   // result.customProfiles : profils propres au modèle (copie neuve à chaque appel)
 }
 ```
@@ -162,8 +165,10 @@ sortie accessible, le suivant sur la suivante. Renvoie `null` (rien à proposer)
 aucune sortie accessible (autre net ou sub-net, hors 0..15, texte illisible), s'il y a moins de
 sorties que d'univers utilisés, ou si les appareils sont déjà placés ; sinon la liste
 `{ fixtureId, universe }` des seuls appareils qui changent. Le regroupement par sortie (lyres sur la
-sortie 1, décodeur LED sur la sortie 2) se règle ensuite à la main : il dépend du câblage. Valable si
-le pont tourne avec `--universe` à 0 (défaut) et sans `--map` ; sinon l'univers d'arrivée est décalé.
+sortie 1, décodeur LED sur la sortie 2) se règle ensuite à la main, sauf pour le modèle 6 pupitres qui
+le décrit déjà (lyres sur l'univers interne 0, rubans sur le 1 : une correspondance par sortie).
+`proposeUniverses` suppose un pont lancé avec l'univers de base 0 (`--universe` à 0, défaut) et sans
+`--map` ; sinon l'univers d'arrivée est décalé.
 
 ## Lumières, spots et fumée
 
@@ -314,10 +319,11 @@ quelle que soit la scène jouée par le lecteur de scènes. Le seuil de référe
 (3 éclairs par seconde donneraient 334 ms ; la marge couvre la latence d'émission USB et Art-Net,
 à mesurer sur le banc). Les deux sont dans `src/lighting/scenes.ts`.
 
-Un **éclair** est la remontée du niveau réel d'un appareil (intensité × plus forte composante de
-couleur, de 0 à 1) d'au moins `FLASH_RISE_LEVEL` (0,1) au-dessus du minimum atteint depuis le
-dernier éclair compté. Un fondu ou un palier prolongé compte pour un seul éclair ; un passage du
-noir au blanc à intensité 1 en est un, comme un saut de 0,55 à 1. Le plafond vaut pour **toute la
+Un **éclair** est la remontée du niveau d'une composante d'un appareil (rouge, vert, bleu ou blanc,
+chacune × intensité, de 0 à 1) d'au moins `FLASH_RISE_LEVEL` (0,1) au-dessus du minimum atteint
+depuis le dernier éclair compté sur cette composante. Un fondu ou un palier prolongé compte pour un
+seul éclair ; un passage du noir au blanc à intensité 1 en est un, comme un saut de 0,55 à 1, et un
+changement de couleur à même niveau aussi (rouge 255 puis bleu 255). Le plafond vaut pour **toute la
 salle** : un allumage sur n'importe quel appareil attend 400 ms après le dernier éclair de la salle,
 sauf s'il tombe dans le même instant (plusieurs appareils qui s'allument ensemble comptent pour un).
 
@@ -386,6 +392,9 @@ est limitée à 20 000 caractères côté serveur). Même `id` qu'une scène par
 
 - **Enchaînement** : `next` désigne la scène lancée à la fin de celle-ci (même pupitre, sa propre
   priorité). Une scène qui se désigne elle-même, ou une chaîne qui revient sur elle, **boucle**.
+  Une scène en boucle de priorité supérieure à `idle` tourne jusqu'au prochain début de partie ou à
+  l'arrêt de partie. Après un gel de la page, le lecteur saute les tours complets de boucle et ne
+  rejoue que le dernier.
 - **Clés d'événement** : `round_started.<miniGame>` (code du mini-jeu, ex. `sudden_death`) l'emporte
   sur `round_started`, y compris à `null` (aucune scène pour ce mini-jeu). Les **signaux de l'écran
   de salle** `SHOW_CUES` (`game_paused`, `game_resumed`, `session_exit`) passent par
@@ -396,18 +405,19 @@ est limitée à 20 000 caractères côté serveur). Même `id` qu'une scène par
   écartée, une valeur hors borne est ramenée, et chaque écart est dans les `problems` de
   `parseRoomHardwareConfig` :
 
-| Élément                         | Borne                                                                                        |
-| ------------------------------- | -------------------------------------------------------------------------------------------- |
-| Scènes de la salle              | 24 au plus                                                                                   |
-| Pas par scène                   | 16 au plus                                                                                   |
-| Flash, `onMs` et `offMs`        | 60 ms au moins chacun                                                                        |
-| Flash, période                  | `MIN_FLASH_INTERVAL_MS` (400 ms) au moins : l'éteint est allongé (pas les 334 ms théoriques) |
-| Flash, durée d'un pas           | 5 s au plus (nombre d'éclairs ramené) ; période de plus de 5 s : pas écarté                  |
-| Boucle                          | 200 ms au moins (somme des pas du tour), sinon `next` écarté                                 |
-| Priorité                        | ramenée dans 0..60 (10 si absente)                                                           |
-| Priorité d'une scène qui boucle | 10 au plus                                                                                   |
-| Pas `smoke`                     | un seul par scène, aucun dans une boucle, durée ramenée dans `SMOKE_HARD_LIMITS`             |
-| `next`                          | vers une scène inconnue : écarté                                                             |
+| Élément                         | Borne                                                                                             |
+| ------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Scènes de la salle              | 24 au plus                                                                                        |
+| Pas par scène                   | 16 au plus                                                                                        |
+| Flash, `onMs` et `offMs`        | 60 ms au moins chacun                                                                             |
+| Flash, période                  | `MIN_FLASH_INTERVAL_MS` (400 ms) au moins : l'éteint est allongé (pas les 334 ms théoriques)      |
+| Flash, durée d'un pas           | 5 s au plus (nombre d'éclairs ramené) ; période de plus de 5 s : pas écarté                       |
+| Boucle                          | 200 ms au moins (somme des pas du tour), sinon `next` écarté                                      |
+| Priorité                        | ramenée dans 0..60 (10 si absente)                                                                |
+| Priorité d'une scène qui boucle | 10 au plus                                                                                        |
+| Attente, fondu, maintien        | 10 minutes au plus par durée (`maxStepMs`), ramenée et signalée                                   |
+| Pas `smoke`                     | un seul par scène **et par chaîne `next`**, aucun dans une boucle, durée dans `SMOKE_HARD_LIMITS` |
+| `next`                          | vers une scène inconnue : écarté                                                                  |
 
 **Sécurité fumée** : une scène de salle n'ouvre aucun passage nouveau. Son pas `smoke` passe par le
 même `fireSmoke` que celui des scènes par défaut (armement, durée maximale, repos, pause, onglet

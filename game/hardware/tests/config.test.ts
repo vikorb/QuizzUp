@@ -725,6 +725,38 @@ describe('clés inconnues de `rooms.config`', () => {
     expect(second.config).toMatchObject({ ajout: 1, lighting: { ajoutLumiere: 'x' } })
   })
 
+  it('`__proto__` et `constructor` restent des clés ordinaires : prototype intact, aller-retour JSON identique', () => {
+    // `JSON.parse` crée `__proto__` comme propriété propre, comme le fait le serveur à la relecture.
+    const raw = JSON.parse(
+      '{"__proto__":{"pollue":true},"constructor":{"x":1},' +
+        '"lighting":{"__proto__":{"pollueAussi":true},"constructor":"c"}}'
+    )
+    const { config } = parseRoomHardwareConfig(raw)
+    const lighting = config.lighting as unknown as Record<string, unknown>
+    const root = config as unknown as Record<string, unknown>
+
+    expect(Object.getPrototypeOf(config)).toBe(Object.prototype)
+    expect(Object.getPrototypeOf(config.lighting)).toBe(Object.prototype)
+    expect(({} as Record<string, unknown>).pollue).toBeUndefined()
+    expect(({} as Record<string, unknown>).pollueAussi).toBeUndefined()
+    expect(root.pollue).toBeUndefined()
+    expect(lighting.pollueAussi).toBeUndefined()
+    // Gardées comme propriétés propres, avec leur valeur.
+    expect(Object.hasOwn(config, '__proto__')).toBe(true)
+    expect(Object.getOwnPropertyDescriptor(config, '__proto__')?.value).toEqual({ pollue: true })
+    expect(Object.getOwnPropertyDescriptor(config, 'constructor')?.value).toEqual({ x: 1 })
+    expect(Object.getOwnPropertyDescriptor(config.lighting, '__proto__')?.value).toEqual({
+      pollueAussi: true,
+    })
+    expect(Object.getOwnPropertyDescriptor(config.lighting, 'constructor')?.value).toBe('c')
+
+    const json = JSON.stringify(config)
+    expect(json).toContain('"__proto__"')
+    const again = parseRoomHardwareConfig(JSON.parse(json)).config
+    expect(JSON.stringify(again)).toBe(json)
+    expect(Object.getPrototypeOf(again)).toBe(Object.prototype)
+  })
+
   it('ne changent rien à une config sans clé inconnue', () => {
     const parsed = parseRoomHardwareConfig({})
     expect(Object.keys(parsed.config).sort()).toEqual(

@@ -28,13 +28,6 @@ const setup = (overrides: Parameters<typeof lightingConfig>[0] = {}) => {
 }
 
 describe('show réglable : enchaînement de scènes (lecteur)', () => {
-  const player = () =>
-    createScenePlayer({
-      fixtures: parseRig(RIG, []).fixtures,
-      deskColors: DEFAULT_DESK_COLORS,
-      onSmoke: vi.fn(),
-    })
-
   const withScenes = (scenes: SceneDefinition[]) => {
     const byId = new Map(scenes.map((entry) => [entry.id, entry]))
     const onSmoke = vi.fn()
@@ -102,13 +95,6 @@ describe('show réglable : enchaînement de scènes (lecteur)', () => {
     instance.play(byId.get('nulle') as SceneDefinition, { desk: null }, 0)
     expect(() => instance.update(5_000)).not.toThrow()
     expect(instance.currentSceneId()).toBe('nulle')
-  })
-
-  it('sans résolveur de scènes, `next` est ignoré', () => {
-    const instance = player()
-    instance.play(show('a', [wait(100)], { next: 'b' }), { desk: null }, 0)
-    instance.update(200)
-    expect(instance.currentSceneId()).toBeNull()
   })
 
   it('une fumée de la scène suivante part à l’heure, pas après un gel de la page', () => {

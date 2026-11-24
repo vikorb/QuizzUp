@@ -102,9 +102,9 @@ export const SCENE_IDS = {
  * que soit la scène (par défaut ou réglée par une salle). Seuil de référence ; l'écart réellement
  * appliqué est `MIN_FLASH_INTERVAL_MS`.
  *
- * Définition d'un éclair : le niveau réel d'un appareil (intensité × plus forte composante de
- * couleur, de 0 à 1) remonte d'au moins `FLASH_RISE_LEVEL` au-dessus du minimum atteint depuis le
- * dernier éclair compté. Une montée continue (fondu) compte pour un seul éclair. Plusieurs
+ * Définition d'un éclair : le niveau d'une composante d'un appareil (r, g, b ou w, chacune ×
+ * intensité, de 0 à 1) remonte d'au moins `FLASH_RISE_LEVEL` au-dessus du minimum atteint depuis le
+ * dernier éclair compté sur cette composante (un changement de couleur à même niveau compte). Une montée continue (fondu) compte pour un seul éclair. Plusieurs
  * appareils qui s'allument au même instant comptent pour un seul éclair de la salle.
  *
  * Réglages à confirmer sur le banc matériel (`docs/recette/banc-materiel.md`).

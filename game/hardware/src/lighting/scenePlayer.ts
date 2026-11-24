@@ -17,7 +17,7 @@ export type ScenePlayerOptions = {
   /** Appelé pour une étape `smoke` : le contrôleur décide (sécurité). */
   onSmoke: (durationMs: number) => void
   /** Retrouve la scène désignée par `next` ; absente ou inconnue, la chaîne s'arrête. */
-  resolveScene?: (sceneId: string) => SceneDefinition | undefined
+  resolveScene: (sceneId: string) => SceneDefinition | undefined
 }
 
 export type ScenePlayer = {
@@ -68,47 +68,81 @@ export function createScenePlayer(options: ScenePlayerOptions): ScenePlayer {
   // toute scène (par défaut, réglée par une salle, bouclée ou enchaînée). Tout état écrit sur un
   // appareil passe par `commit`.
   //
-  // Éclair : le niveau réel de l'appareil (intensité × plus forte composante de couleur, 0 à 1)
+  // Éclair : le niveau d'une composante de l'appareil (r, g, b ou w, chacune × intensité, 0 à 1)
   // remonte d'au moins `FLASH_RISE_LEVEL` au-dessus du minimum atteint depuis le dernier éclair
-  // compté. Une montée continue (fondu) ne compte qu'une fois : le suivi repart de zéro dès que le
-  // niveau cesse de monter. Un éclair n'est permis que `MIN_FLASH_INTERVAL_MS` après le dernier de
+  // compté sur cette composante. Suivre chaque composante (et non la plus forte) fait compter un
+  // changement de couleur à même niveau (rouge 255 puis bleu 255 : le rouge tombe, le bleu monte).
+  // Une montée continue (fondu) ne compte qu'une fois : le suivi d'une composante repart de zéro dès
+  // qu'elle cesse de monter. Dans un fondu, plusieurs composantes franchissent le seuil à des
+  // instants différents : celle qui monte depuis avant le dernier éclair compté de l'appareil
+  // (`troughAt` < `flashAt`) fait partie du même fondu et ne compte pas en plus, sinon le fondu
+  // serait figé. Une composante qui a baissé ou s'est stabilisée depuis (`troughAt` à jour) compte
+  // pour elle-même : on ne contourne pas le plafond en faisant clignoter une couleur pendant qu'une
+  // autre monte lentement. Un éclair n'est permis que `MIN_FLASH_INTERVAL_MS` après le dernier de
   // la salle, ou dans le même instant (plusieurs appareils qui s'allument ensemble comptent pour un).
   //
   // Un éclair trop proche est retenu : l'appareil garde son niveau et l'état est appliqué dès que le
   // plafond le permet, même si plus aucune scène ne tourne (`held`). Un flash retenu n'est pas gardé :
   // sa fenêtre se rejoue à chaque mise à jour tant qu'elle dure, puis il est perdu.
-  type Track = { level: number; trough: number; counted: boolean; at: number }
-  const freshTrack = (): Track => ({ level: 0, trough: 0, counted: false, at: -Infinity })
+  type Track = {
+    levels: number[]
+    troughs: number[]
+    troughAt: number[]
+    counted: boolean[]
+    flashAt: number | null
+    at: number
+  }
+  const freshTrack = (): Track => ({
+    levels: [0, 0, 0, 0],
+    troughs: [0, 0, 0, 0],
+    troughAt: [-Infinity, -Infinity, -Infinity, -Infinity],
+    counted: [false, false, false, false],
+    flashAt: null,
+    at: -Infinity,
+  })
   const tracks = new Map<string, Track>(lights.map((fixture) => [fixture.id, freshTrack()]))
   let lastFlashAt: number | null = null
   const held = new Map<string, FixtureState>()
 
-  const levelOf = ({ intensity, color }: FixtureState) =>
-    (intensity * Math.max(color.r, color.g, color.b, color.w ?? 0)) / 255
+  const levelsOf = ({ intensity, color }: FixtureState) =>
+    [color.r, color.g, color.b, color.w ?? 0].map((component) => (intensity * component) / 255)
 
   const commit = (id: string, next: FixtureState, now: number, transient = false) => {
     const track = tracks.get(id) ?? freshTrack()
-    const level = levelOf(next)
-    // Le niveau baisse, ou se stabilise à un autre instant : une nouvelle montée peut commencer.
-    if (level < track.level || (now > track.at && level === track.level)) {
-      track.trough = level
-      track.counted = false
-    }
-    if (!track.counted && level - track.trough >= FLASH_RISE_LEVEL) {
-      if (
-        lastFlashAt !== null &&
-        now !== lastFlashAt &&
-        now - lastFlashAt < MIN_FLASH_INTERVAL_MS
-      ) {
-        if (!transient) {
-          held.set(id, next)
-        }
-        return
+    const levels = levelsOf(next)
+    // Une composante baisse, ou se stabilise à un autre instant : une nouvelle montée peut commencer.
+    levels.forEach((level, index) => {
+      if (level < track.levels[index]! || (now > track.at && level === track.levels[index])) {
+        track.troughs[index] = level
+        track.troughAt[index] = now
+        track.counted[index] = false
       }
-      lastFlashAt = now
-      track.counted = true
+    })
+    const rising = levels.map(
+      (level, index) => !track.counted[index] && level - track.troughs[index]! >= FLASH_RISE_LEVEL
+    )
+    if (rising.includes(true)) {
+      const sameFade = (index: number) =>
+        track.flashAt !== null && track.troughAt[index]! < track.flashAt
+      if (rising.some((isRising, index) => isRising && !sameFade(index))) {
+        if (
+          lastFlashAt !== null &&
+          now !== lastFlashAt &&
+          now - lastFlashAt < MIN_FLASH_INTERVAL_MS
+        ) {
+          if (!transient) {
+            held.set(id, next)
+          }
+          return
+        }
+        lastFlashAt = now
+        track.flashAt = now
+      }
+      rising.forEach((isRising, index) => {
+        track.counted[index] = track.counted[index] || isRising
+      })
     }
-    track.level = level
+    track.levels = levels
     track.at = now
     tracks.set(id, track)
     held.delete(id)
@@ -247,18 +281,30 @@ export function createScenePlayer(options: ScenePlayerOptions): ScenePlayer {
       return
     }
     const maxSteps = MAX_INSTANT_STEPS + entry.scene.steps.length
+    // Instant de départ de chaque scène enchaînée pendant ce rattrapage : sert à reconnaître un tour
+    // complet de boucle.
+    const startedAt = new Map<string, number>()
     for (let guard = 0; guard < maxSteps; guard += 1) {
       const step = entry.scene.steps[entry.stepIndex]
       if (!step) {
         const next =
-          entry.scene.next === undefined ? undefined : options.resolveScene?.(entry.scene.next)
+          entry.scene.next === undefined ? undefined : options.resolveScene(entry.scene.next)
         if (!next) {
           active = null
           return
         }
         // Enchaînement : la scène suivante part à l'instant exact où celle-ci s'est terminée. Après un
         // gel de la page, ses étapes passées sont rattrapées sans fumée en retard (voir `enterStep`).
-        entry = enterStep({ ...entry, scene: next }, 0, entry.stepStartedAt, now)
+        let at = entry.stepStartedAt
+        const previous = startedAt.get(next.id)
+        if (previous !== undefined && at > previous) {
+          // Un tour de boucle vient d'être rejoué : on saute les tours complets restants (le garde-fou
+          // ne suffirait pas après un long gel) et on rejoue seulement le dernier, partiel.
+          const lap = at - previous
+          at += Math.floor((now - at) / lap) * lap
+        }
+        startedAt.set(next.id, at)
+        entry = enterStep({ ...entry, scene: next }, 0, at, now)
         active = entry
         continue
       }
@@ -284,8 +330,9 @@ export function createScenePlayer(options: ScenePlayerOptions): ScenePlayer {
     // suivante comptera de nouveau (un palier à 0,55 après un extrait n'efface pas le prochain éclair).
     for (const track of tracks.values()) {
       if (track.at < now) {
-        track.trough = track.level
-        track.counted = false
+        track.troughs = [...track.levels]
+        track.troughAt = track.troughAt.map(() => now)
+        track.counted = [false, false, false, false]
       }
     }
   }
