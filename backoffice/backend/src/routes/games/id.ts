@@ -146,9 +146,10 @@ const gamesIdRoutes: FastifyPluginAsync = async (app) => {
         room_id: body.roomId,
         scheduled_at: startsAt.toISOString(),
         scheduled_end_at: endsAt.toISOString(),
-        // Des nombres modifiés ne correspondent plus à un format fixe (arbitrage 15).
+        // Des nombres qui changent ne correspondent plus à un format fixe (arbitrage 15).
         format:
-          body.roundsCount !== undefined || body.questionsPerRound !== undefined
+          (body.roundsCount ?? game.roundsCount) !== game.roundsCount ||
+          (body.questionsPerRound ?? game.questionsPerRound) !== game.questionsPerRound
             ? GAME_FORMAT_CUSTOM
             : undefined,
         rounds_count: body.roundsCount,

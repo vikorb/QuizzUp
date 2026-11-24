@@ -7812,7 +7812,9 @@ components:
         acceptent `null` pour être effacés. `miniGames` : la liste complète est enregistrée comme
         `null` (tous les mini-jeux). `scheduledAt` sans `durationMinutes` garde la durée de la
         session, `durationMinutes` sans `scheduledAt` garde son début. Modifier `roundsCount` ou
-        `questionsPerRound` passe le `format` de la partie à `custom`.
+        `questionsPerRound` à une valeur différente passe le `format` de la partie à `custom`.
+        `format` ne s'envoie pas : `400 invalid_body` (`details.fieldErrors.format` :
+        `format_not_updatable`).
       properties:
         roomId:
           type: integer

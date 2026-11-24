@@ -233,6 +233,8 @@ export const updateGameSchema = z
     roomId: z.coerce.number().int().positive().optional(),
     scheduledAt: scheduledAtSchema.optional(),
     durationMinutes: durationMinutesSchema.optional(),
+    // Le format ne se change pas à la main : il passe à `custom` quand les nombres changent.
+    format: z.never({ error: 'format_not_updatable' }).optional(),
     roundsCount: roundsCountSchema.optional(),
     questionsPerRound: questionsPerRoundSchema.optional(),
     // Ici « absent » veut dire « inchangé » : la liste complète s'écrit `null` (tous les mini-jeux).

@@ -337,6 +337,43 @@ describe('PATCH /companies/:companyId/games/:gameId — format', () => {
     expect(dbState.games[0]!.format).toBe(GAME_FORMAT_CUSTOM)
   })
 
+  it('keeps the format when the numbers sent are those of the game', async () => {
+    seedRoom()
+    seedGame(SESSION)
+
+    const response = await patch({ roundsCount: 6, questionsPerRound: 7 })
+
+    expect(response.statusCode).toBe(200)
+    expect(parseJson<GameBody>(response).game.format).toBe(GAME_FORMAT_SHORT)
+  })
+
+  it('turns to custom when only one of two numbers really changes', async () => {
+    seedRoom()
+    seedGame(SESSION)
+
+    const response = await patch({ roundsCount: 6, questionsPerRound: 8 })
+
+    expect(parseJson<GameBody>(response).game.format).toBe(GAME_FORMAT_CUSTOM)
+  })
+
+  it.each([GAME_FORMAT_DISCOVERY, GAME_FORMAT_SHORT, GAME_FORMAT_CUSTOM, 'epic'])(
+    'refuses a format (%s) in a PATCH and changes nothing',
+    async (format) => {
+      seedRoom()
+      seedGame(SESSION)
+
+      const response = await patch({ format, locale: 'en' })
+
+      expect(response.statusCode).toBe(400)
+      expect(parseJson(response)).toMatchObject({
+        error: 'invalid_body',
+        details: { fieldErrors: { format: ['format_not_updatable'] } },
+      })
+      expect(dbState.games[0]).toMatchObject({ format: GAME_FORMAT_SHORT, rounds_count: 6 })
+      expect(dbState.games[0]!.locale).toBeUndefined()
+    }
+  )
+
   it('keeps the format when the numbers are not touched', async () => {
     seedRoom()
     seedGame(SESSION)

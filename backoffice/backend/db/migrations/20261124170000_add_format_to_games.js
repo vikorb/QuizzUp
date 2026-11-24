@@ -31,6 +31,9 @@ exports.up = async function (knex) {
  * @returns { Promise<void> }
  */
 exports.down = async function (knex) {
+  // Ne pas bloquer les requêtes de la table `games` si un verrou est déjà pris.
+  await knex.raw("SET LOCAL lock_timeout = '5s'")
+
   await knex.raw('ALTER TABLE games DROP CONSTRAINT IF EXISTS games_format_check')
   await knex.schema.alterTable('games', (table) => {
     table.dropColumn('format')

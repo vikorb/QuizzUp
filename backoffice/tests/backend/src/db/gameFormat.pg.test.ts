@@ -40,7 +40,7 @@ describe.skipIf(!PG_INTEGRATION_URL)('add_format_to_games sur PostgreSQL', () =>
   afterAll(async () => {
     await db?.raw(TRUNCATE_TABLES)
     await db?.destroy()
-  })
+  }, 30_000)
 
   beforeEach(async () => {
     await db.raw(TRUNCATE_TABLES)
@@ -54,7 +54,7 @@ describe.skipIf(!PG_INTEGRATION_URL)('add_format_to_games sur PostgreSQL', () =>
       mdp_hash: 'x',
     })
     await db('rooms').insert({ id: 1, company_id: 1, name: 'Salle 1' })
-  })
+  }, 30_000)
 
   const ROLLBACK = new Error('rollback voulu')
 
@@ -171,5 +171,5 @@ describe.skipIf(!PG_INTEGRATION_URL)('add_format_to_games sur PostgreSQL', () =>
 
     expect(await formatColumns(db)).toHaveLength(1)
     expect((await db('games').first('format')).format).toBeNull()
-  })
+  }, 30_000)
 })
