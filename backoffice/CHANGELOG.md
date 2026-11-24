@@ -8,6 +8,8 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Lumières Art-Net sans exécutable (`game/artnet-bridge/powershell`) : `quizzup-lumieres.ps1` (PowerShell 5.1, présent sur tout Windows) parle le même protocole WebSocket que le pont et envoie les trames Art-Net ; lanceur `Lancer les lumieres.cmd`. Pas de découverte de nœuds : l'adresse du nœud se saisit à la main. Jamais essayé face à un vrai nœud Art-Net.
+  US: US-DMX-01 (#203)
 - Formulaire de question : sélecteur « Effet sur l'extrait » (aucun, très court, à l'envers, ralenti), visible seulement pour une question audio. L'effet est relu à la modification, remis à « aucun » quand la question cesse d'être audio, et les erreurs de l'API (`question_audio_effect_invalid`, `audio_effect_requires_audio`) s'affichent sous le champ.
   US: US-AUDIO-02 (#144)
 - Pilotage en direct, commandes à distance (écran de salle) : la salle applique `pause`, `resume`, `skip` et `abort` reçus par le flux, par les mêmes chemins que les boutons locaux, puis rend l'accusé (`POST /room/commands/:id/result`). Commande rejouée : même accusé, sans nouvelle application. `skip` refusé (`not_in_question`) s'il ne désigne plus la question en cours ; `abort` refusé s'il vise une autre partie. Scénario Playwright pause, refus, reprise.
