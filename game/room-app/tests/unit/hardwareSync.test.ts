@@ -6,7 +6,15 @@ import {
   saveRoomHardwareConfig,
   useRoomHardware,
 } from '@/hardware/roomHardware'
-import { enterDemo, signIn, syncRoomAuth } from '@/state/roomAuth'
+import {
+  enterDemo,
+  expireRoomSession,
+  roomCompany,
+  setRoomCompany,
+  signIn,
+  signOut,
+  syncRoomAuth,
+} from '@/state/roomAuth'
 import * as roomApi from '@/utils/roomApi'
 
 const SERVER_KEYMAP = Object.fromEntries([['KeyP', { desk: 2, button: 'B' } as const]])
@@ -98,6 +106,46 @@ describe('config matérielle sur le compte de la salle', () => {
     await saveBuzzerKeymap(SERVER_KEYMAP)
     expect(syncStatus.value).toBe('error')
     expect(localStorage.getItem('quizzup_room_hardware')).toContain('KeyP')
+  })
+
+  it('garde le centre de la salle pour son logo, et l’oublie hors connexion', async () => {
+    const company = { id: 1, name: 'Escape du Port', logoUrl: 'http://api/public/v1/logos/a.png' }
+    vi.spyOn(roomApi, 'fetchRoomInfo').mockResolvedValueOnce({ ...ROOM, config: {}, company })
+    mockSave()
+
+    await syncHardwareWithRoom()
+    expect(roomCompany.value).toEqual(company)
+
+    enterDemo()
+    expect(roomCompany.value).toBeNull()
+  })
+
+  it.each([
+    ['la déconnexion', () => signOut()],
+    ['l’expiration de la session', () => expireRoomSession()],
+  ])('n’affiche jamais le logo de l’ancien centre après %s', async (_name, leave) => {
+    const company = { id: 1, name: 'Centre A', logoUrl: 'http://api/public/v1/logos/a.png' }
+    vi.spyOn(roomApi, 'fetchRoomInfo').mockResolvedValueOnce({ ...ROOM, config: {}, company })
+    mockSave()
+    await syncHardwareWithRoom()
+    expect(roomCompany.value).toEqual(company)
+
+    await leave()
+    expect(roomCompany.value).toBeNull()
+
+    // Compte B : le backoffice ne répond pas, le logo de A ne revient pas.
+    vi.spyOn(roomApi, 'fetchRoomInfo').mockRejectedValueOnce(new Error('offline'))
+    signIn('tok-b', { id: 11, companyId: 2, role: 'room' })
+    await syncHardwareWithRoom()
+    expect(roomCompany.value).toBeNull()
+  })
+
+  it('signIn efface le centre déjà chargé, même sans déconnexion', async () => {
+    setRoomCompany({ id: 1, name: 'Centre A', logoUrl: 'http://api/public/v1/logos/a.png' })
+
+    signIn('tok-b', { id: 11, companyId: 2, role: 'room' })
+
+    expect(roomCompany.value).toBeNull()
   })
 
   it('applique la disposition des buzzers et le plan de salle du compte', async () => {

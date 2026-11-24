@@ -50,18 +50,29 @@ trame, jamais comme une commande du chargeur.
 | carte → page | `S <0\|1> <READY\|FIRE\|COOL> <LEASE\|MAX\|CMD\|BAD>` | après chaque ligne reçue : sortie, état, dernière cause de coupure |
 
 Pas de somme de contrôle : l'USB porte déjà la sienne. Seule la ligne exacte `F` allume ; toute
-autre ligne, y compris une ligne illisible, coupe.
+autre ligne, y compris une ligne illisible, coupe. La cause de la réponse `S` est la raison de la
+dernière coupure réelle d'un jet (`CMD` au démarrage) : un `0` ou une ligne illisible reçu hors jet
+ne l'écrase pas.
 
 ### Sécurités portées par la carte
 
 - A0 est au niveau haut seulement si trois conditions sont vraies : dernier `F` reçu il y a moins
-  de 500 ms, jet commencé il y a moins de 10 s, au moins 5 s depuis la fin du jet précédent.
+  de 500 ms, jet commencé il y a moins de 10 s, au moins 5 s depuis la fin du jet précédent
+  ou depuis le démarrage de la carte.
+- **La carte démarre en pause** : une remise à zéro (mise sous tension, RESET, ouverture du port,
+  chien de garde) n'efface pas la pause. Après la bannière, la première réponse `S` dit `COOL`
+  pendant 5 s (`S 0 COOL CMD`), puis `READY`.
 - Les durées se comparent par soustraction non signée de `millis()`, pour survivre au débordement
   du compteur (49 jours).
-- La première instruction du programme met A0 au niveau bas.
+- La première instruction de `setup()` met A0 au niveau bas.
 - Chien de garde matériel : `wdt_enable(WDTO_250MS)`, relancé seulement dans la boucle principale.
 - Pas de verrou d'urgence dans la carte : l'arrêt d'urgence vit dans la page (il survit au
   rechargement) et le coup-de-poing de la salle coupe l'alimentation.
+
+Un `F` refusé (pause, plafond) pose un verrou : le flot de `F` qui suit ne lance jamais de jet, il
+faut 500 ms de silence ou une ligne `0`. Il limite une page figée sur `F` à un seul jet. En
+échange, la page tient un contrat (envoyer `0` à chaque fin de jet, n'envoyer `F` que si la
+dernière réponse `S` dit `READY` ou `FIRE`) décrit dans le README du programme.
 
 La logique est écrite en C pur (`fumee_logic.c`), sans dépendance à Arduino, pour être compilée et
 testée par gcc dans la CI avec les mêmes vecteurs de test que la fausse carte TypeScript.
@@ -70,9 +81,11 @@ testée par gcc dans la CI avec les mêmes vecteurs de test que la fausse carte 
 
 Sur un Uno, ouvrir le port série remet normalement la carte à zéro par le signal DTR (supposé : la
 norme Web Serial ne fixe pas l'état des signaux à l'ouverture). La page s'appuie dessus : elle
-attend la bannière `QZF READY` (3 s au plus) avant tout envoi. Recharger la page remet donc la
-carte à zéro, relais retombé. Pour l'installation, la page force elle-même l'impulsion avec
-`setSignals({ dataTerminalReady })`.
+attend la bannière `QZF READY` (3 s au plus), puis une réponse `S … READY` (la carte démarre en
+pause de 5 s), avant d'envoyer un `F`. Une bannière qui arrive alors que le lien était établi
+veut dire que la carte a été remise à zéro : la page la traite comme une perte de lien. Recharger
+la page remet donc la carte à zéro, relais retombé, puis en pause. Pour l'installation, la page
+force elle-même l'impulsion avec `setSignals({ dataTerminalReady })`.
 
 ### A0 pendant le chargeur
 
@@ -172,23 +185,25 @@ pas stockée. Aucune table, aucune route.
   test de coupure).
 - **Seulement sur la vraie carte** (cas F11 à F20 du banc) : A0 sous 0,8 V et relais éteint à la
   mise sous tension, à l'ouverture du port, au bouton RESET et pendant une installation ;
-  ouverture du port qui remet à zéro ; navigateur tué pendant un jet (coupure en moins de 0,5 s) ;
+  ouverture du port qui remet à zéro ; relais qui fait baisser la tension sur l'USB seul avec le
+  câble long ; remise à zéro en plein jet avec un flot de `F` qui continue (aucun jet avant 5 s) ;
+  navigateur tué pendant un jet (coupure en moins de 0,5 s) ;
   USB débranché ; rechargement pendant un jet ; reconnexion ; carte et DMX USB ensemble ;
   sauvegarde puis restauration (ancien comportement revenu) ; pilote Windows et identifiant USB
   relevés ; déclenchement réel de la télécommande.
 
 ## 8. Lots
 
-| Lot  | Taille | Contenu                                                                                                            | Dépend de  | Critère de fin                                             |
-| ---- | ------ | ------------------------------------------------------------------------------------------------------------------ | ---------- | ---------------------------------------------------------- |
-| L0   | S      | cette conception, cas F11 à F20 dans `docs/recette/banc-materiel.md`                                               | —          | cas listés                                                 |
-| L1   | M      | `game/hardware/firmware/fumee/` : `.ino`, `fumee_logic.c/.h`, tests gcc, `.hex` versionné, job `arduino-cli` en CI | L0         | CI verte, `.hex` identique à la recompilation              |
-| L2   | M      | `game/hardware/src/smoke/boardProtocol.ts`, `boardLink.ts`, fausse carte, vecteurs partagés                        | L0         | seuils de couverture, mêmes vecteurs que L1                |
-| L3   | M      | `lightingController.ts` (option `smokeLink`, refus `board_unavailable`), `config.ts`, exclusion du port, `2A03`    | L2         | urgence, pause, gel et masquage testés avec le lien        |
-| L4   | M      | `game/hardware/src/firmware/intelHex.ts`, `stk500.ts`, émulateur Optiboot, lecture de sauvegarde                   | —          | installation, relecture et restauration contre l'émulateur |
-| L5   | L      | `roomHardware.ts` (port fumée, reconnexion), section Fumée de l'écran Matériel, i18n, scénario e2e                 | L1, L3, L4 | parcours complet en simulation                             |
-| L6   | S      | guides (installation, sécurité fumée, dépannage), politique Chrome, compatibilité, `REPRISE.md`                    | L5         | documentation à jour                                       |
-| Banc | —      | cas F11 à F20                                                                                                      | L5         | tous les cas passés sur la vraie carte                     |
+| Lot  | Taille | Contenu                                                                                                              | Dépend de  | Critère de fin                                                                                          |
+| ---- | ------ | -------------------------------------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------- |
+| L0   | S      | cette conception, cas F11 à F20 dans `docs/recette/banc-materiel.md`                                                 | —          | cas listés                                                                                              |
+| L1   | M      | `game/hardware/firmware/fumee/` : `.ino`, `fumee_logic.c/.h`, tests gcc, job `arduino-cli` en CI                     | L0         | CI verte, `.hex` produit en artefact par la CI                                                          |
+| L2   | M      | `game/hardware/src/smoke/boardProtocol.ts`, `boardLink.ts`, fausse carte, vecteurs partagés                          | L0         | seuils de couverture, mêmes vecteurs que L1                                                             |
+| L3   | M      | `lightingController.ts` (option `smokeLink`, refus `board_unavailable`), `config.ts`, exclusion du port, `2A03`      | L2         | urgence, pause, gel et masquage testés avec le lien                                                     |
+| L4   | M      | `game/hardware/src/firmware/intelHex.ts`, `stk500.ts`, émulateur Optiboot, lecture de sauvegarde                     | —          | installation, relecture et restauration contre l'émulateur                                              |
+| L5   | L      | `roomHardware.ts` (port fumée, reconnexion), section Fumée de l'écran Matériel, i18n, scénario e2e, `.hex` versionné | L1, L3, L4 | parcours complet en simulation ; `.hex` identique à la recompilation, job en échec si le fichier manque |
+| L6   | S      | guides (installation, sécurité fumée, dépannage), politique Chrome, compatibilité, `REPRISE.md`                      | L5         | documentation à jour                                                                                    |
+| Banc | —      | cas F11 à F20                                                                                                        | L5         | tous les cas passés sur la vraie carte                                                                  |
 
 L1, L2 et L4 avancent en parallèle. Chaque PR annonce « Sécurité : fumée » en première ligne.
 
