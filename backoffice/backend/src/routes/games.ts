@@ -144,6 +144,7 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
       const { companyId } = parsedParams.data
       const {
         roomId,
+        format,
         roundsCount,
         questionsPerRound,
         participants,
@@ -153,6 +154,7 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
         playersCount,
         externalRef,
         locale,
+        kidsMode,
       } = parsedBody.data
 
       if (!canAccessCompanyContext(req, companyId)) {
@@ -229,6 +231,7 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
               companyId,
               roomId,
               adminId: getCurrentAdminId(req),
+              format,
               roundsCount,
               questionsPerRound,
               miniGames,
@@ -237,6 +240,7 @@ const gamesRoutes: FastifyPluginAsync = async (app) => {
               playersCount,
               externalRef,
               locale,
+              kidsMode,
               join:
                 openJoin && !schedule
                   ? { token: generateJoinToken(), expiresAt: getJoinExpiry() }
