@@ -66,6 +66,14 @@ const isDmxVendor = (port: SerialPortLike) => {
   return vendorId !== undefined && (DMX_USB_VENDOR_IDS as readonly number[]).includes(vendorId)
 }
 
+/** Fabricants des cartes Arduino : celles de la fumée (et des buzzers), jamais choisies seules. */
+const ARDUINO_VENDOR_IDS: readonly number[] = [0x2341, 0x2a03]
+
+const isArduino = (port: SerialPortLike) => {
+  const vendorId = port.getInfo?.().usbVendorId
+  return vendorId !== undefined && ARDUINO_VENDOR_IDS.includes(vendorId)
+}
+
 /**
  * Port à ne jamais prendre pour la sortie DMX : la carte de la fumée. Exclu par l'objet port, ou par
  * l'identifiant USB (fabricant + produit) : après un rechargement le navigateur rend d'autres objets.
@@ -96,9 +104,10 @@ const isExcluded = (port: SerialPortLike, exclude: DmxPortExclusion | undefined)
  * Le navigateur peut avoir autorisé plusieurs ports (adaptateur série, Arduino des buzzers…) :
  *
  * - avec `match` (l'interface utilisée jusqu'ici), on préfère le même objet port, puis une
- *   interface du même modèle (fabricant + produit USB), puis une puce USB-série DMX connue, sinon
- *   rien : on ne rouvre jamais un port quelconque à la place de l'interface DMX ;
- * - sans `match`, on préfère une puce USB-série DMX connue, sinon le premier port autorisé.
+ *   interface du même modèle (fabricant + produit USB), puis une puce USB-série DMX connue hors
+ *   Arduino, sinon rien : on ne rouvre jamais un port quelconque à la place de l'interface DMX ;
+ * - sans `match`, on préfère une puce USB-série DMX connue, sinon le premier port autorisé : dans
+ *   les deux cas hors cartes Arduino (0x2341, 0x2A03), jamais ouvertes automatiquement.
  *
  * `exclude` (le port de la carte de la fumée) est écarté avant tout choix, `match` compris.
  */
@@ -111,13 +120,17 @@ export async function getGrantedDmxPort(
   }
   const { match, exclude } = options
   const ports = (await serial.getPorts()).filter((port) => !isExcluded(port, exclude))
+  // Choix automatique : jamais une carte Arduino, même si aucune carte de fumée n'est enregistrée
+  // (une carte non déclarée ne doit pas être prise pour l'interface DMX). Seul `match`, l'interface
+  // que l'opérateur a lui-même choisie, peut désigner un Arduino.
+  const automatic = ports.filter((port) => !isArduino(port))
   if (!match) {
-    return ports.find(isDmxVendor) ?? ports[0] ?? null
+    return automatic.find(isDmxVendor) ?? automatic[0] ?? null
   }
   return (
     ports.find((port) => port === match) ??
     ports.find((port) => samePort(port, match)) ??
-    ports.find(isDmxVendor) ??
+    automatic.find(isDmxVendor) ??
     null
   )
 }
@@ -436,7 +449,7 @@ export function watchDmxPortReconnection(options: {
     if (
       port &&
       !isExcluded(port, options.exclude) &&
-      (!options.match || samePort(port, options.match))
+      (options.match ? samePort(port, options.match) : !isArduino(port))
     ) {
       options.onReconnect(port)
     }

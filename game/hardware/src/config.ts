@@ -19,7 +19,7 @@ import type { ExitLightConfig, SceneDefinition } from './lighting/scenes'
 import { DEFAULT_DESK_COLORS } from './lighting/scenes'
 import { parseExit, parseScenes } from './lighting/showConfig'
 import type { SmokeSafetyConfig } from './lighting/smoke'
-import { DEFAULT_SMOKE_SAFETY, normalizeSmokeSafety } from './lighting/smoke'
+import { DEFAULT_SMOKE_SAFETY, normalizeSmokeSafety, parseSmokeBoard } from './lighting/smoke'
 import type { PlanPoint, PlanTarget, RoomPlan } from './plan'
 import { defaultRoomPlan, parseRoomPlan, withPlanPoint as movePlanPoint } from './plan'
 import type { Desk, Rgb } from './types'
@@ -422,10 +422,10 @@ export function parseRoomHardwareConfig(input: unknown): ParsedRoomHardwareConfi
   }
 
   // Une carte illisible ne fait pas retomber la fumée sur le seul DMX, sans le chien de garde de la
-  // carte : la fumée est désactivée jusqu'à ce que la carte soit choisie de nouveau.
+  // carte : `normalizeSmokeSafety` la désactive et garde la valeur brute (une version plus récente
+  // la relit), jusqu'à ce que la carte soit choisie de nouveau.
   const rawBoard = asRecord(lighting.smoke).board
-  if (rawBoard !== undefined && !smoke.board) {
-    smoke = { ...smoke, enabled: false }
+  if (rawBoard !== undefined && !parseSmokeBoard(rawBoard)) {
     problems.push(
       'Fumée désactivée : la carte de la fumée est illisible dans la configuration. ' +
         'La choisir de nouveau dans l’écran Matériel.'

@@ -427,7 +427,30 @@ export function createLightingController(options: LightingControllerOptions): Li
     flush()
     // Chaque trame est aussi l'ordre donné à la carte : fumée en cours, et seulement ainsi.
     // (Arrêt d'urgence et erreur de sortie ont déjà coupé la fumée : leur état n'est jamais « firing ».)
-    smokeLink?.drive(smoke.getState().status === 'firing')
+    driveLink(smoke.getState().status === 'firing')
+  }
+
+  /** Un lien qui répond de nouveau ré-arme l'avertissement (un seul par série d'échecs). */
+  let linkFailed = false
+
+  /**
+   * Ordre à la carte. Un lien qui lève ne doit jamais empêcher la suite d'une coupure (trame noire
+   * d'urgence comprise) : l'erreur est signalée (`board_lost`), jamais avalée, et comme l'ordre
+   * d'arrêt n'est pas assuré, la fumée est coupée et désarmée (la carte coupe seule à la fin de son
+   * bail). Pas de `cutSmoke` ici : il enverrait lui-même un ordre au lien.
+   */
+  function driveLink(firing: boolean) {
+    try {
+      smokeLink?.drive(firing)
+      linkFailed = false
+    } catch {
+      smoke.stop('output_error')
+      smoke.disarm()
+      if (!linkFailed) {
+        linkFailed = true
+        warn({ kind: 'board_lost', problem: 'write_error', at: clock.now() })
+      }
+    }
   }
 
   /**
@@ -905,7 +928,7 @@ export function createLightingController(options: LightingControllerOptions): Li
   const cutSmoke = (reason: SmokeStopReason) => {
     const wasFiring = smoke.getState().status === 'firing'
     smoke.stop(reason)
-    smokeLink?.drive(false)
+    driveLink(false)
     if (frozenUntil !== null) {
       // Arrêt pendant un test de coupure : la fumée doit être réautorisée par un humain.
       smoke.disarm()
@@ -925,6 +948,15 @@ export function createLightingController(options: LightingControllerOptions): Li
 
   /** Carte perdue : jet coupé (trame à 0 tout de suite), fumée désarmée, à réarmer par un humain. */
   const onBoardState = (state: SmokeBoardState) => {
+    if (state.status === 'ready' && state.phase === 'cool') {
+      // La carte a coupé d'elle-même (pause de refroidissement, bail, durée maximale) : le relais DMX
+      // et le jet du contrôleur s'arrêtent aussi, sans quoi la fumée continuerait par le relais. Pas
+      // de désarmement : la carte répond, la pause de sécurité du contrôleur s'applique.
+      if (smoke.getState().status === 'firing') {
+        cutSmoke('output_error')
+      }
+      return
+    }
     if (!BOARD_LOST.includes(state.status)) {
       return
     }
@@ -945,7 +977,7 @@ export function createLightingController(options: LightingControllerOptions): Li
     if (doc?.visibilityState === 'hidden') {
       // Onglet masqué : le navigateur ralentit les minuteurs, on ne garde pas de fumée active.
       smoke.stop('page_hidden')
-      smokeLink?.drive(false)
+      driveLink(false)
       if (timer !== null) {
         tick()
       }
@@ -955,7 +987,7 @@ export function createLightingController(options: LightingControllerOptions): Li
 
   const onPageHide = () => {
     smoke.stop('shutdown')
-    smokeLink?.drive(false)
+    driveLink(false)
     if (outputStatus === 'open') {
       void writeFrames(output, blackFrames()).catch(() => undefined)
     }
@@ -1050,7 +1082,7 @@ export function createLightingController(options: LightingControllerOptions): Li
         doc?.removeEventListener('visibilitychange', onVisibilityChange)
         globalThis.removeEventListener?.('pagehide', onPageHide)
         smoke.stop('shutdown')
-        smokeLink?.drive(false)
+        driveLink(false)
         player.blackout()
         await closeOutput()
         notify()
@@ -1058,7 +1090,7 @@ export function createLightingController(options: LightingControllerOptions): Li
     setOutput: (next) =>
       serialize(async () => {
         smoke.stop('output_error')
-        smokeLink?.drive(false)
+        driveLink(false)
         stopLoop()
         await closeOutput()
         output = next
@@ -1142,9 +1174,10 @@ export function createLightingController(options: LightingControllerOptions): Li
         return armed
       },
       disarm() {
+        // Comme toute coupure : jet arrêté, ordre `0` à la carte et trame à 0 tout de suite (et reprise
+        // de l'envoi si un gel est en cours), puis désarmement.
+        cutSmoke('disarmed')
         smoke.disarm()
-        // Couper la fumée pendant un gel doit agir tout de suite : on reprend l'envoi.
-        cancelFreeze()
         notify()
       },
       fire(durationMs) {
@@ -1159,7 +1192,7 @@ export function createLightingController(options: LightingControllerOptions): Li
       cancelFreeze()
       emergencyReason = reason
       smoke.emergencyStop()
-      smokeLink?.drive(false)
+      driveLink(false)
       player.blackout()
       send(blackFrames())
       notify()

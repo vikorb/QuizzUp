@@ -30,9 +30,21 @@ describe('port DMX USB : la carte de la fumée est exclue du choix automatique',
     const board = portWith(UNO)
     const ftdi = portWith(FTDI)
     const serial = createFakeSerial([board, ftdi])
-    // Sans exclusion, le premier port d'un fabricant connu est la carte : le défaut corrigé ici.
-    expect(await getGrantedDmxPort(serial)).toBe(board)
     expect(await getGrantedDmxPort(serial, { exclude: { port: board } })).toBe(ftdi)
+  })
+
+  it('sans carte enregistrée, un Arduino (0x2341, 0x2A03) n’est jamais ouvert automatiquement', async () => {
+    const uno = portWith(UNO)
+    const clone = portWith(CLONE_UNO)
+    const ftdi = portWith(FTDI)
+    // Ni en premier choix, ni en repli sur « le premier port autorisé ».
+    expect(await getGrantedDmxPort(createFakeSerial([uno, ftdi]))).toBe(ftdi)
+    expect(await getGrantedDmxPort(createFakeSerial([uno]))).toBeNull()
+    expect(await getGrantedDmxPort(createFakeSerial([clone, uno]))).toBeNull()
+    // Avec un `match` d'un autre modèle, le repli sur une puce DMX connue écarte aussi l'Arduino.
+    const ch340 = portWith({ usbVendorId: 0x1a86, usbProductId: 0x7523 })
+    expect(await getGrantedDmxPort(createFakeSerial([uno]), { match: ch340 })).toBeNull()
+    expect(await getGrantedDmxPort(createFakeSerial([uno, ftdi]), { match: ch340 })).toBe(ftdi)
   })
 
   it('exclut aussi par identifiant USB : après un rechargement, le navigateur rend un autre objet', async () => {
@@ -55,8 +67,10 @@ describe('port DMX USB : la carte de la fumée est exclue du choix automatique',
     const ftdi = portWith(FTDI)
     const serial = createFakeSerial([clone, ftdi])
     expect(await getGrantedDmxPort(serial, { exclude: { usb: CLONE_UNO } })).toBe(ftdi)
-    // Un autre modèle (même produit chez un autre fabricant) n'est pas exclu.
-    expect(await getGrantedDmxPort(serial, { exclude: { usb: UNO } })).toBe(clone)
+    // Un autre fabricant n'est pas exclu par l'identifiant enregistré, mais un Arduino n'est de
+    // toute façon jamais choisi automatiquement : on retombe sur l'interface DMX.
+    expect(await getGrantedDmxPort(serial, { exclude: { usb: UNO } })).toBe(ftdi)
+    expect(await getGrantedDmxPort(createFakeSerial([clone]), { exclude: { usb: UNO } })).toBeNull()
   })
 
   it('avec match, la carte n’est jamais reprise, même si c’est le même modèle que l’interface mémorisée', async () => {
@@ -71,9 +85,11 @@ describe('port DMX USB : la carte de la fumée est exclue du choix automatique',
   it('avec une exclusion vide, le choix ne change pas', async () => {
     const board = portWith(UNO)
     const ftdi = portWith(FTDI)
-    const serial = createFakeSerial([board, ftdi])
-    expect(await getGrantedDmxPort(serial, { exclude: {} })).toBe(board)
-    expect(await getGrantedDmxPort(serial, { exclude: { port: null, usb: null } })).toBe(board)
+    const other = portWith({ usbVendorId: 0x1234, usbProductId: 1 })
+    const serial = createFakeSerial([board, other, ftdi])
+    expect(await getGrantedDmxPort(serial, { exclude: {} })).toBe(ftdi)
+    expect(await getGrantedDmxPort(serial, { exclude: { port: null, usb: null } })).toBe(ftdi)
+    expect(await getGrantedDmxPort(serial)).toBe(ftdi)
   })
 
   it('un port sans informations USB n’est exclu que s’il est le même objet', async () => {
@@ -93,5 +109,14 @@ describe('port DMX USB : la carte de la fumée est exclue du choix automatique',
     expect(onReconnect).not.toHaveBeenCalled()
     serial.emit('connect', ftdi)
     expect(onReconnect).toHaveBeenCalledWith(ftdi)
+  })
+
+  it('sans match ni exclusion, le rebranchement d’un Arduino ne rouvre pas la sortie DMX', () => {
+    const serial = createFakeSerial([])
+    const onReconnect = vi.fn()
+    watchDmxPortReconnection({ serial, onReconnect })
+    serial.emit('connect', portWith(UNO))
+    serial.emit('connect', portWith(CLONE_UNO))
+    expect(onReconnect).not.toHaveBeenCalled()
   })
 })
