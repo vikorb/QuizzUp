@@ -2,6 +2,7 @@ import { LIVE_HEARTBEAT_MS, LIVE_STATUS_EVERY_MS } from '@quizzup/shared'
 import { nextTick, ref } from 'vue'
 
 import { createSilentExtractPlayer } from '@/audio/player'
+import { reportRoomError, resetErrorReporter } from '@/diagnostics/errorReporter'
 import { rememberBackofficeGameId } from '@/game/backofficeGameMemory'
 import { createMemorySessionStorage } from '@/game/session'
 import {
@@ -22,6 +23,7 @@ import {
 import { isRoomConnected, syncRoomAuth } from '@/state/roomAuth'
 import { getRoomToken, setDemoMode, setRoomToken } from '@/utils/auth'
 
+import { version } from '../../package.json'
 import { createFakeLiveServer, helloMessage } from '../_helpers/fakeLiveServer'
 import { createManualClock, getPlayableThemes, REGISTRATIONS } from '../_helpers/fixtures'
 
@@ -63,6 +65,7 @@ beforeEach(() => {
 
 afterEach(() => {
   stopRoomLive()
+  resetErrorReporter()
   closeGame()
   vi.unstubAllGlobals()
   vi.useRealTimers()
@@ -98,6 +101,35 @@ describe('roomLive : ouverture du flux et premier rapport', () => {
       paused: false,
       scores: [],
       audioReady: false,
+      diagnostics: {
+        appVersion: version,
+        buzzerSource: 'keyboard',
+        gamepadCount: 0,
+        lightingDriver: 'simulation',
+        lightingStatus: 'closed',
+        smokeEnabled: false,
+        smokeArmed: false,
+        lastErrorAt: null,
+      },
+    })
+  })
+
+  it('publie la date de la dernière erreur au rapport suivant, sans rapport en plus', async () => {
+    vi.setSystemTime(new Date('2026-11-24T09:30:00.000Z'))
+    await connect()
+    expect(server.statuses).toHaveLength(1)
+
+    reportRoomError('dmx_output_error', 'sortie perdue')
+    await settle(MIN_PUBLISH_GAP_MS * 2)
+
+    // L'état matériel ne déclenche pas de rapport : le rythme de 15 s ne change pas.
+    expect(server.statuses).toHaveLength(1)
+
+    await settle(LIVE_STATUS_EVERY_MS)
+
+    expect(server.statuses).toHaveLength(2)
+    expect(server.statuses[1]?.body.diagnostics).toMatchObject({
+      lastErrorAt: '2026-11-24T09:30:00.000Z',
     })
   })
 
