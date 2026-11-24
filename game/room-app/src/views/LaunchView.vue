@@ -123,6 +123,7 @@ import {
 } from '@/game/useRoomGame'
 import { lockBuzzerSystemKeys, startLighting, useRoomHardware } from '@/hardware/roomHardware'
 import { enterFullscreen, keepScreenAwake } from '@/hardware/screen'
+import { reconnectSmokeBoard } from '@/hardware/smokeBoard'
 import { signOut } from '@/state/roomAuth'
 
 const { t } = useI18n()
@@ -151,6 +152,8 @@ async function prepareRoom(): Promise<void> {
   // Lumières en ambiance, sans retarder le lancement : une interface DMX déjà
   // autorisée se reconnecte seule.
   void startLighting().catch(() => undefined)
+  // Carte de la fumée déjà autorisée : reprise sans clic, toujours désarmée.
+  void reconnectSmokeBoard().catch(() => undefined)
   // Le verrou clavier n'a de sens (et n'est accepté) qu'en plein écran effectif.
   await Promise.all([keepScreenAwake(), fullscreen ? lockBuzzerSystemKeys() : false])
 }

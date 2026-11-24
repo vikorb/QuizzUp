@@ -6,6 +6,8 @@ import { ROOM_APP_ALIASES } from './vite.config'
 export default defineConfig({
   plugins: [vue()],
   resolve: { alias: ROOM_APP_ALIASES },
+  // Le programme de la carte de la fumée (`game/hardware/firmware`) est importé comme texte (`?raw`).
+  server: { fs: { allow: ['..'] } },
   test: {
     environment: 'jsdom',
     globals: true,

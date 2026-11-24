@@ -10,6 +10,8 @@ Format inspiré de Keep a Changelog.
 
 - Programme d'une salle en temps réel : l'événement `schedule_changed` part à chaque création, déplacement, annulation ou ouverture d'une session (backoffice, écran de salle, API publique de réservation). L'agenda du backoffice et le lobby de la salle se mettent à jour seuls, sans recharger la page.
   US: US-SCHED-01 (#142)
+- Fumée par la carte USB, écran de salle : section « Fumée » de l'écran Matériel pour brancher la carte (Web Serial, à la demande), voir son état, installer son programme depuis la page (signature vérifiée, sauvegarde du programme d'origine téléchargée avant d'écrire) et restaurer un `.hex`. La carte déjà autorisée se reconnecte seule au lancement, toujours désarmée ; pendant une installation aucun ordre de fumée ne part. Le programme `fumee.hex` est versionné, la CI échoue s'il manque ou s'il diffère de la compilation, et les images de recette et de production l'embarquent. À valider sur le banc.
+  US: US-DMX-01 (#215)
 
 - Écran de salle : la prochaine session programmée s'affiche au lobby quand aucune partie n'attend, avec son heure dans le fuseau de la salle et l'action « Lancer ».
   US: US-SCHED-01 (#142)

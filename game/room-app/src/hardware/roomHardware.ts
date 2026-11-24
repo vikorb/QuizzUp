@@ -46,6 +46,7 @@ import {
   requestDmxPort,
   type RoomHardwareConfig,
   type SerialPortLike,
+  type SmokeBoardLink,
   watchDmxPortReconnection,
   withArtnetTarget,
   withBuzzerLayout,
@@ -437,6 +438,18 @@ async function useSerialPort(
   }
 }
 
+/** Lien vers la carte USB de la fumée (voir `smokeBoard.ts`) ; `null` : aucune carte ouverte. */
+let smokeBoardLink: SmokeBoardLink | null = null
+
+/**
+ * Remplace le lien de la carte de la fumée, y compris sur le contrôleur déjà lancé. Le contrôleur
+ * coupe le jet et désarme la fumée : une carte (re)connectée n'est jamais armée toute seule.
+ */
+export function setSmokeBoardLink(link: SmokeBoardLink): void {
+  smokeBoardLink = link
+  lighting?.setSmokeLink(link)
+}
+
 /** Mesures de la sortie USB en cours (`null` en simulation). */
 export function getDmxStats(): OutputStats | null {
   const state = lighting?.getState()
@@ -567,9 +580,12 @@ async function createLighting(
     config: lightingConfig,
     output: createSimulationOutput(),
     resolveDesk,
+    // Lien de la carte de la fumée déjà ouvert (relance des lumières) : repris, fumée désarmée.
+    ...(smokeBoardLink ? { smokeLink: smokeBoardLink } : {}),
   })
   // Fumée désarmée et arrêt d'urgence repris avant la première trame.
-  if (options.disarmSmoke) {
+  // Un lien de carte repris est toujours désarmé, même sans confirmation d'armement demandée.
+  if (options.disarmSmoke || smokeBoardLink) {
     controller.smoke.disarm()
   }
   // Repris du redémarrage en cours, d'un arrêt pressé sans contrôleur, ou d'un arrêt d'avant
@@ -1342,6 +1358,7 @@ export async function resetRoomHardware(options: { storage?: HardwareStorage | n
   preferSimulation = false
   pendingEmergency = null
   dmxPort = null
+  smokeBoardLink = null
   dmxPortProblem.value = null
   bridgeError.value = null
   bridgeArtnet.value = null
