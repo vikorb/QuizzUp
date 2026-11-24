@@ -95,6 +95,7 @@
         "custom": "Custom"
       },
       "formatOption": "{name} · {rounds} × {questions} · {min} to {max} min",
+      "formatEditHint": "Changing the rounds or the questions turns the game into Custom.",
       "formatEstimate": "Estimated duration: {min} to {max} min, with the ticked mini-games.",
       "roundsCount": "Rounds",
       "roundsHint": "Between 1 and {max}",
