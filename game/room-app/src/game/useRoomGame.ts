@@ -51,6 +51,12 @@ import { fetchCurrentContent, fetchCurrentTracks, type RoomQuestion } from '@/ut
 const TICK_INTERVAL_MS = 50
 /** Délai du contenu redemandé à la reprise : au-delà, la sauvegarde est reprise telle quelle. */
 const RESUME_CONTENT_TIMEOUT_MS = 5000
+/**
+ * Délai des titres de playlist redemandés à la reprise : le serveur lit 5 playlists à la fois, avec
+ * 5 s par appel au fournisseur, donc deux vagues pour 6 thèmes. L'horloge de la partie ne repart
+ * qu'après la reprise : attendre ne coûte rien, abandonner trop tôt rend tous les extraits muets.
+ */
+const RESUME_TRACKS_TIMEOUT_MS = 12_000
 
 const session = shallowRef<GameSession | null>(null)
 const state = shallowRef<GameState | null>(null)
@@ -353,20 +359,22 @@ async function fetchFreshTracks(
   fresh: Map<number, FreshMedia>
 ): Promise<void> {
   const refs = ids.map((id) => String(-id))
-  let found = 0
+  const wanted = new Set(refs)
   try {
     for (let from = 0; from < refs.length; from += ROOM_CONTENT_MAX_IDS) {
       const items = await fetchCurrentTracks(token, {
         themeIds,
         refs: refs.slice(from, from + ROOM_CONTENT_MAX_IDS),
-        timeoutMs: RESUME_CONTENT_TIMEOUT_MS,
+        timeoutMs: RESUME_TRACKS_TIMEOUT_MS,
       })
       for (const item of items) {
-        fresh.set(-Number(item.ref), item)
-        found += 1
+        // Un titre que la salle n'a pas demandé ne rafraîchit rien.
+        if (wanted.has(item.ref)) {
+          fresh.set(-Number(item.ref), item)
+        }
       }
     }
-    if (found < refs.length) {
+    if (refs.some((trackRef) => !fresh.has(-Number(trackRef)))) {
       throw new Error('tracks_missing')
     }
   } catch (error) {

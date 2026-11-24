@@ -828,6 +828,20 @@ describe('extraits fournis par un tiers', () => {
         expect(withAudio.every((question) => question.mediaUrl?.startsWith(DEEZER_NEW))).toBe(true)
       })
 
+      it('laisse 12 s à `tracks` (deux vagues côté serveur) et garde 5 s pour `content`', async () => {
+        startGame([...deezerThemes(DEEZER_OLD, 'Ancien'), playlistTheme(DEEZER_OLD, 'Ancien')])
+        leaveSaveBehind()
+        routeFetch({
+          content: jsonReply(200, { themes: deezerThemes(DEEZER_NEW, 'Nouveau') }),
+          tracks: jsonReply(200, tracksBody(DEEZER_NEW, 'Nouveau')),
+        })
+        const timeout = vi.spyOn(AbortSignal, 'timeout')
+
+        expect(await resumeSavedGame()).toBe(true)
+
+        expect(timeout.mock.calls.map(([ms]) => ms)).toEqual([5000, 12_000])
+      })
+
       it.each([
         [
           'quota dépassé (429)',
@@ -862,6 +876,59 @@ describe('extraits fournis par un tiers', () => {
           ])
         }
       )
+
+      it('réponse partielle : les titres reçus sont rafraîchis, les absents gardent leur lien', async () => {
+        startGame([...PLAIN, playlistTheme(DEEZER_OLD, 'Ancien')])
+        leaveSaveBehind()
+        const received = tracksBody(DEEZER_NEW, 'Nouveau').items.slice(0, 4)
+        const fetchMock = routeFetch({ tracks: jsonReply(200, { items: received }) })
+
+        expect(await resumeSavedGame()).toBe(true)
+
+        const urls = playlistQuestions(storage.current).map((question) => question.mediaUrl ?? '')
+        expect(urls.slice(0, 4).every((url) => url.startsWith(DEEZER_NEW))).toBe(true)
+        expect(urls.slice(4).every((url) => url.startsWith(DEEZER_OLD))).toBe(true)
+        expect(await sentLogEntries(fetchMock)).toMatchObject([
+          { level: 'warn', code: 'resume_tracks_failed', message: 'tracks_missing' },
+        ])
+      })
+
+      it('`content` en panne pendant que `tracks` répond : les titres sont rafraîchis, rien n’est noté', async () => {
+        startGame([...deezerThemes(DEEZER_OLD, 'Ancien'), playlistTheme(DEEZER_OLD, 'Ancien')])
+        leaveSaveBehind()
+        const fetchMock = routeFetch({
+          content: new TypeError('offline'),
+          tracks: jsonReply(200, tracksBody(DEEZER_NEW, 'Nouveau')),
+        })
+
+        expect(await resumeSavedGame()).toBe(true)
+
+        const kept = playlistQuestions(storage.current)
+        expect(kept.every((question) => question.mediaUrl?.startsWith(DEEZER_NEW))).toBe(true)
+        expect(await sentLogEntries(fetchMock)).toEqual([])
+      })
+
+      it('un `ref` non demandé ne rafraîchit rien : même nombre de titres reçus, l’avertissement part', async () => {
+        startGame([...PLAIN, playlistTheme(DEEZER_OLD, 'Ancien')])
+        leaveSaveBehind()
+        const stranger = { mediaUrl: `${DEEZER_NEW}x.mp3`, mediaCredit: { ...CREDIT, artist: 'X' } }
+        // 9 titres demandés sur 10, plus un inconnu : autant d'éléments que de titres demandés.
+        const items = [
+          ...tracksBody(DEEZER_NEW, 'Nouveau').items.slice(0, 9),
+          { ref: '999999', ...stranger },
+        ]
+        const fetchMock = routeFetch({ tracks: jsonReply(200, { items }) })
+
+        expect(await resumeSavedGame()).toBe(true)
+
+        const urls = playlistQuestions(storage.current).map((question) => question.mediaUrl ?? '')
+        expect(urls).toHaveLength(PLAYLIST_IDS.length)
+        expect(urls.slice(0, 9).every((url) => url.startsWith(DEEZER_NEW))).toBe(true)
+        expect(urls[9]?.startsWith(DEEZER_OLD)).toBe(true)
+        expect(await sentLogEntries(fetchMock)).toMatchObject([
+          { level: 'warn', code: 'resume_tracks_failed', message: 'tracks_missing' },
+        ])
+      })
     })
 
     it('ne redemande rien à une partie de démonstration', async () => {
