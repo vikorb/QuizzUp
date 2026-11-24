@@ -195,6 +195,8 @@ export const router = createRouter({
       component: GameResultsView,
       meta: { requiresAuth: true },
     },
+    // Adresse inconnue (ex. `/clients` dans l'espace centre, sans l'écran de la console) : accueil.
+    { path: '/:pathMatch(.*)*', redirect: { name: 'home' } },
   ],
 })
 

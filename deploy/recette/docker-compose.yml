@@ -69,8 +69,8 @@ services:
     environment:
       DOMAIN: ${DOMAIN}
       ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL manquant dans .env}
-      # Même liste que l'API (CIDR séparés par des espaces). Caddy refuse une liste vide : sans
-      # valeur, `192.0.2.1/32` (plage de documentation, jamais routée) ferme le nom d'hôte console.
+      # Même liste que l'API (CIDR séparés par des espaces). Une liste vide ferme la console à tout
+      # le monde ; par défaut, `192.0.2.1/32` (adresse de documentation, jamais routée) fait de même.
       CONSOLE_ALLOWED_CIDRS: ${CONSOLE_ALLOWED_CIDRS:-192.0.2.1/32}
     ports:
       - "80:80"

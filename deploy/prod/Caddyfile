@@ -97,9 +97,10 @@
 
 	@allowed client_ip {$CONSOLE_ALLOWED_CIDRS}
 	handle @allowed {
-		# Flux en direct (SSE) : ni compression ni tampon. `handle_path` retire le préfixe /api.
+		# Flux en direct (SSE) : ni compression ni tampon. `uri strip_prefix` retire le préfixe /api.
 		@sse path /api/room/stream /api/companies/*/live
-		handle_path @sse {
+		handle @sse {
+			uri strip_prefix /api
 			reverse_proxy api:3001 {
 				flush_interval -1
 			}

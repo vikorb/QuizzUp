@@ -1,6 +1,7 @@
 // Garantie des deux constructions (conception du lot 12, §3) : construit le frontend en mode
 // `centre` puis `console`, et vérifie que le marqueur `data-surface` des écrans réservés à la
-// console est absent de la construction du centre et présent dans celle de la console.
+// console est absent de la construction du centre et présent dans celle de la console, et que
+// les fichiers des écrans de la console (ClientsView, CreateClientView) ne sont que dans la console.
 // Sans cette seconde condition, le contrôle ne pourrait jamais échouer.
 //   node scripts/check-surface.mjs
 import { spawnSync } from 'node:child_process'
@@ -10,6 +11,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const MARKER = 'data-surface'
+const CONSOLE_CHUNKS = /^(ClientsView|CreateClientView)/
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const viteBin = path.join(
   path.dirname(createRequire(import.meta.url).resolve('vite/package.json')),
@@ -43,11 +45,21 @@ function filesWithMarker(dir) {
   return found
 }
 
+function consoleChunks(dir) {
+  return readdirSync(path.join(dir, 'assets')).filter((name) => CONSOLE_CHUNKS.test(name))
+}
+
 let failed = false
 for (const { mode, dir, expectMarker } of surfaces) {
   build(mode)
   const found = filesWithMarker(path.join(root, dir))
-  if (expectMarker && found.length === 0) {
+  const chunks = consoleChunks(path.join(root, dir))
+  if (expectMarker !== chunks.length > 0) {
+    console.error(
+      `check-surface : fichiers d'écrans de console ${expectMarker ? 'absents de' : 'trouvés dans'} ${dir} (construction ${mode}) : ${chunks.join(', ') || 'aucun'}.`
+    )
+    failed = true
+  } else if (expectMarker && found.length === 0) {
     console.error(`check-surface : « ${MARKER} » absent de ${dir} (construction ${mode}).`)
     failed = true
   } else if (!expectMarker && found.length > 0) {

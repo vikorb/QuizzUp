@@ -195,6 +195,10 @@ tmux new -s maj          # ou : nohup ./update.sh vX.Y.Z > update.log 2>&1 &
 ./update.sh vX.Y.Z
 ```
 
+À la première mise à jour vers les deux constructions du frontend (espace centre et console), vider
+une fois le dossier des assets de l'espace centre du volume statique (`/srv/web/app/assets`) : l'ancienne application unique
+y laisse ses fichiers à empreinte.
+
 Lancer la mise à jour dans `tmux` (ou `nohup`) : la construction dure 5 à 10 minutes et une session
 SSH qui tombe en plein milieu coupe le script. Si cela arrive quand même, le script reçoit le signal
 de fin de session et fait le retour arrière décrit plus bas.
