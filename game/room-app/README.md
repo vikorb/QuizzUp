@@ -39,7 +39,7 @@ src/
 ├─ game/        session de jeu (moteur + sauvegarde/reprise), sélecteurs d'affichage, lobby RGPD
 ├─ hardware/    matériel de la page (roomHardware.ts : config, buzzers, lumières), plein écran / wake lock
 ├─ live/        présence en direct : flux `/room/stream`, rapports `/room/status`
-├─ audio/       lecteur silencieux (tests), ponts événements moteur → extraits et sons d'interface
+├─ audio/       lecteur silencieux (tests), ponts événements moteur → extraits, sons d'interface, annonces
 ├─ views/       écrans (login, lancement, lobby, partie) et sous-écrans de phase (views/game)
 └─ components/  composants de jeu (tableau des scores, réponses A-D, minuteur…) et UI du backoffice
 ```
@@ -110,11 +110,66 @@ src/
   complétés avec `VITE_API_URL` ; seuls les extraits **audio** sont préchargés. En mode démo,
   thèmes « sans tubes » dont les extraits `demo://` sont **synthétisés** à la volée
   (`audio/demoSynthPlayer.ts`, libres de droits).
+- **Sources d'audio** : un extrait vient soit d'un fichier importé (`mediaUrl` = chemin relatif de
+  l'API, téléchargé avec le jeton de la salle), soit d'un service tiers (`mediaUrl` = URL absolue
+  `https://…` d'un MP3 de 30 s, signée et à durée de vie courte, accompagnée d'un `mediaCredit`
+  `{ provider: 'deezer', title, artist, coverUrl, link }`). `utils/mediaFetch.ts` n'envoie le jeton
+  qu'à l'origine de l'API : un tiers reçoit `fetch(url, { credentials: 'omit' })`, sans en-tête
+  (son préflight n'accepte que `Range`). Les extraits sont préchargés dès la réception du contenu ;
+  un extrait en échec reste muet, la partie continue. À la reprise après un rechargement, seules les
+  questions de la sauvegarde qui ont un crédit sont redemandées (`refreshSavedMedia` :
+  `GET /room/games/current/content?ids=…`, 200 identifiants au plus par appel, aucun appel s'il n'y
+  en a aucune) pour remplacer leurs liens expirés ; hors ligne, la sauvegarde sert telle quelle. Le
+  crédit (`game/mediaCredits.ts`, table `id de question → crédit`) s'affiche à la révélation
+  seulement : pochette, « artiste — titre », « Extrait fourni par Deezer ». La pochette est chargée
+  à la révélation et masquée si le réseau manque ; l'extrait, lui, est préchargé. **Domaine à autoriser** :
+  `https://*.dzcdn.net` dans `connect-src` de la CSP de l'écran de salle (`deploy/prod/Caddyfile`) ;
+  `img-src` et `media-src` autorisent déjà `https:`.
 - **Config matérielle** : gardée sur le compte de la salle (`rooms.config`), relue via
   `GET /room/me` et enregistrée via `PUT /room/config` (`hardware/hardwareSync.ts`) ; le navigateur
   n'en garde qu'une copie de secours. Chaque enregistrement renvoie la révision lue
   (`configRevision`) : si un autre poste a écrit entre-temps (409), la config du compte remplace
   celle de ce PC, l'écran Matériel prévient l'opérateur et rien n'est renvoyé automatiquement.
+
+### Annonces vocales à enregistrer
+
+Catalogue : `src/audio/announcements.ts` (47 identifiants, texte fr et en), qui sert de script
+d'enregistrement. `src/audio/announcerBridge.ts` donne l'annonce à jouer pour un événement du
+moteur (`announcementForEvent`). **Rien n'est encore branché et aucun fichier son n'est dans le
+dépôt** : l'écran reste muet. Il faut un MP3 mono (environ −16 LUFS) par identifiant et par langue,
+dans `public/announcer/<lang>/<id>.mp3` (ignoré par git), avec un `manifest.json`. Aucune annonce ne
+cite un prénom : on dit le numéro de pupitre.
+
+| Identifiant                 | fr                                         | en                                        |
+| --------------------------- | ------------------------------------------ | ----------------------------------------- |
+| `game.start`                | C’est parti, la partie commence.           | Here we go, the game is starting.         |
+| `round.2` à `round.10`      | Manche deux … Manche dix.                  | Round two … Round ten.                    |
+| `round.last`                | Dernière manche.                           | Final round.                              |
+| `minigame.<code>` (×10)     | Nom du mini-jeu (`game.json`)              | Mini-game name (`game.json`)              |
+| `chooser.desk.1` à `.6`     | Pupitre un, à toi de choisir le thème.     | Desk one, pick the theme.                 |
+| `answer.correct.1` à `.3`   | Bonne réponse. / Exactement. / Bien vu.    | Correct. / Exactly. / Well spotted.       |
+| `answer.wrong.1` à `.2`     | Raté. / Eh non.                            | Wrong. / Not quite.                       |
+| `question.lost`             | Personne n’a trouvé.                       | Nobody got it.                            |
+| `round.end`                 | Fin de la manche, voyons les scores.       | End of the round, let’s see the scores.   |
+| `points.stolen`             | Points volés.                              | Points stolen.                            |
+| `player.eliminated`         | Élimination.                               | Eliminated.                               |
+| `bets.closed`               | Les mises sont faites.                     | Bets are closed.                          |
+| `game.paused`               | Petite pause, on reprend dans un instant.  | Short break, back in a moment.            |
+| `game.resumed`              | On reprend.                                | And we’re back.                           |
+| `game.winner.desk.1` à `.6` | Victoire du pupitre un.                    | Desk one wins.                            |
+| `game.tie`                  | Égalité en tête, bravo à vous.             | It’s a tie at the top, well played.       |
+| `session.exit`              | Merci d’avoir joué. La sortie est par ici. | Thanks for playing. The exit is this way. |
+
+Les noms des 10 mini-jeux sont ceux de `game.miniGames.<code>.name` (un test le vérifie). Les
+annonces de pause (`game.paused`, `game.resumed`) et de sortie (`session.exit`) ne viennent pas du
+moteur : l'écran de salle les dira directement.
+
+Règles de diction : la première manche n'est pas numérotée (« C'est parti, la partie commence »
+puis le nom du mini-jeu : deux annonces, pas trois). La bonne réponse est dite une seule fois par
+question (à `answer_correct` pour le premier buzz, la révélation progressive et le blind test ; à la
+fin de la question pour les autres mini-jeux). Au blind test, la voix ne dit jamais « raté » : elle
+parle à la bonne réponse ou quand personne n'a trouvé. Rien n'est dit en fin de partie sans contenu
+jouable ni quand le meilleur score est 0.
 
 ### Clavier de simulation
 

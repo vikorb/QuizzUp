@@ -1,0 +1,62 @@
+{
+  "stats": {
+    "menu": "Statistics",
+    "title": "Statistics",
+    "subtitle": "Room activity over a period",
+    "defaultPeriod": "With no start date chosen: the {days} days before the end of the period (today by default).",
+    "loading": "Loading statistics...",
+    "empty": "No finished or stopped session in this period.",
+    "retry": "Try again",
+    "filters": {
+      "title": "Filters",
+      "company": "Company",
+      "room": "Room",
+      "allRooms": "All rooms",
+      "from": "From",
+      "to": "To"
+    },
+    "summary": {
+      "title": "Summary of the period"
+    },
+    "bars": {
+      "finished": "Finished sessions",
+      "finishedHint": "{percent} % of sessions",
+      "aborted": "Stopped sessions",
+      "abortedHint": "{percent} % dropout",
+      "withEmail": "Players with an e-mail",
+      "withEmailHint": "{percent} % of players",
+      "withMarketingConsent": "Offers accepted",
+      "withMarketingConsentHint": "{percent} % of players",
+      "returning": "Returning players",
+      "returningHint": "{percent} % of e-mails"
+    },
+    "figures": {
+      "medianDuration": "Median session length",
+      "players": "Players welcomed",
+      "averagePerSession": "Players per session"
+    },
+    "rooms": {
+      "title": "Sessions by room",
+      "columns": {
+        "room": "Room",
+        "finished": "Finished",
+        "aborted": "Stopped"
+      }
+    },
+    "slots": {
+      "title": "Busiest time slots",
+      "empty": "No time slot in this period.",
+      "label": "{day}, {from}:00 to {to}:00"
+    },
+    "errors": {
+      "unauthorized": "You must be signed in to see the statistics.",
+      "forbidden": "You do not have the rights to see the statistics.",
+      "apiUnreachable": "API unreachable.",
+      "invalidJson": "The server response cannot be read.",
+      "invalidParams": "Invalid parameters.",
+      "statsPeriodInvalid": "The chosen period is invalid: the start must come before the end, over {days} days at most.",
+      "statsTimezoneInvalid": "The server does not recognise your browser time zone.",
+      "serverError": "Server error."
+    }
+  }
+}

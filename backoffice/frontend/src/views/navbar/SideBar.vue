@@ -44,7 +44,8 @@ import {
   mdiPaletteOutline,
   mdiPlayCircleOutline,
 } from '@mdi/js'
-import { ADMIN_ROLE_SUPERADMIN } from '@quizzup/shared'
+import { ADMIN_ROLE_ADMIN, ADMIN_ROLE_SUPERADMIN } from '@quizzup/shared'
+import { navItems as surfaceNavItems } from '@surface'
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 
@@ -96,16 +97,10 @@ const navManage = computed(() => {
     },
   ] as const
 
-  if (isSuperadmin.value) {
-    return [
-      {
-        to: '/clients',
-        icon: mdiBriefcaseAccountOutline,
-        iconType: 'mdi' as const,
-        labelKey: 'navbar.clients',
-      },
-      ...base,
-    ]
+  // Entrées de la console de l'éditeur : vides dans l'espace centre, où le superadmin retombe sur
+  // le lien de sa propre compagnie.
+  if (isSuperadmin.value && surfaceNavItems.length > 0) {
+    return [...surfaceNavItems, ...base]
   }
 
   if (currentCompanyId.value) {
@@ -123,7 +118,12 @@ const navManage = computed(() => {
   return [...base]
 })
 
-const navPlay = [
+// Les statistiques sont réservées à l'admin et au superadmin (matrice de permissions du backend).
+const canSeeStats = computed(
+  () => me.value?.role === ADMIN_ROLE_SUPERADMIN || me.value?.role === ADMIN_ROLE_ADMIN
+)
+
+const navPlay = computed(() => [
   { to: '/games', icon: mdiPlayCircleOutline, iconType: 'mdi' as const, labelKey: 'navbar.games' },
   {
     to: '/agenda',
@@ -132,13 +132,18 @@ const navPlay = [
     // Dans `agenda.json` (fr et en) : `navbar.json` n'a pas d'équivalent anglais.
     labelKey: 'agenda.menu',
   },
-  {
-    to: '/stats',
-    icon: mdiChartTimelineVariant,
-    iconType: 'mdi' as const,
-    labelKey: 'navbar.statistics',
-  },
-]
+  ...(canSeeStats.value
+    ? [
+        {
+          to: '/stats',
+          icon: mdiChartTimelineVariant,
+          iconType: 'mdi' as const,
+          // Dans `stats.json` (fr et en) : `navbar.json` n'a pas d'équivalent anglais.
+          labelKey: 'stats.menu',
+        },
+      ]
+    : []),
+])
 </script>
 
 <style scoped>

@@ -11,6 +11,23 @@ Format inspiré de Keep a Changelog.
 - Accueil des joueurs, API du personnel : lien d'inscription d'une partie en attente (`POST` / `DELETE …/games/:gameId/join`, jeton valable 180 minutes, renouvelable), demandes d'inscription (`GET …/registrations`, validation avec attribution d'un pupitre, refus), ajout et retrait d'un participant tant que la partie est en attente, `openJoin` à la création. `join` et `pendingRegistrationsCount` sont renvoyés avec la partie, y compris à l'écran de salle. Les demandes de plus de 24 heures ou d'une partie qui n'est plus en attente sont purgées. `room_busy` ne vise plus que la partie en attente : une partie en cours ne bloque plus la préparation de la suivante.
   US: US-JOIN-01 (#166)
 
+- Extraits de blind test fournis par Deezer : dans le champ audio d'une question, l'auteur cherche un titre (`GET /media-catalog/tracks`), l'écoute et le rattache à la question (`PUT /questions/:questionId/media/provider`). Un titre sans extrait est refusé. Une question référence soit un fichier importé, soit un titre (`media_provider`, `media_provider_ref`), jamais les deux. Au lancement d'une partie, le serveur donne à la salle le lien d'extrait à jour et le crédit ; l'écran de salle télécharge l'extrait sans jeton de salle et affiche « Extrait fourni par Deezer » à la révélation. Si le fournisseur ne répond pas, la question est écartée et la partie démarre.
+  US: US-AUDIO-03 (#185)
+- Formats de partie partagés : Découverte (3 manches × 3 questions), Courte (6 × 7), Standard (10 × 10) et Personnalisé, avec la durée estimée d'une partie calculée depuis les délais du moteur (`GAME_FORMATS`, `GAME_FORMAT_SETTINGS`, `estimateGameDurationMs` dans `@quizzup/shared`). Le lobby du mode démo de l'écran de salle propose ces formats, Découverte par défaut, avec leur durée estimée.
+  US: US-FORMAT-01 (#143)
+- Programmer une session depuis le formulaire de création de partie : la case « Programmer pour plus tard » ouvre la date, l'heure (dans le fuseau de la salle), la durée et l'effectif annoncé ; une session programmée peut n'avoir aucun joueur. Le formulaire se préremplit depuis l'agenda (`?roomId=`, `?scheduledAt=`). Une session programmée se modifie par le même formulaire (route `games/:gameId/edit`, bouton « Modifier » de l'agenda). Les refus du serveur (`slot_taken`, `session_in_past`, `session_too_far`, `room_inactive`) s'affichent sur le champ concerné.
+  US: US-SESSION-01 (#142)
+- Écran de salle : catalogue des 48 annonces vocales (identifiant, texte français et anglais) et correspondance événement de partie → annonce (`announcementForEvent`). Une annonce cite le numéro de pupitre, jamais un prénom ; aucune annonce pendant un palier de blind test. Aucun fichier son n'est livré et rien n'est encore branché : l'écran reste muet.
+  US: US-AUDIO-02 (#144)
+- Détail d'une partie : panneau de suivi en direct (présence de la salle, pause, étape, manche, question, mini-jeu, scores par pupitre avec le nom des joueurs), alimenté par le flux en direct de la compagnie. Il ne s'affiche que si la salle joue la partie affichée ; hors ligne, il garde les dernières valeurs reçues.
+  US: US-LIVE-01 (#129)
+- Deux constructions du frontend : la surface « centre » (`npm run build:centre`, dossier `dist`) ne contient aucun écran de la console éditeur ; la surface « console » (`npm run build:console`, dossier `dist-console`) les ajoute. `npm run check:surface` construit les deux et échoue si un écran de la console se retrouve dans la surface centre ; la CI le lance. En production et en recette, la console est servie sur son propre hôte, réservé aux adresses de `CONSOLE_ALLOWED_CIDRS`. `npm run dev` et la démo Docker gardent tous les écrans.
+  US: US-CONSOLE-01 (#161)
+
+- Journaux d'erreurs d'une salle consultables depuis le tableau des salles d'un client : panneau en ligne avec filtre par niveau, actualisation et « charger plus », réservé aux administrateurs.
+  US: US-LOG-01 (#157)
+- Statistiques d'exploitation d'une compagnie : route `GET /companies/:companyId/stats` et écran « Statistiques » (séances terminées et arrêtées, taux d'abandon, durée médiane, répartition par salle, joueurs, créneaux les plus chargés), réservés aux administrateurs. Aucune donnée individuelle ne sort.
+  US: US-STATS-01 (#157)
 - Connexion du superadmin en deux temps : code de l'application d'authentification ou code de secours, enrôlement avec secret à recopier (sans QR code), codes de secours affichés une seule fois, réinitialisation depuis le profil. Les autres rôles se connectent comme avant.
   US: US-CONSOLE-03 (#161)
 

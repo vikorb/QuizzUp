@@ -30,6 +30,22 @@
       </ul>
     </template>
 
+    <div v-if="credit" class="reveal__credit">
+      <img
+        v-if="credit.coverUrl && credit.coverUrl !== failedCover"
+        class="reveal__cover"
+        :src="credit.coverUrl"
+        alt=""
+        @error="failedCover = credit.coverUrl"
+      />
+      <div class="reveal__credit-text">
+        <span class="reveal__credit-track">{{
+          $t('game.reveal.creditTrack', { artist: credit.artist, title: credit.title })
+        }}</span>
+        <span class="reveal__credit-source">{{ $t('game.reveal.creditDeezer') }}</span>
+      </div>
+    </div>
+
     <AnswerGrid :answers="view.question.answers" :correct-ids="view.correctAnswerIds" />
   </section>
 </template>
@@ -37,10 +53,11 @@
 <script setup lang="ts">
 import type { EngineParticipant } from '@quizzup/game-engine'
 import { MINI_GAME_FLASH_BLIND_TEST, QUESTION_MEDIA_TYPE_IMAGE } from '@quizzup/shared'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 import AnswerGrid from '@/components/game/AnswerGrid.vue'
 import DeskBadge from '@/components/game/DeskBadge.vue'
+import { getMediaCredit } from '@/game/mediaCredits'
 import type { RevealView } from '@/game/selectors'
 
 const props = defineProps<{
@@ -53,6 +70,12 @@ const props = defineProps<{
 const imageUrl = computed(() =>
   props.view.question.mediaType === QUESTION_MEDIA_TYPE_IMAGE ? props.view.question.mediaUrl : null
 )
+
+/** Extrait fourni par un service tiers : crédité ici seulement, la réponse est révélée. */
+const credit = computed(() => getMediaCredit(props.view.question.id))
+
+/** Pochette illisible : retirée, sans icône d'image cassée. */
+const failedCover = ref<string | null>(null)
 
 const isBlindTest = computed(() => props.view.miniGame === MINI_GAME_FLASH_BLIND_TEST)
 
@@ -93,6 +116,41 @@ const lines = computed(() =>
   border-radius: 18px;
   border: 1px solid var(--border-2);
   box-shadow: 0 0 32px -8px var(--glow-cyan);
+}
+
+.reveal__credit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  max-width: 100%;
+}
+
+.reveal__cover {
+  flex: none;
+  width: clamp(56px, 9vh, 96px);
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--radius-ctl);
+  border: 1px solid var(--border-ui);
+}
+
+.reveal__credit-text {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.reveal__credit-track {
+  font-size: var(--stage-text);
+  font-weight: 800;
+  color: var(--text-1);
+}
+
+.reveal__credit-source {
+  font-size: var(--stage-small);
+  color: var(--text-2);
 }
 
 .reveal__label {

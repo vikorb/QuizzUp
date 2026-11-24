@@ -84,6 +84,7 @@
         "enableConfirm": "Voulez-vous vraiment activer la salle {name} ?",
         "disableConfirm": "Voulez-vous vraiment désactiver la salle {name} ?",
         "account": "Gérer le compte de salle",
+        "logs": "Voir les journaux d’erreurs",
         "schedule": "Régler les créneaux de la salle"
       }
     },
@@ -244,6 +245,48 @@
         "server_error": "Erreur serveur.",
         "api_unreachable": "Le serveur est actuellement inaccessible.",
         "default": "Une erreur est survenue."
+      }
+    },
+    "logs": {
+      "title": "Journaux d’erreurs — {name}",
+      "loading": "Chargement des journaux...",
+      "empty": "Aucune erreur remontée par cette salle.",
+      "firstOccurrence": "Première occurrence côté salle : {date}",
+      "errors": {
+        "serverError": "Erreur serveur lors du chargement des journaux.",
+        "forbidden": "Vous n’avez pas les droits nécessaires pour consulter les journaux.",
+        "apiUnreachable": "Le serveur est actuellement inaccessible.",
+        "notFound": "Salle introuvable.",
+        "default": "Une erreur est survenue lors du chargement des journaux."
+      },
+      "occurrences": "{count} occurrences",
+      "levels": {
+        "error": "Erreur",
+        "warn": "Avertissement"
+      },
+      "filters": {
+        "levelLabel": "Niveau",
+        "level": {
+          "all": "Tous les niveaux"
+        }
+      },
+      "details": {
+        "toggle": "Détails",
+        "appVersion": "Version de l’écran de salle"
+      },
+      "context": {
+        "route": "Écran",
+        "phase": "Phase",
+        "miniGame": "Mini-jeu",
+        "desk": "Pupitre",
+        "driver": "Pilote des lumières",
+        "httpStatus": "Code HTTP"
+      },
+      "actions": {
+        "refresh": "Actualiser les journaux",
+        "close": "Fermer les journaux",
+        "loadMore": "Charger plus",
+        "loadingMore": "Chargement..."
       }
     }
   }

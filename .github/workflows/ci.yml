@@ -50,6 +50,11 @@ jobs:
       - name: Build du frontend
         run: npm --prefix frontend run build
 
+      # Construit les deux surfaces (centre, console) et échoue si le code réservé à la console se
+      # retrouve dans la construction du centre (ou n'est plus dans celle de la console).
+      - name: Deux constructions du frontend (centre et console)
+        run: npm --prefix frontend run check:surface
+
       - name: Tests
         run: npm test
 

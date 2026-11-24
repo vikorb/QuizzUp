@@ -100,6 +100,7 @@ vi.mock('@/services/roomsService', async () => {
     loadRoomAccountService: roomsService.loadRoomAccountServiceMock,
     createRoomAccountService: roomsService.createRoomAccountServiceMock,
     deleteRoomAccountService: roomsService.deleteRoomAccountServiceMock,
+    loadRoomLogsService: roomsService.loadRoomLogsServiceMock,
   }
 })
 
@@ -172,6 +173,8 @@ vi.mock('@/services/questionMediaService', async () => {
   return {
     uploadQuestionMediaService: questionMediaService.uploadQuestionMediaServiceMock,
     deleteQuestionMediaService: questionMediaService.deleteQuestionMediaServiceMock,
+    attachQuestionMediaProviderService: questionMediaService.attachQuestionMediaProviderServiceMock,
+    searchMediaCatalogTracksService: questionMediaService.searchMediaCatalogTracksServiceMock,
     fetchQuestionMediaBlobService: questionMediaService.fetchQuestionMediaBlobServiceMock,
   }
 })

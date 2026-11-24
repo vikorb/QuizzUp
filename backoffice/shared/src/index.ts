@@ -481,6 +481,112 @@ export const GAME_BUZZERS_PER_PODIUM = 4 as const
 /** Joueurs d'une partie : deux par pupitre (CHECK `games.players_count`, 1 à ce plafond). */
 export const GAME_MAX_PLAYERS = GAME_PODIUMS * 2
 
+/**
+ * Formats de partie. Un format ne fixe que le nombre de manches et de questions : les mini-jeux
+ * restent choisis à part. `custom` laisse les deux nombres libres (1 à `GAME_MAX_*`).
+ */
+export const GAME_FORMAT_DISCOVERY = 'discovery' as const
+export const GAME_FORMAT_SHORT = 'short' as const
+export const GAME_FORMAT_STANDARD = 'standard' as const
+export const GAME_FORMAT_CUSTOM = 'custom' as const
+
+export const GAME_FORMATS = [
+  GAME_FORMAT_DISCOVERY,
+  GAME_FORMAT_SHORT,
+  GAME_FORMAT_STANDARD,
+  GAME_FORMAT_CUSTOM,
+] as const
+
+export type GameFormat = (typeof GAME_FORMATS)[number]
+
+export const GAME_DEFAULT_FORMAT = GAME_FORMAT_STANDARD
+
+export type GameFormatSettings = { roundsCount: number; questionsPerRound: number }
+
+/** Manches et questions des formats à nombres fixes (`custom` n'en a pas). */
+export const GAME_FORMAT_SETTINGS: Record<
+  Exclude<GameFormat, typeof GAME_FORMAT_CUSTOM>,
+  GameFormatSettings
+> = {
+  [GAME_FORMAT_DISCOVERY]: { roundsCount: 3, questionsPerRound: 3 },
+  [GAME_FORMAT_SHORT]: { roundsCount: 6, questionsPerRound: 7 },
+  [GAME_FORMAT_STANDARD]: {
+    roundsCount: GAME_DEFAULT_ROUNDS,
+    questionsPerRound: GAME_DEFAULT_QUESTIONS_PER_ROUND,
+  },
+}
+
+/**
+ * Délais du moteur de jeu entre deux étapes (le moteur les réexporte sous `DEFAULT_GAME_TIMINGS`).
+ * `themeChoiceMs` est un plafond : le joueur désigné choisit souvent plus vite.
+ */
+export const GAME_DEFAULT_TIMINGS_MS = Object.freeze({
+  roundIntroMs: 4000,
+  themeChoiceMs: 15_000,
+  revealMs: 5000,
+  roundSummaryMs: 8000,
+})
+
+/** Choix du thème en temps typique, pour l'estimation (le plafond est `themeChoiceMs`). */
+export const THEME_CHOICE_TYPICAL_MS = 7000
+
+export type DurationEstimate = { typicalMs: number; highMs: number }
+
+/**
+ * Durée d'une question de chaque mini-jeu, révélation comprise. `highMs` : toutes les échéances
+ * atteintes, un buzz à la dernière seconde (le jeu de buzz ajoute alors 5 s de réponse), sans
+ * mauvaise réponse (une erreur ajoute jusqu'à 5 s). `typicalMs` : hypothèses à recaler sur le
+ * banc. Un test du moteur vérifie `highMs` contre ses constantes.
+ */
+export const MINI_GAME_QUESTION_ESTIMATES_MS: Record<MiniGame, DurationEstimate> = {
+  [MINI_GAME_FLASH_BLIND_TEST]: { typicalMs: 18_000, highMs: 45_000 },
+  [MINI_GAME_QUICK_ANSWER]: { typicalMs: 14_000, highMs: 20_000 },
+  [MINI_GAME_FIRST_BUZZ]: { typicalMs: 14_000, highMs: 25_000 },
+  [MINI_GAME_TRUE_FALSE]: { typicalMs: 6100, highMs: 8500 },
+  [MINI_GAME_DOUBLE_OR_NOTHING]: { typicalMs: 18_000, highMs: 28_000 },
+  [MINI_GAME_SUDDEN_DEATH]: { typicalMs: 14_000, highMs: 20_000 },
+  [MINI_GAME_POINT_STEAL]: { typicalMs: 18_000, highMs: 28_000 },
+  [MINI_GAME_STREAK]: { typicalMs: 14_000, highMs: 20_000 },
+  [MINI_GAME_ESTIMATE]: { typicalMs: 17_000, highMs: 25_000 },
+  [MINI_GAME_PROGRESSIVE_REVEAL]: { typicalMs: 16_000, highMs: 30_000 },
+}
+
+function toCount(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0
+}
+
+/**
+ * Durée estimée du jeu d'une partie (hors accueil et podium), avec les délais par défaut :
+ * `R × (intro + choix du thème + bilan) + R × Q × moyenne des mini-jeux`. `miniGames` absent ou
+ * vide, ou sans code connu : tous. Nombres négatifs, décimaux ou non finis : ramenés à un entier ≥ 0.
+ */
+export function estimateGameDurationMs(input: {
+  roundsCount: number
+  questionsPerRound: number
+  miniGames?: readonly MiniGame[]
+}): DurationEstimate {
+  const rounds = toCount(input.roundsCount)
+  const questions = rounds * toCount(input.questionsPerRound)
+  const known: readonly MiniGame[] =
+    input.miniGames?.filter((miniGame) => MINI_GAMES.some((code) => code === miniGame)) ?? []
+  const games = known.length ? known : MINI_GAMES
+  const { roundIntroMs, themeChoiceMs, roundSummaryMs } = GAME_DEFAULT_TIMINGS_MS
+
+  const average = (key: keyof DurationEstimate): number =>
+    games.reduce((sum, miniGame) => sum + MINI_GAME_QUESTION_ESTIMATES_MS[miniGame][key], 0) /
+    games.length
+
+  return {
+    typicalMs: Math.round(
+      rounds * (roundIntroMs + THEME_CHOICE_TYPICAL_MS + roundSummaryMs) +
+        questions * average('typicalMs')
+    ),
+    highMs: Math.round(
+      rounds * (roundIntroMs + themeChoiceMs + roundSummaryMs) + questions * average('highMs')
+    ),
+  }
+}
+
 /** Pupitres d'une salle neuve (4 par défaut, réglable de 1 à `GAME_PODIUMS`). */
 export const ROOM_DEFAULT_DESKS = 4 as const
 export const ROOM_MIN_DESKS = 1 as const
@@ -573,6 +679,25 @@ export const QUESTION_AUDIO_DEFAULT_MAX_BYTES = 10 * 1024 * 1024
  * éclair (20 s, porté par le moteur de jeu). En dessous, le backoffice avertit seulement.
  */
 export const QUESTION_AUDIO_RECOMMENDED_EXCERPT_MS = 20_000
+
+/**
+ * Extrait audio fourni par un service d'extraits plutôt que par un fichier importé : la question
+ * garde seulement le fournisseur et la référence du titre. Un seul fournisseur aujourd'hui.
+ */
+export const QUESTION_MEDIA_PROVIDER_DEEZER = 'deezer' as const
+
+export const QUESTION_MEDIA_PROVIDERS = [QUESTION_MEDIA_PROVIDER_DEEZER] as const
+
+export type QuestionMediaProvider = (typeof QUESTION_MEDIA_PROVIDERS)[number]
+
+/** Durée de l'extrait fourni par le fournisseur. */
+export const QUESTION_MEDIA_PROVIDER_EXTRACT_MS = 30_000
+
+/** Longueur minimale d'une recherche de titre (vérifiée par l'API, aussi par l'écran). */
+export const QUESTION_MEDIA_PROVIDER_SEARCH_MIN_LENGTH = 2
+
+/** Questions demandées au plus par appel au contenu de la salle (`?ids=`). */
+export const ROOM_CONTENT_MAX_IDS = 200
 
 /**
  * RGPD : durée de conservation de l'email d'un joueur, en années après sa dernière partie.
@@ -724,5 +849,6 @@ export * from './logos.js'
 export * from './demoRequests.js'
 export * from './schedule.js'
 export * from './questionImport.js'
+export * from './stats.js'
 export * from './totp.js'
 export * from './join.js'

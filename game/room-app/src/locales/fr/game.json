@@ -129,7 +129,9 @@
     "reveal": {
       "winner": "{name} trouve au palier {stage}",
       "nobody": "Personne n’a trouvé",
-      "answer": "La bonne réponse"
+      "answer": "La bonne réponse",
+      "creditTrack": "{artist} — {title}",
+      "creditDeezer": "Extrait fourni par Deezer"
     },
     "summary": {
       "title": "Fin de la manche {position}",

@@ -1,4 +1,6 @@
-import type { Question } from '@/types/question'
+import type { QuestionMediaProvider } from '@quizzup/shared'
+
+import type { MediaCatalogTrack, Question } from '@/types/question'
 import { apiFetch } from '@/utils/api'
 import { getAudioMimeType } from '@/utils/question/audio'
 
@@ -6,6 +8,11 @@ import { QuestionMediaError, type QuestionMediaErrorCode } from './questionMedia
 
 type QuestionResponse = {
   question: Question | null
+}
+
+type AttachQuestionMediaProviderPayload = {
+  provider: QuestionMediaProvider
+  ref: string
 }
 
 export type UploadQuestionMediaPayload = {
@@ -22,6 +29,13 @@ const KNOWN_ERROR_CODES: QuestionMediaErrorCode[] = [
   'question_media_not_found',
   'question_media_too_large',
   'question_media_type_unsupported',
+  'invalid_query',
+  'media_provider_unavailable',
+  'question_media_provider_invalid',
+  'question_not_found',
+  'question_media_provider_track_not_found',
+  'question_media_provider_no_preview',
+  'question_kind_media_invalid',
   'forbidden',
 ]
 
@@ -97,6 +111,49 @@ export async function uploadQuestionMediaService(
   }
 
   return readQuestion(response)
+}
+
+/** Rattache la question à un titre du fournisseur d'extraits (remplace un éventuel fichier). */
+export async function attachQuestionMediaProviderService(
+  questionId: number,
+  payload: AttachQuestionMediaProviderPayload
+): Promise<Question> {
+  const response = await apiFetch({
+    path: `/questions/${questionId}/media/provider`,
+    method: 'PUT',
+    authenticated: true,
+    body: JSON.stringify(payload),
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
+
+  if (!response?.ok) {
+    throw await readMediaError(response)
+  }
+
+  return readQuestion(response)
+}
+
+/** Recherche de titres chez le fournisseur d'extraits. */
+export async function searchMediaCatalogTracksService(query: string): Promise<MediaCatalogTrack[]> {
+  const response = await apiFetch({
+    path: `/media-catalog/tracks?${new URLSearchParams({ q: query }).toString()}`,
+    method: 'GET',
+    authenticated: true,
+  })
+
+  if (!response?.ok) {
+    throw await readMediaError(response)
+  }
+
+  const data = (await response.json().catch(() => null)) as { items?: unknown } | null
+
+  if (!Array.isArray(data?.items)) {
+    throw new QuestionMediaError('server_error')
+  }
+
+  return data.items as MediaCatalogTrack[]
 }
 
 export async function deleteQuestionMediaService(questionId: number): Promise<Question> {

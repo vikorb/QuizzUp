@@ -6,7 +6,7 @@
       class="ff__control"
       :class="{
         neon,
-        'ff__control--error': !!error,
+        'ff__control--error': isInvalid,
       }"
     >
       <slot name="left" />
@@ -26,8 +26,8 @@
         :inputmode="inputmode"
         :autocapitalize="autocapitalize"
         :spellcheck="spellcheck"
-        :aria-invalid="!!error"
-        :aria-describedby="describedBy"
+        :aria-invalid="isInvalid"
+        :aria-describedby="ariaDescribedBy"
         @input="onInput"
         @blur="$emit('blur')"
         @keydown.enter="$emit('enter')"
@@ -53,7 +53,7 @@ const props = withDefaults(
     name?: string
     id?: string
     placeholder?: string
-    type?: 'text' | 'email' | 'password' | 'date'
+    type?: 'text' | 'email' | 'password' | 'date' | 'time'
     autocomplete?: string
     inputmode?: 'text' | 'email' | 'numeric' | 'search' | 'tel' | 'url' | 'none'
     autocapitalize?: 'none' | 'off' | 'on' | 'sentences' | 'words' | 'characters'
@@ -62,6 +62,10 @@ const props = withDefaults(
     disabled?: boolean
     error?: string
     hint?: string
+    /** Invalide sans texte d'erreur propre : l'erreur affichée par un champ voisin le concerne aussi. */
+    invalid?: boolean
+    /** Id du texte d'erreur de ce champ voisin. */
+    describedBy?: string
     as?: 'input' | 'textarea'
     rows?: number
     neon?: boolean
@@ -71,6 +75,7 @@ const props = withDefaults(
     as: 'input',
     required: false,
     disabled: false,
+    invalid: false,
     neon: false,
   }
 )
@@ -86,9 +91,14 @@ const id = computed(() => props.id ?? `ff_${uid}`)
 
 const hintId = computed(() => `${id.value}_hint`)
 const errorId = computed(() => `${id.value}_error`)
-const describedBy = computed(() =>
-  props.error ? errorId.value : props.hint ? hintId.value : undefined
-)
+const isInvalid = computed(() => Boolean(props.error) || props.invalid)
+const ariaDescribedBy = computed(() => {
+  if (props.error) {
+    return errorId.value
+  }
+
+  return props.invalid ? props.describedBy : props.hint ? hintId.value : undefined
+})
 
 const inputAttrs = computed(() => {
   if (props.as !== 'textarea') return {}

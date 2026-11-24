@@ -8,6 +8,7 @@ import {
   GAME_STATUS_DELETED,
   QUESTION_MEDIA_TYPE_AUDIO,
   QUESTION_STATUS_ACTIVE,
+  ROOM_CONTENT_MAX_IDS,
   ROOM_STATUS_DELETED,
 } from '@quizzup/shared'
 import db from '../db'
@@ -33,6 +34,20 @@ const roomConfigBodySchema = z.object({
   config: roomConfigSchema,
   // Révision lue avec la config (`configRevision`). Absente : l'ancien comportement, on écrase.
   revision: z.number().int().min(0).optional(),
+})
+
+// `ids` : identifiants de questions séparés par des virgules (entiers positifs, dédupliqués).
+const roomContentQuerySchema = z.object({
+  ids: z
+    .string()
+    .transform((value) => value.split(','))
+    .pipe(
+      z
+        .array(z.string().regex(/^\d+$/).transform(Number).pipe(z.number().int().positive()))
+        .max(ROOM_CONTENT_MAX_IDS)
+    )
+    .transform((ids) => [...new Set(ids)])
+    .optional(),
 })
 
 const roomQuestionParamsSchema = z.object({
@@ -202,17 +217,26 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
     return { game: game ? await addGameJoin(game) : null }
   })
 
-  // Catalogue de la partie en cours : seules les questions audio avec un fichier sont jouables.
+  // Catalogue de la partie en cours : une question audio n'est jouable qu'avec un fichier ou un
+  // extrait de fournisseur qui répond. `?ids=` le limite à ces questions (reprise d'une partie).
   app.get('/room/games/current/content', { preHandler: [app.authenticate] }, async (req, reply) => {
     if (!isRoomAccount(req)) {
       return reply.code(403).send({ error: 'forbidden' })
+    }
+
+    const parsedQuery = roomContentQuerySchema.safeParse(req.query)
+
+    if (!parsedQuery.success) {
+      return reply.code(400).send({ error: 'invalid_query', details: parsedQuery.error.flatten() })
     }
 
     if ((await findCurrentRoomGameId(req)) === null) {
       return reply.code(404).send({ error: 'game_not_found' })
     }
 
-    return { themes: await loadRoomContent(req.user.company_id) }
+    return {
+      themes: await loadRoomContent(req.user.company_id, req.log, parsedQuery.data.ids),
+    }
   })
 
   // Extrait audio d'une question jouable, lisible seulement pendant une partie de la salle.

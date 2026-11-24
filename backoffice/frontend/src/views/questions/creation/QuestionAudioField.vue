@@ -23,23 +23,55 @@
         </UiButton>
 
         <UiButton
-          v-if="hasFile"
+          type="button"
+          :class="{ 'audio-field__seg--active': searching }"
+          :disabled="disabled"
+          :aria-expanded="searching"
+          data-test="audio-search-toggle"
+          @click="searching = !searching"
+        >
+          <MdIcon :path="mdiMagnify" :size="18" />
+          {{
+            hasTrack
+              ? $t('questions.form.audio.search.change')
+              : $t('questions.form.audio.search.open')
+          }}
+        </UiButton>
+
+        <UiButton
+          v-if="hasSource"
           type="button"
           variant="icon"
           :disabled="disabled"
           :title="$t('questions.form.audio.remove')"
           :aria-label="$t('questions.form.audio.remove')"
           data-test="audio-remove"
-          @click="removeFile"
+          @click="removeSource"
         >
           <MdIcon :path="mdiTrashCanOutline" :size="18" />
         </UiButton>
       </div>
     </div>
 
-    <p v-if="!hasFile" class="audio-field__empty">
+    <QuestionAudioTrackSearch v-if="searching" :disabled="disabled" @choose="chooseTrack" />
+
+    <p v-if="!hasSource" class="audio-field__empty">
       {{ $t('questions.form.audio.empty', { max: maxSizeLabel }) }}
     </p>
+
+    <div v-else-if="hasTrack" class="audio-field__file" data-test="audio-track">
+      <MdIcon :path="mdiMusicNote" :size="20" class="audio-field__file-icon" />
+      <span class="audio-field__file-name" data-test="audio-track-name">{{ trackName }}</span>
+      <span class="audio-field__file-meta" data-test="audio-track-meta">
+        {{ $t('questions.form.audio.search.credit') }} ·
+        {{
+          $t('questions.form.audio.search.extract', {
+            seconds: QUESTION_MEDIA_PROVIDER_EXTRACT_MS / 1000,
+          })
+        }}
+        <template v-if="modelValue.track">· {{ $t('questions.form.audio.pending') }}</template>
+      </span>
+    </div>
 
     <template v-else>
       <div class="audio-field__file">
@@ -167,6 +199,7 @@
 
 <script setup lang="ts">
 import {
+  mdiMagnify,
   mdiMapMarkerOutline,
   mdiMusicNote,
   mdiPlay,
@@ -174,7 +207,11 @@ import {
   mdiTrashCanOutline,
   mdiUpload,
 } from '@mdi/js'
-import { QUESTION_AUDIO_DEFAULT_MAX_BYTES } from '@quizzup/shared'
+import {
+  QUESTION_AUDIO_DEFAULT_MAX_BYTES,
+  QUESTION_MEDIA_PROVIDER_EXTRACT_MS,
+  type QuestionMediaProvider,
+} from '@quizzup/shared'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -183,7 +220,7 @@ import MdIcon from '@/components/ui/MdIcon.vue'
 import Tooltip from '@/components/ui/Tooltip.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { fetchQuestionMediaBlobService } from '@/services/questionMediaService'
-import type { QuestionAudioState, QuestionMediaFile } from '@/types/question'
+import type { MediaCatalogTrack, QuestionAudioState, QuestionMediaFile } from '@/types/question'
 import {
   AUDIO_FILE_ACCEPT,
   AUDIO_PREVIEW_DURATIONS_MS,
@@ -191,21 +228,29 @@ import {
   clampStartMs,
   formatAudioTime,
   formatFileSize,
+  formatTrackLabel,
   isExcerptTooShort,
   measureAudioDurationMs,
   validateAudioFile,
 } from '@/utils/question/audio'
 
+import QuestionAudioTrackSearch from './QuestionAudioTrackSearch.vue'
+
 const props = withDefaults(
   defineProps<{
     modelValue: QuestionAudioState
     existingFile?: QuestionMediaFile | null
+    /** Titre déjà rattaché à la question enregistrée, et son libellé s'il est connu. */
+    existingProvider?: QuestionMediaProvider | null
+    existingProviderLabel?: string | null
     questionId?: number | null
     disabled?: boolean
     error?: string
   }>(),
   {
     existingFile: null,
+    existingProvider: null,
+    existingProviderLabel: null,
     questionId: null,
     disabled: false,
     error: '',
@@ -224,6 +269,7 @@ const pendingUrl = ref<string | null>(null)
 const existingUrl = ref<string | null>(null)
 const loadingSource = ref(false)
 const previewError = ref<string | null>(null)
+const searching = ref(false)
 const isPlaying = ref(false)
 const playingDurationMs = ref<number | null>(null)
 const currentPositionMs = ref(0)
@@ -239,7 +285,29 @@ const visibleExistingFile = computed(() =>
   props.modelValue.removeExisting ? null : props.existingFile
 )
 
-const hasFile = computed(() => isPendingUpload.value || visibleExistingFile.value !== null)
+const visibleExistingProvider = computed(() =>
+  props.modelValue.removeExisting ? null : props.existingProvider
+)
+
+// Un titre choisi (ou déjà rattaché) prime sur un fichier enregistré, qu'il va remplacer ;
+// un fichier choisi prime sur un titre rattaché.
+const hasTrack = computed(
+  () =>
+    !isPendingUpload.value &&
+    (props.modelValue.track !== null || visibleExistingProvider.value !== null)
+)
+
+const hasFile = computed(
+  () => !hasTrack.value && (isPendingUpload.value || visibleExistingFile.value !== null)
+)
+
+const hasSource = computed(() => hasFile.value || hasTrack.value)
+
+const trackName = computed(() =>
+  props.modelValue.track
+    ? formatTrackLabel(props.modelValue.track)
+    : (props.existingProviderLabel ?? t('questions.form.audio.search.unnamed'))
+)
 
 const fileName = computed(
   () =>
@@ -297,6 +365,7 @@ async function onFileChange(event: Event): Promise<void> {
 
   stopPreview()
   previewError.value = null
+  searching.value = false
 
   const fileError = validateAudioFile(file)
 
@@ -309,7 +378,14 @@ async function onFileChange(event: Event): Promise<void> {
   pendingUrl.value = URL.createObjectURL(file)
 
   // Le fichier est retenu tout de suite ; l'enregistrement attend la fin de la mesure.
-  update({ file, durationMs: null, measuring: true, rightsAttested: false, removeExisting: false })
+  update({
+    file,
+    track: null,
+    durationMs: null,
+    measuring: true,
+    rightsAttested: false,
+    removeExisting: false,
+  })
 
   const measuredMs = await measureAudioDurationMs(pendingUrl.value)
 
@@ -324,30 +400,53 @@ async function onFileChange(event: Event): Promise<void> {
   })
 }
 
-function removeFile(): void {
+function chooseTrack(track: MediaCatalogTrack): void {
+  stopPreview()
+  revokePendingUrl()
+  previewError.value = null
+  currentPositionMs.value = 0
+  searching.value = false
+
+  update({
+    track,
+    file: null,
+    durationMs: null,
+    measuring: false,
+    rightsAttested: false,
+    removeExisting: false,
+  })
+}
+
+function removeSource(): void {
   stopPreview()
   revokePendingUrl()
   currentPositionMs.value = 0
 
+  const hasExisting = visibleExistingFile.value !== null || visibleExistingProvider.value !== null
+
   // Avec un remplacement en attente, la corbeille annule seulement le remplacement.
-  if (isPendingUpload.value && visibleExistingFile.value) {
+  if ((isPendingUpload.value || props.modelValue.track !== null) && hasExisting) {
     update({
       file: null,
+      track: null,
       durationMs: null,
       measuring: false,
       rightsAttested: false,
-      startMs: clampStartMs(props.modelValue.startMs, visibleExistingFile.value.durationMs),
+      startMs: visibleExistingFile.value
+        ? clampStartMs(props.modelValue.startMs, visibleExistingFile.value.durationMs)
+        : 0,
     })
     return
   }
 
   update({
     file: null,
+    track: null,
     durationMs: null,
     measuring: false,
     startMs: 0,
     rightsAttested: false,
-    removeExisting: props.existingFile !== null,
+    removeExisting: props.existingFile !== null || props.existingProvider !== null,
   })
 }
 
@@ -547,6 +646,7 @@ onBeforeUnmount(() => {
 
 .audio-field__actions {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
