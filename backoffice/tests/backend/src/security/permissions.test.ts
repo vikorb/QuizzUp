@@ -151,3 +151,45 @@ describe('security/permissions — demandes de démonstration (lot 12c)', () => 
     }
   })
 })
+
+describe("security/permissions — clés d'API de réservation et journal (lot 14)", () => {
+  const { API_KEY, API_LOG } = API_RESOURCE
+  const can = canRoleAccessApi
+
+  const granted = [
+    [API_KEY, API_ACTION.LIST],
+    [API_KEY, API_ACTION.CREATE],
+    [API_KEY, API_ACTION.DELETE],
+    [API_LOG, API_ACTION.LIST],
+  ] as const
+
+  it('lets superadmin and admin list, create and revoke keys and read the call log', () => {
+    for (const [resource, action] of granted) {
+      expect(can(ADMIN_ROLE_SUPERADMIN, resource, action)).toBe(true)
+      expect(can(ADMIN_ROLE_ADMIN, resource, action)).toBe(true)
+    }
+  })
+
+  it('refuses the user role, the room role and an unknown role', () => {
+    for (const [resource, action] of granted) {
+      expect(can(ADMIN_ROLE_USER, resource, action)).toBe(false)
+      expect(can(ADMIN_ROLE_ROOM, resource, action)).toBe(false)
+      expect(can('ghost', resource, action)).toBe(false)
+    }
+  })
+
+  it('does not hand out actions that no route needs', () => {
+    for (const action of [
+      API_ACTION.READ,
+      API_ACTION.UPDATE,
+      API_ACTION.UPDATE_STATUS,
+      API_ACTION.PERMANENT_DELETE,
+    ]) {
+      expect(can(ADMIN_ROLE_SUPERADMIN, API_KEY, action)).toBe(false)
+    }
+
+    for (const action of Object.values(API_ACTION).filter((a) => a !== API_ACTION.LIST)) {
+      expect(can(ADMIN_ROLE_SUPERADMIN, API_LOG, action)).toBe(false)
+    }
+  })
+})

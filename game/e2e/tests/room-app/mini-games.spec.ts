@@ -223,10 +223,16 @@ test.describe('Écran de salle — les 10 mini-jeux en mode démo', () => {
       await expect(page.locator('.summary__title')).toHaveText('Fin de la manche 1')
       await capture('bilan-de-manche')
 
-      const alice = Number(await scoreOf(page, ALICE.name).innerText())
-      const bob = Number(await scoreOf(page, BOB.name).innerText())
-      expect(alice, `${ALICE.name} a marqué`).toBeGreaterThan(0)
-      expect(alice, `${ALICE.name} devant ${BOB.name}`).toBeGreaterThan(bob)
+      // Le score monte en 400 ms : on relit jusqu'à la valeur finale au lieu d'une lecture unique.
+      const scoreValue = async (name: string) => Number(await scoreOf(page, name).innerText())
+      await expect
+        .poll(() => scoreValue(ALICE.name), { message: `${ALICE.name} a marqué` })
+        .toBeGreaterThan(0)
+      await expect
+        .poll(async () => (await scoreValue(ALICE.name)) - (await scoreValue(BOB.name)), {
+          message: `${ALICE.name} devant ${BOB.name}`,
+        })
+        .toBeGreaterThan(0)
     })
   }
 })

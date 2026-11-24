@@ -247,6 +247,54 @@
         "default": "An error occurred."
       }
     },
+    "diagnostic": {
+      "title": "Diagnostic — {name}",
+      "loading": "Connecting to the room...",
+      "unknown": "Unknown",
+      "rows": {
+        "appVersion": "Room screen version",
+        "buzzers": "Buzzers",
+        "lights": "Lights",
+        "smoke": "Smoke",
+        "audio": "Audio",
+        "lastError": "Last error"
+      },
+      "buzzers": {
+        "keyboard": "Keyboard",
+        "gamepad": "Gamepad: {count} detected",
+        "gamepadNone": "Gamepad: none detected",
+        "gamepadUnknown": "Gamepad"
+      },
+      "lights": {
+        "value": "{driver}: {status}",
+        "drivers": {
+          "simulation": "Simulation",
+          "usbpro": "DMX USB Pro",
+          "opendmx": "Open DMX",
+          "artnet-bridge": "Art-Net bridge"
+        },
+        "statuses": {
+          "open": "connected",
+          "opening": "connecting",
+          "closing": "closing",
+          "closed": "output closed",
+          "error": "in error",
+          "unknown": "status unknown"
+        }
+      },
+      "smoke": {
+        "disabled": "Disabled",
+        "enabled": "Allowed, not armed",
+        "armed": "Armed"
+      },
+      "audio": {
+        "ready": "Ready",
+        "waiting": "Not ready yet (a click on the room PC is needed)"
+      },
+      "lastError": {
+        "none": "None since the PC started"
+      }
+    },
     "logs": {
       "title": "Error logs — {name}",
       "loading": "Loading the logs...",

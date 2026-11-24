@@ -12,4 +12,18 @@ describe('messages de refus d’une commande de pilotage', () => {
       expect(global.t(key, {}, { locale }), key).not.toBe(key)
     }
   })
+
+  it.each(['fr', 'en'])(
+    '%s : aucun message pour un motif que le contrat ne connaît plus',
+    (locale) => {
+      const { global } = createAppI18n()
+      const messages = global.getLocaleMessage(locale) as {
+        room: { command: { refused: Record<string, string> } }
+      }
+
+      expect(Object.keys(messages.room.command.refused).sort()).toEqual(
+        [...GAME_COMMAND_REFUSALS].sort()
+      )
+    }
+  )
 })
