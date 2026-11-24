@@ -8,7 +8,8 @@
       "title": "Search",
       "company": "Company",
       "search": "Player name",
-      "searchPlaceholder": "Part of the name"
+      "searchPlaceholder": "Part of the name",
+      "searchByName": "The search is by player name, not by e-mail address: remove the « {'@'} »."
     },
     "actions": {
       "export": "Export offers (CSV)",
@@ -37,8 +38,13 @@
     },
     "erase": {
       "title": "Erase this player?",
-      "message": "Erasing {name} is permanent and cannot be undone. Their e-mail address and consents are removed from every game of the company, and so are their pending sign-up requests. Their name is replaced by « Joueur effacé » in games already played.",
+      "message": "Erasing {name} ({email}) is permanent and cannot be undone. Their e-mail address and consents are removed from every game of the company, and so are their pending sign-up requests. Their name is replaced by « Joueur effacé » in games already played.",
       "confirm": "Erase permanently"
+    },
+    "unsubscribe": {
+      "title": "Remove this player from offers?",
+      "message": "{name} ({email}) will no longer receive the venue's offers. You cannot undo this removal from this screen.",
+      "confirm": "Remove from offers"
     },
     "banners": {
       "unsubscribed": "The venue's offers are withdrawn for {name}.",

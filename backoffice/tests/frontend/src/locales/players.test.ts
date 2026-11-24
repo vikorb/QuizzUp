@@ -41,13 +41,22 @@ describe('locales — players', () => {
   })
 
   // Le tableau, le bandeau et la fenêtre de confirmation lisent ces clés avec le nom du joueur.
-  it.each(['actions.unsubscribe', 'actions.erase', 'erase.message', 'banners.unsubscribed'])(
-    'gives the player name to %s',
-    (key) => {
-      expect(placeholders(fr[key]!)).toContain('name')
-      expect(placeholders(en[key]!)).toContain('name')
-    }
-  )
+  it.each([
+    'actions.unsubscribe',
+    'actions.erase',
+    'erase.message',
+    'unsubscribe.message',
+    'banners.unsubscribed',
+  ])('gives the player name to %s', (key) => {
+    expect(placeholders(fr[key]!)).toContain('name')
+    expect(placeholders(en[key]!)).toContain('name')
+  })
+
+  // Deux homonymes : la fenêtre de confirmation cite aussi l'adresse.
+  it.each(['erase.message', 'unsubscribe.message'])('gives the address to %s', (key) => {
+    expect(placeholders(fr[key]!)).toContain('email')
+    expect(placeholders(en[key]!)).toContain('email')
+  })
 
   it('tells the erasure is final, in both languages', () => {
     expect(fr['erase.message']).toMatch(/définitif/)
@@ -83,6 +92,11 @@ describe('locales — players', () => {
   ])('has the list error text errors.%s in both languages', (key) => {
     expect(fr[`errors.${key}`]).toBeTruthy()
     expect(en[`errors.${key}`]).toBeTruthy()
+  })
+
+  it('explains in both languages that the search is by name', () => {
+    expect(fr['filters.searchByName']).toBeTruthy()
+    expect(en['filters.searchByName']).toBeTruthy()
   })
 
   it('has a menu entry in both languages', () => {

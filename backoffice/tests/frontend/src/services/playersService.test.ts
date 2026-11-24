@@ -1,3 +1,4 @@
+import { tokenMock } from '@frontend-tests/_helpers/authStateMock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -25,6 +26,19 @@ function jsonResponse(status: number, body: unknown): Response {
 describe('services/playersService', () => {
   beforeEach(() => {
     apiFetchMock.mockReset()
+    tokenMock.value = 'jeton'
+  })
+
+  it.each([
+    ['listPlayersService', () => listPlayersService(7)],
+    ['exportPlayersService', () => exportPlayersService(7)],
+    ['unsubscribePlayerService', () => unsubscribePlayerService(7, 'lea@example.test')],
+    ['erasePlayerService', () => erasePlayerService(7, 'lea@example.test')],
+  ])('%s answers missing_token without a token, and sends nothing', async (_name, call) => {
+    tokenMock.value = null
+
+    expect(await call()).toEqual({ ok: false, status: null, error: 'missing_token' })
+    expect(apiFetchMock).not.toHaveBeenCalled()
   })
 
   describe('listPlayersService', () => {

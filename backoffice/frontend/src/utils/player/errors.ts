@@ -1,6 +1,7 @@
 import type { PlayersApiErrorCode } from '@/types/player'
 
 const PLAYERS_API_ERROR_CODES: PlayersApiErrorCode[] = [
+  'missing_token',
   'unauthorized',
   'forbidden',
   'api_unreachable',

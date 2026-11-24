@@ -8,7 +8,8 @@
       "title": "Recherche",
       "company": "Compagnie",
       "search": "Nom du joueur",
-      "searchPlaceholder": "Une partie du nom"
+      "searchPlaceholder": "Une partie du nom",
+      "searchByName": "La recherche se fait par le nom du joueur, pas par son adresse e-mail : retirez le « {'@'} »."
     },
     "actions": {
       "export": "Exporter les offres (CSV)",
@@ -37,8 +38,13 @@
     },
     "erase": {
       "title": "Effacer ce joueur ?",
-      "message": "Effacer {name} est définitif et ne peut pas être annulé. Son adresse e-mail et ses consentements sont supprimés de toutes les parties de la compagnie, ses demandes d'inscription en attente aussi. Son nom est remplacé par « Joueur effacé » dans les parties déjà jouées.",
+      "message": "Effacer {name} ({email}) est définitif et ne peut pas être annulé. Son adresse e-mail et ses consentements sont supprimés de toutes les parties de la compagnie, ses demandes d'inscription en attente aussi. Son nom est remplacé par « Joueur effacé » dans les parties déjà jouées.",
       "confirm": "Effacer définitivement"
+    },
+    "unsubscribe": {
+      "title": "Retirer ce joueur des offres ?",
+      "message": "{name} ({email}) ne recevra plus les offres du centre. Vous ne pourrez pas annuler ce retrait depuis cet écran.",
+      "confirm": "Retirer des offres"
     },
     "banners": {
       "unsubscribed": "Les offres du centre sont retirées pour {name}.",

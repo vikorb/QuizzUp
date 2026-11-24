@@ -4,11 +4,9 @@
     :neon="true"
     :no-hover="true"
     :loading="loading"
-    :error="error"
-    :empty="players.length === 0"
+    :empty="error === null && players.length === 0"
     :loading-label="$t('players.table.loading')"
     :empty-label="$t(hasSearch ? 'players.table.emptySearch' : 'players.table.empty')"
-    error-namespace="players.errors"
     class="players-table-card"
   >
     <template #actions>
@@ -17,7 +15,10 @@
       </UiButton>
     </template>
 
-    <BaseTable :columns="columns" :items="tableItems" row-key="rowId">
+    <!-- Le texte de l'erreur vient de `players.errors` : `BaseCard` ne connaît pas tous les codes. -->
+    <p v-if="error" class="players-error" role="alert">{{ $t(getPlayersErrorKey(error)) }}</p>
+
+    <BaseTable v-else :columns="columns" :items="tableItems" row-key="rowId">
       <template #cell-displayName="{ value }">
         <span class="player-name">{{ value }}</span>
       </template>
@@ -90,6 +91,7 @@ import StatusPill from '@/components/ui/StatusPill.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import type { Player } from '@/types/player'
 import { formatGameDate, formatGameTopScore } from '@/utils/game/format'
+import { getPlayersErrorKey } from '@/utils/player/errors'
 
 const props = defineProps<{
   players: Player[]
@@ -145,6 +147,12 @@ function toDateValue(value: unknown): string | null {
 .players-table-card {
   max-height: 100%;
   margin-top: 10px;
+}
+
+.players-error {
+  margin: 0;
+  padding: 14px 8px;
+  color: var(--danger);
 }
 
 .player-name {

@@ -8,6 +8,8 @@ export function waitForPaint(): Promise<void> {
   })
 }
 
+const REVOKE_DELAY_MS = 1000
+
 /** Propose un fichier au téléchargement (réponse d'une route authentifiée, hors d'un simple lien). */
 export function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob)
@@ -17,5 +19,6 @@ export function downloadBlob(blob: Blob, filename: string): void {
   link.download = filename
   link.click()
 
-  URL.revokeObjectURL(url)
+  // Le navigateur lit l'adresse après le clic : la libérer tout de suite peut couper le téléchargement.
+  setTimeout(() => URL.revokeObjectURL(url), REVOKE_DELAY_MS)
 }

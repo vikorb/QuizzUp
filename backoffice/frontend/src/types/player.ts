@@ -1,5 +1,6 @@
 /** Codes d'erreur des routes `/companies/:companyId/players*`, plus ceux du client (réseau, JSON). */
 export type PlayersApiErrorCode =
+  | 'missing_token'
   | 'unauthorized'
   | 'forbidden'
   | 'api_unreachable'

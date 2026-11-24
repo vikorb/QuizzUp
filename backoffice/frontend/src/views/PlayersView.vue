@@ -17,6 +17,10 @@
       @dismiss="clearActionBanner"
     />
 
+    <p v-if="searchHasAt" class="players-note" role="status">
+      {{ $t('players.filters.searchByName') }}
+    </p>
+
     <p v-if="anonymousPlayers > 0 && !loading && !error" class="players-note">
       {{ $t('players.anonymous', { count: anonymousPlayers }, anonymousPlayers) }}
     </p>
@@ -114,6 +118,9 @@ const companyOptions = computed<SelectFieldOption[]>(() =>
 )
 
 const showCompanySelector = computed(() => isSuperAdmin.value && companyOptions.value.length > 0)
+
+// La recherche porte sur le nom : une adresse tapée ici ne part jamais (elle finirait dans les journaux).
+const searchHasAt = computed(() => searchInput.value.includes('@'))
 
 const actionBannerVariant = computed(() => getBannerVariant(actionBanner.value))
 const actionBannerMessage = computed(() => {
@@ -272,14 +279,23 @@ async function runPlayerAction(
   await loadPage()
 }
 
-function handleUnsubscribe(player: Player): Promise<void> {
-  return runPlayerAction(unsubscribePlayerService, player, 'unsubscribed')
+async function handleUnsubscribe(player: Player): Promise<void> {
+  const confirmed = await confirm({
+    title: t('players.unsubscribe.title'),
+    message: t('players.unsubscribe.message', { name: player.displayName, email: player.email }),
+    confirmLabel: t('players.unsubscribe.confirm'),
+    cancelLabel: t('confirm.cancel'),
+  })
+
+  if (confirmed) {
+    await runPlayerAction(unsubscribePlayerService, player, 'unsubscribed')
+  }
 }
 
 async function handleErase(player: Player): Promise<void> {
   const confirmed = await confirm({
     title: t('players.erase.title'),
-    message: t('players.erase.message', { name: player.displayName }),
+    message: t('players.erase.message', { name: player.displayName, email: player.email }),
     confirmLabel: t('players.erase.confirm'),
     cancelLabel: t('confirm.cancel'),
     variant: 'danger',
@@ -316,6 +332,11 @@ function clearSearchTimer(): void {
 // Pas de requête à chaque frappe : la recherche part après une courte pause.
 watch(searchInput, (value) => {
   clearSearchTimer()
+
+  if (value.includes('@')) {
+    return
+  }
+
   searchTimer = setTimeout(() => {
     searchTimer = null
     search.value = value.trim().slice(0, PLAYER_SEARCH_MAX_LENGTH)

@@ -1,3 +1,4 @@
+import { authState } from '@/state/authState'
 import type { PlayersApiErrorCode, PlayersList, PlayersQuery, PlayersResult } from '@/types/player'
 import { apiFetch } from '@/utils/api'
 import { readPlayersApiError } from '@/utils/player/errors'
@@ -28,6 +29,11 @@ async function requestPlayers<T>(
   options: { method?: 'POST'; body?: unknown },
   read: (response: Response) => Promise<T | null>
 ): Promise<PlayersResult<T>> {
+  // Sans jeton, `apiFetch` ne part pas : on le dit (session expirée) plutôt que « API injoignable ».
+  if (!authState.token.value) {
+    return { ok: false, status: null, error: 'missing_token' }
+  }
+
   const hasBody = options.body !== undefined
   const response = await apiFetch({
     path,

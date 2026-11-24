@@ -5,7 +5,7 @@ import {
 } from '@frontend-tests/_helpers/authStateMock'
 import { loadCompaniesServiceMock } from '@frontend-tests/_helpers/companiesServiceMock'
 import { confirmMock, setConfirmResult } from '@frontend-tests/_helpers/confirmMock'
-import { mountWithFrontendMocks } from '@frontend-tests/_helpers/mount'
+import { mountWithFrontendMocks, tWithParamsMock } from '@frontend-tests/_helpers/mount'
 import {
   createPlayerFixture,
   erasePlayerServiceMock,
@@ -22,6 +22,16 @@ import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import PlayersView from '@/views/PlayersView.vue'
+
+// Le `t` du double ne rend que la clé : celui-ci montre aussi les paramètres reçus (nom, adresse).
+vi.mock('vue-i18n', async () => {
+  const i18nMock = await import('@frontend-tests/_helpers/i18nMock')
+
+  return {
+    ...i18nMock,
+    useI18n: () => ({ ...i18nMock.useI18n(), t: tWithParamsMock }),
+  }
+})
 
 vi.mock('@/services/playersService', async () => {
   const playersService = await import('@frontend-tests/_helpers/playersServiceMock')
@@ -145,7 +155,7 @@ describe('views/PlayersView.vue — liste', () => {
 
     const wrapper = await mountPlayersView()
 
-    expect(wrapper.get('[data-test="base-card"]').attributes('data-error')).toBe('forbidden')
+    expect(wrapper.get('[role="alert"]').text()).toBe('players.errors.forbidden')
     expect(rows(wrapper)).toHaveLength(0)
     expect(wrapper.text()).not.toContain('players.anonymous')
 
@@ -153,7 +163,7 @@ describe('views/PlayersView.vue — liste', () => {
     await flushPromises()
 
     expect(listPlayersServiceMock).toHaveBeenCalledTimes(2)
-    expect(wrapper.get('[data-test="base-card"]').attributes('data-error')).toBe('')
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
     expect(rows(wrapper)).toHaveLength(2)
   })
 
@@ -163,7 +173,25 @@ describe('views/PlayersView.vue — liste', () => {
 
     const wrapper = await mountPlayersView()
 
-    expect(wrapper.get('[data-test="base-card"]').attributes('data-error')).toBe('server_error')
+    expect(wrapper.get('[role="alert"]').text()).toBe('players.errors.serverError')
+  })
+
+  it.each([
+    ['invalid_params', 'players.errors.invalidParams'],
+    ['player_not_found', 'players.errors.playerNotFound'],
+    ['missing_token', 'players.errors.missingToken'],
+  ])('shows the real text of the code %s, not the server error', async (code, key) => {
+    setAuthenticatedAdmin({ companyId: 1 })
+    listPlayersServiceMock.mockResolvedValue({ ok: false, status: 400, error: code as never })
+
+    // Vrai `BaseCard` : c'est lui qui décide de ce qui s'affiche dans l'état d'erreur.
+    const wrapper = mountWithFrontendMocks(PlayersView, {
+      global: { stubs: { baseCard: false } },
+    })
+    await flushPromises()
+
+    expect(wrapper.get('[role="alert"]').text()).toBe(key)
+    expect(wrapper.text()).not.toContain('players.errors.serverError')
   })
 
   it('ignores an older answer that arrives after a newer request', async () => {
@@ -180,7 +208,7 @@ describe('views/PlayersView.vue — liste', () => {
     resolveFirst({ ok: false, status: 500, error: 'server_error' })
     await flushPromises()
 
-    expect(wrapper.get('[data-test="base-card"]').attributes('data-error')).toBe('')
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
     expect(rows(wrapper)).toHaveLength(2)
   })
 })
@@ -222,6 +250,25 @@ describe('views/PlayersView.vue — recherche et pagination', () => {
 
     expect(listPlayersServiceMock).toHaveBeenCalledTimes(2)
     expect(lastQuery()).toMatchObject({ search: 'lea' })
+  })
+
+  it('never sends an address typed in the search, and says the search is by name', async () => {
+    setAuthenticatedAdmin({ companyId: 1 })
+
+    const wrapper = await mountPlayersView()
+
+    expect(wrapper.text()).not.toContain('players.filters.searchByName')
+
+    await typeSearch(wrapper, 'lea@example.test')
+
+    expect(listPlayersServiceMock).toHaveBeenCalledTimes(1)
+    expect(wrapper.get('[role="status"]').text()).toBe('players.filters.searchByName')
+
+    // Une frappe ordinaire reprend la recherche et efface le message.
+    await typeSearch(wrapper, 'lea')
+
+    expect(lastQuery()).toMatchObject({ search: 'lea' })
+    expect(wrapper.text()).not.toContain('players.filters.searchByName')
   })
 
   it('never sends a search longer than the limit of the server', async () => {
@@ -349,7 +396,7 @@ describe('views/PlayersView.vue — actions', () => {
     expect(unsubscribe.attributes('aria-label')).toBe('players.actions.unsubscribe')
   })
 
-  it('removes the offers of a player without asking, then reloads the list', async () => {
+  it('asks for a confirmation naming the player and the address, then removes the offers', async () => {
     setAuthenticatedAdmin({ companyId: 1 })
 
     const wrapper = await mountPlayersView()
@@ -357,10 +404,27 @@ describe('views/PlayersView.vue — actions', () => {
     await wrapper.findAll('[data-test="player-unsubscribe"]')[0]!.trigger('click')
     await flushPromises()
 
-    expect(confirmMock).not.toHaveBeenCalled()
+    expect(confirmMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: `players.unsubscribe.message:${JSON.stringify({ name: 'Léa', email: 'lea@example.test' })}`,
+      })
+    )
     expect(unsubscribePlayerServiceMock).toHaveBeenCalledWith(1, 'lea@example.test')
     expect(listPlayersServiceMock).toHaveBeenCalledTimes(2)
     expect(bannerText(wrapper)).toContain('players.banners.unsubscribed')
+  })
+
+  it('removes nothing when the unsubscription is not confirmed', async () => {
+    setAuthenticatedAdmin({ companyId: 1 })
+    setConfirmResult(false)
+
+    const wrapper = await mountPlayersView()
+
+    await wrapper.findAll('[data-test="player-unsubscribe"]')[0]!.trigger('click')
+    await flushPromises()
+
+    expect(unsubscribePlayerServiceMock).not.toHaveBeenCalled()
+    expect(listPlayersServiceMock).toHaveBeenCalledTimes(1)
   })
 
   it('disables the unsubscription of a player who already refuses the offers', async () => {
@@ -393,7 +457,10 @@ describe('views/PlayersView.vue — actions', () => {
     await flushPromises()
 
     expect(confirmMock).toHaveBeenCalledWith(
-      expect.objectContaining({ variant: 'danger', message: 'players.erase.message' })
+      expect.objectContaining({
+        variant: 'danger',
+        message: `players.erase.message:${JSON.stringify({ name: 'Léa', email: 'lea@example.test' })}`,
+      })
     )
     expect(erasePlayerServiceMock).toHaveBeenCalledWith(1, 'lea@example.test')
     expect(bannerText(wrapper)).toContain('players.banners.erased')
@@ -483,7 +550,7 @@ describe('views/PlayersView.vue — actions', () => {
 
     expect(lastQuery()).toMatchObject({ offset: 0 })
     expect(rows(wrapper)).toHaveLength(PLAYER_LIST_DEFAULT_LIMIT)
-    expect(wrapper.get('[data-test="base-card"]').attributes('data-error')).toBe('')
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
   })
 
   it('falls back on the first page, empty, when the last player of the company is erased', async () => {
@@ -524,12 +591,17 @@ describe('views/PlayersView.vue — export', () => {
 
     const wrapper = await mountPlayersView()
 
+    vi.useFakeTimers({ toFake: ['setTimeout'] })
     await wrapper.get('[data-test="players-export"]').trigger('click')
     await flushPromises()
 
     expect(exportPlayersServiceMock).toHaveBeenCalledWith(1)
     expect(click).toHaveBeenCalledTimes(1)
     expect((click.mock.contexts[0] as HTMLAnchorElement).download).toBe('joueurs-offres.csv')
+    expect(revokeObjectURL).not.toHaveBeenCalled()
+
+    vi.advanceTimersByTime(1000)
+
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:players')
 
     click.mockRestore()
