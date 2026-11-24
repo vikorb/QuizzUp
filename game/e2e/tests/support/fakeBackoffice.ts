@@ -37,6 +37,8 @@ export const JOIN_LINK = {
 export type JoinRegistration = { token: string; displayName: string; [field: string]: unknown }
 
 export type FakeJoinApi = {
+  /** Nombre de requêtes reçues, préliminaires CORS (`OPTIONS`) exclus. */
+  requests: number
   /** Corps des demandes reçues (`POST /public/v1/join/registrations`), dans l'ordre. */
   registrations: JoinRegistration[]
 }
@@ -55,13 +57,14 @@ export async function mockJoinApi(
     onRegistration?: (registration: JoinRegistration) => void
   }
 ): Promise<FakeJoinApi> {
-  const api: FakeJoinApi = { registrations: [] }
+  const api: FakeJoinApi = { requests: 0, registrations: [] }
 
   await page.route(`${API_URL}/public/v1/join/*`, async (route) => {
     const request = route.request()
     if (request.method() === 'OPTIONS') {
       return reply(route, 204)
     }
+    api.requests += 1
     const body = request.postDataJSON() as JoinRegistration
     if (body.token !== options.token) {
       return reply(route, 404, { error: 'join_link_invalid' })

@@ -63,8 +63,8 @@ test.describe('Feuille de résultats — impression', () => {
     await mockResultsApi(page, {
       game: GAME,
       vouchers: [
-        voucher(1, 'valid', 'Une partie offerte', 'BON-VALIDE-1'),
-        voucher(2, 'redeemed', 'Un bon déjà utilisé', 'BON-UTILISE-2'),
+        voucher(1, 'valid', 'Une partie offerte', 'K7QM-4XD9'),
+        voucher(2, 'redeemed', 'Un bon déjà utilisé', 'R3TW-9BZ2'),
       ],
     })
     // `window.print` ouvrirait la fenêtre d'impression du navigateur : on compte les appels.
@@ -115,12 +115,12 @@ test.describe('Feuille de résultats — impression', () => {
     await expect(vouchers.locator('[data-test="results-voucher-label"]')).toHaveText(
       'Une partie offerte'
     )
-    await expect(vouchers.locator('[data-test="results-voucher-code"]')).toHaveText('BON-VALIDE-1')
+    await expect(vouchers.locator('[data-test="results-voucher-code"]')).toHaveText('K7QM-4XD9')
     const qr = vouchers.locator('[data-test="results-voucher-qr"]')
     await expect(qr).toBeVisible()
     await expect
       .poll(() => qr.evaluate((img: HTMLImageElement) => img.naturalWidth))
       .toBeGreaterThan(0)
-    await expect(page.getByText('BON-UTILISE-2')).toHaveCount(0)
+    await expect(page.getByText('R3TW-9BZ2')).toHaveCount(0)
   })
 })

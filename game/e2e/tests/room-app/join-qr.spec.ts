@@ -7,13 +7,20 @@ import { BACKOFFICE_URL } from '../support/urls'
 
 /**
  * Inscription des joueurs par QR code : le lobby du personnel (écran de salle) affiche le lien et
- * le QR de la partie ; la page téléphone du backoffice, ouverte sur ce lien, dépose une demande ;
- * la salle l'apprend par le flux (`game_updated`) et la montre dans le lobby. Les deux API (salle
- * et page publique) sont des bouchons ; la page téléphone et l'écran de salle sont les vrais.
+ * le QR de la partie ; la page téléphone du backoffice, ouverte sur ce lien, lit le jeton dans le
+ * fragment et envoie exactement `{ token, displayName }` ; le lobby relit la partie et affiche le
+ * compte des demandes puis le prénom au pupitre. Les deux API (salle et page publique) sont des
+ * bouchons ; la page téléphone et l'écran de salle sont les vrais.
+ *
+ * Limite : le bouchon de la salle rend le flux d'un bloc (`hello` puis événements) et le ferme, et
+ * chaque `hello` fait relire la partie au lobby. Ce scénario ne prouve donc pas la réception de
+ * `game_updated` : elle est couverte par les tests unitaires (`roomLive.test.ts`,
+ * `StaffGameLobby.test.ts`, `liveJoinRegistrations.test.ts`).
  */
 const ROOM_ACCOUNT = { id: 7, companyId: 3, role: 'room', username: 'salle-1' }
 const PASSWORD = 'Mot-de-passe-salle-1'
-const TOKEN = 'jeton-inscription-demo'
+// Jeton au format du contrat : 32 octets en base64url, soit 43 caractères.
+const TOKEN = 'aB3dE6gH9jK2mN5pQ8sT1vW4yZ7cF0hJ3kM6nP9rS2u'
 /** Le bouchon rend le flux d'un bloc puis le ferme : la salle le rouvre après un délai croissant. */
 const AFTER_EVENT = { timeout: 30_000 }
 const QR_SVG =
@@ -41,7 +48,7 @@ function liveGame(): FakeLive {
 }
 
 test.describe('Inscription par QR code', () => {
-  test('le lien du lobby inscrit un joueur depuis un téléphone, la salle le voit arriver', async ({
+  test('le lien du lobby inscrit un joueur depuis un téléphone, le lobby relit la partie', async ({
     page,
     browser,
   }) => {
@@ -76,7 +83,7 @@ test.describe('Inscription par QR code', () => {
       const join = await mockJoinApi(phone, {
         token: TOKEN,
         onRegistration: () => {
-          // Le serveur compte la demande et prévient la salle (`game_updated`).
+          // Le serveur compte la demande ; le lobby la relira à la prochaine ouverture du flux.
           live.game = { ...live.game, pendingRegistrationsCount: 1 }
           api.sendEvent('game_updated')
         },
@@ -85,7 +92,6 @@ test.describe('Inscription par QR code', () => {
       await phone.goto(joinUrl)
       await expect(phone.getByRole('heading', { name: 'Rejoindre la partie' })).toBeVisible()
       await expect(phone.getByText('Centre Démo · Salle 1')).toBeVisible()
-      expect(phone.viewportSize()?.width).toBeLessThan(500)
 
       await phone.getByLabel('Prénom').fill('Léa')
       await phone.getByRole('button', { name: 'Envoyer ma demande' }).click()
@@ -97,11 +103,12 @@ test.describe('Inscription par QR code', () => {
       await phoneContext.close()
     }
 
-    // La salle voit la demande arriver (le nombre seulement : les noms restent au backoffice).
+    // Le lobby affiche la demande (le nombre seulement : les noms restent au backoffice).
     await expect(pending).toHaveText('1 inscription en attente de validation', AFTER_EVENT)
     await expect(page.locator('[data-test="player-1"]')).toHaveCount(0)
 
-    // Le personnel valide la demande au backoffice : le joueur prend son pupitre dans le lobby.
+    // Le personnel valide la demande au backoffice (simulé) : le lobby relit la partie et montre
+    // le joueur à son pupitre.
     live.game = {
       ...live.game,
       participants: [{ id: 1, podium: 1, displayName: 'Léa', score: 0 }],

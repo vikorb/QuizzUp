@@ -44,11 +44,14 @@ Aucune API ni base : les appels sont interceptés (`tests/support/fakeBackoffice
 frontend, `fakeApi.ts` pour la salle), avec les réponses du contrat `openapi.yaml`.
 
 - `join-qr.spec.ts` (projet `room-app`) : le lobby du personnel affiche le QR et le lien
-  d'inscription ; un contexte mobile (Pixel 7) ouvre ce lien, inscrit un joueur ; la salle reçoit
-  `game_updated` et affiche « 1 inscription en attente de validation », puis le joueur à son pupitre
-  une fois validé (validation simulée par le bouchon).
-- `backoffice/join-refusals.spec.ts` : page téléphone, code inconnu ou absent (« Lien invalide »),
-  inscriptions closes, inscriptions complètes à l'envoi, avec le message traduit.
+  d'inscription ; un contexte mobile (Pixel 7) ouvre ce lien, lit le jeton dans le fragment et
+  envoie exactement `{ token, displayName }` ; le lobby relit la partie et affiche « 1 inscription
+  en attente de validation », puis le joueur à son pupitre une fois validé (validation simulée par
+  le bouchon). Le bouchon rend le flux d'un bloc et chaque `hello` fait relire la partie : la
+  réception de `game_updated` n'est **pas** prouvée ici, elle l'est par les tests unitaires
+  (`roomLive.test.ts`, `StaffGameLobby.test.ts`, `liveJoinRegistrations.test.ts`).
+- `backoffice/join-refusals.spec.ts` : page téléphone, code inconnu (« Lien invalide »), adresse
+  sans code (« Lien invalide », aucune requête envoyée), inscriptions closes, inscriptions complètes à l'envoi, avec le message traduit.
 - `backoffice/results-print.spec.ts` : feuille de résultats d'une partie terminée. À l'écran, le
   bouton « Imprimer » appelle `window.print` ; en `emulateMedia({ media: 'print' })`, boutons
   masqués, classement et bon valable (QR, code) visibles, bon utilisé absent.
@@ -98,6 +101,9 @@ Les scénarios des mini-jeux joignent une capture par étape au rapport Playwrig
 ```bash
 npm install                     # .npmrc : legacy-peer-deps (comme les autres paquets game/)
 npm --prefix ../room-app install
+npm --prefix ../../backoffice/shared install
+npm --prefix ../../backoffice/shared run build
+npm --prefix ../../backoffice/frontend install
 npx playwright install chromium # navigateur de test (une fois)
 
 npm test                        # lance les trois serveurs Vite puis tous les tests
