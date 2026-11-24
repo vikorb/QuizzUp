@@ -11,3 +11,9 @@ export const JOIN_TOKEN_BYTES = 32 as const
 
 /** Une demande d'inscription non validée est supprimée au bout de ce délai (purge RGPD). */
 export const JOIN_REGISTRATION_MAX_AGE_HOURS = 24 as const
+
+/** Demandes d'inscription en attente au plus par partie : au-delà, le lien répond `join_full`. */
+export const JOIN_MAX_PENDING_REGISTRATIONS = 12 as const
+
+/** Longueur maximale du prénom saisi sur le téléphone (le backoffice accepte jusqu'à 100). */
+export const JOIN_DISPLAY_NAME_MAX_LENGTH = 30 as const
