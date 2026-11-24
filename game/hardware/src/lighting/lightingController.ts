@@ -1004,10 +1004,16 @@ export function createLightingController(options: LightingControllerOptions): Li
           : key
       const sceneId = Object.hasOwn(bindings, bindingKey) ? bindings[bindingKey] : undefined
       if (sceneId) {
-        if (event.type === 'game_aborted' || event.type === 'game_started') {
+        if (
+          event.type === 'game_aborted' ||
+          event.type === 'game_started' ||
+          event.type === 'game_resumed'
+        ) {
           // Partie arrêtée : retour au repos, même si une scène plus prioritaire tourne encore. Début
           // de partie : la victoire (50) de la partie d'avant n'a pas à enchaîner sa sortie pendant
           // celle-ci (les scènes de question, priorité 10, ne pourraient plus l'interrompre).
+          // Reprise : la scène `pause` (60), reprise en moins de 400 ms, tourne encore et refuserait
+          // la scène de reprise.
           player.stop()
         }
         playScene(sceneId, { desk })

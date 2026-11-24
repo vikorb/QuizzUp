@@ -43,6 +43,12 @@ function aimed(): number {
   return (state.value ? getLiveQuestionId(state.value) : null) ?? 0
 }
 
+/** Lumières par défaut (simulation), sans fumée : seules les scènes sont observées. */
+async function startScenes() {
+  const lights = await startLighting()
+  return { lights, scene: () => lights.getState().currentSceneId }
+}
+
 describe('useRoomGame : pause et passage de question', () => {
   let clock: ReturnType<typeof createManualClock>
   let player: ExtractPlayer
@@ -80,6 +86,27 @@ describe('useRoomGame : pause et passage de question', () => {
 
   function buzz(desk: 1 | 2 | 3 = 1) {
     pressBuzzer({ desk, button: 'A', buttonIndex: 0, at: clock.value, code: 'test' })
+  }
+
+  /** Partie lancée, amenée à la phase `theme_choice` (joueur qui choisit le thème). */
+  function startThemeChoice() {
+    startNewGame({
+      registrations: REGISTRATIONS,
+      themes: getPlayableThemes(),
+      seed: 7,
+      miniGames: [MINI_GAME_FLASH_BLIND_TEST],
+    })
+    clock.advance(DEFAULT_GAME_TIMINGS.roundIntroMs + 10)
+    vi.advanceTimersByTime(50)
+  }
+
+  /** Question de blind test en cours, la scène du choix de thème (20) étant terminée. */
+  function startClip() {
+    startThemeChoice()
+    vi.advanceTimersByTime(1_000)
+    const { state } = useRoomGame()
+    const chooser = state.value?.rounds[0]?.chooserParticipantId as 1 | 2 | 3
+    pressBuzzer({ desk: chooser, button: 'A', buttonIndex: 0, at: clock.value, code: 'test' })
   }
 
   it('sans partie, chaque commande est refusée avec le code game_over', () => {
@@ -397,6 +424,154 @@ describe('useRoomGame : pause et passage de question', () => {
 
       resumeGame()
       expect(again.smoke.fire(1_000)).toMatchObject({ ok: true })
+    })
+  })
+
+  describe('lumières : signaux de pause et de reprise', () => {
+    it('la pause joue la scène pause, la reprise rejoue la scène de la phase d’intro de manche', async () => {
+      const { scene } = await startScenes()
+      startNewGame({
+        registrations: REGISTRATIONS,
+        themes: getPlayableThemes(),
+        seed: 7,
+        miniGames: [MINI_GAME_FLASH_BLIND_TEST],
+      })
+      expect(useRoomGame().state.value?.phase.name).toBe('round_intro')
+      expect(scene()).toBe('round-start')
+
+      pauseGame()
+      expect(scene()).toBe('pause')
+      vi.advanceTimersByTime(600)
+      resumeGame()
+
+      expect(scene()).toBe('round-start')
+    })
+
+    it('pause pendant le choix du thème : reprise sur la scène du joueur qui choisit', async () => {
+      const { scene } = await startScenes()
+      startThemeChoice()
+      expect(useRoomGame().state.value?.phase.name).toBe('theme_choice')
+      expect(scene()).toBe('chooser')
+
+      pauseGame()
+      expect(scene()).toBe('pause')
+      vi.advanceTimersByTime(600)
+      resumeGame()
+
+      expect(scene()).toBe('chooser')
+    })
+
+    it('pause pendant un extrait : reprise sur la scène de l’extrait', async () => {
+      const { scene } = await startScenes()
+      startClip()
+      expect(scene()).toBe('clip-playing')
+
+      pauseGame()
+      expect(scene()).toBe('pause')
+      vi.advanceTimersByTime(600)
+      resumeGame()
+
+      expect(scene()).toBe('clip-playing')
+    })
+
+    it('pause pendant la réponse d’un joueur : reprise sur la scène de son buzz', async () => {
+      const { scene } = await startScenes()
+      startClip()
+      buzz()
+      expect(scene()).toBe('buzz')
+
+      pauseGame()
+      expect(scene()).toBe('pause')
+      vi.advanceTimersByTime(600)
+      resumeGame()
+
+      expect(scene()).toBe('buzz')
+    })
+
+    it('pause pendant la révélation : reprise sur l’ambiance de question', async () => {
+      const { scene } = await startScenes()
+      startQuestion()
+      skipQuestion(aimed())
+      expect(useRoomGame().state.value?.phase.name).toBe('reveal')
+
+      pauseGame()
+      expect(scene()).toBe('pause')
+      vi.advanceTimersByTime(600)
+      resumeGame()
+
+      expect(scene()).toBe('question')
+    })
+
+    it('une reprise en moins de 400 ms n’est pas refusée par la scène pause encore en cours', async () => {
+      const { scene } = await startScenes()
+      startClip()
+
+      pauseGame()
+      vi.advanceTimersByTime(100)
+      expect(scene()).toBe('pause')
+      resumeGame()
+
+      expect(scene()).toBe('clip-playing')
+    })
+
+    it('reprise sans pause préalable : refusée, aucun signal, la scène en cours est gardée', async () => {
+      const { lights, scene } = await startScenes()
+      startQuestion()
+      const handle = vi.spyOn(lights, 'handleGameEvent')
+      const before = scene()
+
+      expect(resumeGame()).toEqual({ ok: false, code: GAME_COMMAND_REFUSAL.NOT_PAUSED })
+
+      expect(scene()).toBe(before)
+      expect(handle).not.toHaveBeenCalled()
+    })
+
+    it('des lumières démarrées hors pause n’émettent aucun signal de pause', async () => {
+      startQuestion()
+
+      const lights = await startLighting()
+
+      // Ni `pause`, ni `question` de reprise : les lumières naissent au repos.
+      expect(lights.getState().currentSceneId).toBe('idle')
+    })
+
+    it('des lumières démarrées pendant une pause jouent la scène pause', async () => {
+      startQuestion()
+      pauseGame()
+
+      const lights = await startLighting()
+
+      expect(lights.getState().currentSceneId).toBe('pause')
+    })
+
+    it('la partie arrêtée puis fermée pendant la pause ne rallume pas l’ambiance de question', async () => {
+      const { scene } = await startScenes()
+      startQuestion()
+      pauseGame()
+      abortGame()
+      expect(scene()).toBe('idle')
+
+      closeGame()
+
+      expect(scene()).toBe('idle')
+    })
+
+    it('la scène pause ne tire pas de fumée : la coupure de la pause reste seule maîtresse', async () => {
+      await saveWithSmokeProof({
+        lighting: {
+          fixtures: [{ id: 'fumee', name: 'Fumée', profileId: 'smoke-relay', address: 40 }],
+          smoke: { enabled: true, requireConfirmation: false },
+        },
+      })
+      const lights = await startLighting()
+      startQuestion()
+      lights.smoke.fire(3_000)
+
+      pauseGame()
+      expect(lights.getState().currentSceneId).toBe('pause')
+      vi.advanceTimersByTime(600)
+
+      expect(lights.getState().smoke).toMatchObject({ status: 'cooldown', level: 0 })
     })
   })
 })

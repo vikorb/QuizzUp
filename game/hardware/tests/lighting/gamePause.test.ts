@@ -1,6 +1,11 @@
 import { createSimulationOutput } from '@hardware/dmx/simulationOutput'
 import { createLightingController } from '@hardware/lighting/lightingController'
-import { SCENE_IDS } from '@hardware/lighting/scenes'
+import {
+  DEFAULT_BINDINGS,
+  DEFAULT_SCENES,
+  SCENE_IDS,
+  stepDuration,
+} from '@hardware/lighting/scenes'
 
 import { advanceAsync, createManualClock, flushPromises } from '../_helpers/manualClock'
 import { lightingConfig } from '../_helpers/rig'
@@ -180,5 +185,89 @@ describe('contrôleur de lumières : partie en pause', () => {
     controller.handleGameEvent({ type: 'game_aborted' })
 
     expect(controller.getState().currentSceneId).toBe(SCENE_IDS.IDLE)
+  })
+
+  describe('scène `pause` et signaux game_paused / game_resumed', () => {
+    const pauseScene = () => DEFAULT_SCENES.find((scene) => scene.id === SCENE_IDS.PAUSE)!
+
+    it('liaisons par défaut : game_paused → pause, game_resumed → question, session_exit aucune', () => {
+      expect(DEFAULT_BINDINGS.game_paused).toBe(SCENE_IDS.PAUSE)
+      expect(DEFAULT_BINDINGS.game_resumed).toBe(SCENE_IDS.QUESTION)
+      expect(DEFAULT_BINDINGS).not.toHaveProperty('session_exit')
+    })
+
+    it('la scène pause : priorité 60, un fondu de 400 ms, ni flash ni fumée', () => {
+      const scene = pauseScene()
+
+      expect(scene.priority).toBe(60)
+      expect(scene.next).toBeUndefined()
+      expect(scene.steps.map((step) => step.type)).toEqual(['color'])
+      expect(scene.steps.reduce((sum, step) => sum + stepDuration(step), 0)).toBe(400)
+    })
+
+    it('game_paused joue pause et interrompt une scène de jeu prioritaire', async () => {
+      const ctx = await setup()
+      controller = ctx.controller
+      controller.handleGameEvent({ type: 'answer_correct', payload: { desk: 1 } })
+      expect(controller.getState().currentSceneId).toBe(SCENE_IDS.CORRECT)
+
+      controller.handleGameEvent({ type: 'game_paused' })
+
+      expect(controller.getState().currentSceneId).toBe(SCENE_IDS.PAUSE)
+    })
+
+    it('la scène pause ne tire aucun jet et ne relâche pas la coupure de la pause', async () => {
+      const ctx = await setup()
+      controller = ctx.controller
+      controller.smoke.fire(3_000)
+      await advanceAsync(ctx.clock, 100)
+
+      controller.setGamePaused(true)
+      controller.handleGameEvent({ type: 'game_paused' })
+      await advanceAsync(ctx.clock, 1_000)
+
+      expect(ctx.output.lastFrame()[SMOKE_CHANNEL]).toBe(0)
+      expect(controller.getState().smoke).toMatchObject({ status: 'cooldown', level: 0 })
+      expect(controller.smoke.fire(1_000)).toEqual({ ok: false, reason: 'paused' })
+    })
+
+    it('game_resumed joue question une fois la scène pause terminée', async () => {
+      const ctx = await setup()
+      controller = ctx.controller
+      controller.handleGameEvent({ type: 'game_paused' })
+      await advanceAsync(ctx.clock, 600)
+
+      controller.handleGameEvent({ type: 'game_resumed' })
+
+      expect(controller.getState().currentSceneId).toBe(SCENE_IDS.QUESTION)
+    })
+
+    it('game_resumed reprend même si la scène pause tourne encore (reprise en moins de 400 ms)', async () => {
+      const ctx = await setup()
+      controller = ctx.controller
+      controller.handleGameEvent({ type: 'game_paused' })
+      await advanceAsync(ctx.clock, 100)
+      expect(controller.getState().currentSceneId).toBe(SCENE_IDS.PAUSE)
+
+      controller.handleGameEvent({ type: 'game_resumed' })
+
+      expect(controller.getState().currentSceneId).toBe(SCENE_IDS.QUESTION)
+    })
+
+    it('une salle qui coupe la liaison game_paused garde ses lumières', async () => {
+      const clock = createManualClock(10_000)
+      const quiet = createLightingController({
+        config: lightingConfig({ bindings: { game_paused: null } }),
+        output: createSimulationOutput(),
+        clock,
+        doc: null,
+      })
+      await quiet.start()
+      controller = quiet
+
+      quiet.handleGameEvent({ type: 'game_paused' })
+
+      expect(quiet.getState().currentSceneId).toBe(SCENE_IDS.IDLE)
+    })
   })
 })
