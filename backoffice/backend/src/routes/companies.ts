@@ -13,6 +13,9 @@ import companyLogoRoutes from './companies/logo'
 import companyAdminsRoutes from './companies/admins'
 import companyAdminIdRoutes from './companies/admins/id'
 import companyAdminIdStatusRoutes from './companies/admins/idStatus'
+import companyApiKeysRoutes from './companies/apiKeys'
+import companyApiKeyIdRoutes from './companies/apiKeys/id'
+import companyApiLogsRoutes from './companies/apiLogs'
 import companyRoomsRoutes from './companies/rooms'
 import companyRoomAccountRoutes from './companies/rooms/account'
 import companyRoomIdRoutes from './companies/rooms/id'
@@ -30,6 +33,9 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
   app.register(companyAdminsRoutes)
   app.register(companyAdminIdRoutes)
   app.register(companyAdminIdStatusRoutes)
+  app.register(companyApiKeysRoutes)
+  app.register(companyApiKeyIdRoutes)
+  app.register(companyApiLogsRoutes)
   app.register(companyRoomsRoutes)
   app.register(companyRoomAccountRoutes)
   app.register(companyRoomIdRoutes)
@@ -137,6 +143,8 @@ const companiesRoutes: FastifyPluginAsync = async (app) => {
           'updated_at as updatedAt',
           'deleted_at as deletedAt',
           'logo_key as logoKey',
+          'voucher_label as voucherLabel',
+          'voucher_validity_days as voucherValidityDays',
         ])
 
       const createdCompany = Array.isArray(inserted) ? inserted[0] : inserted

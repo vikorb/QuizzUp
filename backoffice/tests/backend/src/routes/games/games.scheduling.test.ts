@@ -703,20 +703,26 @@ describe('POST /companies/:companyId/games/:gameId/open', () => {
     }
   )
 
-  it('answers room_busy while another game waits or runs in the room', async () => {
+  it('answers room_busy while another game waits in the room', async () => {
+    vi.setSystemTime(new Date('2027-03-10T13:00:00.000Z'))
+    seedGame({ id: 2, state: GAME_STATE_PENDING, scheduled_at: null, scheduled_end_at: null })
+
+    const response = await open()
+
+    expect(response.statusCode).toBe(409)
+    expect(parseJson(response)).toEqual({ error: 'room_busy' })
+    expect(dbState.games[0]!.state).toBe(GAME_STATE_SCHEDULED)
+  })
+
+  it('opens the next session while another game is running in the room (arbitrage 4)', async () => {
     vi.setSystemTime(new Date('2027-03-10T13:00:00.000Z'))
     seedGame({ id: 2, state: GAME_STATE_RUNNING, scheduled_at: null, scheduled_end_at: null })
 
-    // Passera à 200 quand la file d'attente du lot 2 lèvera l'index.
-    const whileRunning = await open()
-    dbState.games[1]!.state = GAME_STATE_PENDING
-    const whilePending = await open()
+    const response = await open()
 
-    expect(whileRunning.statusCode).toBe(409)
-    expect(parseJson(whileRunning)).toEqual({ error: 'room_busy' })
-    expect(whilePending.statusCode).toBe(409)
-    expect(parseJson(whilePending)).toEqual({ error: 'room_busy' })
-    expect(dbState.games[0]!.state).toBe(GAME_STATE_SCHEDULED)
+    expect(response.statusCode).toBe(200)
+    expect(dbState.games[0]!.state).toBe(GAME_STATE_PENDING)
+    expect(dbState.games[1]!.state).toBe(GAME_STATE_RUNNING)
   })
 
   it('ignores a pending game of another room and a deleted one', async () => {

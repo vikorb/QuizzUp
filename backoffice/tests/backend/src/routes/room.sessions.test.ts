@@ -366,15 +366,14 @@ describe('POST /room/games/:gameId/open', () => {
     await app.close()
   })
 
-  it('answers room_busy while a game of the room is running (index not yet split)', async () => {
+  it('opens while another game of the room is running (arbitrage 4)', async () => {
     seedSession(2, { state: GAME_STATE_RUNNING, scheduled_at: null, scheduled_end_at: null })
     const app = await createRouteApp(roomRoutes)
 
     const response = await open(app, 1)
 
-    // Passera à 200 quand le lot 2 aura scindé l'index (arbitrage 4) : même comportement que le backoffice.
-    expect(response.statusCode).toBe(409)
-    expect(parseJson(response)).toEqual({ error: 'room_busy' })
+    expect(response.statusCode).toBe(200)
+    expect(dbState.games[0]!.state).toBe(GAME_STATE_PENDING)
 
     await app.close()
   })
