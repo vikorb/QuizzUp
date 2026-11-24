@@ -130,6 +130,7 @@ const gamesRegistrationsRoutes: FastifyPluginAsync = async (app) => {
           const registration = await trx('game_registrations')
             .where('id', registrationId)
             .where('game_id', gameId)
+            .forUpdate()
             .first()
 
           if (!registration) {

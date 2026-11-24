@@ -3,6 +3,8 @@ import type {
   CreateGamePayload,
   GameApiErrorCode,
   GameApiResult,
+  GameJoinResponse,
+  GameRegistrationsResponse,
   GameResponse,
   GameRoomsResponse,
   GamesQuery,
@@ -62,6 +64,11 @@ async function requestGameJson<T>(options: ApiRequestOptions): Promise<GameApiRe
       status: response.status,
       error: readGameApiError(payload) ?? getFallbackErrorCode(response.status),
     }
+  }
+
+  // Fermeture du lien, refus d'une demande : réponse vide.
+  if (response.status === 204) {
+    return { ok: true, status: 204, data: undefined as T }
   }
 
   const json = (await response.json().catch(() => null)) as T | null
@@ -156,6 +163,71 @@ export async function cancelGameService(companyId: number, gameId: number): Prom
   return requestGameJson<GameResponse>({
     path: `/companies/${companyId}/games/${gameId}/cancel`,
     method: 'POST',
+  })
+}
+
+function gamePath(companyId: number, gameId: number): string {
+  return `/companies/${companyId}/games/${gameId}`
+}
+
+/** Ouvre le lien d'inscription d'une partie en attente, ou le régénère (l'ancien lien ne marche plus). */
+export async function openGameJoinService(
+  companyId: number,
+  gameId: number
+): Promise<GameApiResult<GameJoinResponse>> {
+  return requestGameJson<GameJoinResponse>({
+    path: `${gamePath(companyId, gameId)}/join`,
+    method: 'POST',
+  })
+}
+
+/** Ferme le lien d'inscription (idempotent). */
+export async function closeGameJoinService(
+  companyId: number,
+  gameId: number
+): Promise<GameApiResult<void>> {
+  return requestGameJson<void>({
+    path: `${gamePath(companyId, gameId)}/join`,
+    method: 'DELETE',
+  })
+}
+
+/** Demandes d'inscription en attente, les plus anciennes d'abord. */
+export async function listGameRegistrationsService(
+  companyId: number,
+  gameId: number
+): Promise<GameApiResult<GameRegistrationsResponse>> {
+  return requestGameJson<GameRegistrationsResponse>({
+    path: `${gamePath(companyId, gameId)}/registrations`,
+  })
+}
+
+/** Valide une demande : elle devient un participant. Sans `podium`, le serveur prend le premier libre. */
+export async function acceptGameRegistrationService(
+  companyId: number,
+  gameId: number,
+  registrationId: number,
+  podium?: number
+): Promise<GameApiResult<unknown>> {
+  return requestGameJson<unknown>({
+    path: `${gamePath(companyId, gameId)}/registrations/${registrationId}/accept`,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(podium === undefined ? {} : { podium }),
+  })
+}
+
+/** Refuse une demande : suppression définitive. */
+export async function refuseGameRegistrationService(
+  companyId: number,
+  gameId: number,
+  registrationId: number
+): Promise<GameApiResult<void>> {
+  return requestGameJson<void>({
+    path: `${gamePath(companyId, gameId)}/registrations/${registrationId}`,
+    method: 'DELETE',
   })
 }
 

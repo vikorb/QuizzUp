@@ -164,6 +164,77 @@ describe('views/clients/details/ClientDetailForm.vue', () => {
     expect(findInput(wrapper, 'email').element.value).toBe('hello@beta.test')
   })
 
+  describe('voucher settings', () => {
+    const withVouchers = { ...company, voucherLabel: 'Une partie offerte', voucherValidityDays: 60 }
+
+    it('shows the saved label and validity, read-only for users', () => {
+      setAuthenticatedUser()
+
+      const wrapper = mountWithFrontendMocks(ClientDetailForm, { props: { company: withVouchers } })
+
+      expect(findInput(wrapper, 'voucherLabel').element.value).toBe('Une partie offerte')
+      expect(findInput(wrapper, 'voucherValidityDays').element.value).toBe('60')
+      expect(findInput(wrapper, 'voucherLabel').attributes('disabled')).toBeDefined()
+      expect(findInput(wrapper, 'voucherValidityDays').attributes('disabled')).toBeDefined()
+    })
+
+    it('shows an empty label (vouchers off) and the default validity for a company without settings', () => {
+      setAuthenticatedAdmin()
+
+      const wrapper = mountWithFrontendMocks(ClientDetailForm, { props: { company } })
+
+      expect(findInput(wrapper, 'voucherLabel').element.value).toBe('')
+      expect(findInput(wrapper, 'voucherValidityDays').element.value).toBe('90')
+    })
+
+    it('lets admins change them and sends them with the form', async () => {
+      setAuthenticatedAdmin()
+      saveClientDetailCompanyMock.mockResolvedValue({
+        ok: true,
+        company: { ...withVouchers, voucherLabel: 'Un verre offert', voucherValidityDays: 30 },
+        successMessage: 'clients.details.success.updated',
+      })
+
+      const wrapper = mountWithFrontendMocks(ClientDetailForm, { props: { company: withVouchers } })
+      const submit = wrapper.findAll('.company-form__actions [data-test="ui-button"]')[1]
+
+      expect(submit.attributes('disabled')).toBeDefined()
+
+      await findInput(wrapper, 'voucherLabel').setValue('Un verre offert')
+      await findInput(wrapper, 'voucherValidityDays').setValue('30')
+
+      expect(submit.attributes('disabled')).toBeUndefined()
+
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(saveClientDetailCompanyMock).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({ voucherLabel: 'Un verre offert', voucherValidityDays: '30' }),
+        expect.any(Function)
+      )
+    })
+
+    it('shows the error of a field the save refused', async () => {
+      setAuthenticatedAdmin()
+      saveClientDetailCompanyMock.mockResolvedValue({
+        ok: false,
+        fieldErrors: { voucherValidityDays: 'vouchers.settings.invalidValidity' },
+        formError: null,
+      })
+
+      const wrapper = mountWithFrontendMocks(ClientDetailForm, { props: { company: withVouchers } })
+
+      await findInput(wrapper, 'voucherValidityDays').setValue('0')
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(wrapper.find('[data-test="form-field-error"]').text()).toBe(
+        'vouchers.settings.invalidValidity'
+      )
+    })
+  })
+
   describe('logo', () => {
     it('lets admins change the logo, and keeps unsaved edits when the company is refreshed', async () => {
       setAuthenticatedAdmin()

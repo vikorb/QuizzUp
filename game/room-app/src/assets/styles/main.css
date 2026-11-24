@@ -3,6 +3,7 @@
  * (fonds, accents bleu-violet, néons, police Exo 2) et on n'ajoute que ce qui est
  * propre à un écran de jeu vu de loin.
  */
+@import '@backoffice-assets/styles/fonts.css';
 @import '@backoffice-assets/styles/main.css';
 
 :root {
