@@ -34,7 +34,8 @@
       "formats": {
         "discovery": "Discovery",
         "short": "Short",
-        "standard": "Standard"
+        "standard": "Standard",
+        "custom": "Custom"
       },
       "formatSummary": "{name} · {rounds} rounds × {questions} questions · {min} to {max} min",
       "start": "Start the game",
@@ -96,6 +97,7 @@
       "offlineTitle": "Back office unreachable",
       "offlineText": "Check the Internet connection of the room PC. A connection is required to start the game.",
       "retry": "Retry",
+      "format": "{name} format · {min} to {max} min",
       "ready": "Game ready: {rounds} rounds × {questions} questions",
       "readyText": "Each player can press a buzzer to check their desk.",
       "starting": "Preparing the clips…",

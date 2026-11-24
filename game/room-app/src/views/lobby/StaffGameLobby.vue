@@ -50,6 +50,7 @@
               : $t('room.staffLobby.readyText')
           }}
         </p>
+        <p class="staff-lobby__subtitle" data-test="game-format">{{ formatLabel }}</p>
 
         <section
           v-if="joinOffer"
@@ -145,7 +146,7 @@
 <script setup lang="ts">
 import { mdiPlay, mdiRestart, mdiTimerSandEmpty } from '@mdi/js'
 import { GameSetupError } from '@quizzup/game-engine'
-import { GAME_STATE_RUNNING } from '@quizzup/shared'
+import { estimateGameDurationMs, GAME_FORMAT_CUSTOM, GAME_STATE_RUNNING } from '@quizzup/shared'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -222,6 +223,25 @@ let failures = 0
 let disposed = false
 
 const isRunning = computed(() => game.value?.state === GAME_STATE_RUNNING)
+
+const MS_PER_MINUTE = 60_000
+/** Nom du format et durée estimée, avec les mini-jeux de la partie (affichage seulement). */
+const formatLabel = computed(() => {
+  const current = game.value
+  if (!current) {
+    return ''
+  }
+  const { typicalMs, highMs } = estimateGameDurationMs({
+    roundsCount: current.roundsCount,
+    questionsPerRound: current.questionsPerRound,
+    miniGames: current.miniGames ?? undefined,
+  })
+  return t('room.staffLobby.format', {
+    name: t(`room.lobby.formats.${current.format ?? GAME_FORMAT_CUSTOM}`),
+    min: Math.round(typicalMs / MS_PER_MINUTE),
+    max: Math.ceil(highMs / MS_PER_MINUTE),
+  })
+})
 
 /**
  * Le serveur renvoie `join: null` dès que le lien est fermé ou expiré : on s'y fie. Sans QR, une

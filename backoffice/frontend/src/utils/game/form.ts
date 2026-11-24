@@ -1,8 +1,12 @@
-import type { MiniGame } from '@quizzup/shared'
+import type { GameFormat, MiniGame } from '@quizzup/shared'
 import {
+  estimateGameDurationMs,
+  GAME_DEFAULT_FORMAT,
   GAME_DEFAULT_QUESTIONS_PER_ROUND,
   GAME_DEFAULT_ROUNDS,
   GAME_EXTERNAL_REF_MAX_LENGTH,
+  GAME_FORMAT_CUSTOM,
+  GAME_FORMAT_SETTINGS,
   GAME_MAX_PLAYERS,
   GAME_MAX_QUESTIONS_PER_ROUND,
   GAME_MAX_ROUNDS,
@@ -148,6 +152,7 @@ export function closeGameSecondPlayer(participant: GameParticipantFormValues): v
 export function createDefaultGameFormValues(): GameFormValues {
   return {
     roomId: '',
+    format: GAME_DEFAULT_FORMAT,
     roundsCount: String(GAME_DEFAULT_ROUNDS),
     questionsPerRound: String(GAME_DEFAULT_QUESTIONS_PER_ROUND),
     // Tous les mini-jeux cochés par défaut : l'opérateur retire ce qu'il ne veut pas.
@@ -177,6 +182,7 @@ export function createGameParticipantFieldErrors(): GameParticipantFieldErrors {
 export function createGameFieldErrors(participantsCount = 0): GameFieldErrors {
   return {
     roomId: '',
+    format: '',
     roundsCount: '',
     questionsPerRound: '',
     miniGames: '',
@@ -374,11 +380,18 @@ export function validateGameForm(
     errors.roomId = 'games.form.errors.roomRequired'
   }
 
-  if (parseIntegerInRange(form.roundsCount, GAME_MAX_ROUNDS) === null) {
+  // Un format fixe porte ses nombres : seuls ceux d'un format personnalisé se saisissent.
+  if (
+    form.format === GAME_FORMAT_CUSTOM &&
+    parseIntegerInRange(form.roundsCount, GAME_MAX_ROUNDS) === null
+  ) {
     errors.roundsCount = 'games.form.errors.roundsInvalid'
   }
 
-  if (parseIntegerInRange(form.questionsPerRound, GAME_MAX_QUESTIONS_PER_ROUND) === null) {
+  if (
+    form.format === GAME_FORMAT_CUSTOM &&
+    parseIntegerInRange(form.questionsPerRound, GAME_MAX_QUESTIONS_PER_ROUND) === null
+  ) {
     errors.questionsPerRound = 'games.form.errors.questionsInvalid'
   }
 
@@ -397,6 +410,54 @@ export function validateGameForm(
   )
 
   return errors
+}
+
+type GameFormPlan = {
+  roundsCount: number
+  questionsPerRound: number
+  minMinutes: number
+  maxMinutes: number
+}
+
+const MS_PER_MINUTE = 60_000
+
+/**
+ * Manches, questions et durée estimée (typique à haute, en minutes) d'un format, avec les mini-jeux
+ * cochés. `custom` lit les champs saisis : `null` tant qu'ils sont invalides.
+ */
+export function getGameFormPlan(
+  form: GameFormValues,
+  format: GameFormat = form.format
+): GameFormPlan | null {
+  const counts =
+    format === GAME_FORMAT_CUSTOM
+      ? {
+          roundsCount: parseIntegerInRange(form.roundsCount, GAME_MAX_ROUNDS),
+          questionsPerRound: parseIntegerInRange(
+            form.questionsPerRound,
+            GAME_MAX_QUESTIONS_PER_ROUND
+          ),
+        }
+      : GAME_FORMAT_SETTINGS[format]
+
+  const { roundsCount, questionsPerRound } = counts
+
+  if (roundsCount === null || questionsPerRound === null) {
+    return null
+  }
+
+  const { typicalMs, highMs } = estimateGameDurationMs({
+    roundsCount,
+    questionsPerRound,
+    miniGames: form.miniGames,
+  })
+
+  return {
+    roundsCount,
+    questionsPerRound,
+    minMinutes: Math.round(typicalMs / MS_PER_MINUTE),
+    maxMinutes: Math.ceil(highMs / MS_PER_MINUTE),
+  }
 }
 
 export function hasGameFormErrors(errors: GameFieldErrors): boolean {
@@ -521,10 +582,16 @@ export function buildCreateGamePayload(
 ): CreateGamePayload {
   const payload: CreateGamePayload = {
     roomId: Number(form.roomId),
-    roundsCount: Number(form.roundsCount.trim()),
-    questionsPerRound: Number(form.questionsPerRound.trim()),
+    format: form.format,
     participants: buildParticipantsPayload(form.participants),
   }
+
+  // Le serveur refuse des nombres envoyés avec un format fixe.
+  if (form.format === GAME_FORMAT_CUSTOM) {
+    payload.roundsCount = Number(form.roundsCount.trim())
+    payload.questionsPerRound = Number(form.questionsPerRound.trim())
+  }
+
   const miniGames = getSelectedMiniGames(form.miniGames)
 
   if (miniGames) {
@@ -770,6 +837,7 @@ export function createGameFormValuesFromGame(game: Game, timeZone: string): Game
   const values: GameFormValues = {
     ...createDefaultGameFormValues(),
     roomId: String(game.roomId),
+    format: GAME_FORMAT_CUSTOM,
     roundsCount: String(game.roundsCount),
     questionsPerRound: String(game.questionsPerRound),
     miniGames: getGameMiniGames(game),

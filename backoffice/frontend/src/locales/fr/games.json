@@ -87,6 +87,15 @@
         "participant": "Participant {n}"
       },
       "noActiveRoom": "Aucune salle active dans cette compagnie : activez une salle avant de lancer une partie.",
+      "format": "Format",
+      "formats": {
+        "discovery": "Découverte",
+        "short": "Courte",
+        "standard": "Standard",
+        "custom": "Personnalisé"
+      },
+      "formatOption": "{name} · {rounds} × {questions} · {min} à {max} min",
+      "formatEstimate": "Durée estimée : {min} à {max} min, avec les mini-jeux cochés.",
       "roundsCount": "Manches",
       "roundsHint": "Entre 1 et {max}",
       "questionsPerRound": "Questions par manche",
@@ -203,6 +212,8 @@
       "invalidBody": "La demande envoyée est invalide. Vérifiez les informations puis réessayez.",
       "invalidParams": "Paramètres invalides.",
       "invalidEmail": "L'adresse email est invalide.",
+      "formatFixesCounts": "Un format fixe détermine déjà les manches et les questions : choisissez Personnalisé pour les saisir.",
+      "formatNotUpdatable": "Le format ne se modifie pas après la création.",
       "emailAlreadyExists": "Cette adresse email est déjà utilisée.",
       "nameAlreadyExists": "Ce nom est déjà utilisé.",
       "notFound": "Cette partie est introuvable.",
