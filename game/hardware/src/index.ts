@@ -168,6 +168,7 @@ export {
   WATCHDOG_STALL_MS,
 } from './lighting/lightingController'
 export type {
+  ExitLightConfig,
   SceneAim,
   SceneColor,
   SceneContext,
@@ -178,13 +179,16 @@ export type {
 export {
   DEFAULT_BINDINGS,
   DEFAULT_DESK_COLORS,
+  DEFAULT_EXIT,
   DEFAULT_SCENES,
+  defaultScenesFor,
+  exitScene,
   NEON,
   SCENE_IDS,
   SHOW_CUES,
 } from './lighting/scenes'
-export type { ParsedScenes } from './lighting/showConfig'
-export { parseScenes, SCENE_LIMITS } from './lighting/showConfig'
+export type { ParsedExit, ParsedScenes } from './lighting/showConfig'
+export { parseExit, parseScenes, SCENE_LIMITS } from './lighting/showConfig'
 export type {
   SmokeController,
   SmokeFireResult,

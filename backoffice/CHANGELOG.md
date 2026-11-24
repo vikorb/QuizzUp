@@ -11,6 +11,8 @@ Format inspiré de Keep a Changelog.
 - Bons dans le backoffice : panneau « Bons » sur la fiche d'une partie terminée (émettre le bon d'un pupitre, l'annuler), page « Bons » (recherche d'un code, utilisation, liste filtrable et paginée, annulation réservée aux admins), réglages du centre (libellé du bon, durée de validité) et un bloc par bon valable sur la feuille de résultats imprimable, avec son QR code quand le serveur le fournit.
   US: US-VOUCHER-01 (#156)
 
+- Lumières Art-Net sans exécutable (`game/artnet-bridge/powershell`) : `quizzup-lumieres.ps1` (PowerShell 5.1, présent sur tout Windows) parle le même protocole WebSocket que le pont et envoie les trames Art-Net ; lanceur `Lancer les lumieres.cmd`. Pas de découverte de nœuds : l'adresse du nœud se saisit à la main. Jamais essayé face à un vrai nœud Art-Net.
+  US: US-DMX-01 (#203)
 - Formulaire de question : sélecteur « Effet sur l'extrait » (aucun, très court, à l'envers, ralenti), visible seulement pour une question audio. L'effet est relu à la modification, remis à « aucun » quand la question cesse d'être audio, et les erreurs de l'API (`question_audio_effect_invalid`, `audio_effect_requires_audio`) s'affichent sous le champ.
   US: US-AUDIO-02 (#144)
 - Pilotage en direct, commandes à distance (écran de salle) : la salle applique `pause`, `resume`, `skip` et `abort` reçus par le flux, par les mêmes chemins que les boutons locaux, puis rend l'accusé (`POST /room/commands/:id/result`). Commande rejouée : même accusé, sans nouvelle application. `skip` refusé (`not_in_question`) s'il ne désigne plus la question en cours ; `abort` refusé s'il vise une autre partie. Scénario Playwright pause, refus, reprise.
@@ -39,6 +41,8 @@ Format inspiré de Keep a Changelog.
   US: US-AUDIO-02 (#144)
 
 - Show lumière réglable par salle : `lighting.scenes` surcharge les scènes par défaut (bornées : 400 ms au moins entre deux éclairs, un seul jet de fumée par scène, jamais dans une boucle), une scène peut en enchaîner une autre (`next`), nouveaux signaux `game_paused`, `game_resumed`, `session_exit` et `round_started.<miniGame>`. Les clés de configuration inconnues sont conservées. Modèles de salle prêts à l'emploi (4 modèles, sans fumée) et proposition d'univers Art-Net.
+  US: US-SHOW-01 (#145)
+- Lumière de sortie réglable : en fin de session, la salle passe en blanc chaud et fort, lyres au repos, sans stroboscope ni fumée, pour que les joueurs voient la sortie. Elle part 10 secondes après la victoire (ou tout de suite si la partie s'arrête faute de contenu), reste allumée 5 minutes puis s'éteint en douceur ; une nouvelle partie ou l'arrêt d'urgence la coupe. Réglable par salle (`lighting.exit` : `enabled`, `delayMs`, `holdMs`, `intensity`, `color`), une configuration plus ancienne reste valide. Une boucle de scènes qui passerait par la victoire ou la sortie livrées est refusée.
   US: US-SHOW-01 (#145)
 - Diagnostic à distance d'une salle, en lecture seule : l'écran de salle publie son état matériel dans son rapport d'état (version, source des buzzers et manettes, pilote et état des lumières, fumée activée et armée, audio prêt, date de la dernière erreur) et la fiche de la salle l'affiche dans un bloc « Diagnostic ». Rien n'est stocké. Une valeur inconnue est lue comme « inconnu » et ne fait jamais paraître la salle hors ligne.
   US: US-DIAG-01 (#157)
