@@ -109,6 +109,34 @@
             <span id="lights-choice-later-hint">{{ $t('setupLights.equip.laterHint') }}</span>
           </button>
         </div>
+        <section class="models" aria-labelledby="lights-models-title" data-test="lights-models">
+          <h2 id="lights-models-title" class="lights__small">
+            {{ $t('setupLights.models.title') }}
+          </h2>
+          <ul class="models__list">
+            <li v-for="model in models" :key="model.template.id">
+              <button
+                type="button"
+                class="model"
+                :disabled="choosing || model.needsArtnet"
+                :data-test="`lights-model-${model.template.id}`"
+                @click="choose(() => onModel(model.template))"
+              >
+                <strong>{{ model.name }}</strong>
+                <span>
+                  {{
+                    model.needsArtnet
+                      ? $t('setupLights.models.needsArtnet')
+                      : $t('setupLights.models.hint', {
+                          desks: model.template.desksCount,
+                          n: model.template.fixtures.length,
+                        })
+                  }}
+                </span>
+              </button>
+            </li>
+          </ul>
+        </section>
       </section>
 
       <section v-else-if="step === 'test' && current" key="test" class="lights__stage">
@@ -271,11 +299,17 @@ import {
   type ArtnetNode,
   BridgePollError,
   checkBrowser,
+  createRigFromTemplate,
   createSetupWizard,
   describeSerialError,
   findProfile,
   type FixtureConfig,
+  proposeUniverses,
+  ROOM_TEMPLATES,
+  type RoomTemplate,
   type SetupWizard,
+  type UniverseAssignment,
+  unsupportedUniverseProblems,
 } from '@quizzup/hardware'
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -302,7 +336,7 @@ type Step = (typeof STEPS)[number]
 
 const WHITE = { r: 255, g: 255, b: 255, w: 255 }
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 const router = useRouter()
 const { confirm } = useConfirm()
 const { hardware, lightingState } = useRoomHardware()
@@ -463,30 +497,71 @@ function onEquipBack(): void {
   step.value = 'scan'
 }
 
-async function onSixDesk(): Promise<void> {
-  if (
-    fixtureCount.value > 0 &&
-    !(await confirm({ message: t('setupLights.equip.replaceConfirm'), variant: 'danger' }))
-  ) {
+const modelName = (template: RoomTemplate): string =>
+  te(`setupLights.models.names.${template.id}`)
+    ? t(`setupLights.models.names.${template.id}`)
+    : template.name
+
+// Un modèle qui place des appareils sur un univers que l'interface choisie ne sait pas émettre
+// (USB : univers 0 seulement) serait sans signal : il n'est pas proposé.
+const models = computed(() =>
+  ROOM_TEMPLATES.map((template) => {
+    const rig = createRigFromTemplate(template)
+    return {
+      template,
+      name: modelName(template),
+      needsArtnet:
+        rig.ok &&
+        unsupportedUniverseProblems(rig.fixtures, view.value.config.lighting.driver).length > 0,
+    }
+  })
+)
+
+const onSixDesk = (): Promise<void> =>
+  equipFrom(t('setupLights.equip.replaceConfirm'), (target) => {
+    target.importSixDeskPreset()
+    return true
+  })
+
+const onModel = (template: RoomTemplate): Promise<void> =>
+  equipFrom(
+    t('setupLights.equip.replaceModelConfirm', { name: modelName(template) }),
+    (target) => target.importRoomTemplate(template).ok
+  )
+
+/** Remplace les appareils (après confirmation s'il y en a), puis propose les univers et lance le test. */
+async function equipFrom(
+  replaceMessage: string,
+  load: (target: SetupWizard) => boolean
+): Promise<void> {
+  if (fixtureCount.value > 0 && !(await confirm({ message: replaceMessage, variant: 'danger' }))) {
     return
   }
-  // Le modèle compte 6 pupitres, mais le nombre de pupitres réglé avec les buzzers fait foi.
+  // Le nombre de pupitres réglé avec les buzzers fait foi, quel que soit le modèle.
   const desksCount = view.value.config.desksCount
   const smokes = view.value.config.lighting.fixtures.filter(
     (item) => kindOf(item.profileId) === 'smoke'
   )
   // Essai à blanc : une machine à fumée dont l'adresse chevauche le modèle bloque l'import.
-  equipError.value = !importModel(createSetupWizard(view.value.config), smokes, desksCount)
+  equipError.value = !importModel(createSetupWizard(view.value.config), load, smokes, desksCount)
   if (equipError.value) {
     return
   }
-  run(() => importModel(wizard, smokes, desksCount))
+  run(() => importModel(wizard, load, smokes, desksCount))
+  await offerUniverses()
   await startTests()
 }
 
-/** Remplace les appareils par le modèle 6 pupitres, en gardant les machines à fumée existantes. */
-function importModel(target: SetupWizard, smokes: FixtureConfig[], desksCount: number): boolean {
-  target.importSixDeskPreset()
+/** Remplace les appareils par ceux du modèle, en gardant les machines à fumée existantes. */
+function importModel(
+  target: SetupWizard,
+  load: (target: SetupWizard) => boolean,
+  smokes: FixtureConfig[],
+  desksCount: number
+): boolean {
+  if (!load(target)) {
+    return false
+  }
   target.setDesksCount(desksCount)
   return smokes.every(
     (smoke) =>
@@ -501,7 +576,44 @@ function importModel(target: SetupWizard, smokes: FixtureConfig[], desksCount: n
 }
 
 async function onKeep(): Promise<void> {
+  await offerUniverses()
   await startTests()
+}
+
+/**
+ * Le boîtier Art-Net choisi annonce ses sorties : propose de placer les appareils sur les univers
+ * correspondants. Rien ne change sans confirmation. Les univers choisis étant des sorties
+ * distinctes dans le même ordre, le déplacement final ne chevauche jamais : seul l'ordre des
+ * déplacements compte, d'où la reprise des refus passagers. Les machines à fumée suivent leur
+ * groupe ; aucun réglage de fumée n'est touché (déplacer un appareil réinitialise même le test de coupure).
+ */
+async function offerUniverses(): Promise<void> {
+  const node = nodes.value.find((item) => item.ip === chosenIp.value)
+  const { driver, fixtures } = view.value.config.lighting
+  const changes = node && driver === 'artnet-bridge' ? proposeUniverses(node, fixtures) : null
+  if (!node || !changes) {
+    return
+  }
+  const message = t('setupLights.equip.universesConfirm', {
+    outputs: (node.universes ?? []).join(', '),
+    n: changes.length,
+  })
+  if (await confirm({ message })) {
+    run(() => placeOnUniverses(changes))
+  }
+}
+
+function placeOnUniverses(changes: UniverseAssignment[]): void {
+  let pending = changes
+  while (pending.length > 0) {
+    const refused = pending.filter(
+      ({ fixtureId, universe }) => !wizard.updateFixture(fixtureId, { universe }).ok
+    )
+    if (refused.length === pending.length) {
+      return
+    }
+    pending = refused
+  }
 }
 
 function onLater(): void {
@@ -792,6 +904,60 @@ async function restoreStart(): Promise<void> {
 
 .choice:hover {
   border-color: var(--text-0);
+}
+
+/* Modèles de salle : une liste sobre sous les cartes, pas un second rang de cartes. */
+.models {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  width: min(640px, 100%);
+}
+
+.models__list {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.model {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 20px;
+  border: 2px solid var(--border-ui);
+  border-radius: var(--radius-ctl);
+  background: transparent;
+  color: var(--text-0);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: var(--tr);
+}
+
+.model strong {
+  font-size: var(--stage-small);
+  font-weight: 800;
+}
+
+.model span {
+  color: var(--text-2);
+  font-size: var(--stage-small);
+}
+
+.model:hover:not(:disabled) {
+  border-color: var(--text-0);
+}
+
+.model:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .fixture {

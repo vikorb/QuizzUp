@@ -6,6 +6,8 @@ import {
   gamepadMatcher,
   parseRoomHardwareConfig,
 } from '@hardware/config'
+import type { RoomTemplate } from '@hardware/presets/roomTemplates'
+import { ROOM_TEMPLATES } from '@hardware/presets/roomTemplates'
 import { parsePanTiltCalibration } from '@hardware/presets/sixDeskRoom'
 import {
   checkBrowser,
@@ -276,6 +278,50 @@ describe('assistant d’installation : appareils', () => {
     const profiles = state.config.lighting.customProfiles.length
     wizard.importSixDeskPreset()
     expect(wizard.getState().config.lighting.customProfiles).toHaveLength(profiles)
+  })
+
+  it('importe un modèle de salle sans toucher aux pupitres ni à la fumée', () => {
+    const wizard = atFixtures()
+    wizard.setDesksCount(5)
+    wizard.addFixture({ profileId: 'par-rgb', name: 'Ancien' })
+    const before = wizard.getState().config
+    const [, fourDesks] = ROOM_TEMPLATES as readonly [RoomTemplate, RoomTemplate]
+
+    expect(wizard.importRoomTemplate(fourDesks)).toEqual({ ok: true })
+
+    const after = wizard.getState().config
+    expect(after.lighting.fixtures).toHaveLength(fourDesks.fixtures.length)
+    expect(after.lighting.fixtures.some((fixture) => fixture.name === 'Ancien')).toBe(false)
+    expect(after.desksCount).toBe(5)
+    expect(after.lighting.smoke).toEqual(before.lighting.smoke)
+    expect(after.lighting.fixtures.some((fixture) => fixture.profileId.startsWith('smoke'))).toBe(
+      false
+    )
+  })
+
+  it('un modèle à profils propres les ajoute une seule fois', () => {
+    const wizard = createSetupWizard()
+    const [sixDesks] = ROOM_TEMPLATES as readonly [RoomTemplate]
+    wizard.importRoomTemplate(sixDesks)
+    const profiles = wizard.getState().config.lighting.customProfiles.length
+    expect(profiles).toBeGreaterThan(0)
+    wizard.importRoomTemplate(sixDesks)
+    expect(wizard.getState().config.lighting.customProfiles).toHaveLength(profiles)
+  })
+
+  it('refuse un modèle invalide sans rien changer', () => {
+    const wizard = atFixtures()
+    wizard.addFixture({ profileId: 'par-rgb', name: 'Ancien' })
+    const before = wizard.getState().config
+    const broken: RoomTemplate = {
+      id: 'broken',
+      name: 'Cassé',
+      desksCount: 1,
+      fixtures: [{ id: 'x', name: 'X', profileId: 'inconnu' }],
+      customProfiles: [],
+    }
+    expect(wizard.importRoomTemplate(broken)).toEqual({ ok: false, reason: 'unknown_profile' })
+    expect(wizard.getState().config).toEqual(before)
   })
 })
 

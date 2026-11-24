@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Écran de salle, réglage des lumières : les modèles de salle (`ROOM_TEMPLATES`) se choisissent dans l'assistant, avec une confirmation avant de remplacer des appareils déjà réglés, et une répartition des univers est proposée en Art-Net avant le test. Un modèle ne touche jamais aux réglages de fumée ; un modèle à plusieurs univers n'est pas proposé avec une interface USB.
+  US: US-SHOW-01 (#145)
+
 - Bons dans le backoffice : panneau « Bons » sur la fiche d'une partie terminée (émettre le bon d'un pupitre, l'annuler), page « Bons » (recherche d'un code, utilisation, liste filtrable et paginée, annulation réservée aux admins), réglages du centre (libellé du bon, durée de validité) et un bloc par bon valable sur la feuille de résultats imprimable, avec son QR code quand le serveur le fournit.
   US: US-VOUCHER-01 (#156)
 
