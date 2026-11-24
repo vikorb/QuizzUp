@@ -19,6 +19,7 @@ import {
   addMinutes,
   findGameInCompany,
   findStaffGame,
+  findStaffGameWithJoin,
   getSessionWindowError,
   insertParticipants,
   MINUTE_MS,
@@ -47,7 +48,7 @@ const gamesIdRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(403).send({ error: 'forbidden' })
       }
 
-      const game = await findStaffGame(req, companyId, gameId)
+      const game = await findStaffGameWithJoin(req, companyId, gameId)
 
       if (!game) {
         return reply.code(404).send({ error: 'not_found' })

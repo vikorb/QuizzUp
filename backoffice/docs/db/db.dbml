@@ -245,6 +245,8 @@ Table games {
   players_count smallint [note: '1 à 12 (GAME_MAX_PLAYERS : 6 pupitres × 2 joueurs) ; nombre de joueurs annoncé à la réservation']
   external_ref varchar(100) [note: 'Référence du système de réservation du client']
   locale varchar(5) [note: 'fr ou en (GAME_LOCALES)']
+  join_token varchar(64) [note: 'Jeton du lien d’inscription (32 octets en base64url, en clair), dans le fragment # de l’URL ; null = lien fermé. Unique (index partiel)']
+  join_expires_at timestamptz [note: 'Fin de validité du lien (180 minutes, JOIN_LINK_TTL_MINUTES). Nul si et seulement si join_token est nul (CHECK games_join_check)']
 
   started_at timestamptz
   finished_at timestamptz
@@ -264,7 +266,9 @@ Table games {
   }
 
   Note: '''
-    Index unique partiel : une seule partie pending/running par salle (games_room_id_active_unique).
+    Index uniques partiels (WHERE status <> 2) : une seule partie pending par salle (games_room_id_pending_unique) et une seule partie running par salle
+    (games_room_id_running_unique). Une partie en attente et une partie en cours peuvent coexister : le groupe suivant s’inscrit pendant que le premier joue.
+    Index unique partiel games_join_token_unique sur join_token (WHERE join_token IS NOT NULL).
     Contrainte d’exclusion games_room_schedule_no_overlap : EXCLUDE USING gist (room_id WITH =, tstzrange(scheduled_at, scheduled_end_at, '[)') WITH &&)
     WHERE (scheduled_at IS NOT NULL AND status <> 2 AND state IN ('scheduled', 'pending', 'running')) :
     pas de chevauchement de sessions dans une salle (SQLSTATE 23P01, extension btree_gist). Intervalles semi-ouverts : deux sessions bout à bout sont acceptées ;
@@ -305,6 +309,33 @@ Table game_participants {
     (email) [name: 'game_participants_email_index']
     (second_email) [name: 'game_participants_second_email_index']
   }
+}
+
+Table game_registrations {
+  id bigint [pk, increment]
+  game_id bigint [not null]
+
+  display_name varchar(100) [not null]
+  email varchar(255) [note: 'RGPD : uniquement si consent_at est renseigné (CHECK)']
+  consent_at timestamptz
+  marketing_consent_at timestamptz [note: 'Offres du centre ; uniquement si email est renseigné (CHECK)']
+  second_display_name varchar(100) [note: '2e joueur facultatif']
+  second_email varchar(255) [note: 'RGPD : uniquement si second_consent_at est renseigné (CHECK)']
+  second_consent_at timestamptz
+  second_marketing_consent_at timestamptz [note: 'Uniquement si second_email est renseigné (CHECK)']
+
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (game_id, created_at) [name: 'game_registrations_game_id_created_at_index']
+  }
+
+  Note: '''
+    Demandes d’inscription faites depuis un téléphone, en attente de validation par le personnel. Pas de status : valider déplace la ligne
+    vers game_participants, refuser la supprime. Purge RGPD : demandes de plus de 24 heures (JOIN_REGISTRATION_MAX_AGE_HOURS) ou dont la
+    partie n’est plus en attente. CHECK : mêmes règles de consentement que game_participants, et game_registrations_second_player_check
+    (pas d’e-mail ni de consentement de 2e joueur sans 2e joueur).
+  '''
 }
 
 Table game_rounds {
@@ -421,6 +452,7 @@ Ref: games.company_id > companies.id [delete: restrict]
 Ref: games.room_id > rooms.id [delete: restrict]
 Ref: games.admin_id > admins.id [delete: restrict]
 Ref: game_participants.game_id > games.id [delete: cascade]
+Ref: game_registrations.game_id > games.id [delete: cascade]
 Ref: game_rounds.game_id > games.id [delete: cascade]
 Ref: game_rounds.theme_id > themes.id [delete: restrict]
 Ref: game_rounds.chooser_participant_id > game_participants.id [delete: set null]

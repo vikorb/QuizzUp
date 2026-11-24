@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Accueil des joueurs, API du personnel : lien d'inscription d'une partie en attente (`POST` / `DELETE …/games/:gameId/join`, jeton valable 180 minutes, renouvelable), demandes d'inscription (`GET …/registrations`, validation avec attribution d'un pupitre, refus), ajout et retrait d'un participant tant que la partie est en attente, `openJoin` à la création. `join` et `pendingRegistrationsCount` sont renvoyés avec la partie, y compris à l'écran de salle. Les demandes de plus de 24 heures ou d'une partie qui n'est plus en attente sont purgées. `room_busy` ne vise plus que la partie en attente : une partie en cours ne bloque plus la préparation de la suivante.
+  US: US-JOIN-01 (#166)
+
 - Connexion du superadmin en deux temps : code de l'application d'authentification ou code de secours, enrôlement avec secret à recopier (sans QR code), codes de secours affichés une seule fois, réinitialisation depuis le profil. Les autres rôles se connectent comme avant.
   US: US-CONSOLE-03 (#161)
 

@@ -26,6 +26,12 @@ export type GameParticipantRow = {
   score: number
 }
 
+/** Lien d'inscription d'une partie en attente. `url` est relative si `PUBLIC_APP_URL` est vide. */
+export type GameJoin = {
+  url: string
+  expiresAt: string
+}
+
 export type GameRow = {
   id: number
   companyId: number
@@ -60,4 +66,8 @@ export type GameRow = {
   /** Meilleur score d'une partie terminée, sinon `null` ; liste des parties seulement. */
   topScore?: number | null
   participants?: GameParticipantRow[]
+  /** Lien d'inscription ouvert (partie en attente seulement), sinon `null` ; voir `addGameJoin`. */
+  join?: GameJoin | null
+  /** Demandes d'inscription à valider ; voir `addGameJoin`. */
+  pendingRegistrationsCount?: number
 }

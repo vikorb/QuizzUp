@@ -16,9 +16,10 @@ import type { RoomRow } from '../types/room'
 import { ROOM_CONFIG_MAX_LENGTH, roomConfigSchema } from './companies/rooms/_schemas'
 import { companyLogoUrl } from './companies/_shared'
 import { roomSelect } from './companies/rooms/_shared'
-import { findGameInCompany } from './games/_shared'
+import { addGameJoin, findGameInCompany } from './games/_shared'
 import { getMediaVersion } from './questions/_shared'
 import { isInPlayableTheme, isReadableByCompany, loadRoomContent } from './room/_content'
+import { findCurrentGameId } from './room/_join'
 import { isRoomAccount, roomScoresSchema } from './room/_shared'
 
 const roomGameParamsSchema = z.object({
@@ -41,16 +42,9 @@ const roomQuestionParamsSchema = z.object({
 // Même politique que la route staff : cache privé, toujours revalidé par l'ETag.
 const MEDIA_CACHE_CONTROL = 'private, no-cache'
 
-/** Partie en attente ou en cours de la salle. Les emails restent côté backoffice. */
-async function findCurrentRoomGameId(req: FastifyRequest): Promise<number | null> {
-  const current = await db('games')
-    .where('room_id', req.user.room_id)
-    .where('company_id', req.user.company_id)
-    .whereIn('state', [GAME_STATE_PENDING, GAME_STATE_RUNNING])
-    .whereNot('status', GAME_STATUS_DELETED)
-    .first('id')
-
-  return current ? Number(current.id) : null
+/** Partie en cours, sinon en attente, de la salle. Les emails restent côté backoffice. */
+function findCurrentRoomGameId(req: FastifyRequest): Promise<number | null> {
+  return findCurrentGameId(req.user.company_id, Number(req.user.room_id))
 }
 
 async function findCurrentRoomGame(req: FastifyRequest) {
@@ -202,7 +196,10 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(403).send({ error: 'forbidden' })
     }
 
-    return { game: await findCurrentRoomGame(req) }
+    const game = await findCurrentRoomGame(req)
+
+    // Lien d'inscription et nombre de demandes, jamais le nom d'une demande non validée.
+    return { game: game ? await addGameJoin(game) : null }
   })
 
   // Catalogue de la partie en cours : seules les questions audio avec un fichier sont jouables.
