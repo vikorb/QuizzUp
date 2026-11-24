@@ -323,6 +323,7 @@ import SwitchField from '@/components/ui/form/SwitchField.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import RoomPresenceBadge from '@/components/ui/RoomPresenceBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import { useConfirm } from '@/composables/useConfirm'
 import { createGameService, updateGameService } from '@/services/gamesService'
 import type { SelectFieldOption } from '@/types/form'
 import type {
@@ -405,6 +406,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { confirm } = useConfirm()
 
 const form = reactive<GameFormValues>(
   props.game
@@ -737,8 +739,27 @@ function updateParticipant(
   }
 }
 
-/** Mode enfants : aucun e-mail n'est gardé, ceux déjà saisis sont donc retirés du formulaire. */
-function setKidsMode(value: boolean): void {
+/**
+ * Mode enfants : aucun e-mail n'est gardé, ceux déjà saisis sont donc retirés du formulaire. En
+ * modification, passer au mode enfants efface aussi, à l'enregistrement, les e-mails déjà
+ * enregistrés de la session (même pour un compte dont la liste des joueurs est verrouillée) : une
+ * confirmation précède tout. Refus : la case reste décochée, rien n'est vidé.
+ */
+async function setKidsMode(value: boolean): Promise<void> {
+  if (value && !form.kidsMode && props.game) {
+    const confirmed = await confirm({
+      title: t('games.form.kidsConfirmTitle'),
+      message: t('games.form.kidsConfirmMessage'),
+      confirmLabel: t('games.form.kidsConfirmLabel'),
+      cancelLabel: t('confirm.cancel'),
+      variant: 'danger',
+    })
+
+    if (!confirmed) {
+      return
+    }
+  }
+
   form.kidsMode = value
 
   if (!value) {

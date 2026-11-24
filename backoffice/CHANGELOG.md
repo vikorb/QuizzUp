@@ -462,7 +462,7 @@ Format inspiré de Keep a Changelog.
 
 ### Changed
 
-- Mode enfants : aucun e-mail de joueur n'est gardé sur une partie en mode enfants, quel que soit le chemin (création, modification des participants, ajout d'un participant, validation d'une demande par le personnel, modification d'une réservation de l'API publique). Le formulaire de partie ne propose plus les champs e-mail ni les consentements dans ce mode.
+- Mode enfants : aucun e-mail de joueur n'est gardé sur une partie en mode enfants, quel que soit le chemin (création, modification des participants, ajout d'un participant, validation d'une demande par le personnel, modification d'une réservation de l'API publique). Le formulaire de partie ne propose plus les champs e-mail ni les consentements dans ce mode. Passer une partie existante en mode enfants efface les e-mails et les consentements déjà enregistrés de ses joueurs, après une confirmation dans le formulaire.
   US: US-KIDS-01 (#158)
 
 - Écran de salle : boutons et mises en page recalés sur l'accueil, les assistants de configuration, l'écran Matériel, le lobby, l'inscription et la connexion. Un seul bouton principal par écran, cibles d'au moins 48 px (plan de salle compris), barres d'actions alignées, rien ne déborde à 1280 px ni à 768 px.

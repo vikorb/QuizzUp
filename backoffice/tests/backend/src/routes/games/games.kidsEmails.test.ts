@@ -221,6 +221,57 @@ describe('mode enfants : modification des participants d une session', () => {
   })
 })
 
+describe('mode enfants : passage d une session existante en mode enfants', () => {
+  const STORED = {
+    display_name: 'Léa',
+    email: 'lea@exemple.fr',
+    consent_at: '2027-03-10T07:55:00.000Z',
+    marketing_consent_at: '2027-03-10T07:55:00.000Z',
+    second_display_name: 'Noé',
+    second_email: 'noe@exemple.fr',
+    second_consent_at: '2027-03-10T07:55:00.000Z',
+    second_marketing_consent_at: '2027-03-10T07:55:00.000Z',
+    score: 0,
+  }
+
+  beforeEach(() => {
+    dbState.game_participants.push(
+      { id: 1, game_id: 1, podium: 1, ...STORED },
+      { id: 2, game_id: 2, podium: 1, ...STORED }
+    )
+  })
+
+  it('erases the stored e-mails of this game only, when no participant is sent', async () => {
+    seedScheduledGame()
+    seedScheduledGame({ id: 2, scheduled_at: '2027-03-10T15:00:00.000Z' })
+
+    const response = await call('PATCH', '/companies/1/games/1', { kidsMode: true })
+
+    expect(response.statusCode).toBe(200)
+    expect(dbState.game_participants[0]).toMatchObject({
+      game_id: 1,
+      display_name: 'Léa',
+      second_display_name: 'Noé',
+      ...NO_PERSONAL_DATA,
+    })
+    expect(dbState.game_participants[1]).toMatchObject({ game_id: 2, ...STORED })
+  })
+
+  it.each([
+    ['turns kids mode off', { kidsMode: false }, { kids_mode: true }],
+    ['does not mention kids mode', { roundsCount: 5 }, { kids_mode: false }],
+  ])('erases nothing when the call %s', async (_label, body, game) => {
+    seedScheduledGame(game)
+    dbState.game_participants.length = 0
+    dbState.game_participants.push({ id: 1, game_id: 1, podium: 1, ...STORED })
+
+    const response = await call('PATCH', '/companies/1/games/1', body)
+
+    expect(response.statusCode).toBe(200)
+    expect(dbState.game_participants[0]).toMatchObject(STORED)
+  })
+})
+
 describe('mode enfants : validation d une demande par le personnel', () => {
   const accept = () => call('POST', '/companies/1/games/1/registrations/1/accept', {})
 

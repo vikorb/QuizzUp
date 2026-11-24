@@ -1,5 +1,7 @@
+import { confirmMock, setConfirmResult } from '@frontend-tests/_helpers/confirmMock'
 import {
   createGameServiceMock,
+  createParticipantFixture,
   createScheduledGameFixture,
   resetGamesServiceMock,
   roomsFixture,
@@ -46,6 +48,17 @@ async function fillAndSubmitCreation(wrapper: VueWrapper): Promise<void> {
 
 const scheduledGame = (overrides: Partial<Game> = {}) =>
   createScheduledGameFixture('2026-12-05T13:00:00.000Z', { id: 5, roomId: 10, ...overrides })
+
+const withEmail = () =>
+  scheduledGame({
+    participants: [
+      createParticipantFixture({
+        email: 'lea@exemple.fr',
+        hasEmail: true,
+        consentAt: '2026-12-01T10:00:00.000Z',
+      }),
+    ],
+  })
 
 describe('views/games/creation/CreateGameForm.vue: kids mode', () => {
   it('offers the switch off, with its label and its hint', () => {
@@ -125,6 +138,84 @@ describe('views/games/creation/CreateGameForm.vue: kids mode', () => {
 
       expect(participant).not.toHaveProperty('email')
       expect(participant).not.toHaveProperty('emailConsent')
+    })
+  })
+
+  describe('confirmation before erasing the saved e-mails', () => {
+    it('asks once, in danger variant, then switches on and empties the e-mail when accepted', async () => {
+      const wrapper = mountForm({ game: withEmail() })
+
+      expect(
+        (wrapper.get('input[name="participants.0.email"]').element as HTMLInputElement).value
+      ).toBe('lea@exemple.fr')
+
+      await kidsSwitch(wrapper).trigger('click')
+      await flushPromises()
+
+      expect(confirmMock).toHaveBeenCalledTimes(1)
+      expect(confirmMock).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'games.form.kidsConfirmMessage', variant: 'danger' })
+      )
+      expect(kidsSwitch(wrapper).attributes('aria-checked')).toBe('true')
+      expect(wrapper.find('input[name="participants.0.email"]').exists()).toBe(false)
+
+      await submit(wrapper)
+
+      expect(updateGameServiceMock.mock.calls[0]?.[2]).toMatchObject({ kidsMode: true })
+    })
+
+    it('leaves the switch off and the e-mail in place when refused', async () => {
+      setConfirmResult(false)
+      const wrapper = mountForm({ game: withEmail() })
+
+      await kidsSwitch(wrapper).trigger('click')
+      await flushPromises()
+
+      expect(confirmMock).toHaveBeenCalledTimes(1)
+      expect(kidsSwitch(wrapper).attributes('aria-checked')).toBe('false')
+      expect(
+        (wrapper.get('input[name="participants.0.email"]').element as HTMLInputElement).value
+      ).toBe('lea@exemple.fr')
+
+      await submit(wrapper)
+
+      expect(updateGameServiceMock.mock.calls[0]?.[2]).not.toHaveProperty('kidsMode')
+    })
+
+    it('works for an account whose players are locked: only kidsMode is sent', async () => {
+      const wrapper = mountForm({
+        game: scheduledGame({
+          participants: [createParticipantFixture({ email: null, hasEmail: true })],
+        }),
+      })
+
+      await kidsSwitch(wrapper).trigger('click')
+      await flushPromises()
+      await submit(wrapper)
+
+      expect(confirmMock).toHaveBeenCalledTimes(1)
+      expect(updateGameServiceMock.mock.calls[0]?.[2]).toMatchObject({ kidsMode: true })
+      expect(updateGameServiceMock.mock.calls[0]?.[2]).not.toHaveProperty('participants')
+    })
+
+    it('does not ask when the session is already in kids mode and the switch goes off', async () => {
+      const wrapper = mountForm({ game: scheduledGame({ kidsMode: true }) })
+
+      await kidsSwitch(wrapper).trigger('click')
+      await flushPromises()
+
+      expect(confirmMock).not.toHaveBeenCalled()
+      expect(kidsSwitch(wrapper).attributes('aria-checked')).toBe('false')
+    })
+
+    it('does not ask when creating a game', async () => {
+      const wrapper = mountForm()
+
+      await kidsSwitch(wrapper).trigger('click')
+      await flushPromises()
+
+      expect(confirmMock).not.toHaveBeenCalled()
+      expect(kidsSwitch(wrapper).attributes('aria-checked')).toBe('true')
     })
   })
 

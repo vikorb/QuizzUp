@@ -2187,6 +2187,8 @@ paths:
 
         Modifie une session à l'état `scheduled` : `roomId`, `scheduledAt`, `durationMinutes`, `roundsCount`, `questionsPerRound`, `miniGames`, `playersCount`, `externalRef`, `locale`, et `participants` (remplacement complet, dans une transaction). Seul le chevauchement d'une autre session de la salle est interdit. Les contrôles `session_in_past` et `session_too_far` ne s'appliquent que si le début ou la durée change.
 
+        Passer `kidsMode` à `true` efface définitivement les e-mails et les consentements déjà enregistrés des participants de la session ; sur une session en mode enfants, les `participants` envoyés sont écrits sans e-mail ni consentement, sans erreur.
+
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
       operationId: updateCompanyGame
       x-availability: disponible
@@ -2508,7 +2510,7 @@ paths:
 
         Transforme la demande en participant (la demande est supprimée) et renvoie ce participant. Sans `podium`, le plus petit pupitre libre de la salle est pris. Deux validations simultanées ne prennent jamais le même pupitre.
 
-        Sur une partie en mode enfants (`kidsMode`), le participant est écrit sans e-mail ni consentement, même si la demande en portait un (partie passée en mode enfants après l'inscription).
+        Sur une partie en mode enfants (`kidsMode`), le participant est écrit sans e-mail ni consentement, même si la demande en portait un. C'est une défense : une demande n'existe que sur une partie en attente, dont le mode enfants ne change plus.
 
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
       operationId: acceptCompanyGameRegistration

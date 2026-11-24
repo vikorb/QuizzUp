@@ -20,6 +20,7 @@ import { findRoomInCompany } from '../companies/rooms/_shared'
 import { gameParamsSchema, updateGameSchema } from './_schemas'
 import {
   addMinutes,
+  ERASED_PLAYER_PERSONAL_DATA,
   findGameInCompany,
   findStaffGame,
   findStaffGameWithJoin,
@@ -164,21 +165,31 @@ const gamesIdRoutes: FastifyPluginAsync = async (app) => {
 
       try {
         const isUpdated = await db.transaction(async (trx) => {
-          const updated = await trx('games')
+          // L'UPDATE verrouille la ligne et rend la valeur finale de `kids_mode` : la valeur lue
+          // avant la transaction a pu changer entre-temps.
+          const updated = (await trx('games')
             .where('id', gameId)
             .where('state', GAME_STATE_SCHEDULED)
             .update(
               Object.fromEntries(Object.entries(changes).filter(([, value]) => value !== undefined))
             )
+            .returning(['kids_mode as kidsMode'])) as Array<{ kidsMode: boolean }>
 
           // Ouverte ou annulée entre la lecture et l'écriture : rien ne change.
-          if (updated === 0) {
+          if (updated.length === 0) {
             return false
           }
 
+          const kidsMode = Boolean(updated[0]!.kidsMode)
+
           if (body.participants) {
             await trx('game_participants').where('game_id', gameId).delete()
-            await insertParticipants(trx, gameId, body.participants, body.kidsMode ?? game.kidsMode)
+            await insertParticipants(trx, gameId, body.participants, kidsMode)
+          } else if (kidsMode) {
+            // Mode enfants : les e-mails déjà enregistrés sont effacés (décision de produit, Q5).
+            await trx('game_participants')
+              .where('game_id', gameId)
+              .update({ ...ERASED_PLAYER_PERSONAL_DATA, updated_at: trx.fn.now() })
           }
 
           return true

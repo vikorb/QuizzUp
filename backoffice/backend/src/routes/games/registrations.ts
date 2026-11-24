@@ -168,8 +168,9 @@ const gamesRegistrationsRoutes: FastifyPluginAsync = async (app) => {
               second_email: registration.second_email,
               second_consent_at: registration.second_consent_at,
               second_marketing_consent_at: registration.second_marketing_consent_at,
-              // Mode enfants : une demande qui porte encore un e-mail (partie passée en mode
-              // enfants après l'inscription) devient un participant sans e-mail (Q5).
+              // Défense (Q5) : une demande n'existe que sur une partie en attente, et le mode
+              // enfants ne change que sur une session programmée, donc une demande avec e-mail
+              // ne devrait pas se trouver sur une partie en mode enfants. Sinon, rien n'est gardé.
               ...(game.kidsMode ? ERASED_PLAYER_PERSONAL_DATA : {}),
             })
             .returning(participantSelect)) as ParticipantDbRow[]
