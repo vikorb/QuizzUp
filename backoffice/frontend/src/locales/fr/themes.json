@@ -147,7 +147,14 @@
       "invalidJson": "La réponse de l'API est invalide.",
       "invalidBody": "Les données envoyées sont invalides.",
       "conflict": "Un conflit empêche cette action.",
-      "nameAlreadyExists": "Ce nom existe déjà."
+      "nameAlreadyExists": "Ce nom existe déjà.",
+      "apiErrors": {
+        "theme_playlist_ref_invalid": "Le lien de playlist est invalide.",
+        "theme_playlist_mode_invalid": "Une playlist ne peut être associée qu'à un thème en mode audio.",
+        "theme_playlist_not_found": "Cette playlist est introuvable.",
+        "theme_playlist_too_small": "Cette playlist ne contient pas assez de titres jouables (4 au minimum).",
+        "media_provider_unavailable": "Le service d'extraits ne répond pas, réessayez dans un instant."
+      }
     }
   }
 }

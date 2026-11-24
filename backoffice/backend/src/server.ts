@@ -2,6 +2,7 @@
 import 'dotenv/config'
 import { buildApp } from './app'
 import db from './db'
+import { purgeExpiredApiRecords } from './jobs/purgeApiRecords'
 import { purgeExpiredDemoRequests } from './jobs/purgeDemoRequests'
 import { purgeExpiredPlayerEmails } from './jobs/purgePlayerEmails'
 import { purgeStaleJoinRegistrations } from './jobs/purgeJoinRegistrations'
@@ -30,6 +31,13 @@ const stopDemoRequestPurge = startPlayerEmailPurgeScheduler({
   intervalHours: purgeIntervalHours,
   label: 'Purge RGPD des demandes de démonstration',
 })
+// API de réservation : journal des appels (90 jours) et clés d'idempotence (24 h).
+const stopApiRecordsPurge = startPlayerEmailPurgeScheduler({
+  purge: () => purgeExpiredApiRecords(db),
+  log: app.log,
+  intervalHours: purgeIntervalHours,
+  label: "Purge du journal et de l'idempotence de l'API de réservation",
+})
 const stopJoinRegistrationPurge = startPlayerEmailPurgeScheduler({
   purge: () => purgeStaleJoinRegistrations(db),
   log: app.log,
@@ -39,6 +47,7 @@ const stopJoinRegistrationPurge = startPlayerEmailPurgeScheduler({
 app.addHook('onClose', async () => {
   stopPlayerEmailPurge()
   stopDemoRequestPurge()
+  stopApiRecordsPurge()
   stopJoinRegistrationPurge()
 })
 

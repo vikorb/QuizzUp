@@ -7,6 +7,8 @@ import { API_ACTION, API_RESOURCE } from '../security/permissions'
 import { requireApiPermission } from '../security/requireApiPermission'
 import { getCurrentCompanyId, isSuperadmin } from '../security/companiesPolicy'
 import {
+  buildThemePlaylistPatch,
+  checkThemePlaylist,
   getCreateThemeStatus,
   getCurrentAdminId,
   getThemeCompanyId,
@@ -115,6 +117,17 @@ const themesRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(400).send({ error: 'theme_company_required' })
       }
 
+      const playlistRef = req.body.playlistRef ?? null
+
+      if (playlistRef !== null) {
+        // Appel réseau avant l'écriture : rien n'est enregistré si la playlist est refusée.
+        const playlistError = await checkThemePlaylist(req, playlistRef, mode)
+
+        if (playlistError) {
+          return reply.code(playlistError.status).send({ error: playlistError.error })
+        }
+      }
+
       const [theme] = await db('themes')
         .insert({
           admin_id: adminId,
@@ -122,6 +135,7 @@ const themesRoutes: FastifyPluginAsync = async (app) => {
           scope,
           name,
           mode,
+          ...buildThemePlaylistPatch(playlistRef),
           status: getCreateThemeStatus(req),
           deleted_at: null,
         })
