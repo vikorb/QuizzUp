@@ -98,6 +98,8 @@
       </dl>
     </BaseCard>
 
+    <GameLivePanel v-if="game" :game="game" @ended="loadPage" />
+
     <GameParticipantsTable v-if="game" :participants="game.participants ?? []" />
   </SectionLayout>
 </template>
@@ -131,6 +133,7 @@ import {
   getGameStateTone,
 } from '@/utils/game/state'
 
+import GameLivePanel from './detail/GameLivePanel.vue'
 import GameParticipantsTable from './detail/GameParticipantsTable.vue'
 
 const route = useRoute()

@@ -55,7 +55,7 @@
 	file_server
 }
 
-# Espace centre et console éditeur : même application, deux noms d'hôte.
+# Espace centre (la console éditeur a sa propre construction, voir plus bas).
 # Polices Google : l'application importe aujourd'hui Exo 2 depuis fonts.googleapis.com
 # (backoffice/frontend/src/assets/styles/main.css). Retirer ces deux sources quand elle sera
 # auto-hébergée. 'unsafe-inline' sur les styles seulement : aucun script en ligne n'est admis.
@@ -85,17 +85,44 @@
 }
 
 # --- Console éditeur -------------------------------------------------------------------------
-# Ce nom d'hôte sert la même application que l'espace centre, filtrée par les plages de
-# CONSOLE_ALLOWED_CIDRS (CIDR séparés par des espaces ; variable vide : refus pour tout le monde).
-# Ce filtre masque l'adresse de la console ; la protection est dans l'API, qui lit la même variable :
-# elle refuse le superadmin (connexion et jeton) hors de ces plages, sur n'importe quel nom d'hôte.
-# HOST_APP sert encore la même application sans filtre, mais un superadmin n'y peut plus rien faire.
+# Construction à part du frontend (volume `static`, dossier console : écrans réservés à l'éditeur,
+# absents de l'espace centre). Elle appelle l'API sur son propre nom d'hôte, chemin /api, même
+# origine : son trafic ne passe jamais par HOST_API, donc pas par internet, et aucun CORS.
+# Le filtre par plages de CONSOLE_ALLOWED_CIDRS (CIDR séparés par des espaces ; variable vide :
+# refus pour tout le monde) masque l'adresse de la console ; la protection est dans l'API, qui lit
+# la même variable : elle refuse le superadmin (connexion et jeton) hors de ces plages, sur
+# n'importe quel nom d'hôte. HOST_APP sert l'espace centre, sans les écrans de la console.
 {$HOST_CONSOLE} {
 	import common
 
 	@allowed client_ip {$CONSOLE_ALLOWED_CIDRS}
 	handle @allowed {
-		import app_site
+		# Flux en direct (SSE) : ni compression ni tampon. `uri strip_prefix` retire le préfixe /api.
+		@sse path /api/room/stream /api/companies/*/live
+		handle @sse {
+			uri strip_prefix /api
+			reverse_proxy api:3001 {
+				flush_interval -1
+			}
+		}
+
+		handle_path /api/* {
+			encode zstd gzip
+
+			# Envoi d'extraits audio : même plafond que HOST_API (à relever avec MEDIA_MAX_BYTES).
+			request_body {
+				max_size 12MB
+			}
+			header {$CSP_HEADER} "default-src 'none'; frame-ancestors 'none'"
+			reverse_proxy api:3001 {
+				lb_try_duration 15s
+				lb_try_interval 500ms
+			}
+		}
+
+		handle {
+			import static_site /srv/web/console "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), gamepad=(), fullscreen=(self)"
+		}
 	}
 
 	handle {

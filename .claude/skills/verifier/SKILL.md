@@ -28,7 +28,7 @@ Depuis le dossier du paquet. Tout doit passer ; aucun avertissement nouveau.
 | ------------------------- | -------------------- | ------------------------------------------------------------------------------------------- |
 | `backoffice/shared/**`    | `backoffice/shared`  | `npm run build` (à faire **avant** le reste)                                                |
 | `backoffice/**`           | `backoffice`         | `npm run lint` · `npm run format:check` · `npm run type-check` · `npm test`                 |
-| `backoffice/frontend/**`  | `backoffice/frontend`| `npm run build` · `npm run knip` si des fichiers ont été supprimés ou déplacés              |
+| `backoffice/frontend/**`  | `backoffice/frontend`| `npm run build` · `npm run check:surface` · `npm run knip` si des fichiers ont été supprimés ou déplacés |
 | `game/engine/**`          | `game/engine`        | `npm run lint` · `npm run format:check` · `npm run type-check` · `npm run test:coverage`    |
 | `game/hardware/**`        | `game/hardware`      | `npm run lint` · `npm run format:check` · `npm run type-check` · `npm run test:coverage`    |
 | `game/audio/**`           | `game/audio`         | `npm run type-check` · `npm test`                                                           |
