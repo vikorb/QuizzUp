@@ -1,8 +1,12 @@
 import {
+  confirmTotpEnrollApiMock,
   loginApiMock,
+  loginTotpApiMock,
+  mockLoginChallenge,
   mockLoginFailure,
   mockLoginSuccess,
   setTokenMock,
+  startTotpEnrollApiMock,
 } from '@frontend-tests/_helpers/authApiMock'
 import {
   clearRoomAccountRejectionMock,
@@ -15,7 +19,7 @@ import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFron
 import { replaceMock } from '@frontend-tests/_helpers/routerMock'
 import { getRedirectMock } from '@frontend-tests/_helpers/routerUtilsMock'
 import { flushPromises } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 
 import LoginForm from '@/views/login/LoginForm.vue'
@@ -203,5 +207,202 @@ describe('views/login/LoginForm.vue', () => {
 
     expect(loginApiMock).toHaveBeenCalledTimes(1)
     expect(setTokenMock).toHaveBeenCalledWith('enter-token')
+  })
+})
+
+async function submitCredentials(wrapper: ReturnType<typeof mountWithFrontendMocks>) {
+  await submitForm(wrapper)
+  await flushPromises()
+}
+
+async function submitCode(wrapper: ReturnType<typeof mountWithFrontendMocks>, code: string) {
+  await findInput(wrapper, 'code').setValue(code)
+  await wrapper.find('form').trigger('submit')
+  await flushPromises()
+}
+
+describe('views/login/LoginForm.vue — superadmin en deux temps', () => {
+  it('asks for the code after the password and opens the session only once it is accepted', async () => {
+    mockLoginChallenge('totp')
+    const wrapper = mountWithFrontendMocks(LoginForm)
+
+    await submitCredentials(wrapper)
+
+    expect(findInput(wrapper, 'identifier').exists()).toBe(false)
+    expect(findInput(wrapper, 'code').exists()).toBe(true)
+    expect(wrapper.text()).toContain('login.mfa.totp.title')
+    expect(setTokenMock).not.toHaveBeenCalled()
+    expect(replaceMock).not.toHaveBeenCalled()
+
+    getRedirectMock.mockReturnValue('/dashboard')
+    await submitCode(wrapper, '123456')
+
+    expect(loginTotpApiMock).toHaveBeenCalledWith({
+      challengeToken: 'challenge-jwt',
+      code: '123456',
+    })
+    expect(setTokenMock).toHaveBeenCalledWith('test-totp-token')
+    expect(refreshMeMock).toHaveBeenCalledTimes(1)
+    expect(replaceMock).toHaveBeenCalledWith('/dashboard')
+  })
+
+  it('stays on the code step after a wrong code', async () => {
+    mockLoginChallenge('totp')
+    loginTotpApiMock.mockResolvedValue({ ok: false, reason: 'totp_invalid' })
+    const wrapper = mountWithFrontendMocks(LoginForm)
+
+    await submitCredentials(wrapper)
+    await submitCode(wrapper, '000000')
+
+    expect(findInput(wrapper, 'code').exists()).toBe(true)
+    expect(wrapper.find('[data-test="form-field-error"]').text()).toBe('errors.totp_invalid')
+    expect(setTokenMock).not.toHaveBeenCalled()
+    expect(replaceMock).not.toHaveBeenCalled()
+  })
+
+  it('returns to the password step, empty, with a message when the challenge expired', async () => {
+    mockLoginChallenge('totp')
+    loginTotpApiMock.mockResolvedValue({ ok: false, reason: 'mfa_challenge_invalid' })
+    const wrapper = mountWithFrontendMocks(LoginForm)
+
+    await submitCredentials(wrapper)
+    await submitCode(wrapper, '123456')
+
+    expect(findInput(wrapper, 'identifier').exists()).toBe(true)
+    expect(findInput(wrapper, 'password').element.value).toBe('')
+    expect(wrapper.find('.form-error').text()).toBe('errors.mfa_challenge_invalid')
+    expect(setTokenMock).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['the user goes back', false],
+    ['the challenge expired', true],
+  ])('puts the focus back on the password field when %s', async (_label, expired) => {
+    mockLoginChallenge('totp')
+    loginTotpApiMock.mockResolvedValue({ ok: false, reason: 'mfa_challenge_invalid' })
+    const wrapper = mountWithFrontendMocks(LoginForm, { attachTo: document.body })
+
+    try {
+      await submitCredentials(wrapper)
+      if (expired) {
+        await submitCode(wrapper, '123456')
+      } else {
+        await wrapper.find('button.secondary').trigger('click')
+      }
+      await flushPromises()
+
+      expect(document.activeElement).toBe(findInput(wrapper, 'password').element)
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('returns to the password step without a message when the user goes back', async () => {
+    mockLoginChallenge('totp')
+    const wrapper = mountWithFrontendMocks(LoginForm)
+
+    await submitCredentials(wrapper)
+    await wrapper.find('button.secondary').trigger('click')
+
+    expect(findInput(wrapper, 'identifier').exists()).toBe(true)
+    expect(wrapper.find('.form-error').exists()).toBe(false)
+  })
+
+  it('switches to the enrollment when the server says the account has no application', async () => {
+    mockLoginChallenge('totp')
+    loginTotpApiMock.mockResolvedValue({ ok: false, reason: 'totp_not_enrolled' })
+    const wrapper = mountWithFrontendMocks(LoginForm)
+
+    await submitCredentials(wrapper)
+    await submitCode(wrapper, '123456')
+
+    expect(startTotpEnrollApiMock).toHaveBeenCalledWith({ challengeToken: 'challenge-jwt' })
+    expect(wrapper.text()).toContain('login.mfa.enroll.title')
+  })
+
+  it('shows the service-unavailable text on the password step', async () => {
+    mockLoginFailure('totp_unavailable')
+    const wrapper = mountWithFrontendMocks(LoginForm)
+
+    await submitCredentials(wrapper)
+
+    expect(wrapper.find('.form-error').text()).toBe('auth.errors.totp_unavailable')
+    expect(findInput(wrapper, 'identifier').exists()).toBe(true)
+  })
+
+  it('walks through the enrollment and shows the recovery codes before opening the session', async () => {
+    mockLoginChallenge('enroll')
+    const wrapper = mountWithFrontendMocks(LoginForm)
+
+    await submitCredentials(wrapper)
+
+    expect(startTotpEnrollApiMock).toHaveBeenCalledWith({ challengeToken: 'challenge-jwt' })
+    expect(wrapper.find('.secret').text()).toBe('JBSW Y3DP EHPK 3PXP')
+
+    await submitCode(wrapper, '123456')
+
+    expect(confirmTotpEnrollApiMock).toHaveBeenCalledWith({
+      challengeToken: 'challenge-jwt',
+      code: '123456',
+    })
+    expect(wrapper.findAll('.codes code').map((code) => code.text())).toEqual([
+      'aaaaa-bbbbb',
+      'ccccc-ddddd',
+    ])
+    expect(wrapper.find('.secret').exists()).toBe(false)
+    expect(setTokenMock).not.toHaveBeenCalled()
+
+    // Sans la case cochée, rien ne se passe.
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(setTokenMock).not.toHaveBeenCalled()
+    expect(replaceMock).not.toHaveBeenCalled()
+
+    await wrapper.find('input[type="checkbox"]').setValue(true)
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(setTokenMock).toHaveBeenCalledWith('test-enroll-token')
+    expect(replaceMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns to the password step when the enrollment was completed elsewhere', async () => {
+    mockLoginChallenge('enroll')
+    confirmTotpEnrollApiMock.mockResolvedValue({ ok: false, reason: 'totp_already_enrolled' })
+    const wrapper = mountWithFrontendMocks(LoginForm)
+
+    await submitCredentials(wrapper)
+    await submitCode(wrapper, '123456')
+
+    expect(findInput(wrapper, 'identifier').exists()).toBe(true)
+    expect(wrapper.find('.form-error').text()).toBe('errors.totp_already_enrolled')
+    expect(setTokenMock).not.toHaveBeenCalled()
+  })
+
+  it('never writes the challenge token, the secret or the recovery codes to a storage or the URL', async () => {
+    const storages = ['localStorage', 'sessionStorage'].map((name) => {
+      const storage = { setItem: vi.fn(), getItem: vi.fn(), removeItem: vi.fn() }
+      vi.stubGlobal(name, storage)
+
+      return storage
+    })
+
+    try {
+      mockLoginChallenge('enroll', 'challenge-secret-value')
+      const wrapper = mountWithFrontendMocks(LoginForm)
+
+      await submitCredentials(wrapper)
+      await submitCode(wrapper, '123456')
+      await wrapper.find('input[type="checkbox"]').setValue(true)
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      for (const storage of storages) expect(storage.setItem).not.toHaveBeenCalled()
+      expect(window.location.href).not.toContain('challenge-secret-value')
+      expect(JSON.stringify(replaceMock.mock.calls)).not.toContain('challenge-secret-value')
+      expect(JSON.stringify(replaceMock.mock.calls)).not.toContain('JBSWY3DPEHPK3PXP')
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })

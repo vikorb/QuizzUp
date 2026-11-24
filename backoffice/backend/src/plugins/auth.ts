@@ -11,6 +11,7 @@ import {
 } from '../security/consoleNetwork'
 import { assertJwtSecretIsSafe } from '../security/jwtSecret'
 import { isRoomAccountUsable } from '../security/roomCompany'
+import { parseTotpKey } from '../security/secretBox'
 import { parseTrustProxy } from '../utils/trustProxy'
 
 type JwtPayload = {
@@ -131,10 +132,26 @@ const authPlugin: FastifyPluginAsync = async (app) => {
     app.log.warn(warning)
   }
 
+  // Clé de chiffrement des secrets TOTP. Absente ou mal formée : le deuxième facteur répond 503 au
+  // superadmin, sans bloquer le reste de l'API (les centres ne dépendent pas de la console).
+  const totpKey = parseTotpKey(process.env.TOTP_ENCRYPTION_KEY)
+  app.decorate('totpKey', totpKey)
+  if (!totpKey) {
+    app.log.error(
+      'TOTP_ENCRYPTION_KEY absente ou invalide (32 octets en base64) : connexion superadmin indisponible'
+    )
+  }
+
   app.decorate('authenticate', async (req: FastifyRequest, reply: FastifyReply) => {
     try {
       await req.jwtVerify()
     } catch {
+      return reply.code(401).send({ error: 'unauthorized' })
+    }
+
+    // Un jeton qui porte `typ` n'est pas un jeton de session (ex. le jeton de défi du deuxième
+    // facteur, sans `sid`) : jamais accepté comme porteur.
+    if ((req.user as { typ?: unknown }).typ !== undefined) {
       return reply.code(401).send({ error: 'unauthorized' })
     }
 
@@ -179,6 +196,8 @@ declare module 'fastify' {
   interface FastifyInstance {
     authenticate: (req: FastifyRequest, reply: FastifyReply) => Promise<void>
     consoleNetwork: ConsoleNetwork
+    /** Clé AES-256 des secrets TOTP, ou null si `TOTP_ENCRYPTION_KEY` est absente ou invalide. */
+    totpKey: Buffer | null
   }
 
   interface FastifyContextConfig {

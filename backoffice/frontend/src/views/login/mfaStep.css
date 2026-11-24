@@ -1,0 +1,44 @@
+/* Styles communs aux étapes de la double authentification (inclus par chacune, en portée locale). */
+.form {
+  display: grid;
+  gap: 14px;
+}
+
+.form :deep(.ff__control) {
+  min-height: 48px;
+}
+
+.step-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-0);
+}
+
+.step-text {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-1);
+}
+
+.submit,
+.secondary {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 14px;
+}
+
+.form :deep(.ui-btn:focus-visible),
+.link:focus-visible {
+  outline: 2px solid var(--border-hover);
+  outline-offset: 2px;
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-pink);
+}

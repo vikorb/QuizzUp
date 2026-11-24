@@ -1,0 +1,46 @@
+{
+  "login": {
+    "mfa": {
+      "back": "Retour",
+      "code": {
+        "label": "Code de vérification"
+      },
+      "totp": {
+        "title": "Vérification en deux étapes",
+        "hint": "Saisissez le code à {length} chiffres de votre application d’authentification, ou l’un de vos codes de secours.",
+        "submit": "Vérifier",
+        "submitting": "Vérification…"
+      },
+      "enroll": {
+        "title": "Configurer l’application d’authentification",
+        "loading": "Préparation de l’enrôlement…",
+        "intro": "Ajoutez ce compte dans votre application d’authentification en saisissant le secret ci-dessous, puis entrez le premier code qu’elle affiche.",
+        "secretLabel": "Secret à saisir dans l’application",
+        "openLink": "Ouvrir dans l’application d’authentification",
+        "submit": "Confirmer",
+        "submitting": "Vérification…",
+        "restart": "Recommencer l’enrôlement"
+      },
+      "recovery": {
+        "title": "Codes de secours",
+        "hint": "Notez ces {count} codes et gardez-les en lieu sûr. Chacun ne sert qu’une fois et ils ne seront plus jamais affichés, pas même après un rechargement de la page.",
+        "noted": "Je les ai notés",
+        "continue": "Continuer"
+      },
+      "codeRequired": "Saisissez un code de vérification ou un code de secours.",
+      "invalidCode": "Saisissez les {length} chiffres affichés par l’application.",
+      "unreachable": "Impossible de joindre le serveur. Vérifiez votre connexion.",
+      "retryIn": "Trop d’essais : réessayez dans {minutes} min.",
+      "forbidden": "La connexion du superadmin n’est possible que depuis le réseau de la console.",
+      "enrollmentChanged": "L’enrôlement a été modifié entre-temps : le secret affiché n’est plus valable. Recommencez, puis saisissez le nouveau secret dans l’application.",
+      "reset": {
+        "title": "Double authentification",
+        "hint": "Retire l’application d’authentification et les codes de secours de ce compte. Vous serez déconnecté, et la prochaine connexion demandera de la configurer de nouveau.",
+        "open": "Réinitialiser",
+        "submit": "Réinitialiser la double authentification",
+        "submitting": "Réinitialisation…",
+        "cancel": "Annuler"
+      }
+    }
+  }
+}

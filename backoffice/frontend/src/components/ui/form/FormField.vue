@@ -24,6 +24,8 @@
         :required="required"
         :autocomplete="autocomplete"
         :inputmode="inputmode"
+        :autocapitalize="autocapitalize"
+        :spellcheck="spellcheck"
         :aria-invalid="!!error"
         :aria-describedby="describedBy"
         @input="onInput"
@@ -54,6 +56,8 @@ const props = withDefaults(
     type?: 'text' | 'email' | 'password' | 'date'
     autocomplete?: string
     inputmode?: 'text' | 'email' | 'numeric' | 'search' | 'tel' | 'url' | 'none'
+    autocapitalize?: 'none' | 'off' | 'on' | 'sentences' | 'words' | 'characters'
+    spellcheck?: 'true' | 'false'
     required?: boolean
     disabled?: boolean
     error?: string

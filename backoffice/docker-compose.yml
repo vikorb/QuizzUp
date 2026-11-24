@@ -30,6 +30,10 @@ services:
       # Console éditeur ouverte à toute adresse : acceptable ici seulement parce que les ports sont
       # liés à 127.0.0.1 (cf. en-tête). Ne jamais recopier cette valeur en recette ni en production.
       CONSOLE_ALLOWED_CIDRS: '0.0.0.0/0 ::/0'
+      # Clé de DÉMONSTRATION des secrets TOTP du superadmin (publique, comme JWT_SECRET) : décodée,
+      # elle vaut le texte « DEMO-ONLY-not-a-secret-key-00000 ». Ne jamais la recopier en recette ni en
+      # production : y générer une clé propre (`openssl rand -base64 32`), hors du dépôt.
+      TOTP_ENCRYPTION_KEY: 'REVNTy1PTkxZLW5vdC1hLXNlY3JldC1rZXktMDAwMDA='
       MEDIA_STORAGE_DIR: '/data/media'
       MEDIA_MAX_BYTES: '10485760'
       # Tous les seeds sur base vide, ensuite le seed de démo seul ; `always` = tout réinitialiser.

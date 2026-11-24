@@ -1,5 +1,26 @@
 <template>
-  <form class="form" @submit.prevent="onSubmit">
+  <TotpStep
+    v-if="step === 'totp'"
+    :challenge-token="challengeToken"
+    @signed-in="finishLogin"
+    @back="backToCredentials"
+    @enroll="step = 'enroll'"
+  />
+
+  <TotpEnrollStep
+    v-else-if="step === 'enroll'"
+    :challenge-token="challengeToken"
+    @enrolled="onEnrolled"
+    @back="backToCredentials"
+  />
+
+  <RecoveryCodesStep
+    v-else-if="step === 'recovery' && enrolled"
+    :codes="enrolled.recoveryCodes"
+    @continue="finishLogin(enrolled.token)"
+  />
+
+  <form v-else class="form" @submit.prevent="onSubmit">
     <FormField
       v-model="identifier"
       :label="$t('auth.fields.identifier.label')"
@@ -12,6 +33,7 @@
     />
 
     <FormField
+      ref="passwordField"
       v-model="password"
       :label="$t('auth.fields.password.label')"
       name="password"
@@ -49,7 +71,7 @@
 
 <script setup lang="ts">
 import { mdiEyeOffOutline, mdiEyeOutline } from '@mdi/js'
-import { computed, reactive, ref } from 'vue'
+import { computed, nextTick, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -58,8 +80,12 @@ import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { clearRoomAccountRejection, refreshMe, roomAccountRejected } from '@/state/authState'
 import { loginApi, loginReasonToI18nKey, setToken as storeToken } from '@/utils/auth'
+import type { MfaMessage } from '@/utils/mfaMessage'
 import { getRedirect } from '@/utils/router'
 import { isBlank } from '@/utils/validation'
+import RecoveryCodesStep from '@/views/login/RecoveryCodesStep.vue'
+import TotpEnrollStep from '@/views/login/TotpEnrollStep.vue'
+import TotpStep from '@/views/login/TotpStep.vue'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -70,17 +96,57 @@ const showPassword = ref(false)
 const loading = ref(false)
 const formError = ref<string | null>(null)
 const fieldErrors = reactive<{ identifier?: string; password?: string }>({})
+const passwordField = ref<InstanceType<typeof FormField> | null>(null)
+
+// Superadmin : deuxième étape. Le jeton de défi et les codes de secours restent dans cette vue
+// (mémoire seulement : ni URL, ni stockage) et sont effacés en quittant l'étape.
+type Step = 'credentials' | 'totp' | 'enroll' | 'recovery'
+const step = ref<Step>('credentials')
+const challengeToken = ref('')
+const enrolled = ref<{ token: string; recoveryCodes: string[] } | null>(null)
 
 // Un compte de salle refusé (ici ou par le router via /me) est expliqué sur l'écran de login.
 const displayedError = computed(
   () => formError.value ?? (roomAccountRejected.value ? t('auth.errors.roomAccount') : null)
 )
 
+async function backToCredentials(message: MfaMessage | null) {
+  step.value = 'credentials'
+  challengeToken.value = ''
+  enrolled.value = null
+  formError.value = message ? t(message.key, message.params) : null
+
+  // Le mot de passe a été vidé : le curseur y revient, sinon le focus se perd avec l'étape quittée.
+  await nextTick()
+  passwordField.value?.$el.querySelector('input')?.focus()
+}
+
+function onEnrolled(session: { token: string; recoveryCodes: string[] }) {
+  // La session n'est ouverte qu'une fois les codes de secours notés.
+  challengeToken.value = ''
+  enrolled.value = session
+  step.value = 'recovery'
+}
+
 function resetErrors() {
   formError.value = null
   clearRoomAccountRejection()
   fieldErrors.identifier = undefined
   fieldErrors.password = undefined
+}
+
+async function finishLogin(token: string) {
+  storeToken(token)
+
+  // /me décide du rôle : un compte de salle est déconnecté aussitôt et reste sur le login.
+  await refreshMe()
+
+  if (roomAccountRejected.value) {
+    backToCredentials(null)
+    return
+  }
+
+  router.replace(getRedirect(route, '/'))
 }
 
 async function onSubmit() {
@@ -102,16 +168,14 @@ async function onSubmit() {
       return
     }
 
-    storeToken(result.token)
-
-    // /me décide du rôle : un compte de salle est déconnecté aussitôt et reste sur le login.
-    await refreshMe()
-
-    if (roomAccountRejected.value) {
+    if ('mfa' in result) {
+      challengeToken.value = result.challengeToken
+      password.value = ''
+      step.value = result.mfa
       return
     }
 
-    router.replace(getRedirect(route, '/'))
+    await finishLogin(result.token)
   } finally {
     loading.value = false
   }
@@ -122,16 +186,6 @@ async function onSubmit() {
 .form {
   display: grid;
   gap: 14px;
-}
-
-.form-error {
-  margin: 0;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid var(--danger);
-  background: var(--danger-bg);
-  color: var(--text-1);
-  font-size: 13px;
 }
 
 .submit {

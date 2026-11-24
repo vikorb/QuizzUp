@@ -49,6 +49,10 @@ vi.mock('@/utils/auth', async () => {
 
   return {
     loginApi: authApi.loginApiMock,
+    loginTotpApi: authApi.loginTotpApiMock,
+    startTotpEnrollApi: authApi.startTotpEnrollApiMock,
+    confirmTotpEnrollApi: authApi.confirmTotpEnrollApiMock,
+    resetTotpApi: authApi.resetTotpApiMock,
     loginReasonToI18nKey: authApi.loginReasonToI18nKeyMock,
     setToken: authApi.setTokenMock,
     getApiBase: () => 'http://api.test',

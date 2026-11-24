@@ -147,6 +147,17 @@ body {
     0 0 22px var(--glow-pink);
 }
 
+/* Message d'erreur d'un formulaire (connexion, double authentification, profil) */
+.form-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--danger);
+  background: var(--danger-bg);
+  color: var(--text-1);
+  font-size: 13px;
+}
+
 .logo {
   width: 44px;
   height: 44px;
