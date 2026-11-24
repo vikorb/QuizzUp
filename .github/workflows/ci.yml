@@ -238,6 +238,85 @@ jobs:
       - name: Tests et couverture
         run: npm run test:coverage
 
+  # Sécurité : fumée. Programme de la carte (Uno) : logique testée par gcc, croquis compilé par
+  # arduino-cli. Le .hex est publié en artefact ; s'il est versionné, il doit être identique.
+  fumee-firmware:
+    name: Fumée (programme de la carte)
+    runs-on: ubuntu-latest
+    env:
+      # Versions épinglées. arduino-cli : GitHub arduino/arduino-cli, release v1.6.0, empreinte du
+      # fichier 1.6.0-checksums.txt de cette release. Cœur AVR : index officiel
+      # downloads.arduino.cc/packages/package_index.json, version 1.8.8 (dernière).
+      ARDUINO_CLI_VERSION: 1.6.0
+      ARDUINO_CLI_SHA256: 321ee249f44c78053234fec0f36101092bc6021bf24939e15e0cc2449c5ed250
+      ARDUINO_AVR_VERSION: 1.8.8
+    defaults:
+      run:
+        shell: bash
+        working-directory: game/hardware/firmware/fumee
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Logique de la fumée (gcc, vecteurs partagés)
+        run: |
+          gcc -std=c99 -Wall -Wextra -Werror -fsanitize=undefined,address -fno-sanitize-recover=all -o "$RUNNER_TEMP/test_fumee" tests/test_fumee.c fumee_logic.c
+          "$RUNNER_TEMP/test_fumee" vecteurs.txt
+
+      - name: Installer arduino-cli
+        run: |
+          cd "$RUNNER_TEMP"
+          curl -fsSL -o arduino-cli.tar.gz "https://github.com/arduino/arduino-cli/releases/download/v${ARDUINO_CLI_VERSION}/arduino-cli_${ARDUINO_CLI_VERSION}_Linux_64bit.tar.gz"
+          echo "${ARDUINO_CLI_SHA256}  arduino-cli.tar.gz" | sha256sum --check
+          mkdir -p "$HOME/.local/bin"
+          tar -xzf arduino-cli.tar.gz -C "$HOME/.local/bin" arduino-cli
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Cache du cœur Arduino AVR
+        uses: actions/cache@v4
+        with:
+          path: ~/.arduino15
+          key: arduino15-cli-${{ env.ARDUINO_CLI_VERSION }}-avr-${{ env.ARDUINO_AVR_VERSION }}
+
+      - name: Installer le cœur arduino:avr
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install "arduino:avr@${ARDUINO_AVR_VERSION}"
+
+      # Les avertissements du croquis sont des erreurs ; ceux du cœur Arduino (dans ~/.arduino15)
+      # ne comptent pas.
+      - name: Compiler fumee.ino (arduino:avr:uno)
+        run: |
+          arduino-cli compile --fqbn arduino:avr:uno --warnings all --verbose \
+            --output-dir "$RUNNER_TEMP/fumee-build" . 2>&1 | tee "$RUNNER_TEMP/compile.log"
+          if grep 'warning:' "$RUNNER_TEMP/compile.log" | grep -v '/\.arduino15/'; then
+            echo "::error::Avertissement de compilation dans le programme de la carte"
+            exit 1
+          fi
+
+      - name: Taille sous 32 256 octets
+        run: |
+          read -r used max < <(sed -nE 's/^Sketch uses ([0-9]+) bytes.*Maximum is ([0-9]+) bytes.*/\1 \2/p' "$RUNNER_TEMP/compile.log")
+          echo "Programme : ${used:-?} octets sur ${max:-?}"
+          test "${max:-0}" -eq 32256
+          test "${used:-32257}" -le 32256
+
+      - name: Publier le .hex
+        uses: actions/upload-artifact@v4
+        with:
+          name: fumee-hex
+          path: ${{ runner.temp }}/fumee-build/fumee.ino.hex
+          if-no-files-found: error
+          retention-days: 7
+
+      # À partir du lot L5 (écran d'installation), l'absence de fumee.hex devra faire échouer ce job.
+      - name: Le .hex versionné est celui de la compilation
+        run: |
+          if [ -f fumee.hex ]; then
+            diff -u fumee.hex "$RUNNER_TEMP/fumee-build/fumee.ino.hex"
+          else
+            echo "Pas de fumee.hex versionné : rien à comparer."
+          fi
+
   e2e:
     name: Tests de bout en bout (Playwright, Chromium)
     runs-on: ubuntu-latest
