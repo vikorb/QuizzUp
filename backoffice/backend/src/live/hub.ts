@@ -7,8 +7,14 @@ import {
   GAME_IDLE_PHASES,
   LIVE_EVENT,
   LIVE_OFFLINE_AFTER_MS,
+  ROOM_COMMAND_RESULT,
+  ROOM_COMMAND_TIMEOUT_MS,
   ROOM_PRESENCE,
+  type GameCommandRefusal,
   type LiveEvent,
+  type RoomCommand,
+  type RoomCommandName,
+  type RoomCommandResultMessage,
   type RoomLive,
   type RoomPresence,
   type RoomStatusReport,
@@ -23,6 +29,12 @@ export type LiveSink = {
 /** Flux du personnel ouverts en même temps par un même compte. */
 export const LIVE_MAX_STREAMS_PER_ACCOUNT = 5
 
+/**
+ * Commandes gardées en mémoire en même temps pour une salle, accusées comprises (dédoublonnage).
+ * `abort` n'est jamais compté ni refusé : l'arrêt d'une partie ne doit pas dépendre de cette limite.
+ */
+export const COMMAND_MAX_PER_ROOM = 10
+
 const SWEEP_EVERY_MS = 15_000
 
 type RoomEntry = {
@@ -36,9 +48,38 @@ type RoomEntry = {
 
 type StaffSubscription = { accountId: number; sink: LiveSink }
 
+/** Une commande relayée : gardée jusqu'à l'expiration, accusée ou non, pour ignorer un doublon. */
+type PendingCommand = {
+  companyId: number
+  roomId: number
+  command: RoomCommandName
+  /** Contenu de la commande : un même identifiant avec un autre contenu est un conflit. */
+  fingerprint: string
+  settled: boolean
+  timer: NodeJS.Timeout
+}
+
+export type SendCommandOutcome = 'sent' | 'duplicate' | 'conflict' | 'not_controllable' | 'too_many'
+
+const fingerprintOf = (command: RoomCommand): string =>
+  JSON.stringify([
+    command.command,
+    'round' in command ? command.round : null,
+    'questionIndex' in command ? command.questionIndex : null,
+    'gameId' in command ? command.gameId : null,
+  ])
+
+export type CommandAck =
+  | { result: typeof ROOM_COMMAND_RESULT.APPLIED }
+  | { result: typeof ROOM_COMMAND_RESULT.REFUSED; reason: GameCommandRefusal }
+
 export function createLiveHub({ now = Date.now }: { now?: () => number } = {}) {
   const rooms = new Map<number, RoomEntry>()
   const staff = new Map<number, Set<StaffSubscription>>()
+  // Clé `roomId:commandId` : l'accusé d'une autre salle ne retrouve jamais la commande.
+  const commands = new Map<string, PendingCommand>()
+
+  const commandKey = (roomId: number, commandId: string) => `${roomId}:${commandId}`
 
   function presenceOf(entry: RoomEntry): RoomPresence {
     if (entry.lastSeenAt === null || now() - entry.lastSeenAt >= LIVE_OFFLINE_AFTER_MS) {
@@ -106,6 +147,10 @@ export function createLiveHub({ now = Date.now }: { now?: () => number } = {}) {
         broadcast(roomId, entry)
       }
     })
+  }
+
+  function sendToStaff(companyId: number, message: RoomCommandResultMessage): void {
+    staff.get(companyId)?.forEach(({ sink }) => sink.send(LIVE_EVENT.COMMAND_RESULT, message))
   }
 
   const timer = setInterval(sweep, SWEEP_EVERY_MS)
@@ -179,11 +224,101 @@ export function createLiveHub({ now = Date.now }: { now?: () => number } = {}) {
       return count
     },
 
+    /**
+     * Relaie une commande au flux de la salle. Refusée si la salle n'est pas pilotable ou n'est pas
+     * celle de cette compagnie ; un identifiant déjà vu pour cette salle n'est pas relayé deux fois
+     * (`duplicate`, ou `conflict` si son contenu diffère). Sans accusé au bout de
+     * `ROOM_COMMAND_TIMEOUT_MS`, le personnel reçoit `expired`.
+     */
+    sendCommand(
+      roomId: number,
+      companyId: number,
+      commandId: string,
+      command: RoomCommand
+    ): SendCommandOutcome {
+      const key = commandKey(roomId, commandId)
+      const entry = rooms.get(roomId)
+
+      const fingerprint = fingerprintOf(command)
+      const known = commands.get(key)
+
+      if (known) {
+        return known.fingerprint === fingerprint ? 'duplicate' : 'conflict'
+      }
+
+      if (!entry?.stream || entry.companyId !== companyId || !toLive(roomId, entry).controllable) {
+        return 'not_controllable'
+      }
+
+      const kept = [...commands.values()].filter(
+        (item) => item.roomId === roomId && item.command !== 'abort'
+      ).length
+
+      if (command.command !== 'abort' && kept >= COMMAND_MAX_PER_ROOM) {
+        return 'too_many'
+      }
+
+      const timer = setTimeout(() => {
+        const pending = commands.get(key)
+
+        commands.delete(key)
+
+        if (pending && !pending.settled) {
+          sendToStaff(pending.companyId, {
+            commandId,
+            roomId,
+            command: pending.command,
+            result: ROOM_COMMAND_RESULT.EXPIRED,
+          })
+        }
+      }, ROOM_COMMAND_TIMEOUT_MS)
+
+      timer.unref()
+      commands.set(key, {
+        companyId,
+        roomId,
+        command: command.command,
+        fingerprint,
+        settled: false,
+        timer,
+      })
+      entry.stream.sink.send(LIVE_EVENT.COMMAND, { commandId, ...command })
+
+      return 'sent'
+    },
+
+    /**
+     * Enregistre l'accusé d'une salle et le transmet au personnel de sa compagnie. Faux si la
+     * commande est inconnue, expirée, déjà accusée ou destinée à une autre salle.
+     */
+    settleCommand(roomId: number, commandId: string, ack: CommandAck): boolean {
+      const pending = commands.get(commandKey(roomId, commandId))
+
+      if (!pending || pending.settled) {
+        return false
+      }
+
+      pending.settled = true
+      sendToStaff(pending.companyId, {
+        commandId,
+        roomId,
+        command: pending.command,
+        ...ack,
+      })
+
+      return true
+    },
+
+    /** Commandes encore en mémoire (en attente d'accusé ou gardées pour le dédoublonnage). */
+    pendingCommandCount: (): number => commands.size,
+
     sweep,
 
     /** Arrête le balayage et ferme tous les flux (fermeture de l'application). */
     close(): void {
       clearInterval(timer)
+      commands.forEach((pending) => clearTimeout(pending.timer))
+      commands.clear()
       const sinks = [
         ...[...rooms.values()].flatMap((entry) => (entry.stream ? [entry.stream.sink] : [])),
         ...[...staff.values()].flatMap((set) => [...set].map((sub) => sub.sink)),

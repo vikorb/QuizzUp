@@ -2342,7 +2342,7 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Passe une partie en attente ou en cours à l'état `aborted` et libère la salle.
+        Passe une partie en attente ou en cours à l'état `aborted` et libère la salle. La commande `abort` (avec le `gameId` de la partie) est aussi relayée à la salle pour qu'elle clôture sa partie (voir `POST /companies/{companyId}/rooms/{roomId}/commands`), seulement si cet appel a bien arrêté la partie, si la salle est pilotable (en ligne, flux ouvert) et si elle rapporte jouer cette partie ; sinon rien n'est relayé et `relay` vaut `null`. L'arrêt en base ne dépend pas de la réponse de la salle, et la limite de commandes gardées ne le refuse jamais.
 
         Accès : superadmin (toutes les compagnies), `admin` et `user` de la compagnie.
       operationId: abortCompanyGame
@@ -2358,10 +2358,20 @@ paths:
             application/json:
               schema:
                 type: object
+                required: [game, relay]
                 properties:
                   game:
                     allOf:
                       - $ref: '#/components/schemas/GameDetail'
+                  relay:
+                    description: La commande `abort` relayée à la salle (son résultat arrive par l'événement `command_result` du flux du personnel), `null` si rien n'a été relayé
+                    nullable: true
+                    type: object
+                    required: [commandId]
+                    properties:
+                      commandId:
+                        type: string
+                        format: uuid
         '403':
           description: Accès interdit
           content:
@@ -2918,6 +2928,7 @@ paths:
         - `hello` : toujours le premier, `{ streamId, heartbeatMs, statusEveryMs }`. `streamId` est à renvoyer dans `POST /room/status`.
         - `replaced` : un autre poste de la salle a ouvert son flux ; celui-ci est fermé juste après.
         - `session_ended` : la session n'est plus valable (`{ error }`) ; le flux est fermé juste après.
+        - `command` : une commande du personnel à proposer au moteur, `{ commandId, command }` (`pause`, `resume`), `{ commandId, command: skip, round, questionIndex }` ou `{ commandId, command: abort, gameId }`. La salle répond par `POST /room/commands/{commandId}/result` dans les 10 s.
 
         Une ligne de commentaire `: ping` est écrite toutes les 15 s. La session est revérifiée toutes les 60 s sans être prolongée.
 
@@ -3043,6 +3054,53 @@ paths:
                         maximum: 1000000
                 audioReady:
                   type: boolean
+                diagnostics:
+                  type: object
+                  description: >-
+                    État matériel de la salle, facultatif (absent des écrans de salle plus anciens).
+                    Gardé en mémoire avec le rapport, jamais enregistré, diffusé dans
+                    `RoomLive.status.diagnostics`. Valeurs de `BUZZER_SOURCE_KINDS`,
+                    `LIGHTING_DRIVERS` et `LIGHTING_OUTPUT_STATUSES` de `@quizzup/shared`. Le
+                    diagnostic ne refuse jamais le rapport : un champ inconnu est retiré, un champ
+                    absent, de mauvais type, hors borne ou de valeur inconnue est lu `null`
+                    (« inconnu », sauf `lastErrorAt` où `null` veut dire aucune erreur), et un
+                    `diagnostics` qui n'est pas un objet est ignoré.
+                  properties:
+                    appVersion:
+                      type: string
+                      nullable: true
+                      minLength: 1
+                      maxLength: 32
+                    buzzerSource:
+                      type: string
+                      nullable: true
+                      enum: [keyboard, gamepad]
+                    gamepadCount:
+                      type: integer
+                      nullable: true
+                      minimum: 0
+                      maximum: 16
+                      description: Manettes que le navigateur de la salle voit en ce moment
+                    lightingDriver:
+                      type: string
+                      nullable: true
+                      enum: [simulation, usbpro, opendmx, artnet-bridge]
+                    lightingStatus:
+                      type: string
+                      nullable: true
+                      enum: [closed, opening, open, closing, error]
+                      description: '`closed` tant que les lumières ne sont pas démarrées sur ce poste'
+                    smokeEnabled:
+                      type: boolean
+                      nullable: true
+                    smokeArmed:
+                      type: boolean
+                      nullable: true
+                    lastErrorAt:
+                      type: string
+                      format: date-time
+                      nullable: true
+                      description: Dernière erreur notée par le poste depuis son démarrage, `null` si aucune
       responses:
         '204':
           description: Rapport pris en compte
@@ -3066,6 +3124,83 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: Un autre flux est ouvert pour la salle, ce poste a été remplacé (`room_instance_replaced`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /room/commands/{commandId}/result:
+    post:
+      tags:
+        - Rooms
+      summary: '[DISPONIBLE] Accuser une commande à distance'
+      description: |
+        Statut : **Disponible**
+
+        La salle répond à une commande reçue (événement `command` de `GET /room/stream`) : `applied`, ou `refused` avec un motif de `GAME_COMMAND_REFUSAL` (`already_paused`, `not_paused`, `paused`, `not_in_question`, `game_over`). Le personnel de la compagnie reçoit l'accusé (événement `command_result` de `GET /companies/{companyId}/live`). `expired` n'est jamais envoyé par la salle : le serveur le décide au bout de 10 s sans accusé.
+
+        La commande doit avoir été envoyée à cette salle : la salle vient du jeton. Une commande inconnue, expirée, déjà accusée ou destinée à une autre salle répond `404 command_unknown`.
+
+        Accès : réservé au rôle `room`.
+      operationId: postRoomCommandResult
+      x-availability: disponible
+      x-us: 'US-LIVE-01'
+      parameters:
+        - name: commandId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [result]
+                  properties:
+                    result:
+                      type: string
+                      enum: [applied]
+                - type: object
+                  required: [result, reason]
+                  properties:
+                    result:
+                      type: string
+                      enum: [refused]
+                    reason:
+                      type: string
+                      enum:
+                        - already_paused
+                        - not_paused
+                        - paused
+                        - not_in_question
+                        - game_over
+      responses:
+        '204':
+          description: Accusé enregistré et transmis au personnel
+        '400':
+          description: Identifiant invalide (`invalid_params`) ou corps invalide (`invalid_body`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '401':
+          description: Non connecté ou session invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Compte qui n'est pas un compte de salle (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Commande inconnue, expirée, déjà accusée ou destinée à une autre salle (`command_unknown`)
           content:
             application/json:
               schema:
@@ -3157,6 +3292,126 @@ paths:
               example:
                 error: too_many_requests
 
+  /companies/{companyId}/rooms/{roomId}/commands:
+    post:
+      tags:
+        - Rooms
+      summary: '[DISPONIBLE] Envoyer une commande à distance à une salle'
+      description: |
+        Statut : **Disponible**
+
+        Le personnel propose une commande à l'écran de salle : `pause`, `resume`, `skip` ou `abort`. Le serveur ne l'arbitre pas : il la relaie à la salle (événement `command` de `GET /room/stream`), qui l'applique ou la refuse. La réponse `202` dit seulement que la commande est partie ; le résultat arrive sur le flux du personnel (`GET /companies/{companyId}/live`), événement `command_result` : `{ commandId, roomId, command, result, reason? }`. `result` vaut `applied`, `refused` (avec `reason`, un motif de `GAME_COMMAND_REFUSAL` : `already_paused`, `not_paused`, `paused`, `not_in_question`, `game_over`) ou `expired` (aucun accusé de la salle au bout de 10 s).
+
+        `commandId` est un UUID tiré par l'appelant : un identifiant déjà reçu pour la salle n'est relayé qu'une fois (nouvel essai identique sans effet, même réponse `202`), pendant les 10 s qui suivent le premier envoi ; le même identifiant avec un autre contenu (`command`, `round`, `questionIndex` ou `gameId`) répond `409 command_id_conflict`. `skip` porte `round` et `questionIndex` de la question visée : la salle le refuse (`not_in_question`) s'ils ne correspondent plus à la partie. `abort` porte le `gameId` de la partie visée : la salle le refuse si ce n'est pas celle qu'elle joue. Au plus 10 commandes gardées en même temps par salle, `abort` non compris : un `abort` n'est jamais refusé pour cette limite.
+
+        L'arrêt d'une partie (`POST /companies/{companyId}/games/{gameId}/abort`) relaie lui aussi `abort` à la salle quand elle est pilotable.
+
+        Accès : droit `game:update`, compagnie du compte (le superadmin commande toutes les compagnies). Le hub est en mémoire : une seule instance du backend.
+      operationId: sendRoomCommand
+      x-availability: disponible
+      x-us: 'US-LIVE-01'
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/RoomIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [commandId, command]
+                  properties:
+                    commandId:
+                      type: string
+                      format: uuid
+                    command:
+                      type: string
+                      enum: [pause, resume]
+                - type: object
+                  required: [commandId, command, round, questionIndex]
+                  properties:
+                    commandId:
+                      type: string
+                      format: uuid
+                    command:
+                      type: string
+                      enum: [skip]
+                    round:
+                      type: integer
+                      minimum: 0
+                      maximum: 1000
+                    questionIndex:
+                      type: integer
+                      minimum: 0
+                      maximum: 1000
+                - type: object
+                  required: [commandId, command, gameId]
+                  properties:
+                    commandId:
+                      type: string
+                      format: uuid
+                    command:
+                      type: string
+                      enum: [abort]
+                    gameId:
+                      type: integer
+                      minimum: 1
+      responses:
+        '202':
+          description: Commande relayée à la salle, ou déjà relayée (même identifiant et même contenu)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [commandId]
+                properties:
+                  commandId:
+                    type: string
+                    format: uuid
+        '400':
+          description: Paramètres invalides (`invalid_params`) ou corps invalide (`invalid_body`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '401':
+          description: Non connecté ou session invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Rôle sans droit de modification ou autre compagnie (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Salle inconnue, supprimée ou d'une autre compagnie (`room_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La salle n'est pas pilotable, hors ligne ou sans flux ouvert (`room_not_controllable`), ou identifiant déjà reçu avec un autre contenu (`command_id_conflict`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Déjà 10 commandes gardées pour cette salle, hors `abort` (`too_many_requests`), réessayer après le délai de l'en-tête `Retry-After` (10 s)
+          headers:
+            Retry-After:
+              description: Secondes à attendre avant de réessayer
+              schema:
+                type: integer
+                example: 10
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /companies/{companyId}/live:
     get:
       tags:
@@ -3170,9 +3425,10 @@ paths:
         Événements (`event:` puis `data:` en JSON) :
         - `snapshot` : toujours le premier, `{ rooms: RoomLive[] }` pour toutes les salles actives de la compagnie, y compris hors ligne.
         - `room_status` : un `RoomLive` à chaque rapport, ouverture ou fermeture du flux d'une salle, et quand une salle passe hors ligne. Un client ignore un `roomId` absent de son instantané (salle supprimée ou désactivée depuis).
+        - `command_result` : le sort d'une commande envoyée par `POST /companies/{companyId}/rooms/{roomId}/commands`, `{ commandId, roomId, command, result, reason? }`. `result` vaut `applied`, `refused` (avec `reason`) ou `expired`. Aucun rejeu : une commande dont le résultat arrive pendant une coupure du flux n'est pas rejouée.
         - `session_ended` : la session n'est plus valable (`{ error }`) ; le flux est fermé juste après.
 
-        `RoomLive` : `{ roomId, presence, controllable, lastSeenAt, status }`. `presence` vaut `offline` (aucun rapport depuis 45 s), `in_game` (en ligne, partie en cours, phase hors `lobby`, `finished`, `aborted`) ou `online`. `controllable` : en ligne et flux de la salle ouvert. `lastSeenAt` : date (ISO 8601) du dernier rapport de `POST /room/status`. `status` : ce dernier rapport, conservé tant que le backend tourne même quand la salle est hors ligne (pour afficher « vue pour la dernière fois »). Les deux valent `null` si la salle n'a envoyé aucun rapport depuis le démarrage du backend.
+        `RoomLive` : `{ roomId, presence, controllable, lastSeenAt, status }`. `presence` vaut `offline` (aucun rapport depuis 45 s), `in_game` (en ligne, partie en cours, phase hors `lobby`, `finished`, `aborted`) ou `online`. `controllable` : en ligne et flux de la salle ouvert. `lastSeenAt` : date (ISO 8601) du dernier rapport de `POST /room/status`. `status` : ce dernier rapport, conservé tant que le backend tourne même quand la salle est hors ligne (pour afficher « vue pour la dernière fois »), avec son champ `diagnostics` s'il y est (état matériel, lecture seule). Les deux valent `null` si la salle n'a envoyé aucun rapport depuis le démarrage du backend.
 
         Une ligne de commentaire `: ping` est écrite toutes les 15 s. La session est revérifiée toutes les 60 s sans être prolongée. 5 flux ouverts au plus par compte.
 

@@ -37,6 +37,25 @@
       "scoresTitle": "Scores by desk",
       "noScores": "No score yet.",
       "desk": "Desk {podium}"
+    },
+    "command": {
+      "error": {
+        "room_not_controllable": "The room is offline or its screen is not connected: the command was not sent.",
+        "too_many_requests": "Too many commands in progress for this room. Try again in a few seconds.",
+        "command_unknown": "This command no longer exists or has already been answered.",
+        "command_id_conflict": "This command was already sent with different content. Start again."
+      },
+      "result": {
+        "expired": "The room did not answer in time: the command may not have been applied.",
+        "refused": "The room refused the command."
+      },
+      "refusal": {
+        "already_paused": "The game is already paused.",
+        "not_paused": "The game is not paused.",
+        "paused": "The question cannot be skipped while the game is paused.",
+        "not_in_question": "The question had already changed: nothing was skipped.",
+        "game_over": "The game is over."
+      }
     }
   }
 }
