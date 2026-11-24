@@ -33,6 +33,10 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         baseURL: ROOM_APP_URL,
         viewport: { width: 1600, height: 900 },
+        // L'horloge de la page est figée (`freezeClock`) : sans mouvement réduit, les scores
+        // montants et les transitions de phase attendraient des images qui ne viennent qu'avec
+        // `advance`. La salle n'anime alors rien (compteur direct, pas de transition).
+        reducedMotion: 'reduce',
       },
     },
     {
