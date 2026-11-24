@@ -6,7 +6,7 @@ import {
   saveRoomHardwareConfig,
   useRoomHardware,
 } from '@/hardware/roomHardware'
-import { enterDemo, signIn, syncRoomAuth } from '@/state/roomAuth'
+import { enterDemo, roomCompany, signIn, syncRoomAuth } from '@/state/roomAuth'
 import * as roomApi from '@/utils/roomApi'
 
 const SERVER_KEYMAP = Object.fromEntries([['KeyP', { desk: 2, button: 'B' } as const]])
@@ -98,6 +98,18 @@ describe('config matérielle sur le compte de la salle', () => {
     await saveBuzzerKeymap(SERVER_KEYMAP)
     expect(syncStatus.value).toBe('error')
     expect(localStorage.getItem('quizzup_room_hardware')).toContain('KeyP')
+  })
+
+  it('garde le centre de la salle pour son logo, et l’oublie hors connexion', async () => {
+    const company = { id: 1, name: 'Escape du Port', logoUrl: 'http://api/public/v1/logos/a.png' }
+    vi.spyOn(roomApi, 'fetchRoomInfo').mockResolvedValueOnce({ ...ROOM, config: {}, company })
+    mockSave()
+
+    await syncHardwareWithRoom()
+    expect(roomCompany.value).toEqual(company)
+
+    enterDemo()
+    expect(roomCompany.value).toBeNull()
   })
 
   it('applique la disposition des buzzers et le plan de salle du compte', async () => {

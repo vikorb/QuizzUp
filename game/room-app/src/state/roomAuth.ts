@@ -13,15 +13,19 @@ import {
   setRoomAccountId,
   setRoomToken,
 } from '@/utils/auth'
+import type { RoomCompany } from '@/utils/roomApi'
 
 /** Session du PC de la salle : compte de salle connecté, ou mode démo (sans backoffice). */
 const token = ref<string | null>(getRoomToken())
 const account = ref<RoomAccount | null>(null)
 const demo = ref(isDemoMode())
+const company = ref<RoomCompany | null>(null)
 
 export const isRoomReady = computed(() => demo.value || Boolean(token.value))
 export const isDemo = computed(() => demo.value)
 export const roomAccount = computed(() => account.value)
+/** Centre de la salle (nom et logo), lu avec la config matérielle ; jamais en démo ni hors ligne. */
+export const roomCompany = computed(() => (demo.value ? null : company.value))
 /** Compte de salle connecté au backoffice (ni démo ni déconnecté) : seul cas où la salle se signale. */
 export const isRoomConnected = computed(() => !demo.value && Boolean(token.value))
 
@@ -34,6 +38,10 @@ export function signIn(nextToken: string, nextAccount: RoomAccount): void {
   account.value = nextAccount
   // Des résultats de partie attendaient peut-être un jeton valide.
   void flushPendingFinishes()
+}
+
+export function setRoomCompany(next: RoomCompany | null): void {
+  company.value = next
 }
 
 export function enterDemo(): void {
@@ -78,6 +86,7 @@ function clearLocalSession(options: { keepSavedGame?: boolean } = {}): void {
   setDemoMode(false)
   token.value = null
   account.value = null
+  company.value = null
   demo.value = false
   // Une partie sauvegardée contient les emails des joueurs : elle ne survit pas à la déconnexion.
   if (!options.keepSavedGame) {
@@ -100,4 +109,5 @@ export function syncRoomAuth(): void {
   token.value = getRoomToken()
   demo.value = isDemoMode()
   account.value = null
+  company.value = null
 }

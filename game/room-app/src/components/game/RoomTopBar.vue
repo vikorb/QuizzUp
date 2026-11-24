@@ -7,6 +7,7 @@
       <span class="topbar__name">{{ $t('room.brand') }}</span>
       <span v-if="isDemo" class="topbar__badge">{{ $t('room.demoBadge') }}</span>
       <span v-else-if="roomName" class="topbar__room">{{ roomName }}</span>
+      <CompanyLogo class="topbar__company" />
     </div>
 
     <div class="topbar__center">
@@ -32,6 +33,7 @@ import logoUrl from '@backoffice-assets/img/logo.png'
 import { mdiFullscreen, mdiFullscreenExit } from '@mdi/js'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
+import CompanyLogo from '@/components/game/CompanyLogo.vue'
 import MdIcon from '@/components/ui/MdIcon.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { enterFullscreen, exitFullscreen, isFullscreen } from '@/hardware/screen'
@@ -73,6 +75,13 @@ onBeforeUnmount(() => document.removeEventListener('fullscreenchange', sync))
   font-weight: 900;
   font-size: 20px;
   letter-spacing: 0.4px;
+}
+
+.topbar__company {
+  --company-logo-h: 40px;
+
+  min-width: 0;
+  max-width: 160px;
 }
 
 .topbar__badge,
