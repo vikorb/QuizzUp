@@ -26,9 +26,13 @@ export type GameParticipantRow = {
   score: number
 }
 
-/** Lien d'inscription d'une partie en attente. `url` est relative si `PUBLIC_APP_URL` est vide. */
+/**
+ * Lien d'inscription d'une partie en attente. `url` est relative si `PUBLIC_APP_URL` est vide ;
+ * `qrSvg` (QR code de `url`) vaut alors `null`.
+ */
 export type GameJoin = {
   url: string
+  qrSvg: string | null
   expiresAt: string
 }
 

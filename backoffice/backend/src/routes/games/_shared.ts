@@ -29,6 +29,7 @@ import {
 } from '@quizzup/shared'
 
 import db from '../../db'
+import { qrSvg } from '../../utils/qrSvg'
 import type { GameJoin, GameParticipantRow, GameRow } from '../../types/game'
 import { isUniqueViolation } from '../_shared/dbErrors'
 import { findCompanyById } from '../companies/_shared'
@@ -434,13 +435,17 @@ export function getJoinExpiry(now = new Date()): Date {
 /**
  * Lien à montrer aux joueurs : `PUBLIC_APP_URL` + `/rejoindre/#<jeton>`. Le jeton est dans le
  * fragment, jamais dans le chemin ni la query : il n'arrive pas dans les journaux du serveur.
- * Sans `PUBLIC_APP_URL`, l'URL est relative (`/rejoindre/#…`) : à compléter par l'appelant.
+ * Sans `PUBLIC_APP_URL`, l'URL est relative (`/rejoindre/#…`) : à compléter par l'appelant, et
+ * `qrSvg` vaut `null` (un QR d'adresse relative ne mène nulle part).
  */
 export function toGameJoin(token: string, expiresAt: Date | string): GameJoin {
   const base = (process.env.PUBLIC_APP_URL ?? '').trim().replace(/\/+$/, '')
 
+  const url = `${base}/rejoindre/#${token}`
+
   return {
-    url: `${base}/rejoindre/#${token}`,
+    url,
+    qrSvg: base ? qrSvg(url) : null,
     expiresAt: new Date(expiresAt).toISOString(),
   }
 }
