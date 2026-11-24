@@ -20,6 +20,7 @@ import {
   GAME_STATUSES,
   MINI_GAME_FLASH_BLIND_TEST,
   MINI_GAMES,
+  QUESTION_AUDIO_EFFECTS,
   QUESTION_MEDIA_PROVIDERS,
   ROOM_STATUSES,
   ROUND_CHOOSER_REASONS,
@@ -53,6 +54,7 @@ const gamesMigration = readMigration('20261103220200_create_games_tables.js')
 const miniGamesMigration = readMigration('20261104010000_add_mini_games_to_game_rounds.js')
 const podiumsMigration = readMigration('20261104040000_raise_game_podiums_to_six.js')
 const mediaProviderMigration = readMigration('20261124110000_add_media_provider_to_questions.js')
+const audioEffectMigration = readMigration('20261124120000_add_audio_effect_to_questions.js')
 const schedulingMigration = readMigration('20261124000000_add_game_scheduling.js')
 const schedulingUp = schedulingMigration.slice(0, schedulingMigration.indexOf('exports.down'))
 const schedulingDown = schedulingMigration.slice(schedulingMigration.indexOf('exports.down'))
@@ -161,6 +163,12 @@ describe('game schema migrations', () => {
   it('aligns the question media providers with shared constants', () => {
     expect(getCheckValues(mediaProviderMigration, 'media_provider')).toEqual([
       ...QUESTION_MEDIA_PROVIDERS,
+    ])
+  })
+
+  it('aligns the question audio effects with shared constants', () => {
+    expect(getCheckValues(audioEffectMigration, 'audio_effect')).toEqual([
+      ...QUESTION_AUDIO_EFFECTS,
     ])
   })
 })
