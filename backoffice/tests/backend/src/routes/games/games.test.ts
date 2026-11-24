@@ -16,12 +16,14 @@ import {
   GAME_STATES,
   GAME_STATUS_ACTIVE,
   GAME_STATUS_DELETED,
+  LIVE_EVENT,
   MINI_GAME_FIRST_BUZZ,
   MINI_GAME_FLASH_BLIND_TEST,
   MINI_GAME_QUICK_ANSWER,
   MINI_GAMES,
   ROOM_STATUS_ACTIVE,
   ROOM_STATUS_INACTIVE,
+  type RoomStatusReport,
 } from '@quizzup/shared'
 import gamesRoutes from '@backend/routes/games'
 import { findGameParticipants, toGameRow } from '@backend/routes/games/_shared'
@@ -32,6 +34,7 @@ import {
   companyAdminUser,
   companyUser,
   createRouteApp,
+  liveHubOf,
   parseJson,
   superadminUser,
   type TestUser,
@@ -1147,6 +1150,116 @@ describe('routes/games.ts (US-GAME-08)', () => {
       expect(unknown.statusCode).toBe(404)
 
       await app.close()
+    })
+
+    describe('relay of the abort to the room', () => {
+      const liveReport: RoomStatusReport = {
+        screen: 'play',
+        gameId: 1,
+        phase: 'question',
+        round: 1,
+        questionIndex: 2,
+        miniGame: MINI_GAME_QUICK_ANSWER,
+        paused: false,
+        scores: [],
+        audioReady: true,
+      }
+
+      function openRoomStream(app: Awaited<ReturnType<typeof createRouteApp>>, companyId = 1) {
+        const events: Array<{ event: string; data: unknown }> = []
+
+        liveHubOf(app).openRoomStream(1, companyId, {
+          send: (event, data) => events.push({ event, data }),
+          close: () => undefined,
+        })
+        liveHubOf(app).report(1, companyId, liveReport)
+
+        return events
+      }
+
+      function abort(app: Awaited<ReturnType<typeof createRouteApp>>, gameId = 1) {
+        return app.inject({
+          method: 'POST',
+          url: `/companies/1/games/${gameId}/abort`,
+          headers: authHeaders(companyAdminUser),
+        })
+      }
+
+      it('tells the room to abort once the game is aborted, when the room is controllable', async () => {
+        seedRoom()
+        seedGame()
+        const app = await createRouteApp(gamesRoutes)
+        const events = openRoomStream(app)
+
+        const response = await abort(app)
+
+        expect(response.statusCode).toBe(200)
+        expect(parseJson<GameBody>(response).game).toMatchObject({ state: GAME_STATE_ABORTED })
+        expect(events).toEqual([
+          {
+            event: LIVE_EVENT.COMMAND,
+            data: { commandId: expect.stringMatching(/^[0-9a-f-]{36}$/), command: 'abort' },
+          },
+        ])
+
+        await app.close()
+      })
+
+      it('aborts as before when the room is not controllable, and sends nothing', async () => {
+        seedRoom()
+        seedGame()
+        const app = await createRouteApp(gamesRoutes)
+
+        const response = await abort(app)
+
+        expect(response.statusCode).toBe(200)
+        expect(parseJson<GameBody>(response).game).toMatchObject({
+          state: GAME_STATE_ABORTED,
+          finishedAt: MOCK_NOW,
+        })
+        expect(liveHubOf(app).pendingCommandCount()).toBe(0)
+
+        await app.close()
+      })
+
+      it('does not relay anything when the game was already over (409)', async () => {
+        seedRoom()
+        seedGame({ state: GAME_STATE_FINISHED })
+        const app = await createRouteApp(gamesRoutes)
+        const events = openRoomStream(app)
+
+        const response = await abort(app)
+
+        expect(response.statusCode).toBe(409)
+        expect(events).toEqual([])
+
+        await app.close()
+      })
+
+      it('does not relay anything for an unknown game (404)', async () => {
+        seedRoom()
+        const app = await createRouteApp(gamesRoutes)
+        const events = openRoomStream(app)
+
+        expect((await abort(app, 9)).statusCode).toBe(404)
+        expect(events).toEqual([])
+
+        await app.close()
+      })
+
+      it('does not relay to a room of another company', async () => {
+        seedRoom()
+        seedGame()
+        const app = await createRouteApp(gamesRoutes)
+        const events = openRoomStream(app, 2)
+
+        const response = await abort(app)
+
+        expect(response.statusCode).toBe(200)
+        expect(events).toEqual([])
+
+        await app.close()
+      })
     })
   })
 })

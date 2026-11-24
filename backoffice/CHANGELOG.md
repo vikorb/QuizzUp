@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Commandes à distance, côté serveur : `POST /companies/{companyId}/rooms/{roomId}/commands` relaie pause, reprise, passer et arrêter à l'écran de salle connecté, qui répond par `POST /room/commands/{commandId}/result` ; le personnel reçoit le résultat (`applied`, `refused` ou `expired` après 10 s) sur le flux en direct. L'arrêt d'une partie depuis le backoffice prévient la salle quand elle est pilotable.
+  US: US-LIVE-01 (#129)
+
 - Journaux d'erreurs d'une salle consultables depuis le tableau des salles d'un client : panneau en ligne avec filtre par niveau, actualisation et « charger plus », réservé aux administrateurs.
   US: US-LOG-01 (#157)
 - Statistiques d'exploitation d'une compagnie : route `GET /companies/:companyId/stats` et écran « Statistiques » (séances terminées et arrêtées, taux d'abandon, durée médiane, répartition par salle, joueurs, créneaux les plus chargés), réservés aux administrateurs. Aucune donnée individuelle ne sort.

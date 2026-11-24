@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import type { FastifyPluginAsync } from 'fastify'
 
 import {
@@ -230,6 +232,10 @@ const gamesIdRoutes: FastifyPluginAsync = async (app) => {
           finished_at: db.fn.now(),
           updated_at: db.fn.now(),
         })
+
+      // La base fait foi : si la salle est pilotable, son écran est prévenu pour clore sa partie.
+      // Sinon rien ne change, l'arrêt reste celui d'aujourd'hui.
+      app.liveHub.sendCommand(game.roomId, companyId, randomUUID(), { command: 'abort' })
 
       return { game: await findStaffGame(req, companyId, gameId) }
     }
