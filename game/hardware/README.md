@@ -650,9 +650,18 @@ s'appliquent donc sans rien dupliquer :
   `withoutSmokeEscalation`, qui garde celui de la salle en place et n'en ajoute pas.
 - **Port DMX USB** : `getGrantedDmxPort(serial, { exclude: { port, usb } })` écarte la carte avant
   tout choix (objet port, ou fabricant + produit USB après un rechargement), `match` compris ;
-  `watchDmxPortReconnection({ exclude })` ignore son rebranchement. L'identifiant de fabricant `0x2A03`
-  (cartes Arduino d'une autre époque) fait partie de `DMX_USB_VENDOR_IDS` et de la politique Chrome
-  du kit poste de salle.
+  `watchDmxPortReconnection({ exclude })` ignore son rebranchement. L'écran de salle passe toujours
+  `exclude: { usb: lighting.smoke.board }` aux deux. Même sans carte enregistrée, un Arduino
+  (`0x2341`, `0x2A03`) n'est **jamais** choisi automatiquement comme sortie DMX (ni sans `match`, ni
+  en repli avec `match`, ni au rebranchement sans `match`) : seul le choix de l'opérateur (fenêtre
+  « Connecter ») ou un `match` qu'il a fixé peut en désigner un. L'identifiant `0x2A03` (cartes
+  Arduino d'une autre époque) reste dans `DMX_USB_VENDOR_IDS` (filtre de la fenêtre de choix) et dans
+  la politique Chrome du kit poste de salle.
+- **Coupures** : la carte qui annonce `cool` pendant un jet du contrôleur (coupure de son côté)
+  coupe aussi le jet et le relais DMX, par le même chemin que les autres coupures (la fumée reste
+  armée). `smoke.disarm()` passe par ce chemin (ordre `0` et trame à 0 tout de suite). Un lien dont
+  `drive` lève ne bloque jamais la coupure ni la trame noire d'urgence : la fumée est coupée et
+  désarmée, `board_lost` (`write_error`) est signalé une fois par série d'échecs.
 
 ## Fiabilité des interfaces USB DMX (Web Serial)
 
@@ -678,7 +687,8 @@ s'appliquent donc sans rien dupliquer :
   figée ne bloque pas l'écran. Un port ouvert sans flux d'écriture est refermé aussitôt.
 - `getGrantedDmxPort(serial, { match })` retrouve sans clic l'interface déjà autorisée : le même
   port, sinon le même modèle USB, sinon une puce USB-série DMX connue (`DMX_USB_VENDOR_IDS`),
-  sinon rien ; jamais un autre port série (Arduino des buzzers…) quand `match` est donné.
+  sinon rien ; jamais un autre port série (Arduino des buzzers…) quand `match` est donné. Hors
+  `match`, les cartes Arduino ne sont jamais prises automatiquement (voir carte de la fumée).
 - `watchDmxPortReconnection({ onReconnect })` prévient quand l'interface est rebranchée (même
   port ou même modèle USB) : l'écran peut relancer `setOutput` sans redemander le port.
 - `createMeteredOutput(output)` mesure les trames réellement envoyées (Hz mesurés, durée

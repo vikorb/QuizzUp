@@ -74,10 +74,62 @@ describe('lighting.smoke.board : relecture tolérante', () => {
         lighting: { fixtures: [FUMEE], smoke: { enabled: true, board } },
       })
       expect(parsed.config.lighting.smoke.enabled).toBe(false)
-      expect(parsed.config.lighting.smoke).not.toHaveProperty('board')
+      // La valeur brute est gardée telle quelle : l'enregistrer ne la perd pas.
+      expect(parsed.config.lighting.smoke.board).toEqual(board)
       expect(parsed.problems.join(' ')).toMatch(/carte de la fumée est illisible/)
     }
   )
+
+  describe('carte illisible : relire, enregistrer, relire', () => {
+    // Une version plus récente a écrit un autre type de carte : cette version ne le comprend pas.
+    const NEWER = { kind: 'mega-serial', usbVendorId: 0x2341, usbProductId: 0x0042, baud: 115200 }
+    const unreadableRoom = () =>
+      parseRoomHardwareConfig({
+        lighting: { fixtures: [FUMEE], smoke: { enabled: true, board: NEWER } },
+      }).config
+
+    it('garde la carte brute et la fumée désactivée après un enregistrement', () => {
+      const saved = JSON.parse(JSON.stringify(unreadableRoom()))
+      expect(saved.lighting.smoke.board).toEqual(NEWER)
+      const again = parseRoomHardwareConfig(saved)
+      expect(again.config.lighting.smoke.board).toEqual(NEWER)
+      expect(again.config.lighting.smoke.enabled).toBe(false)
+      expect(again.problems.join(' ')).toMatch(/carte de la fumée est illisible/)
+      expect(again.config).toEqual(unreadableRoom())
+    })
+
+    it('la fumée ne se réactive pas par un enregistrement : normalizeSmokeSafety, assistant compris', () => {
+      const smoke = unreadableRoom().lighting.smoke
+      const reenabled = normalizeSmokeSafety({ ...smoke, enabled: true })
+      expect(reenabled.enabled).toBe(false)
+      expect(reenabled.board).toEqual(NEWER)
+    })
+
+    it('withoutSmokeEscalation garde la carte brute et ne réactive pas la fumée', () => {
+      const inPlace = unreadableRoom()
+      const next = {
+        ...inPlace,
+        lighting: { ...inPlace.lighting, smoke: { ...inPlace.lighting.smoke, enabled: true } },
+      } as RoomHardwareConfig
+      const saved = withoutSmokeEscalation(inPlace, next).lighting.smoke
+      expect(saved.board).toEqual(NEWER)
+      expect(saved.enabled).toBe(false)
+    })
+
+    it('la valeur gardée n’est pas la même référence que l’entrée', () => {
+      const raw = { ...NEWER }
+      const room = parseRoomHardwareConfig({
+        lighting: { fixtures: [FUMEE], smoke: { board: raw } },
+      }).config
+      expect(room.lighting.smoke.board).toEqual(raw)
+      expect(room.lighting.smoke.board).not.toBe(raw)
+    })
+
+    it('n’est jamais exportée, même illisible', () => {
+      const { content } = exportRoomConfig(unreadableRoom(), { roomName: 'Salle', now: NOW })
+      expect(content).not.toMatch(/mega-serial|usbVendorId/)
+    })
+  })
 
   it('parseSmokeBoard : rend undefined pour tout ce qui n’est pas une carte', () => {
     expect(parseSmokeBoard(BOARD)).toEqual(BOARD)

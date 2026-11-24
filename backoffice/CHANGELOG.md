@@ -12,12 +12,16 @@ Format inspiré de Keep a Changelog.
   US: US-SHOW-01 (#145)
 
 - Fumée par la carte USB, contrôleur : le contrôleur de lumières accepte un lien vers la carte (`smokeLink`) et lui envoie l'ordre de fumée à chaque trame. L'arrêt part tout de suite à la pause, à l'onglet masqué, à la fermeture de la page, à l'arrêt d'urgence et au changement de sortie. Un lien perdu coupe le jet et désarme la fumée ; un tir est refusé (`board_unavailable`) tant que la carte n'est pas prête. Le réglage `lighting.smoke.board` n'est jamais exporté, et le port de la carte est exclu du choix du port DMX. À valider sur le banc.
-  US: US-SHOW-01 (#215)
+  US: US-DMX-01 (#215)
 
 - Lumières à la pause : quand la partie est mise en pause, la salle passe sur une ambiance basse (scène `pause`, sans éclair ni fumée) ; à la reprise elle retrouve la lumière de la phase en cours. Les liaisons `game_paused` et `game_resumed` restent réglables par salle.
   US: US-SHOW-01 (#145)
 - Matériel, configuration de salle : export et import (`exportRoomConfig`, `parseRoomConfigImport`), avec un garde-fou fumée (`withoutSmokeEscalation`). Un import ou le JSON de la configuration avancée ne peut jamais rendre la fumée plus permissive que celle de la salle : ni l'activer, ni dispenser du relais, ni allonger un jet, ni rapprocher deux jets, ni retirer la confirmation. Un fichier invalide, trop gros ou d'une version plus récente est refusé avec une raison lisible. Les boutons Exporter et Importer viendront avec le lot suivant.
   US: US-SHOW-01 (#145)
+- Mode enfants, serveur : un thème peut être marqué adapté aux enfants (`kidsFriendly` sur `POST` / `PATCH` / `GET /themes`, 400 `theme_kids_friendly_invalid`) et une partie peut être en mode enfants (`kidsMode` à la création et à la modification d'une session programmée). Le contenu servi à la salle d'une partie en mode enfants ne contient que les thèmes adaptés.
+  US: US-KIDS-01 (#158)
+- Format de partie côté serveur : `games.format` stocke le format (`discovery`, `short`, `standard`, `custom`). À la création, un format fixe ses nombres de manches et de questions (les envoyer ensemble donne 400 `invalid_body`, `format_fixes_counts`) ; des nombres sans format donnent `custom`. Modifier les nombres d'une session programmée la passe en `custom`. Le format est renvoyé par les parties et par `GET /room/games/current`.
+  US: US-FORMAT-01 (#143)
 - API de réservation, lecture : `GET /public/v1/rooms` et `GET /public/v1/availability` derrière une clé d'API (401 `api_key_missing` / `api_key_invalid`, 403 `company_inactive`), débit par clé (`PUBLIC_API_RATE_LIMIT_PER_MINUTE`, en-têtes `RateLimit-*`, 429 avec `Retry-After`), limite des échecs d'authentification par adresse (`PUBLIC_API_AUTH_FAILURES_PER_MINUTE`) et journal des appels sans corps ni adresse.
   US: US-BOOKING-01 (#188)
 - Playlists, formulaire de thème : en mode audio, un champ « Lien de playlist » accepte un lien ou un identifiant de playlist, vérifié avant l'envoi. Vider le champ retire la playlist ; les refus du serveur s'affichent avec leur texte.

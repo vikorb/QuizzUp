@@ -129,9 +129,13 @@ const pick = (value: unknown, fallback: number) =>
   typeof value === 'number' && Number.isFinite(value) ? value : fallback
 
 export function normalizeSmokeSafety(input: Partial<SmokeSafetyConfig> = {}): SmokeSafetyConfig {
-  const board = parseSmokeBoard(input.board)
+  const rawBoard: unknown = input.board
+  const board = parseSmokeBoard(rawBoard)
+  // Carte présente mais illisible (ex. `kind` d'une version plus récente) : la fumée reste coupée
+  // et la valeur brute est conservée telle quelle, pour que l'enregistrer ne la perde pas.
+  const unreadable = rawBoard !== undefined && !board
   return {
-    enabled: input.enabled === true,
+    enabled: input.enabled === true && !unreadable,
     maxDurationMs: Math.min(
       SMOKE_HARD_LIMITS.maxDurationMs,
       Math.max(
@@ -150,7 +154,11 @@ export function normalizeSmokeSafety(input: Partial<SmokeSafetyConfig> = {}): Sm
     // Seule une valeur explicitement `false` retire la confirmation.
     requireConfirmation: input.requireConfirmation !== false,
     ...(input.cutsOnSignalLoss === true ? { cutsOnSignalLoss: true } : {}),
-    ...(board ? { board } : {}),
+    ...(board
+      ? { board }
+      : unreadable
+        ? { board: structuredClone(rawBoard) as SmokeBoardConfig }
+        : {}),
   }
 }
 
