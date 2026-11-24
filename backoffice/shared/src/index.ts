@@ -447,6 +447,7 @@ export const GAME_COMMAND_REFUSAL_ALREADY_PAUSED = 'already_paused' as const
 export const GAME_COMMAND_REFUSAL_NOT_PAUSED = 'not_paused' as const
 /** Passer une question est refusé pendant une pause. */
 export const GAME_COMMAND_REFUSAL_PAUSED = 'paused' as const
+/** Aussi pour un `skip` qui ne vise plus la question en cours (`round` ou `questionIndex` périmé). */
 export const GAME_COMMAND_REFUSAL_NOT_IN_QUESTION = 'not_in_question' as const
 /** Aucune partie en cours : terminée, arrêtée ou pas encore lancée. */
 export const GAME_COMMAND_REFUSAL_GAME_OVER = 'game_over' as const
@@ -723,6 +724,10 @@ export const LIVE_EVENT = {
   ROOM_STATUS: 'room_status',
   /** Une session programmée a été créée, modifiée, annulée ou ouverte : `{ roomId }`. */
   SCHEDULE_CHANGED: 'schedule_changed',
+  /** Flux de la salle : une commande du personnel à proposer au moteur, `RoomCommandMessage`. */
+  COMMAND: 'command',
+  /** Flux du personnel : l'accusé (ou l'expiration) d'une commande, `RoomCommandResultMessage`. */
+  COMMAND_RESULT: 'command_result',
 } as const
 
 export type LiveEvent = (typeof LIVE_EVENT)[keyof typeof LIVE_EVENT]
@@ -797,6 +802,44 @@ export type RoomLive = {
   /** Date ISO du dernier rapport reçu, `null` si la salle n'en a jamais envoyé. */
   lastSeenAt: string | null
   status: RoomStatusReport | null
+}
+
+/**
+ * Commandes à distance (US-LIVE-01) : le personnel propose, l'écran de salle applique ou refuse.
+ * `skip` vise une question précise : la salle le refuse (`not_in_question`) si `round` et
+ * `questionIndex` ne sont plus ceux de la partie. `abort` vise une partie précise : la salle le
+ * refuse si `gameId` n'est pas celle qu'elle joue.
+ */
+export const ROOM_COMMANDS = ['pause', 'resume', 'skip', 'abort'] as const
+
+export type RoomCommandName = (typeof ROOM_COMMANDS)[number]
+
+/** Sans accusé de la salle au bout de ce délai, la commande est `expired`. */
+export const ROOM_COMMAND_TIMEOUT_MS = 10_000 as const
+
+export const ROOM_COMMAND_RESULT = {
+  APPLIED: 'applied',
+  REFUSED: 'refused',
+  EXPIRED: 'expired',
+} as const
+
+export type RoomCommandResult = (typeof ROOM_COMMAND_RESULT)[keyof typeof ROOM_COMMAND_RESULT]
+
+export type RoomCommand =
+  | { command: 'pause' | 'resume' }
+  | { command: 'skip'; round: number; questionIndex: number }
+  | { command: 'abort'; gameId: number }
+
+/** Charge utile de l'événement `command` du flux de la salle. */
+export type RoomCommandMessage = RoomCommand & { commandId: string }
+
+/** Charge utile de l'événement `command_result` du flux du personnel (`reason` si `refused`). */
+export type RoomCommandResultMessage = {
+  commandId: string
+  roomId: number
+  command: RoomCommandName
+  result: RoomCommandResult
+  reason?: GameCommandRefusal
 }
 
 export type SseMessage = { event: string; data: string }
