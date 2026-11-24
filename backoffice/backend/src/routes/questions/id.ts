@@ -4,7 +4,10 @@ import {
   ANSWER_STATUS_DELETED,
   DEFAULT_QUESTION_KIND,
   getQuestionKindMediaError,
+  QUESTION_AUDIO_EFFECT_NONE,
+  type QuestionAudioEffect,
   type QuestionKind,
+  type QuestionMediaType,
   type QuestionStatus,
   QUESTION_MEDIA_TYPE_AUDIO,
   QUESTION_STATUS_DELETED,
@@ -22,6 +25,7 @@ import {
   getAnswerStatusFromQuestionStatus,
   getCurrentAdminId,
   getQuestionAccessRow,
+  getQuestionAudioEffectError,
   getQuestionWithAnswers,
   getThemesForQuestion,
   hasInvalidAnswerStatus,
@@ -29,6 +33,7 @@ import {
   isValidQuestionMediaType,
   normalizeAnswers,
   parsePositiveId,
+  parseQuestionAudioEffect,
   parseQuestionThemeIds,
   syncQuestionThemes,
   getQuestionAnswersForValidation,
@@ -209,6 +214,12 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
         patch.media_url = req.body.mediaUrl
       }
 
+      const requestedAudioEffect = parseQuestionAudioEffect(req.body.audioEffect)
+
+      if ('error' in requestedAudioEffect) {
+        return reply.code(400).send({ error: requestedAudioEffect.error })
+      }
+
       // Le couple type / média (champ non envoyé = valeur en base), le détachement du fichier en
       // quittant le type audio et le point de départ se contrôlent sur la ligne verrouillée
       // (`FOR UPDATE`), dans la transaction de mise à jour : deux PATCH simultanés (type puis
@@ -268,6 +279,24 @@ const questionIdRoutes: FastifyPluginAsync = async (app) => {
             if (kindError) {
               throw new QuestionRuleError(kindError)
             }
+          }
+
+          // Effet audio : contrôlé sur le type réel (champ non envoyé = valeur en base). Quitter
+          // le type audio remet l'effet à `none`, comme le fichier détaché.
+          if (requestedAudioEffect.effect !== undefined || mediaRequest.leavesAudio) {
+            const nextAudioEffect: QuestionAudioEffect =
+              requestedAudioEffect.effect ?? QUESTION_AUDIO_EFFECT_NONE
+            const nextTypeMedia =
+              req.body.typeMedia ??
+              (locked.type_media as QuestionMediaType | null | undefined) ??
+              DEFAULT_QUESTION_MEDIA_TYPE
+            const audioEffectError = getQuestionAudioEffectError(nextAudioEffect, nextTypeMedia)
+
+            if (audioEffectError) {
+              throw new QuestionRuleError(audioEffectError)
+            }
+
+            patch.audio_effect = nextAudioEffect
           }
 
           // Contrôles avant toute écriture : rien à défaire si une règle refuse.

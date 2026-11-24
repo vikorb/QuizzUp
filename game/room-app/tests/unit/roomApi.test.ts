@@ -48,6 +48,37 @@ describe('API de la salle', () => {
     await expect(fetchRoomInfo('tok')).resolves.toMatchObject({ name: 'Salle' })
   })
 
+  it('lit l’effet audio avec tolérance : absent, nul ou inconnu = pas d’effet', async () => {
+    respond(200, {
+      themes: [
+        {
+          id: 1,
+          name: 'T',
+          questions: [
+            { id: 1, mediaUrl: null, audioEffect: 'reverse' },
+            { id: 2, mediaUrl: null, audioEffect: 'slowed' },
+            { id: 3, mediaUrl: null, audioEffect: 'short' },
+            { id: 4, mediaUrl: null },
+            { id: 5, mediaUrl: null, audioEffect: null },
+            { id: 6, mediaUrl: null, audioEffect: 'echo' },
+            { id: 7, mediaUrl: null, audioEffect: 12 },
+          ],
+        },
+      ],
+    })
+    const themes = await fetchCurrentContent('tok')
+
+    expect(themes[0]?.questions.map((question) => question.audioEffect)).toEqual([
+      'reverse',
+      'slowed',
+      'short',
+      'none',
+      'none',
+      'none',
+      'none',
+    ])
+  })
+
   it('limite le contenu aux questions demandées, avec un délai facultatif', async () => {
     const timeout = vi.spyOn(AbortSignal, 'timeout')
     const fetchMock = vi
@@ -98,11 +129,24 @@ describe('API de la salle', () => {
     await startRoomGame('tok', 4)
     expect(fetchMock.mock.calls[0]?.[0]).toBe(`${API}/room/games/4/start`)
     expect(fetchMock.mock.calls[0]?.[1]?.method).toBe('POST')
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBeUndefined()
 
     const save = respond(200, { room: { id: 1, name: 'Salle', config: { version: 1 } } })
     await saveRoomConfig('tok', { version: 1 })
     expect(save.mock.calls.at(-1)?.[1]?.method).toBe('PUT')
     expect(save.mock.calls.at(-1)?.[1]?.body).toBe(JSON.stringify({ config: { version: 1 } }))
+  })
+
+  it('envoie les pupitres chargés au démarrage, et remonte le 409 du backoffice', async () => {
+    const fetchMock = respond(200, { game: { id: 4 } })
+    await startRoomGame('tok', 4, [3, 1])
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ podiums: [3, 1] }))
+
+    respond(409, { error: 'game_participants_changed' })
+    await expect(startRoomGame('tok', 4, [3])).rejects.toMatchObject({
+      status: 409,
+      code: 'game_participants_changed',
+    })
   })
 
   it('envoie la fin de partie avec les scores', async () => {

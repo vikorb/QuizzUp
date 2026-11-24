@@ -134,6 +134,78 @@ describe('routes/companies/id.ts', () => {
     await app.close()
   })
 
+  it('sets, changes and clears the voucher settings of a company', async () => {
+    const app = await createRouteApp(companiesIdRoutes)
+    const patch = (payload: Record<string, unknown>, user = companyAdminUser) =>
+      app.inject({ method: 'PATCH', url: '/companies/1', headers: authHeaders(user), payload })
+
+    const enabled = await patch({ voucherLabel: ' Une partie offerte ', voucherValidityDays: 45 })
+
+    expect(enabled.statusCode).toBe(200)
+    expect(parseJson(enabled)).toMatchObject({
+      company: { voucherLabel: 'Une partie offerte', voucherValidityDays: 45 },
+    })
+    expect(dbState.companies[0]).toMatchObject({
+      voucher_label: 'Une partie offerte',
+      voucher_validity_days: 45,
+    })
+
+    // Un seul réglage à la fois : l'autre ne bouge pas.
+    await patch({ voucherValidityDays: 10 })
+    expect(dbState.companies[0]).toMatchObject({
+      voucher_label: 'Une partie offerte',
+      voucher_validity_days: 10,
+    })
+
+    const disabled = await patch({ voucherLabel: '' })
+
+    expect(parseJson(disabled)).toMatchObject({ company: { voucherLabel: null } })
+    expect(dbState.companies[0]).toMatchObject({ voucher_label: null, voucher_validity_days: 10 })
+
+    await app.close()
+  })
+
+  it('rejects a voucher validity out of bounds and an over-long label', async () => {
+    const app = await createRouteApp(companiesIdRoutes)
+
+    for (const payload of [
+      { voucherValidityDays: 0 },
+      { voucherValidityDays: 731 },
+      { voucherLabel: 'x'.repeat(121) },
+    ]) {
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/companies/1',
+        headers: authHeaders(companyAdminUser),
+        payload,
+      })
+
+      expect(response.statusCode).toBe(400)
+      expect(parseJson(response)).toMatchObject({ error: 'invalid_body' })
+    }
+
+    expect(dbState.companies[0]).not.toHaveProperty('voucher_label', 'x'.repeat(121))
+
+    await app.close()
+  })
+
+  it('does not let an admin of another company change the voucher settings', async () => {
+    securityState.context.canAccessCompany = false
+    const app = await createRouteApp(companiesIdRoutes)
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/companies/2',
+      headers: authHeaders(companyAdminUser),
+      payload: { voucherLabel: 'Pirate' },
+    })
+
+    expect(response.statusCode).toBe(403)
+    expect(dbState.companies[1]).not.toMatchObject({ voucher_label: 'Pirate' })
+
+    await app.close()
+  })
+
   it('prevents non-superadmins from changing a company status', async () => {
     const app = await createRouteApp(companiesIdRoutes)
 
