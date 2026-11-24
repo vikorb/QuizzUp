@@ -128,6 +128,7 @@
         "watchdog": "La page a gelé : fumée coupée par sécurité.",
         "output_error": "L’interface DMX ne répond plus.",
         "page_hidden": "Onglet masqué : fumée coupée par sécurité.",
+        "board_lost": "La carte de la fumée ne répond plus : fumée coupée et désarmée.",
         "unknown_scene": "Scène inconnue dans la configuration.",
         "output_recovered": "L’interface DMX répond de nouveau : lumières reprises (fumée toujours coupée)."
       }
@@ -154,6 +155,64 @@
       "arm": "Fumée autorisée pour cette session",
       "armHint": "À cocher par l’opérateur, salle vérifiée. La fumée se désarme à chaque arrêt d’urgence.",
       "test": "Tester 2 s",
+      "board": {
+        "title": "Carte USB de la fumée",
+        "status": {
+          "none": "Aucune carte connectée.",
+          "connecting": "Connexion à la carte…",
+          "ready": "Prête (programme {version}).",
+          "outdated": "Programme {version} à mettre à jour.",
+          "absent": "Programme QuizzUp absent sur cette carte.",
+          "silent": "La carte ne répond plus.",
+          "disconnected": "Carte débranchée ou port perdu.",
+          "fault": "La carte a redémarré ou se contredit : fumée coupée."
+        },
+        "empty": "Aucune carte choisie. Si la liste reste vide, vérifie le câble USB et le pilote de la carte.",
+        "ambiguous": "Plusieurs cartes du même modèle sont branchées : aucune n’est reprise, débranche-en une.",
+        "connect": "Choisir la carte de la fumée",
+        "connectErrors": {
+          "same_as_dmx": "C’est l’interface DMX de la salle : choisis la carte de la fumée.",
+          "failed": "Cette carte ne répond pas avec le programme QuizzUp. Installe le programme ci-dessous.",
+          "save_failed": "La carte répond, mais la configuration de la salle n’a pas pu être enregistrée : réessaie.",
+          "unsupported": "Web Serial est indisponible : utilise Chrome ou Edge sur le PC de la salle."
+        },
+        "machineOff": "La machine à fumée est éteinte",
+        "installHint": "L’ancien programme de la carte déclenche la fumée tout seul : éteins la machine avant d’installer. Le programme actuel est d’abord téléchargé, il sert au retour arrière.",
+        "install": "Installer le programme",
+        "restoreFile": "Fichier .hex à restaurer",
+        "restore": "Restaurer",
+        "restoreHint": "Un programme restauré est celui d’origine : il ne suit pas les sécurités de QuizzUp et peut déclencher la fumée tout seul. Laisse la machine éteinte après une restauration.",
+        "backupQuestion": "Le programme actuel de la carte est téléchargé ({file}). Le fichier est-il bien enregistré sur ce PC ? Sans lui, pas de retour arrière : rien n’est écrit tant que tu n’as pas répondu.",
+        "backupYes": "Oui, la sauvegarde est enregistrée",
+        "backupNo": "Non, annuler",
+        "steps": {
+          "sync": "Synchronisation avec la carte",
+          "backup": "Sauvegarde du programme en place",
+          "write": "Écriture",
+          "verify": "Relecture",
+          "exit": "Lancement du programme"
+        },
+        "errors": {
+          "no_sync": "La carte ne répond pas au chargeur : appuie sur RESET au départ de la barre.",
+          "wrong_signature": "Ce n’est pas une carte Uno (signature inattendue) : rien n’a été écrit.",
+          "too_large": "Le programme est trop gros pour cette carte : rien n’a été écrit.",
+          "verify_failed": "La relecture diffère de ce qui a été écrit : recommence l’installation.",
+          "port_lost": "Carte débranchée ou port perdu : recommence l’installation.",
+          "port_busy": "Port occupé : ferme l’autre onglet ou le programme qui l’utilise.",
+          "timeout": "La carte ne répond plus : recommence l’installation.",
+          "cancelled": "Opération annulée.",
+          "backup_failed": "La sauvegarde du programme en place n’est pas confirmée ou a échoué : rien n’a été écrit.",
+          "not_confirmed": "Coche d’abord « La machine à fumée est éteinte ».",
+          "no_port": "Choisis d’abord la carte de la fumée.",
+          "invalid_hex": "Ce fichier n’est pas un programme .hex lisible : rien n’a été écrit.",
+          "busy": "Une installation est déjà en cours."
+        },
+        "notInert": "Le programme de la carte est peut-être faux : ne rebranche pas la machine avant une nouvelle installation réussie.",
+        "done": {
+          "install": "Programme installé. La carte repart en pause de sécurité, fumée désarmée.",
+          "restore": "Programme restauré. C’est le programme d’origine : il ne suit pas les sécurités de QuizzUp et peut déclencher la fumée tout seul. Laisse la machine à fumée éteinte."
+        }
+      },
       "status": {
         "disabled": "désactivée",
         "unarmed": "non autorisée",
@@ -170,7 +229,8 @@
         "emergency": "Arrêt d’urgence actif.",
         "invalid_duration": "Durée refusée.",
         "page_hidden": "Onglet masqué : fumée refusée.",
-        "paused": "Partie en pause : fumée refusée jusqu’à la reprise."
+        "paused": "Partie en pause : fumée refusée jusqu’à la reprise.",
+        "board_unavailable": "Carte de la fumée absente, muette ou en pause de démarrage : fumée refusée."
       }
     },
     "advanced": {
