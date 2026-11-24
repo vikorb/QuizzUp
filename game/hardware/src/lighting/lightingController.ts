@@ -115,7 +115,13 @@ export type LightingController = {
   stop: () => Promise<void>
   /** Remplace la sortie (ex. simulation → interface USB après « Connecter l'interface »). */
   setOutput: (output: DmxOutput) => Promise<void>
-  handleGameEvent: (event: HardwareGameEvent) => void
+  /**
+   * `restore` : l'événement ne restitue que l'état lumineux de sa scène (couleurs), sans fumée ni
+   * éclair, enchaînements compris. Reprise après une pause : la scène de la phase en cours est
+   * rejouée ainsi, la fumée n'étant plus bloquée par la pause. `game_resumed` est toujours rejoué
+   * ainsi.
+   */
+  handleGameEvent: (event: HardwareGameEvent, eventOptions?: { restore?: boolean }) => void
   /**
    * Partie en pause : le jet en cours est coupé (trame à 0 envoyée aussitôt) et toute demande de
    * jet est refusée (`paused`) tant que la pause dure, scène, test manuel ou test de gel compris.
@@ -887,7 +893,7 @@ export function createLightingController(options: LightingControllerOptions): Li
     }
   }
 
-  const playScene = (sceneId: string, context: SceneContext = { desk: null }) => {
+  const playScene = (sceneId: string, context: SceneContext = { desk: null }, restore = false) => {
     // Pendant un diagnostic, aucune scène (ni fumée de scène) ne se déclenche.
     if (emergency || diagnosticsActive) {
       return false
@@ -897,7 +903,7 @@ export function createLightingController(options: LightingControllerOptions): Li
       warn({ kind: 'unknown_scene', sceneId, at: clock.now() })
       return false
     }
-    const played = player.play(scene, context, clock.now())
+    const played = player.play(scene, context, clock.now(), { restore })
     if (played) {
       lastSceneId = scene.id
       notify()
@@ -992,7 +998,7 @@ export function createLightingController(options: LightingControllerOptions): Li
           notify()
         }
       }),
-    handleGameEvent(event) {
+    handleGameEvent(event, eventOptions) {
       const { key, desk } = resolveEvent(event)
       // Une salle qui a réglé `game_ended` (scène maison, ou `null` pour couper la victoire) garde
       // son choix à égalité tant qu'elle n'a pas réglé `game_ended_tie` elle-même.
@@ -1002,21 +1008,25 @@ export function createLightingController(options: LightingControllerOptions): Li
         !Object.hasOwn(config.bindings, 'game_ended_tie')
           ? 'game_ended'
           : key
-      const sceneId = Object.hasOwn(bindings, bindingKey) ? bindings[bindingKey] : undefined
+      let sceneId = Object.hasOwn(bindings, bindingKey) ? bindings[bindingKey] : undefined
+      const resumed = event.type === 'game_resumed'
+      if (resumed) {
+        // Reprise : la scène `pause` (60) tourne peut-être encore (reprise en moins de 400 ms, ou
+        // scène de salle plus longue) et refuserait toute scène de reprise. Elle s'arrête donc
+        // toujours, comme tout ce qui tournait pendant la pause (`identify`, scène de test,
+        // victoire). Liaison retirée par la salle : l'ambiance `question` revient quand même, sinon
+        // la salle resterait sur l'ambiance de pause.
+        player.stop()
+        sceneId ||= SCENE_IDS.QUESTION
+      }
       if (sceneId) {
-        if (
-          event.type === 'game_aborted' ||
-          event.type === 'game_started' ||
-          event.type === 'game_resumed'
-        ) {
+        if (event.type === 'game_aborted' || event.type === 'game_started') {
           // Partie arrêtée : retour au repos, même si une scène plus prioritaire tourne encore. Début
           // de partie : la victoire (50) de la partie d'avant n'a pas à enchaîner sa sortie pendant
           // celle-ci (les scènes de question, priorité 10, ne pourraient plus l'interrompre).
-          // Reprise : la scène `pause` (60), reprise en moins de 400 ms, tourne encore et refuserait
-          // la scène de reprise.
           player.stop()
         }
-        playScene(sceneId, { desk })
+        playScene(sceneId, { desk }, resumed || eventOptions?.restore === true)
       }
     },
     setGamePaused(paused) {

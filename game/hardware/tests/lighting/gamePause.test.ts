@@ -1,5 +1,6 @@
 import { createSimulationOutput } from '@hardware/dmx/simulationOutput'
 import { createLightingController } from '@hardware/lighting/lightingController'
+import type { SceneDefinition } from '@hardware/lighting/scenes'
 import {
   DEFAULT_BINDINGS,
   DEFAULT_SCENES,
@@ -268,6 +269,105 @@ describe('contrôleur de lumières : partie en pause', () => {
       quiet.handleGameEvent({ type: 'game_paused' })
 
       expect(quiet.getState().currentSceneId).toBe(SCENE_IDS.IDLE)
+    })
+  })
+
+  describe('rejeu de reprise (restore) : couleurs seulement', () => {
+    const RED = { r: 255, g: 0, b: 0 }
+    const smokeThenColor = (id: string, next?: string): SceneDefinition => ({
+      id,
+      name: id,
+      priority: 20,
+      steps: [
+        { type: 'smoke', durationMs: 1_000 },
+        { type: 'flash', color: RED, count: 2, onMs: 200, offMs: 200 },
+        { type: 'color', color: RED, intensity: 0.5 },
+      ],
+      ...(next ? { next } : {}),
+    })
+
+    async function setupRoom(over: Parameters<typeof lightingConfig>[0] = {}) {
+      const clock = createManualClock(10_000)
+      const output = createSimulationOutput()
+      const built = createLightingController({
+        config: lightingConfig(over),
+        output,
+        clock,
+        doc: null,
+        // Hors `parseScenes` : deux pas `smoke` dans la chaîne, ce que la salle ne peut pas écrire.
+        scenes: [smokeThenColor('show-a', 'show-b'), smokeThenColor('show-b')],
+      })
+      await built.start()
+      built.smoke.arm()
+      controller = built
+      return { clock, controller: built }
+    }
+
+    /** Baisses de niveau d'un appareil pendant `durationMs` : un éclair en fait, une montée non. */
+    async function countDrops(ctx: Awaited<ReturnType<typeof setupRoom>>, durationMs: number) {
+      const last = new Map<string, number>()
+      let drops = 0
+      for (let at = 0; at <= durationMs; at += 20) {
+        for (const view of ctx.controller.getFixtureViews()) {
+          const level = view.intensity * Math.max(view.color.r, view.color.g, view.color.b)
+          drops += level < (last.get(view.id) ?? 0) - 5 ? 1 : 0
+          last.set(view.id, level)
+        }
+        await advanceAsync(ctx.clock, 20, 20)
+      }
+      return drops
+    }
+
+    it('sans restore, la scène jette sa fumée et fait ses éclairs', async () => {
+      const ctx = await setupRoom({ bindings: { round_started: 'show-a' } })
+
+      ctx.controller.handleGameEvent({ type: 'round_started' })
+
+      expect(ctx.controller.getState().smoke.status).toBe('firing')
+      expect(await countDrops(ctx, 1_500)).toBeGreaterThan(0)
+    })
+
+    it('avec restore : ni jet ni éclair, y compris dans la scène enchaînée, et la couleur arrive', async () => {
+      const ctx = await setupRoom({ bindings: { round_started: 'show-a' } })
+
+      ctx.controller.handleGameEvent({ type: 'round_started' }, { restore: true })
+
+      expect(ctx.controller.getState().smoke.status).toBe('ready')
+      expect(await countDrops(ctx, 3_000)).toBe(0)
+      expect(ctx.controller.getState().smoke.status).toBe('ready')
+      const par = ctx.controller.getFixtureViews().find((view) => view.id === 'par1')
+      expect(par).toMatchObject({ intensity: 0.5, color: { r: 255 } })
+    })
+
+    it('game_resumed est toujours un rejeu : la scène de salle liée n’a ni jet ni éclair', async () => {
+      const ctx = await setupRoom({ bindings: { game_resumed: 'show-a' } })
+
+      ctx.controller.handleGameEvent({ type: 'game_resumed' })
+
+      expect(ctx.controller.getState().smoke.status).toBe('ready')
+      expect(await countDrops(ctx, 1_500)).toBe(0)
+    })
+
+    it('liaison game_resumed retirée : la scène pause en cours s’arrête et l’ambiance question revient', async () => {
+      const ctx = await setupRoom({ bindings: { game_resumed: null } })
+      ctx.controller.handleGameEvent({ type: 'game_paused' })
+
+      ctx.controller.handleGameEvent({ type: 'game_resumed' })
+
+      expect(ctx.controller.getState().currentSceneId).toBe(SCENE_IDS.QUESTION)
+    })
+
+    it('la reprise coupe aussi une identification et une scène de test lancées pendant la pause', async () => {
+      const ctx = await setupRoom()
+      ctx.controller.setGamePaused(true)
+      ctx.controller.handleGameEvent({ type: 'game_paused' })
+      ctx.controller.identifyFixture('par1')
+      expect(ctx.controller.getState().currentSceneId).toBe(SCENE_IDS.IDENTIFY)
+
+      ctx.controller.setGamePaused(false)
+      ctx.controller.handleGameEvent({ type: 'game_resumed' })
+
+      expect(ctx.controller.getState().currentSceneId).toBe(SCENE_IDS.QUESTION)
     })
   })
 })

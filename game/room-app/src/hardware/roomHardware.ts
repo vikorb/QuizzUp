@@ -554,7 +554,7 @@ async function createLighting(
   })
   // Signaux de l'écran de salle (`game_paused`, `game_resumed`) : après la coupure de la fumée, hors
   // du filtre ci-dessus. La reprise rejoue la scène de la phase en cours ; sans pause préalable, ou
-  // sans partie en cours (partie fermée ou arrêtée pendant la pause), aucun signal.
+  // sans partie en cours (partie fermée pendant la pause), aucun signal.
   let signalledPause = false
   const stopPauseWatch = watch(
     paused,
@@ -569,11 +569,13 @@ async function createLighting(
         controller.handleGameEvent({ type: 'game_paused' })
       } else {
         signalledPause = false
-        if (game && game.phase.name !== 'finished' && game.phase.name !== 'aborted') {
-          controller.handleGameEvent({ type: 'game_resumed' })
+        // Rejeu de reprise : la fumée n'est plus bloquée par la pause, donc `restore` (couleurs
+        // seulement, ni jet ni éclair), même pour la scène de salle liée à ces événements.
+        if (game) {
+          controller.handleGameEvent({ type: 'game_resumed' }, { restore: true })
           const replay = phaseEvent(game)
           if (replay) {
-            controller.handleGameEvent(replay)
+            controller.handleGameEvent(replay, { restore: true })
           }
         }
       }

@@ -404,9 +404,16 @@ est limitée à 20 000 caractères côté serveur). Même `id` qu'une scène par
   `handleGameEvent` comme un événement, sans jamais entrer dans le moteur. `game_paused` joue
   `pause` et `game_resumed` joue `question` ; `session_exit` n'a aucune liaison par défaut. La scène
   `pause` (priorité 60) est un fondu de 400 ms vers une ambiance basse, sans flash ni fumée : la
-  coupure du jet reste celle de `setGamePaused`. `game_resumed` arrête d'abord le lecteur (comme
-  `game_aborted` et `game_started`) : une reprise en moins de 400 ms n'est pas refusée par la scène
-  `pause` encore en cours.
+  coupure du jet reste celle de `setGamePaused`. `game_resumed` arrête toujours le lecteur avant sa
+  scène (`player.stop()`, comme `game_aborted` et `game_started`) : une reprise en moins de 400 ms
+  n'est pas refusée par la scène `pause` encore en cours, et tout ce qui tournait pendant la pause
+  est coupé aussi (`identify`, scène de test, victoire forcée, avec son enchaînement vers la
+  sortie). Une salle qui a retiré la liaison (`game_resumed: null`) retrouve quand même
+  l'ambiance `question`. **Rejeu de reprise** : la fumée étant de nouveau permise à la reprise,
+  `game_resumed` et les événements de phase rejoués par l'écran de salle passent par
+  `handleGameEvent(event, { restore: true })`. Le lecteur retire alors les pas `smoke` et `flash`
+  de la scène et de celles qu'elle enchaîne (`next`) : seul l'état lumineux (couleurs, attentes)
+  revient, jamais un jet ni un éclair. Le jeu normal n'est pas touché (`restore` absent).
 - **Bornes** (`parseScenes`, constantes `SCENE_LIMITS`). Une scène ou une étape illisible est
   écartée, une valeur hors borne est ramenée, et chaque écart est dans les `problems` de
   `parseRoomHardwareConfig` :
