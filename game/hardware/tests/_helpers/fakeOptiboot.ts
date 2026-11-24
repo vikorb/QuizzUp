@@ -10,23 +10,23 @@ import { flushPromises, type ManualClock } from './manualClock'
  * client : une constante fausse côté client fait échouer les tests au lieu de s'accorder avec elle.
  *
  * Fidèle au chargeur sur ce qui compte pour le client :
- * - n'écoute qu'après une remise à zéro (DTR qui repasse de bas à haut), pendant une seconde de
- *   silence (chaque octet reçu relance le chien de garde) ; ensuite « le programme » tourne et tout
- *   ce qu'on envoie est ignoré ;
+ * - après une remise à zéro (DTR qui repasse de bas à haut), il démarre pendant `bootMs` (la LED
+ *   clignote) sans lire le port : les octets reçus alors tombent dans une mémoire de réception de
+ *   `fifoBytes` octets (2 sur un ATmega328P), le reste est perdu ; ils sont traités à la fin du
+ *   démarrage, d'où des réponses en retard ;
+ * - il n'écoute ensuite qu'une seconde de silence (chaque octet reçu relance le chien de garde) ;
+ *   puis « le programme » tourne et tout ce qu'on envoie est ignoré ;
  * - au mauvais débit, les octets sont des erreurs de trame : ignorés, sans relancer le délai ;
  * - chaque commande doit finir par `CRC_EOP`, sinon le chargeur se remet à zéro et lance le programme ;
+ * - l'adresse ne bouge qu'avec `LOAD_ADDRESS` : ni `PROG_PAGE` ni `READ_PAGE` ne l'avancent ;
  * - une commande inconnue se contente de `STK_INSYNC` + `STK_OK`.
  */
 
 const STK_OK = 0x10
 const STK_INSYNC = 0x14
 const CRC_EOP = 0x20
-const CMD_GET_PARAMETER = 0x41
-const CMD_SET_DEVICE = 0x42
-const CMD_SET_DEVICE_EXT = 0x45
 const CMD_LEAVE_PROGMODE = 0x51
 const CMD_LOAD_ADDRESS = 0x55
-const CMD_UNIVERSAL = 0x56
 const CMD_PROG_PAGE = 0x64
 const CMD_READ_PAGE = 0x74
 const CMD_READ_SIGN = 0x75
@@ -46,9 +46,20 @@ export type OptibootOptions = {
   silent?: boolean
   /** Altère un octet de la page d'indice donné quand elle est écrite. */
   corruptPage?: number
+  /** Altère le premier octet de la page d'indice donné à sa première lecture seulement. */
+  flakyReadPage?: number
   /** Se débranche à la réception de la N-ième commande de page (lecture ou écriture, depuis 0). */
   disconnectAtPage?: number
   windowMs?: number
+  /** Démarrage après une remise à zéro, sans écoute (clignotement de la LED d'Optiboot). */
+  bootMs?: number
+  /** Octets que la mémoire de réception retient pendant le démarrage. */
+  fifoBytes?: number
+  /**
+   * Remplace les octets d'une réponse (`STK_INSYNC`, données, `STK_OK`) : renvoyer `undefined`
+   * laisse la réponse normale, un tableau vide la supprime.
+   */
+  mangleReply?: (command: number, bytes: number[]) => number[] | undefined
 }
 
 const domError = (name: string, message: string) => Object.assign(new Error(message), { name })
@@ -58,6 +69,8 @@ export function createFakeOptiboot(options: OptibootOptions) {
   const expectedBaud = options.baudRate ?? 115_200
   const signature = options.signature ?? [0x1e, 0x95, 0x0f]
   const windowMs = options.windowMs ?? 1000
+  const bootMs = options.bootMs ?? 375
+  const fifoBytes = options.fifoBytes ?? 2
   const flash = new Uint8Array(FAKE_FLASH_SIZE).fill(0xff)
   if (options.flash) {
     flash.set(options.flash)
@@ -72,6 +85,14 @@ export function createFakeOptiboot(options: OptibootOptions) {
     pageCommands: 0,
     pagesWritten: 0,
     pagesRead: 0,
+    /** Octets perdus par débordement de la mémoire de réception pendant le démarrage. */
+    overflowedBytes: 0,
+    /** Chaque écriture reçue au bon débit, avec l'heure de l'horloge simulée. */
+    writes: [] as { at: number; bytes: number[] }[],
+    /** Heure de chaque réponse envoyée. */
+    repliesAt: [] as number[],
+    /** Démarrage en cours après une remise à zéro : le port n'est pas lu. */
+    booting: false,
     listening: false,
     /** Le programme de la carte tourne (sortie du chargeur, délai écoulé ou trame fausse). */
     programRunning: false,
@@ -82,7 +103,10 @@ export function createFakeOptiboot(options: OptibootOptions) {
   let baud = 0
   let dtr = true
   let rx: number[] = []
+  let bootFifo: number[] = []
   let address = 0
+  let currentCommand = 0
+  let flakyDone = false
   let timer: TimerHandle | undefined
   const clearTimer = () => {
     if (timer !== undefined) {
@@ -94,22 +118,22 @@ export function createFakeOptiboot(options: OptibootOptions) {
   let readController: ReadableStreamDefaultController<Uint8Array> | null = null
   let writeController: WritableStreamDefaultController | null = null
 
+  const makeReadable = () => {
+    readableStream = new ReadableStream<Uint8Array>({
+      start: (controller) => {
+        readController = controller
+      },
+    })
+  }
   const stopListening = () => {
     clearTimer()
+    stats.booting = false
     stats.listening = false
     stats.programRunning = true
   }
   const armWindow = () => {
     clearTimer()
     timer = clock.setTimeout(stopListening, windowMs)
-  }
-  const reset = () => {
-    rx = []
-    address = 0
-    stats.resets += 1
-    stats.listening = true
-    stats.programRunning = false
-    armWindow()
   }
   const disconnect = () => {
     lost = true
@@ -119,23 +143,18 @@ export function createFakeOptiboot(options: OptibootOptions) {
   }
   const reply = (...data: number[]) => {
     if (!options.silent && isOpen && !lost) {
-      readController?.enqueue(Uint8Array.of(STK_INSYNC, ...data, STK_OK))
+      const normal = [STK_INSYNC, ...data, STK_OK]
+      const bytes = options.mangleReply?.(currentCommand, normal) ?? normal
+      stats.repliesAt.push(clock.now())
+      readController?.enqueue(Uint8Array.from(bytes))
     }
   }
 
   /** Longueur de la commande en tête de `rx`, ou `null` tant qu'on ne peut pas la connaître. */
   const commandLength = (): number | null => {
     switch (rx[0]) {
-      case CMD_GET_PARAMETER:
-        return 3
-      case CMD_SET_DEVICE:
-        return 22
-      case CMD_SET_DEVICE_EXT:
-        return 7
       case CMD_LOAD_ADDRESS:
         return 4
-      case CMD_UNIVERSAL:
-        return 6
       case CMD_PROG_PAGE:
         return rx.length < 3 ? null : 4 + (((rx[1] ?? 0) << 8) | (rx[2] ?? 0)) + 1
       case CMD_READ_PAGE:
@@ -147,6 +166,7 @@ export function createFakeOptiboot(options: OptibootOptions) {
 
   const run = (command: number[]) => {
     const [cmd = 0] = command
+    currentCommand = cmd
     if (cmd === CMD_PROG_PAGE || cmd === CMD_READ_PAGE) {
       stats.pageCommands += 1
       if (
@@ -171,26 +191,25 @@ export function createFakeOptiboot(options: OptibootOptions) {
           }
           stats.pagesWritten += 1
         }
-        address += length
         reply()
         break
       }
       case CMD_READ_PAGE: {
         const length = ((command[1] ?? 0) << 8) | (command[2] ?? 0)
-        const page = Array.from({ length }, (_value, index) => flash[address + index] ?? 0xff)
-        address += length
+        // Autre mémoire que la flash (EEPROM) : le client n'en lit jamais, on rend de l'effacé.
+        const page = Array.from({ length }, (_value, index) =>
+          command[3] === MEMTYPE_FLASH ? (flash[address + index] ?? 0xff) : 0xff
+        )
+        if (options.flakyReadPage === address / PAGE && !flakyDone) {
+          flakyDone = true
+          page[0] = (page[0] ?? 0) ^ 0xff
+        }
         stats.pagesRead += 1
         reply(...page)
         break
       }
       case CMD_READ_SIGN:
         reply(...signature)
-        break
-      case CMD_GET_PARAMETER:
-        reply(0x03)
-        break
-      case CMD_UNIVERSAL:
-        reply(0x00)
         break
       case CMD_LEAVE_PROGMODE:
         reply()
@@ -219,9 +238,23 @@ export function createFakeOptiboot(options: OptibootOptions) {
     }
   }
 
-  const receive = (chunk: Uint8Array) => {
+  /** `replay` : octets de la mémoire de réception, déjà comptés à leur arrivée. */
+  const receive = (chunk: Uint8Array, replay = false) => {
+    if (!replay && baud === expectedBaud) {
+      stats.writes.push({ at: clock.now(), bytes: Array.from(chunk) })
+    }
     for (const byte of chunk) {
-      stats.bytesReceived += 1
+      if (!replay) {
+        stats.bytesReceived += 1
+      }
+      if (stats.booting && baud === expectedBaud) {
+        if (bootFifo.length < fifoBytes) {
+          bootFifo.push(byte)
+        } else {
+          stats.overflowedBytes += 1
+        }
+        continue
+      }
       if (!stats.listening || baud !== expectedBaud) {
         stats.ignoredBytes += 1
         continue
@@ -230,6 +263,26 @@ export function createFakeOptiboot(options: OptibootOptions) {
       rx.push(byte)
       parse()
     }
+  }
+
+  const endBoot = () => {
+    stats.booting = false
+    stats.listening = true
+    armWindow()
+    const buffered = bootFifo
+    bootFifo = []
+    receive(Uint8Array.from(buffered), true)
+  }
+  const reset = () => {
+    rx = []
+    bootFifo = []
+    address = 0
+    stats.resets += 1
+    stats.booting = true
+    stats.listening = false
+    stats.programRunning = false
+    clearTimer()
+    timer = clock.setTimeout(endBoot, bootMs)
   }
 
   const port: SerialPortLike = {
@@ -241,11 +294,7 @@ export function createFakeOptiboot(options: OptibootOptions) {
       baud = baudRate
       dtr = true
       stats.opens.push(baudRate)
-      readableStream = new ReadableStream<Uint8Array>({
-        start: (controller) => {
-          readController = controller
-        },
-      })
+      makeReadable()
       writableStream = new WritableStream<Uint8Array>({
         start: (controller) => {
           writeController = controller
@@ -282,21 +331,41 @@ export function createFakeOptiboot(options: OptibootOptions) {
     },
   }
 
-  return { port, flash, stats }
+  /**
+   * Erreur de lecture sur le port. Une erreur passagère (`FramingError`, `BreakError`…) ferme le
+   * flux mais Web Serial le remplace dans `port.readable` (`recover`) ; `NetworkError` perd le port.
+   */
+  const injectReadError = (name: string, recover = true) => {
+    readController?.error(domError(name, name))
+    if (name === 'NetworkError') {
+      lost = true
+    } else if (recover) {
+      makeReadable()
+    } else {
+      readableStream = null
+    }
+  }
+
+  return { port, flash, stats, disconnect, injectReadError }
 }
 
 /**
- * Fait avancer l'horloge simulée, par pas de 50 ms et en laissant les promesses se résoudre entre
- * deux, jusqu'à ce que `promise` soit réglée ; renvoie alors son résultat (ou relève son erreur).
+ * Fait avancer l'horloge simulée, par pas de `stepMs` (50 ms) et en laissant les promesses se
+ * résoudre entre deux, jusqu'à ce que `promise` soit réglée ; renvoie alors son résultat (ou
+ * relève son erreur). Un pas plus grand accélère les attentes longues.
  */
-export async function runWithClock<T>(clock: ManualClock, promise: Promise<T>): Promise<T> {
+export async function runWithClock<T>(
+  clock: ManualClock,
+  promise: Promise<T>,
+  stepMs = 50
+): Promise<T> {
   let done = false
   const finish = () => {
     done = true
   }
   promise.then(finish, finish)
   while (!done) {
-    clock.advance(50)
+    clock.advance(stepMs)
     await flushPromises()
   }
   return promise

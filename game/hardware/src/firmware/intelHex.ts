@@ -5,7 +5,8 @@
  * Choix : les enregistrements d'adresse étendue ou de point d'entrée (02, 03, 04, 05) sont
  * refusés. Un ATmega328P a 32 Kio de flash, adressables sur 16 bits : un `.hex` produit pour lui
  * (avr-objcopy, arduino-cli) n'en contient jamais. En accepter un en silence cacherait un fichier
- * prévu pour une autre puce.
+ * prévu pour une autre puce. De même, un enregistrement de fin qui porte des données et deux
+ * enregistrements qui se recouvrent (le dernier écraserait le premier) sont refusés.
  */
 
 export type IntelHexErrorReason =
@@ -15,6 +16,8 @@ export type IntelHexErrorReason =
   | 'unsupported_record'
   | 'address_overflow'
   | 'after_eof'
+  | 'eof_with_data'
+  | 'overlap'
   | 'missing_eof'
   | 'no_data'
 
@@ -48,8 +51,10 @@ const checksum = (bytes: number[]) =>
  */
 export function parseIntelHex(text: string): Uint8Array {
   const image = new Uint8Array(ADDRESS_SPACE).fill(EMPTY_BYTE)
+  const filled = new Uint8Array(ADDRESS_SPACE)
   let end = 0
   let eofLine = 0
+  let lastLine = 1
   const lines = text.split(/\r?\n/)
 
   lines.forEach((raw, index) => {
@@ -58,6 +63,7 @@ export function parseIntelHex(text: string): Uint8Array {
     if (record === '') {
       return
     }
+    lastLine = line
     if (eofLine > 0) {
       throw new IntelHexError(
         'after_eof',
@@ -86,6 +92,13 @@ export function parseIntelHex(text: string): Uint8Array {
       throw new IntelHexError('bad_checksum', line, 'somme de contrôle fausse')
     }
     if (type === RECORD_EOF) {
+      if (count !== 0) {
+        throw new IntelHexError(
+          'eof_with_data',
+          line,
+          'la fin de fichier ne doit porter aucune donnée'
+        )
+      }
       eofLine = line
       return
     }
@@ -100,12 +113,16 @@ export function parseIntelHex(text: string): Uint8Array {
     if (address + count > ADDRESS_SPACE) {
       throw new IntelHexError('address_overflow', line, 'données au-delà de 64 Kio')
     }
+    if (filled.subarray(address, address + count).includes(1)) {
+      throw new IntelHexError('overlap', line, 'enregistrement qui en recouvre un autre')
+    }
+    filled.fill(1, address, address + count)
     image.set(bytes.slice(4, 4 + count), address)
     end = Math.max(end, address + count)
   })
 
   if (eofLine === 0) {
-    throw new IntelHexError('missing_eof', lines.length, 'fin de fichier (:00000001FF) absente')
+    throw new IntelHexError('missing_eof', lastLine, 'fin de fichier (:00000001FF) absente')
   }
   return image.slice(0, end)
 }

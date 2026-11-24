@@ -36,19 +36,45 @@ const MEMTYPE_FLASH = 0x46
 const UNO_SIGNATURE = [0x1e, 0x95, 0x0f] as const
 /** `boards.txt`, `uno.upload.maximum_size` : flash moins la zone du chargeur. */
 export const UNO_FLASH_SIZE = 32_256
+/** Anciens chargeurs (57600 bauds) : 2 Kio de chargeur, donc 32 768 - 2 048 octets de programme. */
+const OLD_LOADER_FLASH_SIZE = 30_720
 /** Page de flash de l'ATmega328P (`SPM_PAGESIZE` = 128 octets). */
 export const FLASH_PAGE_SIZE = 128
 /** 115200 : `boards.txt`, `uno.upload.speed` ; 57600 : anciens Optiboot / cartes de la même famille. */
 const BAUD_RATES = [115_200, 57_600] as const
 
-/** Impulsion de remise à zéro par DTR, comme avrdude (50 ms bas, 50 ms haut). */
+/**
+ * Impulsion de remise à zéro par DTR : 50 ms dans chaque état. avrdude garde le signal 250 ms puis
+ * 50 ms : la valeur se règle sur le banc, selon la carte et son pilote USB.
+ */
 const RESET_PULSE_MS = 50
 /** Le chargeur n'écoute qu'une seconde après la remise à zéro (`WDTPERIOD`, `optiboot.c`). */
 const SYNC_WINDOW_MS = 1000
-const SYNC_ATTEMPT_MS = 100
+/**
+ * Écart entre deux `GET_SYNC`, comme avrdude. Au démarrage, Optiboot clignote avec la LED (environ
+ * 375 ms) sans lire le port, et son registre de réception ne garde que 2 octets : des envois plus
+ * rapprochés ne reçoivent que des réponses en retard, qui décalent le dialogue.
+ */
+const SYNC_SPACING_MS = 250
+/** Silence attendu après la première réponse, avant de vider l'entrée et de confirmer (avrdude). */
+const SYNC_SETTLE_MS = 50
+/** Pendant `onBackup`, un `GET_SYNC` à cet intervalle empêche le chargeur de sortir (1 s de silence). */
+const KEEPALIVE_MS = 250
+/** Erreurs de lecture passagères de Web Serial : le flux se ferme mais le port reste utilisable. */
+const TRANSIENT_READ_ERRORS = ['FramingError', 'BreakError', 'BufferOverrunError', 'ParityError']
+/** Reprises de lecture de suite sans un octet reçu, avant de renoncer. */
+const MAX_READ_RESUMES = 5
 /** Délai de chaque échange commande / réponse (une page de 128 octets dure environ 30 ms). */
 const EXCHANGE_TIMEOUT_MS = 500
 const CLOSE_TIMEOUT_MS = 1000
+
+/**
+ * Page 0 inerte : `rjmp .-2` (0xCFFF, soit `FF CF` en mémoire) puis de la flash effacée. Écrite en
+ * premier, elle fait boucler la carte sur place, broches en entrée, tant que la vraie page 0 n'est
+ * pas écrite : Optiboot lance le programme après 1 s de silence, quoi qu'il arrive à l'installation.
+ */
+const INERT_PAGE = new Uint8Array(FLASH_PAGE_SIZE).fill(0xff)
+INERT_PAGE[1] = 0xcf
 
 export type FirmwareErrorCode =
   /** Le chargeur ne répond pas, à aucun des deux débits. */
@@ -62,7 +88,7 @@ export type FirmwareErrorCode =
   | 'port_busy'
   | 'timeout'
   | 'cancelled'
-  /** `onBackup` a échoué : rien n'a été écrit. */
+  /** `onBackup` a échoué ou les deux lectures de la flash diffèrent : rien n'a été écrit. */
   | 'backup_failed'
 
 export class FirmwareError extends Error {
@@ -95,9 +121,26 @@ type LinkOptions = {
 export type BootloaderClient = {
   /** Débit auquel le chargeur a répondu. */
   baudRate: number
+  /** Taille de programme acceptée : 32 256 octets, 30 720 pour un ancien chargeur (57600 bauds). */
+  flashSize: number
   /** Relit les `size` premiers octets de la flash, par pages de 128 octets. */
   readFlash: (size: number) => Promise<Uint8Array>
-  /** Écrit l'image par pages, la relit en entier et la compare. */
+  /**
+   * Lit deux fois toute la zone de programme et compare : `backup_failed` si les lectures
+   * diffèrent (lecture douteuse, sauvegarde non fiable).
+   */
+  readBackup: () => Promise<Uint8Array>
+  /**
+   * Attend la fin de `task` en gardant le chargeur actif (un `GET_SYNC` toutes les 250 ms) : sans
+   * cela Optiboot sort après 1 s de silence et lance l'ancien programme. Aucun envoi n'est fait
+   * pendant l'écriture : la boucle s'arrête avant de rendre la main.
+   */
+  keepAlive: <T>(task: () => Promise<T>) => Promise<T>
+  /**
+   * Écrit l'image par pages, la relit et la compare. Ordre : page 0 inerte, pages 1 à n, vraie
+   * page 0 en dernier ; une écriture interrompue laisse donc la carte en boucle sur place, jamais
+   * un programme mélangé.
+   */
   writeFlash: (image: Uint8Array) => Promise<void>
   /** Sort du mode de programmation : la carte lance le programme. */
   leave: () => Promise<void>
@@ -113,14 +156,16 @@ const asFirmwareError = (error: unknown) =>
     ? error
     : new FirmwareError('port_lost', 'Carte débranchée ou port série perdu', { cause: error })
 
-function assertFits(size: number) {
-  if (size > UNO_FLASH_SIZE) {
+function assertFits(size: number, limit = UNO_FLASH_SIZE) {
+  if (size > limit) {
     throw new FirmwareError(
       'too_large',
-      `Programme de ${size} octets : la carte n'en accepte que ${UNO_FLASH_SIZE}`
+      `Programme de ${size} octets : la carte n'en accepte que ${limit}`
     )
   }
 }
+
+const noop = (): void => undefined
 
 const sleep = (clock: Clock, ms: number) =>
   new Promise<void>((resolve) => clock.setTimeout(resolve, ms))
@@ -183,7 +228,7 @@ async function openLink(port: SerialPortLike, baudRate: number, clock: Clock): P
     await closePort()
     throw new FirmwareError('port_lost', 'Port série ouvert sans flux de lecture ou d’écriture')
   }
-  const reader = readable.getReader()
+  let reader = readable.getReader()
   const writer = writable.getWriter()
 
   let buffer: number[] = []
@@ -191,17 +236,29 @@ async function openLink(port: SerialPortLike, baudRate: number, clock: Clock): P
   let wake = null as (() => void) | null
   // Une seule lecture en cours, tout au long de la session : le délai d'une attente ne la perd pas.
   void (async () => {
-    try {
-      for (;;) {
+    let resumes = 0
+    for (;;) {
+      try {
         const { value, done } = await reader.read()
         if (done) {
           break
         }
+        resumes = 0
         buffer.push(...value)
         wake?.()
+      } catch (error) {
+        // Erreur passagère (trame, rupture, débordement, parité) : Web Serial ferme ce flux mais
+        // remplace `port.readable`, on reprend dessus. Toute autre erreur (`NetworkError`, carte
+        // débranchée) ou un port sans flux : fin de session.
+        const name = (error as { name?: unknown } | null)?.name
+        const next = port.readable
+        if (!TRANSIENT_READ_ERRORS.includes(String(name)) || !next || resumes >= MAX_READ_RESUMES) {
+          break
+        }
+        resumes += 1
+        reader.releaseLock()
+        reader = next.getReader()
       }
-    } catch {
-      // Flux en erreur (carte débranchée) : traité comme une fin.
     }
     ended = true
     wake?.()
@@ -270,23 +327,42 @@ async function pulseReset(port: SerialPortLike, clock: Clock) {
   }
 }
 
-/** Envoie `STK_GET_SYNC` jusqu'à la réponse, pendant la fenêtre d'écoute du chargeur. */
+/** Un `STK_GET_SYNC` et sa réponse : `false` sans réponse dans le délai ou si elle est fausse. */
+async function trySync(link: Link) {
+  await link.send(Uint8Array.of(STK_GET_SYNC, CRC_EOP))
+  try {
+    const reply = await link.take(2, SYNC_SPACING_MS)
+    return reply[0] === STK_INSYNC && reply[1] === STK_OK
+  } catch (error) {
+    if (error instanceof FirmwareError && error.code === 'timeout') {
+      return false
+    }
+    throw error
+  }
+}
+
+/**
+ * Envoie `STK_GET_SYNC` toutes les 250 ms au moins, pendant la fenêtre d'écoute du chargeur. À la
+ * première réponse correcte (qui peut répondre à un envoi ancien), comme avrdude : 50 ms de
+ * silence, entrée vidée, `GET_SYNC` de confirmation. Seule cette confirmation compte : les
+ * réponses en retard sont jetées avec l'entrée et ne décalent pas la lecture de la signature.
+ */
 async function synchronise(link: Link, clock: Clock, signal: AbortSignal | undefined) {
   const deadline = clock.now() + SYNC_WINDOW_MS
   while (clock.now() < deadline) {
     throwIfCancelled(signal)
     link.flush()
-    await link.send(Uint8Array.of(STK_GET_SYNC, CRC_EOP))
-    try {
-      const reply = await link.take(2, SYNC_ATTEMPT_MS)
-      if (reply[0] === STK_INSYNC && reply[1] === STK_OK) {
+    const sentAt = clock.now()
+    if (await trySync(link)) {
+      await sleep(clock, SYNC_SETTLE_MS)
+      link.flush()
+      if (await trySync(link)) {
         return true
       }
-      await sleep(clock, SYNC_ATTEMPT_MS)
-    } catch (error) {
-      if (!(error instanceof FirmwareError && error.code === 'timeout')) {
-        throw error
-      }
+    }
+    const rest = sentAt + SYNC_SPACING_MS - clock.now()
+    if (rest > 0) {
+      await sleep(clock, rest)
     }
   }
   return false
@@ -353,63 +429,142 @@ export async function connectBootloader(options: LinkOptions): Promise<Bootloade
   }
   report('sync', 1, 1)
 
+  const flashSize = baudRate === BAUD_RATES[0] ? UNO_FLASH_SIZE : OLD_LOADER_FLASH_SIZE
+
+  // Optiboot n'avance pas l'adresse de lui-même : une adresse avant chaque page.
   const loadAddress = async (byteAddress: number) => {
     const word = byteAddress / 2
     await exchange(open, [STK_LOAD_ADDRESS, word & 0xff, word >> 8, CRC_EOP], 0)
   }
 
-  const readPages = async (size: number, step: 'backup' | 'verify') => {
+  const readPage = async (offset: number) => {
+    await loadAddress(offset)
+    return exchange(
+      open,
+      [STK_READ_PAGE, FLASH_PAGE_SIZE >> 8, FLASH_PAGE_SIZE & 0xff, MEMTYPE_FLASH, CRC_EOP],
+      FLASH_PAGE_SIZE
+    )
+  }
+
+  const programPage = async (offset: number, page: Uint8Array) => {
+    await loadAddress(offset)
+    await exchange(
+      open,
+      [
+        STK_PROG_PAGE,
+        FLASH_PAGE_SIZE >> 8,
+        FLASH_PAGE_SIZE & 0xff,
+        MEMTYPE_FLASH,
+        ...page,
+        CRC_EOP,
+      ],
+      0
+    )
+  }
+
+  /** Relit une page et la compare à celle écrite : `verify_failed` à l'adresse du premier écart. */
+  const verifyPage = async (offset: number, expected: Uint8Array) => {
+    const page = await readPage(offset)
+    const wrong = expected.findIndex((byte, index) => page[index] !== byte)
+    if (wrong !== -1) {
+      const address = offset + wrong
+      throw new FirmwareError(
+        'verify_failed',
+        `Relecture différente de l'image à l'adresse 0x${address.toString(16).padStart(4, '0')}`,
+        { address }
+      )
+    }
+  }
+
+  /** Lit `size` octets ; `base` et `total` placent la lecture dans une progression plus longue. */
+  const readPages = async (size: number, base = 0, total = size) => {
     const out = new Uint8Array(size)
     for (let offset = 0; offset < size; offset += FLASH_PAGE_SIZE) {
       throwIfCancelled(signal)
-      await loadAddress(offset)
-      const page = await exchange(
-        open,
-        [STK_READ_PAGE, FLASH_PAGE_SIZE >> 8, FLASH_PAGE_SIZE & 0xff, MEMTYPE_FLASH, CRC_EOP],
-        FLASH_PAGE_SIZE
-      )
+      const page = await readPage(offset)
       out.set(page.subarray(0, Math.min(FLASH_PAGE_SIZE, size - offset)), offset)
-      report(step, Math.min(offset + FLASH_PAGE_SIZE, size), size)
+      report('backup', base + Math.min(offset + FLASH_PAGE_SIZE, size), total)
     }
     return out
   }
 
   return {
     baudRate,
+    flashSize,
     async readFlash(size) {
-      assertFits(size)
-      return readPages(size, 'backup')
+      assertFits(size, flashSize)
+      return readPages(size)
+    },
+    async readBackup() {
+      const first = await readPages(flashSize, 0, flashSize * 2)
+      const second = await readPages(flashSize, flashSize, flashSize * 2)
+      if (first.some((byte, index) => byte !== second[index])) {
+        throw new FirmwareError(
+          'backup_failed',
+          'Deux lectures de la flash donnent des octets différents : sauvegarde non fiable'
+        )
+      }
+      return first
+    },
+    async keepAlive(task) {
+      const pending = Promise.resolve().then(task)
+      let settled = false
+      const done = () => {
+        settled = true
+      }
+      pending.then(done, done)
+      while (!settled) {
+        let stopTick = noop
+        const tick = new Promise<void>((resolve) => {
+          const timer = clock.setTimeout(resolve, KEEPALIVE_MS)
+          stopTick = () => clock.clearTimeout(timer)
+        })
+        await Promise.race([pending.then(noop, noop), tick])
+        stopTick()
+        if (!settled) {
+          throwIfCancelled(signal)
+          await exchange(open, [STK_GET_SYNC, CRC_EOP], 0)
+        }
+      }
+      return pending
     },
     async writeFlash(image) {
-      assertFits(image.length)
-      for (let offset = 0; offset < image.length; offset += FLASH_PAGE_SIZE) {
+      assertFits(image.length, flashSize)
+      const pages = Math.ceil(image.length / FLASH_PAGE_SIZE)
+      if (pages === 0) {
+        return
+      }
+      const bytesOf = (index: number) =>
+        Math.min(FLASH_PAGE_SIZE, image.length - index * FLASH_PAGE_SIZE)
+      let written = 0
+      let verified = 0
+      const program = async (index: number) => {
         throwIfCancelled(signal)
-        const page = new Uint8Array(FLASH_PAGE_SIZE).fill(0xff)
-        page.set(image.subarray(offset, offset + FLASH_PAGE_SIZE))
-        await loadAddress(offset)
-        await exchange(
-          open,
-          [
-            STK_PROG_PAGE,
-            FLASH_PAGE_SIZE >> 8,
-            FLASH_PAGE_SIZE & 0xff,
-            MEMTYPE_FLASH,
-            ...page,
-            CRC_EOP,
-          ],
-          0
-        )
-        report('write', Math.min(offset + FLASH_PAGE_SIZE, image.length), image.length)
+        await programPage(index * FLASH_PAGE_SIZE, pageOf(image, index))
+        written += bytesOf(index)
+        report('write', written, image.length)
       }
-      const written = await readPages(image.length, 'verify')
-      const wrong = written.findIndex((byte, index) => byte !== image[index])
-      if (wrong !== -1) {
-        throw new FirmwareError(
-          'verify_failed',
-          `Relecture différente de l'image à l'adresse 0x${wrong.toString(16).padStart(4, '0')}`,
-          { address: wrong }
-        )
+      const verify = async (index: number) => {
+        throwIfCancelled(signal)
+        await verifyPage(index * FLASH_PAGE_SIZE, pageOf(image, index))
+        verified += bytesOf(index)
+        report('verify', verified, image.length)
       }
+
+      // 1. Page 0 inerte, relue : à partir d'ici un arrêt laisse la carte en boucle sur place.
+      throwIfCancelled(signal)
+      await programPage(0, INERT_PAGE)
+      await verifyPage(0, INERT_PAGE)
+      // 2. Pages 1 à n, relues.
+      for (let index = 1; index < pages; index += 1) {
+        await program(index)
+      }
+      for (let index = 1; index < pages; index += 1) {
+        await verify(index)
+      }
+      // 3. La vraie page 0 en dernier, relue : elle seule rend la carte exécutable.
+      await program(0)
+      await verify(0)
     },
     async leave() {
       report('exit', 0, 1)
@@ -418,6 +573,13 @@ export async function connectBootloader(options: LinkOptions): Promise<Bootloade
     },
     close: () => open.close(),
   }
+}
+
+/** Page `index` de l'image, complétée par de la flash effacée. */
+function pageOf(image: Uint8Array, index: number) {
+  const page = new Uint8Array(FLASH_PAGE_SIZE).fill(0xff)
+  page.set(image.subarray(index * FLASH_PAGE_SIZE, (index + 1) * FLASH_PAGE_SIZE))
+  return page
 }
 
 /** Lit un `.hex` et refuse tout de suite une image vide ou trop grande, avant de toucher au port. */
@@ -434,29 +596,37 @@ export type InstallFirmwareOptions = LinkOptions & {
   /** Contenu du fichier `.hex` à installer. */
   hex: string
   /**
-   * Reçoit la flash entière de la carte, relue avant toute écriture. Rien n'est écrit tant que
-   * cette fonction n'a pas abouti : si elle lève, l'installation s'arrête (`backup_failed`).
+   * Reçoit la flash de la carte (zone de programme), lue deux fois et comparée avant toute
+   * écriture. Rien n'est écrit tant que cette fonction n'a pas abouti : si elle lève, l'installation
+   * s'arrête (`backup_failed`). Elle peut durer (choix d'un fichier, téléchargement) : le chargeur
+   * est maintenu actif pendant ce temps.
    */
   onBackup: (backup: Uint8Array) => void | Promise<void>
 }
 
 /**
- * Installe un programme : synchronisation, signature, sauvegarde relue et remise à `onBackup`,
- * écriture, relecture, sortie du mode de programmation. En cas d'erreur le port est fermé sans
- * quitter le chargeur : l'installation se recommence (le chargeur n'est jamais écrasé).
+ * Installe un programme : synchronisation, signature, sauvegarde lue deux fois et remise à
+ * `onBackup`, écriture (page 0 inerte, pages 1 à n, vraie page 0), relecture, sortie du mode de
+ * programmation. En cas d'erreur le port est fermé sans quitter le chargeur, mais Optiboot sort
+ * seul après 1 s de silence : la carte lance alors ce que la flash contient. Tant que la vraie
+ * page 0 n'est pas écrite, c'est la page inerte : la carte boucle sur place, broches en entrée
+ * (relais retombé). Un RESET (ou un nouvel essai) permet de réinstaller.
  */
 export async function installFirmware(options: InstallFirmwareOptions): Promise<void> {
   const image = loadImage(options.hex)
   const client = await connectBootloader(options)
   try {
-    const backup = await client.readFlash(UNO_FLASH_SIZE)
-    try {
-      await options.onBackup(backup)
-    } catch (error) {
-      throw new FirmwareError('backup_failed', 'Sauvegarde du programme en place refusée', {
-        cause: error,
-      })
-    }
+    assertFits(image.length, client.flashSize)
+    const backup = await client.readBackup()
+    await client.keepAlive(async () => {
+      try {
+        await options.onBackup(backup)
+      } catch (error) {
+        throw new FirmwareError('backup_failed', 'Sauvegarde du programme en place refusée', {
+          cause: error,
+        })
+      }
+    })
     await client.writeFlash(image)
     await client.leave()
   } finally {
@@ -469,6 +639,7 @@ export async function restoreFirmware(options: LinkOptions & { hex: string }): P
   const image = loadImage(options.hex)
   const client = await connectBootloader(options)
   try {
+    assertFits(image.length, client.flashSize)
     await client.writeFlash(image)
     await client.leave()
   } finally {

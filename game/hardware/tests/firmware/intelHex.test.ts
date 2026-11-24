@@ -80,8 +80,25 @@ describe('parseIntelHex : fichiers invalides', () => {
     ],
     ['données au-delà de 64 Kio', hexOf(':02FFFF000102FD', EOF_LINE), 'address_overflow', 1],
     ['donnée après la fin de fichier', hexOf(EOF_LINE, WIKIPEDIA_LINE), 'after_eof', 2],
-    ['fin de fichier absente', hexOf(WIKIPEDIA_LINE), 'missing_eof', 2],
+    // La dernière ligne non vide, pas la ligne vide après le dernier retour à la ligne.
+    ['fin de fichier absente', hexOf(WIKIPEDIA_LINE), 'missing_eof', 1],
+    [
+      'fin de fichier absente (lignes vides à la fin)',
+      `${WIKIPEDIA_LINE}
+
+
+`,
+      'missing_eof',
+      1,
+    ],
     ['fichier vide', '', 'missing_eof', 1],
+    ['fin de fichier qui porte des données', hexOf(':01000001FFFF'), 'eof_with_data', 1],
+    [
+      'enregistrements qui se chevauchent',
+      hexOf(':0400000001020304F2', ':020002000506F1', EOF_LINE),
+      'overlap',
+      2,
+    ],
   ] as const)('%s', (_name, text, reason, line) => {
     const error = bad(text)
     expect(error).toBeInstanceOf(IntelHexError)

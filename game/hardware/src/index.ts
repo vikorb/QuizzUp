@@ -156,14 +156,7 @@ export type {
   FirmwareStep,
   InstallFirmwareOptions,
 } from './firmware/stk500'
-export {
-  connectBootloader,
-  FirmwareError,
-  FLASH_PAGE_SIZE,
-  installFirmware,
-  restoreFirmware,
-  UNO_FLASH_SIZE,
-} from './firmware/stk500'
+export { FirmwareError, installFirmware, restoreFirmware, UNO_FLASH_SIZE } from './firmware/stk500'
 export type {
   DeskResolver,
   DiagnosticRefusal,
