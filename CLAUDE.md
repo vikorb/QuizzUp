@@ -197,10 +197,10 @@ npm run knip      # code mort
 (démarre room-app :4174, le banc d'essai :4175 et le frontend du backoffice :4176).
 
 **Docker** (depuis `backoffice/`) : `docker compose up --build`
-→ backend `:3001`, frontend `:4173`, écran de salle `:4174`, Swagger `:3001/docs`, Postgres
-`:5434` (ports liés à `127.0.0.1`). Raccourci à la racine : `npm run demo` (+ `demo:logs`,
-`demo:stop`, `demo:reset`). Seeds complets seulement sur base vide (`SEED_ON_START=always` pour
-forcer) ; comptes de démo `demo-admin` / `salle1-demo` (`DEMO_SEED_PASSWORD`, défaut
+→ backend `:3001`, frontend `:4173`, écran de salle `:4174`, vitrine `:4177`,
+Swagger `:3001/docs`, Postgres `:5434` (ports liés à `127.0.0.1`). Raccourci à la racine :
+`npm run demo` (+ `demo:logs`, `demo:stop`, `demo:reset`). Seeds complets seulement sur base
+vide (`SEED_ON_START=always` pour forcer) ; comptes de démo `demo-admin` / `salle1-demo` (`DEMO_SEED_PASSWORD`, défaut
 `Demo1234!` ; `DEMO_SEED=false` pour ne pas les créer). Guide de test :
 `docs/recette/guide-de-test.md` ; recette VPS HTTPS : `deploy/recette/`.
 
