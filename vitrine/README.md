@@ -14,7 +14,7 @@ variables de la charte (`backoffice/frontend/src/assets/styles/main.css`) et `@q
 ```bash
 cd vitrine
 npm install
-npm run dev            # http://localhost:4176
+npm run dev            # http://localhost:4176 (en conteneur avec la démo : http://localhost:4177)
 npm run build          # dossier dist/ ; refusé tant que site.config.ts est incomplet (voir plus bas)
 VITRINE_DRAFT=1 npm run build   # brouillon : à ne pas publier (PowerShell : $env:VITRINE_DRAFT='1')
 npm run preview        # sert dist/ sur :4176

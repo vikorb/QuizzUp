@@ -47,6 +47,7 @@ données de démo). Les suivants prennent quelques secondes. Ensuite :
 | ---------------------------- | -------------------------------- |
 | <http://localhost:4173>      | Backoffice                       |
 | <http://localhost:4174>      | Écran de salle                   |
+| <http://localhost:4177>      | Site vitrine                     |
 | <http://localhost:3001/docs> | Documentation de l'API (Swagger) |
 
 Autres commandes utiles :
@@ -56,6 +57,13 @@ Autres commandes utiles :
 | `npm run demo:logs`  | Voir ce qui se passe (Ctrl+C pour quitter, QuizzUP continue de tourner) |
 | `npm run demo:stop`  | Arrêter QuizzUP (les données sont gardées)                              |
 | `npm run demo:reset` | **Tout effacer** (base et extraits) ; le prochain `demo` repart à neuf  |
+
+Sans npm : ces commandes ne font qu'appeler Docker. `npm run demo` équivaut à
+`docker compose -f backoffice/docker-compose.yml up --build -d postgres backend frontend room-app vitrine`,
+et `logs -f`, `stop` ou `down -v` à la place de `up …` donnent les trois autres.
+
+Le formulaire de démonstration du site vitrine vise l'adresse de production
+(`vitrine/site.config.ts`) : en local, son envoi échoue, le reste du site fonctionne.
 
 Pour récupérer une nouvelle version : `git pull` puis **`npm run demo`** à nouveau (il
 reconstruit ce qui a changé ; les données sont gardées).
