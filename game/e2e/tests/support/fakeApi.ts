@@ -187,11 +187,11 @@ export async function mockBackofficeApi(
     }
     const finish = /^\/room\/games\/(\d+)\/finish$/.exec(pathname)
     if (options.live && finish && request.method() === 'POST') {
-      api.finishes.push({
-        gameId: Number(finish[1]),
-        body: request.postDataJSON() as Record<string, unknown>,
+      const body = request.postDataJSON() as Record<string, unknown>
+      api.finishes.push({ gameId: Number(finish[1]), body })
+      return cors(route, 200, {
+        game: { ...options.live.game, state: body.aborted === true ? 'aborted' : 'finished' },
       })
-      return cors(route, 200, { game: { ...options.live.game, state: 'finished' } })
     }
     if (pathname === '/logout') {
       return cors(route, 204)

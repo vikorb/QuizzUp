@@ -42,7 +42,12 @@ function getAskedQuestionIds(state: GameState, round: RoundRecord): number[] {
   return round.questions.map((question) => question.id)
 }
 
-/** Manches jouées d'une partie terminée, au format de `POST /room/games/:id/finish`. */
+/**
+ * Manches jouées d'une partie terminée, au format de `POST /room/games/:id/finish`.
+ * ponytail: pour une partie arrêtée, la dernière manche liste toutes les questions tirées, même celles
+ * jamais posées ; sans effet tant que l'anti-répétition ne lit que les parties terminées. Le jour où
+ * les parties arrêtées comptent, couper aux questions répondues ou passées.
+ */
 export function getPlayedRounds(state: GameState): RoomGameRound[] {
   return state.rounds.map((round) => ({
     position: round.position,

@@ -9,7 +9,7 @@ import {
   readPendingFinishes,
 } from '@/game/pendingFinishes'
 import { createMemorySessionStorage } from '@/game/session'
-import { closeGame, configureRoomGame, startNewGame } from '@/game/useRoomGame'
+import { abortGame, closeGame, configureRoomGame, startNewGame } from '@/game/useRoomGame'
 import { answerRoomCommand, resetRoomCommands } from '@/live/roomCommands'
 import { enterDemo, signIn, syncRoomAuth } from '@/state/roomAuth'
 import * as roomApi from '@/utils/roomApi'
@@ -239,6 +239,21 @@ describe('GameView : fin de partie signalée au backoffice', () => {
       expect(router.currentRoute.value.name).toBe('lobby')
       expect(finish).toHaveBeenCalledOnce()
       expect(finish).toHaveBeenCalledWith('tok', 7, expect.any(Array), expect.any(Array), true)
+    })
+
+    it('monté sur une partie déjà arrêtée (arrêt d’une version antérieure, puis reprise), envoie l’arrêt une seule fois', async () => {
+      rememberBackofficeGameId(7, SEED)
+      const finish = vi.spyOn(roomApi, 'finishRoomGame').mockResolvedValue({} as roomApi.RoomGame)
+      startGame()
+      abortGame()
+
+      const { wrapper } = await mountWithApp(GameView, { route: '/play' })
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Partie arrêtée')
+      expect(finish).toHaveBeenCalledOnce()
+      expect(finish).toHaveBeenCalledWith('tok', 7, expect.any(Array), expect.any(Array), true)
+      expect(readPendingFinishes()).toEqual([])
     })
 
     it('un arrêt refusé par la confirmation n’envoie rien', async () => {

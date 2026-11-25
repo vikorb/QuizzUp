@@ -688,6 +688,37 @@ describe('routes/room.ts — current game (US-GAME-08)', () => {
       expectNobodyNotified(updates)
     })
 
+    // Le backoffice arrête la partie entre la lecture et l'écriture : simulé dans `db.fn.now()`,
+    // appelé juste avant l'UPDATE de la transaction (qui ne trouve alors plus la partie en cours).
+    function backofficeAbortsBeforeWrite() {
+      db.fn.now.mockImplementationOnce(() => {
+        dbState.games[0]!.state = GAME_STATE_ABORTED
+
+        return MOCK_NOW
+      })
+    }
+
+    it('answers 200 and writes no score when the backoffice aborted the game meanwhile', async () => {
+      backofficeAbortsBeforeWrite()
+
+      const { response } = await abortAs(GAME_STATE_RUNNING)
+
+      expect(response.statusCode).toBe(200)
+      expect(parseJson<CurrentBody>(response).game).toMatchObject({ state: GAME_STATE_ABORTED })
+      expect(dbState.game_participants.map((row) => row.score)).toEqual([0])
+      expect(dbState.game_rounds).toEqual([])
+    })
+
+    it('answers 409 and writes no score to a normal finish that lost the race to an abort', async () => {
+      backofficeAbortsBeforeWrite()
+
+      const { response } = await abortAs(GAME_STATE_RUNNING, roomUser, { scores: SCORES })
+
+      expect(response.statusCode).toBe(409)
+      expect(parseJson(response)).toEqual({ error: 'game_already_over' })
+      expect(dbState.game_participants.map((row) => row.score)).toEqual([0])
+    })
+
     it('still finishes normally with aborted: false', async () => {
       const { response } = await abortAs(GAME_STATE_RUNNING, roomUser, {
         scores: SCORES,
