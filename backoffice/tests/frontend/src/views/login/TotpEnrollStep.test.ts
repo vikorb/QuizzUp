@@ -1,12 +1,14 @@
 import {
   confirmTotpEnrollApiMock,
   startTotpEnrollApiMock,
+  TOTP_ENROLL_START_OK,
 } from '@frontend-tests/_helpers/authApiMock'
 import { mountWithFrontendMocks, tWithParamsMock } from '@frontend-tests/_helpers/mount'
 import { resetFrontendMocksBeforeEach } from '@frontend-tests/_helpers/resetFrontendMocks'
 import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { getQrSvgSrc } from '@/utils/qr'
 import TotpEnrollStep from '@/views/login/TotpEnrollStep.vue'
 
 resetFrontendMocksBeforeEach()
@@ -48,19 +50,49 @@ describe('views/login/TotpEnrollStep.vue', () => {
     expect(step.find('.secret').attributes('aria-labelledby')).toBeUndefined()
   })
 
-  it('offers the otpauth link when the server gives one, and no QR code', async () => {
+  it('offers the otpauth link when the server gives one', async () => {
     const step = await mountStep()
 
     expect(step.find('a.link').attributes('href')).toBe(
       'otpauth://totp/QuizzUp:root?secret=JBSWY3DPEHPK3PXP&issuer=QuizzUp'
     )
-    expect(step.find('canvas, img, svg').exists()).toBe(false)
+  })
+
+  it('shows the QR code from the server as an image, first, with an alternative text', async () => {
+    const step = await mountStep()
+    const qr = step.find('img.qr')
+
+    expect(qr.attributes('src')).toBe(getQrSvgSrc(TOTP_ENROLL_START_OK.qrSvg))
+    expect(qr.attributes('alt')).toBe('login.mfa.enroll.qrAlt')
+    // Jamais injecté dans la page : ni `v-html`, ni `<svg>` en ligne.
+    expect(step.find('svg').exists()).toBe(false)
+    // Le QR code passe avant la clé en texte.
+    expect(qr.element.compareDocumentPosition(step.find('.secret').element)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    )
+  })
+
+  it('keeps the secret in a details element that is folded by default', async () => {
+    const step = await mountStep()
+    const manual = step.find('details.manual')
+
+    expect(manual.attributes('open')).toBeUndefined()
+    expect(manual.find('summary').text()).toBe('login.mfa.enroll.manual')
+    expect(manual.find('.secret').text()).toBe('JBSW Y3DP EHPK 3PXP')
+    expect(step.find('details .secret').exists()).toBe(true)
+  })
+
+  it('unfolds the secret when the server sends no QR code', async () => {
+    startTotpEnrollApiMock.mockResolvedValue({ ...TOTP_ENROLL_START_OK, qrSvg: '' })
+    const step = await mountStep()
+
+    expect(step.find('img.qr').exists()).toBe(false)
+    expect(step.find('details.manual').attributes('open')).toBeDefined()
   })
 
   it('never follows a link that is not an otpauth address', async () => {
     startTotpEnrollApiMock.mockResolvedValue({
-      ok: true,
-      secret: 'JBSWY3DPEHPK3PXP',
+      ...TOTP_ENROLL_START_OK,
       otpauthUrl: 'javascript:alert(1)',
     })
     const step = await mountStep()
@@ -74,8 +106,7 @@ describe('views/login/TotpEnrollStep.vue', () => {
     startTotpEnrollApiMock.mockImplementation(
       () =>
         new Promise((resolve) => {
-          release = () =>
-            resolve({ ok: true, secret: 'JBSWY3DPEHPK3PXP', otpauthUrl: 'otpauth://totp/x' })
+          release = () => resolve({ ...TOTP_ENROLL_START_OK, otpauthUrl: 'otpauth://totp/x' })
         })
     )
     wrapper = mountWithFrontendMocks(TotpEnrollStep, {
@@ -212,12 +243,14 @@ describe('views/login/TotpEnrollStep.vue', () => {
         ok: true,
         secret: 'MFRGGZDFMZTWQ2LK',
         otpauthUrl: 'otpauth://totp/new',
+        qrSvg: '<svg id="new"/>',
       })
       await restart.trigger('click')
       await flushPromises()
 
       expect(startTotpEnrollApiMock).toHaveBeenCalledTimes(2)
       expect(step.find('.secret').text()).toBe('MFRG GZDF MZTW Q2LK')
+      expect(step.find('img.qr').attributes('src')).toBe(getQrSvgSrc('<svg id="new"/>'))
       expect(step.find('[role="alert"]').exists()).toBe(false)
       expect(step.emitted('back')).toBeUndefined()
     }

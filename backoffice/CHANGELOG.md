@@ -8,6 +8,8 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Double authentification du superadmin : l'écran d'enrôlement affiche un QR code à scanner avec l'application d'authentification. La clé en texte reste disponible, repliée, pour qui ne peut pas scanner.
+  US: US-CONSOLE-03 (#266)
 - Démo Docker : le site vitrine tourne lui aussi en conteneur (service `vitrine`, <http://localhost:4177>), lancé par `npm run demo` ou par `docker compose` directement. Plus rien à installer sur le poste pour le voir.
   US: US-SITE-01 (#133)
 

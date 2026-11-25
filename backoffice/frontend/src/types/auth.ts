@@ -37,7 +37,8 @@ export type TotpResetResult = { ok: true } | MfaFailure | { ok: false; reason: '
 
 export type TotpSignInResult = { ok: true; token: string } | MfaFailure
 
-export type TotpEnrollStartResult = { ok: true; secret: string; otpauthUrl: string } | MfaFailure
+export type TotpEnrollStartResult =
+  { ok: true; secret: string; otpauthUrl: string; qrSvg: string } | MfaFailure
 
 export type TotpEnrollConfirmResult =
   { ok: true; token: string; recoveryCodes: string[] } | MfaFailure

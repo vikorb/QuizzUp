@@ -14,7 +14,9 @@
       "enroll": {
         "title": "Configurer l’application d’authentification",
         "loading": "Préparation de l’enrôlement…",
-        "intro": "Ajoutez ce compte dans votre application d’authentification en saisissant le secret ci-dessous, puis entrez le premier code qu’elle affiche.",
+        "intro": "Scannez ce code avec votre application d’authentification pour y ajouter ce compte, puis entrez le premier code qu’elle affiche.",
+        "qrAlt": "QR code à scanner avec l’application d’authentification",
+        "manual": "Impossible de scanner ? Saisir la clé à la main",
         "secretLabel": "Secret à saisir dans l’application",
         "openLink": "Ouvrir dans l’application d’authentification",
         "submit": "Confirmer",
@@ -32,7 +34,7 @@
       "unreachable": "Impossible de joindre le serveur. Vérifiez votre connexion.",
       "retryIn": "Trop d’essais : réessayez dans {minutes} min.",
       "forbidden": "La connexion du superadmin n’est possible que depuis le réseau de la console.",
-      "enrollmentChanged": "L’enrôlement a été modifié entre-temps : le secret affiché n’est plus valable. Recommencez, puis saisissez le nouveau secret dans l’application.",
+      "enrollmentChanged": "L’enrôlement a été modifié entre-temps : le secret affiché n’est plus valable. Recommencez, puis scannez le nouveau code dans l’application.",
       "reset": {
         "title": "Double authentification",
         "hint": "Retire l’application d’authentification et les codes de secours de ce compte. Vous serez déconnecté, et la prochaine connexion demandera de la configurer de nouveau.",

@@ -94,9 +94,9 @@
             </p>
             <p class="sheet-voucher__names">{{ getVoucherHolderNames(voucher) }}</p>
             <img
-              v-if="getVoucherQrSrc(voucher.qrSvg)"
+              v-if="getQrSvgSrc(voucher.qrSvg)"
               class="sheet-voucher__qr"
-              :src="getVoucherQrSrc(voucher.qrSvg) ?? undefined"
+              :src="getQrSvgSrc(voucher.qrSvg) ?? undefined"
               :alt="$t('vouchers.sheet.qrAlt', { code: voucher.code })"
               data-test="results-voucher-qr"
             />
@@ -137,7 +137,7 @@ import { getGameErrorKey } from '@/utils/game/errors'
 import { formatGameDate, getGameRoomName } from '@/utils/game/format'
 import { rankGameParticipants } from '@/utils/game/ranking'
 import { canShowGameResults } from '@/utils/game/state'
-import { getVoucherQrSrc } from '@/utils/voucher/qr'
+import { getQrSvgSrc } from '@/utils/qr'
 import { getVoucherHolderNames } from '@/utils/voucher/state'
 
 const route = useRoute()

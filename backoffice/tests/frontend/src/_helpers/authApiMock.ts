@@ -43,13 +43,19 @@ export const loginTotpApiMock = vi.fn(
   })
 )
 
+/** Réponse d'enrôlement par défaut ; `qrSvg` est un SVG minimal, le rendu du QR est prouvé côté serveur. */
+export const TOTP_ENROLL_START_OK = {
+  ok: true,
+  secret: 'JBSWY3DPEHPK3PXP',
+  otpauthUrl: 'otpauth://totp/QuizzUp:root?secret=JBSWY3DPEHPK3PXP&issuer=QuizzUp',
+  qrSvg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><path d="M0 0h1v1h-1z"/></svg>',
+} as const
+
 export const startTotpEnrollApiMock = vi.fn(
   async (
     _args: ChallengeArgs
-  ): Promise<{ ok: true; secret: string; otpauthUrl: string } | LoginFailure> => ({
-    ok: true,
-    secret: 'JBSWY3DPEHPK3PXP',
-    otpauthUrl: 'otpauth://totp/QuizzUp:root?secret=JBSWY3DPEHPK3PXP&issuer=QuizzUp',
+  ): Promise<{ ok: true; secret: string; otpauthUrl: string; qrSvg: string } | LoginFailure> => ({
+    ...TOTP_ENROLL_START_OK,
   })
 )
 
@@ -104,11 +110,7 @@ export function resetAuthApiMock(): void {
   loginReasonToI18nKeyMock.mockImplementation((reason: string): string => `auth.errors.${reason}`)
 
   loginTotpApiMock.mockResolvedValue({ ok: true, token: 'test-totp-token' })
-  startTotpEnrollApiMock.mockResolvedValue({
-    ok: true,
-    secret: 'JBSWY3DPEHPK3PXP',
-    otpauthUrl: 'otpauth://totp/QuizzUp:root?secret=JBSWY3DPEHPK3PXP&issuer=QuizzUp',
-  })
+  startTotpEnrollApiMock.mockResolvedValue({ ...TOTP_ENROLL_START_OK })
   confirmTotpEnrollApiMock.mockResolvedValue({
     ok: true,
     token: 'test-enroll-token',

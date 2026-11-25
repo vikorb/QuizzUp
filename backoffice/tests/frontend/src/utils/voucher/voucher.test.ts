@@ -7,7 +7,6 @@ import {
 import { describe, expect, it } from 'vitest'
 
 import { getVoucherErrorKey, readVoucherApiError } from '@/utils/voucher/errors'
-import { getVoucherQrSrc } from '@/utils/voucher/qr'
 import {
   canCancelVoucher,
   getVoucherHolderNames,
@@ -89,20 +88,5 @@ describe('utils/voucher/errors', () => {
     expect(getVoucherErrorKey('voucher_expired', ADMIN_ROLE_USER)).toBe(
       'vouchers.errors.voucherExpired'
     )
-  })
-})
-
-describe('utils/voucher/qr', () => {
-  it('builds an image address that carries the whole svg, escaped', () => {
-    const svg = '<svg viewBox="0 0 1 1"><path d="M0 0"/></svg>'
-    const src = getVoucherQrSrc(svg) ?? ''
-
-    expect(src.startsWith('data:image/svg+xml;charset=utf-8,')).toBe(true)
-    expect(src).not.toMatch(/[<>"\s]/)
-    expect(decodeURIComponent(src.slice(src.indexOf(',') + 1))).toBe(svg)
-  })
-
-  it.each([[undefined], [null], ['']])('gives no address for %j', (value) => {
-    expect(getVoucherQrSrc(value)).toBeNull()
   })
 })

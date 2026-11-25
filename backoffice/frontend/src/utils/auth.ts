@@ -160,8 +160,8 @@ export function startTotpEnrollApi(args: {
   challengeToken: string
 }): Promise<TotpEnrollStartResult> {
   return postMfa('/login/totp/enroll', args, (data) =>
-    isString(data.secret) && isString(data.otpauthUrl)
-      ? { ok: true as const, secret: data.secret, otpauthUrl: data.otpauthUrl }
+    isString(data.secret) && isString(data.otpauthUrl) && isString(data.qrSvg)
+      ? { ok: true as const, secret: data.secret, otpauthUrl: data.otpauthUrl, qrSvg: data.qrSvg }
       : null
   )
 }

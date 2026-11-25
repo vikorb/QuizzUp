@@ -3,6 +3,7 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import { confirmEnrollment, getAdminTotp, startEnrollment } from '../../security/adminTotp'
 import { openSecret, sealSecret } from '../../security/secretBox'
 import { generateRecoveryCodes, generateSecret, otpauthUrl, verifyTotp } from '../../security/totp'
+import { qrSvg } from '../../utils/qrSvg'
 import { challengeSchema, confirmEnrollmentSchema } from './_schemas'
 import { issueSession, readChallenge, replyTotpUnavailable } from './_shared'
 
@@ -28,7 +29,12 @@ const loginEnrollRoutes: FastifyPluginAsync = async (app) => {
 
       const issuer = process.env.TOTP_ISSUER?.trim() || DEFAULT_TOTP_ISSUER
 
-      return { secret, otpauthUrl: otpauthUrl(secret, admin.username, issuer) }
+      const url = otpauthUrl(secret, admin.username, issuer)
+
+      // La réponse porte le secret en clair, en texte et en QR code : aucun cache ne la garde.
+      reply.header('Cache-Control', 'no-store')
+
+      return { secret, otpauthUrl: url, qrSvg: qrSvg(url) }
     }
   )
 
@@ -71,6 +77,9 @@ const loginEnrollRoutes: FastifyPluginAsync = async (app) => {
           error: current?.confirmedAt ? 'totp_already_enrolled' : 'totp_enrollment_changed',
         })
       }
+
+      // Les codes de secours ne sont rendus qu'ici, en clair : aucun cache ne garde la réponse.
+      reply.header('Cache-Control', 'no-store')
 
       return { ...(await issueSession(app, admin)), recoveryCodes }
     }
