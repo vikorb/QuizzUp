@@ -3990,7 +3990,7 @@ paths:
       description: |
         Statut : **Disponible**
 
-        Envoyé par l'écran de salle au podium : la partie passe `finished` (`finishedAt` renseigné) et le score de chaque pupitre est enregistré (une ligne par pupitre inscrit, ni plus ni moins). Idempotent : une partie déjà terminée est renvoyée telle quelle, sans toucher aux scores ni aux manches.
+        Envoyé par l'écran de salle au podium : la partie passe `finished` (`finishedAt` renseigné) et le score de chaque pupitre est enregistré (une ligne par pupitre inscrit, ni plus ni moins). Idempotent : une partie déjà terminée est renvoyée telle quelle, sans toucher aux scores ni aux manches. Une partie déjà `aborted` (le backoffice l'a arrêtée avant ce rapport) et sans rien d'enregistré (scores tous à 0, aucune manche) reçoit aussi les scores et les manches d'une fin normale, mêmes validations : elle reste `aborted` (`200`). Si des scores ou des manches y sont déjà, une fin normale répond `409 game_already_over` et ne remplace rien.
 
         `rounds` (facultatif : un écran de salle pas encore à jour n'en envoie pas) liste les manches jouées. Elles sont écrites dans `game_rounds` dans la même transaction que les scores, une seule fois : le renvoi d'une fin de partie n'écrit rien de plus. Les thèmes et les questions doivent appartenir à la compagnie ou au contenu global et leurs `position` ne dépassent pas le nombre de manches de la partie (`400 game_rounds_invalid` sinon, rien n'est enregistré).
 
@@ -4053,7 +4053,7 @@ paths:
                   type: boolean
                   default: false
                   description: |
-                    `true` : l'opérateur a arrêté la partie sur l'écran de salle. La partie `pending` ou `running` passe `aborted` (`finishedAt` renseigné) avec les scores et les manches jouées jusque-là, mêmes validations qu'une fin normale. Une partie déjà `aborted` par le backoffice n'a pas de scores : si rien n'est enregistré pour elle (scores tous à 0, aucune manche), ce rapport les écrit avec les manches, mêmes validations, sans changer `state` ni `finishedAt`. Sinon, ou pour un renvoi de la file de la salle, elle est renvoyée telle quelle, sans rien remplacer. Une partie déjà `finished` répond `409 game_already_over` (un arrêt ne défait pas une fin). Absent ou `false` : fin normale.
+                    `true` : l'opérateur a arrêté la partie sur l'écran de salle. La partie `pending` ou `running` passe `aborted` (`finishedAt` renseigné) avec les scores et les manches jouées jusque-là, mêmes validations qu'une fin normale. Une partie déjà `aborted` (arrêt commandé depuis le backoffice, ou renvoi de la file de la salle) n'a peut-être pas de scores : si rien n'est enregistré pour elle (scores tous à 0, aucune manche), ce rapport les écrit avec les manches, mêmes validations, sans changer `state` ni `finishedAt` ; sinon elle est renvoyée telle quelle, sans rien remplacer. Une partie déjà `finished` répond `409 game_already_over` (un arrêt ne défait pas une fin). Absent ou `false` : fin normale.
       responses:
         '200':
           description: Partie terminée, ou arrêtée si `aborted` vaut `true`
@@ -4084,7 +4084,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: Partie dans l'autre état final (`game_already_over`), annulée pour une fin normale, terminée pour un arrêt (`aborted` à `true`)
+          description: Partie dans l'autre état final (`game_already_over`), terminée pour un arrêt (`aborted` à `true`), ou arrêtée avec scores ou manches déjà enregistrés pour une fin normale
           content:
             application/json:
               schema:

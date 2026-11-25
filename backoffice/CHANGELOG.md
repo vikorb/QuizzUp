@@ -519,7 +519,7 @@ Format inspiré de Keep a Changelog.
 
 ### Fixed
 
-- Arrêt d'une partie depuis le backoffice : les scores et les manches envoyés par l'écran de salle après la commande d'arrêt sont enregistrés (une seule fois, sans jamais remplacer des scores existants). Les pupitres ne restent plus à 0 sur la fiche de la partie.
+- Arrêt d'une partie depuis le backoffice : les scores et les manches envoyés par l'écran de salle après la commande d'arrêt sont enregistrés (une seule fois, sans jamais remplacer des scores existants). Il en va de même si la salle atteint le podium juste après cet arrêt, ou hors ligne : ses scores sont gardés, la partie reste « arrêtée ». Les pupitres ne restent plus à 0 sur la fiche de la partie.
   US: US-ROOM-04 (#271)
 
 - Écran de salle : arrêter une partie du backoffice (« Arrêter la partie », ou quitter l'écran après confirmation) la signale au serveur. La partie passe « arrêtée » avec les scores du moment et les manches jouées, au lieu de rester « en cours ». `POST /room/games/:gameId/finish` accepte pour cela `aborted: true` ; l'envoi passe par la file des fins de partie (réessais hors ligne).

@@ -549,8 +549,9 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
 
   // Fin de partie (podium) : la salle enregistre les scores et passe la partie « terminée ».
   // Idempotent : renvoyer la fin d'une partie déjà terminée ne change rien. Un arrêt fait sur
-  // l'écran de salle (`aborted: true`) passe la partie « arrêtée » ; si le backoffice l'avait déjà
-  // arrêtée, sans scores, le rapport de la salle les enregistre (une seule fois, sans rien remplacer).
+  // l'écran de salle (`aborted: true`) passe la partie « arrêtée ». Une partie déjà arrêtée (par
+  // le backoffice, ou renvoi de la salle) et vide, sans score ni manche, reçoit les scores et les
+  // manches du rapport, fin normale ou arrêt, sans changer d'état ; une seule fois, sans rien remplacer.
   app.post('/room/games/:gameId/finish', { preHandler: [app.authenticate] }, async (req, reply) => {
     if (!isRoomAccount(req)) {
       return reply.code(403).send({ error: 'forbidden' })
@@ -578,23 +579,21 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
     const { scores, rounds, aborted } = parsedBody.data
     const targetState = aborted ? GAME_STATE_ABORTED : GAME_STATE_FINISHED
 
-    // Arrêt déjà fait par le backoffice : la salle apporte ses scores, sauf s'ils sont déjà là.
-    const abortedByBackoffice = aborted && game.state === GAME_STATE_ABORTED
+    const alreadyAborted = game.state === GAME_STATE_ABORTED
+    // Une partie en cours se termine ; une partie déjà arrêtée sans score reçoit ceux de la salle
+    // (sinon ils seraient perdus), l'état restant « arrêtée ».
+    const writable =
+      game.state === GAME_STATE_PENDING ||
+      game.state === GAME_STATE_RUNNING ||
+      (alreadyAborted && game.participants.every((participant) => participant.score === 0))
 
     // Renvoi : la partie est déjà dans l'état demandé. Un arrêt ne défait pas une fin, et
     // inversement (409 plus bas).
-    if (
-      game.state === targetState &&
-      !(abortedByBackoffice && game.participants.every((participant) => participant.score === 0))
-    ) {
+    if (game.state === targetState && !writable) {
       return { game }
     }
 
-    if (
-      !abortedByBackoffice &&
-      game.state !== GAME_STATE_PENDING &&
-      game.state !== GAME_STATE_RUNNING
-    ) {
+    if (!writable) {
       return reply.code(409).send({ error: 'game_already_over' })
     }
 
@@ -614,7 +613,7 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const written = await db.transaction(async (trx) => {
-      const updated = abortedByBackoffice
+      const updated = alreadyAborted
         ? 0
         : await trx('games')
             .where('id', gameId)
@@ -622,14 +621,16 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
             .update({ state: targetState, finished_at: trx.fn.now(), updated_at: trx.fn.now() })
 
       if (!updated) {
-        // Une autre requête l'a terminée entre-temps : ses scores restent. Seul un arrêt trouve
-        // la partie déjà arrêtée (par le backoffice) et vide : il écrit alors ses scores, sans
-        // toucher à l'état. Revérifié sous verrou : deux rapports simultanés, un seul écrit.
-        if (!aborted) {
-          return false
-        }
-
-        const current = await trx('games').where('id', gameId).forUpdate().first('state')
+        // Partie déjà arrêtée (avant la lecture ou entre-temps) : si rien n'est enregistré, ce
+        // rapport écrit ses scores sans toucher à l'état. Sinon (ou si la partie est terminée),
+        // ceux déjà là restent. Revérifié sous verrou : deux rapports simultanés, un seul écrit.
+        const current = await trx('games')
+          .where('id', gameId)
+          .where('room_id', req.user.room_id)
+          .where('company_id', req.user.company_id)
+          .whereNot('status', GAME_STATUS_DELETED)
+          .forUpdate()
+          .first('state')
 
         if (current?.state !== GAME_STATE_ABORTED || !(await hasNothingRecorded(trx, gameId))) {
           return false
@@ -649,7 +650,7 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
 
     const finished = await findRoomGame(req, gameId)
 
-    if (finished?.state !== targetState) {
+    if (!finished || (!written && finished.state !== targetState)) {
       return reply.code(409).send({ error: 'game_already_over' })
     }
 

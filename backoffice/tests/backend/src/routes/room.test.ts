@@ -602,13 +602,6 @@ describe('routes/room.ts — current game (US-GAME-08)', () => {
       expectNobodyNotified(updates)
     })
 
-    it('tells nobody when the game is already aborted', async () => {
-      const { response, updates } = await finishAs(roomUser, GAME_STATE_ABORTED)
-
-      expect(response.statusCode).toBe(409)
-      expectNobodyNotified(updates)
-    })
-
     it('tells nobody when the game belongs to another company', async () => {
       const { response, updates } = await finishAs({ ...roomUser, company_id: 2 } as TestUser)
 
@@ -710,7 +703,7 @@ describe('routes/room.ts — current game (US-GAME-08)', () => {
         expectOnlyCompany1Notified(updates, 5)
       })
 
-      it('locks the game before checking that nothing is recorded', async () => {
+      it('takes a row lock on the game before writing', async () => {
         await abortAs(GAME_STATE_ABORTED)
 
         expect(lockedTables).toContain('games')
@@ -771,16 +764,38 @@ describe('routes/room.ts — current game (US-GAME-08)', () => {
         expectNobodyNotified(updates)
       })
 
-      it('refuses a normal finish on an aborted game and writes nothing', async () => {
+      it('records the scores of a normal finish too, and the game stays aborted', async () => {
         const { response, updates } = await abortAs(GAME_STATE_ABORTED, roomUser, {
           scores: SCORES,
         })
 
-        expect(response.statusCode).toBe(409)
-        expect(parseJson(response)).toEqual({ error: 'game_already_over' })
-        expect(dbState.game_participants.map((row) => row.score)).toEqual([0])
-        expectNobodyNotified(updates)
+        expect(response.statusCode).toBe(200)
+        expect(parseJson<CurrentBody>(response).game).toMatchObject({ state: GAME_STATE_ABORTED })
+        expect(dbState.games[0]!.state).toBe(GAME_STATE_ABORTED)
+        expect(dbState.games[0]!.finished_at).toBeNull()
+        expect(dbState.game_participants.map((row) => row.score)).toEqual([250])
+        expectOnlyCompany1Notified(updates, 5)
       })
+
+      it.each([
+        ['scores', () => (dbState.game_participants[0]!.score = 80), 80],
+        ['rounds', () => dbState.game_rounds.push({ id: 1, game_id: 5, position: 1 }), 0],
+      ])(
+        'refuses a normal finish when %s are already recorded, and writes nothing',
+        async (_what, record, expectedScore) => {
+          const { response, updates } = await abortAs(
+            GAME_STATE_ABORTED,
+            roomUser,
+            { scores: SCORES },
+            () => void record()
+          )
+
+          expect(response.statusCode).toBe(409)
+          expect(parseJson(response)).toEqual({ error: 'game_already_over' })
+          expect(dbState.game_participants.map((row) => row.score)).toEqual([expectedScore])
+          expectNobodyNotified(updates)
+        }
+      )
     })
 
     it('does not undo a finished game', async () => {
@@ -813,14 +828,36 @@ describe('routes/room.ts — current game (US-GAME-08)', () => {
       expectOnlyCompany1Notified(updates, 5)
     })
 
-    it('answers 409 and writes no score to a normal finish that lost the race to an abort', async () => {
+    it('records the scores of a normal finish that lost the race to an abort', async () => {
       backofficeAbortsBeforeWrite()
 
-      const { response } = await abortAs(GAME_STATE_RUNNING, roomUser, { scores: SCORES })
+      const { response, updates } = await abortAs(GAME_STATE_RUNNING, roomUser, {
+        scores: SCORES,
+      })
 
-      expect(response.statusCode).toBe(409)
-      expect(parseJson(response)).toEqual({ error: 'game_already_over' })
-      expect(dbState.game_participants.map((row) => row.score)).toEqual([0])
+      expect(response.statusCode).toBe(200)
+      expect(parseJson<CurrentBody>(response).game).toMatchObject({ state: GAME_STATE_ABORTED })
+      expect(dbState.game_participants.map((row) => row.score)).toEqual([250])
+      expectOnlyCompany1Notified(updates, 5)
+    })
+
+    it.each([
+      ['an abort', { scores: SCORES, aborted: true }],
+      ['a normal finish', { scores: SCORES }],
+    ])('keeps the scores already recorded when %s loses the race', async (_what, body) => {
+      // Le backoffice arrête la partie et y laisse un score (80) entre la lecture et l'écriture.
+      db.fn.now.mockImplementationOnce(() => {
+        dbState.games[0]!.state = GAME_STATE_ABORTED
+        dbState.game_participants[0]!.score = 80
+
+        return MOCK_NOW
+      })
+
+      const { response, updates } = await abortAs(GAME_STATE_RUNNING, roomUser, body)
+
+      expect(dbState.game_participants.map((row) => row.score)).toEqual([80])
+      expect(response.statusCode).toBe('aborted' in body ? 200 : 409)
+      expectNobodyNotified(updates)
     })
 
     it('still finishes normally with aborted: false', async () => {
@@ -895,9 +932,10 @@ describe('routes/room.ts — current game (US-GAME-08)', () => {
     await app.close()
   })
 
-  it('refuses to finish an aborted game or a game of another room', async () => {
+  it('refuses to finish a scored aborted game or a game of another room', async () => {
     seedRoom()
     seedGame({ state: GAME_STATE_ABORTED })
+    dbState.game_participants[0]!.score = 80
     const app = await createRouteApp(roomRoutes)
 
     const aborted = await app.inject({
