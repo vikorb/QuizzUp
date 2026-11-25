@@ -91,6 +91,17 @@ export async function saveGameRounds(trx: Knex.Transaction, gameId: number, roun
   )
 }
 
+/** Vrai si ni score (colonne à 0 par défaut) ni manche n'est enregistré pour la partie. */
+export async function hasNothingRecorded(trx: Knex.Transaction, gameId: number) {
+  const scored = await trx('game_participants')
+    .where('game_id', gameId)
+    .whereNot('score', 0)
+    .first('id')
+  const played = await trx('game_rounds').where('game_id', gameId).first('id')
+
+  return !scored && !played
+}
+
 /** Nombre de questions déjà vues renvoyées à la salle au plus (les plus récentes). */
 export const AVOID_QUESTIONS_MAX = 2000
 

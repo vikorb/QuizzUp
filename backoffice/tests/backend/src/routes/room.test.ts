@@ -622,10 +622,12 @@ describe('routes/room.ts — current game (US-GAME-08)', () => {
     const abortAs = async (
       state: string,
       user: TestUser = roomUser,
-      body: Record<string, unknown> = { scores: SCORES, aborted: true }
+      body: Record<string, unknown> = { scores: SCORES, aborted: true },
+      afterSeed: () => void = () => undefined
     ) => {
       seedRoom()
       seedGame({ state })
+      afterSeed()
       const app = await createRouteApp(roomRoutes)
       const updates = watchGameUpdates(app)
       const response = await app.inject({
@@ -669,14 +671,116 @@ describe('routes/room.ts — current game (US-GAME-08)', () => {
       expectNobodyNotified(updates)
     })
 
-    it('is idempotent on a game already aborted: nothing is rewritten, nobody is told', async () => {
-      const { response, updates } = await abortAs(GAME_STATE_ABORTED)
+    describe('game already aborted by the backoffice, without scores', () => {
+      it('records the scores of the room, leaves state and end date alone and tells the staff', async () => {
+        const { response, updates } = await abortAs(GAME_STATE_ABORTED)
 
-      expect(response.statusCode).toBe(200)
-      expect(parseJson<CurrentBody>(response).game).toMatchObject({ state: GAME_STATE_ABORTED })
-      expect(dbState.game_participants.map((row) => row.score)).toEqual([0])
-      expect(dbState.games[0]!.finished_at).toBeNull()
-      expectNobodyNotified(updates)
+        expect(response.statusCode).toBe(200)
+        expect(parseJson<CurrentBody>(response).game).toMatchObject({
+          state: GAME_STATE_ABORTED,
+          participants: [{ podium: 1, score: 250 }],
+        })
+        expect(dbState.games[0]!.state).toBe(GAME_STATE_ABORTED)
+        expect(dbState.games[0]!.finished_at).toBeNull()
+        expect(dbState.game_participants.map((row) => row.score)).toEqual([250])
+        expectOnlyCompany1Notified(updates, 5)
+      })
+
+      it('writes once: a second report neither replaces the scores nor tells anybody', async () => {
+        seedRoom()
+        seedGame({ state: GAME_STATE_ABORTED })
+        const app = await createRouteApp(roomRoutes)
+        const updates = watchGameUpdates(app)
+        const send = (score: number) =>
+          app.inject({
+            method: 'POST',
+            url: '/room/games/5/finish',
+            headers: authHeaders(roomUser),
+            payload: { scores: [{ podium: 1, score }], aborted: true },
+          })
+
+        const first = await send(250)
+        const second = await send(999)
+
+        await app.close()
+
+        expect(first.statusCode).toBe(200)
+        expect(second.statusCode).toBe(200)
+        expect(dbState.game_participants.map((row) => row.score)).toEqual([250])
+        expectOnlyCompany1Notified(updates, 5)
+      })
+
+      it('locks the game before checking that nothing is recorded', async () => {
+        await abortAs(GAME_STATE_ABORTED)
+
+        expect(lockedTables).toContain('games')
+      })
+
+      it('keeps scores already recorded: nothing is rewritten, nobody is told', async () => {
+        const { response, updates } = await abortAs(
+          GAME_STATE_ABORTED,
+          roomUser,
+          { scores: SCORES, aborted: true },
+          () => {
+            dbState.game_participants[0]!.score = 80
+          }
+        )
+
+        expect(response.statusCode).toBe(200)
+        expect(parseJson<CurrentBody>(response).game).toMatchObject({ state: GAME_STATE_ABORTED })
+        expect(dbState.game_participants.map((row) => row.score)).toEqual([80])
+        expectNobodyNotified(updates)
+      })
+
+      it('keeps rounds already recorded: nothing is rewritten, nobody is told', async () => {
+        const { response, updates } = await abortAs(
+          GAME_STATE_ABORTED,
+          roomUser,
+          { scores: SCORES, aborted: true },
+          () => {
+            dbState.game_rounds.push({ id: 1, game_id: 5, position: 1, questions: '[]' })
+          }
+        )
+
+        expect(response.statusCode).toBe(200)
+        expect(dbState.game_participants.map((row) => row.score)).toEqual([0])
+        expect(dbState.game_rounds).toHaveLength(1)
+        expectNobodyNotified(updates)
+      })
+
+      it('refuses scores that do not match the registered desks, and writes nothing', async () => {
+        const { response, updates } = await abortAs(GAME_STATE_ABORTED, roomUser, {
+          scores: [{ podium: 3, score: 1 }],
+          aborted: true,
+        })
+
+        expect(response.statusCode).toBe(400)
+        expect(parseJson(response)).toEqual({ error: 'game_scores_invalid' })
+        expect(dbState.game_participants.map((row) => row.score)).toEqual([0])
+        expectNobodyNotified(updates)
+      })
+
+      it('does not let an account of another company write the scores', async () => {
+        const { response, updates } = await abortAs(GAME_STATE_ABORTED, {
+          ...roomUser,
+          company_id: 2,
+        } as TestUser)
+
+        expect(response.statusCode).toBe(404)
+        expect(dbState.game_participants.map((row) => row.score)).toEqual([0])
+        expectNobodyNotified(updates)
+      })
+
+      it('refuses a normal finish on an aborted game and writes nothing', async () => {
+        const { response, updates } = await abortAs(GAME_STATE_ABORTED, roomUser, {
+          scores: SCORES,
+        })
+
+        expect(response.statusCode).toBe(409)
+        expect(parseJson(response)).toEqual({ error: 'game_already_over' })
+        expect(dbState.game_participants.map((row) => row.score)).toEqual([0])
+        expectNobodyNotified(updates)
+      })
     })
 
     it('does not undo a finished game', async () => {
@@ -698,15 +802,15 @@ describe('routes/room.ts — current game (US-GAME-08)', () => {
       })
     }
 
-    it('answers 200 and writes no score when the backoffice aborted the game meanwhile', async () => {
+    it('records the scores of the room when the backoffice aborted the game meanwhile', async () => {
       backofficeAbortsBeforeWrite()
 
-      const { response } = await abortAs(GAME_STATE_RUNNING)
+      const { response, updates } = await abortAs(GAME_STATE_RUNNING)
 
       expect(response.statusCode).toBe(200)
       expect(parseJson<CurrentBody>(response).game).toMatchObject({ state: GAME_STATE_ABORTED })
-      expect(dbState.game_participants.map((row) => row.score)).toEqual([0])
-      expect(dbState.game_rounds).toEqual([])
+      expect(dbState.game_participants.map((row) => row.score)).toEqual([250])
+      expectOnlyCompany1Notified(updates, 5)
     })
 
     it('answers 409 and writes no score to a normal finish that lost the race to an abort', async () => {

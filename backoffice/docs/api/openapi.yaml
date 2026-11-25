@@ -4053,7 +4053,7 @@ paths:
                   type: boolean
                   default: false
                   description: |
-                    `true` : l'opérateur a arrêté la partie sur l'écran de salle. La partie `pending` ou `running` passe `aborted` (`finishedAt` renseigné) avec les scores et les manches jouées jusque-là, mêmes validations qu'une fin normale. Idempotent : une partie déjà `aborted` est renvoyée telle quelle (arrêt commandé depuis le backoffice, renvoi de la file de la salle). Une partie déjà `finished` répond `409 game_already_over` (un arrêt ne défait pas une fin). Absent ou `false` : fin normale.
+                    `true` : l'opérateur a arrêté la partie sur l'écran de salle. La partie `pending` ou `running` passe `aborted` (`finishedAt` renseigné) avec les scores et les manches jouées jusque-là, mêmes validations qu'une fin normale. Une partie déjà `aborted` par le backoffice n'a pas de scores : si rien n'est enregistré pour elle (scores tous à 0, aucune manche), ce rapport les écrit avec les manches, mêmes validations, sans changer `state` ni `finishedAt`. Sinon, ou pour un renvoi de la file de la salle, elle est renvoyée telle quelle, sans rien remplacer. Une partie déjà `finished` répond `409 game_already_over` (un arrêt ne défait pas une fin). Absent ou `false` : fin normale.
       responses:
         '200':
           description: Partie terminée, ou arrêtée si `aborted` vaut `true`
