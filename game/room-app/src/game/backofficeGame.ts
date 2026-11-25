@@ -53,7 +53,8 @@ export function getPlayedRounds(state: GameState): RoomGameRound[] {
 }
 
 /**
- * Au podium, met en file la fin de la partie (scores des pupitres) à signaler au backoffice,
+ * Au podium, ou à l'arrêt de la partie (phase `aborted`, rapport marqué `aborted`), met en file la
+ * fin de la partie (scores des pupitres) à signaler au backoffice,
  * pour qu'elle ne reste pas « en cours » ; l'envoi se fait en arrière-plan et se répète tant
  * que le réseau manque (cf. `pendingFinishes.ts`). Sans effet en mode démo, hors partie du
  * backoffice ou si la partie jouée n'est pas celle retenue (graine différente) ou appartient à
@@ -84,6 +85,8 @@ export function reportFinishedGame(state: GameState): number | null {
     seed: saved.seed,
     scores,
     rounds: getPlayedRounds(state),
+    // Partie arrêtée par l'opérateur : le backoffice la passe « arrêtée », pas « terminée ».
+    ...(state.phase.name === 'aborted' && { aborted: true as const }),
   })
   forgetBackofficeGameId()
   return saved.id

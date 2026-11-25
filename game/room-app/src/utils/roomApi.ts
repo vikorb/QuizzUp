@@ -244,17 +244,18 @@ export const FINISH_REQUEST_TIMEOUT_MS = 10_000
 
 /**
  * Fin de partie : le backoffice la passe « terminée » avec les scores et, si fournies, les manches
- * jouées (idempotent).
+ * jouées (idempotent). `aborted` : la partie a été arrêtée par l'opérateur, elle passe « arrêtée ».
  */
 export async function finishRoomGame(
   token: string,
   gameId: number,
   scores: RoomGameScore[],
-  rounds?: RoomGameRound[]
+  rounds?: RoomGameRound[],
+  aborted?: true
 ): Promise<RoomGame> {
   const data = await request<{ game: RoomGame }>(token, `/room/games/${gameId}/finish`, {
     method: 'POST',
-    body: rounds ? { scores, rounds } : { scores },
+    body: { scores, ...(rounds && { rounds }), ...(aborted && { aborted }) },
     timeoutMs: FINISH_REQUEST_TIMEOUT_MS,
   })
   return data.game

@@ -780,4 +780,52 @@ describe('file des résultats de partie à envoyer', () => {
       expect(readPendingFinishes()).toEqual([])
     })
   })
+
+  describe('partie arrêtée', () => {
+    const scores = [{ podium: 1, score: 900 }]
+
+    it('envoie l’arrêt, le garde hors ligne et après un rechargement, jusqu’au renvoi', async () => {
+      finish.mockRejectedValueOnce(new Error('offline'))
+
+      await enqueuePendingFinish({ ...report(7, 900), aborted: true })
+
+      expect(finish).toHaveBeenLastCalledWith('tok', 7, scores, undefined, true)
+      expect(stored()).toEqual([{ ...report(7, 900), aborted: true }])
+
+      resetPendingFinishes()
+      await flushPendingFinishes()
+
+      expect(finish).toHaveBeenLastCalledWith('tok', 7, scores, undefined, true)
+      expect(readPendingFinishes()).toEqual([])
+    })
+
+    it('garde l’arrêt quand les manches refusées repartent sans elles', async () => {
+      const rounds = [{ position: 1, miniGame: 'streak' as const, themeId: null, questionIds: [] }]
+      finish.mockRejectedValueOnce(new RoomApiError(400, 'game_rounds_invalid'))
+
+      await enqueuePendingFinish({ ...report(7, 900), rounds, aborted: true })
+
+      expect(finish).toHaveBeenLastCalledWith('tok', 7, scores, undefined, true)
+      expect(getFinishStatus(7)).toBe('sent')
+    })
+
+    it('une entrée ancienne, sans drapeau ou avec un drapeau illisible, reste une fin normale', async () => {
+      localStorage.setItem(
+        PENDING_FINISHES_KEY,
+        JSON.stringify([
+          report(1),
+          { ...report(2), aborted: 'oui' },
+          { ...report(3), aborted: false },
+        ])
+      )
+
+      await flushPendingFinishes()
+
+      expect(finish.mock.calls.map((call) => [call[1], call[4]])).toEqual([
+        [1, undefined],
+        [2, undefined],
+        [3, undefined],
+      ])
+    })
+  })
 })

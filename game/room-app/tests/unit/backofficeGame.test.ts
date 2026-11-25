@@ -7,7 +7,11 @@ import {
   rememberBackofficeGameId,
   reportFinishedGame,
 } from '@/game/backofficeGame'
-import { PENDING_FINISHES_KEY, readPendingFinishes } from '@/game/pendingFinishes'
+import {
+  flushPendingFinishes,
+  PENDING_FINISHES_KEY,
+  readPendingFinishes,
+} from '@/game/pendingFinishes'
 import { setDemoMode, setRoomToken } from '@/utils/auth'
 import type * as RoomApi from '@/utils/roomApi'
 import { finishRoomGame, RoomApiError } from '@/utils/roomApi'
@@ -48,8 +52,10 @@ const suddenDeathRound = {
 }
 const state = {
   setup: { seed: SEED, participants: [{ id: 1 }, { id: 2 }] },
+  phase: { name: 'finished' },
   rounds: [quickRound, suddenDeathRound],
 } as unknown as GameState
+const abortedState = { ...state, phase: { name: 'aborted' } } as unknown as GameState
 const ROUNDS = [
   { position: 1, miniGame: 'quick_answer', themeId: 4, questionIds: [10, 11] },
   { position: 2, miniGame: 'sudden_death', themeId: 5, questionIds: [20, 21] },
@@ -83,6 +89,49 @@ describe('fin de partie envoyée au backoffice', () => {
     expect(finishRoomGame).toHaveBeenCalledWith('tok', 7, SCORES, ROUNDS)
     expect(readBackofficeGameId()).toBeNull()
     expect(readPendingFinishes()).toEqual([])
+  })
+
+  it('signale une partie arrêtée : mêmes scores et manches, marqués « aborted »', async () => {
+    rememberBackofficeGameId(7, SEED)
+    vi.mocked(finishRoomGame).mockRejectedValueOnce(new Error('offline'))
+
+    expect(reportFinishedGame(abortedState)).toBe(7)
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(finishRoomGame).toHaveBeenCalledWith('tok', 7, SCORES, ROUNDS, true)
+    expect(readBackofficeGameId()).toBeNull()
+    expect(readPendingFinishes()).toEqual([
+      { gameId: 7, seed: SEED, scores: SCORES, rounds: ROUNDS, aborted: true },
+    ])
+
+    // Le drapeau survit à la file : le renvoi porte toujours l'arrêt.
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(finishRoomGame).toHaveBeenLastCalledWith('tok', 7, SCORES, ROUNDS, true)
+    expect(readPendingFinishes()).toEqual([])
+  })
+
+  it('une entrée de file ancienne, sans drapeau, reste une fin normale', async () => {
+    localStorage.setItem(
+      PENDING_FINISHES_KEY,
+      JSON.stringify([{ gameId: 7, seed: SEED, scores: SCORES, aborted: 'yes' }])
+    )
+
+    expect(readPendingFinishes()).toEqual([{ gameId: 7, seed: SEED, scores: SCORES }])
+    await flushPendingFinishes()
+
+    expect(vi.mocked(finishRoomGame).mock.calls[0]?.[4]).toBeUndefined()
+  })
+
+  it('n’envoie rien pour une partie arrêtée en mode démo ou sans partie retenue', async () => {
+    expect(reportFinishedGame(abortedState)).toBeNull()
+
+    rememberBackofficeGameId(7, SEED)
+    setDemoMode(true)
+    expect(reportFinishedGame(abortedState)).toBeNull()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(finishRoomGame).not.toHaveBeenCalled()
+    expect(localStorage.getItem(PENDING_FINISHES_KEY)).toBeNull()
   })
 
   it('oublie la partie retenue dès la mise en file et garde le rapport jusqu’à l’envoi', async () => {

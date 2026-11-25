@@ -4049,9 +4049,14 @@ paths:
                         items:
                           type: integer
                           minimum: 1
+                aborted:
+                  type: boolean
+                  default: false
+                  description: |
+                    `true` : l'opérateur a arrêté la partie sur l'écran de salle. La partie `pending` ou `running` passe `aborted` (`finishedAt` renseigné) avec les scores et les manches jouées jusque-là, mêmes validations qu'une fin normale. Idempotent : une partie déjà `aborted` est renvoyée telle quelle (arrêt commandé depuis le backoffice, renvoi de la file de la salle). Une partie déjà `finished` répond `409 game_already_over` (un arrêt ne défait pas une fin). Absent ou `false` : fin normale.
       responses:
         '200':
-          description: Partie terminée
+          description: Partie terminée, ou arrêtée si `aborted` vaut `true`
           content:
             application/json:
               schema:
@@ -4079,7 +4084,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: Partie annulée (`game_already_over`)
+          description: Partie dans l'autre état final (`game_already_over`), annulée pour une fin normale, terminée pour un arrêt (`aborted` à `true`)
           content:
             application/json:
               schema:

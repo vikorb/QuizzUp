@@ -22,12 +22,15 @@ export const RETRY_DELAYS_MS = [2000, 5000, 15_000, 30_000, 60_000] as const
 /**
  * Rapport de fin d'une partie du backoffice : `seed` relie la partie locale à la partie retenue.
  * `rounds` est absent d'une entrée mise en file par une version antérieure de l'écran de salle.
+ * `aborted` : partie arrêtée par l'opérateur ; absent, c'est une fin normale (aussi pour une
+ * entrée mise en file par une version antérieure).
  */
 export type PendingFinish = {
   gameId: number
   seed: number
   scores: RoomGameScore[]
   rounds?: RoomGameRound[]
+  aborted?: true
 }
 
 /**
@@ -110,6 +113,7 @@ function toPendingFinish(value: unknown): PendingFinish | null {
     ...(Array.isArray(item.rounds) && item.rounds.every((round) => isRound(round))
       ? { rounds: item.rounds.map(copyOfRound) }
       : {}),
+    ...(item.aborted === true ? { aborted: true as const } : {}),
   }
 }
 
@@ -206,7 +210,11 @@ type Attempt = 'sent' | 'refused' | 'reauth' | 'auth' | 'retry'
 
 async function attempt(report: PendingFinish, token: string): Promise<Attempt> {
   try {
-    await finishRoomGame(token, report.gameId, report.scores, report.rounds)
+    const { gameId, scores, rounds } = report
+    // Fin normale : l'appel d'avant, sans argument en plus.
+    await (report.aborted
+      ? finishRoomGame(token, gameId, scores, rounds, true)
+      : finishRoomGame(token, gameId, scores, rounds))
     return 'sent'
   } catch (error) {
     const status = error instanceof RoomApiError ? error.status : null

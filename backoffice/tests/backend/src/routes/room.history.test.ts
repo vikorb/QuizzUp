@@ -3,6 +3,7 @@ import './_helpers/registerRouteMocks'
 import roomRoutes from '@backend/routes/room'
 import {
   ADMIN_ROLE_ROOM,
+  GAME_STATE_ABORTED,
   GAME_STATE_FINISHED,
   GAME_STATE_RUNNING,
   GAME_STATUS_ACTIVE,
@@ -212,6 +213,37 @@ describe('POST /room/games/:gameId/finish : manches jouées (lot 8d)', () => {
 
     expect(response.statusCode).toBe(200)
     expect(dbState.game_rounds).toHaveLength(2)
+  })
+
+  it('records the partial rounds of an aborted game, even the one cut short without questions', async () => {
+    seedGame()
+    seedContent()
+
+    const response = await finish({
+      scores: SCORES,
+      aborted: true,
+      rounds: [ROUNDS[0], { position: 2, miniGame: 'first_buzz', themeId: 2, questionIds: [] }],
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(parseJson<{ game: { state: string } }>(response).game.state).toBe(GAME_STATE_ABORTED)
+    expect(dbState.game_rounds).toHaveLength(2)
+    expect(dbState.game_participants[0]!.score).toBe(900)
+  })
+
+  it('refuses invalid rounds on an abort too, and aborts nothing', async () => {
+    seedGame()
+    seedContent()
+
+    const response = await finish({
+      scores: SCORES,
+      aborted: true,
+      rounds: [{ ...ROUNDS[0], themeId: 3 }],
+    })
+
+    expect(response.statusCode).toBe(400)
+    expect(parseJson(response)).toEqual({ error: 'game_rounds_invalid' })
+    expect(dbState.games[0]!.state).toBe(GAME_STATE_RUNNING)
   })
 
   it('does not write the rounds of a game of another company', async () => {

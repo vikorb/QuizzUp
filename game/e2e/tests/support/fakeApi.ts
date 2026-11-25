@@ -15,6 +15,8 @@ export type FakeApi = {
   roomConfig: Record<string, unknown>
   /** Accusés de commande reçus (`POST /room/commands/:id/result`), dans l'ordre. */
   commandResults: { commandId: string; body: Record<string, unknown> }[]
+  /** Fins de partie reçues (`POST /room/games/:id/finish`, option `live`), dans l'ordre. */
+  finishes: { gameId: number; body: Record<string, unknown> }[]
   /**
    * Envoie une commande à la salle par le flux `GET /room/stream` (option `live`). Sans flux
    * ouvert, elle attend la prochaine ouverture : la salle ne la reçoit jamais avant son `hello`.
@@ -86,6 +88,7 @@ export async function mockBackofficeApi(
     calls: [],
     roomConfig: {},
     commandResults: [],
+    finishes: [],
     sendCommand: (command) => push(sse('command', JSON.stringify(command))),
     sendEvent: (event) => push(sse(event, '{}')),
   }
@@ -181,6 +184,14 @@ export async function mockBackofficeApi(
         body: request.postDataJSON() as Record<string, unknown>,
       })
       return cors(route, 204)
+    }
+    const finish = /^\/room\/games\/(\d+)\/finish$/.exec(pathname)
+    if (options.live && finish && request.method() === 'POST') {
+      api.finishes.push({
+        gameId: Number(finish[1]),
+        body: request.postDataJSON() as Record<string, unknown>,
+      })
+      return cors(route, 200, { game: { ...options.live.game, state: 'finished' } })
     }
     if (pathname === '/logout') {
       return cors(route, 204)

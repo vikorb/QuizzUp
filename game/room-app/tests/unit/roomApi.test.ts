@@ -248,6 +248,16 @@ describe('API de la salle', () => {
     )
   })
 
+  it('marque l’arrêt de la partie, seulement quand elle a été arrêtée', async () => {
+    const fetchMock = respond(200, { game: { id: 4, state: 'aborted' } })
+
+    await finishRoomGame('tok', 4, [{ podium: 1, score: 300 }], undefined, true)
+
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(
+      JSON.stringify({ scores: [{ podium: 1, score: 300 }], aborted: true })
+    )
+  })
+
   it('abandonne l’envoi de fin de partie après 10 s, sans délai pour les autres appels', async () => {
     expect(FINISH_REQUEST_TIMEOUT_MS).toBe(10_000)
     const timeout = vi.spyOn(AbortSignal, 'timeout')

@@ -1,4 +1,5 @@
 import {
+  GAME_STATE_ABORTED,
   GAME_STATE_FINISHED,
   GAME_STATE_PENDING,
   GAME_STATE_RUNNING,
@@ -52,9 +53,12 @@ const roomGameParamsSchema = z.object({
 const roomGameStartBodySchema = z.object({ podiums: roomPodiumsSchema.optional() })
 
 // Scores finaux par pupitre, et manches jouées (facultatives : un ancien écran n'en envoie pas).
+// `aborted: true` : l'opérateur a arrêté la partie sur l'écran de salle (scores et manches
+// jouées jusque-là), absent ou `false` : fin normale.
 const roomGameFinishBodySchema = z.object({
   scores: roomScoresSchema,
   rounds: roomRoundsSchema.optional(),
+  aborted: z.boolean().default(false),
 })
 
 const roomConfigBodySchema = z.object({
@@ -568,7 +572,12 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(404).send({ error: 'game_not_found' })
     }
 
-    if (game.state === GAME_STATE_FINISHED) {
+    const { scores, rounds, aborted } = parsedBody.data
+    const targetState = aborted ? GAME_STATE_ABORTED : GAME_STATE_FINISHED
+
+    // Renvoi : la partie est déjà dans l'état demandé. Un arrêt ne défait pas une fin, et
+    // inversement (409 plus bas).
+    if (game.state === targetState) {
       return { game }
     }
 
@@ -577,7 +586,6 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const podiums = new Set(game.participants.map((participant) => participant.podium))
-    const { scores, rounds } = parsedBody.data
 
     // Un score par pupitre inscrit, ni plus ni moins : pas de partie close à moitié notée.
     if (
@@ -596,7 +604,7 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
       const updated = await trx('games')
         .where('id', gameId)
         .whereIn('state', [GAME_STATE_PENDING, GAME_STATE_RUNNING])
-        .update({ state: GAME_STATE_FINISHED, finished_at: trx.fn.now(), updated_at: trx.fn.now() })
+        .update({ state: targetState, finished_at: trx.fn.now(), updated_at: trx.fn.now() })
 
       // Une autre requête l'a terminée entre-temps : ses scores restent.
       if (!updated) {
@@ -614,7 +622,7 @@ const roomRoutes: FastifyPluginAsync = async (app) => {
 
     const finished = await findRoomGame(req, gameId)
 
-    if (finished?.state !== GAME_STATE_FINISHED) {
+    if (finished?.state !== targetState) {
       return reply.code(409).send({ error: 'game_already_over' })
     }
 
