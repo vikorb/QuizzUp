@@ -124,7 +124,8 @@ réponses d'enrôlement.
   validée à l'enregistrement du thème, questions et leurres tirés par le serveur, extraits
   téléchargés et lus aux trois paliers sur l'écran de salle. Le thème n'est pas dans les seeds.
 - _Arrêt d'une partie en salle_ (#269) : « Arrêter la partie » et la sortie de l'écran signalent
-  l'arrêt au backoffice (`POST /room/games/:id/finish` avec `aborted: true`), scores conservés.
+  l'arrêt au backoffice (`POST /room/games/:id/finish` avec `aborted: true`), scores conservés. Un arrêt lancé depuis le backoffice garde aussi
+  les scores envoyés par la salle (#271).
 
 **Jamais vérifié** : tout le vrai matériel (buzzers, DMX, Art-Net, carte de la fumée, relais
 PowerShell face au vrai nœud) ; panneau de la carte de fumée et `/setup` dans un navigateur ;

@@ -231,6 +231,38 @@ describe('POST /room/games/:gameId/finish : manches jouées (lot 8d)', () => {
     expect(dbState.game_participants[0]!.score).toBe(900)
   })
 
+  describe('game already aborted by the backoffice', () => {
+    const report = (rounds: unknown[] = ROUNDS) => finish({ scores: SCORES, aborted: true, rounds })
+
+    it('records the rounds and the scores of the room once, and keeps the state', async () => {
+      seedGame()
+      seedContent()
+      dbState.games[0]!.state = GAME_STATE_ABORTED
+
+      const first = await report()
+      const again = await report([ROUNDS[0]])
+
+      expect(first.statusCode).toBe(200)
+      expect(again.statusCode).toBe(200)
+      expect(dbState.games[0]!.state).toBe(GAME_STATE_ABORTED)
+      expect(dbState.game_rounds).toHaveLength(2)
+      expect(dbState.game_participants[0]!.score).toBe(900)
+    })
+
+    it('refuses invalid rounds and writes nothing', async () => {
+      seedGame()
+      seedContent()
+      dbState.games[0]!.state = GAME_STATE_ABORTED
+
+      const response = await report([{ ...ROUNDS[0], themeId: 3 }])
+
+      expect(response.statusCode).toBe(400)
+      expect(parseJson(response)).toEqual({ error: 'game_rounds_invalid' })
+      expect(dbState.game_rounds).toEqual([])
+      expect(dbState.game_participants[0]!.score).toBe(0)
+    })
+  })
+
   it('refuses invalid rounds on an abort too, and aborts nothing', async () => {
     seedGame()
     seedContent()
