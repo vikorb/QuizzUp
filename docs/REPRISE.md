@@ -120,10 +120,16 @@ réponses d'enrôlement.
 - _Téléphone_ (375 px) : page d'inscription (cibles de 48 px, consentement, âge), validation par
   le personnel, joueur affiché sur la salle en direct ; page publique du bon.
 
+- _Blind test par playlist_ (2026-11-25, démo Docker, une vraie playlist publique) : playlist
+  validée à l'enregistrement du thème, questions et leurres tirés par le serveur, extraits
+  téléchargés et lus aux trois paliers sur l'écran de salle. Le thème n'est pas dans les seeds.
+- _Arrêt d'une partie en salle_ (#269) : « Arrêter la partie » et la sortie de l'écran signalent
+  l'arrêt au backoffice (`POST /room/games/:id/finish` avec `aborted: true`), scores conservés.
+
 **Jamais vérifié** : tout le vrai matériel (buzzers, DMX, Art-Net, carte de la fumée, relais
 PowerShell face au vrai nœud) ; panneau de la carte de fumée et `/setup` dans un navigateur ;
-lecture d'un vrai QR code par un téléphone ; blind test par playlist avec de vraies playlists
-(liens attendus) ; console de l'éditeur et TOTP avec une vraie application ; `caddy validate`,
+lecture d'un vrai QR code par un téléphone ; écran de révélation (pochette, crédit) et vrai buzz
+d'un blind test par playlist ; console de l'éditeur et TOTP avec une vraie application ; `caddy validate`,
 images de production, SSE et `TRUST_PROXY` derrière Caddy ; plan d'exécution du journal des
 appels sur une base remplie ; SonarQube et Lighthouse (reportés).
 
@@ -145,7 +151,6 @@ Prochain horodatage de migration libre : `20261124190000`.
 | Priorité | Lot                                                                                                                              |
 | -------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | 1        | Banc matériel sur place (`docs/recette/banc-materiel.md`) : buzzers, lumières par le relais, carte de la fumée (F20 à F30)       |
-| 1        | Blind test par playlist de bout en bout dès que les liens des playlists sont fournis                                             |
 | 2        | `schedule_changed` à la suppression ou à la désactivation d'une salle                                                            |
 | 2        | Montage de la pile de production sur une machine (`deploy/prod/`), `caddy validate`, SSE derrière Caddy                          |
 | 3        | Suivis ci-dessous, regroupés par zone ; règles ESLint lourdes du backend ; `knip`                                                |

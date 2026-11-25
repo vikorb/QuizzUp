@@ -519,6 +519,9 @@ Format inspiré de Keep a Changelog.
 
 ### Fixed
 
+- Écran de salle : arrêter une partie du backoffice (« Arrêter la partie », ou quitter l'écran après confirmation) la signale au serveur. La partie passe « arrêtée » avec les scores du moment et les manches jouées, au lieu de rester « en cours ». Un arrêt commandé depuis le backoffice reste sans scores, comme avant. `POST /room/games/:gameId/finish` accepte pour cela `aborted: true` ; l'envoi passe par la file des fins de partie (réessais hors ligne).
+  US: US-ROOM-04 (#269)
+
 - Corrections de recette : le champ de date de l'Agenda n'est plus écrasé ; les boutons reprennent la police de l'interface (Exo 2) au lieu de la police système, au backoffice comme sur les pages publiques ; la demande d'inscription affiche « Demandée le … » ; le format d'une partie s'accorde au singulier (« 1 manche × 1 question ») et une durée sans écart s'écrit « 1 min » au lieu de « 1 à 1 min », au backoffice et sur l'écran de salle.
   US: US-UX-02 (#132)
 

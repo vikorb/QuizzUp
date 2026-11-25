@@ -42,7 +42,12 @@ function getAskedQuestionIds(state: GameState, round: RoundRecord): number[] {
   return round.questions.map((question) => question.id)
 }
 
-/** Manches jouées d'une partie terminée, au format de `POST /room/games/:id/finish`. */
+/**
+ * Manches jouées d'une partie terminée, au format de `POST /room/games/:id/finish`.
+ * ponytail: pour une partie arrêtée, la dernière manche liste toutes les questions tirées, même celles
+ * jamais posées ; sans effet tant que l'anti-répétition ne lit que les parties terminées. Le jour où
+ * les parties arrêtées comptent, couper aux questions répondues ou passées.
+ */
 export function getPlayedRounds(state: GameState): RoomGameRound[] {
   return state.rounds.map((round) => ({
     position: round.position,
@@ -53,7 +58,8 @@ export function getPlayedRounds(state: GameState): RoomGameRound[] {
 }
 
 /**
- * Au podium, met en file la fin de la partie (scores des pupitres) à signaler au backoffice,
+ * Au podium, ou à l'arrêt de la partie (phase `aborted`, rapport marqué `aborted`), met en file la
+ * fin de la partie (scores des pupitres) à signaler au backoffice,
  * pour qu'elle ne reste pas « en cours » ; l'envoi se fait en arrière-plan et se répète tant
  * que le réseau manque (cf. `pendingFinishes.ts`). Sans effet en mode démo, hors partie du
  * backoffice ou si la partie jouée n'est pas celle retenue (graine différente) ou appartient à
@@ -84,6 +90,8 @@ export function reportFinishedGame(state: GameState): number | null {
     seed: saved.seed,
     scores,
     rounds: getPlayedRounds(state),
+    // Partie arrêtée par l'opérateur : le backoffice la passe « arrêtée », pas « terminée ».
+    ...(state.phase.name === 'aborted' && { aborted: true as const }),
   })
   forgetBackofficeGameId()
   return saved.id

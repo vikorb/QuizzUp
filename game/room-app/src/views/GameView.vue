@@ -271,6 +271,9 @@ const activeId = computed(() => {
 useBuzzers(pressBuzzer)
 
 // Podium : le backoffice passe la partie « terminée » avec les scores (aussi après une reprise).
+// Partie arrêtée (bouton, commande à distance, reprise d'une partie arrêtée) : même chemin, la
+// partie passe « arrêtée » ; la sortie de l'écran, qui ferme la partie aussitôt, signale elle-même
+// (`reportFinishedGame` ne remet rien en file deux fois).
 // L'envoi est mis en file et réessayé en arrière-plan si le réseau est coupé.
 const finishGameId = ref<number | null>(null)
 const finishSync = computed(() => {
@@ -278,7 +281,7 @@ const finishSync = computed(() => {
   return status === 'idle' ? null : status
 })
 watch(
-  () => phase.value.name === 'finished' && state.value,
+  () => isOver.value && state.value,
   (finished) => {
     const gameId = finished ? reportFinishedGame(finished) : null
     if (gameId !== null) {
@@ -304,6 +307,10 @@ onBeforeRouteLeave(async () => {
   const ok = await confirm({ message: t('room.toolbar.abortConfirm'), variant: 'danger' })
   if (ok) {
     abortGame()
+    // La partie est fermée ensuite : le `watch` du podium ne verrait plus l'arrêt.
+    if (state.value) {
+      reportFinishedGame(state.value)
+    }
     closeGame()
   }
   return ok
