@@ -97,6 +97,11 @@ attente de la CI GitHub, merge), jamais de rebase ni de push forcé.
 | Console, salle             | #208 écran des demandes de démonstration, #222 logo du centre sur l'écran de salle                                                                                                                                                                                                                                                                                         |
 | Tests, outillage           | #219 endurance sur trois parties, #256 inscription par QR et impression de la feuille, #261 ESLint sur le TypeScript du backend et référence de média partagée, #211 et #262 points de reprise, #263 corrections de la recette navigateur (police des boutons, champ de date de l'Agenda, accords au singulier), #264 scénarios Playwright du test de coupure par la carte |
 
+**Mergé le 25 novembre** : #267 site vitrine en conteneur dans la démonstration Docker (`:4177`) ;
+#268 QR code à l'enrôlement de la double authentification du superadmin (vu dans un navigateur à
+1280 et 768 px, pas encore scanné avec un vrai téléphone), `Cache-Control: no-store` sur les deux
+réponses d'enrôlement.
+
 **Vérifié dans un vrai navigateur, sur la pile Docker réelle** (sans erreur de console) :
 
 - _Backoffice_ : programmation d'une session, modification, ajout d'un joueur avec e-mail et
@@ -123,7 +128,8 @@ images de production, SSE et `TRUST_PROXY` derrière Caddy ; plan d'exécution d
 appels sur une base remplie ; SonarQube et Lighthouse (reportés).
 
 **Démonstration locale** : `npm run demo` sert la copie de travail principale. Ouvrir
-`http://localhost:4173` (et non `127.0.0.1`, refusé par le CORS). L'écran de salle (`:4174`) se
+`http://localhost:4173` (et non `127.0.0.1`, refusé par le CORS). Le site vitrine est sur `:4177`
+(le `:4176` est réservé aux tests de `game/e2e`). L'écran de salle (`:4174`) se
 lance avec `docker compose -f backoffice/docker-compose.yml up -d room-app` s'il n'est pas
 démarré. Une salle n'apparaît dans l'API publique qu'après l'enregistrement de ses créneaux avec
 la réservation publique cochée. Après une mise à jour du code de `backoffice/shared`, relancer les
