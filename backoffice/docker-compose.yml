@@ -112,6 +112,26 @@ services:
         npm run dev -- --host 0.0.0.0 --port 4174 --strictPort
       "
 
+  # Site vitrine (vitrine/) : il lit les jetons de la charte du backoffice, d'où le montage en
+  # lecture seule de ses feuilles de style. Port 4177 côté hôte : le 4176 est celui que les tests
+  # de bout en bout (game/e2e) réservent au frontend du backoffice.
+  vitrine:
+    image: node:22-alpine
+    environment:
+      CHOKIDAR_USEPOLLING: 'true'
+    ports:
+      - '127.0.0.1:4177:4176'
+    volumes:
+      - ../vitrine:/workspace/vitrine
+      - ./frontend/src/assets/styles:/workspace/backoffice/frontend/src/assets/styles:ro
+      - vitrine_node_modules:/workspace/vitrine/node_modules
+    working_dir: /workspace/vitrine
+    command: >
+      sh -c "
+        test node_modules/.package-lock.json -nt package-lock.json || npm install &&
+        npm run dev -- --host 0.0.0.0 --port 4176 --strictPort
+      "
+
   tests:
     image: node:22-alpine
     working_dir: /workspace
@@ -149,3 +169,4 @@ volumes:
   frontend_node_modules:
   shared_node_modules:
   room_app_node_modules:
+  vitrine_node_modules:

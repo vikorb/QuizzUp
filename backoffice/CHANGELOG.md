@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Démo Docker : le site vitrine tourne lui aussi en conteneur (service `vitrine`, <http://localhost:4177>), lancé par `npm run demo` ou par `docker compose` directement. Plus rien à installer sur le poste pour le voir.
+  US: US-SITE-01 (#133)
+
 - Tests de bout en bout du test de coupure de la fumée par la carte (assistant Matériel), avec une carte et une interface DMX simulées : la carte coupe seule à la fin de son bail et la réponse « Elle s'est arrêtée » lève le refus ; une carte débranchée, muette, dont le bail ne coupe pas, ou perdue puis revenue seule pendant le test le fait échouer et la fumée reste refusée ; sans interface de lumières connectée, le test ne se lance pas. Rien n'est validé sur une vraie carte.
   US: US-DMX-01 (#215)
 
