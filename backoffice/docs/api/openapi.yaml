@@ -287,8 +287,9 @@ paths:
 
         Génère un secret TOTP pour le superadmin du défi (`mfa: 'enroll'`) et le range chiffré
         (AES-256-GCM). Peut être rappelée tant que l'enrôlement n'est pas confirmé : le secret est alors
-        remplacé. Le secret n'est rendu qu'ici, en clair, pour être saisi dans l'application ou lu via
-        l'adresse `otpauth`. Réservée aux adresses de `CONSOLE_ALLOWED_CIDRS`.
+        remplacé. Le secret n'est rendu qu'ici, en clair, avec l'adresse `otpauth` et son QR code
+        (`qrSvg`) à scanner dans l'application ; le secret reste saisissable à la main. La réponse porte `Cache-Control: no-store`. Réservée aux
+        adresses de `CONSOLE_ALLOWED_CIDRS`.
       operationId: loginTotpEnroll
       x-availability: disponible
       security: []
@@ -7889,15 +7890,21 @@ components:
       required:
         - secret
         - otpauthUrl
+        - qrSvg
       properties:
         secret:
           type: string
-          description: Secret en base32, à saisir dans l'application
+          description: Secret en base32, à saisir dans l'application si le QR code ne peut pas être scanné
           example: JBSWY3DPEHPK3PXP
         otpauthUrl:
           type: string
-          description: Adresse `otpauth://totp/...` (émetteur `TOTP_ISSUER`, `QuizzUp` par défaut) pour un code QR
+          description: Adresse `otpauth://totp/...` (émetteur `TOTP_ISSUER`, `QuizzUp` par défaut)
           example: otpauth://totp/QuizzUp:root?secret=JBSWY3DPEHPK3PXP&issuer=QuizzUp
+        qrSvg:
+          type: string
+          description: |
+            QR code de `otpauthUrl` en SVG autonome (modules noirs sur fond blanc, marge incluse), à
+            afficher dans un `<img>` (adresse `data:`), jamais injecté dans la page.
 
     TotpConfirmResponse:
       allOf:

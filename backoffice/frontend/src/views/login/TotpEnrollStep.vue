@@ -7,12 +7,17 @@
     <template v-else-if="secret">
       <p class="step-text">{{ $t('login.mfa.enroll.intro') }}</p>
 
-      <dl class="secret-block">
-        <dt class="step-text">{{ $t('login.mfa.enroll.secretLabel') }}</dt>
-        <dd class="secret-value">
-          <code class="secret">{{ groupedSecret }}</code>
-        </dd>
-      </dl>
+      <img v-if="qrSrc" class="qr" :src="qrSrc" :alt="$t('login.mfa.enroll.qrAlt')" />
+
+      <details class="manual">
+        <summary class="manual-summary">{{ $t('login.mfa.enroll.manual') }}</summary>
+        <dl class="secret-block">
+          <dt class="step-text">{{ $t('login.mfa.enroll.secretLabel') }}</dt>
+          <dd class="secret-value">
+            <code class="secret">{{ groupedSecret }}</code>
+          </dd>
+        </dl>
+      </details>
 
       <a v-if="otpauthHref" class="link" :href="otpauthHref">
         {{ $t('login.mfa.enroll.openLink') }}
@@ -63,6 +68,7 @@ import FormField from '@/components/ui/form/FormField.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { confirmTotpEnrollApi, startTotpEnrollApi } from '@/utils/auth'
 import { INVALID_CODE_MESSAGE, mfaFailureMessage, type MfaMessage } from '@/utils/mfaMessage'
+import { getQrSvgSrc } from '@/utils/qr'
 
 const props = defineProps<{ challengeToken: string }>()
 
@@ -72,9 +78,10 @@ const emit = defineEmits<{
   (event: 'back', message: MfaMessage | null): void
 }>()
 
-// Le secret reste ici, en mémoire : ni URL, ni stockage, ni journal.
+// Le secret reste ici, en mémoire : ni URL, ni stockage, ni journal. Le QR code, qui le contient, suit la même règle.
 const secret = ref('')
 const otpauthUrl = ref('')
+const qrSvg = ref('')
 const code = ref('')
 const starting = ref(false)
 const confirming = ref(false)
@@ -90,6 +97,8 @@ const groupedSecret = computed(() => secret.value.replace(/(.{4})(?=.)/g, '$1 ')
 const otpauthHref = computed(() =>
   otpauthUrl.value.startsWith('otpauth://') ? otpauthUrl.value : undefined
 )
+// Image, jamais `v-html` : un SVG dans un `<img>` n'exécute aucun script.
+const qrSrc = computed(() => getQrSvgSrc(qrSvg.value))
 
 function focusCode() {
   codeBox.value?.querySelector('input')?.focus()
@@ -104,6 +113,7 @@ watch(secret, async (value) => {
 function clearSecret() {
   secret.value = ''
   otpauthUrl.value = ''
+  qrSvg.value = ''
 }
 
 async function start() {
@@ -121,6 +131,7 @@ async function start() {
   if (result.ok) {
     secret.value = result.secret
     otpauthUrl.value = result.otpauthUrl
+    qrSvg.value = result.qrSvg
   } else if (
     result.reason === 'mfa_challenge_invalid' ||
     result.reason === 'totp_already_enrolled'
@@ -179,6 +190,29 @@ async function onConfirm() {
 <style scoped src="./mfaStep.css"></style>
 
 <style scoped>
+.qr {
+  width: 200px;
+  height: 200px;
+  max-width: 100%;
+  background: var(--print-paper);
+  border-radius: var(--radius-sm);
+}
+
+.manual-summary {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-1);
+  cursor: pointer;
+}
+
+.manual-summary:focus-visible {
+  outline: 2px solid var(--border-hover);
+  outline-offset: 2px;
+}
+
 .secret-block {
   display: grid;
   gap: 8px;

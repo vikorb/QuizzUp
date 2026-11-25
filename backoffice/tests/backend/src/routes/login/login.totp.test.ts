@@ -21,6 +21,7 @@ import {
   stepAt,
   totpCode,
 } from '../../../../../backend/src/security/totp'
+import { qrSvg } from '../../../../../backend/src/utils/qrSvg'
 import { dbState, MOCK_NOW, resetDb } from '../_helpers/mockDb'
 
 // Le magasin PostgreSQL (UPDATE atomiques, verrou, anti-rejeu) est prouvé sur la vraie base par
@@ -396,8 +397,20 @@ describe('POST /login/totp/enroll', () => {
     const response = await post(app, '/login/totp/enroll', { challengeToken: challenge(app) })
 
     expect(response.statusCode).toBe(200)
-    const { secret, otpauthUrl } = response.json<{ secret: string; otpauthUrl: string }>()
+    expect(response.headers['cache-control']).toBe('no-store')
+    const {
+      secret,
+      otpauthUrl,
+      qrSvg: svg,
+    } = response.json<{
+      secret: string
+      otpauthUrl: string
+      qrSvg: string
+    }>()
     expect(secret).toMatch(/^[A-Z2-7]{32}$/)
+    // Le QR code est celui de l'adresse otpauth rendue, et de nulle autre.
+    expect(svg).toBe(qrSvg(otpauthUrl))
+    expect(svg).not.toBe(qrSvg('otpauth://totp/autre'))
 
     const url = new URL(otpauthUrl)
     expect(url.searchParams.get('secret')).toBe(secret)

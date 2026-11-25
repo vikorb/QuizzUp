@@ -14,7 +14,9 @@
       "enroll": {
         "title": "Set up the authenticator app",
         "loading": "Preparing the setup…",
-        "intro": "Add this account to your authenticator app by entering the secret below, then type the first code it shows.",
+        "intro": "Scan this code with your authenticator app to add this account, then type the first code it shows.",
+        "qrAlt": "QR code to scan with the authenticator app",
+        "manual": "Cannot scan it? Enter the key by hand",
         "secretLabel": "Secret to enter in the app",
         "openLink": "Open in the authenticator app",
         "submit": "Confirm",
@@ -32,7 +34,7 @@
       "unreachable": "Cannot reach the server. Check your connection.",
       "retryIn": "Too many attempts: try again in {minutes} min.",
       "forbidden": "The superadmin can only sign in from the console network.",
-      "enrollmentChanged": "The setup was changed in the meantime: the secret shown is no longer valid. Start again, then enter the new secret in the app.",
+      "enrollmentChanged": "The setup was changed in the meantime: the secret shown is no longer valid. Start again, then scan the new code in the app.",
       "reset": {
         "title": "Two-factor authentication",
         "hint": "Removes the authenticator app and the recovery codes from this account. You will be signed out, and the next sign-in will ask you to set it up again.",

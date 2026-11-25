@@ -8,6 +8,9 @@ Format inspiré de Keep a Changelog.
 
 ### Added
 
+- Double authentification du superadmin : l'écran d'enrôlement affiche un QR code à scanner avec l'application d'authentification. La clé en texte reste disponible, repliée, pour qui ne peut pas scanner.
+  US: US-CONSOLE-03 (#266)
+
 - Tests de bout en bout du test de coupure de la fumée par la carte (assistant Matériel), avec une carte et une interface DMX simulées : la carte coupe seule à la fin de son bail et la réponse « Elle s'est arrêtée » lève le refus ; une carte débranchée, muette, dont le bail ne coupe pas, ou perdue puis revenue seule pendant le test le fait échouer et la fumée reste refusée ; sans interface de lumières connectée, le test ne se lance pas. Rien n'est validé sur une vraie carte.
   US: US-DMX-01 (#215)
 

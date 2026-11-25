@@ -142,13 +142,18 @@ describe('utils/auth — deuxième facteur du superadmin', () => {
 
   it('starts the enrollment and returns the secret', async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse(200, { secret: 'JBSWY3DPEHPK3PXP', otpauthUrl: 'otpauth://totp/x' })
+      jsonResponse(200, {
+        secret: 'JBSWY3DPEHPK3PXP',
+        otpauthUrl: 'otpauth://totp/x',
+        qrSvg: '<svg/>',
+      })
     )
 
     await expect(startTotpEnrollApi({ challengeToken: 'challenge-jwt' })).resolves.toEqual({
       ok: true,
       secret: 'JBSWY3DPEHPK3PXP',
       otpauthUrl: 'otpauth://totp/x',
+      qrSvg: '<svg/>',
     })
     expect(fetchMock.mock.calls[0][0]).toMatch(/\/login\/totp\/enroll$/)
   })
@@ -167,6 +172,7 @@ describe('utils/auth — deuxième facteur du superadmin', () => {
   it.each([
     ['without any field', {}],
     ['with a secret but no link', { secret: 'ABC' }],
+    ['with a secret and a link but no QR code', { secret: 'ABC', otpauthUrl: 'otpauth://totp/x' }],
   ])('treats an incomplete enrollment answer as a server error (%s)', async (_label, body) => {
     fetchMock.mockResolvedValueOnce(jsonResponse(200, body))
 

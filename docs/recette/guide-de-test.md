@@ -72,8 +72,9 @@ démarrage installe encore des dépendances (`npm run demo:logs` pour suivre).
 | Superadmin (éditeur)           | `admin`       | `ChangeMe123!` | Backoffice      |
 
 Le superadmin `admin` passe par une double authentification gérée côté serveur : après son mot de
-passe, une clé est à saisir dans une application d'authentification (Google Authenticator,
-Aegis…), puis les codes de secours sont à noter ; aux connexions suivantes, il saisit le code à 6
+passe, un QR code est à scanner avec une application d'authentification (Google Authenticator,
+Aegis…) ; si le scan est impossible, la clé se saisit à la main (« Impossible de scanner ? »). Les
+codes de secours sont ensuite à noter ; aux connexions suivantes, il saisit le code à 6
 chiffres. L'écran de connexion en deux temps qui présente ces étapes arrive avec le lot 12f,
 livré en même temps. Perdu : `docker compose exec backend npm run totp:reset -- --username admin` (depuis
 `backoffice/`) efface le deuxième facteur, et le prochain login le recrée.
