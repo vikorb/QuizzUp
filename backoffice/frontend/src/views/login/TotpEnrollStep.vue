@@ -9,7 +9,7 @@
 
       <img v-if="qrSrc" class="qr" :src="qrSrc" :alt="$t('login.mfa.enroll.qrAlt')" />
 
-      <details class="manual">
+      <details class="manual" :open="!qrSrc">
         <summary class="manual-summary">{{ $t('login.mfa.enroll.manual') }}</summary>
         <dl class="secret-block">
           <dt class="step-text">{{ $t('login.mfa.enroll.secretLabel') }}</dt>
@@ -199,8 +199,9 @@ async function onConfirm() {
 }
 
 .manual-summary {
-  display: flex;
-  align-items: center;
+  /* `list-item` garde le triangle natif de dépliage, qu'un `flex` ferait disparaître. */
+  display: list-item;
+  align-content: center;
   min-height: 48px;
   font-size: 13px;
   font-weight: 700;

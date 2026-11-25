@@ -82,6 +82,14 @@ describe('views/login/TotpEnrollStep.vue', () => {
     expect(step.find('details .secret').exists()).toBe(true)
   })
 
+  it('unfolds the secret when the server sends no QR code', async () => {
+    startTotpEnrollApiMock.mockResolvedValue({ ...TOTP_ENROLL_START_OK, qrSvg: '' })
+    const step = await mountStep()
+
+    expect(step.find('img.qr').exists()).toBe(false)
+    expect(step.find('details.manual').attributes('open')).toBeDefined()
+  })
+
   it('never follows a link that is not an otpauth address', async () => {
     startTotpEnrollApiMock.mockResolvedValue({
       ...TOTP_ENROLL_START_OK,

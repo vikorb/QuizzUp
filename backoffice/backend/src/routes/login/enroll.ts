@@ -78,6 +78,9 @@ const loginEnrollRoutes: FastifyPluginAsync = async (app) => {
         })
       }
 
+      // Les codes de secours ne sont rendus qu'ici, en clair : aucun cache ne garde la réponse.
+      reply.header('Cache-Control', 'no-store')
+
       return { ...(await issueSession(app, admin)), recoveryCodes }
     }
   )

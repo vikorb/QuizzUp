@@ -358,7 +358,8 @@ paths:
 
         Vérifie le premier code à 6 chiffres de l'application, active le deuxième facteur, ouvre la
         session et rend les 10 codes de secours **une seule fois** (seules leurs empreintes sont
-        conservées). Le code servi ici ne peut plus l'être pour se connecter. Réservée aux adresses de
+        conservées). Le code servi ici ne peut plus l'être pour se connecter. La réponse porte
+        `Cache-Control: no-store`. Réservée aux adresses de
         `CONSOLE_ALLOWED_CIDRS`.
       operationId: loginTotpEnrollConfirm
       x-availability: disponible

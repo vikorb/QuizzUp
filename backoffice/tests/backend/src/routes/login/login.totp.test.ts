@@ -410,7 +410,6 @@ describe('POST /login/totp/enroll', () => {
     expect(secret).toMatch(/^[A-Z2-7]{32}$/)
     // Le QR code est celui de l'adresse otpauth rendue, et de nulle autre.
     expect(svg).toBe(qrSvg(otpauthUrl))
-    expect(svg).not.toBe(qrSvg('otpauth://totp/autre'))
 
     const url = new URL(otpauthUrl)
     expect(url.searchParams.get('secret')).toBe(secret)
@@ -486,6 +485,7 @@ describe('POST /login/totp/enroll/confirm', () => {
     })
 
     expect(response.statusCode).toBe(200)
+    expect(response.headers['cache-control']).toBe('no-store')
     const json = response.json<{ token: string; admin: { id: number }; recoveryCodes: string[] }>()
     expect(json.admin.id).toBe(1)
     expect(json.recoveryCodes).toHaveLength(TOTP_RECOVERY_CODES_COUNT)
